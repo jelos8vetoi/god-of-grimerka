@@ -2022,35 +2022,49 @@ const MKCLIP = {
     [.66, mk({ spine: { x: .28 }, head: { x: -.25 }, rarm: { x: -2.1 }, larm: { x: -2.1 }, rfa: { x: -.15 }, lfa: { x: -.15 } })],
     [.85, mk({ spine: { x: .1 }, rarm: { x: -1.2 }, larm: { x: -1.2 }, rfa: { x: -.8 }, lfa: { x: -.8 } })], [1, mk({})]] }
 };
+// Стойка Пахана по референсу: ноги на ширине плеч, вес на одной ноге, левая рука свободно висит,
+// правая чуть отведена — в ней опущенный балон, подбородок чуть вверх. Собирается из позы привязки (T-поза).
+const PHS = { hips: { y: .08 }, spine: { x: -.03, y: -.05 }, head: { x: -.07, z: .05 }, neck: { y: .06 },
+  rarm: { z: 1.12, x: -0.12 }, rfa: { x: -0.22 }, larm: { z: -1.3, x: 0.05 }, lfa: { x: -0.12 },
+  rup: { z: -0.13, x: -.04 }, lup: { z: 0.16, x: .03 }, lleg: { x: .1 } };
+const ph = o => { const r = {}; for (const k in PHS) r[k] = Object.assign({}, PHS[k]); for (const k in o) { r[k] = Object.assign({}, r[k]); for (const a in o[k]) r[k][a] = (r[k][a] || 0) + o[k][a]; } return r; };
+const PHREST = { Idle: { d: 3.6, k: [[0, ph({})], [.25, ph({ spine: { x: -.025 }, head: { x: -.02 }, rarm: { z: -.03 }, larm: { z: .03 } })], [.5, ph({ head: { y: .1 } })],
+  [.75, ph({ spine: { x: -.025 }, head: { x: -.02, y: .04 }, rarm: { z: -.03 }, larm: { z: .03 } })], [1, ph({})]] } };
+PHREST.Running_A = MKCLIP.Running_A;   // бег тоже из опущенных рук, чтобы балон не проходил перед лицом
 // добавляет модели недостающие клипы; база — первый кадр стойки (Idle)
 function mxClips(scene, clips, SET) {
   SET = SET || MXCLIP; const B = mxBones(scene); if (!B.hips || !B.rarm) return clips;
   if (SET === MKCLIP) clips = [];   // анимации из файла не используются
+  const rest = {}; for (const k of MXO) if (B[k]) rest[k] = B[k].quaternion.clone(); const restP = B.hips.position.clone();
   const have = new Set(clips.map(c => c.name)), idle = clips.find(c => c.name === 'Idle') || clips[0];
   const mx = new T3.AnimationMixer(scene); if (idle) { mx.clipAction(idle).play(); mx.update(0); }
   const base = {}; for (const k of MXO) if (B[k]) base[k] = B[k].quaternion.clone();
   // бег и прочее «на месте»: игра двигает героя сама, поэтому убираем сдвиг корня по горизонтали (кроме смерти)
   for (const c of clips) if (!/^Death/.test(c.name)) for (const t of c.tracks) if (t.name === B.hips.name + '.position') { const v = t.values; for (let i = 3; i < v.length; i += 3) { v[i] = v[0]; v[i + 2] = v[2]; } }
   const out = clips.slice();
-  for (const name in SET) {
-    if (have.has(name)) continue;
-    const def = SET[name], dur = def.d || 1, keys = def.k || def, times = keys.map(k => k[0] * dur), vals = {};
+  const SETS = [[SET, base, false]]; if (SET === MXCLIP && scene.userData.phIdle) SETS.push([PHREST, rest, true]);
+  for (const [SS, BASE, fromRest] of SETS) for (const name in SS) {
+    if (have.has(name) && !fromRest) continue;
+    const def = SS[name], dur = def.d || 1, keys = def.k || def, times = keys.map(k => k[0] * dur), vals = {};
     for (const k of MXO) if (B[k]) vals[k] = [];
     for (const [, pose] of keys) {
-      for (const k in base) B[k].quaternion.copy(base[k]);
+      for (const k in BASE) B[k].quaternion.copy(BASE[k]);
       scene.updateMatrixWorld(true); mxPose(scene, B, pose);
       for (const k in vals) { const q = B[k].quaternion; const v = vals[k], n = v.length; if (n >= 4 && v[n - 4] * q.x + v[n - 3] * q.y + v[n - 2] * q.z + v[n - 1] * q.w < 0) v.push(-q.x, -q.y, -q.z, -q.w); else v.push(q.x, q.y, q.z, q.w); }
     }
     // вращения больше 180° (вертушка) — дробим, чтобы кватернион не срезал угол
-    out.push(new T3.AnimationClip(name, dur, Object.keys(vals).map(k => new T3.QuaternionKeyframeTrack(B[k].name + '.quaternion', times, vals[k]))));
+    const tr = Object.keys(vals).map(k => new T3.QuaternionKeyframeTrack(B[k].name + '.quaternion', times, vals[k]));
+    if (fromRest) { tr.push(new T3.VectorKeyframeTrack(B.hips.name + '.position', [0, dur], [restP.x, restP.y, restP.z, restP.x, restP.y, restP.z]));
+      const old = out.findIndex(c => c.name === name); if (old >= 0) out[old].name = name + '_Tripo'; }   // боевая стойка из файла остаётся как база ударов
+    out.push(new T3.AnimationClip(name, dur, tr));
   }
   for (const k in base) B[k].quaternion.copy(base[k]);
   mx.stopAllAction(); mx.uncacheRoot(scene);
   return out;
 }
 // оружие в правую кисть Mixamo. Направление задаётся в стойке (Idle) в осях персонажа: x — его левая рука, y — вверх, z — вперёд.
-// Кулаки у Пахана в стойке под подбородком, поэтому балон идёт от них вперёд, вправо и чуть вниз — мимо большой головы.
-const MXGRIP = { dir: [-.35, -.2, .9], len: .4 };
+// В стойке Пахан держит балон в опущенной правой руке: горлышко в кулаке, донышко вниз-вперёд, как на референсе.
+const MXGRIP = { dir: [-.3, -.85, .42], len: .4 };
 function mxGrip(g, W3) {
   const s = g.children[0], B = mxBones(s), hand = B.rhand; if (!hand) return false;
   let mid = null; hand.traverse(o => { if (!mid && /RightHandMiddle1$/.test(o.name)) mid = o; });
@@ -2091,7 +2105,7 @@ function loadModels() {
           const pk = window.GLBPACK && window.GLBPACK[k];
           if (pk) g.scene.traverse(q => { if (!q.isMesh || Array.isArray(q.material)) return; const key = pk + '|' + q.material.name; let cm = PMAT[key]; if (!cm) { cm = PMAT[key] = q.material; cm.map = PT[pk] || null; cm.needsUpdate = true; } q.material = cm; });
           else mergeSkinned(g.scene);
-          const bb = new T3.Box3().setFromObject(g.scene); MDL[k] = { kk: !!KK[k], scene: g.scene, clips: KK[k] ? g.animations : mxClips(g.scene, g.animations, k === 'madk1d' ? MKCLIP : MXCLIP), mx: !KK[k] && !!mxBones(g.scene).hips, h: (bb.max.y - bb.min.y) || 1, w: (bb.max.x - bb.min.x) || 1, y0: bb.min.y };
+          const bb = new T3.Box3().setFromObject(g.scene); MDL[k] = { kk: !!KK[k], scene: g.scene, clips: KK[k] ? g.animations : mxClips((k === 'pahan' && (g.scene.userData.phIdle = 1), g.scene), g.animations, k === 'madk1d' ? MKCLIP : MXCLIP), mx: !KK[k] && !!mxBones(g.scene).hips, h: (bb.max.y - bb.min.y) || 1, w: (bb.max.x - bb.min.x) || 1, y0: bb.min.y };
         } catch (error) {
           console.warn('Model setup failed:', k, error);
         } finally { finish(); }
