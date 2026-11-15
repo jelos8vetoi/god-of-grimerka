@@ -5,14 +5,15 @@
 <script>
 const W = 1280, H = 720, FPS = 30, LEN = 30;
 const SHOTS = [
-  { t0: 0, t1: 2.5, p: 'A', n: 90, from: 6 }, { t0: 2.5, t1: 5, p: 'B', n: 80, from: 4 }, { t0: 5, t1: 8, p: 'D6_', n: 50, from: 2, sp: .5 },
-  { t0: 10, t1: 11, p: 'D1_', n: 50, from: 8 }, { t0: 11, t1: 12, p: 'R', n: 70, from: 14, tag: 'НАСТОЯЩИЕ ПЕРЕКАТЫ' }, { t0: 12, t1: 13, p: 'D2_', n: 50, from: 8 }, { t0: 13, t1: 14, p: 'D3_', n: 50, from: 8 },
-  { t0: 14, t1: 15, p: 'D4_', n: 50, from: 6, tag: 'БИТА · МИКРОФОН · СЭМПЛЕР' }, { t0: 15, t1: 16, p: 'D5_', n: 50, from: 8 }, { t0: 16, t1: 17, p: 'D7_', n: 50, from: 6, tag: 'ПЕРЕГРУЗ' }, { t0: 17, t1: 18, p: 'D8_', n: 50, from: 8 },
-  { t0: 18, t1: 19, p: 'H2_', n: 66, from: 34 }, { t0: 19, t1: 20, p: 'H4_', n: 66, from: 26 }, { t0: 20, t1: 21, p: 'H6_', n: 66, from: 26 }, { t0: 21, t1: 22, p: 'H8_', n: 66, from: 26 },
-  { t0: 22, t1: 22.5, p: 'I2_', n: 60, from: 2 }, { t0: 22.5, t1: 23, p: 'I4_', n: 60, from: 2 }, { t0: 23, t1: 23.5, p: 'I6_', n: 60, from: 2 }, { t0: 23.5, t1: 24.5, p: 'I8_', n: 60, from: 28 }];
-const VO = [['vo1', .5], ['vo2', 2.75], ['vo3', 5.0], ['vo4', 8.12], ['vo5', 10.05], ['vo6', 12.05], ['vo7', 13.9], ['vo8', 16.05], ['vo9', 22.25], ['vo10', 25.4]];
-const SPEECH = { vo1: [.11, 1.4], vo2: [.2, 2.16], vo3: [.12, 3.08], vo4: [.12, 1.87], vo5: [.12, 1.11], vo6: [.12, 1.02], vo7: [.26, 1.05], vo8: [.12, .99], vo9: [.13, 1.49], vo10: [.13, 1.32] };
-const HITS = [8, 10, 12, 14, 16, 18, 19, 20, 21, 24.5], CUTS = SHOTS.map(q => q.t0).filter(v => v >= 10);
+  { t0: 0, t1: 3.2, art: 1 },
+  { t0: 3.2, t1: 6.4, p: 'W', n: 110, from: 8, z: 1.5, cy: .56, aura: '#ffc23b' }, { t0: 6.4, t1: 8.5, p: 'G', n: 100, from: 14, z: 1.5, cy: .56, aura: '#ff5a1c' },
+  { t0: 11, t1: 12, p: 'R', n: 90, from: 28, tag: 'ПЕРЕКАТЫ', z: 1.25, cy: .6 },
+  { t0: 10, t1: 10.5, p: 'D1_', n: 46, from: 6 }, { t0: 10.5, t1: 11, p: 'D2_', n: 46, from: 6 }, { t0: 12, t1: 12.5, p: 'D3_', n: 46, from: 6 }, { t0: 12.5, t1: 13, p: 'D4_', n: 46, from: 6 }, { t0: 13, t1: 13.5, p: 'D5_', n: 46, from: 6 }, { t0: 13.5, t1: 14, p: 'Kb', n: 45, from: 2 }, { t0: 14, t1: 14.5, p: 'D6_', n: 46, from: 6 }, { t0: 14.5, t1: 15, p: 'D7_', n: 46, from: 6 }, { t0: 15, t1: 15.5, p: 'D8_', n: 46, from: 6 }, { t0: 15.5, t1: 16, p: 'I2_', n: 44, from: 4 }, { t0: 16, t1: 16.5, p: 'I4_', n: 44, from: 4 }, { t0: 16.5, t1: 17, p: 'I6_', n: 44, from: 4 }, { t0: 17, t1: 17.5, p: 'I1_', n: 44, from: 4 }, { t0: 17.5, t1: 18, p: 'I3_', n: 44, from: 4 },
+  { t0: 18, t1: 18.5, p: 'H1_', n: 60, from: 30, boss: 2 }, { t0: 18.5, t1: 19, p: 'H2_', n: 60, from: 30, boss: 3 }, { t0: 19, t1: 19.5, p: 'H3_', n: 60, from: 30, boss: 4 }, { t0: 19.5, t1: 20, p: 'H4_', n: 60, from: 30, boss: 5 }, { t0: 20, t1: 20.5, p: 'H5_', n: 60, from: 30, boss: 6 }, { t0: 20.5, t1: 21, p: 'H6_', n: 60, from: 30, boss: 7 }, { t0: 21, t1: 21.5, p: 'H7_', n: 60, from: 30, boss: 8 }, { t0: 21.5, t1: 22, p: 'H8_', n: 60, from: 30, boss: 9 },
+  { t0: 22, t1: 24.5, p: 'I5_', n: 44, from: 2, sp: .55, z: 1.3, cy: .62, aura: '#ff5a1c' }];
+const VO = [['vo1', .5], ['vo2', 3.6], ['vo3', 6.95], ['vo4', 8.62], ['vo5', 10.05], ['vo6', 12.05], ['vo7', 13.9], ['vo8', 16.05], ['vo9', 22.45], ['vo10', 25.5]];
+const SPEECH = { vo1: [.12, 2.29], vo2: [.12, 2.15], vo3: [.12, 1.4], vo4: [.12, 1.33], vo5: [.12, 1.11], vo6: [.12, 1.02], vo7: [.26, 1.05], vo8: [.14, .97], vo9: [.12, 1.8], vo10: [.13, 1.32] };
+const HITS = [3.2, 6.75, 8.5, 10, 12, 14, 16, 18, 18.5, 19, 19.5, 20, 20.5, 21, 21.5, 22, 24.5], CUTS = SHOTS.map(q => q.t0).filter(v => v >= 10);
 const LOGO = 24.5;
 const c = document.getElementById('v'), x = c.getContext('2d');
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v, ease = k => 1 - Math.pow(1 - clamp(k, 0, 1), 3);
@@ -21,7 +22,7 @@ let keyart, icon, grain, lastBmp = null;
 
 function shot(t) { for (const q of SHOTS) if (t >= q.t0 && t < q.t1) return q; return null; }
 function key(t) {
-  for (const s of SHOTS) if (t >= s.t0 && t < s.t1) { const i = clamp((s.from || 0) + Math.floor((t - s.t0) * FPS * (s.sp || 1)), 0, s.n - 1); return s.p + String(i).padStart(3, '0'); }
+  for (const s of SHOTS) if (s.p && t >= s.t0 && t < s.t1) { const i = clamp((s.from || 0) + Math.floor((t - s.t0) * FPS * (s.sp || 1)), 0, s.n - 1); return s.p + String(i).padStart(3, '0'); }
   return null;
 }
 function want(t) {   // декодируем кадры на ~1.2 c вперёд, старые освобождаем
@@ -43,67 +44,109 @@ function slam(s, t, t0) {             // удар-заголовок по цен
   const k = t - t0; if (k < 0 || k > .95) return; const sc = 1 + 0.9 * Math.pow(1 - ease(k / .16), 2), a = clamp(k / .05, 0, 1) * clamp((.95 - k) / .15, 0, 1);
   x.save(); x.translate(W / 2, H / 2 + 30); x.scale(sc, sc); txt(s, 112, 0, 0, { align: 'center', a, glow: '#ff2a2a', blur: 40 }); x.restore();
 }
+const rnd = i => { const v = Math.sin(i * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+function art(z, dy) {                 // зимний двор: заполняет кадр, медленный наезд
+  const k = Math.max(W / keyart.width, H / keyart.height) * z, w = keyart.width * k, h = keyart.height * k; x.drawImage(keyart, (W - w) / 2, (H - h) / 2 + (dy || 0), w, h);
+}
+function snow(t, a) {
+  x.save(); x.fillStyle = '#fff';
+  for (let i = 0; i < 140; i++) { const sp = .05 + rnd(i) * .09, yy = ((t * sp + rnd(i + 50)) % 1) * (H + 20) - 10, xx = (rnd(i + 99) * W + Math.sin(t * .8 + i) * 18 + t * 14) % W, r = .8 + rnd(i + 7) * 1.8; x.globalAlpha = a * (.25 + rnd(i + 3) * .6); x.beginPath(); x.arc(xx, yy, r, 0, 6.3); x.fill(); }
+  x.restore();
+}
+function embers(t, a, col, n) {       // искры ауры: летят снизу вверх
+  x.save(); x.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < (n || 70); i++) { const sp = .18 + rnd(i) * .35, ph = (t * sp + rnd(i + 20)) % 1, xx = rnd(i + 40) * W + Math.sin(t * 1.7 + i) * 26, yy = H * (1.05 - ph * 1.15), r = (2 + rnd(i + 9) * 5) * (1 - ph * .6);
+    const g = x.createRadialGradient(xx, yy, 0, xx, yy, r * 3); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.globalAlpha = a * (1 - ph) * (.5 + rnd(i + 5) * .5); x.fillStyle = g; x.fillRect(xx - r * 3, yy - r * 3, r * 6, r * 6); }
+  x.restore();
+}
+function auraGlow(t, col, cy, a) {    // столб света за героем
+  x.save(); x.globalCompositeOperation = 'lighter'; const p = .82 + .18 * Math.sin(t * 9);
+  let g = x.createRadialGradient(W / 2, H * cy, 10, W / 2, H * cy, 330); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.globalAlpha = Math.min(1, .62 * a * p); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  g = x.createLinearGradient(W / 2 - 150, 0, W / 2 + 150, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(.5, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.globalAlpha = Math.min(1, .42 * a * p); x.fillStyle = g; x.fillRect(W / 2 - 150, 0, 300, H * cy + 40);
+  x.restore();
+}
+function auraVal(t) {
+  if (t >= 22) return '∞'; let v;
+  if (t < 6.75) v = 100 + Math.floor((t - 3.2) / .25) * 60; else if (t < 10) v = 10000 + Math.floor((t - 6.75) * 30) * 37;
+  else v = Math.round(12000 * Math.pow(1.42, Math.floor((t - 10) * 2)) + ((t * 30 | 0) % 7) * 113);
+  return '+' + String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
 function draw(t) {
-  const k = key(t); let sh = 0; for (const h of HITS) if (t >= h && t < h + .35) sh = (1 - (t - h) / .35) * 14;
+  const k = key(t); let sh = 0; for (const h of HITS) if (t >= h && t < h + .35) sh = (1 - (t - h) / .35) * (h < 10 ? 9 : 14);
   x.save(); x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
   if (sh) x.translate((Math.random() - .5) * sh, (Math.random() - .5) * sh);
   const q = shot(t), im = k && bmp[k] ? bmp[k] : (k && lastBmp && bmp[lastBmp] ? bmp[lastBmp] : null); if (k && bmp[k]) lastBmp = k;
-  if (im) {
-    const dq = t - q.t0, fast = q.t0 >= 10, z = fast ? 1.03 + .09 * Math.pow(1 - clamp(dq / .28, 0, 1), 2) + dq * .02 : 1.02 + (t - q.t0) * .012;
-    x.save(); x.translate(W / 2, H / 2); x.scale(z, z); x.drawImage(im, -W / 2, -H / 2, W, H);
-    if (fast && dq < .1) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = .5 * (1 - dq / .1); x.drawImage(im, -W / 2 - 14, -H / 2, W, H); x.drawImage(im, -W / 2 + 14, -H / 2, W, H); }
+  if (q && q.art) { x.filter = 'brightness(1.9) contrast(1.05)'; art(1.02 + t * .035, -10); x.filter = 'none'; snow(t, 1); }
+  else if (im) {
+    const dq = t - q.t0, fast = q.t0 >= 10 && q.t1 - q.t0 <= 1, cy = q.cy || .5;
+    const z = (q.z || 1) * (fast ? 1.03 + .1 * Math.pow(1 - clamp(dq / .22, 0, 1), 2) + dq * .03 : 1 + dq * .022) * (q.p === 'G' && t >= 6.75 ? 1 + .12 * Math.pow(1 - clamp((t - 6.75) / .4, 0, 1), 2) : 1);
+    x.save(); x.translate(W / 2, H / 2); x.scale(z, z); x.translate(0, (.5 - cy) * H);
+    x.drawImage(im, -W / 2, -H / 2, W, H);
+    if (fast && dq < .1) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = .5 * (1 - dq / .1); x.drawImage(im, -W / 2 - 16, -H / 2, W, H); x.drawImage(im, -W / 2 + 16, -H / 2, W, H); }
     x.restore();
+    if (q.aura) { const on = q.p === 'G' ? (t < 6.75 ? .55 : 1.5) : q.p === 'W' ? clamp((t - q.t0) / 1.2, 0, 1) * .9 : 1.2, col = q.p === 'G' && t < 6.75 ? '#ffc23b' : q.aura;
+      auraGlow(t, col, .5, on); embers(t, Math.min(1, on), col, q.p === 'W' ? 50 : 90); }
   }
   x.restore();
   if (t < LOGO) {
-    // цвет: лёгкий холод в тенях и тёплый центр, виньетка, плёночное зерно, кинорамка
+    // цвет: холод в тенях, виньетка, зерно, кинорамка
     x.save(); x.globalCompositeOperation = 'soft-light'; x.fillStyle = 'rgba(40,10,60,.35)'; x.fillRect(0, 0, W, H); x.restore();
-    const g = x.createRadialGradient(W / 2, H / 2, H * .35, W / 2, H / 2, H * .95); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.55)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
-    x.globalAlpha = .06; x.drawImage(grain, -Math.random() * 256, -Math.random() * 256); x.globalAlpha = 1;
-    x.fillStyle = '#000'; x.fillRect(0, 0, W, 44); x.fillRect(0, H - 44, W, 44);
+    const g = x.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, H * .95); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.62)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.globalAlpha = .07; x.drawImage(grain, -Math.random() * 256, -Math.random() * 256); x.globalAlpha = 1;
+    x.fillStyle = '#000'; x.fillRect(0, 0, W, 52); x.fillRect(0, H - 52, W, 52);
   }
-  // интро: проявление из черноты
-  if (t < .8) { x.fillStyle = `rgba(0,0,0,${1 - t / .8})`; x.fillRect(0, 0, W, H); }
-  lower('ТОМСК. ЯНВАРЬ. −34°', 'до релиза альбома — шесть часов', t, .4, 2.35);
-  lower('ПАХАН', 'и его кент madk1d', t, 2.8, 4.85);
-  lower('АЛГОРИТМ ЗАБРАЛ ГОЛОС', 'в счёт старого долга', t, 5.4, 7.8);
-  if (t >= 8 && t < 10) {                           // удар и тишина
+  if (t < 1) { x.fillStyle = `rgba(0,0,0,${1 - t})`; x.fillRect(0, 0, W, H); }
+  lower('ТОМСК. ЯНВАРЬ. −34°', 'у кента забрали голос', t, .5, 3.0);
+  lower('ОНИ ДУМАЛИ, Я ПРОМОЛЧУ', 'шесть часов до релиза', t, 3.7, 6.2);
+  if (t >= 6.75 && t < 8.5) {                       // имя героя
+    const kk = t - 6.75, sc = 1 + 1.4 * Math.pow(1 - ease(kk / .2), 2), a = clamp(kk / .05, 0, 1) * clamp((8.5 - t) / .2, 0, 1);
+    x.fillStyle = 'rgba(0,0,0,' + .38 * a + ')'; x.fillRect(0, 0, W, H); x.save(); x.translate(W / 2, H / 2 + 60); x.scale(sc, sc); txt('ПАХАН', 190, 0, 0, { align: 'center', a: a * .96, color: '#fff3d6', glow: '#ff7a1c', blur: 60 }); x.restore();
+    if (kk < .18) { x.fillStyle = `rgba(255,235,200,${.9 * (1 - kk / .18)})`; x.fillRect(0, 0, W, H); }
+  }
+  if (t >= 8.5 && t < 10) {                         // удар и тишина
     x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
-    const a = clamp((t - 8.1) / .15, 0, 1) * clamp((10 - t) / .15, 0, 1), full = 'ОН ДУМАЛ, Я НЕ ПРИДУ', n = Math.floor(clamp((t - 8.2) / 1.3, 0, 1) * full.length);
-    txt(full.slice(0, n), 64, W / 2 - 400, H / 2 + 22, { a, color: '#ff3b3b', glow: '#ff2a2a', blur: 30 });
+    const a = clamp((t - 8.55) / .1, 0, 1) * clamp((10 - t) / .12, 0, 1), full = 'И Я ИДУ ЗА СВОИМ', n = Math.floor(clamp((t - 8.62) / 1.0, 0, 1) * full.length);
+    txt(full.slice(0, n), 72, W / 2 - 385, H / 2 + 24, { a, color: '#ffc23b', glow: '#ff7a1c', blur: 34 });
+    embers(t, .5 * a, '#ff7a1c', 40);
   }
-  slam('9 СЕРВЕРОВ', t, 10); slam('9 БОССОВ', t, 12); slam('3 ОРУЖИЯ', t, 14); slam('1 ПАХАН', t, 16);
-  { const q = shot(t); if (q && q.tag) { const a = clamp((t - q.t0) / .12, 0, 1) * clamp((q.t1 - t) / .12, 0, 1); x.save(); x.globalAlpha = a; x.fillStyle = '#ffd23b'; x.fillRect(W - 70, 598, 6, 34); x.restore(); txt(q.tag, 26, W - 84, 624, { align: 'right', a, color: '#ffd23b', glow: 'rgba(0,0,0,.9)', blur: 10 }); } }
-  if (t >= 18 && t < 22) {                          // боссы: счётчик
-    const i = Math.floor(t - 18), dq = t - 18 - i, a = clamp(dq / .08, 0, 1) * clamp((1 - dq) / .12, 0, 1);
-    txt('БОСС', 20, 78, 104, { a, color: '#ffb3a8' }); txt('0' + (i * 2 + 2) + ' / 09', 54, 76, 156, { a, glow: '#ff2a2a', blur: 22 });
+  slam('9 СЕРВЕРОВ', t, 10); slam('9 БОССОВ', t, 12); slam('3 ОРУЖИЯ', t, 14); slam('0 ПОЩАДЫ', t, 16);
+  { const q2 = shot(t); if (q2 && q2.tag) { const a = clamp((t - q2.t0) / .12, 0, 1) * clamp((q2.t1 - t) / .12, 0, 1); x.save(); x.globalAlpha = a; x.fillStyle = '#ffd23b'; x.fillRect(W - 70, 598, 6, 34); x.restore(); txt(q2.tag, 26, W - 84, 624, { align: 'right', a, color: '#ffd23b', glow: 'rgba(0,0,0,.9)', blur: 10 }); }
+    if (q2 && q2.boss) { const dq = t - q2.t0, a = clamp(dq / .06, 0, 1) * clamp((q2.t1 - t) / .08, 0, 1); txt('БОСС', 20, 78, 112, { a, color: '#ffb3a8' }); txt('0' + q2.boss + ' / 09', 58, 76, 166, { a, glow: '#ff2a2a', blur: 22 }); } }
+  if (t >= 3.2 && t < LOGO && !(t >= 8.5 && t < 10)) { // счётчик ауры
+    const v = auraVal(t), inf = v === '∞', a = clamp((t - 3.2) / .4, 0, 1), big = t >= 22 ? 1 + .5 * Math.pow(1 - clamp((t - 22) / .3, 0, 1), 2) : 1;
+    txt('АУРА', 18, W - 76, 104, { align: 'right', a, color: '#ffd9a0' });
+    x.save(); x.translate(W - 76, 150); x.scale(big, big); txt(v, inf ? 76 : 44, 0, inf ? 14 : 0, { align: 'right', a, color: inf ? '#fff3d6' : '#ffc23b', glow: inf ? '#ff7a1c' : 'rgba(255,140,30,.8)', blur: inf ? 40 : 18 }); x.restore();
   }
-  if (t >= 22.3 && t < 24.4) { const a = clamp((t - 22.3) / .2, 0, 1) * clamp((24.4 - t) / .2, 0, 1); txt('Я ПРИШЁЛ ЗА СВОИМ', 44, W / 2, H - 92, { align: 'center', a, glow: '#ff2a2a', blur: 26 }); }
-  if (t >= LOGO) {                                  // логотип
-    const k2 = t - LOGO, z = 1.06 + k2 * .012;
-    x.save(); x.translate(W / 2, H / 2); x.scale(z, z); x.drawImage(keyart, -W / 2, -H / 2 - 10, W, W * keyart.height / keyart.width); x.restore();
-    x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(0, 0, W, H);
-    const a1 = ease(k2 / .5), a2 = clamp((k2 - 2.5) / .5, 0, 1), a3 = clamp((k2 - 3.3) / .5, 0, 1);
-    x.save(); x.translate(110, 0);
-    txt('GOD', 64, 0, 250, { a: a1 }); txt('OF', 64, 170, 250, { a: a1, color: '#ff3b3b' });
-    txt('GRIMERKA', 128, -6, 384, { a: a1, glow: 'rgba(255,40,30,' + (.6 + .4 * Math.sin(k2 * 3)) + ')', blur: 50 });
-    txt('сага о Пахане, кенте и девяти серверах', 22, 0, 440, { a: a2, color: '#d0d6e2' });
-    x.globalAlpha = a3; x.fillStyle = '#ff3b3b'; x.fillRect(0, 486, 420, 52); x.globalAlpha = 1;
-    txt('ИГРАТЬ БЕСПЛАТНО', 26, 22, 522, { a: a3 });
-    txt('github.com/jelos8vetoi/god-of-grimerka', 18, 0, 572, { a: a3, color: '#ffd23b' });
+  if (t >= 22.5 && t < 24.4) { const kk = t - 22.5, sc = 1 + .9 * Math.pow(1 - ease(kk / .18), 2), a = clamp(kk / .06, 0, 1) * clamp((24.4 - t) / .2, 0, 1); x.save(); x.translate(W / 2, H - 120); x.scale(sc, sc); txt('АУРА БЕСКОНЕЧНА', 60, 0, 0, { align: 'center', a, color: '#fff3d6', glow: '#ff7a1c', blur: 40 }); x.restore(); }
+  if (t >= 23.9 && t < LOGO) { x.fillStyle = `rgba(255,240,215,${Math.pow((t - 23.9) / .6, 2)})`; x.fillRect(0, 0, W, H); }
+  if (t >= LOGO) {                                  // логотип на зимнем дворе, за ним — огонь ауры
+    const k2 = t - LOGO;
+    art(1.12 + k2 * .01, -10); x.fillStyle = 'rgba(4,2,8,.72)'; x.fillRect(0, 0, W, H); snow(t, .6);
+    x.save(); x.globalCompositeOperation = 'lighter'; const g2 = x.createRadialGradient(W / 2, 330, 20, W / 2, 330, 560); g2.addColorStop(0, 'rgba(255,90,28,.5)'); g2.addColorStop(1, 'rgba(0,0,0,0)'); x.globalAlpha = .7 + .2 * Math.sin(k2 * 5); x.fillStyle = g2; x.fillRect(0, 0, W, H); x.restore();
+    embers(t, .9, '#ff7a1c', 110);
+    const a1 = ease(k2 / .5), a2 = clamp((k2 - 2.0) / .5, 0, 1), a3 = clamp((k2 - 2.8) / .5, 0, 1), sc = 1 + .5 * Math.pow(1 - ease(k2 / .35), 2);
+    x.save(); x.translate(W / 2, 330); x.scale(sc, sc);
+    x.font = '60px "Russo One"'; const w1 = x.measureText('GOD ').width, w2 = x.measureText('OF').width;
+    txt('GOD', 60, -(w1 + w2) / 2, -128, { a: a1 }); txt('OF', 60, -(w1 + w2) / 2 + w1, -128, { a: a1, color: '#ffc23b' });
+    txt('GRIMERKA', 150, 0, 6, { align: 'center', a: a1, color: '#fff3d6', glow: 'rgba(255,110,30,' + (.7 + .3 * Math.sin(k2 * 3)) + ')', blur: 60 });
     x.restore();
-    if (k2 < .4) { x.fillStyle = `rgba(255,255,255,${.85 * (1 - k2 / .4)})`; x.fillRect(0, 0, W, H); }
+    txt('сага о Пахане, кенте и девяти серверах', 22, W / 2, 392, { align: 'center', a: a2, color: '#d0d6e2' });
+    x.globalAlpha = a3; x.fillStyle = '#ff5a1c'; x.fillRect(W / 2 - 210, 438, 420, 52); x.globalAlpha = 1;
+    txt('ИГРАТЬ БЕСПЛАТНО', 26, W / 2, 474, { align: 'center', a: a3 });
+    txt('github.com/jelos8vetoi/god-of-grimerka', 18, W / 2, 528, { align: 'center', a: a3, color: '#ffd23b' });
+    x.fillStyle = '#000'; x.fillRect(0, 0, W, 52); x.fillRect(0, H - 52, W, 52);
+    if (k2 < .5) { x.fillStyle = `rgba(255,240,215,${1 - k2 / .5})`; x.fillRect(0, 0, W, H); }
     if (t > LEN - .6) { x.fillStyle = `rgba(0,0,0,${(t - (LEN - .6)) / .6})`; x.fillRect(0, 0, W, H); }
   }
-  for (const h of CUTS) if (t >= h && t < h + .1) { x.fillStyle = `rgba(255,255,255,${.55 * (1 - (t - h) / .1)})`; x.fillRect(0, 0, W, H); }
+  for (const h of CUTS) if (t >= h && t < h + .1) { x.fillStyle = `rgba(255,255,255,${.5 * (1 - (t - h) / .1)})`; x.fillRect(0, 0, W, H); }
 }
 
 async function load() {
   await document.fonts.load('40px "Russo One"');
   const img = async u => { const i = new Image(); i.src = u; await i.decode(); return i; };
-  keyart = await img('keyart.jpg'); icon = await img('icon.png');
+  keyart = await img('winter-menu.png'); icon = await img('icon.png');
   grain = document.createElement('canvas'); grain.width = grain.height = W + 256; { const g = grain.getContext('2d'), d = g.createImageData(grain.width, grain.height); for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } g.putImageData(d, 0, 0); }
-  const jobs = []; for (const s of SHOTS) for (let i = 0; i < s.n; i++) { const k = s.p + String(i).padStart(3, '0'); jobs.push(fetch('frames/' + k + '.jpg').then(r => r.blob()).then(b => blobs[k] = b)); }
+  const jobs = []; for (const s of SHOTS) if (s.p) for (let i = 0; i < s.n; i++) { const k = s.p + String(i).padStart(3, '0'); jobs.push(fetch('frames/' + k + '.jpg').then(r => r.blob()).then(b => blobs[k] = b)); }
   await Promise.all(jobs);
 }
 
