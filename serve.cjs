@@ -10,7 +10,7 @@ const types = {
   '.jpg': 'image/jpeg',
   '.ico': 'image/x-icon',
   '.ttf': 'font/ttf',
-  '.mp3': 'audio/mpeg'
+  '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.json': 'application/json'
 }
 const host = '127.0.0.1'
 const port = Number(process.argv[2] || 8080)

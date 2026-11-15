@@ -21,6 +21,12 @@ addEventListener('resize', fit); fit();
 
 /* ================= ЗВУК ================= */
 let AC = null, MG = null, NB = null, muted = false;
+const ipodMusic = new GrimerkaMusicPlayer(message => toast(message, 4));
+const ipod = new IPodHUD(ipodMusic);
+let ipodHadPointerLock = false;
+let handIPod;
+let ipodRig;
+let ipodPoseWeight = 0;
 function audio() {
   if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
   try { AC = new (window.AudioContext || window.webkitAudioContext)(); MG = AC.createGain(); MG.gain.value = .5 * OPT.vol; MG.connect(AC.destination); musicBus = AC.createGain(); musicDry = AC.createGain(); musicBus.connect(musicDry).connect(MG); if (mode === 'guide') guideMusic(true); } catch (e) { AC = null; }
@@ -196,9 +202,17 @@ function pushOut(o, r) { for (const b of obs) { const dx = o.x - b.x, dy = o.y -
 
 let OPT = { sens: 1, vol: 1, voice: .85, q: 'auto', fps: false }; try { Object.assign(OPT, JSON.parse(localStorage.getItem('goc_opts') || '{}')); } catch (e) {}
 { const qs = new URLSearchParams(location.search); if (['auto', 'lo', 'mid', 'hi'].includes(qs.get('q'))) OPT.q = qs.get('q'); if (qs.has('fps')) OPT.fps = qs.get('fps') === '1'; }
-const KDEF = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', dodge: 'Space', sprint: 'ControlLeft', block: 'ShiftLeft', interact: 'KeyF', thr: 'KeyC', rune: 'KeyE', adlib: 'KeyQ', rage: 'KeyR', w1: 'Digit1', w2: 'Digit2', w3: 'Digit3', menu: 'Tab', full: 'F11', fps: 'F3', mute: 'KeyM' };
-const KLAB = { up: 'Вперёд', down: 'Назад', left: 'Влево', right: 'Вправо', dodge: 'Перекат', sprint: 'Спринт', block: 'Блок / парирование', interact: 'Действие / добивание', thr: 'Бросок биты', rune: 'Руна оружия', adlib: 'Ад-либ кента', rage: 'Перегруз / ульта', w1: 'Бита', w2: 'Микрофон', w3: 'Сэмплер', menu: 'Прокачка', full: 'Полный экран', fps: 'Счётчик FPS', mute: 'Звук вкл/выкл' };
+const KDEF = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', dodge: 'Space', sprint: 'ControlLeft', block: 'ShiftLeft', interact: 'KeyF', thr: 'KeyC', rune: 'KeyE', adlib: 'KeyQ', rage: 'KeyR', w1: 'Digit1', w2: 'Digit2', w3: 'Digit3', menu: 'Tab', full: 'F11', fps: 'F3', mute: 'KeyN', ipod: 'ArrowUp' };
+const KLAB = { up: 'Вперёд', down: 'Назад', left: 'Влево', right: 'Вправо', dodge: 'Перекат', sprint: 'Спринт', block: 'Блок / парирование', interact: 'Действие / добивание', thr: 'Бросок биты', rune: 'Руна оружия', adlib: 'Ад-либ кента', rage: 'Перегруз / ульта', w1: 'Бита', w2: 'Микрофон', w3: 'Сэмплер', menu: 'Прокачка', full: 'Полный экран', fps: 'Счётчик FPS', mute: 'Звук вкл/выкл', ipod: 'Достать / убрать iPod' };
+if (OPT.keys && !OPT.keys.ipod && OPT.keys.mute === 'KeyM') OPT.keys.mute = 'KeyN';
 const KM = Object.assign({}, KDEF, OPT.keys || {});
+if (KM.ipod === 'KeyM' || (!OPT.keys?.ipod && Object.keys(KDEF).some(action => action !== 'ipod' && KM[action] === 'ArrowUp'))) {
+  const assigned = new Set(Object.entries(KM).filter(([action]) => action !== 'ipod').map(([, code]) => code));
+  KM.ipod = ['ArrowUp', 'KeyI', 'KeyO', 'KeyP', 'KeyJ', 'KeyU'].find(code => !assigned.has(code)) ||
+    Array.from({ length: 24 }, (_, i) => 'F' + (i + 1)).find(code => !assigned.has(code) && code !== 'F8');
+  OPT.keys = { ...OPT.keys, ipod: KM.ipod };
+  try { localStorage.setItem('goc_opts', JSON.stringify(OPT)); } catch {}
+}
 let BIND = null, fsWant = new URLSearchParams(location.search).get('fs') === '1';
 function KN(a) {
   const c = KM[a] || '', m = { Space: 'Пробел', ShiftLeft: 'Shift', ShiftRight: 'Shift (пр.)', ControlLeft: 'Ctrl', ControlRight: 'Ctrl (пр.)', AltLeft: 'Alt', AltRight: 'Alt (пр.)', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Backquote: '`', CapsLock: 'Caps', Enter: 'Enter', Backspace: '⌫', Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\' };
@@ -410,7 +424,10 @@ function hitProps(x, y, r, byPlayer) {
 function startEnc(room, waves, bossId, cb) {
   fs = { room, waves, i: 0, boss: null, done: false, clearT: 0, cb }; ens = []; prj = []; haz = [];
   if (!bossId && room.kind === 'fight' && S.ch >= 1 && Math.random() < .55) fs.mut = Object.keys(MUTS)[Math.floor(Math.random() * 5)];
-  if (tomskOpening(room)) fs.training = true;
+  if (tomskOpening(room)) {
+    fs.training = true;
+    fs.waves = [[], ...waves];
+  }
   if (tomskArch(room)) {
     fs.arch = true;
     fs.surv = 60;
@@ -705,6 +722,7 @@ function spawnBoss(id) {
 /* ================= БОЙ: ИГРОК ================= */
 function tryAtk(heavy, c) {
   if (P.atk || P.acd > 0 || P.dodge > 0 || P.spin > 0) return;
+  ipod.close(true);
   const w = S.weapon;
   if (w === 'bat' && P.thr) {
     if (heavy) doThrow();
@@ -928,6 +946,7 @@ function doQ() {
 }
 function doRage() { if (P.rage > 1) { ult(); return; } if (P.swag < 100 || P.rage > 0) return; bt = Math.max(bt, .45); flashAt(P.x, P.y, '#ff4a1c', 4); P.rage = 8; P.swag = 0; sfx.rage(); shake = 14; ring(P.x, P.y, 200, '#ff4a1c'); float(P.x, P.y - 55, 'ПЕРЕГРУЗ!', '#ff4a1c', 1); }
 function doDodge() {
+  ipod.close(true);
   if (P.dcd > 0 || P.dodge > 0) return;
   let [mx, my] = inputDir();
   if (!mx && !my) { mx = Math.cos(P.aim); my = Math.sin(P.aim); }
@@ -943,7 +962,7 @@ function updPlayer(dt) {
   const ox = P.x, oy = P.y; P.mv = ml > 0;
   if (P.mv && P.dodge <= 0) { stepT -= dt; if (stepT <= 0) { stepT = .29; noise(.035, .035, 500); } }
   if (P.swag >= 100) tip('rage', 'СВЭГ полон: R включает ПЕРЕГРУЗ — урон выше, удары лечат. Повторный R тратит остаток на УЛЬТУ по всей комнате.');
-  if (document.pointerLockElement !== C) { const ex = M.x / W - .5; if (Math.abs(ex) > .2) camYaw += (ex - Math.sign(ex) * .2) * dt * 4; }
+  if (!ipod.active && document.pointerLockElement !== C) { const ex = M.x / W - .5; if (Math.abs(ex) > .2) camYaw += (ex - Math.sign(ex) * .2) * dt * 4; }
   if (!isFinite(camYaw)) camYaw = -Math.PI / 2; if (!isFinite(camPit)) camPit = .36;
   P.aim = camYaw;
   P.block = !!(K[KM.block] || (KM.block === 'ShiftLeft' && K.ShiftRight)) && !P.atk && P.dodge <= 0 && P.spin <= 0;
@@ -1269,9 +1288,9 @@ function update(dt) {
       }
     } else if (fs.spT <= 0 && ens.length < 12) { fs.spT = 2.4; for (let i = 0; i < 2 + (S.ch > 4 ? 1 : 0); i++) { const p = edgePos(); ens.push(mkEnemy(fs.pool[Math.floor(Math.random() * fs.pool.length)], p.x, p.y)); } }
     if (fs.surv <= 0) { for (const q of ens) { q.dead = true; burst(q.x, q.y, q.c, 8); } fs.done = true; fs.clearT = 1.4; float(P.x, P.y - 60, 'ВЫЖИЛ', '#7dff7d', 1); sfx.buy(); }
-  } else if (fs && !fs.done && ens.length === 0) {
+  } else if (fs && !fs.done && ens.length === 0 && !(tomskIPodDrill() && ipod.active)) {
     if (tomskDrillPending()) {
-      spawnWave();
+      if (!tomskIPodDrill()) spawnWave();
     } else if (fs.waves && fs.i < fs.waves.length - 1) {
       fs.i++;
       fs.drillDone = false;
@@ -1709,6 +1728,7 @@ function tomskOpening(room) {
   return S.ch === 0 && room === LV.main[1];
 }
 const TOMSK_DRILLS = [
+  { action: 'ipod', title: 'Музыкальный плеер', hint: () => 'Достань iPod [' + KN('ipod') + ']' },
   { action: 'light', title: 'Лёгкий удар', hint: () => 'Подойди к боту, наведи камеру и попади ЛКМ' },
   { action: 'heavy', title: 'Тяжёлый удар', hint: () => 'Попади ПКМ · удерживай кнопку, чтобы зарядить удар' },
   { action: 'dodge', title: 'Перекат', hint: () => 'Подпусти бота и нажми [' + KN('dodge') + '] в конце замаха' },
@@ -1716,7 +1736,9 @@ const TOMSK_DRILLS = [
   { action: 'throw', title: 'Бросок и возврат', hint: () => 'Наведи камеру, попади броском [' + KN('thr') + '] и верни биту той же клавишей' },
   { title: 'Проверка', hint: () => 'Зачисти двор · хейтер атакует издалека, боты идут в ближний бой' }
 ];
+const ipodGuide = () => 'Нажми [' + KN('ipod') + '], чтобы достать iPod. Выбирай треки, загружай свою музыку и управляй воспроизведением. Пока плеер открыт, музыка звучит с реверберацией. Когда убираешь его — звук становится чистым. Глубину эффекта можно изменить в настройках iPod. При паузе музыка приглушается.';
 const TOMSK_GUIDE = [
+  ['ipod', ipodGuide],
   ['ЛКМ', 'Подойди на расстояние взмаха биты и наведи камеру на бота. Нажми левую кнопку мыши, чтобы ударить. Несколько нажатий подряд складываются в серию.'],
   ['ПКМ', 'Нажми правую кнопку мыши и отпусти её, чтобы ударить. Если подержать кнопку, Пахан зарядит удар. Подойди к боту и попробуй попасть.'],
   ['dodge', 'Подпусти бота и посмотри на его замах. Перекатись, когда удар вот-вот попадёт. В начале переката Пахан на короткое время становится неуязвим.'],
@@ -1730,7 +1752,7 @@ function openTomskGuide() {
   $('guideTitle').textContent = TOMSK_DRILLS[fs.i].title;
   $('guideKey').textContent = key && key !== 'ЛКМ' && key !== 'ПКМ' ? KN(key) : key;
   $('guideKey').hidden = !key;
-  $('guideBody').textContent = body;
+  $('guideBody').textContent = typeof body === 'function' ? body() : body;
   $('guideGo').textContent = key ? 'Попробовать' : 'Начать бой';
   mode = 'guide';
   M.l = M.r = false;
@@ -1761,6 +1783,9 @@ $('guideSkip').addEventListener('click', () => {
 function tomskDrillPending() {
   return fs?.training && TOMSK_DRILLS[fs.i].action && !fs.drillDone;
 }
+function tomskIPodDrill() {
+  return fs?.training && TOMSK_DRILLS[fs.i].action === 'ipod';
+}
 function completeTomskDrill(action) {
   if (!tomskDrillPending() || TOMSK_DRILLS[fs.i].action !== action) return;
   fs.drillDone = true;
@@ -1774,7 +1799,7 @@ function tomskHint() {
   if (fs.done) return 'Тренировка пройдена';
   const drill = TOMSK_DRILLS[fs.i];
   return (fs.i + 1) + '/' + TOMSK_DRILLS.length + ' · ' + drill.title + ' · ' +
-    (fs.drillDone ? 'Приём засчитан. Добей бота.' : drill.hint());
+    (fs.drillDone ? (drill.action === 'ipod' ? 'Убери iPod [' + KN('ipod') + '], чтобы продолжить' : 'Приём засчитан. Добей бота.') : drill.hint());
 }
 function drawNav() {
   X.textBaseline = 'alphabetic';
@@ -2239,7 +2264,7 @@ function drawHud() {
   }
   { const q = proj(P.x + Math.cos(camYaw) * 300, P.y + Math.sin(camYaw) * 300, 30); X.beginPath(); X.arc(q.x, q.y, 5, 0, TAU); X.strokeStyle = 'rgba(255,255,255,.55)'; X.lineWidth = 1.5; X.stroke(); }
   X.textAlign = 'center'; X.font = '13px ' + FONT;
-  if (mode === 'fight' && !fs?.training && document.pointerLockElement !== C) { X.fillStyle = 'rgba(255,210,59,.9)'; X.fillText('Кликни по игре, чтобы захватить мышь · без захвата камера крутится у краёв экрана', W / 2, H - 14); }
+  if (mode === 'fight' && !fs?.training && !ipod.active && document.pointerLockElement !== C) { X.fillStyle = 'rgba(255,210,59,.9)'; X.fillText('Кликни по игре, чтобы захватить мышь · без захвата камера крутится у краёв экрана', W / 2, H - 14); }
   else if (mode === 'fight') {
     const hint = tomskHint();
     if (hint) {
@@ -2261,7 +2286,31 @@ function teleDecals(e) {
   else if (mv === 'charger' || mv === 'charge') decal('rect', gRect, e.x, e.y, e.boss ? 560 : 360, e.r * 2, -e.aa, R, .28);
   else dRing(e.x, e.y, e.r + 10 + Math.sin(performance.now() / 40) * 3, e.boss ? e.c : '#ffcc66', .95);
 }
+function poseHandIPod(progress) {
+  const weight = progress * progress * (3 - 2 * progress);
+  const heading = PM.quaternion;
+  // The model faces +X. Blend a fixed lift over the current arm animation.
+  const axis = new T3.Vector3(0, 0, 1).applyQuaternion(heading);
+  for (const [bone, angle] of ipodRig) {
+    const localAxis = axis.clone().applyQuaternion(bone.parent.getWorldQuaternion(new T3.Quaternion()).invert());
+    const target = new T3.Quaternion().setFromAxisAngle(localAxis, angle).multiply(bone.quaternion);
+    bone.quaternion.slerp(target, weight);
+  }
+  const grip = handIPod.parent;
+  const offset = new T3.Vector3(.5, 2, -5).applyQuaternion(heading);
+  handIPod.position.copy(grip.worldToLocal(grip.getWorldPosition(new T3.Vector3()).add(offset)));
+  handIPod.quaternion.copy(grip.getWorldQuaternion(new T3.Quaternion()).invert()).multiply(heading);
+  handIPod.rotateY(-Math.PI / 2);
+  handIPod.rotateX(-.45);
+}
 function render() {
+  const paused = mode === 'pause' || (mode === 'settings' && settingsFrom === 'pause');
+  if ((!paused && mode !== 'fight') || P?.atk || P?.dodge > 0 || P?.fin) ipod.close(true);
+  ipod.update();
+  ipodMusic.connect(AC, MG);
+  const musicMode = paused ? 'PAUSED' : ipod.fullyOpen ? 'OPEN' : 'CLEAN';
+  ipodMusic.update(musicMode, muted, courierPlaying ? 0 : mode === 'dlg' || mode === 'title' ? .2 : mode === 'menu' ? 0 : 1);
+  if (musicBus && AC) musicBus.gain.setTargetAtTime(ipodMusic.audio.paused ? 1 : 0, AC.currentTime, .15);
   if (R3) R3.info.reset();
   X.setTransform(C.width / W, 0, 0, C.height / H, 0, 0); X.clearRect(0, 0, W, H);
   if (!S || !P || mode === 'menu') { lastNow = 0; return; }
@@ -2374,13 +2423,35 @@ function render() {
   PM.position.set(P.x, 0, P.y); PM.rotation.y = introShot ? -ang(P, comp) : -P.aim;
   // герой — своя модель Пахана (скелет Mixamo), пока она не загрузилась или если её нет — KayKit
   if (!PM.userData.mdl && (MDL.pahan || MDL.vanek && mdlDone >= mdlTot)) {
-    const q = MDL.pahan ? inst('pahan', 74) : inst('vanek', 72, { tint: '#4a4d5a', mix: .5 }); PIN.children.slice(0, 5).forEach(c => { c.visible = false; }); PIN.add(q); PM.userData.mdl = q;
-    if (MDL.pahan) { HW = handWeapons(); if (mxGrip(q, HW)) WPV.visible = false; else HW = null; }
-    else { let hs = null; q.traverse(o => { if (/^handslot.?r$/i.test(o.name)) hs = o; });
-      if (hs) { HW = handWeapons(); for (const k in HW) hs.add(HW[k]); WPV.visible = false; } }
+    const mxh = !!MDL.pahan, q = mxh ? inst('pahan', 74) : inst('vanek', 72, { tint: '#4a4d5a', mix: .5 }); PIN.children.slice(0, 5).forEach(c => { c.visible = false; }); PIN.add(q); PM.userData.mdl = q;
+    let hs = null, left = null; const MB = mxh ? mxBones(q.children[0]) : null; if (mxh) left = MB.lhand || null;
+    if (!mxh) q.traverse(o => {
+      if (/^handslot\.?r$/i.test(o.name)) hs = o;
+      if (/^handslot\.?l$/i.test(o.name)) left = o;
+    });
+    if (left) {
+      handIPod = new T3.Group();
+      handIPod.name = 'Hand iPod';
+      handIPod.add(box(.20, .31, .043, '#bec5cb', 0, 0, 0));
+      handIPod.add(box(.165, .12, .006, '#27333d', 0, .072, .024));
+      handIPod.add(box(.139, .094, .004, '#b4d4dd', 0, .072, .028, { emissive: '#8cbeca', emissiveIntensity: .6 }));
+      const wheel = mesh(new T3.CircleGeometry(.063, 20), mat('#eeeeee'), 0, -.066, .028);
+      handIPod.add(wheel);
+      handIPod.add(mesh(new T3.CircleGeometry(.022, 12), mat('#a2a9af'), 0, -.066, .029));
+      if (mxh) { q.updateMatrixWorld(true); handIPod.scale.setScalar(9 / .31 / (left.getWorldScale(new T3.Vector3()).x || 1)); }
+      ipodRig = (mxh ? [MB.larm, MB.lfa] : ['upperarml', 'lowerarml'].map(name => q.getObjectByName(name))).map((bone, i) => [bone, [.7, .65][i]])
+        .filter(([bone]) => bone);
+      left.add(handIPod);
+    }
+    if (mxh) { HW = handWeapons(); if (mxGrip(q, HW)) WPV.visible = false; else HW = null; }
+    else if (hs) { HW = handWeapons(); for (const k in HW) hs.add(HW[k]); WPV.visible = false; }
   }
   if (!CM.userData.mdl && MDL.kent) { const q = inst('kent', 62, { tint: '#bfe6ff', mix: .3 }); CM.children.forEach(c => { c.visible = false; }); CM.add(q); CM.userData.mdl = q; }
   const pg = PM.userData.mdl, fn = P.fin;
+  const ipodPoseBlocked = !!(a || fn || P.dodge > 0 || P.block || P.spin > 0 || P.hurtT > 0 || P.chg > .15 || cine);
+  if (ipodPoseBlocked) ipodPoseWeight = 0;
+  else ipodPoseWeight = clamp(ipodPoseWeight + (ipod.active ? fdt / .5 : -fdt / .45), 0, 1);
+  if (handIPod) handIPod.visible = ipodPoseWeight > .12;
   if (HW) for (const k in HW) HW[k].visible = k === w && !(k === 'bat' && P.thr);
   if (pg) {
     const cb = a ? a.combo % 3 : 0;
@@ -2406,6 +2477,7 @@ function render() {
     for (const b of pg.userData.rollBones) b.bone.quaternion.copy(b.base);
     pg.userData.mx.update(fdt);
     for (const b of pg.userData.rollBones) b.base.copy(b.bone.quaternion);
+    if (ipodRig && ipodPoseWeight > 0) poseHandIPod(ipodPoseWeight);
     PIN.position.y = fn && fn.seq[fn.i][0] === 'bh' ? Math.sin(clamp(fn.t / fn.seq[fn.i][1], 0, 1) * Math.PI) * 24 : 0;
   }
   // One grounded somersault: gather, tuck, rotate, then unfold into the next pose.
@@ -2592,7 +2664,7 @@ function render() {
   if (tipQ.length && mode === 'fight' && !window.__noHud) {
     tipT += fdt; const tx = tipQ[0], al = clamp(tipT / .3, 0, 1) * clamp((7 - tipT) / .4, 0, 1); X.globalAlpha = al; X.font = '15px "Segoe UI",sans-serif';
     const words = tx.split(' '), lines = []; let ln = ''; for (const wq of words) { if (X.measureText(ln + wq).width > 560) { lines.push(ln); ln = ''; } ln += wq + ' '; } lines.push(ln);
-    const bh = 30 + lines.length * 21, by = H - 64 - bh, TX = W - 650; X.fillStyle = 'rgba(8,10,16,.9)'; X.fillRect(TX, by, 620, bh); X.fillStyle = '#5cd0ff'; X.fillRect(TX, by, 5, bh);
+    const bh = 30 + lines.length * 21, by = 96, TX = 28; X.fillStyle = 'rgba(8,10,16,.9)'; X.fillRect(TX, by, 620, bh); X.fillStyle = '#5cd0ff'; X.fillRect(TX, by, 5, bh);
     X.textAlign = 'left'; X.fillStyle = '#5cd0ff'; X.font = '12px ' + FONT; X.fillText('ПОДСКАЗКА', TX + 18, by + 18); X.fillStyle = '#e8ecf4'; X.font = '15px "Segoe UI",sans-serif'; lines.forEach((l, i) => X.fillText(l, TX + 18, by + 40 + i * 21));
     X.globalAlpha = 1; if (tipT > 7) { tipQ.shift(); tipT = 0; }
   }
@@ -2658,14 +2730,42 @@ $('upCols').addEventListener('click', ev => {
 });
 
 /* ================= ВВОД ================= */
+function dismissIPod() {
+  ipod.close();
+  M.x = W / 2;
+  if (ipodHadPointerLock) lock();
+  ipodHadPointerLock = false;
+}
+
 addEventListener('keydown', e => {
   const c = e.code;
   if (BIND) return;
   if (c === 'Tab' || c === 'Space' || c === KM.menu || c === KM.dodge || c === KM.full || c === KM.fps) e.preventDefault();
+  if (c === 'ArrowUp' && (mode === 'fight' || mode === 'guide') && !(ipod.active && e.target.id === 'ipod-reverb' && c !== KM.ipod)) e.preventDefault();
   if (e.repeat) return;
   if (c === 'F8') { e.preventDefault(); if (mode === 'dev') closeDev(); else openDev(); return; }
   if (mode === 'dev') { if (c === 'Escape') closeDev(); return; }
   K[c] = true; audio();
+  if (mode === 'fight' && c === KM.ipod) {
+    e.preventDefault();
+    if (ipod.active) dismissIPod();
+    else {
+      ipodMusic.connect(AC, MG);
+      ipodHadPointerLock = document.pointerLockElement === C;
+      ipod.open();
+      completeTomskDrill('ipod');
+      M.l = M.r = false;
+      if (ipodHadPointerLock) document.exitPointerLock();
+    }
+    return;
+  }
+  if (mode === 'fight' && ipod.active && ['Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(c)) {
+    if (e.target.id === 'ipod-reverb') return;
+    if (c === 'Enter' && e.target.closest?.('#ipod-wheel button')) return;
+    e.preventDefault(); if (c === 'Enter') ipod.action('select');
+    else if (c === 'ArrowLeft' || c === 'ArrowRight') ipod.action(c === 'ArrowLeft' ? 'prev' : 'next');
+    else ipod.scroll(c === 'ArrowUp' ? -1 : 1); return;
+  }
   if (c === KM.full) { toggleFS(); return; }
   if (c === KM.mute) { muted = !muted; if (muted) stopVoice(); toast(muted ? 'Звук выключен' : 'Звук включён', 1.2); }
   if (c === KM.fps) { OPT.fps = !OPT.fps; saveOpt(); }
@@ -2712,8 +2812,8 @@ addEventListener('keyup', e => {
 addEventListener('blur', () => { resetDialogHold(); for (const k in K) K[k] = false; M.l = M.r = false; });
 const mpos = e => { const r = C.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return; M.x = (e.clientX - r.left) * W / r.width; M.y = (e.clientY - r.top) * H / r.height; };
 addEventListener('mousemove', e => { mpos(e); if (document.pointerLockElement === C) { camYaw += e.movementX * .0026 * OPT.sens; camPit = clamp(camPit + e.movementY * .0014 * OPT.sens, .1, .85); } });
-document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement !== C && mode === 'fight') { stopVoice(); mode = 'pause'; $('oD').value = S.diff; show('pause', true); } });
-C.addEventListener('mousedown', e => { audio(); mpos(e); if (mode === 'fight' || mode === 'dlg') lock(); if (e.button === 0) M.l = true; if (e.button === 2) M.r = true; if (e.button === 1) { e.preventDefault(); if (mode === 'fight') doThrow(); } });
+document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement !== C && mode === 'fight' && !ipod.active) { stopVoice(); mode = 'pause'; $('oD').value = S.diff; show('pause', true); } });
+C.addEventListener('mousedown', e => { if (ipod.active) return; audio(); mpos(e); if (mode === 'fight' || mode === 'dlg') lock(); if (e.button === 0) M.l = true; if (e.button === 2) M.r = true; if (e.button === 1) { e.preventDefault(); if (mode === 'fight') doThrow(); } });
 addEventListener('mouseup', e => { if (e.button === 0) M.l = false; if (e.button === 2) M.r = false; });
 addEventListener('contextmenu', e => e.preventDefault());
 $('dlg').addEventListener('click', () => { audio(); advDlg(); });
@@ -2725,7 +2825,7 @@ document.querySelectorAll('#menu button[data-d]').forEach(b => b.addEventListene
 $('bCont').addEventListener('click', () => { audio(); const s = load(); if (!s) return; S = s; begin(); });
 $('bRetry').addEventListener('click', retry);
 $('upClose').addEventListener('click', closeUp);
-$('pRes').addEventListener('click', () => { show('pause', false); mode = 'fight'; lock(); });
+$('pRes').addEventListener('click', () => { show('pause', false); mode = 'fight'; if (!ipod.active) lock(); });
 $('pUp').addEventListener('click', () => { show('pause', false); mode = 'fight'; openUp(false); });
 const toMenu = () => { stopVoice(); devSession = false; devGod = false; $('devGod').textContent = 'Бессмертие: выкл.'; show('devPanel', false); ['pause', 'end', 'dlg', 'up', 'dead', 'choice'].forEach(i => show(i, false)); mode = 'menu'; $('bCont').disabled = !load(); show('menu', true); };
 function openDev() {
@@ -2819,6 +2919,14 @@ const HELP = [['Комбо', 'Три лёгких удара подряд — т
   ['Бита', 'C — бросок и возврат. Пока бита летит, Пахан дерётся кулаками. Броском сбиваются мишени 🎯 и ломаются завалы.'], ['СВЭГ', 'Полная шкала: R — ПЕРЕГРУЗ. Ещё раз R — УЛЬТА по комнате.'], ['Кент', 'Q — ад-либ. madk1d сам стреляет нотами и раз за главу поднимает после смертельного удара (кроме сложности «Андеграунд»).'],
   ['Стиль', 'Рейтинг D–SSS растёт от разнообразия и даёт до +36% опыта.'], ['Секреты', 'В каждой главе: тайная комната за завалом у портала и два тайника ✨ в углах боевых комнат.'], ['Геймпад', 'Левый стик — ход, правый — камера, X/Y — удары, A — перекат, B — действие, LB — блок, RB — руна, LT — ад-либ, RT — бросок, крестовина — оружие.']];
 $('stage').insertAdjacentHTML('beforeend', '<div id="help" class="ov" style="background:rgba(5,6,10,.96);z-index:9;padding:26px 60px;justify-content:flex-start"><h2 style="letter-spacing:6px;margin-bottom:14px">МЕХАНИКИ</h2><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;overflow:auto;flex:1;width:100%">' + HELP.map(q => '<div style="background:#131722;border:1px solid #232938;border-left:4px solid #ff3b3b;padding:10px 14px"><b style="font-size:15px;color:#ffd23b">' + q[0] + '</b><div style="font-size:13px;color:#b9c2d4;line-height:1.45;margin-top:3px">' + q[1] + '</div></div>').join('') + '</div><button id="helpX" style="margin-top:14px">Закрыть</button></div>');
+const ipodHelp = document.createElement('div');
+ipodHelp.innerHTML = '<b>Музыкальный плеер</b><p></p>';
+ipodHelp.style.cssText = 'background:#131722;border:1px solid #232938;border-left:4px solid #ff3b3b;padding:10px 14px;color:#b9c2d4;font-size:13px';
+$('help').querySelector('div').append(ipodHelp);
+function openMechanics() {
+  ipodHelp.querySelector('p').textContent = ipodGuide();
+  show('help', true);
+}
 $('helpX').addEventListener('click', () => show('help', false));
 $('settings').insertAdjacentHTML('beforeend', '<div id="settingsGrid"><span>Чувствительность мыши</span><input id="oSens" type="range" min="0.3" max="2.5" step="0.1"><span>Громкость</span><input id="oVol" type="range" min="0" max="1" step="0.05"><label for="oVoice">Озвучка</label><input id="oVoice" type="range" min="0" max="1" step="0.05"><span>Графика</span><select id="oQ" style="padding:6px;background:#1a1d27;color:#fff;border:1px solid #3a4052"><option value="auto">Авто: держит 60 FPS</option><option value="mid">Средняя: тени без свечения</option><option value="hi">Высокая: тени и свечение</option><option value="lo">Низкая: быстрее</option></select><span>Сложность</span><select id="oD" style="padding:6px;background:#1a1d27;color:#fff;border:1px solid #3a4052"><option value="0">Изи</option><option value="1">Норм</option><option value="2">Андеграунд</option></select></div><div class="row"><button id="pHelp">Механики</button><button id="pBinds">Управление</button><button id="pFull">Полный экран</button><button id="settingsBack">Назад</button></div>');
 $('menu').querySelector('.keys').insertAdjacentHTML('beforebegin', '<div class="row"><button id="mHelp" style="padding:8px 18px;font-size:13px">Механики и геймпад</button><button id="mBinds" style="padding:8px 18px;font-size:13px">Управление</button></div>');
@@ -2852,7 +2960,7 @@ $('oVol').addEventListener('input', e => { OPT.vol = +e.target.value; if (!OPT.v
 $('oVoice').addEventListener('input', e => { OPT.voice = +e.target.value; if (!OPT.voice) stopVoice(); saveOpt(); });
 $('oQ').addEventListener('change', e => { OPT.q = e.target.value; applyQ(); saveOpt(); });
 $('oD').addEventListener('change', e => { if (S) { S.diff = +e.target.value; save(); } });
-$('pHelp').addEventListener('click', () => show('help', true));
+$('pHelp').addEventListener('click', openMechanics);
 $('stage').insertAdjacentHTML('beforeend', '<div id="binds" class="ov" style="background:rgba(5,6,10,.97);z-index:10;padding:22px 60px;justify-content:flex-start"><h2 style="letter-spacing:6px;margin-bottom:4px">УПРАВЛЕНИЕ</h2><p style="color:#9fb0c8;margin-bottom:12px;font-size:13px">Нажми на действие, потом на новую клавишу. Esc — отмена. Удары — левая и правая кнопки мыши, пауза — Esc.</p><div id="bindList" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;width:100%;overflow:auto;flex:1"></div><div class="row" style="margin-top:12px"><button id="bindReset">По умолчанию</button><button id="bindDone">Готово</button></div></div>');
 function buildBinds() {
   $('bindList').innerHTML = Object.keys(KDEF).map(a => '<div style="display:flex;justify-content:space-between;align-items:center;background:#131722;border:1px solid #232938;padding:5px 6px 5px 14px"><span style="font-size:14px;color:#d5dcea">' + KLAB[a] + '</span><button data-k="' + a + '" style="margin:0;min-width:130px;padding:7px 12px;font-size:13px;letter-spacing:1px' + (BIND === a ? ';background:#ff3b3b;border-color:#ff3b3b' : '') + '">' + (BIND === a ? 'жми клавишу…' : KN(a)) + '</button></div>').join('');
@@ -2860,13 +2968,18 @@ function buildBinds() {
 $('bindList').addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (!b) return; BIND = b.dataset.k; buildBinds(); });
 addEventListener('keydown', e => {
   if (!BIND) return; e.preventDefault(); e.stopImmediatePropagation();
+  if ((BIND === 'ipod' && ['KeyM', 'F8'].includes(e.code)) ||
+      (BIND !== 'ipod' && e.code === KM.ipod && ['KeyM', 'F8'].includes(KM[BIND]))) {
+    toast('Выбери другую клавишу для iPod', 2);
+    return;
+  }
   if (e.code !== 'Escape') { const old = KM[BIND], other = Object.keys(KM).find(a => a !== BIND && KM[a] === e.code); if (other) KM[other] = old; KM[BIND] = e.code; OPT.keys = Object.assign({}, KM); saveOpt(); for (const k in K) K[k] = false; }
   BIND = null; buildBinds();
 }, true);
 $('bindReset').addEventListener('click', () => { Object.assign(KM, KDEF); OPT.keys = {}; saveOpt(); BIND = null; buildBinds(); });
 $('bindDone').addEventListener('click', () => { BIND = null; show('binds', false); });
 $('pBinds').addEventListener('click', () => { buildBinds(); show('binds', true); });
-$('pFull').addEventListener('click', toggleFS); $('mHelp').addEventListener('click', () => show('help', true)); $('mBinds').addEventListener('click', () => { buildBinds(); show('binds', true); });
+$('pFull').addEventListener('click', toggleFS); $('mHelp').addEventListener('click', openMechanics); $('mBinds').addEventListener('click', () => { buildBinds(); show('binds', true); });
 function autoBuy(shop) {
   for (let n = 0, ok = true; ok && n < 80; n++) {
     ok = false;

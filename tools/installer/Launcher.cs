@@ -78,7 +78,7 @@ namespace Grimerka
                 ProcessStartInfo psi = new ProcessStartInfo(browser,
                     "--app=\"" + url + "\" --user-data-dir=\"" + profile + "\" --no-first-run --no-default-browser-check " +
                     (s.Full ? "--start-fullscreen " : "--start-maximized ") +
-                    "--autoplay-policy=no-user-gesture-required --ignore-gpu-blocklist --enable-gpu-rasterization --disable-features=Translate");
+                    "--allow-file-access-from-files --autoplay-policy=no-user-gesture-required --ignore-gpu-blocklist --enable-gpu-rasterization --disable-features=Translate");
                 psi.UseShellExecute = false;
                 try { Process.Start(psi); return true; } catch { }
             }
