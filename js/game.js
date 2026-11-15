@@ -933,11 +933,16 @@ function doRune() {
   } else if (w === 'mic') { P.spin = 2; P.spinT = 0; sfx.rage(); }
   else { for (let i = 0; i < 18; i++) shootP(P.aim + i * TAU / 18, 620, 20 * dmgMul(w)); sfx.shoot(); shake = 6; }
 }
+const ADLIB = (() => { const a = new Audio('assets/sfx/madk1d-adlib.wav'); a.preload = 'auto'; a.ok = true; a.addEventListener('error', () => { a.ok = false; }); return a; })();
+function adlibTrack() {
+  if (!ADLIB.ok || muted) { sfx.adlib(); return false; }
+  try { ADLIB.pause(); ADLIB.currentTime = 0; ADLIB.volume = Math.min(1, (OPT.vol == null ? 1 : OPT.vol) * .9); const p = ADLIB.play(); if (p && p.catch) p.catch(() => sfx.adlib()); return true; } catch (e) { sfx.adlib(); return false; }
+}
 function doQ() {
   if (S.comp < 1 || P.qcd > 0) return;
   P.qcd = (S.comp >= 4 ? 8 : 11) * (has('sim') ? .7 : 1);
   comp.say = ['ЭЙ!', 'ПОЕХАЛИ!', 'КАТЮХА!', 'sexyswag!'][Math.floor(rnd(0, S.comp))]; comp.sayT = 1.3;
-  sfx.adlib(); ring(comp.x, comp.y, 120, '#5cd0ff');
+  if (adlibTrack()) comp.sayT = 2.1; ring(comp.x, comp.y, 120, '#5cd0ff');
   const near = ens.filter(e => !e.dead && e.spawn <= 0).sort((a, b) => dist(a, P) - dist(b, P));
   near.slice(0, hb('chainq') ? 6 : 3).forEach(e => { bolts.push({ x1: comp.x, y1: comp.y, x2: e.x, y2: e.y, l: .25, c: '#5cd0ff' }); dmgE(e, 15 * dmgMul(), { stun: 1.2, sm: .4 }); });
   if (S.comp >= 2) P.buff = 5;
@@ -1002,10 +1007,25 @@ function updPlayer(dt) {
     else if (actorCanStand(ox, P.y, P.r)) P.x = ox;
     else { P.x = ox; P.y = oy; }
   }
-  // кент идёт следом
-  let tx = P.x, ty = P.y;
+  // кент: свободно ходит вокруг Пахана — выбирает точку в кольце 70–170 спереди и по бокам (не между Паханом и камерой), бежит к ней, постоит и выбирает новую
+  {
+    let far = Math.hypot(P.x - comp.x, P.y - comp.y);
+    if (far > 650) { comp.x = P.x - Math.cos(P.aim) * 40 + Math.sin(P.aim) * 90; comp.y = P.y - Math.sin(P.aim) * 40 - Math.cos(P.aim) * 90; comp.tx = 0; far = 100; }   // отстал на другой конец — догоняет сразу
+    comp.wt = (comp.wt || 0) - dt;
+    const bad = !comp.tx || Math.hypot(comp.tx - P.x, comp.ty - P.y) > 230 || !okPos(comp.tx, comp.ty, 16);
+    if (comp.wt <= 0 || bad || far > 260) {
+      for (let i = 0; i < 12; i++) {
+        const a = P.aim + rnd(-2.0, 2.0), r = rnd(70, 170), x = P.x + Math.cos(a) * r, y = P.y + Math.sin(a) * r;
+        if (okPos(x, y, 16) && !obs.some(b => Math.hypot(b.x - x, b.y - y) < b.r + 16) && Math.hypot(x - P.x, y - P.y) > 60) { comp.tx = x; comp.ty = y; break; }
+      }
+      if (!comp.tx) { comp.tx = P.x - 60; comp.ty = P.y; }
+      comp.wt = rnd(1.6, 3.6);
+    }
+    const dx = comp.tx - comp.x, dy = comp.ty - comp.y, d = Math.hypot(dx, dy), sp = far > 200 ? 470 : 250;
+    if (d > 6) { const st = Math.min(d, sp * dt); comp.x += dx / d * st; comp.y += dy / d * st; comp.face = Math.atan2(dy, dx); }
+  }
+  let tx = comp.x, ty = comp.y;
   for (const [f, s] of [[30, 95], [30, -95], [-70, 45], [-70, -45]]) { const x = P.x + Math.cos(P.aim) * f + Math.sin(P.aim) * s, y = P.y + Math.sin(P.aim) * f - Math.cos(P.aim) * s; if (okPos(x, y, 16) && !obs.some(b => Math.hypot(b.x - x, b.y - y) < b.r + 14)) { tx = x; ty = y; break; } }
-  comp.x += (tx - comp.x) * Math.min(1, dt * 4); comp.y += (ty - comp.y) * Math.min(1, dt * 4);
   comp.at = (comp.at == null ? 2 : comp.at) - dt;
   if (comp.at <= 0 && fs && !fs.done && S.comp >= 1) {
     const tg = ens.filter(q => !q.dead && q.spawn <= 0 && dist(q, comp) < 560).sort((p, q) => dist(p, comp) - dist(q, comp))[0]; comp.at = 2.6;
@@ -2042,7 +2062,12 @@ function mxClips(scene, clips, SET) {
   // бег и прочее «на месте»: игра двигает героя сама, поэтому убираем сдвиг корня по горизонтали (кроме смерти)
   for (const c of clips) if (!/^Death/.test(c.name)) for (const t of c.tracks) if (t.name === B.hips.name + '.position') { const v = t.values; for (let i = 3; i < v.length; i += 3) { v[i] = v[0]; v[i + 2] = v[2]; } }
   const out = clips.slice();
-  const SETS = [[SET, base, false]]; if (SET === MXCLIP && scene.userData.phIdle) SETS.push([PHREST, rest, true]);
+  let SETS = [[SET, base, false]];
+  if (SET === MXCLIP && scene.userData.phIdle) {
+    const stance = {}; for (const k in rest) B[k].quaternion.copy(rest[k]); scene.updateMatrixWorld(true); mxPose(scene, B, ph({}));
+    for (const k in rest) stance[k] = B[k].quaternion.clone();
+    SETS = [[PHREST, rest, true], [SET, stance, true]];
+  }
   for (const [SS, BASE, fromRest] of SETS) for (const name in SS) {
     if (have.has(name) && !fromRest) continue;
     const def = SS[name], dur = def.d || 1, keys = def.k || def, times = keys.map(k => k[0] * dur), vals = {};
@@ -2054,7 +2079,7 @@ function mxClips(scene, clips, SET) {
     }
     // вращения больше 180° (вертушка) — дробим, чтобы кватернион не срезал угол
     const tr = Object.keys(vals).map(k => new T3.QuaternionKeyframeTrack(B[k].name + '.quaternion', times, vals[k]));
-    if (fromRest) { tr.push(new T3.VectorKeyframeTrack(B.hips.name + '.position', [0, dur], [restP.x, restP.y, restP.z, restP.x, restP.y, restP.z]));
+    if (fromRest) { tr.push(new T3.VectorKeyframeTrack(B.hips.name + '.position', [0, dur], [restP.x, restP.y, restP.z, restP.x, restP.y, restP.z])); have.add(name);
       const old = out.findIndex(c => c.name === name); if (old >= 0) out[old].name = name + '_Tripo'; }   // боевая стойка из файла остаётся как база ударов
     out.push(new T3.AnimationClip(name, dur, tr));
   }
@@ -2117,8 +2142,8 @@ function loadModels() {
 function play(g, key, once, dur, tok) {
   const u = g.userData; if (!u || !u.mx) return; const id = key + (tok == null ? '' : tok); if (u.key === id) return; u.key = id;
   let a = null; for (const n of ANIM[key].concat('Punch', 'Idle')) if (u.acts[n]) { a = u.acts[n]; break; } if (!a) return;
-  a.reset(); a.setLoop(once ? T3.LoopOnce : T3.LoopRepeat, Infinity); a.clampWhenFinished = !!once; a.timeScale = dur ? a.getClip().duration / dur : 1; a.fadeIn(.1).play();
-  if (u.cur && u.cur !== a) u.cur.fadeOut(.1); u.cur = a;
+  a.reset(); a.setLoop(once ? T3.LoopOnce : T3.LoopRepeat, Infinity); a.clampWhenFinished = !!once; a.timeScale = dur ? a.getClip().duration / dur : 1; const fd = once ? .09 : .22; a.fadeIn(fd).play();
+  if (u.cur && u.cur !== a) u.cur.fadeOut(fd); u.cur = a;
 }
 function inst(name, height, o) {
   const m = MDL[name]; if (!m || (m.kk && !MDL.vanek)) return null; o = o || {};
@@ -2582,7 +2607,7 @@ function render() {
       const rp = (now * (au === 2 ? 1.4 : .8)) % 1; dRing(P.x, P.y, 30 + rp * (au === 2 ? 90 : 60), ac, .55 * (1 - rp));
     } }
   { const cg = CM.userData.mdl, cmv = Math.hypot(comp.x - (comp.lx || 0), comp.y - (comp.ly || 0)) > .7; comp.lx = comp.x; comp.ly = comp.y;
-    CM.position.set(comp.x, cg ? 0 : Math.abs(Math.sin(now * 6)) * 2, comp.y); CM.rotation.y = introShot ? -ang(comp, P) : -P.aim;
+    CM.position.set(comp.x, cg ? 0 : Math.abs(Math.sin(now * 6)) * 2, comp.y); CM.rotation.y = introShot ? -ang(comp, P) : cmv && comp.face != null ? -comp.face : -(comp.look = comp.look == null ? P.aim : comp.look + Math.atan2(Math.sin(P.aim - comp.look), Math.cos(P.aim - comp.look)) * Math.min(1, fdt * 5));
     if (cg) { if (comp.sayT > 0) play(cg, 'cheer'); else play(cg, cmv ? 'run' : 'idle'); cg.userData.mx.update(fdt); } }
   if (P.chg > .15) dRing(P.x, P.y, 30 + P.chg * 44, P.chg >= 1 ? '#ffffff' : wd.col, .9);
   if (P.crit > 0) dRing(P.x, P.y, 26, '#ffffff', .5 + .4 * Math.sin(now * 16));
