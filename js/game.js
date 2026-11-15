@@ -1930,6 +1930,90 @@ function bakeStatic(root, dyn) {
   root.traverse(o => { if (!dyn.has(o) && !o.isSprite) { let p = o, ok = true; while (p && p !== root) { if (dyn.has(p)) { ok = false; break; } p = p.parent; } if (ok) { o.updateMatrix(); o.matrixAutoUpdate = false; } } });
   return n0 + ' → ' + n1;
 }
+/* ---- Персонажи со скелетом Mixamo (модели из Tripo и т. п.) ----
+   Недостающие анимации собираются кодом из позы стойки: каждая поза — повороты костей вокруг осей персонажа
+   (x — его левая рука, y — вверх, z — вперёд), поэтому не зависят от того, как повёрнуты кости внутри модели. */
+const MXB = { hips: 'Hips', spine: 'Spine', spine1: 'Spine1', spine2: 'Spine2', neck: 'Neck', head: 'Head',
+  rsh: 'RightShoulder', rarm: 'RightArm', rfa: 'RightForeArm', rhand: 'RightHand', lsh: 'LeftShoulder', larm: 'LeftArm', lfa: 'LeftForeArm', lhand: 'LeftHand',
+  rup: 'RightUpLeg', rleg: 'RightLeg', rfoot: 'RightFoot', lup: 'LeftUpLeg', lleg: 'LeftLeg', lfoot: 'LeftFoot' };
+const MXO = Object.keys(MXB);
+function mxBones(root) { const r = {}; root.traverse(o => { if (!o.isBone) return; for (const k of MXO) if (!r[k] && new RegExp('(^|[^A-Za-z])' + MXB[k] + '$').test(o.name.replace(/^mixamorig:?/, '_'))) r[k] = o; }); return r; }
+const _mxQ = new T3.Quaternion(), _mxP = new T3.Quaternion(), _mxR = new T3.Quaternion(), _mxA = new T3.Vector3();
+const MXAX = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+// повернуть кость вокруг оси персонажа (в пространстве root) на угол
+function mxTurn(root, bone, ax, ang) {
+  if (!bone || !ang) return;
+  root.getWorldQuaternion(_mxR).invert(); bone.parent.getWorldQuaternion(_mxP); _mxP.premultiply(_mxR);
+  _mxA.set(MXAX[ax][0], MXAX[ax][1], MXAX[ax][2]); _mxQ.setFromAxisAngle(_mxA, ang);
+  const inv = _mxP.clone().invert(); bone.quaternion.premultiply(inv.multiply(_mxQ).multiply(_mxP));
+}
+function mxPose(root, B, pose) { for (const k of MXO) { const d = pose[k]; if (!d) continue; for (const ax in d) mxTurn(root, B[k], ax, d[ax]); } }
+// ключи: [время 0..1, поза]; поза: { кость: { ось: угол } }
+const MXCLIP = {
+  '1H_Melee_Attack_Slice_Horizontal': [[0, {}], [.3, { spine: { y: -.55 }, spine2: { y: -.35 }, rarm: { z: -1.0, y: -.7 }, rfa: { y: -.3 }, larm: { z: .3 } }],
+    [.5, { spine: { y: .6 }, spine2: { y: .35 }, rarm: { z: -1.0, y: 1.1 }, larm: { z: .4 } }], [.68, { spine: { y: .7 }, spine2: { y: .4 }, rarm: { z: -.7, y: 1.5 } }], [1, {}]],
+  '1H_Melee_Attack_Slice_Diagonal': [[0, {}], [.3, { spine: { y: -.5, x: -.12 }, rarm: { z: -2.1, y: -.4 }, rfa: { x: -.4 } }],
+    [.52, { spine: { y: .55, x: .25 }, spine2: { y: .3 }, rarm: { z: -.5, y: 1.2, x: -.3 } }], [.7, { spine: { y: .6, x: .25 }, rarm: { z: -.3, y: 1.4 } }], [1, {}]],
+  '1H_Melee_Attack_Stab': [[0, {}], [.3, { spine: { y: -.45 }, rarm: { x: -.5, y: -.5 }, rfa: { x: -1.2 } }],
+    [.48, { spine: { y: .45, x: .18 }, rarm: { x: -1.55, y: .25 }, rfa: { x: 0 }, larm: { x: .4 } }], [.7, { spine: { y: .4, x: .15 }, rarm: { x: -1.45, y: .2 } }], [1, {}]],
+  '2H_Melee_Attack_Chop': [[0, {}], [.35, { spine: { x: -.3 }, spine2: { x: -.15 }, rarm: { x: -2.7 }, larm: { x: -2.5 }, rfa: { x: -.5 }, lfa: { x: -.5 }, rleg: { x: .25 }, lleg: { x: .25 } }],
+    [.55, { spine: { x: .5 }, spine2: { x: .2 }, rarm: { x: -1.0 }, larm: { x: -1.0 }, rup: { x: -.35 }, rleg: { x: .4 }, lleg: { x: .2 } }], [.78, { spine: { x: .45 }, rarm: { x: -.9 }, larm: { x: -.9 }, rup: { x: -.3 }, rleg: { x: .35 } }], [1, {}]],
+  '2H_Melee_Attack_Spin': [[0, {}], [.15, { hips: { y: -.5 }, rarm: { z: -1.3 }, larm: { z: 1.3 } }], [.35, { hips: { y: 1.2 }, rarm: { z: -1.4 }, larm: { z: 1.4 } }],
+    [.55, { hips: { y: 2.9 }, rarm: { z: -1.4 }, larm: { z: 1.4 } }], [.75, { hips: { y: 4.6 }, rarm: { z: -1.3 }, larm: { z: 1.3 } }], [.9, { hips: { y: 6.28 }, rarm: { z: -.5 } }], [1, {}]],
+  '2H_Melee_Attack_Spinning': [[0, { hips: { y: 0 }, rarm: { z: -1.4 }, larm: { z: 1.4 } }], [.25, { hips: { y: 1.571 }, rarm: { z: -1.4 }, larm: { z: 1.4 } }], [.5, { hips: { y: 3.1416 }, rarm: { z: -1.4 }, larm: { z: 1.4 } }],
+    [.75, { hips: { y: 4.712 }, rarm: { z: -1.4 }, larm: { z: 1.4 } }], [1, { hips: { y: 6.2832 }, rarm: { z: -1.4 }, larm: { z: 1.4 } }]],
+  'Throw': [[0, {}], [.38, { spine: { y: -.55, x: -.2 }, rarm: { x: -2.6, y: -.5 }, rfa: { x: -.9 }, larm: { x: -1.0 } }],
+    [.56, { spine: { y: .45, x: .3 }, rarm: { x: -1.25, y: .3 }, rfa: { x: 0 }, larm: { x: -.2 } }], [.75, { spine: { y: .35, x: .25 }, rarm: { x: -1.0, y: .4 } }], [1, {}]],
+  'Spellcast_Shoot': [[0, {}], [.35, { spine: { x: -.2 }, rarm: { x: -1.0 }, larm: { x: -1.0 }, rfa: { x: -1.5 }, lfa: { x: -1.5 } }],
+    [.52, { spine: { x: .25 }, rarm: { x: -1.55 }, larm: { x: -1.55 }, rfa: { x: 0 }, lfa: { x: 0 } }], [.75, { spine: { x: .2 }, rarm: { x: -1.5 }, larm: { x: -1.5 } }], [1, {}]],
+  'Blocking': [[0, { spine: { x: .15 }, rarm: { x: -1.1, y: .35 }, larm: { x: -1.1, y: -.35 }, rfa: { x: -1.5 }, lfa: { x: -1.5 } }],
+    [1, { spine: { x: .15 }, rarm: { x: -1.1, y: .35 }, larm: { x: -1.1, y: -.35 }, rfa: { x: -1.5 }, lfa: { x: -1.5 } }]],
+  'Punch': [[0, {}], [.25, { spine: { y: -.35 }, rarm: { x: -.6 }, rfa: { x: -1.3 } }], [.45, { spine: { y: .45 }, rarm: { x: -1.5, y: .3 }, rfa: { x: 0 } }], [.7, { spine: { y: .3 }, rarm: { x: -1.3 } }], [1, {}]],
+  'Unarmed_Melee_Attack_Punch_A': [[0, {}], [.25, { spine: { y: -.35 }, rarm: { x: -.6 }, rfa: { x: -1.3 } }], [.45, { spine: { y: .45 }, rarm: { x: -1.5, y: .3 }, rfa: { x: 0 } }], [1, {}]],
+  'Unarmed_Melee_Attack_Punch_B': [[0, {}], [.25, { spine: { y: .35 }, larm: { x: -.6 }, lfa: { x: -1.3 } }], [.45, { spine: { y: -.45 }, larm: { x: -1.5, y: -.3 }, lfa: { x: 0 } }], [1, {}]],
+  'Unarmed_Melee_Attack_Kick': [[0, {}], [.3, { spine: { x: -.2 }, rup: { x: -.8 }, rleg: { x: 1.4 } }], [.5, { spine: { x: -.35 }, rup: { x: -1.6 }, rleg: { x: 0 }, larm: { z: .6 }, rarm: { z: -.6 } }], [.72, { rup: { x: -1.0 }, rleg: { x: .8 } }], [1, {}]],
+  'Cheer': [[0, {}], [.2, { rarm: { x: -2.9 }, larm: { x: -2.9 }, spine: { x: -.15 } }], [.4, { rarm: { x: -2.4 }, larm: { x: -2.4 } }], [.6, { rarm: { x: -2.9 }, larm: { x: -2.9 }, spine: { x: -.15 } }], [.8, { rarm: { x: -2.4 }, larm: { x: -2.4 } }], [1, {}]],
+  'Jump_Full_Short': [[0, {}], [.3, { spine: { x: .3 }, rup: { x: -.5 }, lup: { x: -.5 }, rleg: { x: .9 }, lleg: { x: .9 } }], [.5, { rarm: { x: -2.6 }, larm: { x: -2.6 }, rup: { x: -.9 }, lup: { x: -.9 }, rleg: { x: 1.4 }, lleg: { x: 1.4 } }], [.8, { spine: { x: .35 }, rarm: { x: -1.2 }, larm: { x: -1.2 } }], [1, {}]]
+};
+// добавляет модели недостающие клипы; база — первый кадр стойки (Idle)
+function mxClips(scene, clips) {
+  const B = mxBones(scene); if (!B.hips || !B.rarm) return clips;
+  const have = new Set(clips.map(c => c.name)), idle = clips.find(c => c.name === 'Idle') || clips[0];
+  const mx = new T3.AnimationMixer(scene); if (idle) { mx.clipAction(idle).play(); mx.update(0); }
+  const base = {}; for (const k of MXO) if (B[k]) base[k] = B[k].quaternion.clone();
+  // бег и прочее «на месте»: игра двигает героя сама, поэтому убираем сдвиг корня по горизонтали (кроме смерти)
+  for (const c of clips) if (!/^Death/.test(c.name)) for (const t of c.tracks) if (t.name === B.hips.name + '.position') { const v = t.values; for (let i = 3; i < v.length; i += 3) { v[i] = v[0]; v[i + 2] = v[2]; } }
+  const out = clips.slice();
+  for (const name in MXCLIP) {
+    if (have.has(name)) continue;
+    const keys = MXCLIP[name], times = keys.map(k => k[0]), vals = {};
+    for (const k of MXO) if (B[k]) vals[k] = [];
+    for (const [, pose] of keys) {
+      for (const k in base) B[k].quaternion.copy(base[k]);
+      scene.updateMatrixWorld(true); mxPose(scene, B, pose);
+      for (const k in vals) { const q = B[k].quaternion; const v = vals[k], n = v.length; if (n >= 4 && v[n - 4] * q.x + v[n - 3] * q.y + v[n - 2] * q.z + v[n - 1] * q.w < 0) v.push(-q.x, -q.y, -q.z, -q.w); else v.push(q.x, q.y, q.z, q.w); }
+    }
+    // вращения больше 180° (вертушка) — дробим, чтобы кватернион не срезал угол
+    out.push(new T3.AnimationClip(name, 1, Object.keys(vals).map(k => new T3.QuaternionKeyframeTrack(B[k].name + '.quaternion', times, vals[k]))));
+  }
+  for (const k in base) B[k].quaternion.copy(base[k]);
+  mx.stopAllAction(); mx.uncacheRoot(scene);
+  return out;
+}
+// оружие в правую кисть Mixamo: ручка вдоль большого пальца, масштаб — как у героя KayKit
+function mxGrip(g, W3) {
+  const s = g.children[0], B = mxBones(s), hand = B.rhand; if (!hand) return false;
+  let mid = null, th = null; hand.traverse(o => { if (!mid && /RightHandMiddle1$/.test(o.name)) mid = o; if (!th && /RightHandThumb1$/.test(o.name)) th = o; });
+  s.updateMatrixWorld(true);
+  const toL = o => hand.worldToLocal(o.getWorldPosition(new T3.Vector3()));
+  const fing = mid ? toL(mid) : new T3.Vector3(0, 1, 0), thumb = th ? toL(th) : new T3.Vector3(0, 0, 1);
+  const fd = fing.clone().normalize(), td = thumb.clone().sub(fd.clone().multiplyScalar(thumb.dot(fd))).normalize();
+  const ws = hand.getWorldScale(new T3.Vector3()).x || 1;
+  const sc = g.userData.top * .44 / 1.34 / ws;   // бита ~44% роста героя
+  const ad = new T3.Group(); ad.quaternion.setFromUnitVectors(new T3.Vector3(0, 1, 0), td); ad.position.copy(fing.clone().multiplyScalar(.55));
+  ad.scale.setScalar(sc); hand.add(ad); for (const k in W3) ad.add(W3[k]);
+  return true;
+}
 let corpses = [], statics = [], lastNow = 0;
 function loadModels() {
   if (!T3 || !T3.GLTFLoader || !T3.SkeletonUtils || !window.GLB) return;
@@ -1955,7 +2039,7 @@ function loadModels() {
           const pk = window.GLBPACK && window.GLBPACK[k];
           if (pk) g.scene.traverse(q => { if (!q.isMesh || Array.isArray(q.material)) return; const key = pk + '|' + q.material.name; let cm = PMAT[key]; if (!cm) { cm = PMAT[key] = q.material; cm.map = PT[pk] || null; cm.needsUpdate = true; } q.material = cm; });
           else mergeSkinned(g.scene);
-          const bb = new T3.Box3().setFromObject(g.scene); MDL[k] = { kk: !!KK[k], scene: g.scene, clips: g.animations, h: (bb.max.y - bb.min.y) || 1, w: (bb.max.x - bb.min.x) || 1, y0: bb.min.y };
+          const bb = new T3.Box3().setFromObject(g.scene); MDL[k] = { kk: !!KK[k], scene: g.scene, clips: KK[k] ? g.animations : mxClips(g.scene, g.animations), mx: !KK[k] && !!mxBones(g.scene).hips, h: (bb.max.y - bb.min.y) || 1, w: (bb.max.x - bb.min.x) || 1, y0: bb.min.y };
         } catch (error) {
           console.warn('Model setup failed:', k, error);
         } finally { finish(); }
@@ -2288,10 +2372,12 @@ function render() {
   // Пахан
   const w = S.weapon, wd = WP[w], a = P.atk;
   PM.position.set(P.x, 0, P.y); PM.rotation.y = introShot ? -ang(P, comp) : -P.aim;
-  if (!PM.userData.mdl && MDL.vanek) {
-    const q = inst('vanek', 72, { tint: '#4a4d5a', mix: .5 }); PIN.children.slice(0, 5).forEach(c => { c.visible = false; }); PIN.add(q); PM.userData.mdl = q;
-    let hs = null; q.traverse(o => { if (/^handslot.?r$/i.test(o.name)) hs = o; });
-    if (hs) { HW = handWeapons(); for (const k in HW) hs.add(HW[k]); WPV.visible = false; }
+  // герой — своя модель Пахана (скелет Mixamo), пока она не загрузилась или если её нет — KayKit
+  if (!PM.userData.mdl && (MDL.pahan || MDL.vanek && mdlDone >= mdlTot)) {
+    const q = MDL.pahan ? inst('pahan', 74) : inst('vanek', 72, { tint: '#4a4d5a', mix: .5 }); PIN.children.slice(0, 5).forEach(c => { c.visible = false; }); PIN.add(q); PM.userData.mdl = q;
+    if (MDL.pahan) { HW = handWeapons(); if (mxGrip(q, HW)) WPV.visible = false; else HW = null; }
+    else { let hs = null; q.traverse(o => { if (/^handslot.?r$/i.test(o.name)) hs = o; });
+      if (hs) { HW = handWeapons(); for (const k in HW) hs.add(HW[k]); WPV.visible = false; } }
   }
   if (!CM.userData.mdl && MDL.kent) { const q = inst('kent', 62, { tint: '#bfe6ff', mix: .3 }); CM.children.forEach(c => { c.visible = false; }); CM.add(q); CM.userData.mdl = q; }
   const pg = PM.userData.mdl, fn = P.fin;
@@ -2314,6 +2400,8 @@ function render() {
         lowerlegl: 1.85, lowerlegr: 1.85, upperarml: -1.05, upperarmr: -1.05, lowerarml: -1.25, lowerarmr: -1.25 };
       pg.traverse(b => { if (b.isBone && angles[b.name] != null)
         pg.userData.rollBones.push({ bone: b, angle: angles[b.name], base: b.quaternion.clone() }); });
+      if (!pg.userData.rollBones.length) { const B = mxBones(pg.children[0]), MA = { spine: .45, spine2: .3, head: .35, lup: -1.7, rup: -1.7, lleg: 2.1, rleg: 2.1, larm: -.9, rarm: -.9, lfa: -1.4, rfa: -1.4 };
+        for (const k of MXO) if (B[k] && MA[k] != null) pg.userData.rollBones.push({ bone: B[k], angle: MA[k], base: B[k].quaternion.clone(), mx: 1 }); }
     }
     for (const b of pg.userData.rollBones) b.bone.quaternion.copy(b.base);
     pg.userData.mx.update(fdt);
@@ -2335,6 +2423,7 @@ function render() {
     PIN.position.set(-ROLLO.x, height - ROLLO.y, -ROLLO.z);
     PIN.scale.set(1, 1, 1);
     if (pg) for (const b of pg.userData.rollBones) {
+      if (b.mx) { mxTurn(pg.children[0], b.bone, 'x', b.angle * tuck); continue; }
       b.bone.quaternion.multiply(new T3.Quaternion().setFromAxisAngle(new T3.Vector3(1, 0, 0), b.angle * tuck));
     }
   } else {
