@@ -2025,18 +2025,22 @@ function mxClips(scene, clips) {
   mx.stopAllAction(); mx.uncacheRoot(scene);
   return out;
 }
-// оружие в правую кисть Mixamo: ручка вдоль большого пальца, масштаб — как у героя KayKit
+// оружие в правую кисть Mixamo. Направление задаётся в стойке (Idle) в осях персонажа: x — его левая рука, y — вверх, z — вперёд.
+// Кулаки у Пахана в стойке под подбородком, поэтому бита идёт от них вперёд, вправо и чуть вниз — мимо большой головы.
+const MXGRIP = { dir: [-.35, -.2, .9], len: .4 };
 function mxGrip(g, W3) {
   const s = g.children[0], B = mxBones(s), hand = B.rhand; if (!hand) return false;
-  let mid = null, th = null; hand.traverse(o => { if (!mid && /RightHandMiddle1$/.test(o.name)) mid = o; if (!th && /RightHandThumb1$/.test(o.name)) th = o; });
+  let mid = null; hand.traverse(o => { if (!mid && /RightHandMiddle1$/.test(o.name)) mid = o; });
+  const clip = (MDL.pahan && MDL.pahan.clips || []).find(c => c.name === 'Idle'), tm = clip ? new T3.AnimationMixer(s) : null;
+  if (tm) { tm.clipAction(clip).play(); tm.update(0); }
   s.updateMatrixWorld(true);
-  const toL = o => hand.worldToLocal(o.getWorldPosition(new T3.Vector3()));
-  const fing = mid ? toL(mid) : new T3.Vector3(0, 1, 0), thumb = th ? toL(th) : new T3.Vector3(0, 0, 1);
-  const fd = fing.clone().normalize(), td = thumb.clone().sub(fd.clone().multiplyScalar(thumb.dot(fd))).normalize();
-  const ws = hand.getWorldScale(new T3.Vector3()).x || 1;
-  const sc = g.userData.top * .44 / 1.34 / ws;   // бита ~44% роста героя
-  const ad = new T3.Group(); ad.quaternion.setFromUnitVectors(new T3.Vector3(0, 1, 0), td); ad.position.copy(fing.clone().multiplyScalar(.55));
+  const fing = mid ? hand.worldToLocal(mid.getWorldPosition(new T3.Vector3())) : new T3.Vector3(0, .05, 0);
+  const qs = s.getWorldQuaternion(new T3.Quaternion()).invert().multiply(hand.getWorldQuaternion(new T3.Quaternion()));   // кисть в осях персонажа
+  const gd = window.__gripDir || MXGRIP.dir, dir = new T3.Vector3(gd[0], gd[1], gd[2]).normalize().applyQuaternion(qs.invert());
+  const ws = hand.getWorldScale(new T3.Vector3()).x || 1, sc = g.userData.top * (window.__gripLen || MXGRIP.len) / 1.34 / ws;
+  const ad = new T3.Group(); ad.quaternion.setFromUnitVectors(new T3.Vector3(0, 1, 0), dir); ad.position.copy(fing.multiplyScalar(.6));
   ad.scale.setScalar(sc); hand.add(ad); for (const k in W3) ad.add(W3[k]);
+  if (tm) { tm.stopAllAction(); tm.uncacheRoot(s); }
   return true;
 }
 let corpses = [], statics = [], lastNow = 0;
@@ -2663,8 +2667,8 @@ function render() {
   } else if (mode !== 'title' && mode !== 'end' && mode !== 'dlg' && !window.__noHud) { drawHud(); drawNav(); }
   if (tipQ.length && mode === 'fight' && !window.__noHud) {
     tipT += fdt; const tx = tipQ[0], al = clamp(tipT / .3, 0, 1) * clamp((7 - tipT) / .4, 0, 1); X.globalAlpha = al; X.font = '15px "Segoe UI",sans-serif';
-    const words = tx.split(' '), lines = []; let ln = ''; for (const wq of words) { if (X.measureText(ln + wq).width > 560) { lines.push(ln); ln = ''; } ln += wq + ' '; } lines.push(ln);
-    const bh = 30 + lines.length * 21, by = 96, TX = 28; X.fillStyle = 'rgba(8,10,16,.9)'; X.fillRect(TX, by, 620, bh); X.fillStyle = '#5cd0ff'; X.fillRect(TX, by, 5, bh);
+    const words = tx.split(' '), lines = []; let ln = ''; for (const wq of words) { if (X.measureText(ln + wq).width > 470) { lines.push(ln); ln = ''; } ln += wq + ' '; } lines.push(ln);
+    const bh = 30 + lines.length * 21, by = H - 212 - bh, TX = 28; X.fillStyle = 'rgba(8,10,16,.9)'; X.fillRect(TX, by, 520, bh); X.fillStyle = '#5cd0ff'; X.fillRect(TX, by, 5, bh);
     X.textAlign = 'left'; X.fillStyle = '#5cd0ff'; X.font = '12px ' + FONT; X.fillText('ПОДСКАЗКА', TX + 18, by + 18); X.fillStyle = '#e8ecf4'; X.font = '15px "Segoe UI",sans-serif'; lines.forEach((l, i) => X.fillText(l, TX + 18, by + 40 + i * 21));
     X.globalAlpha = 1; if (tipT > 7) { tipQ.shift(); tipT = 0; }
   }
