@@ -26,6 +26,7 @@ const ipod = new IPodHUD(ipodMusic);
 let ipodHadPointerLock = false;
 let handIPod;
 let handIPodScreen, ipodRig;
+let ipodHeadForward, ipodHeadEyes;
 let ipodPoseWeight = 0;
 function audio() {
   if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
@@ -2225,33 +2226,38 @@ function poseIPodArm(upper, lower, wrist, target, bendPole, weight) {
   aimPoseBone(lower, wrist, shoulder.addScaledVector(reach, length), weight);
 }
 function poseHandIPod(progress, tap) {
-  const { upperarml, lowerarml, wristl, upperarmr, lowerarmr, wristr, head } = ipodRig;
+  const { upperarml, lowerarml, upperarmr, lowerarmr, wristr, head } = ipodRig;
   if (!upperarml || !head) return;
   const weight = progress * progress * (3 - 2 * progress);
   const heading = PM.quaternion;
   const worldDirection = (x, y, z) => new T3.Vector3(x, y, z).applyQuaternion(heading);
-  const eye = head.getWorldPosition(new T3.Vector3()).add(worldDirection(5, 15, 0));
-  const target = upperarml.getWorldPosition(new T3.Vector3()).add(worldDirection(6.5, 0, -10));
-  poseIPodArm(upperarml, lowerarml, wristl, target, worldDirection(-.25, -1, -.25), weight);
-
-  if (wristl) {
-    const wristTurn = new T3.Quaternion().setFromAxisAngle(new T3.Vector3(0, 1, 0), .24);
-    wristl.quaternion.slerp(wristl.quaternion.clone().multiply(wristTurn), weight);
-  }
+  // Vanek faces +X in PM after inst() applies the model's quarter turn. His left is -Z.
+  const chest = upperarml.getWorldPosition(new T3.Vector3())
+    .lerp(upperarmr.getWorldPosition(new T3.Vector3()), .5);
+  const target = chest.add(worldDirection(17, 2, -8));
   const grip = handIPod.parent;
-  const center = grip.getWorldPosition(new T3.Vector3()).add(worldDirection(-2, 1.5, -5));
-  const face = new T3.Quaternion().setFromRotationMatrix(new T3.Matrix4().lookAt(eye, center, new T3.Vector3(0, 1, 0)));
-  handIPod.position.copy(grip.worldToLocal(center.clone()));
-  handIPod.quaternion.copy(grip.getWorldQuaternion(new T3.Quaternion()).invert()).multiply(face);
+  // Include the wrist-to-grip offset in the effective forearm length.
+  poseIPodArm(upperarml, lowerarml, grip, target, worldDirection(-.4, -1, -.7), weight);
+
+  const eye = head.localToWorld(ipodHeadEyes.clone());
+  const center = handIPod.getWorldPosition(new T3.Vector3());
+  const up = worldDirection(0, 1, 0);
+  const face = new T3.Matrix4().lookAt(eye, center, up);
+  const gripInverse = grip.getWorldQuaternion(new T3.Quaternion()).invert();
+  handIPod.quaternion.copy(gripInverse).multiply(new T3.Quaternion().setFromRotationMatrix(face));
 
   const screen = handIPodScreen.getWorldPosition(new T3.Vector3());
-  const look = screen.clone().sub(eye).applyQuaternion(heading.clone().invert());
-  const yaw = clamp(Math.atan2(-look.z, Math.max(1, look.x)), -.20, .20);
-  const pitch = clamp(Math.atan2(look.y, Math.hypot(look.x, look.z)), -.23, .23);
-  const localHeading = head.parent.getWorldQuaternion(new T3.Quaternion()).invert().multiply(heading);
-  const turn = new T3.Quaternion().setFromEuler(new T3.Euler(0, yaw, pitch, 'YZX'));
-  const headTarget = localHeading.clone().multiply(turn).multiply(localHeading.invert()).multiply(head.quaternion);
-  head.quaternion.slerp(headTarget, weight);
+  const parentInverse = head.parent.getWorldQuaternion(new T3.Quaternion()).invert();
+  const current = ipodHeadForward.clone().applyQuaternion(head.quaternion);
+  const look = screen.sub(eye).normalize().applyQuaternion(parentInverse);
+  const turn = new T3.Quaternion().setFromUnitVectors(current, look);
+  const limit = new T3.Quaternion().rotateTowards(turn, .75);
+  head.quaternion.slerp(limit.multiply(head.quaternion), weight);
+  const posedEye = head.localToWorld(ipodHeadEyes.clone());
+  for (let i = 0; i < 2; i++) {
+    face.lookAt(posedEye, handIPodScreen.getWorldPosition(screen), up);
+    handIPod.quaternion.copy(gripInverse).multiply(new T3.Quaternion().setFromRotationMatrix(face));
+  }
 
   if (tap > 0) {
     const wheel = handIPod.localToWorld(new T3.Vector3(0, -.066, .045));
@@ -2388,13 +2394,20 @@ function render() {
       handIPod.name = 'Hand iPod';
       handIPod.add(box(.20, .31, .043, '#bec5cb', 0, 0, 0));
       handIPod.add(box(.165, .12, .006, '#27333d', 0, .072, .024));
-      handIPodScreen = box(.139, .094, .004, '#91b4c4', 0, .072, .028);
+      handIPodScreen = box(.139, .094, .004, '#b4d4dd', 0, .072, .028, { emissive: '#8cbeca', emissiveIntensity: .6 });
       handIPod.add(handIPodScreen);
       const wheel = mesh(new T3.CircleGeometry(.063, 20), mat('#eeeeee'), 0, -.066, .028);
       handIPod.add(wheel);
       handIPod.add(mesh(new T3.CircleGeometry(.022, 12), mat('#a2a9af'), 0, -.066, .029));
       ipodRig = Object.fromEntries(['upperarml', 'lowerarml', 'wristl', 'upperarmr', 'lowerarmr', 'wristr', 'head']
         .map(name => [name, q.getObjectByName(name)]));
+      if (ipodRig.head) {
+        const inverseHead = ipodRig.head.getWorldQuaternion(new T3.Quaternion()).invert();
+        ipodHeadForward = new T3.Vector3(1, 0, 0).applyQuaternion(PM.quaternion).applyQuaternion(inverseHead);
+        const eye = ipodRig.head.getWorldPosition(new T3.Vector3())
+          .add(new T3.Vector3(6, 15, 0).applyQuaternion(PM.quaternion));
+        ipodHeadEyes = ipodRig.head.worldToLocal(eye);
+      }
       left.add(handIPod);
     }
     if (hs) { HW = handWeapons(); for (const k in HW) hs.add(HW[k]); WPV.visible = false; }
