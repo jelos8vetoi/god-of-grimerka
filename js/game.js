@@ -21,6 +21,8 @@ addEventListener('resize', fit); fit();
 
 /* ================= ЗВУК ================= */
 let AC = null, MG = null, NB = null, muted = false;
+const ipodMusic = new GrimerkaMusicPlayer(message => toast(message, 4));
+const ipod = new PhysicalIPod(ipodMusic);
 function audio() {
   if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
   try { AC = new (window.AudioContext || window.webkitAudioContext)(); MG = AC.createGain(); MG.gain.value = .5 * OPT.vol; MG.connect(AC.destination); musicBus = AC.createGain(); musicDry = AC.createGain(); musicBus.connect(musicDry).connect(MG); if (mode === 'guide') guideMusic(true); } catch (e) { AC = null; }
@@ -196,8 +198,9 @@ function pushOut(o, r) { for (const b of obs) { const dx = o.x - b.x, dy = o.y -
 
 let OPT = { sens: 1, vol: 1, voice: .85, q: 'auto', fps: false }; try { Object.assign(OPT, JSON.parse(localStorage.getItem('goc_opts') || '{}')); } catch (e) {}
 { const qs = new URLSearchParams(location.search); if (['auto', 'lo', 'mid', 'hi'].includes(qs.get('q'))) OPT.q = qs.get('q'); if (qs.has('fps')) OPT.fps = qs.get('fps') === '1'; }
-const KDEF = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', dodge: 'Space', sprint: 'ControlLeft', block: 'ShiftLeft', interact: 'KeyF', thr: 'KeyC', rune: 'KeyE', adlib: 'KeyQ', rage: 'KeyR', w1: 'Digit1', w2: 'Digit2', w3: 'Digit3', menu: 'Tab', full: 'F11', fps: 'F3', mute: 'KeyM' };
-const KLAB = { up: 'Вперёд', down: 'Назад', left: 'Влево', right: 'Вправо', dodge: 'Перекат', sprint: 'Спринт', block: 'Блок / парирование', interact: 'Действие / добивание', thr: 'Бросок биты', rune: 'Руна оружия', adlib: 'Ад-либ кента', rage: 'Перегруз / ульта', w1: 'Бита', w2: 'Микрофон', w3: 'Сэмплер', menu: 'Прокачка', full: 'Полный экран', fps: 'Счётчик FPS', mute: 'Звук вкл/выкл' };
+const KDEF = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', dodge: 'Space', sprint: 'ControlLeft', block: 'ShiftLeft', interact: 'KeyF', thr: 'KeyC', rune: 'KeyE', adlib: 'KeyQ', rage: 'KeyR', w1: 'Digit1', w2: 'Digit2', w3: 'Digit3', menu: 'Tab', full: 'F11', fps: 'F3', mute: 'KeyN', ipod: 'KeyM' };
+const KLAB = { up: 'Вперёд', down: 'Назад', left: 'Влево', right: 'Вправо', dodge: 'Перекат', sprint: 'Спринт', block: 'Блок / парирование', interact: 'Действие / добивание', thr: 'Бросок биты', rune: 'Руна оружия', adlib: 'Ад-либ кента', rage: 'Перегруз / ульта', w1: 'Бита', w2: 'Микрофон', w3: 'Сэмплер', menu: 'Прокачка', full: 'Полный экран', fps: 'Счётчик FPS', mute: 'Звук вкл/выкл', ipod: 'Достать iPod' };
+if (OPT.keys && !OPT.keys.ipod && OPT.keys.mute === 'KeyM') OPT.keys.mute = 'KeyN';
 const KM = Object.assign({}, KDEF, OPT.keys || {});
 let BIND = null, fsWant = new URLSearchParams(location.search).get('fs') === '1';
 function KN(a) {
@@ -705,6 +708,7 @@ function spawnBoss(id) {
 /* ================= БОЙ: ИГРОК ================= */
 function tryAtk(heavy, c) {
   if (P.atk || P.acd > 0 || P.dodge > 0 || P.spin > 0) return;
+  ipod.close(true);
   const w = S.weapon;
   if (w === 'bat' && P.thr) {
     if (heavy) doThrow();
@@ -927,6 +931,7 @@ function doQ() {
 }
 function doRage() { if (P.rage > 1) { ult(); return; } if (P.swag < 100 || P.rage > 0) return; bt = Math.max(bt, .45); flashAt(P.x, P.y, '#ff4a1c', 4); P.rage = 8; P.swag = 0; sfx.rage(); shake = 14; ring(P.x, P.y, 200, '#ff4a1c'); float(P.x, P.y - 55, 'ПЕРЕГРУЗ!', '#ff4a1c', 1); }
 function doDodge() {
+  ipod.close(true);
   if (P.dcd > 0 || P.dodge > 0) return;
   let [mx, my] = inputDir();
   if (!mx && !my) { mx = Math.cos(P.aim); my = Math.sin(P.aim); }
@@ -942,7 +947,7 @@ function updPlayer(dt) {
   const ox = P.x, oy = P.y; P.mv = ml > 0;
   if (P.mv && P.dodge <= 0) { stepT -= dt; if (stepT <= 0) { stepT = .29; noise(.035, .035, 500); } }
   if (P.swag >= 100) tip('rage', 'СВЭГ полон: R включает ПЕРЕГРУЗ — урон выше, удары лечат. Повторный R тратит остаток на УЛЬТУ по всей комнате.');
-  if (document.pointerLockElement !== C) { const ex = M.x / W - .5; if (Math.abs(ex) > .2) camYaw += (ex - Math.sign(ex) * .2) * dt * 4; }
+  if (!ipod.active && document.pointerLockElement !== C) { const ex = M.x / W - .5; if (Math.abs(ex) > .2) camYaw += (ex - Math.sign(ex) * .2) * dt * 4; }
   if (!isFinite(camYaw)) camYaw = -Math.PI / 2; if (!isFinite(camPit)) camPit = .36;
   P.aim = camYaw;
   P.block = !!(K[KM.block] || (KM.block === 'ShiftLeft' && K.ShiftRight)) && !P.atk && P.dodge <= 0 && P.spin <= 0;
@@ -2153,7 +2158,7 @@ function drawHud() {
   }
   { const q = proj(P.x + Math.cos(camYaw) * 300, P.y + Math.sin(camYaw) * 300, 30); X.beginPath(); X.arc(q.x, q.y, 5, 0, TAU); X.strokeStyle = 'rgba(255,255,255,.55)'; X.lineWidth = 1.5; X.stroke(); }
   X.textAlign = 'center'; X.font = '13px ' + FONT;
-  if (mode === 'fight' && !fs?.training && document.pointerLockElement !== C) { X.fillStyle = 'rgba(255,210,59,.9)'; X.fillText('Кликни по игре, чтобы захватить мышь · без захвата камера крутится у краёв экрана', W / 2, H - 14); }
+  if (mode === 'fight' && !fs?.training && !ipod.active && document.pointerLockElement !== C) { X.fillStyle = 'rgba(255,210,59,.9)'; X.fillText('Кликни по игре, чтобы захватить мышь · без захвата камера крутится у краёв экрана', W / 2, H - 14); }
   else if (mode === 'fight') {
     const hint = tomskHint();
     if (hint) {
@@ -2293,7 +2298,9 @@ function render() {
   }
   if (!CM.userData.mdl && MDL.kent) { const q = inst('kent', 62, { tint: '#bfe6ff', mix: .3 }); CM.children.forEach(c => { c.visible = false; }); CM.add(q); CM.userData.mdl = q; }
   const pg = PM.userData.mdl, fn = P.fin;
-  if (HW) for (const k in HW) HW[k].visible = k === w && !(k === 'bat' && P.thr);
+  if (pg) { ipod.attach(pg); ipod.restore(); }
+  if (mode !== 'fight' || P.atk || P.dodge > 0 || fn) ipod.close(true);
+  if (HW) for (const k in HW) HW[k].visible = !ipod.active && k === w && !(k === 'bat' && P.thr);
   if (pg) {
     const cb = a ? a.combo % 3 : 0;
     if (fn) play(pg, fn.seq[fn.i][0], true, fn.seq[fn.i][1] * 1.2, 'f' + fn.n + '_' + fn.i);
@@ -2339,6 +2346,10 @@ function render() {
     PIN.quaternion.identity(); PIN.position.x = 0; PIN.position.z = 0; PIN.scale.set(1, 1, 1);
     if (!pg) PIN.position.y = 0;
   }
+  if (pg) { PM.updateMatrixWorld(true); ipod.update(fdt, CAM, now); }
+  ipodMusic.connect(AC, MG);
+  ipodMusic.update(ipod.active, muted, courierPlaying ? 0 : mode === 'dlg' || mode === 'title' ? .2 : mode === 'menu' ? 0 : 1);
+  if (musicBus && AC) musicBus.gain.setTargetAtTime(ipodMusic.audio.paused ? 1 : 0, AC.currentTime, .15);
   pBodyMat.emissive.set(P.rage > 0 ? '#ff4a1c' : '#000000');
   for (const k in WG) WG[k].visible = k === w && !(k === 'bat' && P.thr);
   if (P.thr) { const m = use('tb', () => { const q = new T3.Group(); q.add(box(18, 6, 6, '#2b5fd0', -22, 0, 0), box(40, 10, 10, '#d2a868', 6, 0, 0), box(4, 11, 11, '#ff5a2a', 24, 0, 0)); return q; }); m.position.set(P.thr.x, 30, P.thr.y); m.rotation.y = P.thr.rot; dRing(P.thr.x, P.thr.y, 20, '#ff5a2a', .7); }
@@ -2564,6 +2575,16 @@ addEventListener('keydown', e => {
   if (c === 'F8') { e.preventDefault(); if (mode === 'dev') closeDev(); else openDev(); return; }
   if (mode === 'dev') { if (c === 'Escape') closeDev(); return; }
   K[c] = true; audio();
+  if (mode === 'fight' && c === KM.ipod) {
+    e.preventDefault(); ipodMusic.connect(AC, MG); ipod.toggle(); M.l = M.r = false;
+    if (ipod.active) document.exitPointerLock?.(); else lock(); return;
+  }
+  if (ipod.active && c === 'Escape') { e.preventDefault(); ipod.close(); lock(); return; }
+  if (ipod.active && ['Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(c)) {
+    e.preventDefault(); if (c === 'Enter') ipod.action('select');
+    else if (c === 'ArrowLeft' || c === 'ArrowRight') ipod.action(c === 'ArrowLeft' ? 'prev' : 'next');
+    else ipod.scroll(c === 'ArrowUp' ? -1 : 1); return;
+  }
   if (c === KM.full) { toggleFS(); return; }
   if (c === KM.mute) { muted = !muted; if (muted) stopVoice(); toast(muted ? 'Звук выключен' : 'Звук включён', 1.2); }
   if (c === KM.fps) { OPT.fps = !OPT.fps; saveOpt(); }
@@ -2610,9 +2631,10 @@ addEventListener('keyup', e => {
 addEventListener('blur', () => { resetDialogHold(); for (const k in K) K[k] = false; M.l = M.r = false; });
 const mpos = e => { const r = C.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return; M.x = (e.clientX - r.left) * W / r.width; M.y = (e.clientY - r.top) * H / r.height; };
 addEventListener('mousemove', e => { mpos(e); if (document.pointerLockElement === C) { camYaw += e.movementX * .0026 * OPT.sens; camPit = clamp(camPit + e.movementY * .0014 * OPT.sens, .1, .85); } });
-document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement !== C && mode === 'fight') { stopVoice(); mode = 'pause'; $('oD').value = S.diff; show('pause', true); } });
-C.addEventListener('mousedown', e => { audio(); mpos(e); if (mode === 'fight' || mode === 'dlg') lock(); if (e.button === 0) M.l = true; if (e.button === 2) M.r = true; if (e.button === 1) { e.preventDefault(); if (mode === 'fight') doThrow(); } });
+document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement !== C && mode === 'fight' && !ipod.active) { stopVoice(); mode = 'pause'; $('oD').value = S.diff; show('pause', true); } });
+C.addEventListener('mousedown', e => { if (ipod.active) { e.preventDefault(); ipod.click(e, CAM, C); return; } audio(); mpos(e); if (mode === 'fight' || mode === 'dlg') lock(); if (e.button === 0) M.l = true; if (e.button === 2) M.r = true; if (e.button === 1) { e.preventDefault(); if (mode === 'fight') doThrow(); } });
 addEventListener('mouseup', e => { if (e.button === 0) M.l = false; if (e.button === 2) M.r = false; });
+C.addEventListener('wheel', e => { if (ipod.hit(e, CAM, C)) { e.preventDefault(); ipod.scroll(Math.sign(e.deltaY)); } }, { passive: false });
 addEventListener('contextmenu', e => e.preventDefault());
 $('dlg').addEventListener('click', () => { audio(); advDlg(); });
 C.addEventListener('click', () => { if (mode === 'dlg') advDlg(); });
