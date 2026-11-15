@@ -203,7 +203,7 @@ function pushOut(o, r) { for (const b of obs) { const dx = o.x - b.x, dy = o.y -
 let OPT = { sens: 1, vol: 1, voice: .85, q: 'auto', fps: false }; try { Object.assign(OPT, JSON.parse(localStorage.getItem('goc_opts') || '{}')); } catch (e) {}
 { const qs = new URLSearchParams(location.search); if (['auto', 'lo', 'mid', 'hi'].includes(qs.get('q'))) OPT.q = qs.get('q'); if (qs.has('fps')) OPT.fps = qs.get('fps') === '1'; }
 const KDEF = { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', dodge: 'Space', sprint: 'ControlLeft', block: 'ShiftLeft', interact: 'KeyF', thr: 'KeyC', rune: 'KeyE', adlib: 'KeyQ', rage: 'KeyR', w1: 'Digit1', w2: 'Digit2', w3: 'Digit3', menu: 'Tab', full: 'F11', fps: 'F3', mute: 'KeyN', ipod: 'ArrowUp' };
-const KLAB = { up: 'Вперёд', down: 'Назад', left: 'Влево', right: 'Вправо', dodge: 'Перекат', sprint: 'Спринт', block: 'Блок / парирование', interact: 'Действие / добивание', thr: 'Бросок биты', rune: 'Руна оружия', adlib: 'Ад-либ кента', rage: 'Перегруз / ульта', w1: 'Бита', w2: 'Микрофон', w3: 'Сэмплер', menu: 'Прокачка', full: 'Полный экран', fps: 'Счётчик FPS', mute: 'Звук вкл/выкл', ipod: 'Достать / убрать iPod' };
+const KLAB = { up: 'Вперёд', down: 'Назад', left: 'Влево', right: 'Вправо', dodge: 'Перекат', sprint: 'Спринт', block: 'Блок / парирование', interact: 'Действие / добивание', thr: 'Бросок балона', rune: 'Руна оружия', adlib: 'Ад-либ кента', rage: 'Перегруз / ульта', w1: 'Балон VOZDUH', w2: 'Микрофон', w3: 'Сэмплер', menu: 'Прокачка', full: 'Полный экран', fps: 'Счётчик FPS', mute: 'Звук вкл/выкл', ipod: 'Достать / убрать iPod' };
 if (OPT.keys && !OPT.keys.ipod && OPT.keys.mute === 'KeyM') OPT.keys.mute = 'KeyN';
 const KM = Object.assign({}, KDEF, OPT.keys || {});
 if (KM.ipod === 'KeyM' || (!OPT.keys?.ipod && Object.keys(KDEF).some(action => action !== 'ipod' && KM[action] === 'ArrowUp'))) {
@@ -433,7 +433,7 @@ function startEnc(room, waves, bossId, cb) {
     fs.surv = 60;
     fs.spT = 6;
     toast('Продержись минуту · укрывайся от залпов за бетонными блоками', 5);
-    tip('archBarrel', 'Подведи ботов к красной бочке и взорви её броском биты [' + KN('thr') + ']. Вблизи взрыв заденет и тебя.');
+    tip('archBarrel', 'Подведи ботов к красной бочке и взорви её броском балона [' + KN('thr') + ']. Вблизи взрыв заденет и тебя.');
   }
   if (fs.training) openTomskGuide();
   else if (bossId) spawnBoss(bossId); else spawnWave();
@@ -441,7 +441,7 @@ function startEnc(room, waves, bossId, cb) {
   if (fs.mut) banner(MUTS[fs.mut][0], 'мутатор: ' + MUTS[fs.mut][1] + ' · опыта больше', '#ff5cc8');
   if (!tomskOpening(room)) tip('atk', 'ЛКМ — серия ударов, третий в серии сильнее. ПКМ — тяжёлый удар; держи ПКМ, чтобы зарядить его.');
   if (!tomskOpening(room)) tip('def', 'ПРОБЕЛ — перекат сквозь удар: в последний момент он замедляет время. SHIFT вовремя — парирование.');
-  if (S.step > 1) tip('thr', 'C — бросить биту, ещё раз C — вернуть её. Бита бьёт всех на пути туда и обратно.');
+  if (S.step > 1) tip('thr', 'C — бросить балон, ещё раз C — вернуть его. Балон бьёт всех на пути туда и обратно.');
   if (bossId) tip('boss', 'У босса полоса разделена на фазы — в каждой новые атаки. Красный блик над врагом: атаку не отбить, уходи перекатом.');
   if (room.kind === 'fight' && S.ch >= 1) { fs.traps = []; for (let t = 0; fs.traps.length < 3 && t < 40; t++) { const x = rnd(room.x + 150, room.x + room.w - 150), y = rnd(room.y + 150, room.y + room.h - 150); if (Math.hypot(x - room.cx, y - room.cy) > 220 && !fs.traps.some(q => Math.hypot(q.x - x, q.y - y) < 260)) fs.traps.push({ x, y }); } fs.trT = 4; }
 }
@@ -456,7 +456,7 @@ function pump() {
       startDlg(st.l, () => { S.step++; save(); }); break;
     }
     case 'give':
-      if (st.o.weapon) { S.wl[st.o.weapon] = Math.max(1, S.wl[st.o.weapon]); S.weapon = st.o.weapon; tip('rc_' + st.o.weapon, st.o.weapon === 'mic' ? 'Оружие выгодно чередовать [1][2][3]. Микрофон вешает ШОК — ударь шокированного битой и получишь ВЗРЫВ НИЗОВ по площади.' : 'Диски вешают ПИТЧ — замедление. Бита по замедленному даёт РАСКОЛ, микрофон — ЗАМЫКАНИЕ. Диск по шокированному — ИСКРА.'); }
+      if (st.o.weapon) { S.wl[st.o.weapon] = Math.max(1, S.wl[st.o.weapon]); S.weapon = st.o.weapon; tip('rc_' + st.o.weapon, st.o.weapon === 'mic' ? 'Оружие выгодно чередовать [1][2][3]. Микрофон вешает ШОК — ударь шокированного балоном и получишь ВЗРЫВ НИЗОВ по площади.' : 'Диски вешают ПИТЧ — замедление. Балон по замедленному даёт РАСКОЛ, микрофон — ЗАМЫКАНИЕ. Диск по шокированному — ИСКРА.'); }
       if (st.o.tapes) S.tapes += st.o.tapes;
       if (st.o.comp) { S.comp = Math.max(S.comp, st.o.comp); tip('q', 'Q — ад-либ madk1d: оглушает ближайших врагов. Кент ещё и сам стреляет нотами и один раз за главу поднимет тебя после смертельного удара.'); }
       toast(st.msg, 4.5); sfx.buy(); S.step++; save(); break;
@@ -489,12 +489,12 @@ function scan() {
   for (const o of ents) {
     if (o.k === 'tgt' || o.k === 'brk') continue;
     const d = dist(o, P);
-    if (o.k === 'swall') { if (!o.dead && d < 170) prompt = 'Завал звучит пусто…  Разбей тяжёлым ударом [ПКМ] или броском биты [' + KN('thr') + ']'; continue; }
+    if (o.k === 'swall') { if (!o.dead && d < 170) prompt = 'Завал звучит пусто…  Разбей тяжёлым ударом [ПКМ] или броском балона [' + KN('thr') + ']'; continue; }
     if (o.k === 'lore') { if (!S.done[o.id] && d < 44) { S.done[o.id] = 1; S.xp += 60; toast('📼  ' + LORE[S.ch][o.i], 9); sfx.pick(); save(); } }
     else if (o.k === 'portal') {
       if (d < 58) { if (exitOpen()) { nextChapter(); return; } if (!(o.w > T)) { o.w = T + 3; toast('Портал закрыт: сначала разберись с этим сервером', 2.5); } }
     } else if (d < 95) {
-      if (o.k === 'chest') { if (S.done[o.id] || (o.room.side.guard && !S.done[o.room.side.id])) continue; if (o.lock && !S.done[o.lock]) { prompt = '🔒  Сбей 3 мишени 🎯 на стене: бросок биты [' + KN('thr') + '] или диски'; continue; } prompt = '[' + KN('interact') + ']  Открыть сундук'; }
+      if (o.k === 'chest') { if (S.done[o.id] || (o.room.side.guard && !S.done[o.room.side.id])) continue; if (o.lock && !S.done[o.lock]) { prompt = '🔒  Сбей 3 мишени 🎯 на стене: бросок балона [' + KN('thr') + '] или диски'; continue; } prompt = '[' + KN('interact') + ']  Открыть сундук'; }
       else if (o.k === 'stash') { if (S.done[o.id] || d > 70) continue; prompt = '[' + KN('interact') + ']  ✨ Тайник'; }
       else if (o.k === 'frontDoor') {
         if (o.open) continue;
@@ -701,7 +701,7 @@ function spawnWave() {
     ens.push(hater);
     return;
   }
-  if (S.ch >= 2 && fs.room.kind === 'fight') for (let i = 0, N = 1 + (S.ch / 3 | 0); i < N; i++) { const p = edgePos(); ens.push(mkEnemy('mod', p.x, p.y)); tip('mod', 'Модератор со щитом блокирует лёгкие удары спереди. Сломай щит тяжёлым ударом [ПКМ] или броском биты.'); }
+  if (S.ch >= 2 && fs.room.kind === 'fight') for (let i = 0, N = 1 + (S.ch / 3 | 0); i < N; i++) { const p = edgePos(); ens.push(mkEnemy('mod', p.x, p.y)); tip('mod', 'Модератор со щитом блокирует лёгкие удары спереди. Сломай щит тяжёлым ударом [ПКМ] или броском балона.'); }
   for (const [type, n, el] of fs.waves[fs.i]) {
     const N = el || fs.training ? n : Math.ceil(n * (EN[type].ai === 'ranged' ? 2 : 1.6));
     for (let i = 0; i < N; i++) { const p = edgePos(), m = mkEnemy(type, p.x, p.y); if (el) { m.hp = m.maxhp = m.hp * 2.6; m.dmg *= 1.3; m.r *= 1.3; m.xp *= 4; m.el = 1; } ens.push(m); }
@@ -1733,17 +1733,17 @@ const TOMSK_DRILLS = [
   { action: 'heavy', title: 'Тяжёлый удар', hint: () => 'Попади ПКМ · удерживай кнопку, чтобы зарядить удар' },
   { action: 'dodge', title: 'Перекат', hint: () => 'Подпусти бота и нажми [' + KN('dodge') + '] в конце замаха' },
   { action: 'block', title: 'Блок', hint: () => 'Зажми [' + KN('block') + '] и дождись удара · нажатие перед попаданием парирует' },
-  { action: 'throw', title: 'Бросок и возврат', hint: () => 'Наведи камеру, попади броском [' + KN('thr') + '] и верни биту той же клавишей' },
+  { action: 'throw', title: 'Бросок и возврат', hint: () => 'Наведи камеру, попади броском [' + KN('thr') + '] и верни балон той же клавишей' },
   { title: 'Проверка', hint: () => 'Зачисти двор · хейтер атакует издалека, боты идут в ближний бой' }
 ];
 const ipodGuide = () => 'Нажми [' + KN('ipod') + '], чтобы достать iPod. Выбирай треки, загружай свою музыку и управляй воспроизведением. Пока плеер открыт, музыка звучит с реверберацией. Когда убираешь его — звук становится чистым. Глубину эффекта можно изменить в настройках iPod. При паузе музыка приглушается.';
 const TOMSK_GUIDE = [
   ['ipod', ipodGuide],
-  ['ЛКМ', 'Подойди на расстояние взмаха биты и наведи камеру на бота. Нажми левую кнопку мыши, чтобы ударить. Несколько нажатий подряд складываются в серию.'],
+  ['ЛКМ', 'Подойди на расстояние взмаха балона и наведи камеру на бота. Нажми левую кнопку мыши, чтобы ударить. Несколько нажатий подряд складываются в серию.'],
   ['ПКМ', 'Нажми правую кнопку мыши и отпусти её, чтобы ударить. Если подержать кнопку, Пахан зарядит удар. Подойди к боту и попробуй попасть.'],
   ['dodge', 'Подпусти бота и посмотри на его замах. Перекатись, когда удар вот-вот попадёт. В начале переката Пахан на короткое время становится неуязвим.'],
   ['block', 'Зажми блок до того, как бот ударит. Блок уменьшает урон. Если нажать кнопку прямо перед попаданием, получится парирование.'],
-  ['thr', 'Наведи камеру на бота и брось биту. После попадания нажми ту же кнопку, чтобы вернуть её. Бита может задеть врага и на обратном пути.'],
+  ['thr', 'Наведи камеру на бота и брось балон. После попадания нажми ту же кнопку, чтобы вернуть его. Балон может задеть врага и на обратном пути.'],
   ['', 'Во дворе два бота и хейтер. Боты подходят вплотную, а хейтер стреляет издалека. Выбирай приёмы по ситуации и зачисти двор.']
 ];
 function openTomskGuide() {
@@ -2026,7 +2026,7 @@ function mxClips(scene, clips) {
   return out;
 }
 // оружие в правую кисть Mixamo. Направление задаётся в стойке (Idle) в осях персонажа: x — его левая рука, y — вверх, z — вперёд.
-// Кулаки у Пахана в стойке под подбородком, поэтому бита идёт от них вперёд, вправо и чуть вниз — мимо большой головы.
+// Кулаки у Пахана в стойке под подбородком, поэтому балон идёт от них вперёд, вправо и чуть вниз — мимо большой головы.
 const MXGRIP = { dir: [-.35, -.2, .9], len: .4 };
 function mxGrip(g, W3) {
   const s = g.children[0], B = mxBones(s), hand = B.rhand; if (!hand) return false;
@@ -2139,11 +2139,19 @@ function skyline(k) {
     for (let y = r.y + 60; y < r.y + r.h; y += 250 + Math.random() * 80) { put(r.x - 190, y, Math.PI / 2); put(r.x + r.w + 190, y, -Math.PI / 2); }
   }
 }
+/* Балон VOZDUH — модель models/balon.js (бутылка стоит донышком на y=0).
+   len — длина в нужных единицах, grip — доля длины от горлышка, за которую держат (горлышко у кулака, донышко наружу). */
+function balonModel(len, grip) {
+  const m = MDL.balon; if (!m) return null;
+  const s = m.scene.clone(true), k = len / m.h, g = new T3.Group();
+  s.traverse(q => { if (q.isMesh) { q.castShadow = true; q.frustumCulled = false; } });
+  s.rotation.x = Math.PI; s.scale.setScalar(k); s.position.y = (m.h + m.y0) * k * (1 - grip); g.add(s); return g;
+}
 /* оружие в руке героя: единицы модели, вдоль +Y кости handslot.r */
 function handWeapons() {
   const W3 = {}, L = (pts, c, o) => mesh(new T3.LatheGeometry(pts.map(p => new T3.Vector2(p[0], p[1])), 14), mat(c, o));
-  W3.bat = new T3.Group(); W3.bat.add(L([[0, -.25], [.055, -.25], [.06, -.2], [.036, -.15], [.036, .35], [.05, .62], [.088, .98], [.094, 1.22], [.07, 1.32], [0, 1.34]], '#d2a868', { roughness: .55 }),
-    mesh(new T3.CylinderGeometry(.04, .04, .34, 12), mat('#2b5fd0', { roughness: .9 }), 0, .03, 0), mesh(new T3.CylinderGeometry(.096, .092, .06, 14), mat('#ff5a2a', { emissive: '#ff5a2a', emissiveIntensity: .5 }), 0, 1.02, 0));
+  W3.bat = balonModel(1.3, .1); if (!W3.bat) { W3.bat = new T3.Group(); W3.bat.add(L([[0, -.25], [.055, -.25], [.06, -.2], [.036, -.15], [.036, .35], [.05, .62], [.088, .98], [.094, 1.22], [.07, 1.32], [0, 1.34]], '#d2a868', { roughness: .55 }),
+    mesh(new T3.CylinderGeometry(.04, .04, .34, 12), mat('#2b5fd0', { roughness: .9 }), 0, .03, 0), mesh(new T3.CylinderGeometry(.096, .092, .06, 14), mat('#ff5a2a', { emissive: '#ff5a2a', emissiveIntensity: .5 }), 0, 1.02, 0)); }
   W3.mic = new T3.Group(); W3.mic.add(mesh(new T3.CylinderGeometry(.04, .05, .5, 12), mat('#22252e', { metalness: .6, roughness: .4 }), 0, .02, 0), mesh(new T3.SphereGeometry(.115, 14, 12), mat('#c8ccd4', { metalness: .85, roughness: .25 }), 0, .37, 0),
     mesh(new T3.CylinderGeometry(.062, .05, .05, 12), mat('#49e0ff', { emissive: '#49e0ff', emissiveIntensity: .8 }), 0, .27, 0),
     mesh(new T3.TubeGeometry(new T3.CatmullRomCurve3([new T3.Vector3(0, -.22, 0), new T3.Vector3(0, -.55, .08), new T3.Vector3(.1, -.95, .3), new T3.Vector3(-.05, -1.3, .25)]), 12, .016, 6), mat('#111')));
@@ -2232,7 +2240,7 @@ function drawHud() {
   }
   if (S.weapon === 'bat') {
     X.font = '12px ' + FONT; X.textAlign = 'left'; X.fillStyle = P.thr ? '#ffd23b' : '#8d97aa';
-    const label = P.thr ? 'вернуть биту' : P.throwCooldown > 0 ? 'бросок через ' + P.throwCooldown.toFixed(1) + ' с' : 'бросить биту';
+    const label = P.thr ? 'вернуть балон' : P.throwCooldown > 0 ? 'бросок через ' + P.throwCooldown.toFixed(1) + ' с' : 'бросить балон';
     X.fillText('[' + KN('thr') + '] — ' + label, 46, H - 184);
   }
   chip(W - 30, 16, '▶ ' + S.xp, '#7dff7d'); chip(W - 30, 50, '▣ ' + S.tapes, '#ffd23b');
@@ -2246,7 +2254,7 @@ function drawHud() {
     if (b.type === 'courier' && !cine) {
       const open = b.state === 'rec' || b.stun > 0;
       X.fillStyle = open ? '#7dff7d' : '#ffd23b';
-      X.fillText(open ? 'ОТКРЫТ ДЛЯ УДАРА' : 'ПРИКРЫВАЕТСЯ ОТ БИТЫ', W / 2, 82);
+      X.fillText(open ? 'ОТКРЫТ ДЛЯ УДАРА' : 'ПРИКРЫВАЕТСЯ ОТ БАЛОНА', W / 2, 82);
     } else X.fillText(b.d.sub, W / 2, 82);
   } else if (fs && fs.surv != null && !fs.done) {
     const seconds = Math.max(0, Math.ceil(fs.surv));
@@ -2508,7 +2516,7 @@ function render() {
   }
   pBodyMat.emissive.set(P.rage > 0 ? '#ff4a1c' : '#000000');
   for (const k in WG) WG[k].visible = k === w && !(k === 'bat' && P.thr);
-  if (P.thr) { const m = use('tb', () => { const q = new T3.Group(); q.add(box(18, 6, 6, '#2b5fd0', -22, 0, 0), box(40, 10, 10, '#d2a868', 6, 0, 0), box(4, 11, 11, '#ff5a2a', 24, 0, 0)); return q; }); m.position.set(P.thr.x, 30, P.thr.y); m.rotation.y = P.thr.rot; dRing(P.thr.x, P.thr.y, 20, '#ff5a2a', .7); }
+  if (P.thr) { const m = use('tb', () => { const q = new T3.Group(), b = balonModel(56, .5); if (b) { b.rotation.z = -Math.PI / 2; q.add(b); } else q.add(box(18, 6, 6, '#2b5fd0', -22, 0, 0), box(40, 10, 10, '#d2a868', 6, 0, 0), box(4, 11, 11, '#ff5a2a', 24, 0, 0)); return q; }); m.position.set(P.thr.x, 30, P.thr.y); m.rotation.y = P.thr.rot; dRing(P.thr.x, P.thr.y, 20, '#ff5a2a', .7); }
   let sw = .75;
   if (a) { const d = (a.d || wd[a.heavy ? 'heavy' : 'light']), arc = d.arc || 1.2, k = clamp(a.t / a.dur, 0, 1); sw = (a.combo % 2 ? -1 : 1) * (arc / 2 - arc * k); }
   if (P.spin > 0) sw = now * 22;
@@ -2689,7 +2697,7 @@ function closeUp() { show('up', false); save(); upShop = false; mode = 'fight'; 
 let upTab = 'bat';
 function buildUp() {
   $('uxp').textContent = S.xp; $('utp').textContent = S.tapes;
-  const tabs = [['bat', WP.bat.icon + ' БИТА'], ['mic', WP.mic.icon + ' МИКРОФОН'], ['vinyl', WP.vinyl.icon + ' СЭМПЛЕР'], ['me', '💪 ПАХАН И КЕНТ'], ['trk', '💍 ЦАЦКИ ' + S.trk.eq.length + ' / 3']];
+  const tabs = [['bat', WP.bat.icon + ' БАЛОН'], ['mic', WP.mic.icon + ' МИКРОФОН'], ['vinyl', WP.vinyl.icon + ' СЭМПЛЕР'], ['me', '💪 ПАХАН И КЕНТ'], ['trk', '💍 ЦАЦКИ ' + S.trk.eq.length + ' / 3']];
   let h = '<div class="tabs">' + tabs.map(([id, t]) => `<button class="tab ${upTab === id ? 'on' : ''}" data-a="tab" data-id="${id}">${t}</button>`).join('') + '</div><div class="pane">';
   const card = (cls, bdg, title, desc, right) => `<div class="card ${cls}"><i class="bdg">${bdg}</i><div><b>${title}</b><span>${desc}</span></div>${right}</div>`;
   if (WP[upTab]) {
@@ -2919,8 +2927,8 @@ $('end').appendChild($('bEnd'));
 $('bNG').addEventListener('click', () => { S.ng = (S.ng || 0) + 1; S.ch = 0; S.step = 0; S.done = {}; S.q = {}; S.ending = null; S.tips = S.tips || {}; S.stat = { t: 0, deaths: 0, kills: 0, fin: 0, parry: 0, style: 0 }; save(); begin(); });
 $('menu').querySelector('.tag').insertAdjacentHTML('afterend', '<div id="load" style="position:absolute;top:176px;color:#ffd23b;font-size:13px;letter-spacing:2px"></div>');
 const HELP = [['Комбо', 'Три лёгких удара подряд — третий усиленный. Удар сразу после смены оружия сильнее на 35%.'], ['Заряд', 'Держи ПКМ: полный заряд бьёт в 2.3 раза сильнее, ломает щиты и подбрасывает.'], ['Перекат и парирование', 'Перекат сквозь удар в последний момент замедляет время и даёт крит. SHIFT в момент удара — парирование с оглушением.'],
-  ['Реакции', 'Микрофон вешает шок, диски — питч. Бита по шоку: ВЗРЫВ НИЗОВ. Бита по питчу: РАСКОЛ. Микрофон по питчу: ЗАМЫКАНИЕ. Диск по шоку: ИСКРА.'], ['Добивания', 'Жёлтая полоска под здоровьем врага — оглушение. Заполнилась — жми F. Несколько оглушённых добиваются серией.'],
-  ['Бита', 'C — бросок и возврат. Пока бита летит, Пахан дерётся кулаками. Броском сбиваются мишени 🎯 и ломаются завалы.'], ['СВЭГ', 'Полная шкала: R — ПЕРЕГРУЗ. Ещё раз R — УЛЬТА по комнате.'], ['Кент', 'Q — ад-либ. madk1d сам стреляет нотами и раз за главу поднимает после смертельного удара (кроме сложности «Андеграунд»).'],
+  ['Реакции', 'Микрофон вешает шок, диски — питч. Балон по шоку: ВЗРЫВ НИЗОВ. Балон по питчу: РАСКОЛ. Микрофон по питчу: ЗАМЫКАНИЕ. Диск по шоку: ИСКРА.'], ['Добивания', 'Жёлтая полоска под здоровьем врага — оглушение. Заполнилась — жми F. Несколько оглушённых добиваются серией.'],
+  ['Балон VOZDUH', 'C — бросок и возврат. Пока балон летит, Пахан дерётся кулаками. Броском сбиваются мишени 🎯 и ломаются завалы.'], ['СВЭГ', 'Полная шкала: R — ПЕРЕГРУЗ. Ещё раз R — УЛЬТА по комнате.'], ['Кент', 'Q — ад-либ. madk1d сам стреляет нотами и раз за главу поднимает после смертельного удара (кроме сложности «Андеграунд»).'],
   ['Стиль', 'Рейтинг D–SSS растёт от разнообразия и даёт до +36% опыта.'], ['Секреты', 'В каждой главе: тайная комната за завалом у портала и два тайника ✨ в углах боевых комнат.'], ['Геймпад', 'Левый стик — ход, правый — камера, X/Y — удары, A — перекат, B — действие, LB — блок, RB — руна, LT — ад-либ, RT — бросок, крестовина — оружие.']];
 $('stage').insertAdjacentHTML('beforeend', '<div id="help" class="ov" style="background:rgba(5,6,10,.96);z-index:9;padding:26px 60px;justify-content:flex-start"><h2 style="letter-spacing:6px;margin-bottom:14px">МЕХАНИКИ</h2><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;overflow:auto;flex:1;width:100%">' + HELP.map(q => '<div style="background:#131722;border:1px solid #232938;border-left:4px solid #ff3b3b;padding:10px 14px"><b style="font-size:15px;color:#ffd23b">' + q[0] + '</b><div style="font-size:13px;color:#b9c2d4;line-height:1.45;margin-top:3px">' + q[1] + '</div></div>').join('') + '</div><button id="helpX" style="margin-top:14px">Закрыть</button></div>');
 const ipodHelp = document.createElement('div');
