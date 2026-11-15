@@ -22,7 +22,8 @@ addEventListener('resize', fit); fit();
 /* ================= ЗВУК ================= */
 let AC = null, MG = null, NB = null, muted = false;
 const ipodMusic = new GrimerkaMusicPlayer(message => toast(message, 4));
-const ipod = new PhysicalIPod(ipodMusic);
+const ipod = new IPodHUD(ipodMusic);
+let ipodHadPointerLock = false;
 function audio() {
   if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
   try { AC = new (window.AudioContext || window.webkitAudioContext)(); MG = AC.createGain(); MG.gain.value = .5 * OPT.vol; MG.connect(AC.destination); musicBus = AC.createGain(); musicDry = AC.createGain(); musicBus.connect(musicDry).connect(MG); if (mode === 'guide') guideMusic(true); } catch (e) { AC = null; }
@@ -2298,9 +2299,8 @@ function render() {
   }
   if (!CM.userData.mdl && MDL.kent) { const q = inst('kent', 62, { tint: '#bfe6ff', mix: .3 }); CM.children.forEach(c => { c.visible = false; }); CM.add(q); CM.userData.mdl = q; }
   const pg = PM.userData.mdl, fn = P.fin;
-  if (pg) { ipod.attach(pg); ipod.restore(); }
   if (mode !== 'fight' || P.atk || P.dodge > 0 || fn) ipod.close(true);
-  if (HW) for (const k in HW) HW[k].visible = !ipod.active && k === w && !(k === 'bat' && P.thr);
+  if (HW) for (const k in HW) HW[k].visible = k === w && !(k === 'bat' && P.thr);
   if (pg) {
     const cb = a ? a.combo % 3 : 0;
     if (fn) play(pg, fn.seq[fn.i][0], true, fn.seq[fn.i][1] * 1.2, 'f' + fn.n + '_' + fn.i);
@@ -2346,9 +2346,9 @@ function render() {
     PIN.quaternion.identity(); PIN.position.x = 0; PIN.position.z = 0; PIN.scale.set(1, 1, 1);
     if (!pg) PIN.position.y = 0;
   }
-  if (pg) { PM.updateMatrixWorld(true); ipod.update(fdt, CAM, now); }
+  ipod.update();
   ipodMusic.connect(AC, MG);
-  ipodMusic.update(ipod.active, muted, courierPlaying ? 0 : mode === 'dlg' || mode === 'title' ? .2 : mode === 'menu' ? 0 : 1);
+  ipodMusic.update(ipod.fullyOpen, muted, courierPlaying ? 0 : mode === 'dlg' || mode === 'title' ? .2 : mode === 'menu' ? 0 : 1);
   if (musicBus && AC) musicBus.gain.setTargetAtTime(ipodMusic.audio.paused ? 1 : 0, AC.currentTime, .15);
   pBodyMat.emissive.set(P.rage > 0 ? '#ff4a1c' : '#000000');
   for (const k in WG) WG[k].visible = k === w && !(k === 'bat' && P.thr);
@@ -2567,6 +2567,13 @@ $('upCols').addEventListener('click', ev => {
 });
 
 /* ================= ВВОД ================= */
+function dismissIPod() {
+  ipod.close();
+  M.x = W / 2;
+  if (ipodHadPointerLock) lock();
+  ipodHadPointerLock = false;
+}
+
 addEventListener('keydown', e => {
   const c = e.code;
   if (BIND) return;
@@ -2576,11 +2583,20 @@ addEventListener('keydown', e => {
   if (mode === 'dev') { if (c === 'Escape') closeDev(); return; }
   K[c] = true; audio();
   if (mode === 'fight' && c === KM.ipod) {
-    e.preventDefault(); ipodMusic.connect(AC, MG); ipod.toggle(); M.l = M.r = false;
-    if (ipod.active) document.exitPointerLock?.(); else lock(); return;
+    e.preventDefault();
+    if (ipod.active) dismissIPod();
+    else {
+      ipodMusic.connect(AC, MG);
+      ipodHadPointerLock = document.pointerLockElement === C;
+      ipod.open();
+      M.l = M.r = false;
+      if (ipodHadPointerLock) document.exitPointerLock();
+    }
+    return;
   }
-  if (ipod.active && c === 'Escape') { e.preventDefault(); ipod.close(); lock(); return; }
+  if (ipod.active && c === 'Escape') { e.preventDefault(); dismissIPod(); return; }
   if (ipod.active && ['Enter','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(c)) {
+    if (c === 'Enter' && e.target.closest?.('#ipod-wheel button')) return;
     e.preventDefault(); if (c === 'Enter') ipod.action('select');
     else if (c === 'ArrowLeft' || c === 'ArrowRight') ipod.action(c === 'ArrowLeft' ? 'prev' : 'next');
     else ipod.scroll(c === 'ArrowUp' ? -1 : 1); return;
@@ -2632,9 +2648,8 @@ addEventListener('blur', () => { resetDialogHold(); for (const k in K) K[k] = fa
 const mpos = e => { const r = C.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return; M.x = (e.clientX - r.left) * W / r.width; M.y = (e.clientY - r.top) * H / r.height; };
 addEventListener('mousemove', e => { mpos(e); if (document.pointerLockElement === C) { camYaw += e.movementX * .0026 * OPT.sens; camPit = clamp(camPit + e.movementY * .0014 * OPT.sens, .1, .85); } });
 document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement !== C && mode === 'fight' && !ipod.active) { stopVoice(); mode = 'pause'; $('oD').value = S.diff; show('pause', true); } });
-C.addEventListener('mousedown', e => { if (ipod.active) { e.preventDefault(); ipod.click(e, CAM, C); return; } audio(); mpos(e); if (mode === 'fight' || mode === 'dlg') lock(); if (e.button === 0) M.l = true; if (e.button === 2) M.r = true; if (e.button === 1) { e.preventDefault(); if (mode === 'fight') doThrow(); } });
+C.addEventListener('mousedown', e => { if (ipod.active) return; audio(); mpos(e); if (mode === 'fight' || mode === 'dlg') lock(); if (e.button === 0) M.l = true; if (e.button === 2) M.r = true; if (e.button === 1) { e.preventDefault(); if (mode === 'fight') doThrow(); } });
 addEventListener('mouseup', e => { if (e.button === 0) M.l = false; if (e.button === 2) M.r = false; });
-C.addEventListener('wheel', e => { if (ipod.hit(e, CAM, C)) { e.preventDefault(); ipod.scroll(Math.sign(e.deltaY)); } }, { passive: false });
 addEventListener('contextmenu', e => e.preventDefault());
 $('dlg').addEventListener('click', () => { audio(); advDlg(); });
 C.addEventListener('click', () => { if (mode === 'dlg') advDlg(); });
