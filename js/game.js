@@ -25,6 +25,7 @@ const ipodMusic = new GrimerkaMusicPlayer(message => toast(message, 4));
 const ipod = new IPodHUD(ipodMusic);
 let ipodHadPointerLock = false;
 let handIPod;
+let handIPodOffset, handIPodFacing;
 function audio() {
   if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
   try { AC = new (window.AudioContext || window.webkitAudioContext)(); MG = AC.createGain(); MG.gain.value = .5 * OPT.vol; MG.connect(AC.destination); musicBus = AC.createGain(); musicDry = AC.createGain(); musicBus.connect(musicDry).connect(MG); if (mode === 'guide') guideMusic(true); } catch (e) { AC = null; }
@@ -2326,11 +2327,14 @@ function render() {
     if (left) {
       handIPod = new T3.Group();
       handIPod.name = 'Hand iPod';
-      handIPod.add(box(.14, .23, .037, '#bcc1c6', 0, 0, 0));
-      handIPod.add(box(.108, .092, .006, '#5b778a', 0, .053, .02));
-      const wheel = mesh(new T3.CircleGeometry(.041, 16), mat('#eeeeee'), 0, -.052, .021);
+      handIPod.add(box(.20, .31, .043, '#bec5cb', 0, 0, 0));
+      handIPod.add(box(.165, .12, .006, '#27333d', 0, .072, .024));
+      handIPod.add(box(.139, .094, .004, '#91b4c4', 0, .072, .028));
+      const wheel = mesh(new T3.CircleGeometry(.063, 20), mat('#eeeeee'), 0, -.066, .028);
       handIPod.add(wheel);
-      handIPod.position.set(0, .10, 0);
+      handIPod.add(mesh(new T3.CircleGeometry(.022, 12), mat('#a2a9af'), 0, -.066, .029));
+      handIPodOffset = new T3.Vector3();
+      handIPodFacing = new T3.Quaternion();
       left.add(handIPod);
     }
     if (hs) { HW = handWeapons(); for (const k in HW) hs.add(HW[k]); WPV.visible = false; }
@@ -2361,6 +2365,18 @@ function render() {
     for (const b of pg.userData.rollBones) b.bone.quaternion.copy(b.base);
     pg.userData.mx.update(fdt);
     for (const b of pg.userData.rollBones) b.base.copy(b.bone.quaternion);
+    if (handIPod?.visible) {
+      const grip = handIPod.parent;
+      grip.updateWorldMatrix(true, false);
+      // Keep the body against the outside of the glove, with the screen facing back.
+      handIPodOffset.set(-1.5, 4.5, -5).applyQuaternion(PM.quaternion);
+      handIPod.position.setFromMatrixPosition(grip.matrixWorld).add(handIPodOffset);
+      grip.worldToLocal(handIPod.position);
+      grip.getWorldQuaternion(handIPodFacing);
+      handIPod.quaternion.copy(handIPodFacing.invert()).multiply(PM.quaternion);
+      handIPod.rotateY(-Math.PI / 2);
+      handIPod.rotateZ(-.14);
+    }
     PIN.position.y = fn && fn.seq[fn.i][0] === 'bh' ? Math.sin(clamp(fn.t / fn.seq[fn.i][1], 0, 1) * Math.PI) * 24 : 0;
   }
   // One grounded somersault: gather, tuck, rotate, then unfold into the next pose.
