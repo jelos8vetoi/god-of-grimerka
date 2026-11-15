@@ -2000,18 +2000,41 @@ const MXCLIP = {
   'Cheer': [[0, {}], [.2, { rarm: { x: -2.9 }, larm: { x: -2.9 }, spine: { x: -.15 } }], [.4, { rarm: { x: -2.4 }, larm: { x: -2.4 } }], [.6, { rarm: { x: -2.9 }, larm: { x: -2.9 }, spine: { x: -.15 } }], [.8, { rarm: { x: -2.4 }, larm: { x: -2.4 } }], [1, {}]],
   'Jump_Full_Short': [[0, {}], [.3, { spine: { x: .3 }, rup: { x: -.5 }, lup: { x: -.5 }, rleg: { x: .9 }, lleg: { x: .9 } }], [.5, { rarm: { x: -2.6 }, larm: { x: -2.6 }, rup: { x: -.9 }, lup: { x: -.9 }, rleg: { x: 1.4 }, lleg: { x: 1.4 } }], [.8, { spine: { x: .35 }, rarm: { x: -1.2 }, larm: { x: -1.2 } }], [1, {}]]
 };
+// madk1d: клипы целиком из кода, база — поза привязки (руки в стороны). d — длительность в секундах.
+const MKD = { rarm: { z: 1.25 }, larm: { z: -1.25 } };   // руки опущены
+const mk = o => { const r = {}; for (const k in MKD) r[k] = Object.assign({}, MKD[k]); for (const k in o) r[k] = Object.assign({}, r[k], o[k]); return r; };
+const MKCLIP = {
+  // стойка: расслаблен, качает головой в бит, чуть пружинит
+  Idle: { d: 2.4, k: [0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => [i / 8, mk(i % 2 ? { head: { x: .2 }, neck: { x: .08 }, spine: { x: .05 }, rfa: { x: -.5 }, lfa: { x: -.5 }, rup: { x: -.07 }, lup: { x: -.07 }, rleg: { x: .14 }, lleg: { x: .14 } }
+    : { head: { x: -.05 }, spine: { x: 0, y: (i % 4 ? .06 : -.06) }, rfa: { x: -.38 }, lfa: { x: -.38 } })]) },
+  // бег на месте: ноги и руки в противофазе, корпус чуть вперёд
+  Running_A: { d: .6, k: [
+    [0, mk({ spine: { x: .22 }, rup: { x: -.95 }, rleg: { x: .9 }, lup: { x: .55 }, lleg: { x: .5 }, rarm: { x: .7 }, larm: { x: -.8 }, rfa: { x: -1.3 }, lfa: { x: -1.3 } })],
+    [.25, mk({ spine: { x: .22 }, rup: { x: -.15 }, rleg: { x: .25 }, lup: { x: -.2 }, lleg: { x: 1.5 }, rarm: { x: -.05 }, larm: { x: -.05 }, rfa: { x: -1.3 }, lfa: { x: -1.3 } })],
+    [.5, mk({ spine: { x: .22 }, rup: { x: .55 }, rleg: { x: .5 }, lup: { x: -.95 }, lleg: { x: .9 }, rarm: { x: -.8 }, larm: { x: .7 }, rfa: { x: -1.3 }, lfa: { x: -1.3 } })],
+    [.75, mk({ spine: { x: .22 }, rup: { x: -.2 }, rleg: { x: 1.5 }, lup: { x: -.15 }, lleg: { x: .25 }, rarm: { x: -.05 }, larm: { x: -.05 }, rfa: { x: -1.3 }, lfa: { x: -1.3 } })],
+    [1, mk({ spine: { x: .22 }, rup: { x: -.95 }, rleg: { x: .9 }, lup: { x: .55 }, lleg: { x: .5 }, rarm: { x: .7 }, larm: { x: -.8 }, rfa: { x: -1.3 }, lfa: { x: -1.3 } })]] },
+  // ад-либ: замах назад и обе руки вперёд-вверх, два качка
+  Cheer: { d: 1.3, k: [
+    [0, mk({})], [.14, mk({ spine: { x: -.22 }, rarm: { x: .5 }, larm: { x: .5 }, rfa: { x: -1.2 }, lfa: { x: -1.2 }, rleg: { x: .3 }, lleg: { x: .3 }, rup: { x: -.15 }, lup: { x: -.15 } })],
+    [.3, mk({ spine: { x: .28 }, head: { x: -.25 }, rarm: { x: -2.0 }, larm: { x: -2.0 }, rfa: { x: -.15 }, lfa: { x: -.15 } })],
+    [.48, mk({ spine: { x: .1 }, head: { x: -.1 }, rarm: { x: -1.5 }, larm: { x: -1.5 }, rfa: { x: -.7 }, lfa: { x: -.7 }, rleg: { x: .25 }, lleg: { x: .25 }, rup: { x: -.12 }, lup: { x: -.12 } })],
+    [.66, mk({ spine: { x: .28 }, head: { x: -.25 }, rarm: { x: -2.1 }, larm: { x: -2.1 }, rfa: { x: -.15 }, lfa: { x: -.15 } })],
+    [.85, mk({ spine: { x: .1 }, rarm: { x: -1.2 }, larm: { x: -1.2 }, rfa: { x: -.8 }, lfa: { x: -.8 } })], [1, mk({})]] }
+};
 // добавляет модели недостающие клипы; база — первый кадр стойки (Idle)
-function mxClips(scene, clips) {
-  const B = mxBones(scene); if (!B.hips || !B.rarm) return clips;
+function mxClips(scene, clips, SET) {
+  SET = SET || MXCLIP; const B = mxBones(scene); if (!B.hips || !B.rarm) return clips;
+  if (SET === MKCLIP) clips = [];   // анимации из файла не используются
   const have = new Set(clips.map(c => c.name)), idle = clips.find(c => c.name === 'Idle') || clips[0];
   const mx = new T3.AnimationMixer(scene); if (idle) { mx.clipAction(idle).play(); mx.update(0); }
   const base = {}; for (const k of MXO) if (B[k]) base[k] = B[k].quaternion.clone();
   // бег и прочее «на месте»: игра двигает героя сама, поэтому убираем сдвиг корня по горизонтали (кроме смерти)
   for (const c of clips) if (!/^Death/.test(c.name)) for (const t of c.tracks) if (t.name === B.hips.name + '.position') { const v = t.values; for (let i = 3; i < v.length; i += 3) { v[i] = v[0]; v[i + 2] = v[2]; } }
   const out = clips.slice();
-  for (const name in MXCLIP) {
+  for (const name in SET) {
     if (have.has(name)) continue;
-    const keys = MXCLIP[name], times = keys.map(k => k[0]), vals = {};
+    const def = SET[name], dur = def.d || 1, keys = def.k || def, times = keys.map(k => k[0] * dur), vals = {};
     for (const k of MXO) if (B[k]) vals[k] = [];
     for (const [, pose] of keys) {
       for (const k in base) B[k].quaternion.copy(base[k]);
@@ -2019,7 +2042,7 @@ function mxClips(scene, clips) {
       for (const k in vals) { const q = B[k].quaternion; const v = vals[k], n = v.length; if (n >= 4 && v[n - 4] * q.x + v[n - 3] * q.y + v[n - 2] * q.z + v[n - 1] * q.w < 0) v.push(-q.x, -q.y, -q.z, -q.w); else v.push(q.x, q.y, q.z, q.w); }
     }
     // вращения больше 180° (вертушка) — дробим, чтобы кватернион не срезал угол
-    out.push(new T3.AnimationClip(name, 1, Object.keys(vals).map(k => new T3.QuaternionKeyframeTrack(B[k].name + '.quaternion', times, vals[k]))));
+    out.push(new T3.AnimationClip(name, dur, Object.keys(vals).map(k => new T3.QuaternionKeyframeTrack(B[k].name + '.quaternion', times, vals[k]))));
   }
   for (const k in base) B[k].quaternion.copy(base[k]);
   mx.stopAllAction(); mx.uncacheRoot(scene);
@@ -2068,7 +2091,7 @@ function loadModels() {
           const pk = window.GLBPACK && window.GLBPACK[k];
           if (pk) g.scene.traverse(q => { if (!q.isMesh || Array.isArray(q.material)) return; const key = pk + '|' + q.material.name; let cm = PMAT[key]; if (!cm) { cm = PMAT[key] = q.material; cm.map = PT[pk] || null; cm.needsUpdate = true; } q.material = cm; });
           else mergeSkinned(g.scene);
-          const bb = new T3.Box3().setFromObject(g.scene); MDL[k] = { kk: !!KK[k], scene: g.scene, clips: KK[k] ? g.animations : mxClips(g.scene, g.animations), mx: !KK[k] && !!mxBones(g.scene).hips, h: (bb.max.y - bb.min.y) || 1, w: (bb.max.x - bb.min.x) || 1, y0: bb.min.y };
+          const bb = new T3.Box3().setFromObject(g.scene); MDL[k] = { kk: !!KK[k], scene: g.scene, clips: KK[k] ? g.animations : mxClips(g.scene, g.animations, k === 'madk1d' ? MKCLIP : MXCLIP), mx: !KK[k] && !!mxBones(g.scene).hips, h: (bb.max.y - bb.min.y) || 1, w: (bb.max.x - bb.min.x) || 1, y0: bb.min.y };
         } catch (error) {
           console.warn('Model setup failed:', k, error);
         } finally { finish(); }
@@ -2458,7 +2481,8 @@ function render() {
     if (mxh) { HW = handWeapons(); if (mxGrip(q, HW)) WPV.visible = false; else HW = null; }
     else if (hs) { HW = handWeapons(); for (const k in HW) hs.add(HW[k]); WPV.visible = false; }
   }
-  if (!CM.userData.mdl && MDL.kent) { const q = inst('kent', 62, { tint: '#bfe6ff', mix: .3 }); CM.children.forEach(c => { c.visible = false; }); CM.add(q); CM.userData.mdl = q; }
+  // кент — своя модель madk1d, чуть ниже Пахана; пока её нет — KayKit
+  if (!CM.userData.mdl && (MDL.madk1d || MDL.kent && mdlDone >= mdlTot)) { const q = MDL.madk1d ? inst('madk1d', 67) : inst('kent', 62, { tint: '#bfe6ff', mix: .3 }); CM.children.forEach(c => { c.visible = false; }); CM.add(q); CM.userData.mdl = q; }
   const pg = PM.userData.mdl, fn = P.fin;
   const ipodPoseBlocked = !!(a || fn || P.dodge > 0 || P.block || P.spin > 0 || P.hurtT > 0 || P.chg > .15 || cine);
   if (ipodPoseBlocked) ipodPoseWeight = 0;
