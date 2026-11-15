@@ -11,7 +11,7 @@ namespace Grimerka
     static class App
     {
         public const string Name = "GOD OF GRIMERKA";
-        public const string Version = "1.2";
+        public const string Version = "1.3";
         public const string ExeName = "GOD OF GRIMERKA.exe";
         public const string Marker = "grimerka.installed";
         public const string RegKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\GOD OF GRIMERKA";

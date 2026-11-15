@@ -98,7 +98,7 @@ namespace Grimerka
             { "lo", "Без теней и свечения, пониженное разрешение. Для слабых ноутбуков." },
             { "mid", "Тени есть, свечения нет. Хороший баланс для встроенной графики." },
             { "hi", "Тени, свечение, сглаживание — максимум красоты." } };
-        const string NEWS = "НОВОЕ В 1.2   ●   теперь это GOD OF GRIMERKA   ●   герой — Пахан   ●   настоящие перекаты на пробел   ●   полный экран на F11   ●   переназначение клавиш в настройках   ●   9 глав, 9 боссов, 15 NPC, секреты, NG+   ●   ";
+        const string NEWS = "НОВОЕ В 1.3   ●   свои модели Пахана и madk1d   ●   Балон VOZDUH вместо биты   ●   новые враги: бот, хейтер с посохом, клиппер с катаной   ●   аура героя   ●   madk1d сам бегает рядом, на Q — трек «династия»   ●   iPod с музыкой   ●   игра заметно легче для видеокарты   ●   ";
 
         float S = 1f; Image art, icon; FontFamily ru; Settings set; Timer tick; float t, newsX;
         public string Hover; Dictionary<string, RectangleF> hits = new Dictionary<string, RectangleF>();
