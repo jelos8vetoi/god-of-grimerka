@@ -25,7 +25,8 @@ const ipodMusic = new GrimerkaMusicPlayer(message => toast(message, 4));
 const ipod = new IPodHUD(ipodMusic);
 let ipodHadPointerLock = false;
 let handIPod;
-let handIPodOffset, handIPodFacing;
+let handIPodScreen, ipodRig;
+let ipodPoseWeight = 0;
 function audio() {
   if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
   try { AC = new (window.AudioContext || window.webkitAudioContext)(); MG = AC.createGain(); MG.gain.value = .5 * OPT.vol; MG.connect(AC.destination); musicBus = AC.createGain(); musicDry = AC.createGain(); musicBus.connect(musicDry).connect(MG); if (mode === 'guide') guideMusic(true); } catch (e) { AC = null; }
@@ -2199,6 +2200,64 @@ function teleDecals(e) {
   else if (mv === 'charger' || mv === 'charge') decal('rect', gRect, e.x, e.y, e.boss ? 560 : 360, e.r * 2, -e.aa, R, .28);
   else dRing(e.x, e.y, e.r + 10 + Math.sin(performance.now() / 40) * 3, e.boss ? e.c : '#ffcc66', .95);
 }
+// Aim each bone along its measured child direction in the parent's coordinate frame.
+function aimPoseBone(bone, child, target, weight) {
+  const parent = bone.parent;
+  const current = parent.worldToLocal(child.getWorldPosition(new T3.Vector3())).sub(bone.position).normalize();
+  const desired = parent.worldToLocal(target.clone()).sub(bone.position).normalize();
+  const turn = new T3.Quaternion().setFromUnitVectors(current, desired);
+  bone.quaternion.slerp(turn.multiply(bone.quaternion), weight);
+}
+function poseIPodArm(upper, lower, wrist, target, bendPole, weight) {
+  if (!upper || !lower || !wrist || weight <= 0) return;
+  const shoulder = upper.getWorldPosition(new T3.Vector3());
+  const elbow = lower.getWorldPosition(new T3.Vector3());
+  const hand = wrist.getWorldPosition(new T3.Vector3());
+  const a = shoulder.distanceTo(elbow), b = elbow.distanceTo(hand);
+  const reach = target.clone().sub(shoulder);
+  const length = clamp(reach.length(), Math.abs(a - b) + .01, a + b - .01);
+  reach.normalize();
+  const bend = bendPole.clone().addScaledVector(reach, -bendPole.dot(reach)).normalize();
+  const projection = (length * length + a * a - b * b) / (2 * length);
+  const elbowTarget = shoulder.clone().addScaledVector(reach, projection)
+    .addScaledVector(bend, Math.sqrt(Math.max(0, a * a - projection * projection)));
+  aimPoseBone(upper, lower, elbowTarget, weight);
+  aimPoseBone(lower, wrist, shoulder.addScaledVector(reach, length), weight);
+}
+function poseHandIPod(progress, tap) {
+  const { upperarml, lowerarml, wristl, upperarmr, lowerarmr, wristr, head } = ipodRig;
+  if (!upperarml || !head) return;
+  const weight = progress * progress * (3 - 2 * progress);
+  const heading = PM.quaternion;
+  const worldDirection = (x, y, z) => new T3.Vector3(x, y, z).applyQuaternion(heading);
+  const eye = head.getWorldPosition(new T3.Vector3()).add(worldDirection(5, 15, 0));
+  const target = upperarml.getWorldPosition(new T3.Vector3()).add(worldDirection(6.5, 0, -10));
+  poseIPodArm(upperarml, lowerarml, wristl, target, worldDirection(-.25, -1, -.25), weight);
+
+  if (wristl) {
+    const wristTurn = new T3.Quaternion().setFromAxisAngle(new T3.Vector3(0, 1, 0), .24);
+    wristl.quaternion.slerp(wristl.quaternion.clone().multiply(wristTurn), weight);
+  }
+  const grip = handIPod.parent;
+  const center = grip.getWorldPosition(new T3.Vector3()).add(worldDirection(-2, 1.5, -5));
+  const face = new T3.Quaternion().setFromRotationMatrix(new T3.Matrix4().lookAt(eye, center, new T3.Vector3(0, 1, 0)));
+  handIPod.position.copy(grip.worldToLocal(center.clone()));
+  handIPod.quaternion.copy(grip.getWorldQuaternion(new T3.Quaternion()).invert()).multiply(face);
+
+  const screen = handIPodScreen.getWorldPosition(new T3.Vector3());
+  const look = screen.clone().sub(eye).applyQuaternion(heading.clone().invert());
+  const yaw = clamp(Math.atan2(-look.z, Math.max(1, look.x)), -.20, .20);
+  const pitch = clamp(Math.atan2(look.y, Math.hypot(look.x, look.z)), -.23, .23);
+  const localHeading = head.parent.getWorldQuaternion(new T3.Quaternion()).invert().multiply(heading);
+  const turn = new T3.Quaternion().setFromEuler(new T3.Euler(0, yaw, pitch, 'YZX'));
+  const headTarget = localHeading.clone().multiply(turn).multiply(localHeading.invert()).multiply(head.quaternion);
+  head.quaternion.slerp(headTarget, weight);
+
+  if (tap > 0) {
+    const wheel = handIPod.localToWorld(new T3.Vector3(0, -.066, .045));
+    poseIPodArm(upperarmr, lowerarmr, wristr, wheel, worldDirection(0, -1, .4), weight * tap * .4);
+  }
+}
 function render() {
   const paused = mode === 'pause' || (mode === 'settings' && settingsFrom === 'pause');
   if ((!paused && mode !== 'fight') || P?.atk || P?.dodge > 0 || P?.fin) ipod.close(true);
@@ -2329,20 +2388,26 @@ function render() {
       handIPod.name = 'Hand iPod';
       handIPod.add(box(.20, .31, .043, '#bec5cb', 0, 0, 0));
       handIPod.add(box(.165, .12, .006, '#27333d', 0, .072, .024));
-      handIPod.add(box(.139, .094, .004, '#91b4c4', 0, .072, .028));
+      handIPodScreen = box(.139, .094, .004, '#91b4c4', 0, .072, .028);
+      handIPod.add(handIPodScreen);
       const wheel = mesh(new T3.CircleGeometry(.063, 20), mat('#eeeeee'), 0, -.066, .028);
       handIPod.add(wheel);
       handIPod.add(mesh(new T3.CircleGeometry(.022, 12), mat('#a2a9af'), 0, -.066, .029));
-      handIPodOffset = new T3.Vector3();
-      handIPodFacing = new T3.Quaternion();
+      ipodRig = Object.fromEntries(['upperarml', 'lowerarml', 'wristl', 'upperarmr', 'lowerarmr', 'wristr', 'head']
+        .map(name => [name, q.getObjectByName(name)]));
       left.add(handIPod);
     }
     if (hs) { HW = handWeapons(); for (const k in HW) hs.add(HW[k]); WPV.visible = false; }
   }
   if (!CM.userData.mdl && MDL.kent) { const q = inst('kent', 62, { tint: '#bfe6ff', mix: .3 }); CM.children.forEach(c => { c.visible = false; }); CM.add(q); CM.userData.mdl = q; }
   const pg = PM.userData.mdl, fn = P.fin;
-  if (handIPod) handIPod.visible = ipod.active;
-  if (HW) for (const k in HW) HW[k].visible = k === w && !(k === 'bat' && P.thr);
+  const ipodPoseBlocked = !!(a || fn || P.dodge > 0 || P.block || P.spin > 0 || P.hurtT > 0 || P.chg > .15 || cine);
+  if (ipodPoseBlocked) ipodPoseWeight = 0;
+  else ipodPoseWeight = clamp(ipodPoseWeight + (ipod.active ? fdt / .5 : -fdt / .45), 0, 1);
+  if (handIPod) handIPod.visible = ipodPoseWeight > .12;
+  const tapProgress = (performance.now() - (ipod.trackTapTime ?? -Infinity)) / 290;
+  const ipodTap = ipod.active && tapProgress < 1 ? Math.sin(Math.PI * tapProgress) : 0;
+  if (HW) for (const k in HW) HW[k].visible = ipodTap < .08 && k === w && !(k === 'bat' && P.thr);
   if (pg) {
     const cb = a ? a.combo % 3 : 0;
     if (fn) play(pg, fn.seq[fn.i][0], true, fn.seq[fn.i][1] * 1.2, 'f' + fn.n + '_' + fn.i);
@@ -2357,7 +2422,7 @@ function render() {
     // Restore the previous frame before the mixer, so procedural poses never accumulate.
     if (!pg.userData.rollBones) {
       pg.userData.rollBones = [];
-      const angles = { spine: -.35, chest: -.35, head: .28, upperlegl: -1.15, upperlegr: -1.15,
+      const angles = { spine: -.35, chest: -.35, head: .28, wristl: 0, wristr: 0, upperlegl: -1.15, upperlegr: -1.15,
         lowerlegl: 1.85, lowerlegr: 1.85, upperarml: -1.05, upperarmr: -1.05, lowerarml: -1.25, lowerarmr: -1.25 };
       pg.traverse(b => { if (b.isBone && angles[b.name] != null)
         pg.userData.rollBones.push({ bone: b, angle: angles[b.name], base: b.quaternion.clone() }); });
@@ -2365,18 +2430,7 @@ function render() {
     for (const b of pg.userData.rollBones) b.bone.quaternion.copy(b.base);
     pg.userData.mx.update(fdt);
     for (const b of pg.userData.rollBones) b.base.copy(b.bone.quaternion);
-    if (handIPod?.visible) {
-      const grip = handIPod.parent;
-      grip.updateWorldMatrix(true, false);
-      // Keep the body against the outside of the glove, with the screen facing back.
-      handIPodOffset.set(-1.5, 4.5, -5).applyQuaternion(PM.quaternion);
-      handIPod.position.setFromMatrixPosition(grip.matrixWorld).add(handIPodOffset);
-      grip.worldToLocal(handIPod.position);
-      grip.getWorldQuaternion(handIPodFacing);
-      handIPod.quaternion.copy(handIPodFacing.invert()).multiply(PM.quaternion);
-      handIPod.rotateY(-Math.PI / 2);
-      handIPod.rotateZ(-.14);
-    }
+    if (ipodRig && ipodPoseWeight > 0) poseHandIPod(ipodPoseWeight, ipodTap);
     PIN.position.y = fn && fn.seq[fn.i][0] === 'bh' ? Math.sin(clamp(fn.t / fn.seq[fn.i][1], 0, 1) * Math.PI) * 24 : 0;
   }
   // One grounded somersault: gather, tuck, rotate, then unfold into the next pose.

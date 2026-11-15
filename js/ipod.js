@@ -74,14 +74,16 @@ class IPodHUD {
       this.selected = 0;
     }
     if (action === 'play') this.player.toggle();
-    if (action === 'next') this.player.next(1);
-    if (action === 'prev') this.player.next(-1);
+    if (action === 'next' || action === 'prev') {
+      this.player.next(action === 'next' ? 1 : -1);
+      this.trackTapTime = performance.now();
+    }
     if (action === 'select') {
       const item = this.items()[this.selected];
       if (this.page === 'Reverb Depth') this.depthInput.focus();
       else if (this.page === 'Now Playing') this.page = 'Перемотка';
-      else if (this.page === 'Music') { if (this.selected === this.player.tracks.length) this.player.input.click(); else { this.player.select(this.selected); this.page = 'Now Playing'; } }
-      else if (this.page === 'Моя музыка' || this.page === 'Встроенная музыка') { this.player.select(this.player.tracks.indexOf(this.filtered()[this.selected])); this.page = 'Now Playing'; }
+      else if (this.page === 'Music') { if (this.selected === this.player.tracks.length) this.player.input.click(); else { this.player.select(this.selected); this.trackTapTime = performance.now(); this.page = 'Now Playing'; } }
+      else if (this.page === 'Моя музыка' || this.page === 'Встроенная музыка') { this.player.select(this.player.tracks.indexOf(this.filtered()[this.selected])); this.trackTapTime = performance.now(); this.page = 'Now Playing'; }
       else if (item === 'Все треки') this.page = 'Music';
       else if (item === 'Удалить текущий трек') this.player.remove(this.player.index);
       else if (item) this.page = item;
