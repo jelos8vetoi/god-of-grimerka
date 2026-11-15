@@ -39,6 +39,9 @@ class MusicPlayer {
   }
   connect(context, master) {
     if (this.context || !context) return;
+    // С диска (file://, так игру открывает лаунчер) браузер считает файл чужим и через Web Audio отдаёт тишину.
+    // Тогда играем <audio> напрямую: громкость сохраняется, без реверба и фильтров.
+    if (location.protocol === 'file:') { this.context = context; this.direct = true; return; }
     this.context = context; this.source = context.createMediaElementSource(this.audio);
     this.low = context.createBiquadFilter(); this.low.type = 'lowpass'; this.low.frequency.value = 22000;
     this.high = context.createBiquadFilter(); this.high.type = 'highpass'; this.high.frequency.value = 10;
@@ -65,6 +68,7 @@ class MusicPlayer {
   }
   update(mode, muted, priority) {
     if (!this.context) return;
+    if (this.direct) { this.audio.volume = Math.max(0, Math.min(1, muted ? 0 : this.volume * priority * (mode === 'PAUSED' ? .3 : 1))); return; }
     const state = `${mode}|${muted}|${priority}|${this.volume}|${this.reverbDepth}`;
     if (state === this.lastState) return; this.lastState = state;
     const t = this.context.currentTime;

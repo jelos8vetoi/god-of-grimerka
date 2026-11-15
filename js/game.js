@@ -1875,9 +1875,9 @@ function drawNav() {
 }
 /* ---------- GLB-модели с анимациями (CC0: KayKit, Quaternius) ---------- */
 const MDL = {}, NPC_MODELS = ['barb', 'mage', 'knight', 'kent', 'skrog', 'vanek'];
-const MODEL_OF = { bot: 'robot', hater: 'skmage', clipper: 'skrog', troll: 'skwar', ghost: 'skmin', lawyer: 'knight', farmer: 'mage', mod: 'knight',
+const MODEL_OF = { bot: 'bot2', hater: 'hater2', clipper: 'clipper2', troll: 'skwar', ghost: 'skmin', lawyer: 'knight', farmer: 'mage', mod: 'knight',
   courier: 'kent', golem: 'robot', hype: 'mage', dislike: 'skwar', major: 'knight', strike: 'skwar', botlord: 'robot', ghostv: 'vanek' };
-const MODEL_OPT = { hater: { tint: '#ff7070', mix: .4 }, clipper: { tint: '#ff5cc8', mix: .45 }, troll: { tint: '#7fd04a', mix: .5 }, ghost: { tint: '#b79cff', mix: .6, op: .6, emi: .3 },
+const MODEL_OPT = { troll: { tint: '#7fd04a', mix: .5 }, ghost: { tint: '#b79cff', mix: .6, op: .6, emi: .3 },
   farmer: { tint: '#ffd23b', mix: .5 }, mod: { show: /Rectangle_Shield/, tint: '#7fa8ff', mix: .5 }, ghostv: { tint: '#ff8080', mix: .6, op: .78, emi: .35 } };
 const HIDE = /Offhand|Shield|Crossbow|Knife|Throwable|Sword|Axe|Mug|Spellbook|Wand|Staff|Cape|Cloak/i;
 const EWPN = { troll: { r: 'p_Skeleton_Axe' }, clipper: { r: 'p_Skeleton_Blade', l: 'p_Skeleton_Blade' }, hater: { r: 'p_Skeleton_Staff' }, ghost: { r: 'p_Skeleton_Blade' }, strike: { r: 'p_Skeleton_Axe', l: 'p_Skeleton_Shield_Small_A' }, dislike: { r: 'p_Skeleton_Axe' } };
@@ -2051,18 +2051,49 @@ const ph = o => { const r = {}; for (const k in PHS) r[k] = Object.assign({}, PH
 const PHREST = { Idle: { d: 3.6, k: [[0, ph({})], [.25, ph({ spine: { x: -.025 }, head: { x: -.02 }, rarm: { z: -.03 }, larm: { z: .03 } })], [.5, ph({ head: { y: .1 } })],
   [.75, ph({ spine: { x: -.025 }, head: { x: -.02, y: .04 }, rarm: { z: -.03 }, larm: { z: .03 } })], [1, ph({})]] } };
 PHREST.Running_A = MKCLIP.Running_A;   // бег тоже из опущенных рук, чтобы балон не проходил перед лицом
+// Враги-гуманоиды: позы складываются с базой «руки опущены»; drop — насколько опустить таз (доля его высоты).
+const ENB = { rarm: { z: 1.2 }, larm: { z: -1.2 }, rfa: { x: -.25 }, lfa: { x: -.25 }, spine: { x: .06 } };
+const en = o => { const r = {}; for (const k in ENB) r[k] = Object.assign({}, ENB[k]); for (const k in o) { if (k === 'drop') { r.drop = o.drop; continue; } r[k] = Object.assign({}, r[k]); for (const a in o[k]) r[k][a] = (r[k][a] || 0) + o[k][a]; } return r; };
+const ENCLIP = {
+  Idle: { d: 2.2, k: [[0, en({})], [.5, en({ spine: { x: .04 }, head: { x: .08 }, rarm: { z: -.06 }, larm: { z: .06 } })], [1, en({})]] },
+  Running_A: MKCLIP.Running_A,
+  Hit_A: { d: .5, k: [[0, en({})], [.3, en({ hips: { x: -.12 }, spine: { x: -.35 }, head: { x: -.35 }, rarm: { x: .5, z: -.3 }, larm: { x: .5, z: .3 } })], [1, en({})]] },
+  Death_A: { d: 1, k: [[0, en({})], [.25, en({ hips: { x: -.45 }, spine: { x: -.25 }, rarm: { z: -.7 }, larm: { z: .7 }, rleg: { x: .4 }, lleg: { x: .4 }, drop: .18 })],
+    [.6, en({ hips: { x: -1.45 }, rarm: { z: -.9 }, larm: { z: .9 }, head: { x: -.2 }, drop: .78 })], [1, en({ hips: { x: -1.5 }, rarm: { z: -.95 }, larm: { z: .95 }, head: { x: -.25 }, drop: .8 })]] },
+  Death_B: { d: 1, k: [[0, en({})], [.25, en({ hips: { x: .4 }, spine: { x: .35 }, rleg: { x: .5 }, lleg: { x: .5 }, drop: .2 })],
+    [.6, en({ hips: { x: 1.45 }, rarm: { x: -1.2 }, larm: { x: -1.2 }, drop: .78 })], [1, en({ hips: { x: 1.5 }, rarm: { x: -1.3 }, larm: { x: -1.3 }, drop: .8 })]] },
+  Spawn_Ground: { d: 1, k: [[0, en({ spine: { x: .6 }, rup: { x: -1.5 }, lup: { x: -1.5 }, rleg: { x: 2.3 }, lleg: { x: 2.3 }, drop: .55 })],
+    [.55, en({ spine: { x: .3 }, rup: { x: -.8 }, lup: { x: -.8 }, rleg: { x: 1.2 }, lleg: { x: 1.2 }, drop: .25 })], [1, en({})]] },
+  // удар рукой / оружием в правой руке
+  '1H_Melee_Attack_Slice_Horizontal': { d: 1, k: [[0, en({})], [.32, en({ spine: { y: -.5 }, rarm: { z: -1.1, y: -.7 }, rfa: { x: -.6 } })],
+    [.52, en({ spine: { y: .55 }, rarm: { z: -1.0, y: 1.2 }, rfa: { x: .2 } })], [.72, en({ spine: { y: .6 }, rarm: { z: -.8, y: 1.4 } })], [1, en({})]] },
+  Punch: { d: 1, k: [[0, en({})], [.3, en({ spine: { y: -.35 }, rarm: { x: -.7 }, rfa: { x: -1.4 } })], [.5, en({ spine: { y: .4 }, rarm: { x: -1.5, z: -1.2 }, rfa: { x: .2 } })], [1, en({})]] },
+  // посох: поднять и ударить вперёд (каст)
+  Spellcast_Shoot: { d: 1, k: [[0, en({})], [.4, en({ spine: { x: -.25 }, rarm: { x: -2.4 }, rfa: { x: -.4 }, larm: { x: -.8 } })],
+    [.6, en({ spine: { x: .3 }, rarm: { x: -1.3 }, rfa: { x: .1 }, larm: { x: -1.3 }, lfa: { x: -.4 } })], [.8, en({ spine: { x: .25 }, rarm: { x: -1.2 }, larm: { x: -1.2 } })], [1, en({})]] },
+  // катана: замах из-за спины и широкий рез
+  Dualwield_Melee_Attack_Slice: { d: 1, k: [[0, en({})], [.3, en({ spine: { y: -.6 }, rarm: { z: -1.35, y: -.9 }, rfa: { x: -.3 }, larm: { z: .4 } })],
+    [.5, en({ spine: { y: .65 }, rarm: { z: -1.15, y: 1.35 }, larm: { z: .5 }, rup: { x: -.25 }, rleg: { x: .3 } })], [.7, en({ spine: { y: .7 }, rarm: { z: -.9, y: 1.6 } })], [1, en({})]] },
+  Cheer: { d: 1.2, k: [[0, en({})], [.3, en({ rarm: { x: -2.6 }, larm: { x: -2.6 } })], [.6, en({ rarm: { x: -2.2 }, larm: { x: -2.2 } })], [1, en({})]] }
+};
+const ENSET = { bot2: 1, hater2: 1, clipper2: 1 };
 // добавляет модели недостающие клипы; база — первый кадр стойки (Idle)
 function mxClips(scene, clips, SET) {
   SET = SET || MXCLIP; const B = mxBones(scene); if (!B.hips || !B.rarm) return clips;
-  if (SET === MKCLIP) clips = [];   // анимации из файла не используются
+  if (SET === MKCLIP || SET === ENCLIP) clips = [];   // анимации из файла не используются
   const rest = {}; for (const k of MXO) if (B[k]) rest[k] = B[k].quaternion.clone(); const restP = B.hips.position.clone();
+  // для «опустить таз»: высота таза в позе привязки и перевод смещения из осей персонажа в оси родителя таза
+  scene.updateMatrixWorld(true);
+  const hipsH = scene.worldToLocal(B.hips.getWorldPosition(new T3.Vector3())).y;
+  const hpQ = scene.getWorldQuaternion(new T3.Quaternion()).invert().multiply(B.hips.parent.getWorldQuaternion(new T3.Quaternion())).invert();
+  const hpS = (B.hips.parent.getWorldScale(new T3.Vector3()).y / (scene.getWorldScale(new T3.Vector3()).y || 1)) || 1;
   const have = new Set(clips.map(c => c.name)), idle = clips.find(c => c.name === 'Idle') || clips[0];
   const mx = new T3.AnimationMixer(scene); if (idle) { mx.clipAction(idle).play(); mx.update(0); }
   const base = {}; for (const k of MXO) if (B[k]) base[k] = B[k].quaternion.clone();
   // бег и прочее «на месте»: игра двигает героя сама, поэтому убираем сдвиг корня по горизонтали (кроме смерти)
   for (const c of clips) if (!/^Death/.test(c.name)) for (const t of c.tracks) if (t.name === B.hips.name + '.position') { const v = t.values; for (let i = 3; i < v.length; i += 3) { v[i] = v[0]; v[i + 2] = v[2]; } }
   const out = clips.slice();
-  let SETS = [[SET, base, false]];
+  let SETS = [[SET, base, SET === ENCLIP]];
   if (SET === MXCLIP && scene.userData.phIdle) {
     const stance = {}; for (const k in rest) B[k].quaternion.copy(rest[k]); scene.updateMatrixWorld(true); mxPose(scene, B, ph({}));
     for (const k in rest) stance[k] = B[k].quaternion.clone();
@@ -2079,13 +2110,50 @@ function mxClips(scene, clips, SET) {
     }
     // вращения больше 180° (вертушка) — дробим, чтобы кватернион не срезал угол
     const tr = Object.keys(vals).map(k => new T3.QuaternionKeyframeTrack(B[k].name + '.quaternion', times, vals[k]));
-    if (fromRest) { tr.push(new T3.VectorKeyframeTrack(B.hips.name + '.position', [0, dur], [restP.x, restP.y, restP.z, restP.x, restP.y, restP.z])); have.add(name);
+    const drops = keys.map(k => (k[1] && k[1].drop) || 0);
+    if (drops.some(v => v)) { const pv = []; for (const d of drops) { const o = new T3.Vector3(0, -d * hipsH, 0).applyQuaternion(hpQ).divideScalar(hpS); pv.push(restP.x + o.x, restP.y + o.y, restP.z + o.z); }
+      tr.push(new T3.VectorKeyframeTrack(B.hips.name + '.position', times, pv)); }
+    if (fromRest) { if (!drops.some(v => v)) tr.push(new T3.VectorKeyframeTrack(B.hips.name + '.position', [0, dur], [restP.x, restP.y, restP.z, restP.x, restP.y, restP.z])); have.add(name);
       const old = out.findIndex(c => c.name === name); if (old >= 0) out[old].name = name + '_Tripo'; }   // боевая стойка из файла остаётся как база ударов
     out.push(new T3.AnimationClip(name, dur, tr));
   }
   for (const k in base) B[k].quaternion.copy(base[k]);
   mx.stopAllAction(); mx.uncacheRoot(scene);
   return out;
+}
+/* Оружие врагов со скелетом Mixamo. axis — ось модели оружия вдоль клинка/древка, from/to — её начало и конец (в единицах модели),
+   grip — доля длины от начала, где хват; dir — куда оружие смотрит в стойке (оси персонажа); len — длина в долях роста;
+   part — часть модели по высоте (катана: меч сверху, ножны снизу); off — сдвиг от кости в долях роста (оси персонажа). */
+const MXW = {
+  hater: [{ m: 'staff', bone: 'rhand', axis: 'y', from: 0, to: 97.5, grip: .42, dir: [0, 1, .08], len: 1.05 }],
+  clipper: [{ m: 'katana', part: y => y > 13, bone: 'rhand', axis: 'z', from: -48.8, to: 48.8, grip: .08, dir: [-.25, -.7, .67], len: .62 },
+    { m: 'katana', part: y => y < 13, bone: 'hips', axis: 'z', from: -37, to: 47, grip: .3, dir: [.2, -.35, -.9], len: .5, off: [.17, .02, .02] }]
+};
+const _partGeo = new Map();
+function mxAttach(g, name, list) {
+  const s = g.children[0], B = mxBones(s), clip = (MDL[name].clips || []).find(c => c.name === 'Idle'), tm = clip ? new T3.AnimationMixer(s) : null;
+  if (tm) { tm.clipAction(clip).play(); tm.update(0); }
+  s.updateMatrixWorld(true);
+  for (const w of list) {
+    const bone = B[w.bone], wm = MDL[w.m]; if (!bone || !wm) continue;
+    const obj = wm.scene.clone(true);
+    obj.traverse(q => { if (!q.isMesh) return; q.castShadow = false; q.frustumCulled = false;
+      if (w.part) { const key = q.geometry.uuid + w.m + String(w.part); let pg = _partGeo.get(key);
+        if (!pg) { const P = q.geometry.attributes.position, I = q.geometry.index.array, keep = []; for (let t = 0; t < I.length; t += 3) if (w.part(P.getY(I[t])) && w.part(P.getY(I[t + 1])) && w.part(P.getY(I[t + 2]))) keep.push(I[t], I[t + 1], I[t + 2]);
+          pg = q.geometry.clone(); pg.setIndex(keep); _partGeo.set(key, pg); }
+        q.geometry = pg; } });
+    // приводим оружие к виду «ось вдоль +Y, хват в нуле, длина 1»
+    const L = w.to - w.from, inner = new T3.Group(), unit = new T3.Group(); inner.add(obj);
+    if (w.axis === 'z') inner.rotation.x = -Math.PI / 2;   // z → y
+    inner.position.y = -(w.grip * L); obj.position[w.axis === 'z' ? 'z' : 'y'] = -w.from;
+    unit.add(inner); unit.scale.setScalar(1 / L);
+    const qs = s.getWorldQuaternion(new T3.Quaternion()).invert().multiply(bone.getWorldQuaternion(new T3.Quaternion())), qi = qs.clone().invert();
+    const ws = bone.getWorldScale(new T3.Vector3()).x || 1, H = g.userData.top || 60;
+    const ad = new T3.Group(); ad.quaternion.setFromUnitVectors(new T3.Vector3(0, 1, 0), new T3.Vector3(w.dir[0], w.dir[1], w.dir[2]).normalize().applyQuaternion(qi));
+    if (w.off) ad.position.copy(new T3.Vector3(w.off[0], w.off[1], w.off[2]).multiplyScalar(H / ws).applyQuaternion(qi));
+    ad.scale.setScalar(H * w.len / ws); ad.add(unit); bone.add(ad);
+  }
+  if (tm) { tm.stopAllAction(); tm.uncacheRoot(s); }
 }
 // оружие в правую кисть Mixamo. Направление задаётся в стойке (Idle) в осях персонажа: x — его левая рука, y — вверх, z — вперёд.
 // В стойке Пахан держит балон в опущенной правой руке: горлышко в кулаке, донышко вниз-вперёд, как на референсе.
@@ -2130,7 +2198,7 @@ function loadModels() {
           const pk = window.GLBPACK && window.GLBPACK[k];
           if (pk) g.scene.traverse(q => { if (!q.isMesh || Array.isArray(q.material)) return; const key = pk + '|' + q.material.name; let cm = PMAT[key]; if (!cm) { cm = PMAT[key] = q.material; cm.map = PT[pk] || null; cm.needsUpdate = true; } q.material = cm; });
           else mergeSkinned(g.scene);
-          const bb = new T3.Box3().setFromObject(g.scene); MDL[k] = { kk: !!KK[k], scene: g.scene, clips: KK[k] ? g.animations : mxClips((k === 'pahan' && (g.scene.userData.phIdle = 1), g.scene), g.animations, k === 'madk1d' ? MKCLIP : MXCLIP), mx: !KK[k] && !!mxBones(g.scene).hips, h: (bb.max.y - bb.min.y) || 1, w: (bb.max.x - bb.min.x) || 1, y0: bb.min.y };
+          const bb = new T3.Box3().setFromObject(g.scene); MDL[k] = { kk: !!KK[k], scene: g.scene, clips: KK[k] ? g.animations : mxClips((k === 'pahan' && (g.scene.userData.phIdle = 1), g.scene), g.animations, k === 'madk1d' ? MKCLIP : ENSET[k] ? ENCLIP : MXCLIP), mx: !KK[k] && !!mxBones(g.scene).hips, h: (bb.max.y - bb.min.y) || 1, w: (bb.max.x - bb.min.x) || 1, y0: bb.min.y };
         } catch (error) {
           console.warn('Model setup failed:', k, error);
         } finally { finish(); }
@@ -2226,8 +2294,9 @@ function enemyModel(e) {
   const H = e.r * (e.boss ? 3.6 : 4.3), o = Object.assign({}, e.boss && !MODEL_OPT[e.type] ? { tint: e.c, mix: .6, emi: .18 } : MODEL_OPT[e.type]);
   if (e.el) { o.tint = '#ffd23b'; o.mix = .55; o.emi = .28; }
   if (ESHOW[e.type]) o.show = ESHOW[e.type];
-  const g = inst(mn, H, o), ew = EWPN[e.type];
-  if (ew || e.type === 'ghostv') g.traverse(q => {
+  const g = inst(mn, H, o), ew = MDL[mn].mx ? null : EWPN[e.type];
+  if (MDL[mn].mx) { g.userData.top = H; if (MXW[e.type]) mxAttach(g, mn, MXW[e.type]); g.traverse(q => { if (q.isMesh) q.castShadow = false; }); }   // врагов много — без теней от них кадр вдвое легче
+  if (ew || (e.type === 'ghostv' && !MDL[mn].mx)) g.traverse(q => {
     const m = /^handslot.?([rl])$/i.exec(q.name); if (!m) return; const side = m[1].toLowerCase();
     if (e.type === 'ghostv') { if (side === 'r') q.add(handWeapons().bat); return; }
     const wm = ew[side] && MDL[ew[side]]; if (wm) { const c = wm.scene.clone(true); c.traverse(z => { if (z.isMesh) z.castShadow = true; }); q.add(c); }
