@@ -879,6 +879,7 @@ function kill(e, o) {
   e.xp = Math.round(e.xp * (1 + Math.min(6, Math.floor(P.style || 0)) * .06)); S.xp += e.xp; styleAdd(.15); S.stat.kills++;
   if (!e.boss) { P.mk = T - (P.mkT || -9) < 2.6 ? (P.mk || 0) + 1 : 1; P.mkT = T; const mn = { 3: 'ТРИПЛ', 5: 'ЗОЛОТО', 8: 'ПЛАТИНА', 12: 'БРИЛЛИАНТ', 17: 'ЧАРТ-ТОППЕР' }[P.mk]; if (mn) { banner(mn, 'убийств подряд: ' + P.mk, '#ffd23b'); P.swag = Math.min(100, P.swag + 10); styleAdd(.5); sfx.buy(); } }
   for (const id in S.q) { const q = S.q[id], n = NPCS[id]; if (q.st === 1 && n.q.type === 'kill' && n.q.t === e.type && q.n < n.q.n) { q.n++; if (q.n >= n.q.n) toast('Услуга готова: вернись к ' + n.n, 4); } } float(e.x, e.y - e.r - 24, '+' + e.xp + ' ▶', '#7dff7d');
+  if (!e.boss && fs && !fs.done && ens.every(q => q.dead || q.spawn > 0 && q === e) && ens.length > 1) { slowmo = Math.max(slowmo, .7); shake = Math.max(shake, 10); flashAt(e.x, e.y, '#ffffff', 3); fxGlow(e.x, e.y, '#ffd23b', 120, .5, 40); }
   burst(e.x, e.y, e.c, e.boss ? 80 : 14); if (o && o.w && !e.boss) { const an = ang(P, e); e.kx += Math.cos(an) * 320; e.ky += Math.sin(an) * 320; if (e.m) { e.m.userData.kx = e.kx; e.m.userData.ky = e.ky; } }
   if (o && o.w === 'bat' && sk('b6')) P.hp = Math.min(maxHp(), P.hp + maxHp() * .012);
   if (e.boss) {
@@ -1413,6 +1414,7 @@ const WDECO = { snow: [['p_bush', 30], ['p_trash_A', 30], ['p_firehydrant', 26],
 const TRIM = { snow: ['#a5aaa9', 0], neon: ['#ff3cc8', 1], server: ['#2affb0', 1], chart: ['#ff5a32', .8], glass: ['#9cc4f0', .3], basement: ['#2a1c12', 0], core: ['#cfd3de', 0] };
 function draw(sc) { if (PPC && qual === 2) { RP.scene = sc; PPC.render(); } else R3.render(sc, CAM); }
 function sparks(x, y, a, n, c) { for (let i = 0; i < n; i++) { const an = a + rnd(-.8, .8), sp = rnd(260, 640); pts.push({ x, y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, l: rnd(.12, .3), c, s: rnd(2, 3.6), st: 1 }); } }
+function auS() { const q = glowS('#ffffff', 10); q.material = q.material.clone(); q.material.blending = T3.AdditiveBlending; q.material.depthWrite = false; q.material.fog = false; return q; }
 function fxGlow(x, y, c, s, l, h) { hfx.push({ x, y, c, s, l, ml: l, h: h || 34 }); if (hfx.length > 60) hfx.shift(); }
 function glowS(col, size) { const sp = new T3.Sprite(new T3.SpriteMaterial({ map: G('glowT2', () => { const [c, x] = cnv(64, 64), q = x.createRadialGradient(32, 32, 2, 32, 32, 31); q.addColorStop(0, 'rgba(255,255,255,1)'); q.addColorStop(.3, 'rgba(255,255,255,.5)'); q.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = q; x.fillRect(0, 0, 64, 64); return new T3.CanvasTexture(c); }), color: col, transparent: true, depthWrite: false, blending: T3.AdditiveBlending })); sp.scale.set(size, size, 1); return sp; }
 function flashAt(x, y, c, k) { if (!FL) return; FL.position.set(x, 70, y); FL.color.set(c); FL.intensity = Math.max(FL.intensity, k); }
@@ -2428,6 +2430,17 @@ function render() {
   }
   if (P.spin > 0) dRing(P.x, P.y, 155, '#49e0ff', .8);
   if (P.rage > 0) dRing(P.x, P.y, 34 + Math.sin(now * 12) * 4, '#ff4a1c', .9);
+  { const au = P.rage > 0 ? 2 : P.swag >= 100 ? 1 : 0;
+    if (au && mode !== 'dlg') {
+      const ac = au === 2 ? '#ff4a1c' : '#ffd23b', hi = au === 2 ? 118 : 84, n = au === 2 ? 11 : 7;
+      for (let i = 0; i < n; i++) {
+        const ph = (now * (au === 2 ? 1.5 : .9) + i / n) % 1, an = i * 2.4 + now * (au === 2 ? 3 : 1.6), rr = 15 + 11 * Math.sin(ph * Math.PI);
+        const g = use('au', auS); g.material.color.set(i % 4 === 0 ? '#fff4d0' : ac); g.material.opacity = (1 - ph) * (au === 2 ? .95 : .7);
+        g.scale.setScalar((au === 2 ? 36 : 26) * (1 - ph * .65)); g.position.set(P.x + Math.cos(an) * rr, 6 + ph * hi, P.y + Math.sin(an) * rr);
+      }
+      const core = use('au', auS); core.material.color.set(ac); core.material.opacity = (au === 2 ? .6 : .38) + .08 * Math.sin(now * 9); core.scale.set(au === 2 ? 96 : 74, au === 2 ? 150 : 112, 1); core.position.set(P.x, 44, P.y);
+      const rp = (now * (au === 2 ? 1.4 : .8)) % 1; dRing(P.x, P.y, 30 + rp * (au === 2 ? 90 : 60), ac, .55 * (1 - rp));
+    } }
   { const cg = CM.userData.mdl, cmv = Math.hypot(comp.x - (comp.lx || 0), comp.y - (comp.ly || 0)) > .7; comp.lx = comp.x; comp.ly = comp.y;
     CM.position.set(comp.x, cg ? 0 : Math.abs(Math.sin(now * 6)) * 2, comp.y); CM.rotation.y = introShot ? -ang(comp, P) : -P.aim;
     if (cg) { if (comp.sayT > 0) play(cg, 'cheer'); else play(cg, cmv ? 'run' : 'idle'); cg.userData.mx.update(fdt); } }
@@ -2561,8 +2574,8 @@ function render() {
   if (tipQ.length && mode === 'fight' && !window.__noHud) {
     tipT += fdt; const tx = tipQ[0], al = clamp(tipT / .3, 0, 1) * clamp((7 - tipT) / .4, 0, 1); X.globalAlpha = al; X.font = '15px "Segoe UI",sans-serif';
     const words = tx.split(' '), lines = []; let ln = ''; for (const wq of words) { if (X.measureText(ln + wq).width > 560) { lines.push(ln); ln = ''; } ln += wq + ' '; } lines.push(ln);
-    const bh = 30 + lines.length * 21, by = H - 232 - bh; X.fillStyle = 'rgba(8,10,16,.9)'; X.fillRect(W / 2 - 310, by, 620, bh); X.fillStyle = '#5cd0ff'; X.fillRect(W / 2 - 310, by, 5, bh);
-    X.textAlign = 'left'; X.fillStyle = '#5cd0ff'; X.font = '12px ' + FONT; X.fillText('ПОДСКАЗКА', W / 2 - 292, by + 18); X.fillStyle = '#e8ecf4'; X.font = '15px "Segoe UI",sans-serif'; lines.forEach((l, i) => X.fillText(l, W / 2 - 292, by + 40 + i * 21));
+    const bh = 30 + lines.length * 21, by = H - 64 - bh, TX = W - 650; X.fillStyle = 'rgba(8,10,16,.9)'; X.fillRect(TX, by, 620, bh); X.fillStyle = '#5cd0ff'; X.fillRect(TX, by, 5, bh);
+    X.textAlign = 'left'; X.fillStyle = '#5cd0ff'; X.font = '12px ' + FONT; X.fillText('ПОДСКАЗКА', TX + 18, by + 18); X.fillStyle = '#e8ecf4'; X.font = '15px "Segoe UI",sans-serif'; lines.forEach((l, i) => X.fillText(l, TX + 18, by + 40 + i * 21));
     X.globalAlpha = 1; if (tipT > 7) { tipQ.shift(); tipT = 0; }
   }
   for (const bn of banners) { bn.t += fdt; const kk = clamp(bn.t / .18, 0, 1), fo = clamp((2.2 - bn.t) / .4, 0, 1), sc = 1.6 - .6 * kk; if (fo <= 0) continue;
@@ -2975,7 +2988,7 @@ window.GOC = {
   sc: () => SC, r3: () => R3, mdl: () => MDL, ms: r => mergeSkinned(r),
   perf: n => { const t = []; for (let i = 0; i < n; i++) { logic(1 / 60); const a = performance.now(); render(); t.push(performance.now() - a); } t.sort((a, b) => a - b); const r = R3.info.render, m = R3.info.memory; return { avg: +(t.reduce((a, b) => a + b, 0) / n).toFixed(2), p95: +t[Math.floor(n * .95)].toFixed(2), calls: r.calls, tris: r.triangles, geo: m.geometries, tex: m.textures, objs: (() => { let c = 0; SC.traverse(() => c++); return c; })(), load: window.__loadMs, bake: window.__bake }; },
   dbg: () => ({ cine: cine && { t: cine.t, k: cine.k || cine.type || 1 }, dcd: P.dcd, mode, camYaw, camPit, camD, bt, slowmo, hitstop, aim: P.aim, dodge: P.dodge, dvx: P.dvx, chg: P.chg, inv: P.inv, sw: P.swag, fsr: fs && [fs.room.x, fs.room.w, fs.room.cx], T, obsBad: obs.filter(b => !(b.r === b.r) || !(b.x === b.x)).length }),
-  lv: () => LV, ents: () => ents, interact: () => doInteract(), skip: () => { if (mode === 'dlg') endDlg(); }, roll: () => doDodge(),
+  lv: () => LV, ents: () => ents, interact: () => doInteract(), skip: () => { if (mode === 'dlg') endDlg(); }, pit: v => { camPit = v; }, roll: () => doDodge(),
   state: () => ({ mode, ch: S && S.ch, step: S && S.step, hp: P && P.hp, ens: ens.length, xp: S && S.xp, fs: !!fs, prompt, q: S && S.q, done: S && S.done, x: P && P.x, y: P && P.y }),
 };
 })();
