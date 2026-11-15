@@ -150,6 +150,16 @@ button:disabled{opacity:.35;cursor:default}
   border-radius: 8px;
   cursor: pointer;
 }
+#ipod-depth {
+  position: absolute;
+  inset: 32px 25px auto;
+  height: 76px;
+  color: #20252a;
+  background: #e0e4dc;
+  font: 13px Arial, sans-serif;
+}
+#ipod-depth label { display: flex; justify-content: space-between; }
+#ipod-depth input { width: 100%; accent-color: #426d94; margin: 8px 0 0; }
 #ipod-wheel {
   position: relative;
   width: 142px;
@@ -219,6 +229,10 @@ button:disabled{opacity:.35;cursor:default}
   <div id="ipod-layer">
   <section id="ipod" aria-label="Музыкальный плеер" inert>
     <canvas id="ipod-display" width="512" height="302" aria-label="Экран iPod"></canvas>
+    <div id="ipod-depth" hidden>
+      <label for="ipod-reverb">Reverb Depth <output id="ipod-reverb-value">60%</output></label>
+      <input id="ipod-reverb" type="range" min="0" max="100" step="1" value="60">
+    </div>
     <div id="ipod-wheel">
       <button type="button" data-action="menu" aria-label="Меню">MENU</button>
       <button type="button" data-action="prev" aria-label="Предыдущий трек">◀◀</button>

@@ -4,6 +4,11 @@ class MusicPlayer {
   constructor(notify) {
     this.notify = notify; this.audio = new Audio(); this.audio.preload = 'metadata';
     this.tracks = []; this.index = -1; this.volume = .7; this.urls = new Map();
+    this.reverbDepth = .6;
+    try {
+      const savedDepth = localStorage.getItem('grimerka-reverb-depth');
+      if (savedDepth !== null && Number.isFinite(Number(savedDepth))) this.reverbDepth = Math.max(0, Math.min(1, Number(savedDepth)));
+    } catch {}
     this.audio.addEventListener('ended', () => this.next(1));
     this.audio.addEventListener('error', () => this.notify('Не удалось прочитать аудиофайл'));
     this.input = document.createElement('input'); this.input.type = 'file'; this.input.multiple = true;
@@ -39,22 +44,40 @@ class MusicPlayer {
     this.high = context.createBiquadFilter(); this.high.type = 'highpass'; this.high.frequency.value = 10;
     this.dry = context.createGain(); this.wet = context.createGain(); this.wet.gain.value = 0;
     this.gain = context.createGain(); this.gain.gain.value = this.volume;
-    const reverb = context.createConvolver(), length = Math.ceil(context.sampleRate * 1.1);
-    const impulse = context.createBuffer(2, length, context.sampleRate);
-    for (let ch = 0; ch < 2; ch++) { const data = impulse.getChannelData(ch); for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 3; }
-    reverb.buffer = impulse; this.source.connect(this.high).connect(this.low);
-    this.low.connect(this.dry).connect(this.gain); this.low.connect(reverb).connect(this.wet).connect(this.gain); this.gain.connect(master);
+    this.source.connect(this.high).connect(this.low);
+    this.low.connect(this.dry).connect(this.gain); this.wet.connect(this.gain); this.gain.connect(master);
+    this.tails = [1.8, 3.4].map(seconds => {
+      const reverb = context.createConvolver(), mix = context.createGain();
+      const length = Math.ceil(context.sampleRate * seconds);
+      const impulse = context.createBuffer(2, length, context.sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const data = impulse.getChannelData(ch);
+        for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 3;
+      }
+      reverb.buffer = impulse;
+      this.low.connect(reverb).connect(mix).connect(this.wet);
+      return mix.gain;
+    });
   }
-  update(open, muted, priority) {
+  setReverbDepth(depth) {
+    this.reverbDepth = Math.max(0, Math.min(1, depth));
+    try { localStorage.setItem('grimerka-reverb-depth', String(this.reverbDepth)); } catch {}
+  }
+  update(mode, muted, priority) {
     if (!this.context) return;
-    const state = `${open}|${muted}|${priority}|${this.volume}`;
+    const state = `${mode}|${muted}|${priority}|${this.volume}|${this.reverbDepth}`;
     if (state === this.lastState) return; this.lastState = state;
     const t = this.context.currentTime;
-    this.low.frequency.setTargetAtTime(open ? 5200 : 22000, t, .15);
-    this.high.frequency.setTargetAtTime(open ? 160 : 10, t, .15);
-    this.wet.gain.setTargetAtTime(open ? .25 : 0, t, .15);
-    this.dry.gain.setTargetAtTime(open ? .75 : 1, t, .15);
-    this.gain.gain.setTargetAtTime(muted ? 0 : this.volume * priority, t, .15);
+    const paused = mode === 'PAUSED';
+    const depth = mode === 'OPEN' ? this.reverbDepth : 0;
+    const wet = depth * .65;
+    this.low.frequency.setTargetAtTime(paused ? 1850 : 22000 - depth * 16500, t, .16);
+    this.high.frequency.setTargetAtTime(10 + depth * 150, t, .16);
+    this.wet.gain.setTargetAtTime(wet, t, .16);
+    this.dry.gain.setTargetAtTime(1 - wet, t, .16);
+    this.tails[0].setTargetAtTime(1 - depth, t, .16);
+    this.tails[1].setTargetAtTime(depth, t, .16);
+    this.gain.gain.setTargetAtTime(muted ? 0 : this.volume * priority * (paused ? .3 : 1), t, .16);
   }
   save() { try { localStorage.setItem('grimerka-player', JSON.stringify({ id: this.tracks[this.index]?.id, time: this.audio.currentTime, volume: this.volume })); } catch {} }
   async play() { try { await this.context?.resume(); await this.audio.play(); } catch { this.notify('Нажми Play ещё раз, чтобы разрешить воспроизведение'); } }
