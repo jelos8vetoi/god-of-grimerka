@@ -352,15 +352,20 @@ func _build(def: Dictionary, prefix: String) -> Animation:
 	anim.loop_mode = Animation.LOOP_LINEAR if def.get("loop", false) else Animation.LOOP_NONE
 	var keys: Array = def["k"]
 	var tracks := {}
+	var smooth: bool = def.get("smooth", false)
 	for k in ORDER:
 		if bone[k] < 0:
 			continue
 		var t := anim.add_track(Animation.TYPE_ROTATION_3D)
+		if smooth:
+			anim.track_set_interpolation_type(t, Animation.INTERPOLATION_CUBIC)
 		anim.track_set_path(t, NodePath(prefix + ":" + skel.get_bone_name(bone[k])))
 		tracks[k] = t
 	var hips: int = bone["hips"]
 	var hp_t := anim.add_track(Animation.TYPE_POSITION_3D)
 	anim.track_set_path(hp_t, NodePath(prefix + ":" + skel.get_bone_name(hips)))
+	if smooth:
+		anim.track_set_interpolation_type(hp_t, Animation.INTERPOLATION_CUBIC)
 	var hips_h := (skel_xf.basis * skel.get_bone_global_rest(hips).origin).y
 	var hpar := skel.get_bone_parent(hips)
 	var par_basis := skel.get_bone_global_rest(hpar).basis if hpar >= 0 else Basis()

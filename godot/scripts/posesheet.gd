@@ -7,6 +7,7 @@ var cam: Camera3D
 
 const SETS := {
 	"pahan": ["res://assets/models/pahan.glb", 1.85, -1.0, ["Idle:0", "Run:0.25", "Light1:0.3", "Light1:0.5", "Light1:0.7", "Light2:0.3", "Light2:0.52", "Charge:0", "FullSwing:0.3", "FullSwing:0.48", "FullSwing:0.75", "Spin:0", "Smash:0.4", "Smash:0.55", "Heavy:0.35", "Block:0"]],
+	"pahan_run": ["res://assets/models/pahan.glb", 1.85, -1.0, ["Idle:0", "Run:0", "Run:0.125", "Run:0.25", "Run:0.375", "Run:0.5", "Run:0.625", "Run:0.75", "Run:0.875"]],
 	"clipper": ["res://assets/models/clipper.glb", 1.8, 1.0, ["Idle:0", "Run:0.25", "Slash:0.32", "Slash:0.52", "Slash:0.72", "Hit:0.3", "Spawn:0.5"]],
 	"hater": ["res://assets/models/hater.glb", 1.75, 1.0, ["Idle:0", "Run:0.25", "Cast:0.4", "Cast:0.6", "Hit:0.3"]],
 }
@@ -48,9 +49,9 @@ func _sheet(k: String) -> void:
 	var cfg: Array = SETS[k]
 	var r := Rig.new()
 	add_child(r)
-	var poses: Dictionary = Poses.pahan_armed() if k == "pahan" else (Poses.clipper() if k == "clipper" else Poses.hater())
+	var poses: Dictionary = Poses.pahan_armed() if k.begins_with("pahan") else (Poses.clipper() if k == "clipper" else Poses.hater())
 	r.setup(cfg[0], cfg[1], poses, true, cfg[2])
-	if k == "pahan":
+	if k.begins_with("pahan"):
 		r.attach("res://assets/models/balon.glb", "r", {"axis": "y", "from": 98.0, "to": 0.0, "grip": 0.07, "length": 0.56})
 	elif k == "clipper":
 		r.attach("res://assets/models/katana.glb", "r", {"axis": "z", "from": -48.8, "to": 48.8, "grip": 0.15, "edge": true, "length": 0.62, "part": func(y): return y > 13.0})

@@ -37,22 +37,36 @@ static func mk(o: Dictionary) -> Dictionary:
 static func en(o: Dictionary) -> Dictionary:
 	return add(ENB, o)
 
+## Цикл бега из восьми поз: касание → просадка → пронос → толчок, затем то же с другой ноги.
+## Таз пружинит (drop), корпус наклонён и чуть скручивается против ног, руки ходят в противоход.
+const RUN_HALF := [
+	# бедро и голень ведущей ноги, бедро и голень толчковой, просадка таза
+	[-0.78, 0.22, 0.5, 0.85, 0.0],
+	[-0.45, 0.6, 0.25, 1.45, 0.04],
+	[-0.05, 0.3, -0.42, 1.35, 0.015],
+	[0.36, 0.38, -0.82, 0.8, -0.015],
+]
 static func run_keys(base_fn: Callable) -> Array:
-	var a := {"spine": {"x": 0.22}, "rfa": {"x": -1.3}, "lfa": {"x": -1.3}}
-	return [
-		[0.0, base_fn.call(add(a, {"rup": {"x": -0.95}, "rleg": {"x": 0.9}, "lup": {"x": 0.55}, "lleg": {"x": 0.5}, "rarm": {"x": 0.7}, "larm": {"x": -0.8}}))],
-		[0.25, base_fn.call(add(a, {"rup": {"x": -0.15}, "rleg": {"x": 0.25}, "lup": {"x": -0.2}, "lleg": {"x": 1.5}, "rarm": {"x": -0.05}, "larm": {"x": -0.05}}))],
-		[0.5, base_fn.call(add(a, {"rup": {"x": 0.55}, "rleg": {"x": 0.5}, "lup": {"x": -0.95}, "lleg": {"x": 0.9}, "rarm": {"x": -0.8}, "larm": {"x": 0.7}}))],
-		[0.75, base_fn.call(add(a, {"rup": {"x": -0.2}, "rleg": {"x": 1.5}, "lup": {"x": -0.15}, "lleg": {"x": 0.25}, "rarm": {"x": -0.05}, "larm": {"x": -0.05}}))],
-		[1.0, base_fn.call(add(a, {"rup": {"x": -0.95}, "rleg": {"x": 0.9}, "lup": {"x": 0.55}, "lleg": {"x": 0.5}, "rarm": {"x": 0.7}, "larm": {"x": -0.8}}))],
-	]
+	var keys := []
+	for i in 9:
+		var h: Array = RUN_HALF[i % 4]
+		var right_leads := (i % 8) < 4
+		var s := cos(i / 8.0 * TAU)   # +1 — правая нога впереди, −1 — левая
+		var o := {"spine": {"x": 0.2, "y": -0.1 * s}, "head": {"y": 0.06 * s, "x": -0.06}, "rfa": {"x": -1.25}, "lfa": {"x": -1.25},
+			"rarm": {"x": 0.6 * s}, "larm": {"x": -0.6 * s}, "drop": h[4]}
+		o["rup" if right_leads else "lup"] = {"x": h[0]}
+		o["rleg" if right_leads else "lleg"] = {"x": h[1]}
+		o["lup" if right_leads else "rup"] = {"x": h[2]}
+		o["lleg" if right_leads else "rleg"] = {"x": h[3]}
+		keys.append([i / 8.0, base_fn.call(o)])
+	return keys
 
 static func pahan() -> Dictionary:
 	var P := Callable(Poses, "ph")
 	return {
 		"Idle": {"d": 3.6, "loop": true, "k": [[0.0, ph({})], [0.25, ph({"spine": {"x": -0.025}, "head": {"x": -0.02}, "rarm": {"z": -0.03}, "larm": {"z": 0.03}})], [0.5, ph({"head": {"y": 0.1}})],
 			[0.75, ph({"spine": {"x": -0.025}, "head": {"x": -0.02, "y": 0.04}, "rarm": {"z": -0.03}, "larm": {"z": 0.03}})], [1.0, ph({})]]},
-		"Run": {"d": 0.62, "loop": true, "k": run_keys(Callable(Poses, "mk"))},
+		"Run": {"d": 0.5, "loop": true, "smooth": true, "k": run_keys(Callable(Poses, "mk"))},
 		# лёгкие удары балоном: горизонтальный, диагональный, тычок
 		"Light1": {"d": 1.0, "k": [[0.0, ph({})], [0.3, ph({"spine": {"y": -0.55}, "spine2": {"y": -0.35}, "rarm": {"z": -1.0, "y": -0.7}, "rfa": {"y": -0.3}, "larm": {"z": 0.3}})],
 			[0.5, ph({"spine": {"y": 0.6}, "spine2": {"y": 0.35}, "rarm": {"z": -1.0, "y": 1.1}, "larm": {"z": 0.4}})], [0.68, ph({"spine": {"y": 0.7}, "spine2": {"y": 0.4}, "rarm": {"z": -0.7, "y": 1.5}})], [1.0, ph({})]]},
@@ -80,7 +94,7 @@ static func madk1d() -> Dictionary:
 		idle.append([i / 8.0, mk(o)])
 	return {
 		"Idle": {"d": 2.4, "loop": true, "k": idle},
-		"Run": {"d": 0.6, "loop": true, "k": run_keys(Callable(Poses, "mk"))},
+		"Run": {"d": 0.52, "loop": true, "smooth": true, "k": run_keys(Callable(Poses, "mk"))},
 		"Cheer": {"d": 1.3, "k": [[0.0, mk({})], [0.14, mk({"spine": {"x": -0.22}, "rarm": {"x": 0.5}, "larm": {"x": 0.5}, "rfa": {"x": -1.2}, "lfa": {"x": -1.2}, "rleg": {"x": 0.3}, "lleg": {"x": 0.3}, "rup": {"x": -0.15}, "lup": {"x": -0.15}})],
 			[0.3, mk({"spine": {"x": 0.28}, "head": {"x": -0.25}, "rarm": {"x": -2.0}, "larm": {"x": -2.0}, "rfa": {"x": -0.15}, "lfa": {"x": -0.15}})],
 			[0.48, mk({"spine": {"x": 0.1}, "head": {"x": -0.1}, "rarm": {"x": -1.5}, "larm": {"x": -1.5}, "rfa": {"x": -0.7}, "lfa": {"x": -0.7}, "rleg": {"x": 0.25}, "lleg": {"x": 0.25}, "rup": {"x": -0.12}, "lup": {"x": -0.12}})],
@@ -91,7 +105,7 @@ static func madk1d() -> Dictionary:
 static func enemy() -> Dictionary:
 	return {
 		"Idle": {"d": 2.2, "loop": true, "k": [[0.0, en({})], [0.5, en({"spine": {"x": 0.04}, "head": {"x": 0.08}, "rarm": {"z": -0.06}, "larm": {"z": 0.06}})], [1.0, en({})]]},
-		"Run": {"d": 0.6, "loop": true, "k": run_keys(Callable(Poses, "mk"))},
+		"Run": {"d": 0.52, "loop": true, "smooth": true, "k": run_keys(Callable(Poses, "mk"))},
 		"Hit": {"d": 0.5, "k": [[0.0, en({})], [0.3, en({"hips": {"x": -0.12}, "spine": {"x": -0.35}, "head": {"x": -0.35}, "rarm": {"x": 0.5, "z": -0.3}, "larm": {"x": 0.5, "z": 0.3}})], [1.0, en({})]]},
 		"DeathA": {"d": 1.0, "k": [[0.0, en({})], [0.25, en({"hips": {"x": -0.45}, "spine": {"x": -0.25}, "rarm": {"z": -0.7}, "larm": {"z": 0.7}, "rleg": {"x": 0.4}, "lleg": {"x": 0.4}, "drop": 0.18})],
 			[0.6, en({"hips": {"x": -1.45}, "rarm": {"z": -0.9}, "larm": {"z": 0.9}, "head": {"x": -0.2}, "drop": 0.78})], [1.0, en({"hips": {"x": -1.5}, "rarm": {"z": -0.95}, "larm": {"z": 0.95}, "head": {"x": -0.25}, "drop": 0.8})]]},
@@ -115,19 +129,18 @@ static func W(p: Array, d: Array, extra := {}) -> Dictionary:
 	return r
 
 ## Пахан: Балон VOZDUH за горлышко, донышко наружу. Стойка — бутылка опущена вдоль правой ноги, донышко чуть вперёд.
-const PH_HOLD := [-0.17, 0.31, 0.07]
-const PH_DIR := [-0.42, -0.82, 0.4]   # как бита на референсе: вниз, наружу вправо и чуть вперёд
+const PH_HOLD := [-0.17, 0.335, 0.07]
+const PH_DIR := [-0.6, -0.62, 0.5]   # как бита на референсе: вниз, наружу вправо и чуть вперёд
 static func pahan_armed() -> Dictionary:
 	var A := pahan()
 	var idle_ik := W(PH_HOLD, PH_DIR)
 	for k in A["Idle"]["k"]:
 		k.append(idle_ik)
-	# бег: бутылка ходит вперёд-назад вместе с рукой
+	# бег: балон в опущенной руке концом назад, как бита на бегу; рука ходит в противоход левой ноге
 	var run: Array = A["Run"]["k"]
-	var sw := [[-0.15, 0.31, 0.12], [-0.15, 0.3, 0.04], [-0.15, 0.31, -0.06], [-0.15, 0.3, 0.04], [-0.15, 0.31, 0.12]]
-	var sd := [[0.05, -0.7, 0.7], [0.05, -0.9, 0.4], [0.05, -0.85, -0.5], [0.05, -0.9, 0.4], [0.05, -0.7, 0.7]]
 	for i in run.size():
-		run[i].append(W(sw[i], sd[i]))
+		var s := cos(i / 8.0 * TAU)
+		run[i].append(W([-0.17, 0.345 + 0.008 * cos(i / 4.0 * TAU), 0.04 - 0.06 * s], [-0.22, -0.28 - 0.06 * s, -0.93]))
 	var st := {"rup": {"x": -0.25}, "lup": {"x": 0.15}, "rleg": {"x": 0.2}, "lleg": {"x": 0.25}, "drop": 0.03}
 	# 1) с размаха справа налево: бутылка заведена за правое плечо → проходит перед собой → уходит влево
 	A["Light1"] = {"d": 1.0, "k": [[0.0, ph({}), idle_ik],
