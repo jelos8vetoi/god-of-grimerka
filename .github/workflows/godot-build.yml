@@ -1,0 +1,67 @@
+# Автосборка Godot-версии: при каждом изменении игры в main собирает .exe и обновляет релиз godot-build.
+# Ссылка на игру всегда одна: https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build
+name: Godot-сборка
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'godot/**'
+      - 'tools/godot-music.cjs'
+      - 'tools/publish-godot.cjs'
+      - '.github/workflows/godot-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: godot-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      GODOT_VERSION: 4.7.2-stable
+      GODOT_TEMPLATES: 4.7.2.stable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Кэш Godot и шаблонов экспорта
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: godot-ci
+          key: godot-${{ env.GODOT_VERSION }}-win64
+
+      - name: Скачать Godot и шаблоны экспорта
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p godot-ci/templates
+          base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
+          curl -fsSL -o godot.zip "${base}/Godot_v${GODOT_VERSION}_win64.exe.zip"
+          unzip -q godot.zip -d godot-ci
+          curl -fsSL -o templates.tpz "${base}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q -j templates.tpz 'templates/windows_release_x86_64.exe' 'templates/windows_release_x86_64_console.exe' 'templates/windows_debug_x86_64.exe' 'templates/windows_debug_x86_64_console.exe' 'templates/version.txt' -d godot-ci/templates
+          rm godot.zip templates.tpz
+
+      - name: Поставить шаблоны экспорта
+        shell: bash
+        run: |
+          dest="$APPDATA/Godot/export_templates/${GODOT_TEMPLATES}"
+          mkdir -p "$dest"
+          cp godot-ci/templates/* "$dest/"
+
+      - name: Собрать и выложить в релиз godot-build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export GODOT="$PWD/godot-ci/Godot_v${GODOT_VERSION}_win64_console.exe"
+          node tools/publish-godot.cjs
