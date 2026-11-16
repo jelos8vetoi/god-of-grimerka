@@ -23,6 +23,16 @@ func _ready() -> void:
 	var l := DirectionalLight3D.new()
 	l.rotation = Vector3(-0.8, 0.6, 0)
 	add_child(l)
+	# земля на y=0 — видно, стоит ли персонаж на ногах
+	var gm := MeshInstance3D.new()
+	var gb := BoxMesh.new()
+	gb.size = Vector3(8, 0.02, 8)
+	gm.mesh = gb
+	gm.position.y = -0.01
+	var gmat := StandardMaterial3D.new()
+	gmat.albedo_color = Color(0.45, 0.2, 0.2)
+	gm.material_override = gmat
+	add_child(gm)
 	cam = Camera3D.new()
 	cam.fov = 35
 	add_child(cam)

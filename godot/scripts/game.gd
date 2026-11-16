@@ -273,6 +273,13 @@ func spawn_enemy(kind: String, pos: Vector3) -> void:
 	pos.y = 0.05
 	_make_enemy(kind, "", pos)
 
+func melee_attackers() -> int:
+	var n := 0
+	for e in enemies:
+		if is_instance_valid(e) and e.boss_id == "" and (e.state == "wind" or (e.state == "recover" and e.t < 0.25)) and not e.cfg.has("ranged"):
+			n += 1
+	return n
+
 func in_arena(p: Vector3, margin: float) -> bool:
 	return abs(p.x) < ARENA - margin and abs(p.z) < ARENA - margin
 
@@ -856,7 +863,7 @@ func _update_hud(dt: float) -> void:
 	banner_sub.modulate.a = a
 	toast_t -= dt
 	toast_label.modulate.a = clamp(toast_t / 0.5, 0.0, 1.0)
-	hud_root.visible = not (director and director.hide_hud())
+	hud.visible = not (director and director.hide_hud())
 
 # ---------------- проверки: бот играет сам ----------------
 func bot_input(dt: float) -> void:

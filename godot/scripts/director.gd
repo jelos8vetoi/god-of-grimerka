@@ -37,11 +37,14 @@ func _ready() -> void:
 		_stage(0)
 		game.cam_yaw = 0.0
 		for i in 6:
-			var a := -1.2 + i * 0.48
+			var a := -1.9 + i * 0.4
 			game.spawn_enemy("bot", P.global_position + Vector3(sin(a) * 3.0, 0, -cos(a) * 3.0)), "tick": func(i):
 		P.swag = 100.0 if i < 50 else P.swag
 		P.auto_input = {"rage": "press"} if i == 50 else {}
-		_look(P.global_position + Vector3(1.6, 0.8, -4.6), P.global_position + Vector3(0, 1.2, -0.6))})
+		game.buddy.global_position = P.global_position + Vector3(-2.2, 0, 3.0)
+		game.buddy.target = game.buddy.global_position
+		game.buddy.wait = 5.0
+		_look(P.global_position + Vector3(2.9 - i * 0.008, 0.95, -3.3), P.global_position + Vector3(-0.3, 1.15, -0.4))})
 	var sets := [["bot", "bot", "bot", "hater"], ["bot", "bot", "clipper", "clipper", "clipper"], ["clipper", "clipper", "clipper", "hater", "hater"], ["troll", "troll", "hater", "hater", "clipper"],
 		["lawyer", "lawyer", "mod", "mod", "clipper"], ["ghost", "ghost", "ghost", "troll"], ["farmer", "bot", "bot", "bot", "clipper", "clipper"], ["troll", "lawyer", "ghost", "clipper", "clipper"], ["bot", "bot", "ghost", "ghost", "clipper", "hater", "troll"]]
 	var bosses := ["courier", "golem", "hype", "dislike", "major", "strike", "botlord", "ghostv", "algo"]
@@ -62,7 +65,7 @@ func _ready() -> void:
 			game.boss_e = game._make_enemy("", bosses[ch], Vector3(0, 0.05, -2)), "tick": func(i):
 			var b = game.boss_e
 			P.auto_input = {}
-			_look(b.global_position + Vector3(1.4 - i * 0.012, 0.7, 5.6 - i * 0.03) * (b.height / 2.4), b.global_position + Vector3(0, b.height * 0.62, 0))})
+			_look(b.global_position + Vector3(1.1 - i * 0.01, 0.4, 3.9 - i * 0.022) * (b.height / 2.4), b.global_position + Vector3(0, b.height * 0.6, 0))})
 		# I — бой с боссом
 		shots.append({"n": "I%d_" % (ch + 1), "warm": 24, "len": 90 if ch == 8 else 40, "slow": 0.5 if ch == 8 else 1.0, "setup": func():
 			P.global_position = Vector3(0, 0.05, 3)
@@ -80,6 +83,7 @@ func _stage(ch: int, reload := true) -> void:
 	game.mode = "idle"
 	game.over = false
 	game.banner_t = 0.0
+	game.dlg_box.visible = false
 	game.toast_t = 0.0
 	var P = game.player
 	P.hp = P.max_hp

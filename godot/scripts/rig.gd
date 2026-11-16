@@ -48,7 +48,7 @@ func setup(path: String, height: float, poses: Dictionary, shadows := true, wsig
 		rest_pos.append(skel.get_bone_rest(i).origin)
 	for k in BONES:
 		bone[k] = _find_bone(BONES[k])
-	var aabb := _mesh_aabb(model)
+	var aabb := _skinned_aabb(path)
 	model_height = max(0.01, aabb.size.y)
 	foot_y = aabb.position.y
 	var s := height / model_height
@@ -94,6 +94,59 @@ func _find_bone(suffix: String) -> int:
 			if pre == "" or ch.to_upper() == ch.to_lower():
 				return i
 	return -1
+
+static var _box_cache := {}
+
+## Габариты персонажа в позе привязки с учётом скелета (в пространстве модели).
+## Нельзя брать AABB самой сетки: у части моделей она в файле лежит на боку, и на ноги её ставит только скелет.
+func _skinned_aabb(key: String) -> AABB:
+	if _box_cache.has(key):
+		return _box_cache[key]
+	var box := AABB()
+	var first := true
+	var grest := []
+	for i in skel.get_bone_count():
+		grest.append(skel.get_bone_global_rest(i))
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var inst := mi as MeshInstance3D
+		var skin := inst.skin
+		if skin == null or inst.mesh == null:
+			continue
+		var mats := []
+		for b in skin.get_bind_count():
+			var bi := skin.get_bind_bone(b)
+			if bi < 0:
+				bi = skel.find_bone(skin.get_bind_name(b))
+			mats.append((grest[bi] as Transform3D) * skin.get_bind_pose(b) if bi >= 0 else Transform3D())
+		for s in inst.mesh.get_surface_count():
+			var arr := inst.mesh.surface_get_arrays(s)
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var bones = arr[Mesh.ARRAY_BONES]
+			var ws = arr[Mesh.ARRAY_WEIGHTS]
+			if bones == null or ws == null or vs.size() == 0:
+				continue
+			var per: int = bones.size() / vs.size()
+			var stride: int = max(1, vs.size() / 6000)
+			for v in range(0, vs.size(), stride):
+				var p := Vector3.ZERO
+				var wsum := 0.0
+				for j in per:
+					var w: float = ws[v * per + j]
+					if w > 0.0:
+						p += ((mats[bones[v * per + j]] as Transform3D) * vs[v]) * w
+						wsum += w
+				if wsum <= 0.0:
+					continue
+				p = skel_xf * (p / wsum)
+				if first:
+					box = AABB(p, Vector3.ZERO)
+					first = false
+				else:
+					box = box.expand(p)
+	if first:
+		box = _mesh_aabb(model)
+	_box_cache[key] = box
+	return box
 
 func _mesh_aabb(root: Node) -> AABB:
 	var box := AABB()

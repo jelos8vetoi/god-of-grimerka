@@ -15,7 +15,7 @@ const KINDS := {
 const BOSS_LOOK := {
 	"courier": {"model": "clipper", "scale": 1.3}, "golem": {"model": "bot", "scale": 1.9}, "hype": {"model": "hater", "scale": 1.35},
 	"dislike": {"model": "bot", "scale": 1.75}, "major": {"model": "clipper", "scale": 1.4}, "strike": {"model": "hater", "scale": 1.45},
-	"botlord": {"model": "bot", "scale": 1.6}, "ghostv": {"model": "pahan", "scale": 1.2, "alpha": 0.8, "emit": 0.35}, "algo": {"model": "hater", "scale": 2.0, "emit": 0.5},
+	"botlord": {"model": "bot", "scale": 1.6}, "ghostv": {"model": "pahan", "scale": 1.2, "alpha": 0.85, "emit": 0.12}, "algo": {"model": "hater", "scale": 2.0, "emit": 0.1},
 }
 
 var game
@@ -119,7 +119,7 @@ func _setup_boss() -> void:
 		"tint": Color(boss["c"]), "xp": boss["xp"]}
 	if look.has("alpha"):
 		cfg["alpha"] = look["alpha"]
-	cfg["emit"] = look.get("emit", 0.15)
+	cfg["emit"] = look.get("emit", 0.04)
 	if look["model"] == "pahan":
 		cfg["clip"] = "Light1"
 	max_hp = float(boss["hp"]) * 0.75 * float(game.diff_hp)
@@ -132,7 +132,7 @@ func _tint(c: Color, alpha: float, emit: float) -> void:
 			if not (src is StandardMaterial3D):
 				continue
 			var mat := (src as StandardMaterial3D).duplicate() as StandardMaterial3D
-			mat.albedo_color = Color.WHITE.lerp(c, 0.55)
+			mat.albedo_color = Color.WHITE.lerp(c, 0.38)
 			if alpha < 1.0:
 				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
 				mat.albedo_color.a = alpha
@@ -209,7 +209,11 @@ func _physics_process(dt: float) -> void:
 					_teleport_near(p.global_position, 1.8)
 					cool = 0.4
 				elif dist < float(cfg["range"]) or cfg.has("summoner"):
-					_wind(String(cfg["clip"]), float(cfg["wind"]))
+					# в ближнем бою одновременно замахиваются не больше двоих — иначе героя держат в вечном оглушении
+					if not cfg.has("ranged") and not cfg.has("summoner") and game.melee_attackers() >= 2:
+						cool = randf_range(0.25, 0.6)
+					else:
+						_wind(String(cfg["clip"]), float(cfg["wind"]))
 		"wind":
 			face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-6.0 * dt))
 			var k: float = t / float(cfg["wind"])

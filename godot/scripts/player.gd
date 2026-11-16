@@ -416,7 +416,7 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		dmg *= 0.65
 	hp -= dmg
 	game.damage_flash()
-	inv = 0.25
+	inv = 0.55
 	if hp <= 0.0:
 		hp = 0.0
 		state = "dead"
