@@ -40,6 +40,7 @@ var cam_pitch := -0.32
 var pivot: Node3D
 var spring: SpringArm3D
 var cam: Camera3D
+var cam_attributes: CameraAttributesPractical
 var trauma := 0.0            # тряска камеры: копится от ударов, гаснет сама
 var shake_t := 0.0
 var fov_kick := 0.0
@@ -49,6 +50,10 @@ var fx
 var post: ColorRect
 var post_mat: ShaderMaterial
 var pp := {"aberr": 0.0, "blur": 0.0, "flash": 0.0, "ripple_a": 0.0, "ripple_t": 0.0}
+var ipod_focus := 0.0
+var ipod_motion := 0.0
+var ipod_focus_quality := 1.0
+var ipod_attention_point := Vector2(0.74, 0.58)
 var ripple_c := Vector2(0.5, 0.5)
 var last_flash := -9.0
 # озвучка: реплики диалогов и боевые выкрики (файлы делает tools/godot-voice.cjs)
@@ -105,6 +110,7 @@ var auto_len := 45.0
 var shots_done := {}
 var fps_samples: Array = []
 var director = null
+var ipod
 var bot_acc := 0.0
 var bot_pf := -1
 
@@ -139,6 +145,11 @@ func _ready() -> void:
 	_build_camera()
 	_build_post()
 	_build_hud()
+	ipod = preload("res://scripts/ipod.gd").new()
+	ipod.game = self
+	# в проверках и прогонах бота библиотеку игрока на диске не читаем и не перезаписываем
+	ipod.persistence_enabled = main.testing() == "" and main.ipodcheck == ""
+	add_child(ipod)
 	if main.testing() == "":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -614,10 +625,20 @@ func _build_camera() -> void:
 	cam = Camera3D.new()
 	cam.fov = 62.0
 	cam.far = 250.0
+	cam_attributes = CameraAttributesPractical.new()
+	cam_attributes.dof_blur_far_enabled = false
+	cam_attributes.dof_blur_far_distance = 5.4
+	cam_attributes.dof_blur_far_transition = 5.8
+	cam_attributes.dof_blur_near_enabled = false
+	cam_attributes.dof_blur_amount = 0.0
+	cam.attributes = cam_attributes
+	ipod_focus_quality = 0.55 if OS.has_feature("mobile") else 1.0
 	spring.add_child(cam)
 	cam.make_current()
 
 func _unhandled_input(e: InputEvent) -> void:
+	if ipod != null and ipod.captures_gameplay_input():
+		return
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and mode != "dlg":
 		cam_yaw -= e.relative.x * 0.0028
 		cam_pitch = clamp(cam_pitch - e.relative.y * 0.0022, -1.1, 0.35)
@@ -702,12 +723,17 @@ func _process(dt: float) -> void:
 		want_len = 4.0
 	elif heat_t > 0.0:
 		want_len = 2.9
+	# iPod only adds a cinematic 13% dolly to the distance chosen by the normal
+	# camera state. SpringArm3D still owns the final collision-safe camera position.
+	want_len *= 1.0 - 0.13 * ipod_focus
 	if not director or not director.owns_camera():
 		pivot.global_position = pivot.global_position.lerp(target, 1.0 - exp(-14.0 * rdt)) if pivot.global_position != Vector3.ZERO else target
 		pivot.rotation.y = lerp_angle(pivot.rotation.y, yaw, 1.0 - exp(-9.0 * rdt)) if mode == "dlg" else yaw
 		pivot.rotation.x = lerp(pivot.rotation.x, pitch, 1.0 - exp(-9.0 * rdt)) if mode == "dlg" else pitch
-		spring.spring_length = lerp(spring.spring_length, want_len, 1.0 - exp(-8.0 * rdt))
-		spring.position = Vector3(0.55, 0, 0)
+		var spring_rate := lerpf(8.0, 7.0, ipod_focus)
+		spring.spring_length = lerp(spring.spring_length, want_len, 1.0 - exp(-spring_rate * rdt))
+		# A restrained lateral/upward offset keeps Pahan readable beside the lower-right UI.
+		spring.position = Vector3(0.55 + 0.12 * ipod_focus, 0.04 * ipod_focus, 0)
 	# тряска: сумма синусов разной частоты (плавно, без дребезга), сила — квадрат накопленного; гаснет в реальном времени
 	trauma = max(0.0, trauma - rdt * 1.5)
 	shake_t += rdt * 34.0
@@ -725,6 +751,10 @@ func _process(dt: float) -> void:
 	fov_kick = lerpf(fov_kick, 0.0, 1.0 - exp(-9.0 * rdt))
 	zoom_s = lerpf(zoom_s, charge_zoom, 1.0 - exp(-6.0 * rdt))
 	cam.fov = 62.0 + fov_kick - 9.0 * zoom_s
+	cam_attributes.dof_blur_far_enabled = ipod_focus > 0.002
+	# A restrained DOF pass establishes depth; the lightweight screen pass below
+	# supplies the remaining focus separation without turning the world to mush.
+	cam_attributes.dof_blur_amount = 0.285 * ipod_focus
 	_update_post(rdt)
 	if world:
 		world.follow(player.global_position)
@@ -772,7 +802,7 @@ func _process(dt: float) -> void:
 # ---------------- экранные эффекты ----------------
 const POST := """
 shader_type canvas_item;
-uniform sampler2D screen : hint_screen_texture, filter_linear, repeat_disable;
+uniform sampler2D screen : hint_screen_texture, filter_linear_mipmap, repeat_disable;
 uniform float aberr = 0.0;
 uniform float blur = 0.0;
 uniform float ripple_a = 0.0;
@@ -782,6 +812,11 @@ uniform float vign = 0.0;
 uniform float flash = 0.0;
 uniform float lines = 0.0;
 uniform float aspect = 1.777;
+uniform float focus = 0.0;
+uniform float focus_motion = 0.0;
+uniform float focus_quality = 1.0;
+uniform vec2 focus_subject = vec2(0.45, 0.55);
+uniform vec2 focus_ui = vec2(0.74, 0.58);
 void fragment() {
 	vec2 uv = SCREEN_UV;
 	vec2 d = uv - vec2(0.5);
@@ -805,12 +840,48 @@ void fragment() {
 	} else {
 		col = vec3(texture(screen, uv - ca).r, texture(screen, uv).g, texture(screen, uv + ca).b);
 	}
+	if (focus > 0.001) {
+		float subject_distance = length((uv - focus_subject) * vec2(aspect, 1.0));
+		float subject_protection = 1.0 - smoothstep(0.075, 0.27, subject_distance);
+		float local_focus = focus * mix(1.0, 0.42, subject_protection);
+		float lod = mix(0.16, 1.42, local_focus) * mix(0.82, 1.0, focus_quality);
+		vec2 px = SCREEN_PIXEL_SIZE * mix(1.1, 4.8, local_focus);
+		vec3 soft = textureLod(screen, uv, lod).rgb * 2.0;
+		soft += textureLod(screen, uv + vec2( 1.0, 0.0) * px, lod).rgb;
+		soft += textureLod(screen, uv + vec2(-1.0, 0.0) * px, lod).rgb;
+		soft += textureLod(screen, uv + vec2(0.0,  1.0) * px, lod).rgb;
+		soft += textureLod(screen, uv + vec2(0.0, -1.0) * px, lod).rgb;
+		float weight = 6.0;
+		if (focus_quality > 0.75) {
+			soft += textureLod(screen, uv + vec2( 0.72,  0.72) * px, lod).rgb;
+			soft += textureLod(screen, uv + vec2(-0.72,  0.72) * px, lod).rgb;
+			soft += textureLod(screen, uv + vec2( 0.72, -0.72) * px, lod).rgb;
+			soft += textureLod(screen, uv + vec2(-0.72, -0.72) * px, lod).rgb;
+			weight = 10.0;
+		}
+		soft /= weight;
+		// No highlight bloom here: bright lamps stay compact instead of smearing.
+		col = mix(col, soft, local_focus * 0.44);
+		vec3 grey = vec3(dot(col, vec3(0.2126, 0.7152, 0.0722)));
+		col = mix(grey, col, 1.0 - 0.08 * focus);
+		col *= 1.0 - 0.14 * focus;
+	}
 	float len = length(d * vec2(aspect, 1.0));
 	if (lines > 0.01) {
 		float ang = atan(d.y, d.x * aspect);
 		float n = fract(sin(floor(ang * 46.0) * 12.9898 + floor(TIME * 20.0) * 78.233) * 43758.5453);
 		col += vec3(smoothstep(0.3 + n * 0.35, 0.95, len) * step(0.62, n) * lines * 0.5);
 	}
+	if (focus_motion > 0.001) {
+		float rays = pow(max(0.0, dot(normalize(d + vec2(0.0001)), normalize(vec2(-0.8, 0.55)))), 18.0);
+		float broken = step(0.55, fract((d.x - d.y) * 37.0));
+		col += vec3(0.11, 0.14, 0.17) * rays * broken * focus_motion * smoothstep(0.18, 0.7, len);
+	}
+	// A broad, off-centre vignette leaves the composition readable while guiding
+	// the eye toward the sharp foreground iPod on the right.
+	vec2 attention_delta = (uv - focus_ui) * vec2(aspect, 1.0);
+	float attention_edge = smoothstep(0.44, 1.18, length(attention_delta));
+	col *= 1.0 - attention_edge * focus * 0.17;
 	col *= 1.0 - smoothstep(0.35, 1.0, len) * vign;
 	col += vec3(flash);
 	COLOR = vec4(col, 1.0);
@@ -841,9 +912,9 @@ func _update_post(rdt: float) -> void:
 		if float(pp["ripple_t"]) >= 1.0:
 			pp["ripple_a"] = 0.0
 	var heat := 1.0 if heat_t > 0.0 else 0.0
-	var vg: float = 0.45 * zoom_s + 0.35 * heat + (0.16 if player.rage > 0.0 else 0.0)
+	var vg: float = 0.45 * zoom_s + 0.35 * heat + (0.16 if player.rage > 0.0 else 0.0) + 0.14 * ipod_focus
 	var ln: float = 0.8 * zoom_s + 0.7 * heat
-	var on: bool = float(pp["aberr"]) > 0.01 or float(pp["blur"]) > 0.01 or float(pp["flash"]) > 0.003 or float(pp["ripple_a"]) > 0.0 or vg > 0.01
+	var on: bool = float(pp["aberr"]) > 0.01 or float(pp["blur"]) > 0.01 or float(pp["flash"]) > 0.003 or float(pp["ripple_a"]) > 0.0 or vg > 0.01 or ipod_focus > 0.001
 	post.visible = on
 	if not on:
 		return
@@ -857,6 +928,20 @@ func _update_post(rdt: float) -> void:
 	post_mat.set_shader_parameter("vign", vg)
 	post_mat.set_shader_parameter("lines", ln)
 	post_mat.set_shader_parameter("aspect", vs.x / max(1.0, vs.y))
+	post_mat.set_shader_parameter("focus", ipod_focus)
+	post_mat.set_shader_parameter("focus_motion", ipod_motion)
+	post_mat.set_shader_parameter("focus_quality", ipod_focus_quality)
+	post_mat.set_shader_parameter("focus_ui", ipod_attention_point)
+	var subject := Vector2(0.45, 0.55)
+	if cam != null and player != null and not cam.is_position_behind(player.global_position):
+		subject = cam.unproject_position(player.global_position + Vector3(0, 1.15, 0)) / vs
+	post_mat.set_shader_parameter("focus_subject", subject)
+
+
+func set_ipod_visual_focus(amount: float, motion: float, attention_point := Vector2(0.74, 0.58)) -> void:
+	ipod_focus = clampf(amount, 0.0, 1.0)
+	ipod_motion = clampf(motion, 0.0, 1.0)
+	ipod_attention_point = Vector2(clampf(attention_point.x, 0.05, 0.95), clampf(attention_point.y, 0.05, 0.95))
 
 # ---------------- диалоги ----------------
 func start_dialog(lines: Array, after: Callable) -> void:
@@ -1172,7 +1257,7 @@ func set_paused(v: bool) -> void:
 		return
 	get_tree().paused = v
 	pause_panel.visible = v
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if v or panel != null else Input.MOUSE_MODE_CAPTURED
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if v or panel != null or (ipod != null and ipod.captures_gameplay_input()) else Input.MOUSE_MODE_CAPTURED
 
 func _to_menu() -> void:
 	get_tree().paused = false
@@ -1232,6 +1317,9 @@ func _credits(title: String, sub: String) -> void:
 	_show_panel(title, sub, [["В МЕНЮ", _to_menu]])
 
 func _update_hud(dt: float) -> void:
+	# Keep gameplay information present, but let the foreground iPod win the hierarchy.
+	hud_root.modulate = Color(lerpf(1.0, 0.80, ipod_focus), lerpf(1.0, 0.82, ipod_focus),
+		lerpf(1.0, 0.86, ipod_focus), lerpf(1.0, 0.82, ipod_focus))
 	hp_fill.size.x = 414.0 * clamp(player.hp / player.max_hp, 0.0, 1.0)
 	var full: bool = player.swag >= 100.0
 	swag_fill.size.x = 314.0 * (player.rage / 8.0 if player.rage > 0.0 else player.swag / 100.0)

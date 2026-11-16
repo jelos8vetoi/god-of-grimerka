@@ -41,6 +41,10 @@ var boss_seen := ""
 var dead_seen := false
 var log_t := 0.0
 var labels := {}
+var ipod_focus_target := 0.0  # 0 — обычный микс, 1 — iPod открыт
+var ipod_focus := 0.0
+var ipod_lowpass: AudioEffectLowPassFilter
+var ipod_reverb: AudioEffectReverb
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -48,6 +52,19 @@ func _ready() -> void:
 		if AudioServer.get_bus_index(b) < 0:
 			AudioServer.add_bus()
 			AudioServer.set_bus_name(AudioServer.bus_count - 1, b)
+	# Фокус iPod обрабатывается только на Music: голоса, SFX и окружение остаются чистыми.
+	var music_bus := AudioServer.get_bus_index("Music")
+	ipod_lowpass = AudioEffectLowPassFilter.new()
+	ipod_lowpass.cutoff_hz = 22000.0
+	ipod_reverb = AudioEffectReverb.new()
+	ipod_reverb.room_size = 0.48
+	ipod_reverb.damping = 0.68
+	ipod_reverb.spread = 0.72
+	ipod_reverb.hipass = 0.12
+	ipod_reverb.dry = 1.0
+	ipod_reverb.wet = 0.0
+	AudioServer.add_bus_effect(music_bus, ipod_lowpass)
+	AudioServer.add_bus_effect(music_bus, ipod_reverb)
 	if FileAccess.file_exists(SETTINGS):
 		var d = JSON.parse_string(FileAccess.get_file_as_string(SETTINGS))
 		if d is Dictionary:
@@ -255,7 +272,12 @@ func _want(v: Array) -> void:
 
 func _mix(dt: float, ducking: float) -> void:
 	duck = lerpf(duck, ducking, 1.0 - exp(-3.0 * dt))
-	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(max(0.0001, float(vol["Music"]))) + duck)
+	ipod_focus = lerpf(ipod_focus, ipod_focus_target, 1.0 - exp(-3.2 * dt))
+	var focus_volume := lerpf(1.0, 0.68, ipod_focus)
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(max(0.0001, float(vol["Music"]) * focus_volume)) + duck)
+	ipod_lowpass.cutoff_hz = lerpf(22000.0, 5600.0, ipod_focus)
+	ipod_reverb.wet = 0.16 * ipod_focus
+	ipod_reverb.dry = 1.0 - 0.08 * ipod_focus
 	for i in layers.size():
 		var target := linear_to_db(max(0.001, want[i]))
 		layers[i].volume_db = lerpf(layers[i].volume_db, target, 1.0 - exp(-(2.5 if target > layers[i].volume_db else 1.2) * dt))

@@ -4,6 +4,7 @@ extends Node
 const ACTIONS := {
 	"up": [KEY_W], "down": [KEY_S], "left": [KEY_A], "right": [KEY_D],
 	"roll": [KEY_SPACE], "block": [KEY_SHIFT], "sprint": [KEY_CTRL], "adlib": [KEY_Q], "rage": [KEY_R], "heat": [KEY_E],
+	"ipod": [KEY_UP],
 	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11],
 }
 
@@ -12,6 +13,7 @@ var menu: Control
 var music: AudioStreamPlayer
 var audio                 # менеджер звука (audio.gd)
 var audiolog := false     # --audiolog: печатать состояние музыки раз в секунду (и не глушить её в проверках)
+var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка iPod по кадрам (scripts/ipodcheck.gd)
 var voicecheck := false   # --voicecheck: пройти диалог главы и напечатать, какие реплики заиграли
 var sfx_pool: Array[AudioStreamPlayer] = []
 var sfx_cache := {}
@@ -58,6 +60,9 @@ func _ready() -> void:
 			trailer = arg.substr(10)
 		elif arg.begins_with("--chapter="):
 			start_ch = int(arg.substr(10)) - 1
+		elif arg.begins_with("--ipodcheck="):
+			ipodcheck = arg.substr(12)
+			start_ch = max(start_ch, 0)
 		elif arg == "--audiolog":
 			audiolog = true
 		elif arg == "--voicecheck":
@@ -142,7 +147,7 @@ func show_menu() -> void:
 		box.add_child(button("ПРОДОЛЖИТЬ", func(): start_game(true)))
 	box.add_child(button("НОВАЯ ИГРА", func(): start_game(false, 0)))
 	box.add_child(button("ВЫХОД", get_tree().quit))
-	box.add_child(label("WASD — бег · мышь — камера · ЛКМ — удары балоном · ПКМ — добивание · E — Heat · Пробел — перекат · Shift — блок · Q — ад-либ madk1d · R — ПЕРЕГРУЗ · F11 — полный экран", 15, Color("cfd6e4")))
+	box.add_child(label("WASD — бег · мышь — камера · ЛКМ — удары балоном · ПКМ — добивание · E — Heat · Пробел — перекат · Shift — блок · Q — ад-либ madk1d · R — ПЕРЕГРУЗ · ↑ — iPod · F11 — полный экран", 15, Color("cfd6e4")))
 
 func label(t: String, size: int, col: Color) -> Label:
 	var l := Label.new()
@@ -213,6 +218,11 @@ func start_game(from_save := false, chapter := -1) -> void:
 	game = preload("res://scripts/game.gd").new()
 	game.main = self
 	add_child(game)
+	if ipodcheck != "":
+		var chk = preload("res://scripts/ipodcheck.gd").new()
+		chk.game = game
+		chk.out = ipodcheck
+		add_child(chk)
 	if smoke != "":
 		game.auto_kill = 1.6
 	game.auto_len = auto_len

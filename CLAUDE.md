@@ -21,6 +21,7 @@
   - `player.gd` — Пахан: бой балоном в стиле Slugger из Yakuza 0, перекат, блок, Heat, ПЕРЕГРУЗ; таблицы ударов `LIGHT/FINISH/HEAT` (доли `hits` совпадают с ключами клипов в `poses.gd`);
   - `enemy.gd` — восемь типов врагов и девять боссов с фазами; у каждого босса свой особый приём (`_special`, состояние `special`, события по времени) со своим клипом из `poses.gd`;
   - `companion.gd` — madk1d;
+  - `ipod.gd` — iPod Classic (автор Shur): плеер поверх игры на стрелку ↑, своя шина `IPod` (фильтр, Bass Boost, реверберация, ограничитель), импорт MP3/WAV/OGG в `user://ipod_music`, настройки в `user://grimerka_ipod.json`; пока открыт, `captures_gameplay_input()` глушит ввод в `player.gd` и `game.gd`, а `game.set_ipod_visual_focus()` и `audio.ipod_focus_target` дают расфокус и приглушение музыки локации; `id3.gd` — чтение тегов и обложки из MP3; `ipodcheck.gd` — автопроверка (ключ `--ipodcheck`);
   - `rig.gd` — персонаж из `.glb` (скелет Mixamo): кулаки, хват оружия, IK рук, сборка анимаций (запекание по кадрам, у ключа своя плавность: `"in"`, `"out"`, `"io"`…; `"ground": true` ставит стопы на пол);
   - `audio.gd` — менеджер звука: музыка слоями по состояниям (исследование, бой, диалог, босс по фазам, победа, поражение), окружение, шины Music/SFX/Ambient/Voice с сохранением громкости; набор ищется по имени файлов, код под новую локацию или босса менять не нужно;
   - `drag.gd` — инерция тяжёлого балона поверх анимации (SkeletonModifier3D): в стойке и на бегу конец балона отстаёт, упирается в землю и волочится; в ударах отключается (`weight`);
@@ -43,6 +44,7 @@ $G --path godot -- --posesheet=<папка>[,pahan|clipper|hater]               
 $G --path godot -- --posesheet=<папка>,pahan,Light1,Heavy                    # раскадровка клипов: 16 кадров, две стороны
 $G --path godot --fixed-fps 30 --resolution 1280x720 -- --trailer=<папка> --shots=T1_,T2_   # проверочные планы (T1_…T4_ — бой, T5_ — бег с балоном, S1_…S9_ — особый приём босса главы), кадры по одному
 $G --path godot -- --smoke=<папка> --audiolog                                # прогон с музыкой: раз в секунду печатает набор, состояние, слои и громкость
+$G --path godot --resolution 1280x720 -- --ipodcheck=<папка>                 # iPod: жмёт клавиши и кнопки, снимает кадры (и увеличенные), печатает «IPOD ok / ОШИБКА»; test.mp3 и test.wav в папке — проверка импорта
 $G --path godot -- --voicecheck                                              # озвучка: листает первый диалог, печатает, что заиграло и с какой громкостью
 $G --path godot --fixed-fps 30 --resolution 1280x720 -- --trailer=<папка>    # кадры для трейлера
 $G --headless --path godot --export-release Windows "../dist/godot/GOD OF GRIMERKA.exe"
