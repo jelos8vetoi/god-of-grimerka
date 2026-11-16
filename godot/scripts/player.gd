@@ -77,6 +77,8 @@ var drag: WeaponDrag        # инерция балона поверх аним�
 var scrape_p: AudioStreamPlayer
 var scr_cd := 0.0
 var drop_done := false
+var anim_hold := 0.0        # реакция (парирование, идеальный уклон, отброс) доигрывает, стойка её не перебивает
+var perfect := false        # в этом перекате был идеальный уклон
 
 func _ready() -> void:
 	var col := CollisionShape3D.new()
@@ -103,6 +105,8 @@ func _ready() -> void:
 	drag = WeaponDrag.new()
 	drag.rig = rig
 	rig.skel.add_child(drag)
+	rig.setup_holster("spine2", Poses.PH_HOLSTER_DIR, Poses.PH_HOLSTER_OFF)
+	rig.clip_event.connect(_on_clip_event)
 	pod = PodHand.new()
 	pod.setup(rig)
 	rig.skel.add_child(pod)
@@ -220,6 +224,7 @@ func _physics_process(dt: float) -> void:
 		return
 	t += dt
 	inv = max(0.0, inv - dt)
+	anim_hold = max(0.0, anim_hold - dt)
 	if game.paused_story():
 		# диалог, мастерская: стоим
 		velocity = Vector3(0, velocity.y - 20.0 * dt, 0)
@@ -251,19 +256,23 @@ func _physics_process(dt: float) -> void:
 				block_t += dt
 				spd = 1.8
 				face = lerp_angle(face, atan2(aim_dir().x, aim_dir().z), 1.0 - exp(-14.0 * dt))
-				rig.play("Block", 0.1)
+				if anim_hold <= 0.0:
+					rig.play_role("block", 0.1)
 			velocity.x = dir.x * spd
 			velocity.z = dir.z * spd
 			if state == "move":
 				if dir.length() > 0.1:
 					face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-12.0 * dt))
-					rig.play("Run", 0.18, spd / 5.6)
-					step_cd -= dt
-					if step_cd <= 0.0 and (held("sprint") or rage > 0.0):
-						step_cd = 0.24
-						game.fx.dust(global_position + Vector3(0, 0.12, 0), 3, game.fx.DUST, 0.45)
-				else:
-					rig.play("Idle", 0.25)
+					anim_hold = 0.0
+					# рывок / бег / шаг (стик наклонён слабо); пыль из-под ног — по событиям шага в клипе (_on_clip_event)
+					if held("sprint") or rage > 0.0:
+						rig.play_role("sprint", 0.18, spd / 7.0)
+					elif dir.length() < 0.6:
+						rig.play_role("walk", 0.2, max(0.4, spd * dir.length() / 2.8))
+					else:
+						rig.play_role("run", 0.18, spd / 5.6)
+				elif anim_hold <= 0.0:
+					rig.play_role("combat_idle" if enemies_near() else "idle", 0.25)
 			if pressed("roll"):
 				start_roll(dir)
 			elif pressed("attack"):
@@ -304,16 +313,9 @@ func _physics_process(dt: float) -> void:
 					game.main.sfx("sfx_slash", -10.0, 0.7)
 			if atk.has("drop") and not drop_done and k >= float(atk["drop"]):
 				drop_done = true
+				# балон после удара падает на землю
 				var wpd := rig.weapon_points()
-				if not wpd.is_empty():
-					game.fx.scrape(wpd[1], fwd)
-					game.fx.dust(wpd[1] + Vector3(0, 0.08, 0), 6, game.fx.DUST, 0.7)
-					game.fx.ground_ring(wpd[1], 0.3, 1.9, Color(1.0, 0.9, 0.7, 0.55), 0.25)
-					game.fx.scorch(wpd[1], 0.8, GOLD)
-				game.main.sfx("sfx_clang", -5.0, 0.7)
-				game.main.sfx("sfx_thud", -4.0, 0.8)
-				game.shake(0.2)
-				game.fov_kick = max(game.fov_kick, 1.5)
+				game.feedback("drop", wpd[1] if not wpd.is_empty() else global_position + fwd, fwd, 1.0, GOLD)
 			# вертушка: разгон и торможение, а не ровное вращение
 			spin_off = -TAU * float(atk.get("spin", 0.0)) * smoothstep(0.14, 0.88, k)
 			if heat_q.is_empty():
@@ -378,6 +380,11 @@ func _physics_process(dt: float) -> void:
 				spin.rotation.x = 0.0
 				state = "move"
 				game.fx.dust(global_position + Vector3(0, 0.15, 0), 5, game.fx.DUST, 0.6)
+				if perfect:
+					# идеальный уклон: вышел из переката низко, балон уже отведён для ответа
+					perfect = false
+					rig.play_role_for("perfect_dodge", 0.55, 0.06)
+					anim_hold = 0.45
 		"hurt":
 			velocity.x = move_toward(velocity.x, 0.0, 20.0 * dt)
 			velocity.z = move_toward(velocity.z, 0.0, 20.0 * dt)
@@ -410,6 +417,18 @@ func _physics_process(dt: float) -> void:
 	var rm := aura_ring.material_override as StandardMaterial3D
 	rm.albedo_color = Color(mat.albedo_color.r, mat.albedo_color.g, mat.albedo_color.b, lerpf(rm.albedo_color.a, 0.8 if glow > 0.0 else 0.0, 1.0 - exp(-5.0 * dt)))
 	aura_ring.rotation.y += dt * (2.6 if rage > 0.0 else 0.9)
+
+## враги рядом — герой в боевой стойке, а не в расслабленной
+func enemies_near(r := 10.0) -> bool:
+	for e in game.enemies:
+		if is_instance_valid(e) and e.alive() and e.global_position.distance_to(global_position) < r:
+			return true
+	return false
+
+## события внутри клипов (rig.clip_event): шаги — пыль на рывке ровно в момент касания стопы
+func _on_clip_event(_clip: String, ev: String) -> void:
+	if ev.begins_with("step") and state == "move" and (held("sprint") or rage > 0.0) and Vector2(velocity.x, velocity.z).length() > 3.0:
+		game.feedback("step", global_position + Vector3(0, 0.12, 0))
 
 func start_attack(a: Dictionary, chained := false) -> void:
 	state = "attack"
@@ -526,7 +545,8 @@ func start_roll(dir: Vector3) -> void:
 	roll_dir = dir.normalized() if dir.length() > 0.1 else Vector3(sin(face), 0, cos(face))
 	face = atan2(roll_dir.x, roll_dir.z)
 	inv = 0.38
-	rig.play("Tuck", 0.08)
+	perfect = false
+	rig.play_role("roll", 0.08)
 	game.fx.dust(global_position + Vector3(0, 0.15, 0), 6, game.fx.DUST, 0.7)
 	game.main.sfx("sfx_roll", -6.0)
 
@@ -597,25 +617,22 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		return
 	if inv > 0.0:
 		if state == "roll":
-			game.slowmo(0.5)
-			game.popup(global_position + Vector3(0, 2.2, 0), "ТАЙМИНГ!", Color.WHITE)
+			perfect = true
+			game.feedback("perfect_dodge", global_position)
 		return
 	var to: Vector3 = from - global_position
 	to.y = 0
 	if state == "block" and aim_dir().angle_to(to.normalized()) < 1.4:
 		if block_t < 0.22 and attacker:
 			attacker.stun(1.6)
-			game.main.sfx("sfx_parry", 0.0)
-			game.popup(global_position + Vector3(0, 2.2, 0), "ПАРИРОВАНИЕ", Color(0.4, 0.85, 1))
-			game.fx.hit(global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.6, to.normalized(), 1, Color(0.5, 0.85, 1.0))
-			game.punch(0.6, global_position + Vector3(0, 1.1, 0))
+			game.feedback("parry", global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.6, to.normalized(), 1.0, Color(0.5, 0.85, 1.0))
+			rig.play_role_for("parry", 0.45, 0.05)
+			anim_hold = 0.4
 			game.bark("parry", 5.0)
 			swag = min(100.0, swag + 20.0)
-			game.slowmo(0.4)
 			return
 		dmg *= 0.2
-		game.main.sfx("sfx_block", -2.0)
-		game.fx.sparks(global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.5, -to.normalized() + Vector3(0, 0.5, 0), 10, Color(0.7, 0.85, 1.0), 0.7)
+		game.feedback("block", global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.5, -to.normalized(), 1.0, Color(0.7, 0.85, 1.0))
 	else:
 		game.main.sfx("sfx_hurt", -2.0)
 		game.fx.hit(global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.3, -to.normalized(), 0, Color(1.0, 0.3, 0.25))
@@ -627,7 +644,12 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		spin.rotation.x = 0.0
 		heat_q = []
 		velocity = -to.normalized() * 4.0
-		rig.play_for("Hit", 0.4, 0.06)
+		# сильный удар отбрасывает (герой остаётся на ногах), обычный — вздрагивает; длительность оглушения та же
+		if dmg >= 18.0:
+			rig.play_role_for("knockback", 0.6, 0.05)
+			anim_hold = 0.55
+		else:
+			rig.play_role_for("hit", 0.4, 0.06)
 	if rage > 0.0:
 		dmg *= 0.65
 	hp -= dmg

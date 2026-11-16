@@ -69,14 +69,19 @@ func _physics_process(dt: float) -> void:
 		velocity.x = v.x
 		velocity.z = v.z
 		face = lerp_angle(face, atan2(d.x, d.z), 1.0 - exp(-10.0 * dt))
-		rig.play("Run", 0.2, spd / 4.6)
+		# далеко отстал — рывок, иначе бег
+		if spd > 6.0:
+			rig.play_role("sprint", 0.2, spd / 8.5)
+		else:
+			rig.play_role("run", 0.2, spd / 4.6)
 	else:
 		velocity.x = 0.0
 		velocity.z = 0.0
 		var aim2: Vector3 = p.aim_dir()
 		face = lerp_angle(face, atan2(aim2.x, aim2.z), 1.0 - exp(-4.0 * dt))
 		if say_t <= 0.0:
-			rig.play("Idle", 0.3)
+			# враги рядом — боксёрская стойка
+			rig.play_role("combat_idle" if p.enemies_near(9.0) else "idle", 0.3)
 	if say_t > 0.0:
 		say_t -= dt
 	velocity.y -= 20.0 * dt

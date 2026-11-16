@@ -74,14 +74,31 @@ const RUN_HALF := [
 	[-0.05, 0.3, -0.42, 1.35, 0.015],
 	[0.36, 0.38, -0.82, 0.8, -0.015],
 ]
-static func run_keys(base_fn: Callable) -> Array:
+## Шаг: те же фазы, но ноги почти прямые, таз почти не пружинит, руки еле ходят.
+const WALK_HALF := [
+	[-0.4, 0.08, 0.3, 0.3, 0.0],
+	[-0.3, 0.25, 0.18, 0.5, 0.012],
+	[0.0, 0.12, -0.2, 0.7, 0.004],
+	[0.22, 0.15, -0.38, 0.25, -0.004],
+]
+## Рывок: шире шаг, выше колени, глубже просадка.
+const SPRINT_HALF := [
+	[-0.95, 0.25, 0.6, 1.0, 0.0],
+	[-0.55, 0.7, 0.3, 1.7, 0.05],
+	[-0.05, 0.35, -0.5, 1.6, 0.02],
+	[0.42, 0.42, -1.0, 0.9, -0.02],
+]
+## События шага в циклах: правая нога касается земли в начале круга, левая — в середине.
+const STEPS := {"step_r": 0.0, "step_l": 0.5}
+
+static func run_keys(base_fn: Callable, half := RUN_HALF, lean := 0.2, arm := 0.6, fa := -1.25) -> Array:
 	var keys := []
 	for i in 9:
-		var h: Array = RUN_HALF[i % 4]
+		var h: Array = half[i % 4]
 		var right_leads := (i % 8) < 4
 		var s := cos(i / 8.0 * TAU)   # +1 — правая нога впереди, −1 — левая
-		var o := {"spine": {"x": 0.2, "y": -0.1 * s}, "head": {"y": 0.06 * s, "x": -0.06}, "rfa": {"x": -1.25}, "lfa": {"x": -1.25},
-			"rarm": {"x": 0.6 * s}, "larm": {"x": -0.6 * s}, "drop": h[4]}
+		var o := {"spine": {"x": lean, "y": -0.5 * lean * s}, "head": {"y": 0.3 * lean * s, "x": -0.3 * lean}, "rfa": {"x": fa}, "lfa": {"x": fa},
+			"rarm": {"x": arm * s}, "larm": {"x": -arm * s}, "drop": h[4]}
 		o["rup" if right_leads else "lup"] = {"x": h[0]}
 		o["rleg" if right_leads else "lleg"] = {"x": h[1]}
 		o["lup" if right_leads else "rup"] = {"x": h[2]}
@@ -122,12 +139,75 @@ static func madk1d() -> Dictionary:
 		idle.append([i / 8.0, mk(o)])
 	return {
 		"Idle": {"d": 2.4, "loop": true, "k": idle},
-		"Run": {"d": 0.52, "loop": true, "smooth": true, "k": run_keys(Callable(Poses, "mk"))},
+		"Run": {"d": 0.52, "loop": true, "smooth": true, "ground": true, "k": run_keys(Callable(Poses, "mk"))},
 		"Cheer": {"d": 1.3, "k": [[0.0, mk({})], [0.14, mk({"spine": {"x": -0.22}, "rarm": {"x": 0.5}, "larm": {"x": 0.5}, "rfa": {"x": -1.2}, "lfa": {"x": -1.2}, "rleg": {"x": 0.3}, "lleg": {"x": 0.3}, "rup": {"x": -0.15}, "lup": {"x": -0.15}})],
 			[0.3, mk({"spine": {"x": 0.28}, "head": {"x": -0.25}, "rarm": {"x": -2.0}, "larm": {"x": -2.0}, "rfa": {"x": -0.15}, "lfa": {"x": -0.15}})],
 			[0.48, mk({"spine": {"x": 0.1}, "head": {"x": -0.1}, "rarm": {"x": -1.5}, "larm": {"x": -1.5}, "rfa": {"x": -0.7}, "lfa": {"x": -0.7}, "rleg": {"x": 0.25}, "lleg": {"x": 0.25}, "rup": {"x": -0.12}, "lup": {"x": -0.12}})],
 			[0.66, mk({"spine": {"x": 0.28}, "head": {"x": -0.25}, "rarm": {"x": -2.1}, "larm": {"x": -2.1}, "rfa": {"x": -0.15}, "lfa": {"x": -0.15}})],
 			[0.85, mk({"spine": {"x": 0.1}, "rarm": {"x": -1.2}, "larm": {"x": -1.2}, "rfa": {"x": -0.8}, "lfa": {"x": -0.8}})], [1.0, mk({})]]},
+	}.merged(madk1d_combat())
+
+# ---------- madk1d в бою: кулаки, боксёрская стойка. Основа под его будущий стиль и Tag Team ----------
+const MK_GUARD := {"rarm": {"x": -0.9, "y": 0.25, "z": -0.15}, "rfa": {"x": -1.9}, "larm": {"x": -1.0, "y": -0.25, "z": 0.15}, "lfa": {"x": -1.95},
+	"spine": {"x": 0.12}, "head": {"x": 0.08}, "lup": {"x": -0.3}, "lleg": {"x": 0.35}, "rup": {"x": 0.05}, "rleg": {"x": 0.4}}
+
+static func mg(o: Dictionary) -> Dictionary:
+	return add(add(MKD, MK_GUARD), o)
+
+## Поза «лежит на спине» — общая для падения и подъёма.
+static func _down(base: Callable) -> Dictionary:
+	return base.call({"hips": {"x": -1.5}, "rarm": {"z": -0.95}, "larm": {"z": 0.95}, "head": {"x": -0.25}, "drop": 0.8})
+
+static func madk1d_combat() -> Dictionary:
+	var M := Callable(Poses, "mk")
+	var sq := {"rup": {"x": -0.35}, "rleg": {"x": 0.55}, "lup": {"x": -0.35}, "lleg": {"x": 0.55}}
+	var squat := {"rup": {"x": -0.75}, "rleg": {"x": 1.15}, "lup": {"x": -0.75}, "lleg": {"x": 1.15}}
+	var g := mg({})
+	var down := _down(M)
+	var walk := run_keys(M, WALK_HALF, 0.06, 0.3, -0.45)
+	var sprint := run_keys(M, SPRINT_HALF, 0.34, 0.95, -1.45)
+	return {
+		"CombatIdle": {"d": 0.8, "loop": true, "ground": true, "ease": "io", "k": [[0.0, g], [0.5, mg({"rleg": {"x": 0.12}, "lleg": {"x": 0.12}, "rup": {"x": -0.07}, "lup": {"x": -0.07}, "spine": {"x": 0.03}})], [1.0, g]]},
+		"Walk": {"d": 1.0, "loop": true, "smooth": true, "ground": true, "k": walk, "ev": STEPS},
+		"Sprint": {"d": 0.44, "loop": true, "smooth": true, "ground": true, "k": sprint, "ev": STEPS},
+		# уклон: нырок вбок и вниз, руки у лица
+		"Dodge": {"d": 1.0, "ground": true, "k": [[0.0, g], [0.3, mg(add(sq, {"spine": {"z": 0.32, "x": 0.15}, "hips": {"y": 0.25}, "head": {"z": -0.15}})), "out"], [0.6, mg(add(sq, {"spine": {"z": 0.25}})), "io"], [1.0, g, "io"]]},
+		"PerfectDodge": {"d": 1.0, "ground": true, "ev": {"counter": 0.3}, "k": [[0.0, g], [0.25, mg(add(squat, {"spine": {"x": 0.45, "y": -0.3}})), "out"],
+			[0.55, mg(add(sq, {"spine": {"y": -0.45}, "rarm": {"z": 0.3}})), "io"], [1.0, g, "io"]]},
+		"Block": {"d": 1.0, "loop": true, "ground": true, "k": [[0.0, mk(add(sq, {"spine": {"x": 0.22}, "head": {"x": 0.2}, "rarm": {"x": -1.3, "y": 0.45}, "larm": {"x": -1.3, "y": -0.45}, "rfa": {"x": -1.95}, "lfa": {"x": -1.95}}))],
+			[1.0, mk(add(sq, {"spine": {"x": 0.22}, "head": {"x": 0.2}, "rarm": {"x": -1.3, "y": 0.45}, "larm": {"x": -1.3, "y": -0.45}, "rfa": {"x": -1.95}, "lfa": {"x": -1.95}}))]]},
+		"Parry": {"d": 1.0, "ground": true, "ev": {"parry": 0.2}, "k": [[0.0, g], [0.2, mg({"spine": {"x": 0.25, "y": 0.3}, "larm": {"x": -0.55, "y": -0.7}, "lfa": {"x": -0.4}}), "out"], [0.55, mg({"spine": {"y": 0.2}}), "io"], [1.0, g, "io"]]},
+		# джеб левой
+		"Light": {"d": 1.0, "ground": true, "ev": {"hit": 0.42}, "k": [[0.0, g], [0.25, mg({"spine": {"y": 0.15}, "larm": {"x": 0.15}}), "out"],
+			[0.42, mg({"spine": {"y": -0.35, "x": 0.18}, "larm": {"x": -0.6, "y": 0.25, "z": -0.15}, "lfa": {"x": 1.85}, "lup": {"x": -0.2}}), "in"], [0.6, mg({"spine": {"y": -0.3, "x": 0.15}, "larm": {"x": -0.5, "y": 0.2, "z": -0.1}, "lfa": {"x": 1.6}}), "out2"], [1.0, g, "io"]]},
+		# хук правой: корпус и таз доворачивают руку
+		"Heavy": {"d": 1.0, "ground": true, "ev": {"hit": 0.55}, "k": [[0.0, g], [0.35, mg(add(sq, {"hips": {"y": -0.3}, "spine": {"y": -0.5}, "rarm": {"x": 0.9, "y": -0.75, "z": -0.75}, "rfa": {"x": 1.6, "y": 1.2}, "head": {"y": 0.3}})), "out"],
+			[0.55, mg({"hips": {"y": 0.35}, "spine": {"y": 0.6, "x": 0.2}, "rarm": {"x": 0.9, "y": 0.65, "z": -0.9}, "rfa": {"x": 1.6, "y": 0.9}, "rup": {"x": 0.15}, "rleg": {"x": 0.2}}), "in"],
+			[0.75, mg({"hips": {"y": 0.4}, "spine": {"y": 0.7, "x": 0.2}, "rarm": {"x": 0.9, "y": 0.85, "z": -0.9}, "rfa": {"x": 1.6, "y": 0.9}}), "out2"], [1.0, g, "io"]]},
+		# апперкот: присел, вес на правую — и вверх всем телом
+		"Launcher": {"d": 1.0, "ground": true, "ev": {"hit": 0.5}, "k": [[0.0, g], [0.3, mg(add(squat, {"spine": {"y": -0.35, "x": 0.25}, "rarm": {"x": 0.7}, "rfa": {"x": 0.3}})), "out"],
+			[0.5, mg({"lift": 0.05, "spine": {"y": 0.3, "x": -0.25}, "head": {"x": -0.2}, "rarm": {"x": -1.4, "z": 0.3}, "rfa": {"x": 0.1}}), "in"], [0.7, mg({"lift": 0.03, "spine": {"y": 0.3, "x": -0.2}, "rarm": {"x": -1.35, "z": 0.3}, "rfa": {"x": 0.1}}), "out2"], [1.0, g, "io"]]},
+		# в воздухе: удар двумя ногами вперёд
+		"AirAttack": {"d": 1.0, "ev": {"hit": 0.45}, "k": [[0.0, mg({"rup": {"x": -1.0}, "rleg": {"x": 1.6}, "lup": {"x": -0.8}, "lleg": {"x": 1.5}})],
+			[0.45, mg({"spine": {"x": -0.35}, "rup": {"x": -1.3}, "rleg": {"x": -0.4}, "lup": {"x": -1.0}, "lleg": {"x": -0.35}}), "in"],
+			[0.7, mg({"spine": {"x": -0.3}, "rup": {"x": -1.25}, "rleg": {"x": -0.3}, "lup": {"x": -0.95}, "lleg": {"x": -0.25}}), "out2"],
+			[1.0, mg({"rup": {"x": -0.7}, "rleg": {"x": 1.2}, "lup": {"x": -0.5}, "lleg": {"x": 1.0}}), "io"]]},
+		"Landing": {"d": 1.0, "ground": true, "ev": {"land": 0.1}, "k": [[0.0, mg(sq)], [0.2, mg(add(squat, {"spine": {"x": 0.35}, "rarm": {"z": 0.4}, "larm": {"z": -0.4}})), "out"], [1.0, g, "io"]]},
+		"Stagger": {"d": 1.0, "ground": true, "k": [[0.0, g], [0.2, mk({"hips": {"y": 0.2}, "spine": {"x": -0.4, "y": 0.3}, "head": {"x": -0.35}, "rarm": {"z": -0.6, "x": -0.3}, "larm": {"z": 0.9, "x": -0.4}, "rup": {"x": 0.25}, "lup": {"x": -0.45}, "lleg": {"x": 0.3}}), "out"],
+			[0.5, mg(add(sq, {"spine": {"x": 0.3}})), "io"], [1.0, g, "io"]]},
+		"Knockback": {"d": 1.0, "ground": true, "k": [[0.0, g], [0.15, mk({"hips": {"x": -0.15}, "spine": {"x": -0.55}, "head": {"x": -0.5}, "rarm": {"x": -1.2, "z": -0.5}, "larm": {"x": -1.2, "z": 0.5}, "rup": {"x": -0.4}, "rleg": {"x": 0.6}, "lup": {"x": -0.4}, "lleg": {"x": 0.6}}), "out"],
+			[0.45, mg(add(squat, {"spine": {"x": 0.3}, "rarm": {"z": 0.5}, "larm": {"z": -0.5}})), "io"], [0.75, mg(sq), "io"], [1.0, g, "io"]]},
+		"Knockdown": {"d": 1.0, "ev": {"ground": 0.5}, "k": [[0.0, g], [0.14, mk({"hips": {"x": -0.6}, "spine": {"x": -0.3}, "rup": {"x": -0.6}, "lup": {"x": -0.4}, "rarm": {"x": -1.0}, "larm": {"x": -1.0}, "drop": 0.12}), "out"],
+			[0.5, mk({"hips": {"x": -1.5}, "rarm": {"z": -0.8}, "larm": {"z": 0.8}, "rup": {"x": -0.5}, "lup": {"x": -0.3}, "drop": 0.78}), "in"],
+			[0.62, mk({"hips": {"x": -1.42}, "rarm": {"z": -0.9}, "larm": {"z": 0.9}, "rup": {"x": -0.3}, "head": {"x": -0.15}, "drop": 0.75}), "out"], [1.0, down, "io"]]},
+		"Recovery": {"d": 1.0, "k": [[0.0, down], [0.35, mk({"hips": {"x": -0.5}, "spine": {"x": 0.7}, "rup": {"x": -1.6}, "lup": {"x": -1.6}, "rleg": {"x": 1.9}, "lleg": {"x": 1.9}, "rarm": {"x": 0.5}, "larm": {"x": 0.5}, "drop": 0.62}), "io"],
+			[0.7, mk({"spine": {"x": 0.5}, "rup": {"x": -1.2}, "lup": {"x": -1.2}, "rleg": {"x": 1.8}, "lleg": {"x": 1.8}, "drop": 0.38}), "io"], [1.0, g, "io"]]},
+		# Tag Team: влетает в кадр, приземление, хайп обеими руками — и в стойку
+		"TagIn": {"d": 1.0, "ground": true, "ev": {"land": 0.12, "ready": 0.85}, "k": [[0.0, mg(add(squat, {"spine": {"x": 0.3}}))], [0.15, mg(add(squat, {"spine": {"x": 0.45}, "rarm": {"z": 0.5}, "larm": {"z": -0.5}})), "out"],
+			[0.45, mk({"spine": {"x": -0.2}, "head": {"x": -0.25}, "rarm": {"x": -2.2, "z": -0.2}, "larm": {"x": -2.2, "z": 0.2}, "rfa": {"x": -0.3}, "lfa": {"x": -0.3}}), "out"],
+			[0.65, mk({"spine": {"x": -0.15}, "head": {"x": -0.2}, "rarm": {"x": -2.1, "z": -0.2}, "larm": {"x": -2.1, "z": 0.2}, "rfa": {"x": -0.5}, "lfa": {"x": -0.5}}), "io"], [1.0, g, "io"]]},
+		"TagOut": {"d": 1.0, "ground": true, "ev": {"call": 0.3, "leave": 0.9}, "k": [[0.0, g], [0.3, mk({"hips": {"y": 0.3}, "spine": {"y": 0.35}, "head": {"y": 0.3}, "rarm": {"x": -2.4, "z": -0.3}, "rfa": {"x": -0.4}}), "io"],
+			[0.6, mk(add(sq, {"spine": {"x": -0.1}, "rarm": {"x": -1.6}, "rfa": {"x": -0.8}})), "io"], [1.0, mk(add(squat, {"spine": {"x": 0.4}, "rarm": {"x": 0.6}, "larm": {"x": 0.6}})), "in"]]},
 	}
 
 static func enemy() -> Dictionary:
@@ -192,6 +272,10 @@ static func W(p: Array, d: Array, extra := {}) -> Dictionary:
 ## Пахан: Балон VOZDUH за горлышко, донышко наружу. Стойка — бутылка опущена вдоль правой ноги, донышко чуть вперёд.
 const PH_HOLD := [-0.19, 0.275, -0.05]
 const PH_DIR := [-0.3, -0.5, -0.81]   # вниз и назад-вправо: конец балона лежит на земле за спиной
+## Чехол за спиной (Rig.setup_holster от кости spine2): горлышко над правым плечом сзади, корпус наискосок вниз-влево.
+const PH_HOLSTER_DIR := [0.6, -0.75, -0.1]
+const PH_HOLSTER_OFF := [-0.25, 0.1, -0.07]
+const PH_HOLSTER_GRIP := [-0.2, 0.57, -0.11]   # то же место в долях роста от ног (для рук в «достать/убрать»)
 ## Скрутка корпуса: h — таз, s — грудь (плюс — влево), lean — наклон вперёд; голова остаётся смотреть на цель.
 static func tw(h: float, s: float, lean := 0.0) -> Dictionary:
 	return {"hips": {"y": h}, "spine": {"y": s, "x": lean}, "spine2": {"y": s * 0.6}, "head": {"y": clampf(-(h + s * 1.6) * 0.75, -0.8, 0.8), "x": -lean * 0.5}}
@@ -217,7 +301,8 @@ static func pahan_armed() -> Dictionary:
 	A["Idle"]["ease"] = "io"
 	A["Idle"]["ground"] = true
 	# бег: балон волочится концом по земле позади, рука вытянута назад и почти не качается
-	A["Run"] = {"d": 0.5, "loop": true, "smooth": true, "k": run_keys(Callable(Poses, "mkd"))}
+	A.erase("Light3")    # без оружия, с балоном не используется
+	A["Run"] = {"d": 0.5, "loop": true, "smooth": true, "ground": true, "k": run_keys(Callable(Poses, "mkd"))}
 	var run: Array = A["Run"]["k"]
 	for i in run.size():
 		var s := cos(i / 8.0 * TAU)
@@ -339,7 +424,101 @@ static func pahan_armed() -> Dictionary:
 	A["Hit"]["ground"] = true
 	A["Hit"]["k"][1].append("out")
 	A["Hit"]["k"][2].append("io")
+	_pahan_combat(A, idle_ik, side)
 	return A
+
+## Боевая основа Пахана (этап 02): стойка, шаг, рывок, уклоны, парирование, воздух, реакции на удар, падение и подъём,
+## добивание-заготовка, достать/убрать балон, Tag Team. Удары с весом: подготовка ("out") → разгон ("in") → завершение.
+static func _pahan_combat(A: Dictionary, idle_ik: Dictionary, side: Dictionary) -> void:
+	var bare := pahan()
+	var T2 := {"two": 0.07}
+	var lfw := {"lup": {"x": -0.55}, "lleg": {"x": 0.6}, "rup": {"x": 0.3}, "rleg": {"x": 0.2}}
+	var sq_l := {"rup": {"x": -0.22}, "rleg": {"x": 0.35}, "lup": {"x": -0.38}, "lleg": {"x": 0.42}}
+	var sq_half := {"rup": {"x": -0.35}, "rleg": {"x": 0.55}, "lup": {"x": -0.35}, "lleg": {"x": 0.55}}
+	var squat := {"rup": {"x": -0.7}, "rleg": {"x": 1.1}, "lup": {"x": -0.7}, "lleg": {"x": 1.1}}
+	var squat_deep := {"rup": {"x": -1.0}, "rleg": {"x": 1.5}, "lup": {"x": -1.0}, "lleg": {"x": 1.5}}
+	var guard := {"larm": {"x": -0.9, "z": 0.65}, "lfa": {"x": -1.4}}
+	# боевая стойка: ниже, вес вперёд, левый кулак у лица, балон оторван от земли и смотрит концом вперёд-вправо
+	var cs := ph(add(sq_l, add(tw(-0.18, -0.12, 0.14), guard)))
+	var cw := W([-0.21, 0.34, 0.03], [-0.6, -0.55, 0.58])
+	var over := W([-0.18, 0.62, -0.06], [-0.3, 0.45, -0.84])     # балон у правого плеча, концом за спину
+	var reach := ph({"spine": {"y": -0.18, "x": -0.05}, "head": {"y": 0.25}})   # рука за плечо, к чехлу
+	# кулак на горлышке в чехле, балон лежит вдоль спины так же, как в чехле: в момент хвата он не дёргается
+	var at_back := W([PH_HOLSTER_GRIP[0], PH_HOLSTER_GRIP[1], PH_HOLSTER_GRIP[2]], PH_HOLSTER_DIR)
+	var down := _down(Callable(Poses, "ph"))
+	A["IdleBare"] = bare["Idle"]
+	A["RunBare"] = bare["Run"]
+	A["RunBare"]["ground"] = true
+	A["CombatIdle"] = {"d": 1.4, "loop": true, "ground": true, "ease": "io", "k": [[0.0, cs, cw],
+		[0.5, ph(add(sq_l, add(tw(-0.18, -0.12, 0.17), add(guard, {"lift": -0.012, "lfa": {"x": -0.08}})))), W([-0.21, 0.333, 0.035], [-0.6, -0.56, 0.57])], [1.0, cs, cw]]}
+	# шаг и рывок: балон волочится концом по земле, как в беге; события шага — для пыли и звука
+	A["Walk"] = {"d": 1.0, "loop": true, "smooth": true, "ground": true, "ev": STEPS, "k": run_keys(Callable(Poses, "mkd"), WALK_HALF, 0.05, 0.3, -0.5)}
+	A["Sprint"] = {"d": 0.42, "loop": true, "smooth": true, "ground": true, "ev": STEPS, "k": run_keys(Callable(Poses, "mkd"), SPRINT_HALF, 0.3, 0.85, -1.4)}
+	A["Run"]["ev"] = STEPS
+	for nm in ["Walk", "Sprint"]:
+		var ks: Array = A[nm]["k"]
+		var amp := 0.35 if nm == "Walk" else 0.9
+		for i in ks.size():
+			var s := cos(i / 8.0 * TAU)
+			ks[i][1]["larm"] = {"z": -1.13, "x": -amp * s}
+			ks[i].append(W([-0.19, 0.285, -0.05 - 0.01 * s], [-0.24, -0.5, -0.83]) if nm == "Walk" else W([-0.2, 0.29, -0.09 - 0.015 * s], [-0.18, -0.44, -0.88]))
+	# уклон: нырок в сторону, балон остаётся у земли сбоку
+	A["Dodge"] = {"d": 1.0, "ground": true, "k": [[0.0, cs, cw],
+		[0.28, ph(add(sq_half, add(tw(0.2, 0.25, 0.28), add(guard, {"spine": {"z": 0.28}, "head": {"z": -0.15}})))), side, "out"],
+		[0.6, ph(add(sq_half, add(tw(0.1, 0.1, 0.2), guard))), side, "io"], [1.0, cs, cw, "io"]]}
+	# идеальный уклон: присел под ударом и уже заряжен на ответ — балон отведён назад
+	A["PerfectDodge"] = {"d": 1.0, "ground": true, "ev": {"counter": 0.3}, "k": [[0.0, cs, cw],
+		[0.25, ph(add(squat, add(tw(-0.3, -0.35, 0.38), {"larm": {"z": 0.9}}))), W([-0.26, 0.42, -0.06], [-0.6, 0.3, -0.74]), "out"],
+		[0.55, ph(add(sq_half, add(tw(-0.25, -0.3, 0.25), guard))), W([-0.25, 0.44, -0.04], [-0.6, 0.35, -0.72]), "io"], [1.0, cs, cw, "io"]]}
+	# парирование: из блока балон поперёк груди толкает удар наружу
+	var bl := W([-0.07, 0.43, 0.17], [1.0, 0.18, 0.05], {"two": 0.13})
+	A["Parry"] = {"d": 1.0, "ground": true, "ev": {"parry": 0.18}, "k": [[0.0, ph(add(sq_half, {"spine": {"x": 0.12}})), bl],
+		[0.2, ph(add(lfw, tw(0.15, 0.2, 0.22))), W([-0.04, 0.47, 0.26], [1.0, 0.35, 0.12], {"two": 0.13}), "out"],
+		[0.55, ph(add(lfw, tw(0.1, 0.12, 0.15))), W([-0.06, 0.45, 0.22], [1.0, 0.25, 0.1], {"two": 0.13}), "io"], [1.0, cs, cw, "io"]]}
+	# в воздухе: ноги поджаты, балон двумя руками над головой → вниз перед собой (высоту ведёт контроллер)
+	var air := {"rup": {"x": -0.9}, "rleg": {"x": 1.3}, "lup": {"x": -0.5}, "lleg": {"x": 1.0}}
+	A["AirAttack"] = {"d": 1.0, "n": 48, "ev": {"hit": 0.6}, "k": [[0.0, ph(add(air, tw(0.0, 0.0, -0.1))), W([-0.03, 0.72, 0.12], [0.0, 0.92, -0.38], T2)],
+		[0.4, ph(add(air, tw(0.0, 0.0, -0.3))), W([-0.03, 0.74, 0.08], [0.0, 0.85, -0.52], T2), "out"],
+		[0.6, ph(add(air, tw(0.0, 0.0, 0.5))), W([-0.02, 0.38, 0.26], [0.0, -0.45, 0.89], T2), "in"],
+		[1.0, ph(add(air, tw(0.0, 0.0, 0.4))), W([-0.02, 0.4, 0.25], [0.0, -0.4, 0.92], T2), "out"]]}
+	# приземление: присел, свободная рука для равновесия, балон бьёт концом в землю сбоку
+	A["Landing"] = {"d": 1.0, "ground": true, "ev": {"land": 0.12}, "k": [[0.0, ph(add(sq_half, tw(0.0, 0.0, 0.2))), side],
+		[0.2, ph(add(squat_deep, add(tw(0.0, 0.0, 0.45), {"larm": {"z": 0.7}}))), side, "out"], [1.0, ph({}), idle_ik, "io"]]}
+	# реакции: пошатнулся / отброшен, но на ногах / сбит с ног (лежит) / подъём
+	A["Stagger"] = {"d": 1.0, "ground": true, "k": [[0.0, ph({}), idle_ik],
+		[0.2, ph(add(tw(0.25, 0.3, -0.35), {"hips": {"x": -0.08}, "rup": {"x": 0.25}, "lup": {"x": -0.45}, "lleg": {"x": 0.3}, "larm": {"z": 0.8, "x": -0.4}, "head": {"x": -0.3}})), W([-0.2, 0.3, -0.04], [-0.5, -0.5, -0.7]), "out"],
+		[0.5, ph(add(sq_half, add(tw(-0.1, -0.1, 0.3), {"larm": {"z": 0.5}}))), side, "io"], [1.0, ph({}), idle_ik, "io"]]}
+	A["Knockback"] = {"d": 1.0, "ground": true, "k": [[0.0, ph({}), idle_ik],
+		[0.15, ph({"hips": {"x": -0.15}, "spine": {"x": -0.5}, "head": {"x": -0.5}, "larm": {"x": -1.2, "z": 0.5}, "rup": {"x": -0.4}, "rleg": {"x": 0.6}, "lup": {"x": -0.4}, "lleg": {"x": 0.6}}), W([-0.23, 0.42, 0.06], [-0.78, -0.1, 0.62]), "out"],
+		[0.45, ph(add(squat, add(tw(0.0, 0.0, 0.3), {"larm": {"z": 0.6}}))), side, "io"], [0.75, ph(add(sq_half, tw(0.0, 0.0, 0.15))), side, "io"], [1.0, ph({}), idle_ik, "io"]]}
+	A["Knockdown"] = {"d": 1.0, "ev": {"ground": 0.5}, "k": [[0.0, ph({}), idle_ik],
+		[0.14, ph({"hips": {"x": -0.6}, "spine": {"x": -0.3}, "rup": {"x": -0.6}, "lup": {"x": -0.4}, "larm": {"x": -1.0}, "drop": 0.12}), "out"],
+		[0.5, ph({"hips": {"x": -1.5}, "rarm": {"z": -0.8}, "larm": {"z": 0.8}, "rup": {"x": -0.5}, "lup": {"x": -0.3}, "drop": 0.78}), "in"],
+		[0.62, ph({"hips": {"x": -1.42}, "rarm": {"z": -0.9}, "larm": {"z": 0.9}, "rup": {"x": -0.3}, "head": {"x": -0.15}, "drop": 0.75}), "out"], [1.0, down, "io"]]}
+	A["Recovery"] = {"d": 1.0, "ev": {"stand": 0.85}, "k": [[0.0, down],
+		[0.35, ph({"hips": {"x": -0.5}, "spine": {"x": 0.7}, "rup": {"x": -1.6}, "lup": {"x": -1.6}, "rleg": {"x": 1.9}, "lleg": {"x": 1.9}, "larm": {"x": 0.6}, "drop": 0.62}), "io"],
+		[0.7, ph({"spine": {"x": 0.5}, "rup": {"x": -1.2}, "lup": {"x": -1.2}, "rleg": {"x": 1.8}, "lleg": {"x": 1.8}, "drop": 0.38}), "io"], [1.0, ph({}), idle_ik, "io"]]}
+	# добивание-заготовка: шаг, балон двумя руками над головой, удар в лежащего перед собой (парные добивания — этап 4.6 плана)
+	A["Finisher"] = {"d": 1.0, "n": 72, "ground": true, "ev": {"impact": 0.6}, "k": [[0.0, ph({}), idle_ik],
+		[0.08, ph(add(sq_half, tw(-0.2, -0.2, 0.2))), W([-0.24, 0.36, -0.04], [-0.75, -0.1, -0.65]), "io"],
+		[0.18, ph(add(lfw, tw(0.0, 0.0, 0.15))), W([-0.05, 0.5, 0.2], [0.0, 0.85, 0.5], T2), "io"],
+		[0.38, ph(add(lfw, add(tw(0.0, 0.0, -0.3), {"lift": 0.03}))), W([-0.03, 0.7, 0.16], [0.0, 0.95, -0.3], T2), "out"],
+		[0.5, ph(add(lfw, add(tw(0.0, 0.0, -0.32), {"lift": 0.03}))), W([-0.03, 0.71, 0.15], [0.0, 0.93, -0.36], T2), "lin"],
+		[0.6, ph(add(squat_deep, tw(0.0, 0.0, 0.7))), W([-0.02, 0.24, 0.3], [0.0, -0.42, 0.9], T2), "in"],
+		[0.85, ph(add(squat_deep, tw(0.0, 0.0, 0.65))), W([-0.02, 0.26, 0.3], [0.0, -0.4, 0.92], T2), "io"], [0.93, ph(add(sq_half, tw(-0.05, -0.05, 0.2))), side, "io"], [1.0, ph({}), idle_ik, "out"]]}
+	# достать / убрать: рука за правое плечо к чехлу; оружие переезжает в кулак на событии "grab" (и за спину на "stow")
+	A["Equip"] = {"d": 1.0, "ground": true, "ev": {"grab": 0.36}, "k": [[0.0, ph({})], [0.3, reach, at_back, "out"], [0.38, reach, at_back, "lin"],
+		[0.62, ph(tw(-0.1, -0.1, 0.05)), over, "io"], [0.82, ph(tw(-0.05, -0.05, 0.1)), side, "io"], [1.0, ph({}), idle_ik, "io"]]}
+	A["Unequip"] = {"d": 1.0, "ground": true, "ev": {"stow": 0.64}, "k": [[0.0, ph({}), idle_ik], [0.18, ph(tw(-0.05, -0.05, 0.1)), side, "io"],
+		[0.38, ph(tw(-0.1, -0.1, 0.05)), over, "io"], [0.62, reach, at_back, "io"], [0.68, reach, at_back, "lin"], [1.0, ph({}), "io"]]}
+	# Tag Team: прыжок в кадр, приземление, балон с размаху в стойку / зовёт кента и уходит
+	A["TagIn"] = {"d": 1.0, "ground": true, "ev": {"land": 0.12, "ready": 0.85}, "k": [[0.0, ph(add(squat, tw(0.0, 0.0, 0.35))), side],
+		[0.16, ph(add(squat_deep, add(tw(0.0, 0.0, 0.45), {"larm": {"z": 0.7}}))), side, "out"],
+		[0.5, ph(add(tw(0.1, 0.15, -0.15), {"head": {"x": -0.2}, "larm": {"x": -1.5, "z": 0.4}, "lfa": {"x": -0.2}})), W([-0.24, 0.48, 0.04], [-0.75, 0.3, 0.6]), "out"],
+		[0.72, ph(add(tw(0.05, 0.1, -0.1), {"larm": {"x": -1.4, "z": 0.4}, "lfa": {"x": -0.3}})), W([-0.23, 0.46, 0.04], [-0.75, 0.25, 0.6]), "io"], [1.0, cs, cw, "io"]]}
+	A["TagOut"] = {"d": 1.0, "ground": true, "ev": {"call": 0.3, "leave": 0.9}, "k": [[0.0, ph({}), idle_ik],
+		[0.3, ph(add(tw(0.3, 0.4, 0.0), {"larm": {"x": -2.4, "z": 0.3}, "lfa": {"x": -0.3}})), idle_ik, "io"],
+		[0.6, ph(add(sq_half, add(tw(0.2, 0.2, -0.1), {"larm": {"x": -1.4}}))), side, "io"], [1.0, ph(add(squat, tw(0.0, 0.0, 0.35))), side, "in"]]}
 
 ## Удары врагов: замах тормозит, удар разгоняется, довод гаснет
 static func _accent(def: Dictionary) -> void:
