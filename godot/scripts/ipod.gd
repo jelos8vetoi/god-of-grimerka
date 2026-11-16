@@ -39,6 +39,7 @@ var input_captured := false
 var release_guard := false
 var slide: Tween
 var accent_tween: Tween
+var emerge := 1.0   # 0 — интерфейс ещё «в руке» героя (маленький, на месте 3D-устройства), 1 — на своём месте
 var focus_amount := 0.0
 var motion_amount := 0.0
 var player: AudioStreamPlayer
@@ -52,6 +53,7 @@ var repeat_mode := RepeatMode.OFF
 var button_sounds_enabled := true
 var button_sounds_volume := 0.55
 var ui_motion_mode := UIMotionMode.FULL
+var earbuds_in := false    # EarPods в ушах Пахана: закрытие iPod их не снимает, сохраняется вместе с настройками
 var save_clock := 0.0
 var mix_volume := 0.0
 var mix_reverb := 0.0
@@ -131,6 +133,9 @@ func _ready() -> void:
 func _process(dt: float) -> void:
 	if release_guard and not _conflicting_input_is_pressed():
 		release_guard = false
+	# удар по герою или гибель: iPod убирается сам
+	if opened and game != null and game.player != null and game.player.state in ["hurt", "dead"]:
+		close()
 	var pause_factor := 0.3 if get_tree().paused else 1.0
 	var dialogue_factor := 0.42 if game != null and game.mode == "dlg" else 1.0
 	var focus_factor := 0.8 if opened else 1.0
@@ -151,12 +156,16 @@ func _process(dt: float) -> void:
 	overlay.color.a = OVERLAY_ALPHA * focus_amount
 	screen.modulate = Color(1.0 + 0.12 * focus_amount, 1.0 + 0.14 * focus_amount, 1.0 + 0.17 * focus_amount, 1.0)
 	if game != null and game.has_method("set_ipod_visual_focus"):
-		game.set_ipod_visual_focus(focus_amount, motion_amount, _focus_point_normalized())
+		var pod = _pod()
+		var follow := 1.0 if pod == null else 0.3 + 0.7 * smoothstep(0.3, 1.0, float(pod.u))
+		game.set_ipod_visual_focus(focus_amount * follow, motion_amount, _focus_point_normalized())
 	if game != null and game.main != null and game.main.audio != null:
 		game.main.audio.ipod_focus_target = 1.0 if opened else 0.0
 	# Re-evaluate composition at a low rate and only accept meaningful camera changes.
 	# Fixed body bounds ignore pose animation, so the UI never chases hands or idle motion.
-	if opened and device.visible and (not is_instance_valid(slide) or not slide.is_running()):
+	if device.visible and emerge < 1.0:
+		_place_emerging()
+	elif opened and device.visible and (not is_instance_valid(slide) or not slide.is_running()):
 		composition_check_clock += dt
 		if composition_check_clock >= 0.2:
 			composition_check_clock = 0.0
@@ -228,6 +237,47 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+## Физический iPod в руке героя (scripts/pod.gd); null, если героя ещё нет.
+func _pod():
+	if game == null:
+		return null
+	var p = game.get("player")
+	if p == null or not is_instance_valid(p):
+		return null
+	return p.get("pod")
+
+
+## Где на экране сейчас дисплей устройства в руке героя; null — если руки не видно.
+func _hand_point():
+	var pod = _pod()
+	var camera := get_viewport().get_camera_3d()
+	if pod == null or camera == null or not pod.device.visible:
+		return null
+	var world: Vector3 = pod.screen_world()
+	if camera.is_position_behind(world):
+		return null
+	return camera.unproject_position(world)
+
+
+## Интерфейс вырастает из устройства в руке и уходит в него обратно: так видно, что это один и тот же iPod.
+func _place_emerging() -> void:
+	var k := emerge * emerge * (3.0 - 2.0 * emerge)
+	var base := _base_scale()
+	var hand = _hand_point()
+	if hand == null:
+		device.scale = base * lerpf(0.92, 1.0, k)
+		device.position = _closed_position().lerp(_open_position(), k)
+		device.modulate.a = 1.0 if _pod() == null else clampf(emerge * 3.0, 0.0, 1.0)
+		return
+	var small := base * 0.09
+	device.scale = small.lerp(base, k)
+	# точка поворота панели — её правый нижний угол; ставим так, чтобы центр экрана интерфейса лёг на дисплей в руке
+	var centre := SCREEN_RECT.get_center()
+	var from: Vector2 = (hand as Vector2) - DEVICE_SIZE - (centre - DEVICE_SIZE) * small
+	device.position = from.lerp(_open_position(), k)
+	device.modulate.a = clampf(emerge * 3.0, 0.0, 1.0)
+
+
 func _can_toggle() -> bool:
 	if game == null or game.over:
 		return false
@@ -267,8 +317,8 @@ func open() -> void:
 		hint_panel.modulate.a = 1.0
 		hint_panel.visible = true
 	if not was_visible:
-		device.position = _closed_position()
-		device.scale = _base_scale() * 0.92
+		emerge = 0.0
+		_place_emerging()
 	_start_focus_animation(true)
 	center_button.grab_focus()
 	_refresh()
@@ -286,6 +336,8 @@ func close(fast := false) -> void:
 		motion_amount = 0.0
 		device.position = _closed_position()
 		device.scale = _base_scale()
+		device.modulate.a = 1.0
+		emerge = 1.0
 		device.visible = false
 		input_captured = false
 		release_guard = false
@@ -307,7 +359,9 @@ func _restore_mouse() -> void:
 
 
 func captures_gameplay_input() -> bool:
-	return input_captured or release_guard
+	# пока герой убирает iPod в карман, левая рука занята: удары и бег ждут
+	var pod = _pod()
+	return input_captured or release_guard or (pod != null and pod.busy())
 
 
 func _finish_input_context() -> void:
@@ -347,14 +401,19 @@ func _start_focus_animation(opening: bool) -> void:
 	slide = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	slide.set_parallel(true)
 	slide.tween_property(self, "focus_amount", 1.0 if opening else 0.0, duration).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT if opening else Tween.EASE_IN_OUT)
-	var device_delay := 0.10 if opening else 0.0
-	var device_duration := 0.36 if opening else duration
-	slide.tween_property(device, "position", _open_position() if opening else _closed_position(), device_duration).set_delay(device_delay).set_trans(Tween.TRANS_BACK if opening else Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT if opening else Tween.EASE_IN)
-	slide.tween_property(device, "scale", base_scale, device_duration).set_delay(device_delay).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# панель интерфейса появляется, когда рука уже подняла iPod, и вырастает из него (см. _place_emerging);
+	# при закрытии уходит обратно в руку, и только потом герой убирает устройство в карман
+	var pod = _pod()
+	var device_delay := 0.0
+	if opening:
+		device_delay = 0.10 if pod == null else 0.8 * (1.0 - float(pod.u)) * float(pod.open_time())
+	slide.tween_property(self, "emerge", 1.0 if opening else 0.0, 0.42 if opening else duration).set_delay(device_delay).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT if opening else Tween.EASE_IN)
 	if not opening:
 		slide.tween_callback(func():
 			device.visible = false
 			device.scale = _base_scale()
+			device.modulate.a = 1.0
+			emerge = 1.0
 			_stop_ui_sounds()
 			_reset_screen_motion()
 			_finish_input_context()
@@ -371,6 +430,9 @@ func _layout() -> void:
 	device.pivot_offset = DEVICE_SIZE
 	composition_target = _calculate_open_position()
 	composition_ready = true
+	if device.visible and emerge < 1.0:
+		_place_emerging()
+		return
 	device.position = _open_position() if opened else _closed_position()
 
 
@@ -767,7 +829,7 @@ func _settings_payload(local_tracks: Array) -> Dictionary:
 	return {"version": 3, "volume": volume, "reverb_depth": reverb_depth,
 		"bass_boost": bass_boost, "repeat_mode": repeat_mode,
 		"button_sounds_enabled": button_sounds_enabled, "button_sounds_volume": button_sounds_volume,
-		"ui_motion_mode": ui_motion_mode, "tracks": local_tracks,
+		"ui_motion_mode": ui_motion_mode, "earbuds_in": earbuds_in, "tracks": local_tracks,
 		"track_id": String(tracks[track_index]["id"]) if track_index >= 0 and track_index < tracks.size() else "",
 		"time": player.get_playback_position() if player.stream != null else 0.0}
 
@@ -781,6 +843,7 @@ func _apply_persisted_options(data: Dictionary) -> void:
 	button_sounds_enabled = bool(data.get("button_sounds_enabled", true))
 	button_sounds_volume = clampf(float(data.get("button_sounds_volume", 0.55)), 0.0, 1.0)
 	ui_motion_mode = clampi(int(data.get("ui_motion_mode", UIMotionMode.FULL)), UIMotionMode.OFF, UIMotionMode.FULL)
+	earbuds_in = bool(data.get("earbuds_in", false))
 	mix_bass = bass_boost
 	_apply_bass_boost(mix_bass)
 
@@ -1038,9 +1101,17 @@ func _activate_wheel_action(action: String, callback: Callable, keyboard := true
 	if not _wheel_action_available(action):
 		return false
 	_press_wheel_visual(action, keyboard)
+	_thumb(action)
 	_play_ui_sound(_wheel_sound_kind(action))
 	callback.call()
 	return true
+
+
+## Большой палец героя коротко нажимает на колесо настоящего устройства.
+func _thumb(kind := "select") -> void:
+	var pod = _pod()
+	if pod != null:
+		pod.press(kind)
 
 
 func _wheel_action_available(action: String) -> bool:
@@ -1312,6 +1383,7 @@ func _items() -> Array:
 
 
 func _scroll(delta: int) -> void:
+	_thumb("scroll")
 	if page == "Repeat":
 		_cycle_repeat(delta)
 		_play_ui_sound("navigate")
