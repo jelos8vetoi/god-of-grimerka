@@ -41,8 +41,10 @@ var sel := 3
 var is_open := false
 var closing := false
 var card: Control
-var card_lines: Array = []      # [[Label, Callable]] — строки, которые обновляются на ходу
-var card_rows: Array = []       # [[Label, текст или Callable, Callable]]
+var card_live: Array = []       # функции, обновляющие открытую страницу каждый кадр
+var card_body: VBoxContainer
+var buddy_vp: SubViewport       # портрет madk1d для страницы «Группа»
+var card_rows: Array = []       # [{label, text, act, adj}]
 var card_sel := 0
 var hp_text: Label
 var hp_fill: ColorRect
@@ -437,111 +439,127 @@ func _select(i: int, sound := true) -> void:
 
 func _open_page(i: int) -> void:
 	game.main.sfx("sfx_ui")
+	var top := _card(TABS[i][0])
 	match i:
 		0:
-			_card("СТАТУС", [
-				func(): return "ПАХАН",
-				func(): return "Здоровье: %d / %d" % [ceili(game.player.hp), int(game.player.max_hp)],
-				func(): return "СВЭГ: %d / 100" % int(game.player.swag),
-				func(): return "ПЕРЕГРУЗ: " + ("идёт, ещё %.0f с" % game.player.rage if game.player.rage > 0.0 else ("готов — [R]" if game.player.swag >= 100.0 else "копится (нужен полный СВЭГ)")),
-				func(): return "Прослушивания: %d" % game.xp,
-				func(): return "Глава %d · %s" % [game.ch + 1, String(game.chapter()["name"])],
-			], [["НАЗАД", _close_card]])
+			_big(top, "ПАХАН", 46)
+			_bar(top, "ЗДОРОВЬЕ", func(): return game.player.hp / game.player.max_hp, func(): return "%d / %d" % [ceili(game.player.hp), int(game.player.max_hp)])
+			_bar(top, "СВЭГ", func(): return game.player.swag / 100.0, func(): return "%d / 100" % int(game.player.swag))
+			_plate(top, func(): return "ПЕРЕГРУЗ: " + ("идёт, ещё %.0f с" % game.player.rage if game.player.rage > 0.0 else ("готов — [R]" if game.player.swag >= 100.0 else "копится, нужен полный СВЭГ")))
+			_line(top, func(): return "▶  %d прослушиваний" % game.xp, 26, WHITE, serif)
+			_line(top, func(): return "Глава %d · %s" % [game.ch + 1, String(game.chapter()["name"])], 19, SILVER)
+			_rows([["НАЗАД", _close_card]])
 		1:
+			_line(top, func(): return "▶  %d" % game.xp, 54, WHITE, serif)
+			_line(top, func(): return "прослушиваний · осталось улучшений: %d из 15" % (15 - int(game.up["hp"]) - int(game.up["dmg"]) - int(game.up["q"])), 17, SILVER)
 			var rows: Array = []
-			for r in [["hp", "ЗДОРОВЬЕ +20"], ["dmg", "СИЛА +12% УРОНА"], ["q", "АД-ЛИБ MADK1D: на 1,5 с чаще"]]:
+			for r in [["hp", "ЗДОРОВЬЕ +20"], ["dmg", "СИЛА +12% УРОНА"], ["q", "АД-ЛИБ MADK1D −1,5 с"]]:
 				var k: String = r[0]
 				var nm: String = r[1]
 				rows.append([func():
 					var lv := int(game.up[k])
+					var pips := "■".repeat(lv) + "□".repeat(5 - lv)
 					if lv >= 5:
-						return "%s — ур. 5/5 · максимум" % nm
-					return "%s — ур. %d/5 · цена %d %s" % [nm, lv, game._cost(k), "" if game.xp >= game._cost(k) else "✕"],
+						return "%s   %s   максимум" % [nm, pips]
+					return "%s   %s   %d%s" % [nm, pips, game._cost(k), "" if game.xp >= game._cost(k) else "  ✕"],
 					func():
 						if game.buy_upgrade(k):
 							game.main.sfx("sfx_ui", -4.0, 1.4)])
 			rows.append(["НАЗАД", _close_card])
-			_card("РАЗВИТИЕ", [
-				func(): return "Прослушиваний: %d" % game.xp,
-				func(): return "Осталось улучшений: %d из 15" % (15 - int(game.up["hp"]) - int(game.up["dmg"]) - int(game.up["q"])),
-				func(): return "Покупка не двигает сюжет и не лечит (кроме +20 от улучшения здоровья).",
-			], rows)
+			_rows(rows)
+			_note("■ — купленный уровень, число — цена следующего, ✕ — не хватает прослушиваний. Покупка не двигает сюжет и не лечит. Сюда же придут деревья навыков, стили и командные способности.")
 		2:
-			_card("ГРУППА", [
-				func(): return "ПАХАН — герой. Балон VOZDUH.",
-				func(): return "   здоровье %d / %d · урон ×%.2f" % [ceili(game.player.hp), int(game.player.max_hp), game.player.dmg_mul],
-				func(): return "MADK1D — напарник, действует сам.",
-				func(): return "   ад-либ [Q]: " + ("готов" if game.buddy.cd <= 0.0 else "перезарядка %.0f с из %.0f" % [game.buddy.cd, game.buddy.cd_max]),
-			], [["НАЗАД", _close_card]])
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 18)
+			top.add_child(row)
+			var a := VBoxContainer.new()
+			a.custom_minimum_size = Vector2(390, 0)
+			a.add_theme_constant_override("separation", 4)
+			row.add_child(a)
+			_big(a, "ПАХАН", 38)
+			_line(a, func(): return "герой · Балон VOZDUH · урон ×%.2f" % game.player.dmg_mul, 17, SILVER)
+			_bar(a, "ЗДОРОВЬЕ", func(): return game.player.hp / game.player.max_hp, func(): return "%d / %d" % [ceili(game.player.hp), int(game.player.max_hp)], 380.0)
+			_big(a, "MADK1D", 38)
+			_line(a, func(): return "напарник · действует сам", 17, SILVER)
+			_bar(a, "АД-ЛИБ [Q]", func(): return 1.0 - clampf(game.buddy.cd / max(0.1, game.buddy.cd_max), 0.0, 1.0), func(): return "готов" if game.buddy.cd <= 0.0 else "%.0f с" % game.buddy.cd, 380.0)
+			row.add_child(_buddy_portrait())
+			_rows([["НАЗАД", _close_card]])
 		3:
-			_card("ЗАДАНИЕ", [
-				func(): return "Глава %d · %s" % [game.ch + 1, String(game.chapter()["name"])],
-				func(): return String(game.chapter().get("place", "")),
-				func(): return "Шаг %d из %d" % [max(1, game.step + 1), (game.chapter()["steps"] as Array).size()],
-				func(): return "Сейчас: " + game.objective(),
-			], [["НАЗАД", _close_card]])
+			_line(top, func(): return "ГЛАВА %d" % (game.ch + 1), 18, GREY)
+			_big(top, String(game.chapter()["name"]), 40)
+			_line(top, func(): return String(game.chapter().get("place", "")), 18, SILVER)
+			_line(top, func():
+				var n: int = (game.chapter()["steps"] as Array).size()
+				var s: int = clampi(game.step, 0, n)
+				return "■".repeat(s) + "▣" + "□".repeat(max(0, n - s - 1)) + "   шаг %d из %d" % [s + 1, n], 22, WHITE)
+			_plate(top, func(): return "СЕЙЧАС: " + game.objective())
+			_rows([["НАЗАД", _close_card]])
 		4:
-			_card("МУЗЫКА", [
-				func():
-					var n: Dictionary = game.ipod.now_playing()
-					return "Трек: " + (String(n["title"]) if n["has"] else "не выбран") + ("  (%d / %d)" % [int(n["index"]) + 1, int(n["count"])] if n["has"] else ""),
-				func(): return "Исполнитель: " + String(game.ipod.now_playing()["artist"]),
-				func():
-					var n: Dictionary = game.ipod.now_playing()
-					return ("Играет" if n["playing"] else ("Пауза" if n["paused"] else "Остановлен")) + "  ·  %s / %s" % [_time(float(n["pos"])), _time(float(n["len"]))],
-				func(): return "EarPods: " + ("в ушах — игра приглушена, слышны музыка и голоса" if game.ipod.earbuds_in else "не надеты (надеваются при первом открытии iPod, клавиша ↑)"),
-				func(): return "Громкость iPod: %d%%" % roundi(float(game.ipod.volume) * 100.0),
-			], [
+			var row2 := HBoxContainer.new()
+			row2.add_theme_constant_override("separation", 20)
+			top.add_child(row2)
+			row2.add_child(_ipod_art())
+			var b := VBoxContainer.new()
+			b.custom_minimum_size = Vector2(430, 0)
+			b.add_theme_constant_override("separation", 4)
+			row2.add_child(b)
+			_line(b, func():
+				var n: Dictionary = game.ipod.now_playing()
+				return (String(n["title"]) if n["has"] else "трек не выбран"), 34, WHITE, serif)
+			_line(b, func(): return String(game.ipod.now_playing()["artist"]), 18, SILVER)
+			_bar(b, "", func():
+				var n: Dictionary = game.ipod.now_playing()
+				return float(n["pos"]) / max(1.0, float(n["len"])), func():
+				var n: Dictionary = game.ipod.now_playing()
+				return "%s / %s" % [_time(float(n["pos"])), _time(float(n["len"]))], 420.0)
+			_line(b, func():
+				var n: Dictionary = game.ipod.now_playing()
+				return ("▶ играет" if n["playing"] else ("Ⅱ пауза" if n["paused"] else "■ остановлен")) + ("   ·   трек %d из %d" % [int(n["index"]) + 1, int(n["count"])] if n["has"] else ""), 17, SILVER)
+			_line(b, func(): return "EarPods: " + ("в ушах — слышны только музыка и голоса" if game.ipod.earbuds_in else "не надеты (наденет при открытии iPod, ↑)"), 15, GREY)
+			_rows([
 				["◀◀  ПРЕДЫДУЩИЙ", func(): game.ipod.pause_step_track(-1)],
 				[func(): return "▶ Ⅱ  " + ("ПАУЗА" if game.ipod.now_playing()["playing"] else "ИГРАТЬ"), func(): game.ipod.pause_toggle_play()],
 				["СЛЕДУЮЩИЙ  ▶▶", func(): game.ipod.pause_step_track(1)],
-				["ГРОМКОСТЬ −", func(): game.ipod.pause_set_volume(float(game.ipod.volume) - 0.05)],
-				["ГРОМКОСТЬ +", func(): game.ipod.pause_set_volume(float(game.ipod.volume) + 0.05)],
+				[func(): return "ГРОМКОСТЬ IPOD: %d%%" % roundi(float(game.ipod.volume) * 100.0), null, func(d: int): game.ipod.pause_set_volume(snappedf(float(game.ipod.volume) + 0.05 * d, 0.05))],
 				["НАЗАД", _close_card]])
 		5:
-			var box := _card("СИСТЕМА", [], [
-				[func(): return "ПОЛНЫЙ ЭКРАН: " + ("ВКЛ" if Menu.is_fullscreen(get_window()) else "ВЫКЛ"), func(): Menu.set_fullscreen(get_window(), not Menu.is_fullscreen(get_window()))],
-				[func(): return "ВЕРТ. СИНХРОНИЗАЦИЯ: " + ("ВКЛ" if DisplayServer.window_get_vsync_mode() != DisplayServer.VSYNC_DISABLED else "ВЫКЛ"), func(): Menu.set_vsync(DisplayServer.window_get_vsync_mode() == DisplayServer.VSYNC_DISABLED)],
-				["ВЕРНУТЬСЯ В ИГРУ", close],
-				["В ГЛАВНОЕ МЕНЮ", func(): game._to_menu()],
-				["НАЗАД", _close_card]])
-			game.main.audio.add_sliders(box)
-			for sl in box.find_children("*", "HSlider", true, false):
-				for nm in ["grabber_area", "grabber_area_highlight"]:
-					var fill := StyleBoxFlat.new()
-					fill.bg_color = WHITE
-					fill.set_corner_radius_all(3)
-					fill.content_margin_top = 3
-					fill.content_margin_bottom = 3
-					(sl as HSlider).add_theme_stylebox_override(nm, fill)
-			var c := Label.new()
-			c.text = "УПРАВЛЕНИЕ: WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — добивание · E — Heat · Пробел — перекат · Shift — блок · Q — ад-либ · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"
-			c.add_theme_font_override("font", tech)
-			c.add_theme_font_size_override("font_size", 14)
-			c.add_theme_color_override("font_color", GREY)
-			c.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			box.add_child(c)
+			var acts: Array = [["ВЕРНУТЬСЯ В ИГРУ", close]]
+			for r in Opts.rows(get_window(), game.main.audio, game.ipod):
+				acts.append([r[0]] if r.size() == 1 else [r[0], null, r[1]])
+			acts.append(["#УПРАВЛЕНИЕ"])
+			acts.append(["#WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — добивание · E — Heat · Пробел — перекат · Shift — блок · Q — ад-либ · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"])
+			acts.append(["#ИГРА"])
+			acts.append(["В ГЛАВНОЕ МЕНЮ", func(): _confirm_menu()])
+			acts.append(["НАЗАД", _close_card])
+			_rows(acts)
+
+## Подтверждение выхода в главное меню: прогресс сохранён на начало текущего шага.
+func _confirm_menu() -> void:
+	var top := _card("В МЕНЮ?")
+	_line(top, func(): return "Игра сохранена на начало текущего шага главы — «Continue» вернёт сюда.", 18, SILVER)
+	_rows([["ОСТАТЬСЯ", func(): _open_page(5)], ["ВЫЙТИ В ГЛАВНОЕ МЕНЮ", func(): game._to_menu()]])
 
 static func _time(s: float) -> String:
 	return "%d:%02d" % [int(s) / 60, int(s) % 60]
 
-## Страница вкладки: тёмная рваная карточка слева. lines — функции, возвращающие строку (обновляются на ходу),
-## actions — [текст или функция текста, действие].
-func _card(title: String, lines: Array, actions: Array) -> VBoxContainer:
+# ---------------- карточка страницы и её детали ----------------
+## Тёмная рваная карточка слева с заголовком. Возвращает верхний блок — туда страница кладёт свою композицию;
+## пункты добавляет _rows (прокручиваемый список под ней).
+func _card(title: String) -> VBoxContainer:
 	_close_card()
 	card = Control.new()
 	card.size = STAGE
 	card.z_index = 10        # поверх выбранной вкладки
 	stage.add_child(card)
 	var shade := ColorRect.new()
-	shade.color = Color(0, 0, 0, 0.6)
+	shade.color = Color(0, 0, 0, 0.62)
 	shade.size = Vector2(900, 900)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	card.add_child(shade)
 	var plate := Polygon2D.new()
-	plate.polygon = torn(700.0, 620.0, 91)
+	plate.polygon = torn(700.0, 690.0, 91)
 	plate.color = Color(0.05, 0.05, 0.06, 0.97)
-	plate.position = Vector2(110, 150)
+	plate.position = Vector2(110, 110)
 	card.add_child(plate)
 	var edge := Line2D.new()
 	edge.points = plate.polygon
@@ -549,54 +567,237 @@ func _card(title: String, lines: Array, actions: Array) -> VBoxContainer:
 	edge.width = 2.0
 	edge.default_color = WHITE
 	plate.add_child(edge)
-	var head := _text(card, title, 72, WHITE, Vector2(108, 158), serif, true)
+	var head := _text(card, title, 70, WHITE, Vector2(108, 116), serif, true)
 	head.rotation = deg_to_rad(-2.0)
-	var box := VBoxContainer.new()
-	box.position = Vector2(118, 262)
-	box.size = Vector2(660, 480)
-	box.add_theme_constant_override("separation", 6)
-	card.add_child(box)
-	card_lines = []
-	for fn in lines:
-		var l := Label.new()
-		l.add_theme_font_override("font", tech)
-		l.add_theme_font_size_override("font_size", 19)
-		l.add_theme_color_override("font_color", SILVER)
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		box.add_child(l)
-		card_lines.append([l, fn])
+	card_body = VBoxContainer.new()
+	card_body.position = Vector2(118, 216)
+	card_body.size = Vector2(672, 540)
+	card_body.add_theme_constant_override("separation", 8)
+	card.add_child(card_body)
+	var top := VBoxContainer.new()
+	top.add_theme_constant_override("separation", 5)
+	card_body.add_child(top)
+	card_live = []
 	card_rows = []
-	for i in actions.size():
-		var a: Array = actions[i]
-		var l2 := Label.new()
-		l2.add_theme_font_override("font", serif)
-		l2.add_theme_font_size_override("font_size", 28)
-		l2.mouse_filter = Control.MOUSE_FILTER_STOP
-		l2.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		box.add_child(l2)
-		card_rows.append([l2, a[0], a[1]])
-		l2.mouse_entered.connect(func(): _card_select(i))
-		l2.gui_input.connect(func(e: InputEvent):
-			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
-				_card_select(i)
-				_card_activate())
 	card_sel = 0
+	for tb in tabs:                     # плашка и метка выбранной вкладки не торчат из-за карточки
+		(tb["band"] as Polygon2D).visible = false
+		(tb["tag"] as Polygon2D).visible = false
+		(tb["label"] as Label).add_theme_color_override("font_color", WHITE)
 	card.modulate.a = 0.0
-	create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS).tween_property(card, "modulate:a", 1.0, 0.12)
+	card.position = Vector2(-26, 0)
+	var tw := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS).set_parallel(true)
+	tw.tween_property(card, "modulate:a", 1.0, 0.14)
+	tw.tween_property(card, "position", Vector2.ZERO, 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	return top
+
+## Пункты страницы. Элемент: ["#ЗАГОЛОВОК"], [текст|функция, действие] или [функция, null, изменение(±1)].
+func _rows(actions: Array) -> void:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	card_body.add_child(scroll)
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(650, 0)
+	box.add_theme_constant_override("separation", 3)
+	scroll.add_child(box)
+	for a in actions:
+		if a[0] is String and String(a[0]).begins_with("#"):
+			var h := Label.new()
+			h.text = String(a[0]).substr(1)
+			h.add_theme_font_override("font", tech)
+			h.add_theme_font_size_override("font_size", 15)
+			h.add_theme_color_override("font_color", GREY)
+			h.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			h.custom_minimum_size = Vector2(640, 28)
+			h.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+			box.add_child(h)
+			continue
+		var i := card_rows.size()
+		var l := Label.new()
+		l.add_theme_font_override("font", serif)
+		l.add_theme_font_size_override("font_size", 27)
+		l.mouse_filter = Control.MOUSE_FILTER_STOP
+		l.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		box.add_child(l)
+		card_rows.append({"label": l, "text": a[0], "act": a[1] if a.size() > 1 else null, "adj": a[2] if a.size() > 2 else null})
+		l.mouse_entered.connect(func(): _card_select(i))
+		l.gui_input.connect(func(e: InputEvent):
+			if e is InputEventMouseButton and e.pressed and (e.button_index == MOUSE_BUTTON_LEFT or e.button_index == MOUSE_BUTTON_RIGHT):
+				_card_select(i)
+				_card_activate(-1 if e.button_index == MOUSE_BUTTON_RIGHT else 1))
 	_refresh()
-	return box
+
+func _line(parent: Node, fn: Callable, size: int, col: Color, f: Font = null) -> Label:
+	var l := Label.new()
+	l.add_theme_font_override("font", f if f != null else tech)
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", col)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(300, 0)
+	parent.add_child(l)
+	card_live.append(func(): l.text = String(fn.call()))
+	return l
+
+func _big(parent: Node, s: String, size: int) -> void:
+	var l := Label.new()
+	l.text = s
+	l.add_theme_font_override("font", serif)
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", WHITE)
+	l.material = worn
+	l.clip_text = true
+	l.custom_minimum_size = Vector2(300, size * 1.15)
+	parent.add_child(l)
+
+func _note(s: String) -> void:
+	var l := Label.new()
+	l.text = s
+	l.add_theme_font_override("font", tech)
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", GREY)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(640, 0)
+	card_body.add_child(l)
+
+## Полоса показателя: подпись слева, значение справа, под ними — заполнение.
+func _bar(parent: Node, title: String, frac: Callable, text: Callable, w := 650.0) -> void:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(w, 46)
+	parent.add_child(c)
+	var t := _text(c, title, 15, SILVER, Vector2(0, 2), serif)
+	t.size = Vector2(w * 0.5, 20)
+	var val := _text(c, "", 24, WHITE, Vector2(w * 0.4, -4), serif)
+	val.size = Vector2(w * 0.6, 30)
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var back := ColorRect.new()
+	back.color = Color(1, 1, 1, 0.16)
+	back.position = Vector2(0, 30)
+	back.size = Vector2(w, 9)
+	c.add_child(back)
+	var fill := ColorRect.new()
+	fill.color = WHITE
+	fill.position = Vector2(0, 30)
+	fill.size = Vector2(w, 9)
+	fill.material = worn
+	c.add_child(fill)
+	card_live.append(func():
+		val.text = String(text.call())
+		fill.size.x = w * clampf(float(frac.call()), 0.0, 1.0))
+
+## Белая рваная плашка с чёрным текстом — для главного на странице.
+func _plate(parent: Node, fn: Callable) -> void:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(650, 50)
+	parent.add_child(c)
+	var p := Polygon2D.new()
+	p.polygon = torn(630.0, 42.0, 17, 6.0)
+	p.position = Vector2(6, 4)
+	p.color = WHITE
+	p.material = worn
+	c.add_child(p)
+	var l := _text(c, "", 21, INK, Vector2(18, 10), serif)
+	l.size = Vector2(610, 30)
+	l.clip_text = true
+	card_live.append(func(): l.text = String(fn.call()))
+
+## Портрет madk1d для страницы «Группа»: своя маленькая сцена, создаётся один раз и рисуется только пока страница открыта.
+func _buddy_portrait() -> Control:
+	if buddy_vp == null:
+		buddy_vp = SubViewport.new()
+		buddy_vp.size = Vector2i(320, 420)
+		buddy_vp.own_world_3d = true
+		buddy_vp.transparent_bg = true
+		buddy_vp.msaa_3d = Viewport.MSAA_4X
+		add_child(buddy_vp)
+		var we := WorldEnvironment.new()
+		var env := Environment.new()
+		env.background_mode = Environment.BG_COLOR
+		env.background_color = Color(0, 0, 0, 0)
+		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		env.ambient_light_color = Color(1, 1, 1)
+		env.ambient_light_energy = 0.3
+		env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+		we.environment = env
+		buddy_vp.add_child(we)
+		var key := DirectionalLight3D.new()
+		key.rotation = Vector3(-0.5, 0.7, 0.0)
+		key.light_energy = 0.85
+		buddy_vp.add_child(key)
+		var cam := Camera3D.new()
+		cam.fov = 24.0
+		cam.position = Vector3(0.0, 0.92, 4.6)
+		buddy_vp.add_child(cam)
+		var r := Rig.new()
+		buddy_vp.add_child(r)
+		r.setup("res://assets/models/madk1d.glb", 1.68, Poses.madk1d(), false, 1.0, "pause_madk1d")
+		r.rotation.y = -0.35
+	buddy_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	var t := TextureRect.new()
+	t.texture = buddy_vp.get_texture()
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.custom_minimum_size = Vector2(230, 300)
+	t.material = face.material
+	return t
+
+## Рисунок iPod для страницы «Музыка»: серебристый корпус, экран с нотой и колесо.
+func _ipod_art() -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(170, 270)
+	var body := Panel.new()
+	body.size = Vector2(160, 262)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.8, 0.81, 0.83)
+	sb.set_corner_radius_all(18)
+	sb.border_color = WHITE
+	sb.set_border_width_all(2)
+	body.add_theme_stylebox_override("panel", sb)
+	c.add_child(body)
+	var scr := ColorRect.new()
+	scr.color = INK
+	scr.position = Vector2(14, 14)
+	scr.size = Vector2(132, 98)
+	body.add_child(scr)
+	var note := _text(scr, "♫", 54, WHITE, Vector2.ZERO, serif)
+	note.size = scr.size
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	card_live.append(func(): note.modulate.a = 1.0 if game.ipod.now_playing()["playing"] else 0.35)
+	for d in [[52.0, WHITE], [20.0, Color(0.7, 0.71, 0.73)]]:
+		var w := Panel.new()
+		var r: float = d[0]
+		w.size = Vector2(r * 2.0, r * 2.0)
+		w.position = Vector2(80 - r, 186 - r)
+		var ws := StyleBoxFlat.new()
+		ws.bg_color = d[1]
+		ws.set_corner_radius_all(int(r))
+		w.add_theme_stylebox_override("panel", ws)
+		body.add_child(w)
+	return c
 
 func _card_select(i: int) -> void:
 	if i != card_sel:
 		game.main.sfx("sfx_ui", -10.0, 1.2)
 	card_sel = i
 	_refresh()
+	if i < card_rows.size():
+		var cur: Label = card_rows[i]["label"]
+		var sc := cur.get_parent().get_parent() as ScrollContainer
+		if sc != null:
+			sc.ensure_control_visible.call_deferred(cur)
 
-func _card_activate() -> void:
+## dir: +1 — Enter / вправо, −1 — влево (только у настроек).
+func _card_activate(dir := 1) -> void:
 	if card_rows.is_empty():
 		return
-	game.main.sfx("sfx_ui")
-	(card_rows[card_sel][2] as Callable).call()
+	var r: Dictionary = card_rows[card_sel]
+	if r["adj"] != null:
+		game.main.sfx("sfx_ui", -6.0, 1.1 if dir > 0 else 0.9)
+		(r["adj"] as Callable).call(dir)
+	elif r["act"] != null and dir > 0:
+		game.main.sfx("sfx_ui")
+		(r["act"] as Callable).call()
 	if card != null:
 		_refresh()
 
@@ -605,21 +806,27 @@ func _close_card() -> void:
 		card.queue_free()
 		card = null
 		card_rows = []
-		card_lines = []
+		card_live = []
+		card_body = null
+		if not tabs.is_empty():
+			_select(sel, false)
+	if buddy_vp != null:
+		buddy_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 
-## Настоящие значения — каждый кадр: панели, строки открытой страницы.
+## Настоящие значения — каждый кадр: панели и открытая страница.
 func _refresh() -> void:
 	if game == null or game.player == null:
 		return
 	hp_text.text = "%d / %d" % [ceili(game.player.hp), int(game.player.max_hp)]
 	hp_fill.size.x = 300.0 * clampf(game.player.hp / game.player.max_hp, 0.0, 1.0)
 	xp_text.text = str(game.xp)
-	for e in card_lines:
-		(e[0] as Label).text = String((e[1] as Callable).call())
+	for fn in card_live:
+		(fn as Callable).call()
 	for k in card_rows.size():
-		var l: Label = card_rows[k][0]
-		var txt = card_rows[k][1]
-		l.text = ("▶ " if k == card_sel else "   ") + (String(txt.call()) if txt is Callable else String(txt))
+		var r: Dictionary = card_rows[k]
+		var l: Label = r["label"]
+		var txt = r["text"]
+		l.text = ("▶ " if k == card_sel else "   ") + (String(txt.call()) if txt is Callable else String(txt)) + ("   ◀ ▶" if k == card_sel and r["adj"] != null else "")
 		l.add_theme_color_override("font_color", WHITE if k == card_sel else GREY)
 
 # ---------------- ввод ----------------
@@ -637,8 +844,10 @@ func _unhandled_input(e: InputEvent) -> void:
 			_card_select(posmod(card_sel - 1, card_rows.size()))
 		elif down and not card_rows.is_empty():
 			_card_select(posmod(card_sel + 1, card_rows.size()))
-		elif ok:
-			_card_activate()
+		elif ok or k == KEY_D or k == KEY_RIGHT:
+			_card_activate(1)
+		elif k == KEY_A or k == KEY_LEFT:
+			_card_activate(-1)
 		elif back:
 			game.main.sfx("sfx_ui", -8.0, 0.8)
 			_close_card()

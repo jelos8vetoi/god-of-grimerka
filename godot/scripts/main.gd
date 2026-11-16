@@ -14,6 +14,7 @@ var music: AudioStreamPlayer
 var audio                 # менеджер звука (audio.gd)
 var audiolog := false     # --audiolog: печатать состояние музыки раз в секунду (и не глушить её в проверках)
 var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка iPod по кадрам (scripts/ipodcheck.gd)
+var uiqa := ""              # --uiqa=<папка>: сквозная проверка всего интерфейса (scripts/uiqa.gd)
 var onechapter := false     # --onechapter: и в проверках только доступные игроку главы (проверка концовки первой главы)
 var launcher := ""          # --launcher=<путь>: игру запустил лаунчер, обновление — через него
 var ipodpause := false      # вместе с --ipodcheck: меню паузы и режим наушников (--pause)
@@ -43,7 +44,7 @@ func _ready() -> void:
 		m.button_index = a[1]
 		InputMap.action_add_event(a[0], m)
 	font = load("res://assets/fonts/RussoOne-Regular.ttf")
-	Menu.apply_display(get_window())
+	Opts.apply(get_window())
 	# отдельная шина для голосов: их громкость не зависит от музыки и эффектов, и её можно измерить в --voicecheck
 	if AudioServer.get_bus_index("Voice") < 0:
 		AudioServer.add_bus()
@@ -71,6 +72,8 @@ func _ready() -> void:
 			start_ch = max(start_ch, 0)
 		elif arg.begins_with("--launcher="):
 			launcher = arg.substr(11)
+		elif arg.begins_with("--uiqa="):
+			uiqa = arg.substr(7)
 		elif arg == "--onechapter":
 			onechapter = true
 		elif arg == "--pause":
@@ -105,6 +108,11 @@ func _ready() -> void:
 		start_game(false, start_ch)
 	else:
 		show_menu()
+		if uiqa != "":
+			var q = preload("res://scripts/uiqa.gd").new()
+			q.main = self
+			q.out = uiqa
+			add_child(q)
 
 func sfx(name: String, vol := 0.0, pitch := 1.0) -> void:
 	if not sfx_cache.has(name):
@@ -119,8 +127,7 @@ func sfx(name: String, vol := 0.0, pitch := 1.0) -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e.is_action_pressed("fullscreen"):
-		var w := get_window()
-		w.mode = Window.MODE_WINDOWED if w.mode == Window.MODE_FULLSCREEN else Window.MODE_FULLSCREEN
+		Opts.put("fullscreen", not bool(Opts.v("fullscreen")), get_window())   # та же настройка, что в меню
 
 func show_menu() -> void:
 	if game:
@@ -153,12 +160,15 @@ func button(t: String, cb: Callable) -> Button:
 	b.add_theme_font_override("font", font)
 	b.add_theme_font_size_override("font_size", 26)
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.1, 0.07, 0.06, 0.75)
-	sb.border_color = Color(0.85, 0.65, 0.35)
+	sb.bg_color = Color(0.03, 0.03, 0.035, 0.9)
+	sb.border_color = Color(0.95, 0.96, 0.97)
 	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(4)
 	var hv := sb.duplicate()
-	hv.bg_color = Color(0.75, 0.2, 0.12, 0.9)
+	hv.bg_color = Color(0.95, 0.96, 0.97)
+	b.add_theme_color_override("font_hover_color", Color(0.03, 0.03, 0.035))
+	b.add_theme_color_override("font_pressed_color", Color(0.03, 0.03, 0.035))
+	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_stylebox_override("normal", sb)
 	b.add_theme_stylebox_override("hover", hv)
 	b.add_theme_stylebox_override("pressed", hv)

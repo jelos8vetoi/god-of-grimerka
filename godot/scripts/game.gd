@@ -652,8 +652,9 @@ func _unhandled_input(e: InputEvent) -> void:
 	if ipod != null and ipod.captures_gameplay_input():
 		return
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and mode != "dlg":
-		cam_yaw -= e.relative.x * 0.0028
-		cam_pitch = clamp(cam_pitch - e.relative.y * 0.0022, -1.1, 0.35)
+		var sens := float(Opts.v("sens"))
+		cam_yaw -= e.relative.x * 0.0028 * sens
+		cam_pitch = clamp(cam_pitch - e.relative.y * 0.0022 * sens * (-1.0 if bool(Opts.v("invert_y")) else 1.0), -1.1, 0.35)
 	if mode == "dlg":
 		if e.is_action_pressed("attack") or e.is_action_pressed("roll") or (e is InputEventKey and e.pressed and e.physical_keycode == KEY_ENTER):
 			_dlg_advance()
@@ -762,7 +763,7 @@ func _process(dt: float) -> void:
 		director.cam.rotation.z += roll
 	fov_kick = lerpf(fov_kick, 0.0, 1.0 - exp(-9.0 * rdt))
 	zoom_s = lerpf(zoom_s, charge_zoom, 1.0 - exp(-6.0 * rdt))
-	cam.fov = 62.0 + fov_kick - 9.0 * zoom_s
+	cam.fov = float(Opts.v("fov")) + fov_kick - 9.0 * zoom_s
 	cam_attributes.dof_blur_far_enabled = ipod_focus > 0.002
 	# A restrained DOF pass establishes depth; the lightweight screen pass below
 	# supplies the remaining focus separation without turning the world to mush.
@@ -1234,7 +1235,7 @@ func _build_hud() -> void:
 
 func _make_panel(title: String, sub: String, buttons: Array) -> Control:
 	var p := ColorRect.new()
-	p.color = Color(0.02, 0.02, 0.05, 0.84)
+	p.color = Color(0.02, 0.02, 0.025, 0.9)
 	p.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hud.add_child(p)
 	var box := VBoxContainer.new()
@@ -1242,7 +1243,11 @@ func _make_panel(title: String, sub: String, buttons: Array) -> Control:
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)
 	box.add_theme_constant_override("separation", 16)
 	p.add_child(box)
-	var t := _lbl(title, 54)
+	var t := _lbl(title, 64)
+	var sf := SystemFont.new()          # заголовки окон — тем же шрифтом с засечками, что меню
+	sf.font_names = PackedStringArray(["Bodoni MT Black", "Bodoni MT", "Playfair Display Black", "Playfair Display", "Georgia", "Times New Roman", "serif"])
+	sf.font_weight = 900
+	t.add_theme_font_override("font", sf)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(t)
 	var s := _lbl(sub, 20, Color(0.85, 0.85, 0.9))
