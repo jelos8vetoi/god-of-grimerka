@@ -1,15 +1,22 @@
-## Проверка анимаций: рендерит персонажей в нужных кадрах анимаций и складывает в лист (--posesheet=папка[,кто]).
+## Проверка анимаций: рендерит персонажей в нужных кадрах и складывает в лист.
+##   --posesheet=папка[,кто]                 — лист ключевых поз (pahan, pahan_run, clipper, hater)
+##   --posesheet=папка,кто,Клип1,Клип2       — раскадровка клипов: 16 кадров подряд, видно дугу оружия и работу корпуса
+## Каждый кадр снят с двух сторон: спереди-сбоку и в профиль. В консоль пишет пропорции модели (доли роста).
 extends Node3D
 
 var out := ""
 var who := ""
+var seq: Array = []
 var cam: Camera3D
 
+const COLS := 8
+const CW := 250
+const CH := 300
 const SETS := {
-	"pahan": ["res://assets/models/pahan.glb", 1.85, -1.0, ["Idle:0", "Run:0.25", "Light1:0.3", "Light1:0.5", "Light1:0.7", "Light2:0.3", "Light2:0.52", "Charge:0", "FullSwing:0.3", "FullSwing:0.48", "FullSwing:0.75", "Spin:0", "Smash:0.4", "Smash:0.55", "Heavy:0.35", "Block:0"]],
+	"pahan": ["res://assets/models/pahan.glb", 1.85, -1.0, ["Idle:0", "Run:0.25", "Block:0", "Charge:0", "Spin:0.5", "Rage:0.4", "Hit:0.3", "Death:1"]],
 	"pahan_run": ["res://assets/models/pahan.glb", 1.85, -1.0, ["Idle:0", "Run:0", "Run:0.125", "Run:0.25", "Run:0.375", "Run:0.5", "Run:0.625", "Run:0.75", "Run:0.875"]],
-	"clipper": ["res://assets/models/clipper.glb", 1.8, 1.0, ["Idle:0", "Run:0.25", "Slash:0.32", "Slash:0.52", "Slash:0.72", "Hit:0.3", "Spawn:0.5"]],
-	"hater": ["res://assets/models/hater.glb", 1.75, 1.0, ["Idle:0", "Run:0.25", "Cast:0.4", "Cast:0.6", "Hit:0.3"]],
+	"clipper": ["res://assets/models/clipper.glb", 1.8, 1.0, ["Idle:0", "Run:0.25", "Slash:0.32", "Slash:0.52", "Slash:0.72", "Hit:0.3", "Spawn:0.5", "Fly:0.5"]],
+	"hater": ["res://assets/models/hater.glb", 1.75, 1.0, ["Idle:0", "Run:0.25", "Cast:0.4", "Cast:0.6", "Hit:0.3", "Fly:0.5", "DeathA:1", "DeathB:1"]],
 }
 
 func _ready() -> void:
@@ -50,7 +57,9 @@ func _sheet(k: String) -> void:
 	var r := Rig.new()
 	add_child(r)
 	var poses: Dictionary = Poses.pahan_armed() if k.begins_with("pahan") else (Poses.clipper() if k == "clipper" else Poses.hater())
+	var t0 := Time.get_ticks_msec()
 	r.setup(cfg[0], cfg[1], poses, true, cfg[2])
+	print("SHEET %s: анимации собраны за %d мс" % [k, Time.get_ticks_msec() - t0])
 	if k.begins_with("pahan"):
 		r.attach("res://assets/models/balon.glb", "r", {"axis": "y", "from": 98.0, "to": 0.0, "grip": 0.07, "length": 0.56})
 	elif k == "clipper":
@@ -58,28 +67,51 @@ func _sheet(k: String) -> void:
 		r.attach("res://assets/models/katana.glb", "r", {"bone": "hips", "axis": "z", "from": -37.0, "to": 47.0, "grip": 0.3, "dir": [0.2, -0.35, -0.9], "length": 0.5, "part": func(y): return y < 13.0, "off": [0.17, 0.02, 0.02]})
 	else:
 		r.attach("res://assets/models/staff.glb", "r", {"axis": "y", "from": 0.0, "to": 97.5, "grip": 0.45, "length": 1.05})
-	var shots: Array = cfg[3]
-	var cw := 240
-	var ch := 300
-	var sheet := Image.create(cw * shots.size(), ch * 2, false, Image.FORMAT_RGBA8)
+	_proportions(k, r)
+	if seq.is_empty():
+		await _render(r, cfg[3], "sheet_" + k + ".png")
+	else:
+		for clip in seq:
+			var shots := []
+			for i in 16:
+				shots.append("%s:%.4f" % [clip, i / 15.0])
+			await _render(r, shots, "seq_%s_%s.png" % [k, clip])
+	r.queue_free()
+	await get_tree().process_frame
+
+## где у модели суставы в позе привязки, в долях роста: x — влево, y — от пола, z — вперёд
+func _proportions(k: String, r: Rig) -> void:
+	var line := "PROPORTIONS %s:" % k
+	for key in ["head", "neck", "rarm", "rfa", "rhand", "hips", "rup", "rleg", "rfoot"]:
+		var b: int = r.bone[key]
+		if b < 0:
+			continue
+		var p: Vector3 = r.skel_xf * (r._chain(r.rest_rot, b)[1] as Vector3)
+		line += " %s(%.2f %.2f %.2f)" % [key, p.x / r.model_height, (p.y - r.foot_y) / r.model_height, p.z / r.model_height]
+	print(line)
+
+func _render(r: Rig, shots: Array, file: String) -> void:
+	var rows := int(ceil(shots.size() / float(COLS)))
+	var sheet := Image.create(CW * min(COLS, shots.size()), CH * 2 * rows, false, Image.FORMAT_RGBA8)
 	for i in shots.size():
 		var parts: PackedStringArray = shots[i].split(":")
 		var full := "g/" + parts[0]
+		if not r.player.has_animation(full):
+			continue
 		r.player.play(full, 0.0)
 		r.player.seek(float(parts[1]) * r.player.get_animation(full).length, true)
 		r.player.pause()
-		for row in 2:
-			var ang := 0.35 if row == 0 else 1.45
-			cam.position = Vector3(sin(ang) * 6.2, 1.0, cos(ang) * 6.2)
+		for view in 2:
+			var ang := 0.35 if view == 0 else 1.45
+			cam.position = Vector3(sin(ang) * 5.0, 1.0, cos(ang) * 5.0)
 			cam.look_at(Vector3(0, 0.95, 0))
 			await RenderingServer.frame_post_draw
 			await RenderingServer.frame_post_draw
 			var img := get_viewport().get_texture().get_image()
 			var sz := img.get_size()
-			var crop := img.get_region(Rect2i(sz.x / 2 - sz.y * 0.4, 0, int(sz.y * 0.8), sz.y))
+			var cw := int(sz.y * float(CW) / CH)
+			var crop := img.get_region(Rect2i(sz.x / 2 - cw / 2, 0, cw, sz.y))
 			crop.convert(Image.FORMAT_RGBA8)
-			crop.resize(cw, ch)
-			sheet.blit_rect(crop, Rect2i(0, 0, cw, ch), Vector2i(i * cw, row * ch))
-	sheet.save_png(out.path_join("sheet_" + k + ".png"))
-	r.queue_free()
-	await get_tree().process_frame
+			crop.resize(CW, CH)
+			sheet.blit_rect(crop, Rect2i(0, 0, CW, CH), Vector2i((i % COLS) * CW, (i / COLS) * 2 * CH + view * CH))
+	sheet.save_png(out.path_join(file))

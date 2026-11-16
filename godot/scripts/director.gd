@@ -144,11 +144,27 @@ func _ready() -> void:
 			P.swag = 100.0, "tick": func(_i):
 			game.auto_t += 1.0 / 30.0
 			game.bot_input(1.0 / 30.0)})
+	# проверочные планы боя (снимаются только по имени через --shots): камера сбоку, видно дугу балона и отклик врагов
+	var tests := [["T1_", 110, {2: "attack", 14: "attack", 26: "attack", 38: "attack"}], ["T2_", 60, {2: "heavy"}], ["T3_", 70, {2: "attack", 13: "heavy"}], ["T4_", 100, {2: "attack", 14: "attack", 26: "attack", 38: "attack", 52: "heavy"}]]
+	for tt in tests:
+		var presses: Dictionary = tt[2]
+		shots.append({"n": tt[0], "test": true, "warm": 40, "len": tt[1], "own": true, "setup": func():
+			_stage(0)
+			game.cam_yaw = 0.0
+			P.face = PI
+			for x in [-1.1, 0.0, 1.1]:
+				game.spawn_enemy("bot", P.global_position + Vector3(x, 0, -2.3 - abs(x) * 0.2)), "tick": func(i):
+			P.inv = 1.0
+			_park_buddy()
+			P.auto_input = {presses[i]: "press"} if presses.has(i) else {}
+			_look(P.global_position + Vector3(4.3, 1.5, -1.2), P.global_position + Vector3(0, 0.95, -1.3))})
 	# --shots=A,X4_ — снять только названные планы
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shots="):
 			var want := arg.substr(8).split(",")
 			shots = shots.filter(func(sh): return want.has(sh["n"]))
+			return
+	shots = shots.filter(func(sh): return not sh.has("test"))
 
 func _stage(ch: int, reload := true) -> void:
 	if reload or game.ch != ch:

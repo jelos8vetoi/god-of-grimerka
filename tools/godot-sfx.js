@@ -43,4 +43,12 @@ wav('rage', 1.4, t => Math.sin(2 * Math.PI * (90 * Math.exp(-t * 2) + 35) * t) *
 // интерфейс
 wav('ui', .12, t => Math.sin(2 * Math.PI * 1200 * t) * env(t, .002, .03));
 wav('wave', 1.2, t => [0, .15, .3].reduce((s, d, i) => s + (t > d ? Math.sin(2 * Math.PI * [392, 523, 659][i] * (t - d)) * env(t - d, .005, .35) : 0), 0) * .6);
+// удар балоном в землю: низкий бум с хвостом
+wav('boom', .9, t => Math.sin(2 * Math.PI * (75 * Math.exp(-t * 7) + 32) * t) * env(t, .003, .28) * 1.2 + noise(.18) * env(t, .002, .12) * .9 + noise(.04) * env(t, .05, .3) * .5);
+// тело упало
+wav('thud', .35, t => Math.sin(2 * Math.PI * (95 * Math.exp(-t * 14) + 45) * t) * env(t, .002, .09) + noise(.25) * env(t, .001, .04) * .6);
+// заряд полного замаха: нарастающий гул
+wav('charge', 1.3, t => (Math.sin(2 * Math.PI * (70 + 130 * t * t) * t) * .6 + Math.sin(2 * Math.PI * (140 + 260 * t * t) * t) * .25 + noise(.05 + .25 * t) * .35) * Math.min(1, t / .25) * Math.min(1, (1.3 - t) / .15));
+// хлёсткий «крэк» полного удара: сухой щелчок, стекло, низ
+wav('crack', .55, t => noise(.9) * env(t, .0005, .012) * 1.4 + [1, 2.3, 3.7].reduce((s, m, i) => s + Math.sin(2 * Math.PI * 900 * m * t) * env(t, .001, .07 / (i + 1)) * .4, 0) + Math.sin(2 * Math.PI * (120 * Math.exp(-t * 12) + 38) * t) * env(t, .002, .2));
 console.log('sfx ->', out);

@@ -40,7 +40,17 @@ var cam_pitch := -0.32
 var pivot: Node3D
 var spring: SpringArm3D
 var cam: Camera3D
-var shake_a := 0.0
+var trauma := 0.0            # тряска камеры: копится от ударов, гаснет сама
+var shake_t := 0.0
+var fov_kick := 0.0
+var charge_zoom := 0.0       # 0..1 — заряд полного замаха: камера поджимается
+var zoom_s := 0.0
+var fx
+var post: ColorRect
+var post_mat: ShaderMaterial
+var pp := {"aberr": 0.0, "blur": 0.0, "flash": 0.0, "ripple_a": 0.0, "ripple_t": 0.0}
+var ripple_c := Vector2(0.5, 0.5)
+var last_flash := -9.0
 var heat_t := 0.0
 var clock := 0.0
 var stop_until := 0.0
@@ -79,6 +89,8 @@ var auto_len := 45.0
 var shots_done := {}
 var fps_samples: Array = []
 var director = null
+var bot_acc := 0.0
+var bot_pf := -1
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -89,7 +101,18 @@ func _ready() -> void:
 	buddy = preload("res://scripts/companion.gd").new()
 	buddy.game = self
 	add_child(buddy)
+	# анимации врагов собираем заранее, при запуске: иначе первый враг каждого вида даёт рывок посреди боя
+	for it in [["bot", Poses.bot()], ["clipper", Poses.clipper()], ["hater", Poses.hater()]]:
+		if not Rig._lib_cache.has(it[0]):
+			var pre := Rig.new()
+			add_child(pre)
+			pre.setup("res://assets/models/%s.glb" % it[0], 1.7, it[1], false, 1.0, it[0])
+			pre.free()
+	fx = preload("res://scripts/fx.gd").new()
+	fx.game = self
+	add_child(fx)
 	_build_camera()
+	_build_post()
 	_build_hud()
 	if main.testing() == "":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -108,6 +131,7 @@ func begin(from_save: bool, chapter := -1) -> void:
 		step = -1
 	_apply_upgrades()
 	_load_chapter(step < 0)
+	fx.prewarm(player.global_position)
 	next_step()
 
 func _save() -> void:
@@ -289,11 +313,16 @@ func on_kill(e) -> void:
 	player.swag = min(100.0, player.swag + 6.0)
 	if e.boss_id != "":
 		slowmo(1.6)
-		shake(0.7)
+		shake(0.9)
+		fx.slam(e.global_position, 1.8, Color(e.boss["c"]))
+		punch(1.0, e.global_position + Vector3(0, 1.2, 0))
+		main.sfx("sfx_boom", 2.0, 0.7)
 		banner("СЕРВЕР ЗАЧИЩЕН", "%s повержен" % String(e.boss["n"]), Color(1, 0.85, 0.3), 3.0)
 		for o in enemies:
 			if o != e and is_instance_valid(o) and o.alive():
-				o.take_hit(99999.0, Vector3.FORWARD, 2.0, true)
+				var away: Vector3 = o.global_position - e.global_position
+				away.y = 0
+				o.take_hit(99999.0, away.normalized() if away.length() > 0.1 else Vector3.FORWARD, 9.0, true, 6.0)
 		step_done_t = 3.2
 	elif mode == "fight" and pending.is_empty():
 		var left := enemies.filter(func(x): return is_instance_valid(x) and x.state != "dead").size()
@@ -409,8 +438,9 @@ func _update_zones(dt: float) -> void:
 		else:
 			(z["mat"] as StandardMaterial3D).albedo_color.a = 0.2 + 0.5 * k
 			if z["t"] <= 0.0:
-				shockwave(n.global_position, Color(1, 0.4, 0.2))
-				main.sfx("sfx_hit_heavy", -8.0)
+				fx.slam(n.global_position, clampf(float(z["r"]) / 2.2, 0.6, 1.3), Color(1, 0.4, 0.2))
+				main.sfx("sfx_boom", -6.0, 1.2)
+				shake(0.18)
 				if Vector2(pp.x - n.global_position.x, pp.z - n.global_position.z).length() < float(z["r"]):
 					player.take_damage(z["dmg"], n.global_position, src)
 		if z["t"] <= 0.0:
@@ -451,7 +481,41 @@ func _unhandled_input(e: InputEvent) -> void:
 			popup(buddy.global_position + Vector3(0, 2.1, 0), "перезарядка", Color(0.6, 0.7, 0.8))
 
 func shake(a: float) -> void:
-	shake_a = max(shake_a, a)
+	trauma = min(1.0, trauma + a)
+
+## не добавляет, а держит тряску не ниже заданной (заряд, гул)
+func rumble(a: float) -> void:
+	trauma = max(trauma, a)
+
+## Отклик экрана на сильный удар: цветной разлёт по краям, размытие от центра, волна от точки удара, толчок обзора.
+func punch(k: float, pos: Vector3) -> void:
+	pp["aberr"] = max(float(pp["aberr"]), k)
+	pp["blur"] = max(float(pp["blur"]), k * 0.7)
+	fov_kick = max(fov_kick, 5.0 * k)
+	var c := get_viewport().get_camera_3d()
+	if c and not c.is_position_behind(pos):
+		ripple_c = c.unproject_position(pos) / get_viewport().get_visible_rect().size
+		pp["ripple_a"] = k
+		pp["ripple_t"] = 0.0
+	if k >= 0.9 and clock - last_flash > 0.4:   # вспышка экрана не чаще двух-трёх раз в секунду
+		last_flash = clock
+		pp["flash"] = 0.13
+
+## Один вызов на попадание: стоп-кадр, тряска и экранный отклик по силе удара (0 — лёгкий, 1 — тяжёлый, 2 — добивание).
+func impact(tier: int, pos: Vector3, mul := 1.0) -> void:
+	match tier:
+		0:
+			hitstop(0.055)
+			shake(0.16)
+			pp["aberr"] = max(float(pp["aberr"]), 0.22)
+		1:
+			hitstop(0.12 * mul)
+			shake(0.42)
+			punch(0.55, pos)
+		_:
+			hitstop(min(0.2, 0.16 * mul))
+			shake(0.75)
+			punch(1.0, pos)
 
 func heat_cam(sec: float) -> void:
 	heat_t = sec
@@ -489,9 +553,24 @@ func _process(dt: float) -> void:
 		pivot.rotation.x = lerp(pivot.rotation.x, pitch, 1.0 - exp(-9.0 * rdt)) if mode == "dlg" else pitch
 		spring.spring_length = lerp(spring.spring_length, want_len, 1.0 - exp(-8.0 * rdt))
 		spring.position = Vector3(0.55, 0, 0)
-	shake_a = max(0.0, shake_a - rdt * 1.8)
-	cam.h_offset = randf_range(-1, 1) * shake_a * 0.25
-	cam.v_offset = randf_range(-1, 1) * shake_a * 0.25
+	# тряска: сумма синусов разной частоты (плавно, без дребезга), сила — квадрат накопленного; гаснет в реальном времени
+	trauma = max(0.0, trauma - rdt * 1.5)
+	shake_t += rdt * 34.0
+	var sh := trauma * trauma
+	var ox := sh * 0.2 * (sin(shake_t * 1.7) + 0.5 * sin(shake_t * 3.1 + 1.3))
+	var oy := sh * 0.16 * (sin(shake_t * 2.3 + 0.7) + 0.5 * sin(shake_t * 4.3))
+	var roll := sh * 0.045 * sin(shake_t * 1.1 + 2.0)
+	cam.h_offset = ox
+	cam.v_offset = oy
+	cam.rotation.z = roll
+	if director:
+		director.cam.h_offset = ox
+		director.cam.v_offset = oy
+		director.cam.rotation.z += roll
+	fov_kick = lerpf(fov_kick, 0.0, 1.0 - exp(-9.0 * rdt))
+	zoom_s = lerpf(zoom_s, charge_zoom, 1.0 - exp(-6.0 * rdt))
+	cam.fov = 62.0 + fov_kick - 9.0 * zoom_s
+	_update_post(rdt)
 	if world:
 		world.follow(player.global_position)
 	_update_hud(rdt)
@@ -503,6 +582,95 @@ func _process(dt: float) -> void:
 		_update_fight(dt)
 	if main.autotest != "" or main.smoke != "":
 		_autotest(rdt)
+
+# ---------------- экранные эффекты ----------------
+const POST := """
+shader_type canvas_item;
+uniform sampler2D screen : hint_screen_texture, filter_linear, repeat_disable;
+uniform float aberr = 0.0;
+uniform float blur = 0.0;
+uniform float ripple_a = 0.0;
+uniform float ripple_t = 0.0;
+uniform vec2 ripple_c = vec2(0.5);
+uniform float vign = 0.0;
+uniform float flash = 0.0;
+uniform float lines = 0.0;
+uniform float aspect = 1.777;
+void fragment() {
+	vec2 uv = SCREEN_UV;
+	vec2 d = uv - vec2(0.5);
+	if (ripple_a > 0.001) {
+		vec2 rd = (uv - ripple_c) * vec2(aspect, 1.0);
+		float w = length(rd) - ripple_t * 0.95;
+		float band = exp(-w * w * 160.0) * (1.0 - ripple_t);
+		uv += normalize(rd + vec2(0.00001)) / vec2(aspect, 1.0) * band * ripple_a * 0.035;
+	}
+	vec2 ca = d * aberr * 0.022;
+	vec3 col;
+	if (blur > 0.01) {
+		col = vec3(0.0);
+		for (int i = 0; i < 8; i++) {
+			vec2 o = d * blur * 0.11 * float(i) / 8.0;
+			col.r += texture(screen, uv - o - ca).r;
+			col.g += texture(screen, uv - o).g;
+			col.b += texture(screen, uv - o + ca).b;
+		}
+		col /= 8.0;
+	} else {
+		col = vec3(texture(screen, uv - ca).r, texture(screen, uv).g, texture(screen, uv + ca).b);
+	}
+	float len = length(d * vec2(aspect, 1.0));
+	if (lines > 0.01) {
+		float ang = atan(d.y, d.x * aspect);
+		float n = fract(sin(floor(ang * 46.0) * 12.9898 + floor(TIME * 20.0) * 78.233) * 43758.5453);
+		col += vec3(smoothstep(0.3 + n * 0.35, 0.95, len) * step(0.62, n) * lines * 0.5);
+	}
+	col *= 1.0 - smoothstep(0.35, 1.0, len) * vign;
+	col += vec3(flash);
+	COLOR = vec4(col, 1.0);
+}
+"""
+
+func _build_post() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 0
+	add_child(layer)
+	post = ColorRect.new()
+	post.set_anchors_preset(Control.PRESET_FULL_RECT)
+	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = POST
+	post_mat = ShaderMaterial.new()
+	post_mat.shader = sh
+	post.material = post_mat
+	post.visible = false
+	layer.add_child(post)
+
+func _update_post(rdt: float) -> void:
+	pp["aberr"] = max(0.0, float(pp["aberr"]) - rdt * 3.2)
+	pp["blur"] = max(0.0, float(pp["blur"]) - rdt * 3.4)
+	pp["flash"] = max(0.0, float(pp["flash"]) - rdt * 1.1)
+	if float(pp["ripple_a"]) > 0.0:
+		pp["ripple_t"] = float(pp["ripple_t"]) + rdt * 2.4
+		if float(pp["ripple_t"]) >= 1.0:
+			pp["ripple_a"] = 0.0
+	var heat := 1.0 if heat_t > 0.0 else 0.0
+	var vg: float = 0.45 * zoom_s + 0.35 * heat + (0.16 if player.rage > 0.0 else 0.0)
+	var ln: float = 0.8 * zoom_s + 0.7 * heat
+	var on: bool = float(pp["aberr"]) > 0.01 or float(pp["blur"]) > 0.01 or float(pp["flash"]) > 0.003 or float(pp["ripple_a"]) > 0.0 or vg > 0.01
+	post.visible = on
+	if not on:
+		return
+	var vs := get_viewport().get_visible_rect().size
+	post_mat.set_shader_parameter("aberr", float(pp["aberr"]) + 0.25 * heat)
+	post_mat.set_shader_parameter("blur", float(pp["blur"]))
+	post_mat.set_shader_parameter("flash", float(pp["flash"]))
+	post_mat.set_shader_parameter("ripple_a", float(pp["ripple_a"]))
+	post_mat.set_shader_parameter("ripple_t", float(pp["ripple_t"]))
+	post_mat.set_shader_parameter("ripple_c", ripple_c)
+	post_mat.set_shader_parameter("vign", vg)
+	post_mat.set_shader_parameter("lines", ln)
+	post_mat.set_shader_parameter("aspect", vs.x / max(1.0, vs.y))
 
 # ---------------- диалоги ----------------
 func start_dialog(lines: Array, after: Callable) -> void:
@@ -578,29 +746,14 @@ func popup(pos: Vector3, text: String, col: Color) -> void:
 	tw.chain().tween_callback(l.queue_free)
 
 func shockwave(pos: Vector3, col: Color) -> void:
-	var m := MeshInstance3D.new()
-	var tm := TorusMesh.new()
-	tm.inner_radius = 0.9
-	tm.outer_radius = 1.0
-	m.mesh = tm
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.albedo_color = col
-	m.material_override = mat
-	add_child(m)
-	m.global_position = Vector3(pos.x, 0.2, pos.z)
-	m.scale = Vector3(0.5, 0.1, 0.5)
-	var tw := create_tween()
-	tw.set_parallel(true)
-	tw.tween_property(m, "scale", Vector3(7, 0.1, 7), 0.5)
-	tw.tween_property(mat, "albedo_color:a", 0.0, 0.5)
-	tw.chain().tween_callback(m.queue_free)
+	fx.ground_ring(pos, 0.8, 8.0, col, 0.5)
+	fx.ground_ring(pos, 0.5, 4.5, Color(1, 1, 1, 0.6), 0.3, "circle_05")
+	fx.dust(pos + Vector3(0, 0.15, 0), 10, fx.DUST, 1.2)
 
 func damage_flash() -> void:
 	flash.color.a = 0.35
-	shake(0.25)
+	shake(0.35)
+	pp["aberr"] = max(float(pp["aberr"]), 0.6)
 
 func banner(title: String, sub: String, col: Color, sec := 2.6) -> void:
 	banner_title.text = title
@@ -867,6 +1020,14 @@ func _update_hud(dt: float) -> void:
 
 # ---------------- проверки: бот играет сам ----------------
 func bot_input(dt: float) -> void:
+	# нажатия читает физический кадр, а бот думает каждый кадр отрисовки: держим решение до следующего физического кадра
+	bot_acc += dt
+	var pf := Engine.get_physics_frames()
+	if pf == bot_pf:
+		return
+	bot_pf = pf
+	dt = bot_acc
+	bot_acc = 0.0
 	var near = null
 	var nd := 1e9
 	for e in enemies:

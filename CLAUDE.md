@@ -18,10 +18,11 @@
   - `main.gd` — вход, меню, управление (InputMap создаётся в коде), звук, ключи запуска;
   - `game.gd` — сюжет по шагам, волны, боссы, диалоги, прокачка, интерфейс, камера, эффекты, сохранение;
   - `world.gd` — локации девяти глав (оформление по `deco` из сюжета);
-  - `player.gd` — Пахан: бой балоном в стиле Slugger из Yakuza 0, перекат, блок, Heat, ПЕРЕГРУЗ;
+  - `player.gd` — Пахан: бой балоном в стиле Slugger из Yakuza 0, перекат, блок, Heat, ПЕРЕГРУЗ; таблицы ударов `LIGHT/FINISH/HEAT` (доли `hits` совпадают с ключами клипов в `poses.gd`);
   - `enemy.gd` — восемь типов врагов и девять боссов с фазами;
   - `companion.gd` — madk1d;
-  - `rig.gd` — персонаж из `.glb` (скелет Mixamo): кулаки, хват оружия, IK рук, сборка анимаций;
+  - `rig.gd` — персонаж из `.glb` (скелет Mixamo): кулаки, хват оружия, IK рук, сборка анимаций (запекание по кадрам, у ключа своя плавность: `"in"`, `"out"`, `"io"`…; `"ground": true` ставит стопы на пол);
+  - `fx.gd` — эффекты боя (вспышки, искры, пыль, кольца, трещины, обломки) на текстурах `assets/fx` (Kenney, CC0); `trail.gd` — след оружия;
   - `poses.gd` — все анимации как позы в коде; `director.gd` — съёмка трейлера; `posesheet.gd` — листы поз.
 - Данные сюжета: `godot/data/story.json` — выгрузка из `js/data.js` и `js/levels.js`. Тексты правятся в `js/data.js`, затем выгрузка заново.
 - Модели: `godot/assets/models/*.glb` (Tripo AI, скелет Mixamo, исходное качество). Анимаций в файлах нет — все из `poses.gd`.
@@ -35,6 +36,8 @@ $G --headless --path godot --check-only --script res://scripts/<имя>.gd      
 $G --path godot -- --autotest=<папка> [--chapter=N] [--seconds=S]           # бот играет сам, скриншоты и FPS
 $G --path godot -- --smoke=<папка>                                           # быстрый прогон всех 9 глав
 $G --path godot -- --posesheet=<папка>[,pahan|clipper|hater]                 # листы поз с оружием
+$G --path godot -- --posesheet=<папка>,pahan,Light1,Heavy                    # раскадровка клипов: 16 кадров, две стороны
+$G --path godot --fixed-fps 30 --resolution 1280x720 -- --trailer=<папка> --shots=T1_,T2_   # проверочные планы боя (T1_…T4_), кадры по одному
 $G --path godot --fixed-fps 30 --resolution 1280x720 -- --trailer=<папка>    # кадры для трейлера
 $G --headless --path godot --export-release Windows "../dist/godot/GOD OF GRIMERKA.exe"
 ```

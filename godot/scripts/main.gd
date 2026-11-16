@@ -59,6 +59,7 @@ func _ready() -> void:
 			var v := arg.substr(12).split(",")
 			ps.out = v[0]
 			ps.who = v[1] if v.size() > 1 else ""
+			ps.seq = Array(v.slice(2))
 			add_child(ps)
 			return
 	if testing() != "":

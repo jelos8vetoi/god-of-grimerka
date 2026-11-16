@@ -27,6 +27,12 @@ var foot_y := 0.0
 var hand := {}             # "r"/"l" → {k, f, grip}: оси кулака и центр хвата в осях кисти
 var weapon_sign := 1.0     # +1 — оружие выходит со стороны большого пальца, −1 — со стороны мизинца (бутылка за горлышко)
 var cur := ""
+var par := PackedInt32Array()   # родитель каждой кости
+var foot_pts := []         # [кость стопы или носка, её высота в позе привязки] — чтобы ставить на пол
+var weapon: Node3D         # оружие в кулаке: ось +Y, от -weapon_grip до 1-weapon_grip
+var weapon_bone := -1
+var weapon_grip := 0.0
+var flash_mat: StandardMaterial3D
 static var _lib_cache := {}   # библиотека анимаций на модель+набор поз: одинаковым врагам не пересчитываем
 
 func setup(path: String, height: float, poses: Dictionary, shadows := true, wsign := 1.0, cache_key := "") -> void:
@@ -46,6 +52,7 @@ func setup(path: String, height: float, poses: Dictionary, shadows := true, wsig
 	for i in skel.get_bone_count():
 		rest_rot.append(skel.get_bone_rest(i).basis.get_rotation_quaternion())
 		rest_pos.append(skel.get_bone_rest(i).origin)
+		par.append(skel.get_bone_parent(i))
 	for k in BONES:
 		bone[k] = _find_bone(BONES[k])
 	var aabb := _skinned_aabb(path)
@@ -57,6 +64,10 @@ func setup(path: String, height: float, poses: Dictionary, shadows := true, wsig
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_make_fists()
+	for nm in ["RightFoot", "LeftFoot", "RightToeBase", "LeftToeBase"]:
+		var fb := _find_bone(nm)
+		if fb >= 0:
+			foot_pts.append([fb, (skel_xf * (_chain(rest_rot, fb)[1] as Vector3)).y])
 	var found := model.find_children("*", "AnimationPlayer", true, false)
 	if found.size() > 0:
 		player = found[0]
@@ -200,6 +211,21 @@ func _global_rot(rots: Array, i: int) -> Quaternion:
 		q = q * rots[b]
 	return q
 
+## поворот и положение кости в пространстве скелета — только по цепочке её предков
+func _chain(rots: Array, i: int) -> Array:
+	var st := []
+	var j := i
+	while j >= 0:
+		st.append(j)
+		j = par[j]
+	var q := Quaternion.IDENTITY
+	var p := Vector3.ZERO
+	for n in range(st.size() - 1, -1, -1):
+		var b: int = st[n]
+		p += q * (rest_pos[b] as Vector3)
+		q = q * (rots[b] as Quaternion)
+	return [q, p]
+
 func dir_sk(v: Vector3) -> Vector3:
 	return (skel_xf.basis.inverse() * v).normalized()
 
@@ -292,8 +318,8 @@ func _ik_arm(rots: Array, side: String, grip: Vector3, D: Vector3, sgn: float) -
 	if a < 0 or f < 0 or h < 0 or not hand.has(side):
 		return
 	var hd: Dictionary = hand[side]
-	var G := _globals(rots)
-	var S: Vector3 = G[1][a]
+	var C := _chain(rots, a)
+	var S: Vector3 = C[1]
 	# ориентация кисти: ось костяшек вдоль оружия, пальцы — продолжение руки
 	var Dn := D.normalized() * sgn
 	var away := (grip - S)
@@ -321,10 +347,11 @@ func _ik_arm(rots: Array, side: String, grip: Vector3, D: Vector3, sgn: float) -
 	var ca: float = clamp((L1 * L1 + d * d - L2 * L2) / (2.0 * L1 * d), -1.0, 1.0)
 	var E := S + u * (L1 * ca) + pp * (L1 * sqrt(max(0.0, 1.0 - ca * ca)))
 	var Wc := S + u * d
-	var Ga: Quaternion = G[0][a]
+	var Ga: Quaternion = C[0]
+	var Gpar: Quaternion = Ga * (rots[a] as Quaternion).inverse()
 	var cur_a: Vector3 = (Ga * (rest_pos[f] as Vector3)).normalized()
 	var Ga2 := Quaternion(cur_a, (E - S).normalized()) * Ga
-	_set_global(rots, a, Ga2)
+	rots[a] = (Gpar.inverse() * Ga2).normalized()
 	var Gf := Ga2 * (rots[f] as Quaternion)
 	var cur_f: Vector3 = (Gf * (rest_pos[h] as Vector3)).normalized()
 	var Gf2 := Quaternion(cur_f, (Wc - E).normalized()) * Gf
@@ -344,6 +371,131 @@ func _apply_ik(rots: Array, ik: Dictionary) -> void:
 	if ik.has("l"):
 		var l: Dictionary = ik["l"]
 		_ik_arm(rots, "l", pos_sk(l["p"]), dir_sk(Vector3(l["d"][0], l["d"][1], l["d"][2])), 1.0)
+
+## Как подходим к ключу: "in" — с разгоном (удар), "out" — с торможением (замах, довод), "io" — плавно,
+## "back" — с перелётом и возвратом, "hold" — почти стоим и срываемся в конце, иначе — равномерно.
+static func ease_fn(u: float, e: String) -> float:
+	match e:
+		"in":
+			return u * u * u
+		"in2":
+			return u * u
+		"out":
+			var v := 1.0 - u
+			return 1.0 - v * v * v
+		"out2":
+			var v2 := 1.0 - u
+			return 1.0 - v2 * v2
+		"io":
+			return u * u * (3.0 - 2.0 * u)
+		"back":
+			var w := u - 1.0
+			return 1.0 + 2.70158 * w * w * w + 1.70158 * w * w
+		"hold":
+			return pow(u, 5.0)
+	return u
+
+static func _cr(p0: Array, p1: Array, p2: Array, p3: Array, t: float) -> Array:
+	var r := []
+	var t2 := t * t
+	var t3 := t2 * t
+	for i in 3:
+		r.append(0.5 * (2.0 * p1[i] + (p2[i] - p0[i]) * t + (2.0 * p0[i] - 5.0 * p1[i] + 4.0 * p2[i] - p3[i]) * t2 + (3.0 * p1[i] - p0[i] - 3.0 * p2[i] + p3[i]) * t3))
+	return r
+
+static func _dir_mix(a: Array, b: Array, w: float) -> Array:
+	var va := Vector3(a[0], a[1], a[2]).normalized()
+	var vb := Vector3(b[0], b[1], b[2]).normalized()
+	var r := va.slerp(vb, w)
+	return [r.x, r.y, r.z]
+
+## хват одной руки между ключами i и i+1: [словарь хвата или null, вес IK]
+func _ik_side(K: Array, i: int, side: String, w: float) -> Array:
+	var ia = K[i]["ik"]
+	var ib = K[i + 1]["ik"]
+	var ha: bool = ia != null and ia.has(side)
+	var hb: bool = ib != null and ib.has(side)
+	if ha and hb:
+		var p1: Array = ia[side]["p"]
+		var p2: Array = ib[side]["p"]
+		var p0 := p1
+		var p3 := p2
+		if i > 0 and K[i - 1]["ik"] != null and K[i - 1]["ik"].has(side):
+			p0 = K[i - 1]["ik"][side]["p"]
+		if i + 2 < K.size() and K[i + 2]["ik"] != null and K[i + 2]["ik"].has(side):
+			p3 = K[i + 2]["ik"][side]["p"]
+		return [{"p": _cr(p0, p1, p2, p3, w), "d": _dir_mix(ia[side]["d"], ib[side]["d"], w)}, 1.0]
+	if ha:
+		return [ia[side], 1.0 - w]
+	if hb:
+		return [ib[side], w]
+	return [null, 0.0]
+
+## Поза в момент u (0..1) между ключами: кости — по сфере, хват оружия — по плавной кривой через ключи,
+## направление оружия — по дуге. Возвращает [повороты костей, смещение таза по высоте в единицах модели].
+func _sample(K: Array, u: float, ground: bool, hips_h: float) -> Array:
+	var i := 0
+	while i < K.size() - 2 and u > float(K[i + 1]["t"]):
+		i += 1
+	var a: Dictionary = K[i]
+	var b: Dictionary = K[i + 1]
+	var span: float = max(0.00001, float(b["t"]) - float(a["t"]))
+	var w := ease_fn(clampf((u - float(a["t"])) / span, 0.0, 1.0), String(b["e"]))
+	var ra: Array = a["rots"]
+	var rb: Array = b["rots"]
+	var rots := rest_rot.duplicate()
+	for k in ORDER:
+		var bi: int = bone[k]
+		if bi >= 0:
+			rots[bi] = (ra[bi] as Quaternion).slerp(rb[bi], w)
+	var ia = a["ik"]
+	var ib = b["ik"]
+	if ia != null or ib != null:
+		var base := rots.duplicate()
+		var ik := {}
+		var wc := clampf(w, 0.0, 1.0)
+		var R := _ik_side(K, i, "r", w)
+		var wr: float = R[1]
+		if R[0] != null:
+			ik["r"] = R[0]
+		var wl := 0.0
+		var ta: bool = ia != null and ia.has("two")
+		var tb: bool = ib != null and ib.has("two")
+		if ta and tb:
+			ik["two"] = lerpf(ia["two"], ib["two"], w)
+			wl = 1.0
+		elif ta:
+			ik["two"] = ia["two"]
+			wl = 1.0 - wc
+		elif tb:
+			ik["two"] = ib["two"]
+			wl = wc
+		else:
+			var Lk := _ik_side(K, i, "l", w)
+			if Lk[0] != null:
+				ik["l"] = Lk[0]
+				wl = clampf(Lk[1], 0.0, 1.0)
+		_apply_ik(rots, ik)
+		wr = clampf(wr, 0.0, 1.0)
+		if wr < 1.0:
+			for k in ["rarm", "rfa", "rhand"]:
+				var bi: int = bone[k]
+				rots[bi] = (base[bi] as Quaternion).slerp(rots[bi], wr)
+		if wl < 1.0:
+			for k in ["larm", "lfa", "lhand"]:
+				var bi: int = bone[k]
+				rots[bi] = (base[bi] as Quaternion).slerp(rots[bi], wl)
+	var dy := 0.0
+	if ground and foot_pts.size() > 0:
+		# таз ставим так, чтобы нижняя стопа стояла на полу: приседы и выпады не висят и не тонут
+		var low := INF
+		for fp in foot_pts:
+			var gp: Vector3 = _chain(rots, fp[0])[1]
+			low = min(low, (skel_xf * gp).y - float(fp[1]))
+		dy = -low + lerpf(a["lift"], b["lift"], w) * hips_h
+	else:
+		dy = -lerpf(a["drop"], b["drop"], w) * hips_h
+	return [rots, dy]
 
 func _build(def: Dictionary, prefix: String) -> Animation:
 	var anim := Animation.new()
@@ -369,17 +521,40 @@ func _build(def: Dictionary, prefix: String) -> Animation:
 	var hips_h := (skel_xf.basis * skel.get_bone_global_rest(hips).origin).y
 	var hpar := skel.get_bone_parent(hips)
 	var par_basis := skel.get_bone_global_rest(hpar).basis if hpar >= 0 else Basis()
+	var to_hips := par_basis.inverse() * skel_xf.basis.inverse()
+	# ключи: [время, поза, хват оружия (словарь), плавность подхода (строка)]
+	var K := []
+	var de: String = def.get("ease", "lin")
 	for key in keys:
-		var t: float = key[0] * dur
+		var ik = null
+		var e := de
+		for j in range(2, key.size()):
+			if key[j] is Dictionary:
+				ik = key[j]
+			elif key[j] is String:
+				e = key[j]
 		var pose: Dictionary = key[1]
-		var rots := pose_rots(pose)
-		if key.size() > 2 and key[2] is Dictionary:
-			_apply_ik(rots, key[2])
+		K.append({"t": float(key[0]), "rots": pose_rots(pose), "ik": ik, "e": e, "drop": float(pose.get("drop", 0.0)), "lift": float(pose.get("lift", 0.0))})
+	if smooth:
+		# циклы шага: ключ в ключ, сглаживает сам движок
+		for kk in K:
+			var rk: Array = (kk["rots"] as Array).duplicate()
+			if kk["ik"] != null:
+				_apply_ik(rk, kk["ik"])
+			for k in tracks:
+				anim.rotation_track_insert_key(tracks[k], float(kk["t"]) * dur, rk[bone[k]])
+			anim.position_track_insert_key(hp_t, float(kk["t"]) * dur, rest_pos[hips] + to_hips * Vector3(0, -float(kk["drop"]) * hips_h, 0))
+		return anim
+	# остальное запекаем по кадрам: у каждого ключа своя плавность, оружие идёт по дуге, а не по прямой
+	var ground: bool = def.get("ground", false)
+	var n: int = def.get("n", clampi((K.size() - 1) * 8, 16, 48))
+	for s in n + 1:
+		var u := float(s) / n
+		var smp := _sample(K, u, ground, hips_h)
+		var rots: Array = smp[0]
 		for k in tracks:
-			anim.rotation_track_insert_key(tracks[k], t, rots[bone[k]])
-		var drop: float = pose.get("drop", 0.0)
-		var off := par_basis.inverse() * (skel_xf.basis.inverse() * Vector3(0, -drop * hips_h, 0))
-		anim.position_track_insert_key(hp_t, t, rest_pos[hips] + off)
+			anim.rotation_track_insert_key(tracks[k], u * dur, rots[bone[k]])
+		anim.position_track_insert_key(hp_t, u * dur, rest_pos[hips] + to_hips * Vector3(0, float(smp[1]), 0))
 	return anim
 
 func play(nm: String, blend := 0.18, speed := 1.0) -> void:
@@ -456,6 +631,9 @@ func attach(weapon_path: String, side: String, opt: Dictionary) -> Node3D:
 		Z = (Z - Y * Z.dot(Y)).normalized()
 		piv.basis = Basis(Y.cross(Z), Y, Z).orthonormalized().scaled(piv.scale)
 		piv.position = hd["grip"]
+		weapon = piv
+		weapon_bone = b
+		weapon_grip = float(opt.get("grip", 0.0))
 	if b < 0:
 		return null
 	var att := BoneAttachment3D.new()
@@ -478,3 +656,23 @@ func _filter_mesh(mesh: Mesh, keep: Callable) -> Mesh:
 		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 		out.surface_set_material(s, mesh.surface_get_material(s))
 	return out
+
+## концы оружия в мире сейчас: [у кулака, дальний конец]; считаем по кости, не дожидаясь обновления крепления
+func weapon_points(from := 0.18, to := 1.0) -> Array:
+	if weapon == null or weapon_bone < 0:
+		return []
+	var xf := skel.global_transform * skel.get_bone_global_pose(weapon_bone) * weapon.transform
+	return [xf * Vector3(0, from - weapon_grip, 0), xf * Vector3(0, to - weapon_grip, 0)]
+
+## вспышка по всей модели при попадании: 0 — нет, 1 — полностью
+func flash(a: float, col := Color.WHITE) -> void:
+	if flash_mat == null:
+		if a <= 0.0:
+			return
+		flash_mat = StandardMaterial3D.new()
+		flash_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		flash_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		flash_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		for mi in model.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).material_overlay = flash_mat
+	flash_mat.albedo_color = Color(col.r, col.g, col.b, clampf(a, 0.0, 1.0))

@@ -5,22 +5,27 @@ const HEIGHT := 1.85
 ## Стиль боя балоном — как Slugger (бита) в Yakuza 0: широкие махи, цепочка из 4 лёгких,
 ## тяжёлый удар добивает по-разному в зависимости от того, после скольких лёгких нажат, полный замах заряжается удержанием ПКМ,
 ## Heat-действие [E] — добивание с замедлением.
+## Поля удара: dur — длительность клипа, hits — доли клипа, когда балон проходит цель (совпадают с ключами в poses.gd),
+## step — [с, по, скорость]: шаг в удар, cancel — с какой доли можно продолжить цепочку, launch — подброс врага,
+## slam — когда балон бьёт в землю, scrape — когда чиркает по земле.
 const LIGHT := [
-	{"clip": "Light1", "dur": 0.4, "hits": [0.5], "dmg": 20.0, "range": 2.6, "arc": 2.6, "kb": 3.5},
-	{"clip": "Light2", "dur": 0.4, "hits": [0.52], "dmg": 20.0, "range": 2.6, "arc": 2.6, "kb": 3.5},
-	{"clip": "Light1", "dur": 0.38, "hits": [0.5], "dmg": 22.0, "range": 2.6, "arc": 2.6, "kb": 4.0},
-	{"clip": "Spin", "dur": 0.55, "hits": [0.35, 0.8], "dmg": 18.0, "range": 2.9, "arc": 6.3, "kb": 5.0, "spin": 1.0},
+	{"clip": "Light1", "dur": 0.62, "hits": [0.42], "dmg": 20.0, "range": 2.6, "arc": 2.6, "kb": 4.0, "step": [0.28, 0.46, 5.0], "cancel": 0.6},
+	{"clip": "Light2", "dur": 0.62, "hits": [0.42], "dmg": 20.0, "range": 2.6, "arc": 2.6, "kb": 4.0, "step": [0.28, 0.46, 5.0], "cancel": 0.6},
+	{"clip": "Upper", "dur": 0.66, "hits": [0.43], "dmg": 24.0, "range": 2.6, "arc": 2.2, "kb": 3.0, "launch": 5.5, "step": [0.3, 0.46, 4.0], "cancel": 0.62, "scrape": 0.35},
+	{"clip": "Spin", "dur": 0.78, "hits": [0.4, 0.66], "dmg": 18.0, "range": 2.9, "arc": 6.3, "kb": 6.0, "spin": 1.0, "cancel": 0.82},
 ]
 const FINISH := [
-	{"clip": "Heavy", "dur": 0.8, "hits": [0.56], "dmg": 55.0, "range": 3.0, "arc": 2.0, "kb": 10.0, "heavy": true, "name": "ОВЕРХЕД"},
-	{"clip": "Light3", "dur": 0.55, "hits": [0.5], "dmg": 45.0, "range": 2.9, "arc": 1.8, "kb": 6.0, "heavy": true, "stun": 1.5, "name": "ГВОЗДЬ"},
-	{"clip": "FullSwing", "dur": 0.6, "hits": [0.45], "dmg": 55.0, "range": 3.2, "arc": 3.6, "kb": 16.0, "heavy": true, "charge": true, "name": "ПОЛНЫЙ ЗАМАХ"},
-	{"clip": "Spin", "dur": 1.1, "hits": [0.12, 0.3, 0.48, 0.66, 0.84], "dmg": 16.0, "range": 3.0, "arc": 6.3, "kb": 3.0, "spin": 3.0, "heavy": true, "name": "НУНЧАКИ"},
+	{"clip": "Heavy", "dur": 0.95, "hits": [0.55], "dmg": 55.0, "range": 3.0, "arc": 2.0, "kb": 5.0, "launch": 6.0, "heavy": true, "slam": 0.58, "step": [0.46, 0.56, 4.0], "name": "ОВЕРХЕД"},
+	{"clip": "Nail", "dur": 0.68, "hits": [0.41], "dmg": 45.0, "range": 2.9, "arc": 1.8, "kb": 3.0, "heavy": true, "stun": 1.5, "step": [0.28, 0.44, 5.5], "name": "ГВОЗДЬ"},
+	{"clip": "FullSwing", "dur": 0.8, "hits": [0.34], "dmg": 55.0, "range": 3.2, "arc": 3.6, "kb": 15.0, "launch": 6.5, "heavy": true, "charge": true, "step": [0.14, 0.36, 7.0], "name": "ПОЛНЫЙ ЗАМАХ"},
+	{"clip": "Spin", "dur": 1.25, "hits": [0.22, 0.35, 0.48, 0.61, 0.74], "dmg": 16.0, "range": 3.0, "arc": 6.3, "kb": 3.0, "spin": 3.0, "heavy": true, "last_launch": 6.0, "name": "НУНЧАКИ"},
 ]
 const HEAT := [
-	{"clip": "Smash", "dur": 0.75, "hits": [0.55], "dmg": 60.0, "range": 3.2, "arc": 2.4, "kb": 0.5, "heavy": true, "stun": 2.0},
-	{"clip": "FullSwing", "dur": 0.7, "hits": [0.45], "dmg": 90.0, "range": 3.4, "arc": 3.0, "kb": 20.0, "heavy": true},
+	{"clip": "Smash", "dur": 0.9, "hits": [0.6], "dmg": 60.0, "range": 3.2, "arc": 2.4, "kb": 1.0, "launch": 7.5, "heavy": true, "super": true, "slam": 0.6, "cancel": 0.8},
+	{"clip": "FullSwing", "dur": 0.85, "hits": [0.34], "dmg": 90.0, "range": 3.4, "arc": 3.0, "kb": 20.0, "launch": 7.0, "heavy": true, "super": true, "step": [0.14, 0.36, 6.0]},
 ]
+const GOLD := Color(1.0, 0.8, 0.42)
+const HOT := Color(1.0, 0.45, 0.15)
 
 var game
 var rig: Rig
@@ -49,6 +54,14 @@ var hurt_t := 0.0
 var face := 0.0
 var auto_input := {}
 var dmg_mul := 1.0   # для автотеста
+var trail: Trail
+var charge_light: OmniLight3D
+var whoosh_i := 0
+var slam_done := false
+var scrape_done := false
+var ring_cd := 0.0
+var charged := 0.0    # заряд, с которым выпущен текущий удар (0..1.2)
+var maxed := false
 
 func _ready() -> void:
 	var col := CollisionShape3D.new()
@@ -69,6 +82,14 @@ func _ready() -> void:
 	rig.setup("res://assets/models/pahan.glb", HEIGHT, Poses.pahan_armed(), true, -1.0)
 	# Балон VOZDUH: горлышко в кулаке, корпус выходит со стороны мизинца
 	rig.attach("res://assets/models/balon.glb", "r", {"axis": "y", "from": 98.0, "to": 0.0, "grip": 0.07, "length": 0.56})
+	trail = Trail.new()
+	rig.add_child(trail)
+	trail.setup(rig, GOLD, 0.22)
+	charge_light = OmniLight3D.new()
+	charge_light.omni_range = 5.0
+	charge_light.light_energy = 0.0
+	charge_light.light_color = HOT
+	add_child(charge_light)
 	_make_aura()
 
 func _make_aura() -> void:
@@ -174,6 +195,8 @@ func _physics_process(dt: float) -> void:
 		move_and_slide()
 		body.rotation.y = face
 		aura.emitting = false
+		trail.enabled = false
+		game.charge_zoom = 0.0
 		return
 	if rage > 0.0:
 		rage = max(0.0, rage - dt)
@@ -212,29 +235,49 @@ func _physics_process(dt: float) -> void:
 			elif pressed("rage") and swag >= 100.0:
 				start_rage()
 		"attack":
-			velocity.x = move_toward(velocity.x, 0.0, 30.0 * dt)
-			velocity.z = move_toward(velocity.z, 0.0, 30.0 * dt)
 			var k := t / float(atk["dur"])
-			if k < 0.45:
-				velocity += aim_dir() * 2.2 * dt * 10.0 * (1.0 - k)
+			var fwd := Vector3(sin(face), 0, cos(face))
+			var st: Array = atk.get("step", [])
+			if st.size() == 3 and k >= float(st[0]) and k < float(st[1]) and not _blocked(fwd):
+				# шаг в удар: тело идёт за балоном
+				velocity.x = fwd.x * float(st[2])
+				velocity.z = fwd.z * float(st[2])
+			else:
+				velocity.x = move_toward(velocity.x, 0.0, 45.0 * dt)
+				velocity.z = move_toward(velocity.z, 0.0, 45.0 * dt)
 			var hs: Array = atk["hits"]
+			while whoosh_i < hs.size() and k >= float(hs[whoosh_i]) - 0.12:
+				whoosh_i += 1
+				game.main.sfx("sfx_swing_heavy" if atk.has("heavy") else "sfx_swing", -3.0, 0.85 if atk.has("super") else 1.0)
 			while hit_i < hs.size() and k >= float(hs[hit_i]):
 				hit_i += 1
 				_deal_hit()
-			spin_off = -TAU * float(atk.get("spin", 0.0)) * clamp(k, 0.0, 1.0)
+			if atk.has("slam") and not slam_done and k >= float(atk["slam"]):
+				slam_done = true
+				_slam(fwd)
+			if atk.has("scrape") and not scrape_done and k >= float(atk["scrape"]):
+				scrape_done = true
+				var wp := rig.weapon_points()
+				if not wp.is_empty():
+					game.fx.scrape(wp[1], fwd)
+					game.main.sfx("sfx_slash", -10.0, 0.7)
+			# вертушка: разгон и торможение, а не ровное вращение
+			spin_off = -TAU * float(atk.get("spin", 0.0)) * smoothstep(0.14, 0.88, k)
 			if heat_q.is_empty():
 				if pressed("attack") and not atk.has("heavy"):
 					queued = "light"
 				elif pressed("heavy") and not atk.has("heavy"):
 					queued = "heavy"
-			if pressed("roll") and k > 0.35 and heat_q.is_empty():
+			var can: float = atk.get("cancel", 0.62)
+			if pressed("roll") and k > float(hs[0]) + 0.06 and heat_q.is_empty():
 				spin_off = 0.0
 				start_roll(dir)
-			elif k >= 1.0 or (queued != "" and k > 0.6):
+			elif not heat_q.is_empty() and k > can:
 				spin_off = 0.0
-				if not heat_q.is_empty():
-					start_attack(heat_q.pop_front())
-				elif queued == "light" and combo < LIGHT.size() - 1:
+				start_attack(heat_q.pop_front())
+			elif k >= 0.9 or (queued != "" and k > can):
+				spin_off = 0.0
+				if queued == "light" and combo < LIGHT.size() - 1:
 					combo += 1
 					start_attack(LIGHT[combo])
 				elif queued == "heavy":
@@ -246,14 +289,32 @@ func _physics_process(dt: float) -> void:
 			velocity.x = move_toward(velocity.x, 0.0, 30.0 * dt)
 			velocity.z = move_toward(velocity.z, 0.0, 30.0 * dt)
 			charge_t = min(1.2, charge_t + dt)
-			face = lerp_angle(face, atan2(aim_dir().x, aim_dir().z), 1.0 - exp(-10.0 * dt))
+			face = lerp_angle(face, _aim_face(4.0, dir), 1.0 - exp(-10.0 * dt))
+			# заряд видно и слышно: кольца стягиваются к ногам, балон светится, камера поджимается и дрожит
+			var c := charge_t / 1.2
+			ring_cd -= dt
+			if ring_cd <= 0.0:
+				ring_cd = 0.24 - 0.1 * c
+				game.fx.ground_ring(global_position, 3.2 + 1.5 * c, 0.5, Color(1.0, 0.6 - 0.2 * c, 0.2, 0.55), 0.26)
+			game.charge_zoom = c
+			game.rumble(0.1 + 0.16 * c)
+			if charge_t >= 0.95 and not maxed:
+				maxed = true
+				var wp2 := rig.weapon_points()
+				if not wp2.is_empty():
+					game.fx.flash(wp2[1], 1.6, Color(1.0, 0.75, 0.4), "magic_03", 0.3)
+				game.main.sfx("sfx_parry", -6.0, 1.5)
+				game.popup(global_position + Vector3(0, 2.3, 0), "МАКС!", Color(1, 0.6, 0.2))
 			if not held("heavy") or charge_t >= 1.2:
 				var fs2: Dictionary = FINISH[2].duplicate()
 				fs2["dmg"] = float(fs2["dmg"]) * (1.0 + charge_t)
 				fs2["kb"] = float(fs2["kb"]) * (1.0 + charge_t * 0.5)
-				if charge_t > 0.9:
-					game.popup(global_position + Vector3(0, 2.3, 0), "МАКС!", Color(1, 0.6, 0.2))
+				fs2["launch"] = float(fs2["launch"]) + charge_t * 2.0
+				if charge_t > 0.6:
+					fs2["super"] = true
+				var keep := charge_t
 				start_attack(fs2)
+				charged = keep
 		"roll":
 			var k := t / 0.5
 			velocity.x = roll_dir.x * 8.8 * (1.0 - k * 0.5)
@@ -263,6 +324,7 @@ func _physics_process(dt: float) -> void:
 			if k >= 1.0:
 				spin.rotation.x = 0.0
 				state = "move"
+				game.fx.dust(global_position + Vector3(0, 0.15, 0), 5, game.fx.DUST, 0.6)
 		"hurt":
 			velocity.x = move_toward(velocity.x, 0.0, 20.0 * dt)
 			velocity.z = move_toward(velocity.z, 0.0, 20.0 * dt)
@@ -275,6 +337,14 @@ func _physics_process(dt: float) -> void:
 	velocity.y -= 20.0 * dt
 	move_and_slide()
 	body.rotation.y = face + spin_off
+	var tr := false
+	if state == "attack":
+		var hh: Array = atk["hits"]
+		var kk := t / float(atk["dur"])
+		tr = kk >= float(hh[0]) - 0.16 and kk <= float(hh[hh.size() - 1]) + 0.14
+	trail.enabled = tr
+	if state != "charge":
+		game.charge_zoom = 0.0
 	var glow := 2.0 if rage > 0.0 else (1.0 if swag >= 100.0 else 0.0)
 	aura.emitting = glow > 0.0
 	var mat := (aura.draw_pass_1 as QuadMesh).material as StandardMaterial3D
@@ -290,10 +360,61 @@ func start_attack(a: Dictionary) -> void:
 	hit_done = false
 	queued = ""
 	hit_i = 0
-	face = atan2(aim_dir().x, aim_dir().z)
+	whoosh_i = 0
+	slam_done = false
+	scrape_done = false
+	charged = 0.0
+	face = _aim_face(float(a["range"]), input_dir())
 	body.rotation.y = face
-	rig.play_for(a["clip"], a["dur"] * 1.25, 0.08)
-	game.main.sfx("sfx_swing_heavy" if a.has("heavy") else "sfx_swing", -4.0)
+	rig.play_for(a["clip"], a["dur"], 0.07)
+	trail.boost = 1.5 if a.has("super") else (1.25 if a.has("heavy") else 1.0)
+	trail.set_color(HOT if a.has("super") or rage > 0.0 else GOLD)
+
+## Куда бить: к ближайшему врагу в секторе перед собой (по движению или по камере), иначе — просто вперёд
+func _aim_face(reach: float, want: Vector3) -> float:
+	var a := want.normalized() if want.length() > 0.3 else aim_dir()
+	var best := Vector3.ZERO
+	var bs := -1.0
+	for e in game.enemies:
+		if not is_instance_valid(e) or not e.alive():
+			continue
+		var d: Vector3 = e.global_position - global_position
+		d.y = 0
+		var dist := d.length()
+		if dist > reach + 1.2 or dist < 0.05:
+			continue
+		var ang := a.angle_to(d / dist)
+		if ang > 1.05:
+			continue
+		var score := (1.0 - ang / 1.05) * 2.0 + (1.0 - dist / (reach + 1.2))
+		if score > bs:
+			bs = score
+			best = d
+	if bs >= 0.0:
+		return atan2(best.x, best.z)
+	return atan2(a.x, a.z)
+
+## вплотную перед нами враг — в него не шагаем
+func _blocked(fwd: Vector3) -> bool:
+	for e in game.enemies:
+		if is_instance_valid(e) and e.alive():
+			var d: Vector3 = e.global_position - global_position
+			d.y = 0
+			if d.length() < 1.15 + e.radius and d.normalized().dot(fwd) > 0.4:
+				return true
+	return false
+
+## балон вошёл в землю
+func _slam(fwd: Vector3) -> void:
+	var at := global_position + fwd * 1.35
+	var wp := rig.weapon_points()
+	if not wp.is_empty():
+		at = wp[1]
+	var big := atk.has("super")
+	game.fx.slam(at, 1.35 if big else 1.0, HOT if big or rage > 0.0 else GOLD)
+	game.main.sfx("sfx_boom", 0.0, 0.9 if big else 1.1)
+	game.shake(0.6 if big else 0.42)
+	game.punch(1.0 if big else 0.5, at)
 
 ## тяжёлый удар: n — после скольких лёгких нажат (0 — с места)
 func start_finisher(n: int) -> void:
@@ -303,9 +424,11 @@ func start_finisher(n: int) -> void:
 		state = "charge"
 		t = 0.0
 		charge_t = 0.0
-		face = atan2(aim_dir().x, aim_dir().z)
-		rig.play("Charge", 0.1)
-		game.main.sfx("sfx_swing", -10.0, 0.6)
+		ring_cd = 0.0
+		maxed = false
+		face = _aim_face(4.0, input_dir())
+		rig.play("Charge", 0.12)
+		game.main.sfx("sfx_charge", -4.0)
 		return
 	start_attack(fin)
 
@@ -341,6 +464,7 @@ func start_roll(dir: Vector3) -> void:
 	face = atan2(roll_dir.x, roll_dir.z)
 	inv = 0.38
 	rig.play("Tuck", 0.08)
+	game.fx.dust(global_position + Vector3(0, 0.15, 0), 6, game.fx.DUST, 0.7)
 	game.main.sfx("sfx_roll", -6.0)
 
 func start_rage() -> void:
@@ -350,16 +474,29 @@ func start_rage() -> void:
 	swag = 0.0
 	rig.play_for("Rage", 0.8, 0.08)
 	game.main.sfx("sfx_rage", 0.0)
-	game.shake(0.6)
+	game.shake(0.8)
+	game.fx.slam(global_position, 1.5, HOT)
+	game.punch(1.0, global_position + Vector3(0, 1.0, 0))
+	game.hitstop(0.12)
 	game.banner("ПЕРЕГРУЗ!", "урон ×1.6 на 8 секунд", Color(1, 0.4, 0.15))
 	for e in game.enemies:
 		if is_instance_valid(e) and e.alive() and e.global_position.distance_to(global_position) < 5.0:
-			e.take_hit(40.0, (e.global_position - global_position).normalized(), 9.0, true)
+			e.take_hit(40.0, (e.global_position - global_position).normalized(), 9.0, true, 6.0)
 
 func _deal_hit() -> void:
-	var a := aim_dir()
+	var fwd := Vector3(sin(face), 0, cos(face))
 	var hits := 0
 	var mul := (1.6 if rage > 0.0 else 1.0) * dmg_mul
+	var last: bool = hit_i >= (atk["hits"] as Array).size()
+	var launch: float = atk.get("launch", 0.0)
+	if last and atk.has("last_launch"):
+		launch = atk["last_launch"]
+	# сила отклика: 0 — лёгкий, 1 — тяжёлый, 2 — добивание или полный заряд; у серии ударов тяжёлым считается только последний
+	var tier := 2 if atk.has("super") else (1 if atk.has("heavy") else 0)
+	if atk.has("spin") and atk.has("heavy") and not last:
+		tier = 0
+	var col := HOT if rage > 0.0 or tier == 2 else GOLD
+	var where := global_position + fwd * 1.3 + Vector3(0, 1.1, 0)
 	for e in game.enemies:
 		if not is_instance_valid(e) or not e.alive():
 			continue
@@ -367,9 +504,12 @@ func _deal_hit() -> void:
 		d.y = 0
 		if d.length() > float(atk["range"]) + 0.4:
 			continue
-		if d.length() > 0.5 and a.angle_to(d.normalized()) > float(atk["arc"]) * 0.5:
+		if d.length() > 0.5 and fwd.angle_to(d.normalized()) > float(atk["arc"]) * 0.5:
 			continue
-		e.take_hit(float(atk["dmg"]) * mul, d.normalized() if d.length() > 0.01 else a, float(atk["kb"]), atk.has("heavy"))
+		var dn: Vector3 = d.normalized() if d.length() > 0.01 else fwd
+		where = e.global_position + Vector3(0, e.height * 0.62, 0) - dn * e.radius
+		e.take_hit(float(atk["dmg"]) * mul, dn, float(atk["kb"]), atk.has("heavy"), launch)
+		game.fx.hit(where, dn, tier if hits < 2 else 0, col)
 		if atk.has("stun") and is_instance_valid(e) and e.alive():
 			e.stun(float(atk["stun"]))
 		hits += 1
@@ -378,10 +518,11 @@ func _deal_hit() -> void:
 		if atk.has("name") and hit_i == 1:
 			game.popup(global_position + Vector3(0, 2.4, 0), atk["name"], Color(1, 0.8, 0.3))
 		game.main.sfx("sfx_glass" if randf() < 0.5 else "sfx_hit", -2.0)
-		game.hitstop(0.06 if not atk.has("heavy") else 0.12)
-		if atk.has("heavy"):
+		if tier >= 1:
 			game.main.sfx("sfx_hit_heavy", 0.0)
-			game.shake(0.35)
+		if tier == 2:
+			game.main.sfx("sfx_crack", 1.0)
+		game.impact(tier, where, 1.0 + charged * 0.4)
 
 func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 	if state == "dead":
@@ -398,13 +539,17 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 			attacker.stun(1.6)
 			game.main.sfx("sfx_parry", 0.0)
 			game.popup(global_position + Vector3(0, 2.2, 0), "ПАРИРОВАНИЕ", Color(0.4, 0.85, 1))
+			game.fx.hit(global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.6, to.normalized(), 1, Color(0.5, 0.85, 1.0))
+			game.punch(0.6, global_position + Vector3(0, 1.1, 0))
 			swag = min(100.0, swag + 20.0)
 			game.slowmo(0.4)
 			return
 		dmg *= 0.2
 		game.main.sfx("sfx_block", -2.0)
+		game.fx.sparks(global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.5, -to.normalized() + Vector3(0, 0.5, 0), 10, Color(0.7, 0.85, 1.0), 0.7)
 	else:
 		game.main.sfx("sfx_hurt", -2.0)
+		game.fx.hit(global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.3, -to.normalized(), 0, Color(1.0, 0.3, 0.25))
 		state = "hurt"
 		t = 0.0
 		spin_off = 0.0
@@ -422,3 +567,16 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		state = "dead"
 		rig.play_for("Death", 1.2, 0.1)
 		game.on_player_dead()
+
+func _process(dt: float) -> void:
+	var want := 0.0
+	if state == "charge":
+		want = 1.0 + 4.0 * charge_t
+	elif state == "attack" and charged > 0.3 and t / float(atk["dur"]) < 0.5:
+		want = 5.0
+	charge_light.light_energy = lerpf(charge_light.light_energy, want, 1.0 - exp(-14.0 * dt))
+	if charge_light.light_energy > 0.05:
+		var wp := rig.weapon_points()
+		if not wp.is_empty():
+			charge_light.global_position = wp[1]
+

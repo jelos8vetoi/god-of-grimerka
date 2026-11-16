@@ -43,6 +43,16 @@ var move_n := 0
 var charge_dir := Vector3.ZERO
 var radius := 0.36
 var age := 0.0
+# отклик на удар
+var flash_on := false
+var flash_until := 0.0
+var hit_clock := -9.0
+var hit_dir := Vector3.FORWARD
+var sq_tw: Tween
+var fly := false            # убитый летит по дуге
+var fly_v := Vector3.ZERO
+var bounces := 0
+var trail: Trail
 
 func _ready() -> void:
 	if boss_id != "":
@@ -86,6 +96,11 @@ func _ready() -> void:
 			rig.attach("res://assets/models/katana.glb", "r", {"bone": "hips", "axis": "z", "from": -37.0, "to": 47.0, "grip": 0.3, "dir": [0.2, -0.35, -0.9], "length": 0.5, "part": func(y): return y < 13.0, "off": [0.17, 0.02, 0.02], "shadow": false})
 		elif m == "pahan":
 			rig.attach("res://assets/models/balon.glb", "r", {"axis": "y", "from": 98.0, "to": 0.0, "grip": 0.07, "length": 0.56})
+	if rig.weapon != null and (m == "clipper" or m == "pahan"):
+		trail = Trail.new()
+		rig.add_child(trail)
+		trail.setup(rig, Color(0.55, 0.9, 1.0) if m == "clipper" else Color(0.75, 0.55, 1.0), 0.3)
+		trail.min_speed = 6.0
 	rig.play_for("Spawn", 1.0, 0.0)
 	ring = MeshInstance3D.new()
 	var tm := TorusMesh.new()
@@ -110,6 +125,8 @@ func _ready() -> void:
 		hp_bar.visible = false
 		add_child(hp_bar)
 	game.main.sfx("sfx_spawn", -10.0)
+	game.fx.dust(global_position + Vector3(0, 0.15, 0), 8, game.fx.DUST, 0.9)
+	game.fx.ground_ring(global_position, 0.4, 2.4 * height / 1.7, Color(1.0, 0.25, 0.2, 0.5), 0.5)
 
 func _setup_boss() -> void:
 	boss = game.story["BOSS"][boss_id]
@@ -164,7 +181,10 @@ func _physics_process(dt: float) -> void:
 	var dir: Vector3 = to / max(dist, 0.001)
 	velocity.x = kb.x
 	velocity.z = kb.z
-	kb = kb.move_toward(Vector3.ZERO, 22.0 * dt)
+	if state != "air":
+		kb = kb.move_toward(Vector3.ZERO, 22.0 * dt)
+	if trail:
+		trail.enabled = state == "wind" or (state == "recover" and t < 0.3)
 	if game.paused_story() and state != "dead":
 		velocity = Vector3.ZERO
 		rig.play("Idle", 0.3)
@@ -253,12 +273,59 @@ func _physics_process(dt: float) -> void:
 			if stun_t <= 0.0:
 				body.rotation.z = 0.0
 				state = "chase"
+		"air":
+			# сбит с ног: летит по дуге, пока не коснётся земли
+			if t > 0.12 and is_on_floor():
+				game.fx.land(global_position, 1.0)
+				game.main.sfx("sfx_thud", -5.0)
+				game.shake(0.1)
+				kb *= 0.3
+				state = "down"
+				t = 0.0
+				rig.play_for("GetUp", 9999.0, 0.08)
+		"down":
+			if t > 0.7:
+				state = "getup"
+				t = 0.0
+				rig.play_for("GetUp", 0.55, 0.05)
+		"getup":
+			if t > 0.55:
+				state = "chase"
+				cool = max(cool, 0.5)
 		"dead":
 			velocity = Vector3.ZERO
-			if t > 3.0 and boss_id == "":
-				position.y -= dt * 0.6
-			if t > 5.0 and boss_id == "":
-				queue_free()
+			var lim: float = game.ARENA - 0.7
+			if fly:
+				# тело летит само, без столкновений: дуга, отскок от земли и от края арены
+				fly_v.y -= 20.0 * dt
+				var np := global_position + fly_v * dt
+				if abs(np.x) > lim:
+					np.x = clampf(np.x, -lim, lim)
+					fly_v.x *= -0.35
+				if abs(np.z) > lim:
+					np.z = clampf(np.z, -lim, lim)
+					fly_v.z *= -0.35
+				if np.y <= 0.05 and fly_v.y < 0.0:
+					np.y = 0.05
+					game.fx.land(np, 1.2)
+					game.main.sfx("sfx_thud", -3.0)
+					if fly_v.y < -5.0 and bounces < 1:
+						bounces += 1
+						fly_v = Vector3(fly_v.x * 0.5, -fly_v.y * 0.3, fly_v.z * 0.5)
+					else:
+						fly = false
+						kb = Vector3(fly_v.x, 0, fly_v.z) * 0.4
+						t = 0.0
+						rig.play_for("GetUp", 9999.0, 0.1)
+				global_position = np
+			else:
+				var sp := global_position + Vector3(kb.x, 0, kb.z) * dt
+				global_position = Vector3(clampf(sp.x, -lim, lim), global_position.y, clampf(sp.z, -lim, lim))
+				if t > 3.0 and boss_id == "":
+					position.y -= dt * 0.6
+				if t > 5.0 and boss_id == "":
+					queue_free()
+			body.rotation.y = face
 			return
 	velocity.y -= 20.0 * dt
 	move_and_slide()
@@ -293,8 +360,9 @@ func _strike(dist: float, dir: Vector3) -> void:
 		return
 	game.main.sfx("sfx_slash" if kind == "clipper" else "sfx_swing", -6.0)
 	if cfg.has("slam"):
-		game.shake(0.3)
-		game.shockwave(global_position, Color(0.6, 1.0, 0.4))
+		game.shake(0.4)
+		game.fx.slam(global_position + Vector3(sin(face), 0, cos(face)) * 1.3, 1.25, Color(0.6, 1.0, 0.4))
+		game.main.sfx("sfx_boom", -3.0)
 		if dist < float(cfg["slam"]):
 			game.player.take_damage(float(cfg["dmg"]), global_position, self)
 		return
@@ -332,9 +400,9 @@ func _boss_strike(dist: float, dir: Vector3) -> void:
 	var col: Color = cfg["tint"]
 	match move:
 		"slam":
-			game.shake(0.45)
-			game.shockwave(global_position, col)
-			game.main.sfx("sfx_hit_heavy", 0.0)
+			game.shake(0.55)
+			game.fx.slam(global_position + Vector3(sin(face), 0, cos(face)) * 1.2, 1.7, col)
+			game.main.sfx("sfx_boom", 0.0, 0.85)
 			if dist < float(cfg["range"]) + 1.6:
 				game.player.take_damage(dmg * 1.3, global_position, self)
 		"shock":
@@ -405,17 +473,47 @@ func stun(sec: float) -> void:
 	rig.play_for("Hit", 0.5, 0.06)
 	_update_bar()
 
-func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false) -> void:
+func _process(_dt: float) -> void:
+	var c: float = game.clock
+	if flash_on:
+		var a := clampf((flash_until - c) / 0.1, 0.0, 1.0)
+		rig.flash(a * 0.55, Color(1.0, 0.9, 0.72))
+		if a <= 0.0:
+			flash_on = false
+	# пока стоит стоп-кадр, тело мелко дрожит поперёк удара — видно, что удар «вошёл»
+	if c < game.stop_until and c - hit_clock < 0.35:
+		var side := hit_dir.cross(Vector3.UP)
+		body.position = side * sin(c * 120.0) * 0.05 + hit_dir * sin(c * 87.0) * 0.02
+	elif body.position != Vector3.ZERO:
+		body.position = Vector3.ZERO
+
+## вспышка, сплющивание и пружинистый возврат
+func _react(dir: Vector3, heavy: bool) -> void:
+	hit_clock = game.clock
+	hit_dir = dir
+	flash_on = true
+	flash_until = game.clock + (0.17 if heavy else 0.11)
+	rig.flash(0.55, Color(1.0, 0.9, 0.72))
+	if sq_tw:
+		sq_tw.kill()
+	var k := 0.8 if heavy else 0.9
+	body.scale = Vector3(2.0 - k, k, 2.0 - k)
+	sq_tw = create_tween()
+	sq_tw.tween_property(body, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
+func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 0.0) -> void:
 	if not alive():
 		return
 	if cfg.get("shield", false) and not heavy:
 		var front := Vector3(sin(face), 0, cos(face))
 		if front.dot(-dir) > 0.3:
 			dmg *= 0.25
+			launch = 0.0
 			game.popup(global_position + Vector3(0, height + 0.2, 0), "ЩИТ", Color(0.5, 0.75, 1))
 			game.main.sfx("sfx_block", -4.0)
 	hp -= dmg
 	kb = dir * knock * (0.25 if boss_id != "" else 1.0)
+	_react(dir, heavy)
 	game.popup(global_position + Vector3(0, height + 0.2, 0), str(int(dmg)), Color(1, 0.9, 0.4) if heavy else Color.WHITE)
 	if boss_id != "":
 		var phases: Array = boss["phases"]
@@ -426,29 +524,49 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false) -> void:
 			if phase < barks.size() and String(barks[phase]) != "":
 				game.boss_bark(String(boss["n"]), String(barks[phase]), Color(boss["c"]))
 	if hp <= 0.0:
-		_die(dir, heavy)
+		_die(dir, heavy, launch, knock)
 		return
-	if state != "stun" and state != "wind" and state != "charge" and (boss_id == "" or heavy):
+	if launch > 0.0 and boss_id == "":
+		# подброс: тяжёлых подкидывает слабее; в воздухе отбрасывание не гаснет
+		state = "air"
+		t = 0.0
+		ring.visible = false
+		velocity.y = launch * (0.6 if height > 2.2 else 1.0)
+		kb = dir * max(knock, 2.0)
+		face = atan2(-dir.x, -dir.z)
+		rig.play("Fly", 0.08)
+	elif state == "air":
+		velocity.y = max(velocity.y, 2.5)   # в воздухе каждый удар чуть подбрасывает
+	elif state != "stun" and state != "wind" and state != "charge" and state != "down" and state != "getup" and (boss_id == "" or heavy):
 		state = "hurt"
 		t = 0.0
 		ring.visible = false
-		rig.play_for("Hit", 0.4, 0.05)
+		rig.play_for("Hit", 0.45, 0.04)
 	_update_bar()
 
-func _die(dir: Vector3, heavy: bool) -> void:
+func _die(dir: Vector3, heavy: bool, launch := 0.0, knock := 5.0) -> void:
+	var was_air := state == "air"
 	state = "dead"
 	t = 0.0
 	if hp_bar:
 		hp_bar.visible = false
 	ring.visible = false
-	kb = dir * (9.0 if heavy else 5.0) * (0.3 if boss_id != "" else 1.0)
-	var front := Vector3(sin(face), 0, cos(face)).dot(-dir) > 0.0
-	if cfg["model"] == "pahan":
-		rig.play_for("Death", 1.6, 0.06)
-	else:
-		rig.play_for("DeathA" if front else "DeathB", 0.9 if boss_id == "" else 1.6, 0.06)
 	for c in get_children():
 		if c is CollisionShape3D:
 			c.set_deferred("disabled", true)
 	game.main.sfx("sfx_death", -4.0 if boss_id == "" else 2.0)
+	if boss_id == "" and (heavy or launch > 0.0 or was_air):
+		# тяжёлым ударом тело уносит по дуге
+		fly = true
+		bounces = 0
+		fly_v = dir * clampf(knock * 0.8, 5.0, 16.0) + Vector3(0, max(launch, 4.5), 0)
+		face = atan2(-dir.x, -dir.z)
+		rig.play("Fly", 0.06)
+	else:
+		kb = dir * 5.0 * (0.3 if boss_id != "" else 1.0)
+		var front := Vector3(sin(face), 0, cos(face)).dot(-dir) > 0.0
+		if cfg["model"] == "pahan":
+			rig.play_for("Death", 1.6, 0.06)
+		else:
+			rig.play_for("DeathA" if front else "DeathB", 0.9 if boss_id == "" else 1.6, 0.06)
 	game.on_kill(self)
