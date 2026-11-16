@@ -10,6 +10,8 @@ const ACTIONS := {
 var game: Node
 var menu: Control
 var music: AudioStreamPlayer
+var audio                 # менеджер звука (audio.gd)
+var audiolog := false     # --audiolog: печатать состояние музыки раз в секунду (и не глушить её в проверках)
 var voicecheck := false   # --voicecheck: пройти диалог главы и напечатать, какие реплики заиграли
 var sfx_pool: Array[AudioStreamPlayer] = []
 var sfx_cache := {}
@@ -56,11 +58,17 @@ func _ready() -> void:
 			trailer = arg.substr(10)
 		elif arg.begins_with("--chapter="):
 			start_ch = int(arg.substr(10)) - 1
+		elif arg == "--audiolog":
+			audiolog = true
 		elif arg == "--voicecheck":
 			voicecheck = true
+			audiolog = true
 			start_ch = max(start_ch, 0)
 		elif arg.begins_with("--seconds="):
 			auto_len = float(arg.substr(10))
+	audio = preload("res://scripts/audio.gd").new()
+	audio.main = self
+	add_child(audio)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--posesheet="):
 			var ps = preload("res://scripts/posesheet.gd").new()

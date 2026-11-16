@@ -741,9 +741,6 @@ func _process(dt: float) -> void:
 			exit_mark.scale = Vector3.ONE * (2.0 + 0.25 * sin(clock * 4.0))
 		if player.global_position.z < -3.9 and abs(player.global_position.x) < 1.4:
 			_exit_hall()
-	# музыка уходит под голос
-	if not director:
-		main.music.volume_db = lerpf(main.music.volume_db, -28.0 if voice.playing else -16.0, 1.0 - exp(-6.0 * rdt))
 	if mode == "dlg":
 		_update_dialog(rdt)
 	elif not over:
@@ -1129,6 +1126,7 @@ func _build_hud() -> void:
 	dlg_box.add_child(hint)
 	pause_panel = _make_panel("ПАУЗА", "WASD — бег · ЛКМ — удары (до четырёх подряд) · ПКМ — добивание: зависит от числа ударов перед ним, с двух — полный замах (держи ПКМ)\nE — Heat-добивание (40 СВЭГа) · Пробел — перекат · Shift — блок, вовремя — парирование · Q — ад-либ madk1d · R — ПЕРЕГРУЗ", [["ПРОДОЛЖИТЬ", func(): set_paused(false)], ["В МЕНЮ", _to_menu]])
 	pause_panel.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	main.audio.add_sliders(pause_panel.get_child(0))   # громкость музыки, эффектов, окружения и голоса
 	pause_panel.visible = false
 
 func _make_panel(title: String, sub: String, buttons: Array) -> Control:

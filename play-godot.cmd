@@ -7,4 +7,6 @@ if not exist "%GODOT%" (
   pause
   exit /b 1
 )
+rem музыка в git не лежит: при первом запуске её делает скрипт (нужен Node.js), без неё игра идёт молча
+if not exist godotassetsmusicloc_snow_base.wav node toolsgodot-music.cjs
 start "" "%GODOT%" --path godot

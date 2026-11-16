@@ -103,6 +103,7 @@ func _ready() -> void:
 	scr.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	scr.loop_end = int(scr.get_length() * scr.mix_rate)
 	scrape_p.stream = scr
+	scrape_p.bus = "SFX"
 	scrape_p.volume_db = -80.0
 	add_child(scrape_p)
 	charge_light = OmniLight3D.new()

@@ -1,0 +1,274 @@
+## Менеджер звука: музыка локаций и боссов слоями, окружение, отбивки, громкость по шинам.
+## Файлы делает tools/godot-music.cjs (godot/assets/music). Набор находится по имени, поэтому новая локация или босс —
+## это просто новые файлы loc_<имя>_base/_drive или boss_<id>_p1/_p2/_p3/_intro/_win: код менять не нужно.
+## Сам следит за игрой (локация, бой, босс и его фаза, диалог, победа, поражение) и плавно переключает состояние:
+##   исследование — слой base;  бой — добавляется drive;  босс — вступление, затем p1, со второй фазы +p2, с третьей +p3;
+##   диалог — музыка тише примерно на 37% (−4 дБ), окружение остаётся;  победа и поражение — отбивки.
+## Одновременно звучит только один набор: старый гаснет, новый нарастает.
+extends Node
+
+const DIR := "res://assets/music/"
+const BUSES := ["Music", "SFX", "Ambient", "Voice"]
+const TITLES := {"Music": "Музыка", "SFX": "Эффекты", "Ambient": "Окружение", "Voice": "Голос"}
+const SETTINGS := "user://grimerka_audio.json"
+## одиночные звуки окружения по локациям: игра расставляет их в пространстве вокруг героя
+const SHOTS := {"hall": ["drip", "creak"], "snow": ["gust"], "basement": ["drip", "creak"], "neon": ["blip", "static"], "swamp": ["bubble"],
+	"glass": ["gust", "creak"], "grave": ["gust", "static", "creak"], "server": ["relay", "static"], "chart": ["cheer"], "core": ["pulse", "static"]}
+
+## Набор звука одной локации или босса
+class AudioSet extends Resource:
+	var name := ""
+	var stems: Array[AudioStream] = []   # слои музыки одной длины
+	var bed: AudioStream                 # фон окружения
+	var shots: Array[AudioStream] = []   # одиночные звуки
+
+signal state_changed(state: String)
+
+var main
+var vol := {"Music": 0.8, "SFX": 1.0, "Ambient": 0.8, "Voice": 1.0}
+var sets := {}
+var cur := ""                   # имя звучащего набора
+var state := ""                 # menu / explore / combat / dialogue / boss / victory / defeat
+var layers: Array[AudioStreamPlayer] = []
+var want: Array[float] = []     # целевая громкость слоёв 0..1
+var sting: AudioStreamPlayer
+var bed: AudioStreamPlayer
+var bed_key := ""
+var spots: Array[AudioStreamPlayer3D] = []
+var shot_t := 3.0
+var duck := 0.0                 # дБ, на сколько сейчас приглушена музыка
+var boss_seen := ""
+var dead_seen := false
+var log_t := 0.0
+var labels := {}
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	for b in BUSES:
+		if AudioServer.get_bus_index(b) < 0:
+			AudioServer.add_bus()
+			AudioServer.set_bus_name(AudioServer.bus_count - 1, b)
+	if FileAccess.file_exists(SETTINGS):
+		var d = JSON.parse_string(FileAccess.get_file_as_string(SETTINGS))
+		if d is Dictionary:
+			for b in BUSES:
+				vol[b] = clampf(float(d.get(b, vol[b])), 0.0, 1.0)
+	for b in BUSES:
+		_apply(b)
+	for p in main.sfx_pool:
+		p.bus = "SFX"
+	main.music.bus = "Music"
+	sting = AudioStreamPlayer.new()
+	sting.bus = "Music"
+	add_child(sting)
+	bed = AudioStreamPlayer.new()
+	bed.bus = "Ambient"
+	bed.volume_db = -60.0
+	add_child(bed)
+	for i in 3:
+		var s := AudioStreamPlayer3D.new()
+		s.bus = "Ambient"
+		s.unit_size = 5.0
+		s.max_distance = 34.0
+		add_child(s)
+		spots.append(s)
+
+# ---------- громкость ----------
+func _apply(b: String) -> void:
+	if b != "Music":
+		AudioServer.set_bus_volume_db(AudioServer.get_bus_index(b), linear_to_db(max(0.0001, float(vol[b]))))
+	if labels.has(b):
+		(labels[b] as Label).text = "%s: %d%%" % [TITLES[b], roundi(float(vol[b]) * 100.0)]
+
+func set_volume(b: String, v: float) -> void:
+	vol[b] = clampf(v, 0.0, 1.0)
+	_apply(b)
+	var f := FileAccess.open(SETTINGS, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(vol))
+
+## строки «Музыка: 80%  [−] [+]» для меню паузы
+func add_sliders(box: Container) -> void:
+	for b in BUSES:
+		var row := HBoxContainer.new()
+		row.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.add_theme_constant_override("separation", 14)
+		var l := Label.new()
+		l.add_theme_font_override("font", main.font)
+		l.add_theme_font_size_override("font_size", 18)
+		l.custom_minimum_size = Vector2(230, 0)
+		labels[b] = l
+		row.add_child(main.button("−", func(): set_volume(b, float(vol[b]) - 0.1)))
+		row.add_child(l)
+		row.add_child(main.button("+", func(): set_volume(b, float(vol[b]) + 0.1)))
+		box.add_child(row)
+		_apply(b)
+
+# ---------- наборы ----------
+func _loop(path: String) -> AudioStream:
+	if not ResourceLoader.exists(path):
+		return null
+	var st = load(path)
+	if st is AudioStreamWAV:
+		st.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		st.loop_end = int(st.get_length() * st.mix_rate)
+	return st
+
+func get_set(nm: String) -> AudioSet:
+	if sets.has(nm):
+		return sets[nm]
+	var s := AudioSet.new()
+	s.name = nm
+	for part in (["p1", "p2", "p3"] if nm.begins_with("boss_") else ["base", "drive"]):
+		var st := _loop(DIR + nm + "_" + part + ".wav")
+		if st:
+			s.stems.append(st)
+	if nm.begins_with("loc_"):
+		var key := nm.substr(4)
+		s.bed = _loop(DIR + "amb_" + key + ".wav")
+		for sh in SHOTS.get(key, []):
+			if ResourceLoader.exists(DIR + "os_" + sh + ".wav"):
+				s.shots.append(load(DIR + "os_" + sh + ".wav"))
+	sets[nm] = s
+	return s
+
+## переключить музыку на набор: прежний гаснет и освобождается, новый стартует всеми слоями разом (они одной длины)
+func play_set(nm: String) -> void:
+	if nm == cur:
+		return
+	cur = nm
+	for p in layers:
+		var tw := p.create_tween()
+		tw.tween_property(p, "volume_db", -60.0, 1.4)
+		tw.tween_callback(p.queue_free)
+	layers = []
+	want = []
+	if nm == "":
+		return
+	for st in get_set(nm).stems:
+		var p := AudioStreamPlayer.new()
+		p.bus = "Music"
+		p.stream = st
+		p.volume_db = -60.0
+		add_child(p)
+		p.play()
+		layers.append(p)
+		want.append(0.0)
+
+func stinger(file: String) -> void:
+	var path := DIR + file + ".wav"
+	if ResourceLoader.exists(path):
+		sting.stream = load(path)
+		sting.volume_db = 0.0
+		sting.play()
+
+func _set_state(s: String) -> void:
+	if s != state:
+		state = s
+		state_changed.emit(s)
+
+# ---------- каждый кадр: смотрим на игру ----------
+func _process(dt: float) -> void:
+	var game = main.game
+	var quiet: bool = main.testing() != "" and not main.audiolog
+	if game == null or not is_instance_valid(game) or quiet:
+		# меню: играет заглавный трек, наборы молчат
+		play_set("")
+		_bed("")
+		_set_state("menu")
+		_mix(dt, 0.0)
+		return
+	# заглавный трек в игре уходит
+	if main.music.playing:
+		main.music.volume_db = move_toward(main.music.volume_db, -60.0, dt * 45.0)
+		if main.music.volume_db <= -59.0:
+			main.music.stop()
+	var key: String = "hall" if game.in_hall else String(game.chapter()["th"]["deco"])
+	var boss = game.boss_e if game.mode == "boss" and game.boss_e != null and is_instance_valid(game.boss_e) else null
+	var ducking := 0.0
+	if boss != null and boss.state != "dead":
+		var id: String = boss.boss_id
+		if boss_seen != id:
+			boss_seen = id
+			stinger("boss_" + id + "_intro")
+		play_set("boss_" + id)
+		_want([1.0, 1.0 if boss.phase >= 1 else 0.0, 1.0 if boss.phase >= 2 else 0.0])
+		_set_state("boss")
+	else:
+		if boss_seen != "":
+			# босс повержен: победная отбивка, музыка локации возвращается из-под неё
+			stinger("boss_" + boss_seen + "_win")
+			boss_seen = ""
+			_set_state("victory")
+		play_set("loc_" + key)
+		var fighting: bool = game.mode == "fight" and game.enemies.any(func(e): return is_instance_valid(e) and e.state != "dead")
+		_want([1.0, 1.0 if fighting else 0.0])
+		if not sting.playing:
+			_set_state("dialogue" if game.mode == "dlg" else ("combat" if fighting else "explore"))
+	var dead: bool = game.player.state == "dead"
+	if dead and not dead_seen:
+		stinger("defeat")
+		_set_state("defeat")
+	dead_seen = dead
+	if game.mode == "dlg":
+		ducking = -4.0      # в диалоге музыка тише примерно на 37%, но не пропадает
+	if sting.playing:
+		ducking = min(ducking, -7.0)
+	if dead:
+		ducking = -14.0
+	_bed(key)
+	_shots(dt, game)
+	_mix(dt, ducking)
+	if main.audiolog:
+		log_t -= dt
+		if log_t <= 0.0:
+			log_t = 1.0
+			print("MUSIC набор=%s состояние=%s слои=%s приглушение=%.1f дБ пик музыки=%.1f дБ пик окружения=%.1f дБ" % [cur, state, str(want), duck,
+				AudioServer.get_bus_peak_volume_left_db(AudioServer.get_bus_index("Music"), 0), AudioServer.get_bus_peak_volume_left_db(AudioServer.get_bus_index("Ambient"), 0)])
+
+func _want(v: Array) -> void:
+	for i in want.size():
+		want[i] = float(v[i]) if i < v.size() else 0.0
+
+func _mix(dt: float, ducking: float) -> void:
+	duck = lerpf(duck, ducking, 1.0 - exp(-3.0 * dt))
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(max(0.0001, float(vol["Music"]))) + duck)
+	for i in layers.size():
+		var target := linear_to_db(max(0.001, want[i]))
+		layers[i].volume_db = lerpf(layers[i].volume_db, target, 1.0 - exp(-(2.5 if target > layers[i].volume_db else 1.2) * dt))
+
+## фон окружения локации: плавная смена
+func _bed(key: String) -> void:
+	if key == bed_key:
+		if key != "" and bed.volume_db < -1.0:
+			bed.volume_db = move_toward(bed.volume_db, 0.0, 0.6)
+		return
+	bed.volume_db = move_toward(bed.volume_db, -60.0, 1.2)
+	if bed.volume_db <= -59.0:
+		bed_key = key
+		bed.stop()
+		if key != "":
+			var s := get_set("loc_" + key)
+			if s.bed:
+				bed.stream = s.bed
+				bed.play()
+
+## одиночные звуки: в случайной точке вокруг слушателя, со случайной высотой тона и громкостью — не повторяются одинаково
+func _shots(dt: float, game) -> void:
+	shot_t -= dt
+	if shot_t > 0.0 or bed_key == "" or get_tree().paused:
+		return
+	shot_t = randf_range(2.5, 7.0)
+	var s := get_set("loc_" + bed_key)
+	if s.shots.is_empty():
+		return
+	for p in spots:
+		if not p.playing:
+			var a := randf() * TAU
+			var around: Vector3 = game.player.global_position
+			p.stream = s.shots[randi() % s.shots.size()]
+			p.global_position = around + Vector3(sin(a), 0, cos(a)) * randf_range(4.0, 13.0) + Vector3(0, randf_range(0.4, 2.8), 0)
+			p.pitch_scale = randf_range(0.82, 1.18)
+			p.volume_db = randf_range(-7.0, 0.0)
+			p.play()
+			return

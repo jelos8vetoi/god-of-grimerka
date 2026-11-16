@@ -55,6 +55,9 @@ if (!has('--no-export')) {
   if (!fs.existsSync(godot)) fail('не найден Godot: ' + godot + ' (положи в tools/godot или задай путь в переменной GODOT)');
   fs.mkdirSync(path.dirname(exe), { recursive: true });
   const before = fs.existsSync(exe) ? fs.statSync(exe).mtimeMs : 0;
+  // музыка в git не лежит (её делает скрипт за десять секунд): если файлов нет — создаём, затем импортируем новое
+  if (!fs.existsSync(path.join(root, 'godot', 'assets', 'music', 'loc_snow_base.wav'))) { console.log('генерирую музыку…'); run('node', [path.join(root, 'tools', 'godot-music.cjs')]); }
+  try { run(godot, ['--headless', '--path', 'godot', '--import']); } catch (e) {}
   console.log('собираю .exe…');
   let out = '';
   try { out = run(godot, ['--headless', '--path', 'godot', '--export-release', 'Windows', '../dist/godot/GOD OF GRIMERKA.exe'], { stdio: ['ignore', 'pipe', 'pipe'] }); }

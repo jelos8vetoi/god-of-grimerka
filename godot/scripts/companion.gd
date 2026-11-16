@@ -30,6 +30,7 @@ func _ready() -> void:
 	track = AudioStreamPlayer.new()
 	track.stream = load("res://assets/audio/adlib_dynasty.wav")
 	track.volume_db = -2.0
+	track.bus = "SFX"
 	add_child(track)
 
 func _physics_process(dt: float) -> void:

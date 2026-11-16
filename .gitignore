@@ -2,3 +2,6 @@
 # installer build output
 dist/
 tools/godot/
+
+# музыка и окружение Godot-версии: создаются командой node tools/godot-music.cjs
+godot/assets/music/
