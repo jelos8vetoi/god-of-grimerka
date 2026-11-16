@@ -251,6 +251,8 @@ func _physics_process(dt: float) -> void:
 	elif pressed("heavy"):
 		combat.press("heavy")
 		switch_buf = switch_to != ""
+	elif pressed("throw"):
+		combat.press("throw")          # [F]: бутылка левой рукой, не меняя стиль (если стиль это умеет)
 	for i in own_styles.size():
 		if pressed("style%d" % (i + 1)):
 			set_style(own_styles[i])
@@ -453,6 +455,8 @@ func style_hud() -> String:
 	if style.ammo_max > 0:
 		var have := int(floor(combat.ammo_of(style.id)))
 		return "[%d] %s  %s%s" % [n, style.title, "●".repeat(have), "○".repeat(style.ammo_max - have)]
+	if style.id == "vozduh":
+		return "[%d] %s   [F] %s" % [n, style.title, "●".repeat(int(floor(combat.ammo_of("bottles"))))]
 	return "[%d] %s" % [n, style.title]
 
 ## начать атаку стиля напрямую (съёмка, проверки); обычный путь — буфер и combat.try_start()

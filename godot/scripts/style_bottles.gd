@@ -28,12 +28,27 @@ static func build() -> StyleData:
 	q2["id"] = "bt_quick2"
 	q2["duration"] = 0.56
 	s.add(AttackData.make(q2))
-	# третий подряд — с долгим завершением: спамить нельзя
-	var q3 := quick.duplicate(true)
-	q3["id"] = "bt_quick3"
-	q3["duration"] = 0.78
-	q3["recovery"] = 0.98
-	s.add(AttackData.make(q3))
+	# двойной: две бутылки сразу — в двух врагов или обе в одного
+	var dbl := quick.duplicate(true)
+	dbl["id"] = "bt_double"
+	dbl["title"] = "ДВОЙНОЙ"
+	dbl["duration"] = 0.7
+	dbl["ammo"] = 2
+	dbl["stagger"] = 26.0
+	dbl["recovery"] = 0.96
+	dbl["extra"] = {"speed": 18.0, "slow": 2.5, "slow_k": 0.6, "count": 2, "fan": 0.12}
+	s.add(AttackData.make(dbl))
+	# веер: три бутылки по трём целям в широком секторе; завершает серию, долгое завершение
+	var fanned := quick.duplicate(true)
+	fanned["id"] = "bt_fan"
+	fanned["title"] = "ВЕЕР"
+	fanned["duration"] = 0.82
+	fanned["ammo"] = 3
+	fanned["arc"] = 2.6
+	fanned["damage"] = 8.0
+	fanned["recovery"] = 0.98
+	fanned["extra"] = {"speed": 16.0, "slow": 2.5, "slow_k": 0.6, "count": 3, "fan": 0.3}
+	s.add(AttackData.make(fanned))
 	# усиленный: прицел удержанием, летит быстрее, оглушает, всплеск мочит соседей
 	s.add(AttackData.make({"id": "bt_power", "kind": "ranged", "title": "ОБЛИЛ", "clip": "BottleThrowHeavy", "duration": 0.7, "hits": [0.36], "damage": 16.0, "stagger": 45.0, "reach": 16.0, "arc": 1.4,
 		"knockback": 4.0, "stun": 0.9, "heavy": true, "power": 1, "projectile": "bottle", "ammo": 1, "charge": true, "charge_gain": 0.6, "recovery": 0.95, "feedback": "bt_power",
@@ -48,8 +63,8 @@ static func build() -> StyleData:
 	s.links = {
 		"": {"light": "bt_quick", "heavy": "bt_power"},
 		"bt_quick": {"light": "bt_quick2", "heavy": "bt_power"},
-		"bt_quick2": {"light": "bt_quick3", "heavy": "bt_power"},
-		"bt_roll": {"light": "bt_quick2", "heavy": "bt_power"},
+		"bt_quick2": {"light": "bt_fan", "heavy": "bt_double"},
+		"bt_roll": {"light": "bt_quick2", "heavy": "bt_double"},
 	}
 	s.after_dodge = {"light": "bt_roll"}
 	return s

@@ -177,7 +177,7 @@ func _run() -> void:
 		var pr := s.problems()
 		ok(pr.is_empty(), "стиль %s (%s, %s): данные согласованы%s%s" % [id, s.title, s.owner, "" if s.ready else " — объявлен, атак пока нет", "" if pr.is_empty() else ": " + "; ".join(pr)])
 	var vz := Styles.by_id("vozduh")
-	ok(vz.ready and vz.attacks.size() == 24 and Styles.by_id("bottles").ready and Styles.by_id("tyaga812").ready and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
+	ok(vz.ready and vz.attacks.size() == 25 and Styles.by_id("bottles").ready and Styles.by_id("tyaga812").ready and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
 	var clips_ok := true
 	await stage([])
 	for aid in vz.attacks:
@@ -783,6 +783,99 @@ func _run() -> void:
 	ok(bt.attack("bt_quick").damage < vz.attack("vz_light1").damage * 0.5 and bt.attack("bt_power").damage < vz.attack("vz_overhead").damage * 0.5, "баланс: бутылка бьёт слабее половины удара балона (%.0f и %.0f против %.0f и %.0f)" % [bt.attack("bt_quick").damage, bt.attack("bt_power").damage, vz.attack("vz_light1").damage, vz.attack("vz_overhead").damage])
 	await stage([])
 
+
+	# ================= «Водяра»: двойной, веер, цель в воздухе, бросок из комбо =================
+	# ---------- двойной бросок: ЛКМ, ЛКМ, ПКМ — две бутылки в двух врагов ----------
+	es = await stage(["bot", "clipper"], 7.0)
+	await to_style("style2")
+	for e in es:
+		e.hp = 9999.0
+		e.max_hp = 9999.0
+	await chain(["attack", "attack", "heavy"])
+	var dn := 0
+	while P.bottles.hits_log.size() < 4 and dn < 150:
+		await get_tree().physics_frame
+		dn += 1
+	var hit_set := {}
+	for h in P.bottles.hits_log:
+		if h["enemy"] != null:
+			hit_set[h["enemy"].get_instance_id()] = true
+	ok(log_started == ["bt_quick", "bt_quick2", "bt_double"] and P.bottles.hits_log.size() == 4 and hit_set.size() == 2 and P.combat.ammo_of("bottles") < 2.6, "ЛКМ, ЛКМ, ПКМ — двойной: %s, всего бутылок %d, задеты оба врага, запаса осталось %.1f" % [str(log_started), P.bottles.hits_log.size(), P.combat.ammo_of("bottles")])
+	await until_free()
+	# ---------- веер: ЛКМ ×3 — три бутылки по трём целям ----------
+	es = await stage(["bot", "clipper", "hater"], 7.0)
+	es[0].global_position = P.global_position + Vector3(-3.5, 0, -6.0)
+	es[2].global_position = P.global_position + Vector3(3.5, 0, -6.0)
+	await to_style("style2")
+	for e in es:
+		e.hp = 9999.0
+		e.max_hp = 9999.0
+	await chain(["attack", "attack", "attack"])
+	while P.combat.cur != null and P.combat.hit_i == 0:
+		await get_tree().physics_frame
+	await frames(4)
+	var in_air: int = P.bottles.flying.size()
+	await shot("11b_fan.png")
+	var fn := 0
+	while P.bottles.hits_log.size() < 5 and fn < 150:
+		await get_tree().physics_frame
+		fn += 1
+	var fan_hit := {}
+	for i in range(2, P.bottles.hits_log.size()):
+		var h2: Dictionary = P.bottles.hits_log[i]
+		if h2["enemy"] != null:
+			fan_hit[h2["enemy"].get_instance_id()] = true
+	ok(log_started == ["bt_quick", "bt_quick2", "bt_fan"] and in_air == 3 and fan_hit.size() == 3, "ЛКМ ×3 — веер: в воздухе %d бутылки, задеты бот, клиппер и хейтер (%d)" % [in_air, fan_hit.size()])
+	await until_free()
+	ok(P.combat.ammo_of("bottles") < 1.9, "серия с веером тратит пять бутылок (осталось %.1f): следом ещё веер не бросить" % P.combat.ammo_of("bottles"))
+	# ---------- цель в воздухе: упреждение ----------
+	es = await stage(["bot"], 6.0)
+	await to_style("style2")
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	var hfly := HitInfo.new()
+	hfly.damage = 1.0
+	hfly.launch = 8.0
+	hfly.dir = Vector3(0, 0, -1)
+	hfly.knockback = 2.0
+	es[0].take_hit_info(hfly)                 # подброшен
+	await frames(8)
+	await tap("attack")
+	var an := 0
+	while P.bottles.hits_log.is_empty() and an < 120:
+		await get_tree().physics_frame
+		an += 1
+	var air_hit: bool = not P.bottles.hits_log.is_empty() and P.bottles.hits_log[0].get("air", false)
+	ok(air_hit, "бутылка попала по врагу в воздухе (с упреждением)")
+	await until_free()
+	# ---------- [F]: бутылка из комбо балоном, не меняя стиль ----------
+	es = await stage(["bot"], 2.2)
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	await chain(["attack", "throw", "attack"])
+	await frames(10)
+	await shot("11c_combo_throw.png")
+	var from_combo: bool = not P.bottles.hits_log.is_empty() and P.bottles.hits_log[0]["kind"] == "enemy"
+	await until_free(400)
+	ok(log_started == ["vz_light1", "vz_bottle", "vz_light2"] and P.style.id == "vozduh" and not P.rig.holstered and from_combo and P.combat.ammo_of("bottles") < 5.6, "ЛКМ → [F] → ЛКМ: %s — бутылка левой рукой, балон в правой, стиль не менялся, запас «Водяры» %.1f" % [str(log_started), P.combat.ammo_of("bottles")])
+	ok(game.style_label.text.contains("[F]"), "HUD балона показывает бутылки для [F]: %s" % game.style_label.text)
+	# подбросил балоном → бутылка по цели в воздухе
+	es = await stage(["bot"], 2.2)
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	await chain(["attack", "attack", "attack", "throw"])
+	var un := 0
+	while P.bottles.hits_log.is_empty() and un < 120:
+		await get_tree().physics_frame
+		un += 1
+	ok(log_started == ["vz_light1", "vz_light2", "vz_upper", "vz_bottle"] and not P.bottles.hits_log.is_empty() and P.bottles.hits_log[0].get("air", false), "подброс балоном → [F]: бутылка догоняет врага в воздухе (%s)" % str(log_started))
+	await until_free(400)
+	P.combat.ammo["bottles"] = 0.0
+	log_started = []
+	await tap("throw")
+	await frames(4)
+	ok(log_started.is_empty(), "без бутылок [F] не срабатывает")
+	ok(Bottles.MAX_FLYING == 12, "в воздухе одновременно не больше %d бутылок" % Bottles.MAX_FLYING)
 
 	# ================= этап 07: ТЯГА-812 =================
 	var tg := Styles.by_id("tyaga812")
