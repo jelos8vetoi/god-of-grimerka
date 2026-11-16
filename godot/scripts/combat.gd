@@ -14,6 +14,8 @@
 class_name Combat
 extends RefCounted
 
+const HOLD_MIN := 0.16        # удержание короче — это нажатие, а не заряд
+
 signal attack_started(a: AttackData)
 signal attack_hit(a: AttackData, targets: int)
 signal attack_ended(a: AttackData, chained: bool)
@@ -41,6 +43,7 @@ var heat_q: Array = []
 var charge_t := 0.0
 var charged := 0.0            # заряд, с которым выпущен текущий удар
 var maxed := false
+var charge_snd := false        # звук заряда — только если кнопку действительно держат
 var ring_cd := 0.0
 var tip_prev := Vector3.ZERO  # конец оружия на прошлом кадре (для sweep)
 var tip_ok := false
@@ -95,8 +98,10 @@ func try_start() -> bool:
 	if act == "" or not style.ready:
 		return false
 	var a: AttackData = null
+	var from_dodge := false
 	if clock <= dodge_until and style.after_dodge.has(act):
-		a = style.attack(style.after_dodge[act])     # атака сразу после уклонения
+		a = style.attack(style.after_dodge[act])     # атака сразу после уклонения: оружие уже в движении
+		from_dodge = a != null
 	if a == null:
 		if act == "light" and clock < chain_block:
 			return false                               # пауза после оборванной цепочки: нельзя спамить первым ударом
@@ -107,7 +112,7 @@ func try_start() -> bool:
 	dodge_until = -9.0
 	chain = 0
 	prev_id = ""
-	begin(a, false)
+	begin(a, from_dodge)
 	return true
 
 ## уклонение закончено: на короткое время открыты «атаки после уклонения»
@@ -156,8 +161,8 @@ func _begin_charge(a: AttackData) -> void:
 	ring_cd = 0.0
 	maxed = false
 	p.face = target_face(4.0, p.input_dir())
-	p.rig.play(style.charge_clip, 0.12)
-	game.main.sfx("sfx_charge", -4.0)
+	p.rig.play(a.charge_clip if a.charge_clip != "" else style.charge_clip, 0.12)
+	charge_snd = false
 
 ## Heat-действие стиля: цепочка атак style.heat подряд
 func begin_heat() -> void:
@@ -252,7 +257,7 @@ func tick_attack(dt: float, dir: Vector3) -> void:
 	# комбо: ввод из буфера срабатывает в окне комбо; тяжёлые цепочку лёгким не продолжают
 	var nxt: AttackData = null
 	var act := buffered()
-	if heat_q.is_empty() and act != "" and not a.heavy:
+	if heat_q.is_empty() and act != "":
 		nxt = style.next(a.id, act)
 		if not ready_at(nxt):
 			nxt = null
@@ -301,6 +306,11 @@ func tick_charge(dt: float, dir: Vector3) -> void:
 	p.velocity.x = move_toward(p.velocity.x, 0.0, 30.0 * dt)
 	p.velocity.z = move_toward(p.velocity.z, 0.0, 30.0 * dt)
 	charge_t = min(style.charge_max, charge_t + dt)
+	if charge_t < HOLD_MIN and p.held("heavy"):
+		return                      # короткое нажатие — обычный удар без заряда: ни звука, ни колец
+	if not charge_snd and p.held("heavy"):
+		charge_snd = true
+		game.main.sfx("sfx_charge", -4.0)
 	p.face = lerp_angle(p.face, target_face(4.0, dir), 1.0 - exp(-10.0 * dt))
 	# заряд видно и слышно: кольца стягиваются к ногам, оружие светится, камера поджимается и дрожит
 	var c := charge_t / style.charge_max
@@ -319,11 +329,20 @@ func tick_charge(dt: float, dir: Vector3) -> void:
 		game.popup(p.global_position + Vector3(0, 2.3, 0), "МАКС!", Color(1, 0.6, 0.2))
 	if not p.held("heavy") or charge_t >= style.charge_max:
 		# заряд усиливает удар: урон, отбрасывание, подброс, равновесие; больше половины — отклик как у добивания
-		var keep := charge_t
+		var keep := charge_t * cur.charge_gain
 		var fs: AttackData = cur.with({"damage": cur.damage * (1.0 + keep), "knockback": cur.knockback * (1.0 + keep * 0.5), "launch": cur.launch + keep * 2.0,
 			"stagger": cur.stagger * (1.0 + keep), "power": 2 if keep > 0.6 else cur.power, "trail_boost": 1.5 if keep > 0.6 else cur.trail_boost})
-		_launch(fs, false)
+		var real := charge_t >= HOLD_MIN + 0.1
+		if not real:
+			keep = 0.0
+			fs = cur
+		# после настоящего заряда оружие уже занесено: удар стартует с charged_from
+		var skip := real and cur.charged_from > 0.0
+		if skip:
+			fs = fs.with({"from": cur.charged_from})
+		_launch(fs, skip)
 		charged = keep
+		game.charge_zoom = 0.0
 
 # ---------------- попадания ----------------
 func _track_tip() -> void:
@@ -420,7 +439,10 @@ func _resolve_hits(idx: int, first: bool, sweep_only := false) -> void:
 	var snd: Array = a.sfx_hit if not a.sfx_hit.is_empty() else (style.hit_sfx[clampi(power, 0, style.hit_sfx.size() - 1)] if not style.hit_sfx.is_empty() else [])
 	for s in snd:
 		game.main.sfx(s[0], float(s[1]), float(s[2]))
-	game.feedback(a.feedback if a.feedback != "" else ["hit_light", "hit_heavy", "hit_super"][clampi(power, 0, 2)], where, Vector3.ZERO, 1.0 + charged * 0.4 + chain * 0.18)
+	var ev: String = a.feedback if a.feedback != "" and (last or a.hits.size() == 1) else ["hit_light", "hit_heavy", "hit_super"][clampi(power, 0, 2)]
+	if power == 2 and a.feedback != "" and charged > 0.6:
+		ev = "hit_super"                # полный заряд: отклик как у добивания
+	game.feedback(ev, where, fwd, 1.0 + charged * 0.4 + chain * 0.18, col)
 	if power == 2 or a.title != "":
 		game.bark("finish", 9.0, 0.7)
 	attack_hit.emit(a, n)
