@@ -13,6 +13,7 @@ var menu: Control
 var music: AudioStreamPlayer
 var audio                 # менеджер звука (audio.gd)
 var audiolog := false     # --audiolog: печатать состояние музыки раз в секунду (и не глушить её в проверках)
+var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка iPod по кадрам (scripts/ipodcheck.gd)
 var voicecheck := false   # --voicecheck: пройти диалог главы и напечатать, какие реплики заиграли
 var sfx_pool: Array[AudioStreamPlayer] = []
 var sfx_cache := {}
@@ -59,6 +60,9 @@ func _ready() -> void:
 			trailer = arg.substr(10)
 		elif arg.begins_with("--chapter="):
 			start_ch = int(arg.substr(10)) - 1
+		elif arg.begins_with("--ipodcheck="):
+			ipodcheck = arg.substr(12)
+			start_ch = max(start_ch, 0)
 		elif arg == "--audiolog":
 			audiolog = true
 		elif arg == "--voicecheck":
@@ -214,6 +218,11 @@ func start_game(from_save := false, chapter := -1) -> void:
 	game = preload("res://scripts/game.gd").new()
 	game.main = self
 	add_child(game)
+	if ipodcheck != "":
+		var chk = preload("res://scripts/ipodcheck.gd").new()
+		chk.game = game
+		chk.out = ipodcheck
+		add_child(chk)
 	if smoke != "":
 		game.auto_kill = 1.6
 	game.auto_len = auto_len

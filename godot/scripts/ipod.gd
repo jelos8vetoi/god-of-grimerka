@@ -970,8 +970,9 @@ func _build_now_playing() -> void:
 	time_label.size = Vector2(30, 15)
 	display_root.add_child(time_label)
 	total_label = _label("0:00", 8, Color("26373c"))
-	total_label.position = Vector2(138, 106)
-	total_label.size = Vector2(29, 15)
+	# правый край с запасом: у самого края экрана последняя цифра длительности обрезалась
+	total_label.position = Vector2(126, 106)
+	total_label.size = Vector2(37, 15)
 	total_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	display_root.add_child(total_label)
 
@@ -1514,11 +1515,14 @@ func _play() -> void:
 		if not tracks.is_empty():
 			_select_track(0)
 		return
-	if not player.playing:
-		player.play()
+	# У трека на паузе playing == false, поэтому паузу проверяем первой:
+	# иначе Пробел после паузы запускал трек с начала вместо продолжения.
+	if player.stream_paused:
 		player.stream_paused = false
+	elif not player.playing:
+		player.play()
 	else:
-		player.stream_paused = not player.stream_paused
+		player.stream_paused = true
 	_save_settings()
 	_refresh_playback()
 
@@ -1542,7 +1546,7 @@ func _repeat_indicator() -> String:
 func _refresh_playback(dt := 0.0) -> void:
 	if player == null:
 		return
-	state_label.text = "" if player.stream == null else ("■" if not player.playing else ("Ⅱ" if player.stream_paused else "▶"))
+	state_label.text = "" if player.stream == null else ("Ⅱ" if player.stream_paused else ("▶" if player.playing else "■"))
 	if track_index >= 0 and track_index < tracks.size():
 		title_label.text = String(tracks[track_index]["title"])
 		artist_label.text = String(tracks[track_index].get("artist", ""))

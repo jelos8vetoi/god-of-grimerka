@@ -147,6 +147,8 @@ func _ready() -> void:
 	_build_hud()
 	ipod = preload("res://scripts/ipod.gd").new()
 	ipod.game = self
+	# в проверках и прогонах бота библиотеку игрока на диске не читаем и не перезаписываем
+	ipod.persistence_enabled = main.testing() == "" and main.ipodcheck == ""
 	add_child(ipod)
 	if main.testing() == "":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
