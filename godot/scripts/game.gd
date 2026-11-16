@@ -757,6 +757,11 @@ func _process(dt: float) -> void:
 			peak_db = -200.0
 			if dlg_i == 6:
 				_shot(OS.get_user_data_dir(), "voicecheck.png")   # кадр диалога: видно, как стоят герои
+			if dlg_i == 7:
+				pause_panel.visible = true   # и кадр меню паузы: видно ползунки громкости
+				_shot(OS.get_user_data_dir(), "pausecheck.png")
+			if dlg_i == 8:
+				pause_panel.visible = false
 			dlg_chars = 9999.0
 			_dlg_advance()
 		if mode != "dlg" or dlg_i > 9:

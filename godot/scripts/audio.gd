@@ -80,27 +80,50 @@ func _apply(b: String) -> void:
 	if labels.has(b):
 		(labels[b] as Label).text = "%s: %d%%" % [TITLES[b], roundi(float(vol[b]) * 100.0)]
 
-func set_volume(b: String, v: float) -> void:
+func set_volume(b: String, v: float, save := true) -> void:
 	vol[b] = clampf(v, 0.0, 1.0)
 	_apply(b)
-	var f := FileAccess.open(SETTINGS, FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify(vol))
+	if save:
+		var f := FileAccess.open(SETTINGS, FileAccess.WRITE)
+		if f:
+			f.store_string(JSON.stringify(vol))
 
-## строки «Музыка: 80%  [−] [+]» для меню паузы
+## компактные ползунки громкости для меню паузы: подпись с процентами и полоска; сохраняется, когда ползунок отпущен
 func add_sliders(box: Container) -> void:
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(1, 1, 1, 0.16)
+	track.set_corner_radius_all(3)
+	track.content_margin_top = 3
+	track.content_margin_bottom = 3
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(1.0, 0.72, 0.3)
+	fill.set_corner_radius_all(3)
+	fill.content_margin_top = 3
+	fill.content_margin_bottom = 3
 	for b in BUSES:
 		var row := HBoxContainer.new()
 		row.alignment = BoxContainer.ALIGNMENT_CENTER
-		row.add_theme_constant_override("separation", 14)
+		row.add_theme_constant_override("separation", 12)
 		var l := Label.new()
 		l.add_theme_font_override("font", main.font)
-		l.add_theme_font_size_override("font_size", 18)
-		l.custom_minimum_size = Vector2(230, 0)
+		l.add_theme_font_size_override("font_size", 15)
+		l.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+		l.custom_minimum_size = Vector2(170, 0)
 		labels[b] = l
-		row.add_child(main.button("−", func(): set_volume(b, float(vol[b]) - 0.1)))
+		var sl := HSlider.new()
+		sl.min_value = 0.0
+		sl.max_value = 1.0
+		sl.step = 0.05
+		sl.value = float(vol[b])
+		sl.custom_minimum_size = Vector2(230, 20)
+		sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		sl.add_theme_stylebox_override("slider", track)
+		sl.add_theme_stylebox_override("grabber_area", fill)
+		sl.add_theme_stylebox_override("grabber_area_highlight", fill)
+		sl.value_changed.connect(func(v: float): set_volume(b, v, false))
+		sl.drag_ended.connect(func(_changed: bool): set_volume(b, float(vol[b])))
 		row.add_child(l)
-		row.add_child(main.button("+", func(): set_volume(b, float(vol[b]) + 0.1)))
+		row.add_child(sl)
 		box.add_child(row)
 		_apply(b)
 
