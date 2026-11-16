@@ -47,9 +47,9 @@ var pod_face0 := 0.0        # и куда вернуться
 var drag: WeaponDrag        # инерция балона поверх анимации
 var style: StyleData        # текущий боевой стиль (styles.gd)
 var combat: Combat          # ядро боя: буфер ввода, окна комбо, попадания, урон (combat.gd)
-var bottles: Bottles         # бутылки с водой: в руке, в полёте, всплеск (bottles.gd)
-var tyaga: Tyaga             # пылесос ТЯГА-808: езда, притягивание, выброс (tyaga.gd)
-var own_styles: Array = ["vozduh", "bottles", "tyaga808"]   # стили Пахана: [1], [2], [3]
+var bottles: Bottles         # водяра: в руке, в полёте, всплеск (bottles.gd)
+var tyaga: Tyaga             # пылесос ТЯГА-812: езда, притягивание, выброс (tyaga.gd)
+var own_styles: Array = ["vozduh", "bottles", "tyaga812"]   # стили Пахана: [1], [2], [3]
 var switch_to := ""          # идёт смена стиля: на какой
 var switch_t := 0.0
 var switch_buf := false      # во время смены нажали удар: сработает сразу после
@@ -255,8 +255,8 @@ func _physics_process(dt: float) -> void:
 		if pressed("style%d" % (i + 1)):
 			set_style(own_styles[i])
 	var spd := 5.6 * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0)
-	# ТЯГА-808: в этом стиле «свободное» состояние героя ведёт пылесос
-	if style.id == "tyaga808" and state == "move" and switch_to == "":
+	# ТЯГА-812: в этом стиле «свободное» состояние героя ведёт пылесос
+	if style.id == "tyaga812" and state == "move" and switch_to == "":
 		state = "tyaga"
 	if state != "tyaga":
 		tyaga.idle_tick(dt)
@@ -396,7 +396,7 @@ func set_style(id: String) -> bool:
 	switch_buf = false
 	state = "switch"
 	bottles.show_prop(false)
-	if style.id == "tyaga808":
+	if style.id == "tyaga812":
 		tyaga.leave()                 # пылесос откатывается
 	if id == "vozduh":
 		rig.play_for("Equip", SWITCH_T, 0.08)
@@ -406,7 +406,7 @@ func set_style(id: String) -> bool:
 		rig.play_for("BottleDraw", SWITCH_T, 0.08)
 	else:
 		rig.play("TyagaHold", 0.3)
-	if id == "tyaga808":
+	if id == "tyaga812":
 		tyaga.enter()                 # пылесос выкатывается из-за спины, пока идёт смена
 	game.feedback("equip", global_position + Vector3(0, 1.2, 0))
 	return true
@@ -442,7 +442,7 @@ func aim_preview(a: AttackData, power: float) -> void:
 ## строка HUD: стиль и запас
 func style_hud() -> String:
 	var n := own_styles.find(style.id) + 1
-	if style.id == "tyaga808":
+	if style.id == "tyaga812":
 		var cells := int(round(tyaga.heat / 12.5))
 		var tip := "перегрев!" if tyaga.lock > 0.0 else ("[E] сойти" if tyaga.riding() else "[E] сесть")
 		return "[%d] %s  нагрев %s%s  %s" % [n, style.title, "▮".repeat(cells), "▯".repeat(8 - cells), tip]

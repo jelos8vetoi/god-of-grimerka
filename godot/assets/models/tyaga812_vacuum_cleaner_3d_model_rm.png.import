@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c80cn8fi6xaxv"
-path="res://.godot/imported/tyaga808_vacuum_cleaner_3d_model_rm.png-da72ef7e1338ecda744e518a55a72093.ctex"
+uid="uid://h6tbsntp1pi8"
+path="res://.godot/imported/tyaga812_vacuum_cleaner_3d_model_rm.png-235db6062df029f5ac78e75ecbd76cf6.ctex"
 metadata={
 "vram_texture": false
 }
@@ -13,8 +13,8 @@ generator_parameters={
 
 [deps]
 
-source_file="res://assets/models/tyaga808_vacuum_cleaner_3d_model_rm.png"
-dest_files=["res://.godot/imported/tyaga808_vacuum_cleaner_3d_model_rm.png-da72ef7e1338ecda744e518a55a72093.ctex"]
+source_file="res://assets/models/tyaga812_vacuum_cleaner_3d_model_rm.png"
+dest_files=["res://.godot/imported/tyaga812_vacuum_cleaner_3d_model_rm.png-235db6062df029f5ac78e75ecbd76cf6.ctex"]
 
 [params]
 
