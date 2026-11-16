@@ -361,7 +361,7 @@ static func _rot(keys: Array, x: float) -> Quaternion:
 	return (k[0] as Quaternion).slerp(k[1], k[2])
 
 func _release_balloon(free: bool) -> void:
-	if free == balloon_free or rig.weapon == null:
+	if free == balloon_free or rig.weapon == null or rig.holstered:
 		return
 	balloon_free = free
 	if not free:
@@ -523,7 +523,7 @@ func _process_modification_with_delta(delta: float) -> void:
 	var l_pinch := hand * pinch_l
 	if r_on > 0.0:
 		var hr0 := sk.get_bone_global_pose(rb_hand)
-		if not balloon_free and rig.weapon != null:
+		if not balloon_free and rig.weapon != null and not rig.holstered:
 			w_orig = rig.weapon.transform
 			w_store = hips.affine_inverse() * (hr0 * w_orig)
 			_release_balloon(true)

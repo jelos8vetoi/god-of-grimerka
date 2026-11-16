@@ -30,6 +30,9 @@ const EVENTS := {
 	"vz_slam": {"stop": 0.14, "stop_mul": true, "stop_max": 0.19, "shake": 0.5, "punch": 0.6, "fx": "heavy_dust", "confirm": 0.9},
 	"vz_finisher": {"stop": 0.13, "stop_mul": true, "stop_max": 0.19, "shake": 0.46, "punch": 0.6, "fov": 2.5, "fx": "heavy_dust", "confirm": 0.9},
 	"vz_quake": {"stop": 0.16, "stop_mul": true, "stop_max": 0.2, "shake": 0.7, "punch": 0.9, "fx": "quake", "confirm": 1.0},
+	# бутылки с водой: лёгкий отклик — оружие контроля, не урона
+	"bt_hit": {"stop": 0.03, "shake": 0.1, "aberr": 0.15, "confirm": 0.4},
+	"bt_power": {"stop": 0.07, "shake": 0.26, "aberr": 0.3, "fov": 1.5, "confirm": 0.7},
 	# защита
 	"parry": {"sfx": [["sfx_parry", 0.0, 1.0]], "fx": "hit1", "punch": 0.6, "slow": 0.4, "text": "ПАРИРОВАНИЕ", "text_col": Color(0.4, 0.85, 1.0), "text_up": 1.1, "confirm": 0.8},
 	"block": {"sfx": [["sfx_block", -2.0, 1.0]], "fx": "sparks"},

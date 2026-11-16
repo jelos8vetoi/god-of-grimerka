@@ -145,6 +145,7 @@ static func armed() -> Dictionary:
 	A["Hit"]["k"][2].append("io")
 	combat(A, idle_ik, side)
 	PahanMoves.add_to(A, idle_ik, side)
+	BottleClips.add_to(A)
 	return A
 
 ## Боевая основа Пахана (этап 02): стойка, шаг, рывок, уклоны, парирование, воздух, реакции на удар, падение и подъём,

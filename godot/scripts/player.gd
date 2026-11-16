@@ -47,6 +47,12 @@ var pod_face0 := 0.0        # и куда вернуться
 var drag: WeaponDrag        # инерция балона поверх анимации
 var style: StyleData        # текущий боевой стиль (styles.gd)
 var combat: Combat          # ядро боя: буфер ввода, окна комбо, попадания, урон (combat.gd)
+var bottles: Bottles         # бутылки с водой: в руке, в полёте, всплеск (bottles.gd)
+var own_styles: Array = ["vozduh", "bottles"]   # стили, между которыми Пахан переключается ([1], [2])
+var switch_to := ""          # идёт смена стиля: на какой
+var switch_t := 0.0
+var switch_buf := false      # во время смены нажали удар: сработает сразу после
+const SWITCH_T := 0.42
 var FINISH: Array = []      # тяжёлые удары стиля по числу лёгких перед ними (для съёмки трейлера)
 var scrape_p: AudioStreamPlayer
 var scr_cd := 0.0
@@ -94,6 +100,9 @@ func _ready() -> void:
 	pod = PodHand.new()
 	pod.setup(rig)
 	rig.skel.add_child(pod)
+	bottles = Bottles.new()
+	add_child(bottles)
+	bottles.setup(self, game)
 	scrape_p = AudioStreamPlayer.new()
 	var scr: AudioStreamWAV = load("res://assets/audio/sfx_scrape.wav")
 	scr.loop_mode = AudioStreamWAV.LOOP_FORWARD
@@ -216,6 +225,7 @@ func _physics_process(dt: float) -> void:
 		spin.rotation.x = 0.0
 		if state != "move":
 			combat.interrupt()
+			_finish_switch()
 			state = "move"
 		rig.play("Idle", 0.3)
 		move_and_slide()
@@ -229,11 +239,16 @@ func _physics_process(dt: float) -> void:
 		rage = max(0.0, rage - dt)
 	var dir := input_dir()
 	# нажатия ударов помнит буфер ядра боя: сработают, когда откроется окно
-	combat.clock += dt
+	combat.tick(dt)
 	if pressed("attack"):
 		combat.press("light")
+		switch_buf = switch_to != ""
 	elif pressed("heavy"):
 		combat.press("heavy")
+		switch_buf = switch_to != ""
+	for i in own_styles.size():
+		if pressed("style%d" % (i + 1)):
+			set_style(own_styles[i])
 	var spd := 5.6 * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0)
 	match state:
 		"move", "block":
@@ -278,6 +293,18 @@ func _physics_process(dt: float) -> void:
 				try_heat()
 			elif pressed("rage") and swag >= 100.0:
 				start_rage()
+		"switch":
+			# смена стиля: балон уходит за спину или возвращается в кулак по событию клипа
+			velocity.x = move_toward(velocity.x, 0.0, 30.0 * dt)
+			velocity.z = move_toward(velocity.z, 0.0, 30.0 * dt)
+			switch_t += dt
+			var sk := switch_t / SWITCH_T
+			if switch_to == "vozduh" and sk >= 0.36:
+				rig.set_holstered(false)
+			elif style.id == "vozduh" and sk >= 0.64:
+				rig.set_holstered(true)
+			if sk >= 1.0:
+				_finish_switch()
 		"attack":
 			combat.tick_attack(dt, dir)
 		"charge":
@@ -342,6 +369,65 @@ func enemies_near(r := 10.0) -> bool:
 func _on_clip_event(_clip: String, ev: String) -> void:
 	if ev.begins_with("step") and state == "move" and (held("sprint") or rage > 0.0) and Vector2(velocity.x, velocity.z).length() > 3.0:
 		game.feedback("step", global_position + Vector3(0, 0.12, 0))
+
+## Сменить боевой стиль. Можно из стойки и из удара после его попадания (бросил бутылку → балон → тяжёлый).
+func set_style(id: String) -> bool:
+	if id == style.id or switch_to != "" or not Styles.by_id(id).ready or game.paused_story():
+		return false
+	var free := state == "move" or (state == "attack" and combat.cur != null and combat.hit_i > 0)
+	if not free:
+		return false
+	combat.interrupt()
+	spin_off = 0.0
+	switch_to = id
+	switch_t = 0.0
+	switch_buf = false
+	state = "switch"
+	bottles.show_prop(false)
+	if id == "vozduh":
+		rig.play_for("Equip", SWITCH_T, 0.08)
+	elif style.id == "vozduh":
+		rig.play_for("Unequip", SWITCH_T, 0.08)
+	else:
+		rig.play_for("BottleDraw", SWITCH_T, 0.08)
+	game.feedback("equip", global_position + Vector3(0, 1.2, 0))
+	return true
+
+## смена закончена (или прервана ударом по герою): оружие и стиль — в конечном состоянии
+func _finish_switch() -> void:
+	if switch_to == "":
+		return
+	style = Styles.by_id(switch_to)
+	switch_to = ""
+	rig.set_holstered(style.id != "vozduh")
+	rig.style_map = style.roles
+	combat.set_style(style)
+	if switch_buf:
+		combat.buf_time = combat.clock      # удар, нажатый во время смены, срабатывает сразу
+	switch_buf = false
+	if state == "switch":
+		state = "move"
+	game.popup(global_position + Vector3(0, 2.3, 0), style.title, style.color)
+
+## ядро боя: момент броска — снаряд вылетает из руки
+func launch_projectile(a: AttackData, charged: float) -> void:
+	if a.projectile == "bottle":
+		bottles.throw(a, clampf(charged / 0.6, 0.0, 1.0))
+
+## ядро боя: прицел при удержании (null — убрать)
+func aim_preview(a: AttackData, power: float) -> void:
+	if a == null:
+		bottles.hide_preview()
+	else:
+		bottles.preview(a, power)
+
+## строка HUD: стиль и запас
+func style_hud() -> String:
+	var n := own_styles.find(style.id) + 1
+	if style.ammo_max > 0:
+		var have := int(floor(combat.ammo_of(style.id)))
+		return "[%d] %s  %s%s" % [n, style.title, "●".repeat(have), "○".repeat(style.ammo_max - have)]
+	return "[%d] %s" % [n, style.title]
 
 ## начать атаку стиля напрямую (съёмка, проверки); обычный путь — буфер и combat.try_start()
 func start_attack(a: AttackData, chained := false) -> void:
@@ -437,6 +523,7 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		pod.interrupt()
 		t = 0.0
 		combat.interrupt()
+		_finish_switch()
 		spin.rotation.x = 0.0
 		velocity = -to.normalized() * 4.0
 		# сильный удар отбрасывает (герой остаётся на ногах), обычный — вздрагивает; длительность оглушения та же
@@ -492,6 +579,8 @@ func _process(dt: float) -> void:
 	if pod.busy():
 		face = lerp_angle(face, pod_face if pod.want or pod.u >= 1.0 else pod_face0, 1.0 - exp(-5.0 * dt))
 		body.rotation.y = face
+	# бутылка в кулаке: есть запас, не идёт смена стиля, рука не занята iPod, бутылка ещё не брошена
+	bottles.show_prop(style.id == "bottles" and switch_to == "" and state != "dead" and not pod.busy() and combat.ammo_of("bottles") >= 1.0 and not (state == "attack" and combat.hit_i > 0))
 	# стопы: прилегание к земле всегда, кроме переката, гибели и полёта; фиксация опоры — только в перемещении
 	feet.weight = move_toward(feet.weight, 0.0 if state in ["roll", "dead"] or not is_on_floor() else 1.0, dt * 8.0)
 	feet.lock = 1.0 if state in ["move", "block"] and anim.state != "fall" else 0.0

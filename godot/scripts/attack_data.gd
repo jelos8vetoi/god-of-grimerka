@@ -43,6 +43,10 @@ extends Resource
 @export var slam := -1.0             # доля, когда оружие бьёт в землю
 @export var scrape := -1.0           # доля, когда чиркает по земле
 @export var drop := -1.0             # доля, когда после удара падает на землю
+@export_group("Дистанция и запас")
+@export var projectile := ""         # снаряд вместо удара: в момент попадания владелец запускает его (launch_projectile)
+@export var ammo := 0                # сколько запаса стиля тратит атака
+@export var extra := {}              # параметры стиля: скорость снаряда, замедление, радиус всплеска…
 @export_group("Отклик")
 @export var feedback := ""           # событие Feedback при попадании; пусто — по power
 @export var sfx_swing := ""          # звук замаха; пусто — по heavy
