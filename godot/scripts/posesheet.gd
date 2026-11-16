@@ -16,6 +16,7 @@ const SETS := {
 	"pahan": ["res://assets/models/pahan.glb", 1.85, -1.0, ["Idle:0", "Run:0.25", "Block:0", "Charge:0", "Spin:0.5", "Rage:0.4", "Hit:0.3", "Death:1"]],
 	"pahan_run": ["res://assets/models/pahan.glb", 1.85, -1.0, ["Idle:0", "Run:0", "Run:0.125", "Run:0.25", "Run:0.375", "Run:0.5", "Run:0.625", "Run:0.75", "Run:0.875"]],
 	"clipper": ["res://assets/models/clipper.glb", 1.8, 1.0, ["Idle:0", "Run:0.25", "Slash:0.32", "Slash:0.52", "Slash:0.72", "Hit:0.3", "Spawn:0.5", "Fly:0.5"]],
+	"drey": ["res://assets/models/drey.glb", 2.2, 1.0, ["Idle:0", "Run:0.25", "Punch:0.52", "Throw:0.55", "Stomp:0.62", "Summon:0.5", "Fly:0.5", "DeathA:1"]],
 	"hater": ["res://assets/models/hater.glb", 1.75, 1.0, ["Idle:0", "Run:0.25", "Cast:0.4", "Cast:0.6", "Hit:0.3", "Fly:0.5", "DeathA:1", "DeathB:1"]],
 }
 
@@ -56,7 +57,7 @@ func _sheet(k: String) -> void:
 	var cfg: Array = SETS[k]
 	var r := Rig.new()
 	add_child(r)
-	var poses: Dictionary = Poses.pahan_armed() if k.begins_with("pahan") else (Poses.clipper() if k == "clipper" else Poses.hater())
+	var poses: Dictionary = Poses.pahan_armed() if k.begins_with("pahan") else (Poses.clipper() if k == "clipper" else (Poses.bot() if k == "drey" else Poses.hater()))
 	var t0 := Time.get_ticks_msec()
 	r.setup(cfg[0], cfg[1], poses, true, cfg[2])
 	print("SHEET %s: анимации собраны за %d мс" % [k, Time.get_ticks_msec() - t0])
@@ -65,7 +66,7 @@ func _sheet(k: String) -> void:
 	elif k == "clipper":
 		r.attach("res://assets/models/katana.glb", "r", {"axis": "z", "from": -48.8, "to": 48.8, "grip": 0.15, "edge": true, "length": 0.62, "part": func(y): return y > 13.0})
 		r.attach("res://assets/models/katana.glb", "r", {"bone": "hips", "axis": "z", "from": -37.0, "to": 47.0, "grip": 0.3, "dir": [0.2, -0.35, -0.9], "length": 0.5, "part": func(y): return y < 13.0, "off": [0.17, 0.02, 0.02]})
-	else:
+	elif k != "drey":
 		r.attach("res://assets/models/staff.glb", "r", {"axis": "y", "from": 0.0, "to": 97.5, "grip": 0.45, "length": 1.05})
 	_proportions(k, r)
 	if seq.is_empty():

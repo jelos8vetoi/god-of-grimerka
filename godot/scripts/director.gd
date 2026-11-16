@@ -172,6 +172,21 @@ func _ready() -> void:
 				_look(Vector3(5.5, 2.2, -1.0), P.global_position + Vector3(0, 0.7, 0))
 			else:
 				_look(P.global_position + Vector3(4.3, 1.5, -1.2), P.global_position + Vector3(0, 0.95, -1.3))})
+	# S1_…S9_ — особый приём босса главы, камера сверху-сбоку на всю арену
+	for c in 9:
+		var sc := c
+		shots.append({"n": "S%d_" % (sc + 1), "test": true, "warm": 30, "len": 170, "own": true, "setup": func():
+			_stage(sc)
+			game.mode = "boss"
+			P.global_position = Vector3(0, 0.05, 6)
+			P.face = PI
+			game.cam_yaw = 0.0
+			game.boss_e = game._make_enemy("", bosses[sc], Vector3(0, 0.05, -1))
+			game.boss_e.special_cd = 1.0, "tick": func(_i):
+			P.inv = 1.0
+			P.auto_input = {}
+			_park_buddy()
+			_look(Vector3(8.5, 6.5, 10.5), Vector3(0, 0.6, 1.5))})
 	# --shots=A,X4_ — снять только названные планы
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shots="):

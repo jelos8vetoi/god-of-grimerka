@@ -11,9 +11,11 @@ const KINDS := {
 	"lawyer": {"model": "clipper", "height": 1.8, "hp": 100.0, "speed": 2.4, "range": 12.0, "keep": 8.0, "wind": 0.8, "dmg": 12.0, "clip": "Punch", "cool": 2.6, "ranged": true, "homing": true, "noweapon": true, "tint": Color("e4e4ee"), "xp": 30},
 	"mod": {"model": "bot", "height": 1.85, "hp": 120.0, "speed": 3.0, "range": 1.9, "wind": 0.5, "dmg": 13.0, "clip": "Punch", "cool": 1.6, "shield": true, "tint": Color("7fa8ff"), "xp": 32},
 	"farmer": {"model": "hater", "height": 1.75, "hp": 130.0, "speed": 2.6, "range": 12.0, "keep": 9.0, "wind": 1.0, "dmg": 0.0, "clip": "Cast", "cool": 4.5, "summoner": true, "tint": Color("ffd23b"), "xp": 40},
+	# двойник призрака: выглядит как босс, рассыпается с одного удара
+	"clone": {"model": "pahan", "height": 2.1, "hp": 1.0, "speed": 4.2, "range": 2.4, "wind": 0.55, "dmg": 12.0, "clip": "Light1", "cool": 1.3, "tint": Color("ff8080"), "alpha": 0.85, "emit": 0.12, "xp": 0},
 }
 const BOSS_LOOK := {
-	"courier": {"model": "clipper", "scale": 1.3}, "golem": {"model": "bot", "scale": 1.9}, "hype": {"model": "hater", "scale": 1.35},
+	"courier": {"model": "drey", "scale": 1.3, "own": true}, "golem": {"model": "bot", "scale": 1.9}, "hype": {"model": "hater", "scale": 1.35},
 	"dislike": {"model": "bot", "scale": 1.75}, "major": {"model": "clipper", "scale": 1.4}, "strike": {"model": "hater", "scale": 1.45},
 	"botlord": {"model": "bot", "scale": 1.6}, "ghostv": {"model": "pahan", "scale": 1.2, "alpha": 0.85, "emit": 0.12}, "algo": {"model": "hater", "scale": 2.0, "emit": 0.1},
 }
@@ -53,6 +55,11 @@ var fly := false            # убитый летит по дуге
 var fly_v := Vector3.ZERO
 var bounces := 0
 var trail: Trail
+var special_cd := 3.5      # до особого приёма босса
+var sp_events: Array = []  # [время, что сделать] внутри приёма
+var sp_dur := 0.0
+var shield_n: Array = []   # призванные боты, которые держат щит
+var shield_fx: MeshInstance3D
 var glint := false          # предупреждающая вспышка перед ударом уже была
 var stars: Node3D           # звёздочки над оглушённым
 
@@ -88,7 +95,7 @@ func _ready() -> void:
 	else:
 		poses = Poses.bot()
 	rig.setup("res://assets/models/" + m + ".glb", height, poses, boss_id != "", -1.0 if m == "pahan" else 1.0, m + ("_n" if cfg.get("noweapon", false) else ""))
-	if cfg.has("tint") or cfg.has("alpha") or cfg.has("emit"):
+	if not cfg.get("own", false) and (cfg.has("tint") or cfg.has("alpha") or cfg.has("emit")):
 		_tint(cfg.get("tint", Color.WHITE), cfg.get("alpha", 1.0), cfg.get("emit", 0.0))
 	if not cfg.get("noweapon", false):
 		if m == "hater":
@@ -105,7 +112,7 @@ func _ready() -> void:
 		trail.min_speed = 6.0
 	rig.play_for("Spawn", 1.0, 0.0)
 	# кольцо замаха у ног: текстурное, растёт, пока враг заносит удар
-	ring = game.fx.flat(self, "circle_03", Color(1.0, 0.16, 0.1, 0.9), 2.0 * height / 1.7)
+	ring = game.fx.flat(self, "circle_03", Color(1.0, 0.16, 0.1, 0.9), 2.0 * height / 1.7, 0.05, false)
 	ring.visible = false
 	if boss_id == "":
 		bar_img = Image.create(64, 8, false, Image.FORMAT_RGBA8)
@@ -132,6 +139,7 @@ func _setup_boss() -> void:
 	if look.has("alpha"):
 		cfg["alpha"] = look["alpha"]
 	cfg["emit"] = look.get("emit", 0.04)
+	cfg["own"] = look.get("own", false)   # своя модель босса: не перекрашиваем
 	if look["model"] == "pahan":
 		cfg["clip"] = "Light1"
 	max_hp = float(boss["hp"]) * 0.75 * float(game.diff_hp)
@@ -192,6 +200,8 @@ func _physics_process(dt: float) -> void:
 				t = 0.0
 		"chase":
 			cool -= dt
+			if boss_id != "":
+				special_cd -= dt
 			face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-8.0 * dt))
 			var want: float = cfg.get("keep", 0.0)
 			var mv := Vector3.ZERO
@@ -255,6 +265,15 @@ func _physics_process(dt: float) -> void:
 				state = "recover"
 				t = 0.0
 			if t > 0.8 or not game.in_arena(global_position + charge_dir, 0.5):
+				state = "recover"
+				t = 0.0
+		"special":
+			while not sp_events.is_empty() and t >= float(sp_events[0][0]):
+				var ev: Array = sp_events.pop_front()
+				(ev[1] as Callable).call()
+			if boss_id != "hype":
+				face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-5.0 * dt))
+			if t > sp_dur:
 				state = "recover"
 				t = 0.0
 		"recover":
@@ -377,6 +396,10 @@ func _strike(dist: float, dir: Vector3) -> void:
 
 # ---------------- боссы ----------------
 func _boss_pick(dist: float) -> void:
+	if special_cd <= 0.0:
+		special_cd = randf_range(10.0, 13.0) - phase * 1.5
+		_special()
+		return
 	var phases: Array = boss["phases"]
 	var moves: Array = phases[min(phase, phases.size() - 1)]
 	move = moves[move_n % moves.size()]
@@ -480,6 +503,13 @@ func stun(sec: float) -> void:
 
 func _process(_dt: float) -> void:
 	var c: float = game.clock
+	if boss_id == "botlord":
+		var on := shielded()
+		if on and shield_fx == null:
+			shield_fx = game.fx._sprite("circle_01", Vector3(0, height * 0.55, 0), Color(1.0, 0.82, 0.3, 0.45), true, true, false, self)
+			shield_fx.scale = Vector3.ONE * height * 1.5
+		if shield_fx:
+			shield_fx.visible = on
 	if state == "stun":
 		if stars == null:
 			stars = game.fx.stun_stars(self, height + 0.3)
@@ -524,6 +554,10 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 			game.popup(global_position + Vector3(0, height + 0.2, 0), "ЩИТ", Color(0.5, 0.75, 1))
 			game.fx.shield(global_position + Vector3(0, height * 0.6, 0) - dir * radius, -dir, Color(0.5, 0.75, 1.0), 1.5 * height / 1.7)
 			game.main.sfx("sfx_block", -4.0)
+	if boss_id != "" and shielded():
+		dmg *= 0.15
+		launch = 0.0
+		game.fx.shield(global_position + Vector3(0, height * 0.6, 0) - dir * radius, -dir, Color(1.0, 0.82, 0.3), 1.6 * height / 1.7)
 	hp -= dmg
 	kb = dir * knock * (0.25 if boss_id != "" else 1.0)
 	_react(dir, heavy)
@@ -536,7 +570,7 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 			game.fx.lightning(global_position, height * 2.2, Color(boss["c"]))
 			var barks: Array = boss.get("barks", [])
 			if phase < barks.size() and String(barks[phase]) != "":
-				game.boss_bark(String(boss["n"]), String(barks[phase]), Color(boss["c"]))
+				game.boss_bark(String(boss["n"]), String(barks[phase]), Color(boss["c"]), String(boss.get("sp", "")))
 	if hp <= 0.0:
 		_die(dir, heavy, launch, knock)
 		return
@@ -551,7 +585,7 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		rig.play("Fly", 0.08)
 	elif state == "air":
 		velocity.y = max(velocity.y, 2.5)   # в воздухе каждый удар чуть подбрасывает
-	elif state != "stun" and state != "wind" and state != "charge" and state != "down" and state != "getup" and (boss_id == "" or heavy):
+	elif state != "stun" and state != "wind" and state != "charge" and state != "down" and state != "getup" and state != "special" and (boss_id == "" or heavy):
 		state = "hurt"
 		t = 0.0
 		ring.visible = false
@@ -584,3 +618,147 @@ func _die(dir: Vector3, heavy: bool, launch := 0.0, knock := 5.0) -> void:
 		else:
 			rig.play_for("DeathA" if front else "DeathB", 0.9 if boss_id == "" else 1.6, 0.06)
 	game.on_kill(self)
+
+# ---------------- особые приёмы боссов ----------------
+func _at(time: float, what: Callable) -> void:
+	sp_events.append([time, what])
+
+## щит накрутки: пока живы призванные боты, урон по боссу почти не проходит
+func shielded() -> bool:
+	shield_n = shield_n.filter(func(e): return is_instance_valid(e) and e.state != "dead")
+	return not shield_n.is_empty()
+
+## У каждого босса свой приём со своей анимацией: срабатывает раз в 10–13 секунд (в поздних фазах чаще и сильнее).
+## Пока приём идёт, босс открыт для ударов; оглушение его срывает.
+func _special() -> void:
+	state = "special"
+	t = 0.0
+	ring.visible = false
+	sp_events = []
+	sp_dur = 1.5
+	var dmg := float(cfg["dmg"])
+	var col: Color = cfg["tint"]
+	var P = game.player
+	var title := ""
+	match boss_id:
+		"courier":
+			# ДОСТАВКА: посылки летят по дуге туда, куда бежит герой, и взрываются
+			title = "ДОСТАВКА"
+			var n := 3 + phase
+			for i in n:
+				_at(0.3 + i * 0.42, func():
+					rig.play_for("Throw", 0.42, 0.05)
+					var to: Vector3 = P.global_position + P.velocity * 0.5 + Vector3(randf_range(-1.2, 1.2), 0, randf_range(-1.2, 1.2))
+					game.lob(global_position + Vector3(0, height * 0.9, 0), to, 0.85, col)
+					game.telegraph(to, 1.9, 0.85, dmg * 0.9, self)
+					game.main.sfx("sfx_swing", -5.0, 0.8))
+			sp_dur = 0.3 + n * 0.42 + 0.4
+			game.bark("drey", 0.0)
+		"golem":
+			# ОБВАЛ: прыжок, три волны по земле одна за другой и камни с потолка
+			title = "ОБВАЛ"
+			rig.play_for("Stomp", 1.2, 0.08)
+			_at(0.74, func():
+				game.fx.slam(global_position, 1.8, col)
+				game.main.sfx("sfx_boom", 1.0, 0.75)
+				game.shake(0.55)
+				for i in 5 + phase * 2:
+					game.telegraph(P.global_position + Vector3(randf_range(-5, 5), 0, randf_range(-5, 5)), 1.5, 1.0 + i * 0.13, dmg * 0.8, self))
+			for i in 3:
+				_at(0.74 + i * 0.42, func(): game.expanding_ring(global_position, 12.0, 1.3, dmg, self))
+			sp_dur = 2.3
+		"hype":
+			# СВАЙП: неоновый луч, которым она водит по кругу; во второй фазе лучей два
+			title = "СВАЙП"
+			rig.play("Point", 0.15)
+			var to: Vector3 = P.global_position - global_position
+			var a0 := atan2(-to.x, -to.z) + 1.0
+			var w := 1.5 * (1.0 if randf() < 0.5 else -1.0)
+			game.sweep(self, 13.0, 4.4, w, dmg * 0.8, col, a0)
+			if phase >= 1:
+				game.sweep(self, 13.0, 4.4, w, dmg * 0.8, col, a0 + PI)
+			game.main.sfx("sfx_charge", -2.0, 1.3)
+			sp_dur = 4.6
+		"dislike":
+			# ДИЗЛАЙК: плевки, после которых остаются ядовитые лужи
+			title = "ДИЗЛАЙК"
+			var n := 4 + phase
+			var green := Color(0.5, 0.95, 0.25)
+			for i in n:
+				_at(0.3 + i * 0.3, func():
+					rig.play_for("Spit", 0.3, 0.04)
+					var to: Vector3 = P.global_position + Vector3(randf_range(-1.8, 1.8), 0, randf_range(-1.8, 1.8))
+					game.lob(global_position + Vector3(0, height * 0.8, 0), to, 0.8, green, false)
+					game.telegraph(to, 2.0, 0.8, dmg * 0.7, self, {"pool": 6.0, "col": green})
+					game.main.sfx("sfx_cast", -6.0, 0.6))
+			sp_dur = 0.3 + n * 0.3 + 0.5
+		"major":
+			# ПЕЧАТЬ: круг едет за героем, замирает — и сверху падает плита
+			title = "ПЕЧАТЬ"
+			var n := 2 + phase
+			for i in n:
+				_at(0.2 + i * 1.25, func():
+					rig.play_for("Stamp", 1.2, 0.06)
+					game.telegraph(P.global_position, 2.6, 1.15, dmg * 1.4, self, {"chase": 0.4, "stamp": true})
+					game.main.sfx("sfx_swing_heavy", -3.0, 0.7))
+			sp_dur = 0.2 + n * 1.25 + 0.3
+		"strike":
+			# СТРАЙК: молнии бьют туда, где герой окажется через мгновение
+			title = "СТРАЙК"
+			var n := 5 + phase * 2
+			rig.play_for("Summon", 0.4 + n * 0.32 + 0.4, 0.1)
+			for i in n:
+				_at(0.4 + i * 0.32, func(): game.telegraph(P.global_position + P.velocity * 0.25, 1.5, 0.6, dmg * 0.9, self, {"bolt": true, "col": Color(0.72, 0.5, 1.0)}))
+			sp_dur = 0.4 + n * 0.32 + 0.5
+		"botlord":
+			# НАКРУТКА: призывает ботов, и пока они живы, по нему почти не проходит урон
+			title = "НАКРУТКА"
+			rig.play("Channel", 0.15)
+			_at(0.5, func():
+				var n := 4 + phase
+				for i in n:
+					var a := i * TAU / n
+					var p := global_position + Vector3(sin(a), 0, cos(a)) * 4.0
+					p.x = clampf(p.x, -13.0, 13.0)
+					p.z = clampf(p.z, -13.0, 13.0)
+					shield_n.append(game._make_enemy("bot", "", Vector3(p.x, 0.05, p.z)))
+					game.fx.lightning(p, 4.0, col)
+				game.main.sfx("sfx_cast", -3.0, 0.7))
+			sp_dur = 1.6
+		"ghostv":
+			# ЗЕРКАЛО: двойники, которые рассыпаются с одного удара, а сам он меняет место
+			title = "ЗЕРКАЛО"
+			rig.play_for("Rage", 0.9, 0.08)
+			_at(0.45, func():
+				for i in 2 + (1 if phase >= 2 else 0):
+					var a := randf() * TAU
+					var p: Vector3 = P.global_position + Vector3(sin(a), 0, cos(a)) * 4.5
+					if game.in_arena(p, 1.0):
+						game._make_enemy("clone", "", Vector3(p.x, 0.05, p.z))
+						game.fx.poof(p, 1.2, col)
+				_teleport_near(P.global_position, 4.5))
+			sp_dur = 1.0
+		"algo":
+			# АЛГОРИТМ: вся арена взрывается, спастись можно только в зелёном круге
+			title = "РЕКОМЕНДАЦИЯ"
+			rig.play("Ascend", 0.2)
+			var safe := Vector3.ZERO
+			for i in 10:
+				var a := randf() * TAU
+				safe = Vector3(sin(a), 0, cos(a)) * randf_range(4.0, 9.0)
+				if safe.distance_to(global_position) > 5.0:
+					break
+			game.wipe(safe, 3.2, 3.4, dmg * 2.2, self, col)
+			var tw := create_tween()
+			tw.tween_property(rig, "position:y", 1.5, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tw.tween_interval(2.5)
+			tw.tween_property(rig, "position:y", 0.0, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			game.main.sfx("sfx_charge", 0.0, 0.8)
+			sp_dur = 3.9
+		_:
+			state = "chase"
+			return
+	sp_events.sort_custom(func(x, y): return float(x[0]) < float(y[0]))
+	game.popup(global_position + Vector3(0, height + 0.7, 0), title, col.lightened(0.3))
+	game.main.sfx("sfx_rage", -7.0, 1.3)
+	game.fx.ground_ring(global_position, 0.6, 5.0 * height / 1.7, col, 0.45)

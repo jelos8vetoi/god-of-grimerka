@@ -3,14 +3,18 @@
 // кладёт по файлу на реплику в godot/assets/voice/<код>_<md5 строки, 10 знаков>.mp3 — игра ищет файл по тому же имени.
 // Уже готовые файлы не трогает, файлы от удалённых реплик стирает.
 // Ключ и голоса — только через переменные окружения, в git их не класть:
-//   FISH_KEY=sk-fish-... FISH_REF_V=<id голоса Пахана> FISH_REF_M=<id голоса madk1d> node tools/godot-voice.cjs [--limit=N] [--dry]
+//   FISH_KEY=sk-fish-... FISH_REF_V=<Пахан> FISH_REF_M=<madk1d> FISH_REF_B1=<Лил Дрей> node tools/godot-voice.cjs [--limit=N] [--dry]
+// Можно задать только часть голосов: остальные реплики будут пропущены, готовые файлы не тронутся.
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const root = path.join(__dirname, '..', 'godot');
 const out = path.join(root, 'assets', 'voice');
-const key = process.env.FISH_KEY, refs = { V: process.env.FISH_REF_V, M: process.env.FISH_REF_M, MV: process.env.FISH_REF_M };
+// кого озвучиваем и из какой переменной окружения берётся голос (id модели Fish Audio)
+const VOICED = { V: 'FISH_REF_V', M: 'FISH_REF_M', MV: 'FISH_REF_M', B1: 'FISH_REF_B1' };
+const key = process.env.FISH_KEY, refs = {};
+for (const c in VOICED) refs[c] = process.env[VOICED[c]];
 const dry = process.argv.includes('--dry');
 const limit = +(process.argv.find(a => a.startsWith('--limit=')) || '').slice(8) || 1e9;
-if (!dry && (!key || !refs.V || !refs.M)) { console.error('нужны FISH_KEY, FISH_REF_V, FISH_REF_M'); process.exit(1); }
+if (!dry && !key) { console.error('нужен FISH_KEY и голоса: ' + [...new Set(Object.values(VOICED))].join(', ')); process.exit(1); }
 fs.mkdirSync(out, { recursive: true });
 
 const story = JSON.parse(fs.readFileSync(path.join(root, 'data', 'story.json'), 'utf8'));
@@ -19,13 +23,15 @@ const lines = new Set();
 for (const ch of story.CH) for (const st of ch.steps) if (st.t === 'dlg') for (const l of st.l) lines.add(l);
 for (const k of ['ENDING_A', 'ENDING_B']) for (const l of story[k] || []) lines.add(l);
 for (const k in barks) for (const l of barks[k]) lines.add(l);
+// фразы боссов при смене фазы — голосом их говорящего
+for (const id in story.BOSS) for (const b of story.BOSS[id].barks || []) if (b) lines.add(story.BOSS[id].sp + '|' + b);
 
 // как в игре (_clean): без эмодзи и значков
 const clean = s => [...s].filter(ch => { const c = ch.codePointAt(0); return c < 0x1F000 && !(c >= 0x2600 && c <= 0x27BF) && c !== 0xFE0F; }).join('').trim();
 const jobs = [];
 for (const l of lines) {
   const p = l.indexOf('|'), code = l.slice(0, p);
-  if (!refs.hasOwnProperty(code)) continue;
+  if (!VOICED.hasOwnProperty(code)) continue;
   let text = clean(l.slice(p + 1));
   if (!/[a-zа-яё]/i.test(text)) continue;             // «...» и подобное не озвучиваем
   if (!/[.!?…]$/.test(text)) text += '.';
@@ -34,7 +40,10 @@ for (const l of lines) {
 }
 const want = new Set(jobs.map(j => j.name));
 for (const f of fs.readdirSync(out)) if (f.endsWith('.mp3') && !want.has(f)) { fs.unlinkSync(path.join(out, f)); try { fs.unlinkSync(path.join(out, f + '.import')); } catch (e) {} console.log('удалён лишний', f); }
-const todo = jobs.filter(j => !fs.existsSync(path.join(out, j.name))).slice(0, limit);
+const missing = jobs.filter(j => !fs.existsSync(path.join(out, j.name)));
+const skipped = missing.filter(j => !refs[j.code]);
+if (skipped.length) console.log('без голоса (не задана переменная): ' + [...new Set(skipped.map(j => VOICED[j.code]))].join(', ') + ' — ' + skipped.length + ' реплик пропущено');
+const todo = missing.filter(j => refs[j.code]).slice(0, limit);
 const chars = todo.reduce((s, j) => s + j.text.length, 0);
 console.log(`реплик: ${jobs.length}, осталось сделать: ${todo.length}, знаков: ${chars}`);
 if (dry) { for (const j of todo.slice(0, 12)) console.log(j.name, j.text); process.exit(0); }

@@ -502,8 +502,8 @@ func muzzle(pos: Vector3, col: Color) -> void:
 
 # ---------- то, что живёт дольше одного кадра ----------
 ## плоский спрайт на земле в чужом узле (кольцо замаха, зона удара)
-func flat(parent: Node, t: String, col: Color, size: float, y := 0.05) -> MeshInstance3D:
-	var mi := _sprite(t, Vector3.ZERO, col, true, false, false, parent)
+func flat(parent: Node, t: String, col: Color, size: float, y := 0.05, add := true) -> MeshInstance3D:
+	var mi := _sprite(t, Vector3.ZERO, col, add, false, false, parent)
 	mi.rotation.x = -PI / 2
 	mi.position = Vector3(0, y, 0)
 	mi.scale = Vector3.ONE * size
@@ -575,9 +575,9 @@ func zone(pos: Vector3, radius: float, col: Color) -> Dictionary:
 	var n := Node3D.new()
 	add_child(n)
 	n.global_position = Vector3(pos.x, 0.0, pos.z)
-	var rim := flat(n, "circle_03", Color(col.r, col.g, col.b, 0.9), radius / 0.42, 0.07)
-	var rune := flat(n, "magic_02" if radius > 1.8 else "magic_01", Color(col.r, col.g, col.b, 0.55), radius * 1.9, 0.08)
-	var fill := flat(n, "light_03", Color(col.r, col.g, col.b, 0.5), 0.01, 0.06)
+	var rim := flat(n, "circle_03", Color(col.r, col.g, col.b, 0.9), radius / 0.42, 0.07, false)
+	var rune := flat(n, "magic_02" if radius > 1.8 else "magic_01", Color(col.r, col.g, col.b, 0.7), radius * 1.9, 0.08, false)
+	var fill := flat(n, "light_03", Color(col.r, col.g, col.b, 0.6), 0.01, 0.06, false)
 	return {"n": n, "rim": rim, "rune": rune, "fill": fill}
 
 ## расходящееся кольцо по земле (размер задаётся снаружи каждый кадр)
@@ -585,6 +585,100 @@ func wave_ring(pos: Vector3, col: Color) -> Dictionary:
 	var n := Node3D.new()
 	add_child(n)
 	n.global_position = Vector3(pos.x, 0.0, pos.z)
-	var a := flat(n, "circle_03", col, 1.0, 0.16)
-	var b := flat(n, "circle_04", Color(col.r, col.g, col.b, 0.5), 1.0, 0.12)
+	var a := flat(n, "circle_03", col, 1.0, 0.16, false)
+	var b := flat(n, "circle_04", Color(col.r, col.g, col.b, 0.6), 1.0, 0.12, false)
 	return {"n": n, "a": a, "b": b}
+
+# ---------- особые приёмы боссов ----------
+## луч от босса: полоса по земле и светящаяся стена, обе тянутся вдоль -Z узла (узел крутит игра)
+func beam(length: float, col: Color) -> Node3D:
+	var n := Node3D.new()
+	add_child(n)
+	var g := _sprite("trace_07", Vector3.ZERO, col, true, false, false, n)
+	g.transform = Transform3D(Basis(Vector3(5.0, 0, 0), Vector3(0, 0, -length), Vector3(0, 1, 0)), Vector3(0, 0.12, -length / 2.0))
+	var v := _sprite("trace_07", Vector3.ZERO, Color(col.r, col.g, col.b, 0.85), true, false, false, n)
+	v.transform = Transform3D(Basis(Vector3(0, 5.0, 0), Vector3(0, 0, -length), Vector3(-1, 0, 0)), Vector3(0, 1.2, -length / 2.0))
+	var core := _sprite("trace_06", Vector3.ZERO, Color(1, 1, 1, 0.9), true, false, false, n)
+	core.transform = Transform3D(Basis(Vector3(0, 2.2, 0), Vector3(0, 0, -length), Vector3(-1, 0, 0)), Vector3(0, 1.2, -length / 2.0))
+	return n
+
+## ядовитая лужа: светящееся пятно и ободок
+func pool(pos: Vector3, r: float, col: Color) -> Dictionary:
+	var n := Node3D.new()
+	add_child(n)
+	n.global_position = Vector3(pos.x, 0.0, pos.z)
+	var a := flat(n, "light_03", Color(col.r, col.g, col.b, 0.0), r / 0.4, 0.05, false)
+	var b := flat(n, "circle_04", Color(col.r, col.g, col.b, 0.0), r / 0.42, 0.06, false)
+	return {"n": n, "a": a, "b": b}
+
+## «горит всё, кроме круга»: красная заливка на всю арену и зелёный безопасный круг
+func wipe(safe: Vector3, r: float, col: Color) -> Dictionary:
+	var n := Node3D.new()
+	add_child(n)
+	var danger := flat(n, "circle_05", Color(0.85, 0.06, 0.05, 0.1), 110.0, 0.04, false)
+	var s := Node3D.new()
+	add_child(s)
+	s.global_position = Vector3(safe.x, 0.0, safe.z)
+	var green := Color(0.35, 1.0, 0.5)
+	flat(s, "circle_03", Color(0.1, 0.75, 0.3, 0.95), r / 0.42, 0.09, false)
+	var rune := flat(s, "magic_02", Color(0.1, 0.75, 0.3, 0.9), r * 1.9, 0.1, false)
+	flat(s, "light_03", Color(0.2, 0.9, 0.4, 0.5), r / 0.4, 0.08, false)
+	return {"n": n, "danger": danger, "safe_n": s, "rune": rune}
+
+## посылка курьера / плевок: летящий снаряд по дуге (только картинка, урон даёт зона на земле)
+func parcel(col: Color, box: bool) -> Node3D:
+	var n := Node3D.new()
+	add_child(n)
+	if box:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.55, 0.42, 0.55)
+		mi.mesh = bm
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.66, 0.48, 0.28)
+		m.emission_enabled = true
+		m.emission = col
+		m.emission_energy_multiplier = 0.25
+		mi.material_override = m
+		n.add_child(mi)
+		var tape := MeshInstance3D.new()
+		var tm := BoxMesh.new()
+		tm.size = Vector3(0.57, 0.44, 0.12)
+		tape.mesh = tm
+		var m2 := StandardMaterial3D.new()
+		m2.albedo_color = col
+		m2.emission_enabled = true
+		m2.emission = col
+		m2.emission_energy_multiplier = 1.2
+		tape.material_override = m2
+		n.add_child(tape)
+	else:
+		var core := _sprite("star_09", Vector3.ZERO, col.lightened(0.5), true, true, false, n)
+		core.scale = Vector3.ONE * 0.9
+		var halo := _sprite("light_02", Vector3.ZERO, Color(col.r, col.g, col.b, 0.8), true, true, false, n)
+		halo.scale = Vector3.ONE * 1.3
+	return n
+
+## печать с неба: плита падает на круг и исчезает
+func stamp(pos: Vector3, r: float, col: Color) -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(r * 1.5, 0.7, r * 1.5)
+	mi.mesh = bm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.12, 0.12, 0.15)
+	m.emission_enabled = true
+	m.emission = col
+	m.emission_energy_multiplier = 0.8
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mi.material_override = m
+	add_child(mi)
+	mi.global_position = Vector3(pos.x, 0.4, pos.z)
+	mi.scale = Vector3(1.0, 3.0, 1.0)
+	var tw := mi.create_tween()
+	tw.tween_property(mi, "scale", Vector3.ONE, 0.08)
+	tw.tween_interval(0.35)
+	tw.tween_property(m, "albedo_color:a", 0.0, 0.3)
+	tw.tween_callback(mi.queue_free)
+	pillar(Vector3(pos.x, 0.0, pos.z), 3.5, col)
+	ground_ring(Vector3(pos.x, 0.0, pos.z), 0.8, r * 3.2, col, 0.4)
