@@ -68,6 +68,11 @@ var scrape_done := false
 var ring_cd := 0.0
 var charged := 0.0    # заряд, с которым выпущен текущий удар (0..1.2)
 var maxed := false
+var pod: PodHand            # физический iPod: карман, левая рука, взгляд на экран (scripts/pod.gd)
+var pod_force := false      # проверка позы без интерфейса (--ipodcheck … --hand)
+var pod_synced := false     # наушники уже взяты из сохранения iPod
+var pod_face := 0.0         # куда герой повёрнут, пока смотрит в iPod
+var pod_face0 := 0.0        # и куда вернуться
 var drag: WeaponDrag        # инерция балона поверх анимации
 var scrape_p: AudioStreamPlayer
 var scr_cd := 0.0
@@ -98,6 +103,9 @@ func _ready() -> void:
 	drag = WeaponDrag.new()
 	drag.rig = rig
 	rig.skel.add_child(drag)
+	pod = PodHand.new()
+	pod.setup(rig)
+	rig.skel.add_child(pod)
 	scrape_p = AudioStreamPlayer.new()
 	var scr: AudioStreamWAV = load("res://assets/audio/sfx_scrape.wav")
 	scr.loop_mode = AudioStreamWAV.LOOP_FORWARD
@@ -607,6 +615,7 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		game.fx.hit(global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.3, -to.normalized(), 0, Color(1.0, 0.3, 0.25))
 		game.fx.claw(global_position + Vector3(0, 1.15, 0) + to.normalized() * 0.4, Color(1.0, 0.25, 0.2))
 		state = "hurt"
+		pod.interrupt()
 		t = 0.0
 		spin_off = 0.0
 		spin.rotation.x = 0.0
@@ -624,14 +633,39 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 	if hp <= 0.0:
 		hp = 0.0
 		state = "dead"
+		pod.snap()
 		rig.play_for("Death", 1.2, 0.1)
 		game.on_player_dead()
 
 func _process(dt: float) -> void:
+	# iPod: пока интерфейс открыт, герой держит устройство перед собой. Он встаёт вполоборота к камере,
+	# лицом к правому краю кадра — туда, где интерфейс, — иначе iPod у груди закрыт спиной. После — поворачивается обратно.
+	var ip = game.ipod
+	var pod_open: bool = pod_force or (ip != null and (ip.opened or ip.device.visible) and state == "move")
+	if pod_open and not pod.want:
+		if not pod.busy():
+			pod_face0 = face
+		var cb: Basis = game.cam.global_transform.basis
+		var to := cb.x * 0.9 + cb.z * 0.5
+		pod_face = atan2(to.x, to.z)
+	pod.want = pod_open
+	# наушники: надеты ли они, хранит ipod.gd (переживает новую главу и загрузку); здесь — только синхронизация
+	if ip != null:
+		if not pod_synced:
+			pod_synced = true
+			pod.set_seated(bool(ip.earbuds_in))
+		elif (pod.buds_in() or pod.buds_state() == "STORED") and pod.buds_in() != bool(ip.earbuds_in):
+			ip.earbuds_in = pod.buds_in()
+			ip._save_settings()
+	if pod.busy():
+		face = lerp_angle(face, pod_face if pod.want or pod.u >= 1.0 else pod_face0, 1.0 - exp(-5.0 * dt))
+		body.rotation.y = face
 	# в стойке и на бегу балон живёт по инерции; в ударах, блоке и перекате его ведёт анимация
 	drag.floor_y = global_position.y + 0.06
 	var free := 1.0 if state == "move" or state == "hurt" else 0.0
 	drag.weight = move_toward(drag.weight, free, dt * (8.0 if free < drag.weight else 2.5))
+	if pod.balloon_free:
+		drag.weight = 0.0      # балон отпущен и стоит у ноги — инерция ему не нужна
 	var sp: float = drag.scrape_speed if drag.weight > 0.3 else 0.0
 	var loud := clampf((sp - 0.8) / 5.0, 0.0, 1.0)
 	if loud > 0.0 and not scrape_p.playing and game.main.testing() == "":

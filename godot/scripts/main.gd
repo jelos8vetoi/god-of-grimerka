@@ -14,6 +14,8 @@ var music: AudioStreamPlayer
 var audio                 # менеджер звука (audio.gd)
 var audiolog := false     # --audiolog: печатать состояние музыки раз в секунду (и не глушить её в проверках)
 var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка iPod по кадрам (scripts/ipodcheck.gd)
+var ipodbuds := false       # вместе с --ipodcheck: только наушники EarPods (--buds)
+var ipodhand := false       # вместе с --ipodcheck: только проверка руки и позы (--hand)
 var voicecheck := false   # --voicecheck: пройти диалог главы и напечатать, какие реплики заиграли
 var sfx_pool: Array[AudioStreamPlayer] = []
 var sfx_cache := {}
@@ -63,6 +65,10 @@ func _ready() -> void:
 		elif arg.begins_with("--ipodcheck="):
 			ipodcheck = arg.substr(12)
 			start_ch = max(start_ch, 0)
+		elif arg == "--buds":
+			ipodbuds = true
+		elif arg == "--hand":
+			ipodhand = true
 		elif arg == "--audiolog":
 			audiolog = true
 		elif arg == "--voicecheck":
@@ -222,6 +228,8 @@ func start_game(from_save := false, chapter := -1) -> void:
 		var chk = preload("res://scripts/ipodcheck.gd").new()
 		chk.game = game
 		chk.out = ipodcheck
+		chk.hand_only = ipodhand
+		chk.buds_only = ipodbuds
 		add_child(chk)
 	if smoke != "":
 		game.auto_kill = 1.6
