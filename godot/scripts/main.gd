@@ -14,6 +14,7 @@ var music: AudioStreamPlayer
 var audio                 # менеджер звука (audio.gd)
 var audiolog := false     # --audiolog: печатать состояние музыки раз в секунду (и не глушить её в проверках)
 var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка iPod по кадрам (scripts/ipodcheck.gd)
+var onechapter := false     # --onechapter: и в проверках только доступные игроку главы (проверка концовки первой главы)
 var launcher := ""          # --launcher=<путь>: игру запустил лаунчер, обновление — через него
 var ipodbuds := false       # вместе с --ipodcheck: только наушники EarPods (--buds)
 var ipodhand := false       # вместе с --ipodcheck: только проверка руки и позы (--hand)
@@ -41,6 +42,7 @@ func _ready() -> void:
 		m.button_index = a[1]
 		InputMap.action_add_event(a[0], m)
 	font = load("res://assets/fonts/RussoOne-Regular.ttf")
+	Menu.apply_display(get_window())
 	# отдельная шина для голосов: их громкость не зависит от музыки и эффектов, и её можно измерить в --voicecheck
 	if AudioServer.get_bus_index("Voice") < 0:
 		AudioServer.add_bus()
@@ -68,6 +70,8 @@ func _ready() -> void:
 			start_ch = max(start_ch, 0)
 		elif arg.begins_with("--launcher="):
 			launcher = arg.substr(11)
+		elif arg == "--onechapter":
+			onechapter = true
 		elif arg == "--buds":
 			ipodbuds = true
 		elif arg == "--hand":
@@ -123,40 +127,11 @@ func show_menu() -> void:
 	music.volume_db = -6.0
 	if not music.playing:
 		music.play()
-	menu = Control.new()
-	menu.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(menu)
-	var bg := TextureRect.new()
-	bg.texture = load("res://assets/ui/winter-menu.png")
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	menu.add_child(bg)
-	var shade := ColorRect.new()
-	shade.color = Color(0, 0, 0, 0.35)
-	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
-	menu.add_child(shade)
-	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_theme_constant_override("separation", 18)
-	box.position = Vector2(-330, -260)
-	box.size = Vector2(660, 520)
-	menu.add_child(box)
-	_check_update(box)
-	var title := label("GOD OF GRIMERKA", 72, Color("f3ead8"))
-	title.add_theme_color_override("font_outline_color", Color(0.5, 0.12, 0.05))
-	title.add_theme_constant_override("outline_size", 10)
-	box.add_child(title)
-	box.add_child(label("САГА О ПАХАНЕ, КЕНТЕ И ДЕВЯТИ СЕРВЕРАХ", 20, Color("e8c98f")))
-	var gap := Control.new()
-	gap.custom_minimum_size = Vector2(0, 40)
-	box.add_child(gap)
-	if FileAccess.file_exists("user://grimerka_save.json"):
-		box.add_child(button("ПРОДОЛЖИТЬ", func(): start_game(true)))
-	box.add_child(button("НОВАЯ ИГРА", func(): start_game(false, 0)))
-	box.add_child(button("ВЫХОД", get_tree().quit))
-	box.add_child(label("WASD — бег · мышь — камера · ЛКМ — удары балоном · ПКМ — добивание · E — Heat · Пробел — перекат · Shift — блок · Q — ад-либ madk1d · R — ПЕРЕГРУЗ · ↑ — iPod · F11 — полный экран", 15, Color("cfd6e4")))
+	# меню целиком — scripts/menu.gd (композиция, герои, экраны загрузки, настроек и дополнительного)
+	var m := Menu.new()
+	m.main = self
+	menu = m
+	add_child(m)
 
 func label(t: String, size: int, col: Color) -> Label:
 	var l := Label.new()
@@ -193,31 +168,27 @@ func button(t: String, cb: Callable) -> Button:
 ## Если они разные — в меню появляется кнопка, которая открывает страницу с новой версией. Без сети просто ничего не происходит.
 const RELEASE_API := "https://api.github.com/repos/jelos8vetoi/god-of-grimerka/releases/tags/godot-build"
 const RELEASE_URL := "https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build"
-func _check_update(box: Container) -> void:
-	if testing() != "" or not FileAccess.file_exists("res://data/build.json"):
+## on_update получает действие «обновить»: через лаунчер, если игра запущена из него, иначе — открыть страницу релиза.
+func _check_update(on_update: Callable) -> void:
+	if testing() != "" or menu == null or not FileAccess.file_exists("res://data/build.json"):
 		return
 	var mine = JSON.parse_string(FileAccess.get_file_as_string("res://data/build.json"))
 	if not (mine is Dictionary):
 		return
-	var ver := label("сборка %s · %s" % [String(mine.get("sha", "?")), String(mine.get("time", ""))], 13, Color(0.7, 0.72, 0.78))
-	ver.autowrap_mode = TextServer.AUTOWRAP_OFF   # без переноса: у подписи вне контейнера нет ширины, и она шла столбиком по букве
-	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	ver.position = Vector2(16, 12)
-	menu.add_child(ver)
 	var http := HTTPRequest.new()
 	menu.add_child(http)
 	http.request_completed.connect(func(_result: int, code: int, _headers: PackedStringArray, body: PackedByteArray):
-		if code != 200 or not is_instance_valid(box):
+		if code != 200 or not is_instance_valid(menu):
 			return
 		var d = JSON.parse_string(body.get_string_from_utf8())
 		if d is Dictionary and String(d.get("body", "")).find("`%s`" % String(mine.get("sha", ""))) < 0:
 			if launcher != "" and FileAccess.file_exists(launcher):
 				# лаунчер сам скачает новую сборку и снова запустит игру
-				box.add_child(button("ВЫШЛО ОБНОВЛЕНИЕ — ОБНОВИТЬ", func():
+				on_update.call(func():
 					OS.create_process(launcher, PackedStringArray())
-					get_tree().quit()))
+					get_tree().quit())
 			else:
-				box.add_child(button("ВЫШЛО ОБНОВЛЕНИЕ — СКАЧАТЬ", func(): OS.shell_open(RELEASE_URL))))
+				on_update.call(func(): OS.shell_open(RELEASE_URL)))
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:

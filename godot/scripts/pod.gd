@@ -74,6 +74,7 @@ var glow := 0.0              # подсветка экрана настояще�
 var lcd_mats: Array = []     # [материал, цвет, яркость] светящихся частей экрана
 var tap_kind := ""           # каким было последнее нажатие на колесо: select / menu / next / previous / play / scroll
 var frame_dt := 0.0
+var pose_hold := false      # главное меню: застывшая поза — iPod у левого уха, наушники надеты, взгляд прямо
 var presses := 0            # сколько раз палец нажимал на колесо (для проверки)
 var tap := 0.0               # короткое движение большого пальца при нажатии на колесо
 var look := Vector3.ZERO     # куда сейчас смотрит герой (точка в пространстве скелета, с отставанием)
@@ -374,9 +375,16 @@ func _process_modification_with_delta(delta: float) -> void:
 	var u0 := u
 	var a0 := a
 	var b0 := b
-	_step_buds(dt)
+	if pose_hold:
+		u = 1.0
+		a = 1.0
+		b = B_SEAT + 0.01
+		want = true
+	else:
+		_step_buds(dt)
 	hold_out = _acting() or (not buds_want and (a > 0.0 or b > 0.0))
-	u = move_toward(u, 1.0 if want or hold_out else 0.0, dt / (open_time() if want or hold_out else T_CLOSE))
+	if not pose_hold:
+		u = move_toward(u, 1.0 if want or hold_out else 0.0, dt / (open_time() if want or hold_out else T_CLOSE))
 	_sounds(u0, a0, b0)
 	# подсветка экрана: разгорается, когда iPod поднят, ярче — пока открыт интерфейс; гаснет при убирании
 	var g_want := (1.0 if want else 0.4) * _ss(0.62, 1.0, u)
@@ -429,7 +437,7 @@ func _process_modification_with_delta(delta: float) -> void:
 		look = hd0 * eye_l + hd0.basis * fwd_l * 0.3
 		target = P
 	look = look.lerp(target, 1.0 - exp(-6.5 * dt))
-	var lw := _ss(0.02, 0.3, u) * lerpf(0.5, 1.0, _ss(U_DRAW, 0.9, u))
+	var lw := 0.0 if pose_hold else _ss(0.02, 0.3, u) * lerpf(0.5, 1.0, _ss(U_DRAW, 0.9, u))
 	_look(sk, b_neck, 0.4, LOOK_NECK, lw)
 	_look(sk, b_head, 1.0, LOOK_HEAD, lw)
 	var hd2 := sk.get_bone_global_pose(b_head)
