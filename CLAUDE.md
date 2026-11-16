@@ -81,7 +81,8 @@ https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build
 - Навигация единая: главное меню — `menu.gd`, пауза — `pausemenu.gd`. Новые экраны встраиваются в них, вторые меню не создаются (`docs/UI_MENU_ARCHITECTURE.md`).
 - **Вся будущая прокачка — только через вкладку «РАЗВИТИЕ» паузы** (`docs/PROGRESSION_MENU_INTEGRATION.md`); покупка — `game.buy_upgrade(k)`, не `_open_shop()`.
 - Режим наушников (приглушение Music/SFX/Ambient, пока iPod играет в EarPods) живёт только в `audio.gd`; другие скрипты шины не глушат.
-- Проверка: `-- --ipodcheck=<папка> --pause`.
+- Настройки — одна система `settings.gd` (`Opts`, `user://grimerka_display.json`): строки `Opts.rows()` показывают и главное меню, и пауза; новые настройки добавлять туда и только работающие.
+- Проверка: `-- --ipodcheck=<папка> --pause`; сквозная по всему интерфейсу — `--resolution 1280x720 -- --uiqa=<папка>` (снимки всех экранов, клавиши и мышь, настройки, 30 циклов паузы, FPS и узлы).
 
 ## Правила проекта
 

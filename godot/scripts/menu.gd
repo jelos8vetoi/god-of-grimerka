@@ -558,6 +558,11 @@ func _activate() -> void:
 			get_tree().quit()
 
 # ---------------- экраны ----------------
+## Экран поверх меню: тёмная рваная карточка. lines — строки текста; actions — список элементов:
+##   ["#ЗАГОЛОВОК"]                      — подзаголовок раздела (не выбирается),
+##   [текст или функция текста, действие] — пункт (Enter / ЛКМ),
+##   [функция текста, null, изменение]    — настройка: A/D или ←/→ меняют значение, Enter — следующее.
+## Длинные списки прокручиваются, выбранный пункт всегда виден.
 func _open(title: String, lines: Array, actions: Array, start := 0) -> VBoxContainer:
 	_close()
 	panel = Control.new()
@@ -568,9 +573,9 @@ func _open(title: String, lines: Array, actions: Array, start := 0) -> VBoxConta
 	shade.size = STAGE
 	panel.add_child(shade)
 	var card := Polygon2D.new()
-	card.polygon = _torn(700.0, 520.0, 91)
+	card.polygon = _torn(700.0, 560.0, 91)
 	card.color = Color(0.05, 0.05, 0.06, 0.97)
-	card.position = Vector2(120, 250)
+	card.position = Vector2(120, 230)
 	panel.add_child(card)
 	var edge := Line2D.new()
 	edge.points = card.polygon
@@ -578,40 +583,55 @@ func _open(title: String, lines: Array, actions: Array, start := 0) -> VBoxConta
 	edge.width = 2.0
 	edge.default_color = WHITE
 	card.add_child(edge)
-	var head := _text(panel, title, 64, WHITE, Vector2(120, 262), serif, true)
+	var head := _text(panel, title, 64, WHITE, Vector2(120, 240), serif, true)
 	head.rotation = deg_to_rad(-2.0)
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(126, 334)
+	scroll.size = Vector2(670, 418)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(scroll)
 	var box := VBoxContainer.new()
-	box.position = Vector2(126, 356)
-	box.size = Vector2(650, 380)
-	box.add_theme_constant_override("separation", 7)
-	panel.add_child(box)
+	box.custom_minimum_size = Vector2(650, 0)
+	box.add_theme_constant_override("separation", 5)
+	scroll.add_child(box)
 	for s in lines:
-		var l := Label.new()
-		l.text = String(s)
-		l.add_theme_font_override("font", tech)
-		l.add_theme_font_size_override("font_size", 17)
-		l.add_theme_color_override("font_color", SILVER)
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		box.add_child(l)
+		box.add_child(_para(String(s), 17, SILVER))
 	panel_rows = []
-	for i in actions.size():
-		var a: Array = actions[i]
+	for a in actions:
+		if a[0] is String and String(a[0]).begins_with("#"):
+			var h := _para(String(a[0]).substr(1), 15, GREY)
+			h.custom_minimum_size = Vector2(0, 30)
+			h.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+			box.add_child(h)
+			continue
+		var i := panel_rows.size()
 		var l2 := Label.new()
 		l2.add_theme_font_override("font", serif)
-		l2.add_theme_font_size_override("font_size", 30)
+		l2.add_theme_font_size_override("font_size", 27)
 		l2.mouse_filter = Control.MOUSE_FILTER_STOP
 		l2.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		l2.set_meta("text", a[0])
 		box.add_child(l2)
-		panel_rows.append([l2, a[1]])
+		panel_rows.append({"label": l2, "text": a[0], "act": a[1] if a.size() > 1 else null, "adj": a[2] if a.size() > 2 else null})
 		l2.mouse_entered.connect(func(): _panel_select(i))
 		l2.gui_input.connect(func(e: InputEvent):
-			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			if e is InputEventMouseButton and e.pressed and (e.button_index == MOUSE_BUTTON_LEFT or e.button_index == MOUSE_BUTTON_RIGHT):
 				_panel_select(i)
-				_panel_activate())
+				_panel_activate(-1 if e.button_index == MOUSE_BUTTON_RIGHT else 1))
+	panel.modulate.a = 0.0
+	create_tween().tween_property(panel, "modulate:a", 1.0, 0.14)
 	_panel_select(clampi(start, 0, max(0, panel_rows.size() - 1)), false)
-	info.text = "Enter — выбрать · Esc — назад"
+	info.text = "Enter — выбрать · A/D — изменить значение · Esc — назад"
 	return box
+
+func _para(s: String, size: int, col: Color) -> Label:
+	var l := Label.new()
+	l.text = s
+	l.add_theme_font_override("font", tech)
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", col)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(640, 0)
+	return l
 
 func _panel_select(i: int, sound := true) -> void:
 	if panel_rows.is_empty():
@@ -620,27 +640,37 @@ func _panel_select(i: int, sound := true) -> void:
 		main.sfx("sfx_ui", -10.0, 1.2)
 	panel_sel = i
 	for k in panel_rows.size():
-		var l: Label = panel_rows[k][0]
-		var txt = l.get_meta("text")
+		var r: Dictionary = panel_rows[k]
+		var l: Label = r["label"]
+		var txt = r["text"]
 		var s: String = String(txt.call()) if txt is Callable else String(txt)
-		l.text = ("▶ " if k == i else "   ") + s
+		l.text = ("▶ " if k == i else "   ") + s + ("   ◀ ▶" if k == i and r["adj"] != null else "")
 		l.add_theme_color_override("font_color", WHITE if k == i else GREY)
+	var cur: Label = panel_rows[i]["label"]
+	var sc := cur.get_parent().get_parent() as ScrollContainer
+	if sc != null:
+		sc.ensure_control_visible.call_deferred(cur)
 
-func _panel_activate() -> void:
+## dir: +1 — Enter / вправо, −1 — влево (только для настроек).
+func _panel_activate(dir := 1) -> void:
 	if panel_rows.is_empty():
 		return
-	main.sfx("sfx_ui")
-	var cb: Callable = panel_rows[panel_sel][1]
-	cb.call()
+	var r: Dictionary = panel_rows[panel_sel]
+	if r["adj"] != null:
+		main.sfx("sfx_ui", -6.0, 1.1 if dir > 0 else 0.9)
+		(r["adj"] as Callable).call(dir)
+	elif r["act"] != null and dir > 0:
+		main.sfx("sfx_ui")
+		(r["act"] as Callable).call()
 	if panel != null:
-		_panel_select(panel_sel, false)   # переключатели обновляют свою подпись
+		_panel_select(panel_sel, false)
 
 func _close() -> void:
 	if panel != null:
 		panel.queue_free()
 		panel = null
 		panel_rows = []
-		info.text = ITEMS[sel][1]
+		info.text = ITEMS[sel][1] if _enabled(sel) else "Сохранения пока нет — начни новую игру."
 
 func _open_load() -> void:
 	if not has_save:
@@ -650,38 +680,18 @@ func _open_load() -> void:
 	_open("LOAD GAME", [
 		"ЯЧЕЙКА 01 — единственная: игра хранит одно сохранение.",
 		"Глава %d · %s" % [chapter_no(), chapter_name(chapter_no() - 1)],
-		"Шаг главы: %d   ·   Опыт: %d" % [int(save.get("step", 0)) + 1, int(save.get("xp", 0))],
+		"Шаг главы: %d   ·   Прослушивания: %d" % [int(save.get("step", 0)) + 1, int(save.get("xp", 0))],
 		"Улучшения — здоровье: %d · сила: %d · ад-либ madk1d: %d" % [int(up.get("hp", 0)), int(up.get("dmg", 0)), int(up.get("q", 0))],
 	], [["ЗАГРУЗИТЬ", func(): main.start_game(true)], ["НАЗАД", _close]])
 
 func _open_settings() -> void:
-	var box := _open("SETTINGS", ["ЭКРАН"], [
-		[func(): return "ПОЛНЫЙ ЭКРАН: " + ("ВКЛ" if is_fullscreen(get_window()) else "ВЫКЛ"), func(): set_fullscreen(get_window(), not is_fullscreen(get_window()))],
-		[func(): return "ВЕРТИКАЛЬНАЯ СИНХРОНИЗАЦИЯ: " + ("ВКЛ" if DisplayServer.window_get_vsync_mode() != DisplayServer.VSYNC_DISABLED else "ВЫКЛ"), func(): set_vsync(DisplayServer.window_get_vsync_mode() == DisplayServer.VSYNC_DISABLED)],
-		["НАЗАД", _close]])
-	var s := Label.new()
-	s.text = "ЗВУК (мышью)"
-	s.add_theme_font_override("font", tech)
-	s.add_theme_font_size_override("font_size", 17)
-	s.add_theme_color_override("font_color", SILVER)
-	box.add_child(s)
-	main.audio.add_sliders(box)
-	# ползунки громкости общие с паузой; здесь перекрашиваем их в белый — меню строго чёрно-белое
-	for sl in box.find_children("*", "HSlider", true, false):
-		for nm in ["grabber_area", "grabber_area_highlight"]:
-			var fill := StyleBoxFlat.new()
-			fill.bg_color = WHITE
-			fill.set_corner_radius_all(3)
-			fill.content_margin_top = 3
-			fill.content_margin_bottom = 3
-			(sl as HSlider).add_theme_stylebox_override(nm, fill)
-	var c := Label.new()
-	c.text = "УПРАВЛЕНИЕ: WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — добивание · E — Heat · Пробел — перекат · Shift — блок · Q — ад-либ madk1d · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"
-	c.add_theme_font_override("font", tech)
-	c.add_theme_font_size_override("font_size", 14)
-	c.add_theme_color_override("font_color", GREY)
-	c.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(c)
+	var acts: Array = []
+	for r in Opts.rows(get_window(), main.audio, null):
+		acts.append([r[0]] if r.size() == 1 else [r[0], null, r[1]])
+	acts.append(["#УПРАВЛЕНИЕ"])
+	acts.append(["#WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — добивание · E — Heat · Пробел — перекат · Shift — блок · Q — ад-либ madk1d · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"])
+	acts.append(["НАЗАД", _close])
+	_open("SETTINGS", [], acts)
 
 func _open_extras() -> void:
 	var acts: Array = []
@@ -696,60 +706,6 @@ func _open_extras() -> void:
 		"Голоса — Fish Audio. Эффекты — Kenney Particle Pack (CC0). Модели — Tripo AI. Музыка локаций синтезирована в игре.",
 	], acts)
 
-# ---------------- экран: общее для меню и паузы ----------------
-static func is_fullscreen(w: Window) -> bool:
-	return w.mode == Window.MODE_FULLSCREEN or w.mode == Window.MODE_EXCLUSIVE_FULLSCREEN
-
-static func set_fullscreen(w: Window, on: bool) -> void:
-	w.mode = Window.MODE_FULLSCREEN if on else Window.MODE_WINDOWED
-	_save_display(on, DisplayServer.window_get_vsync_mode() != DisplayServer.VSYNC_DISABLED)
-
-static func set_vsync(on: bool) -> void:
-	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if on else DisplayServer.VSYNC_DISABLED)
-	var f := FileAccess.file_exists(DISPLAY)
-	var full := false
-	if f:
-		var d = JSON.parse_string(FileAccess.get_file_as_string(DISPLAY))
-		if d is Dictionary:
-			full = bool(d.get("fullscreen", false))
-	_save_display(full, on)
-
-static func _save_display(full: bool, vsync: bool) -> void:
-	var f := FileAccess.open(DISPLAY, FileAccess.WRITE)
-	if f:
-		f.store_string(JSON.stringify({"fullscreen": full, "vsync": vsync}))
-
-## Применить сохранённые настройки экрана при запуске игры.
-static func apply_display(w: Window) -> void:
-	if not FileAccess.file_exists(DISPLAY):
-		return
-	var d = JSON.parse_string(FileAccess.get_file_as_string(DISPLAY))
-	if d is Dictionary:
-		if bool(d.get("fullscreen", false)):
-			w.mode = Window.MODE_FULLSCREEN
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if bool(d.get("vsync", true)) else DisplayServer.VSYNC_DISABLED)
-
-## Те же переключатели экрана кнопками — для меню паузы.
-static func add_display_buttons(box: Container, w: Window) -> void:
-	for kind in ["full", "vsync"]:
-		var b := Button.new()
-		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(400, 34)
-		b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		var refresh := func():
-			if kind == "full":
-				b.text = "Полный экран: " + ("вкл" if is_fullscreen(w) else "выкл")
-			else:
-				b.text = "Вертикальная синхронизация: " + ("вкл" if DisplayServer.window_get_vsync_mode() != DisplayServer.VSYNC_DISABLED else "выкл")
-		b.pressed.connect(func():
-			if kind == "full":
-				set_fullscreen(w, not is_fullscreen(w))
-			else:
-				set_vsync(DisplayServer.window_get_vsync_mode() == DisplayServer.VSYNC_DISABLED)
-			refresh.call())
-		refresh.call()
-		box.add_child(b)
-
 # ---------------- ввод и жизнь ----------------
 func _unhandled_input(e: InputEvent) -> void:
 	if not (e is InputEventKey) or not e.pressed or e.echo:
@@ -763,8 +719,10 @@ func _unhandled_input(e: InputEvent) -> void:
 			_panel_select(posmod(panel_sel - 1, panel_rows.size()))
 		elif down and not panel_rows.is_empty():
 			_panel_select(posmod(panel_sel + 1, panel_rows.size()))
-		elif ok:
-			_panel_activate()
+		elif ok or k == KEY_D or k == KEY_RIGHT:
+			_panel_activate(1)
+		elif k == KEY_A or k == KEY_LEFT:
+			_panel_activate(-1)
 		elif k == KEY_ESCAPE or k == KEY_BACKSPACE:
 			main.sfx("sfx_ui", -8.0, 0.8)
 			_close()
