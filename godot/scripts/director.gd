@@ -22,8 +22,20 @@ func _ready() -> void:
 	# A — двор: камера облетает Пахана и кента спереди
 	shots.append({"n": "A", "warm": 12, "len": 96, "own": true, "setup": func():
 		_stage(0), "tick": func(i):
-		var a: float = 3.6 - i * 0.006
-		_look(P.global_position + Vector3(sin(a) * (5.6 - i * 0.012), 1.25, cos(a) * (5.6 - i * 0.012)) + Vector3(-0.7, 0, 0), P.global_position + Vector3(-0.7, 1.15, 0))})
+		var a: float = 3.5 - i * 0.006
+		var r: float = 5.4 - i * 0.012
+		var off := Vector3(sin(a) * r, 0, cos(a) * r)
+		# герои стоят рядом и смотрят в камеру
+		P.face = atan2(off.x, off.z)
+		P.auto_input = {}
+		game.cam_yaw = atan2(-off.x, -off.z)
+		var B = game.buddy
+		B.global_position = P.global_position + Vector3(cos(P.face), 0, -sin(P.face)) * 1.35
+		B.target = B.global_position
+		B.wait = 9.0
+		B.face = P.face
+		var mid: Vector3 = (P.global_position + B.global_position) * 0.5
+		_look(mid + off + Vector3(0, 1.2, 0), mid + Vector3(0, 1.1, 0))})
 	# B — проход с золотой аурой: камера пятится перед Паханом, снизу
 	shots.append({"n": "B", "warm": 14, "len": 100, "own": true, "slow": 0.5, "setup": func():
 		_stage(0)
@@ -37,7 +49,7 @@ func _ready() -> void:
 		_stage(0)
 		game.cam_yaw = 0.0
 		for i in 6:
-			var a := -1.9 + i * 0.4
+			var a := -2.3 + i * 0.36
 			game.spawn_enemy("bot", P.global_position + Vector3(sin(a) * 3.0, 0, -cos(a) * 3.0)), "tick": func(i):
 		P.swag = 100.0 if i < 50 else P.swag
 		P.auto_input = {"rage": "press"} if i == 50 else {}
@@ -45,6 +57,66 @@ func _ready() -> void:
 		game.buddy.target = game.buddy.global_position
 		game.buddy.wait = 5.0
 		_look(P.global_position + Vector3(2.9 - i * 0.008, 0.95, -3.3), P.global_position + Vector3(-0.3, 1.15, -0.4))})
+	# X1 — Heat-добивание крупным планом (неон)
+	shots.append({"n": "X1_", "warm": 40, "len": 96, "own": true, "setup": func():
+		_stage(2)
+		game.cam_yaw = 0.0
+		P.face = PI
+		game.spawn_enemy("clipper", P.global_position + Vector3(0.2, 0, -2.3)), "tick": func(i):
+		P.inv = 1.0
+		if i < 2:
+			P.swag = 100.0
+		P.auto_input = {"heat": "press"} if i == 1 else {}
+		_park_buddy()
+		_look(P.global_position + Vector3(3.0 - i * 0.006, 0.85, -0.9), P.global_position + Vector3(0, 1.0, -1.2))})
+	# X2 — заряженный полный замах по толпе (подвал), камера из-за плеча
+	shots.append({"n": "X2_", "warm": 46, "len": 104, "own": true, "slow": 0.5, "setup": func():
+		_stage(1)
+		game.cam_yaw = 0.0
+		P.face = PI
+		for x in [-1.7, -0.85, 0.0, 0.85, 1.7]:
+			game.spawn_enemy("bot", P.global_position + Vector3(x, 0, -2.4 - abs(x) * 0.25)), "tick": func(i):
+		P.inv = 1.0
+		_park_buddy()
+		if i == 1:
+			P.start_finisher(2)
+		P.auto_input = {"heavy": "hold"} if i < 52 else {}
+		_look(P.global_position + Vector3(-2.3 + i * 0.004, 1.35, 2.5), P.global_position + Vector3(0.3, 1.0, -1.6))})
+	# X3 — «нунчаки»: вертушка в кольце врагов (чарты), камера облетает сверху
+	shots.append({"n": "X3_", "warm": 46, "len": 76, "own": true, "slow": 0.5, "setup": func():
+		_stage(7)
+		game.cam_yaw = 0.0
+		P.face = PI
+		var kinds := ["clipper", "bot", "hater", "clipper", "bot", "bot"]
+		for i in 6:
+			var a := i / 6.0 * TAU
+			game.spawn_enemy(kinds[i], P.global_position + Vector3(sin(a) * 2.3, 0, cos(a) * 2.3)), "tick": func(i):
+		P.inv = 1.0
+		_park_buddy()
+		if i == 1:
+			P.start_attack(P.FINISH[3])
+		P.auto_input = {}
+		var a: float = 0.6 + i * 0.012
+		_look(P.global_position + Vector3(sin(a) * 4.2, 2.7, cos(a) * 4.2), P.global_position + Vector3(0, 0.9, 0))})
+	# X4 — ад-либ madk1d: волна оглушает толпу (болото)
+	shots.append({"n": "X4_", "warm": 44, "len": 64, "own": true, "slow": 0.5, "setup": func():
+		_stage(3)
+		game.cam_yaw = 0.0
+		var B = game.buddy
+		B.global_position = P.global_position + Vector3(2.2, 0, -1.0)
+		B.target = B.global_position
+		B.wait = 9.0
+		for i in 5:
+			var a := -1.2 + i * 0.6
+			game.spawn_enemy("troll" if i == 2 else "bot", B.global_position + Vector3(sin(a) * 3.2, 0, -cos(a) * 3.2)), "tick": func(i):
+		var B = game.buddy
+		P.inv = 1.0
+		P.auto_input = {}
+		B.wait = 9.0
+		if i == 6:
+			B.cd = 0.0
+			B.adlib()
+		_look(B.global_position + Vector3(0.9, 3.3 - i * 0.008, 4.4 - i * 0.012), B.global_position + Vector3(0, 0.7, -1.4))})
 	var sets := [["bot", "bot", "bot", "hater"], ["bot", "bot", "clipper", "clipper", "clipper"], ["clipper", "clipper", "clipper", "hater", "hater"], ["troll", "troll", "hater", "hater", "clipper"],
 		["lawyer", "lawyer", "mod", "mod", "clipper"], ["ghost", "ghost", "ghost", "troll"], ["farmer", "bot", "bot", "bot", "clipper", "clipper"], ["troll", "lawyer", "ghost", "clipper", "clipper"], ["bot", "bot", "ghost", "ghost", "clipper", "hater", "troll"]]
 	var bosses := ["courier", "golem", "hype", "dislike", "major", "strike", "botlord", "ghostv", "algo"]
@@ -72,7 +144,11 @@ func _ready() -> void:
 			P.swag = 100.0, "tick": func(_i):
 			game.auto_t += 1.0 / 30.0
 			game.bot_input(1.0 / 30.0)})
-	_next()
+	# --shots=A,X4_ — снять только названные планы
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--shots="):
+			var want := arg.substr(8).split(",")
+			shots = shots.filter(func(sh): return want.has(sh["n"]))
 
 func _stage(ch: int, reload := true) -> void:
 	if reload or game.ch != ch:
@@ -92,6 +168,12 @@ func _stage(ch: int, reload := true) -> void:
 	P.rage = 0.0
 	P.auto_input = {}
 	P.rig.play("Idle", 0.0)
+
+func _park_buddy() -> void:
+	var B = game.buddy
+	B.global_position = game.player.global_position + Vector3(-2.6, 0, 3.2)
+	B.target = B.global_position
+	B.wait = 9.0
 
 func _look(from: Vector3, at: Vector3) -> void:
 	cam.global_position = from
@@ -120,7 +202,9 @@ func hide_hud() -> bool:
 	return true
 
 func frame(_dt: float) -> void:
-	if si < 0 or si >= shots.size():
+	if si < 0:
+		_next()   # первый план ставим после того, как игра запустила главу
+	if si >= shots.size():
 		return
 	var s: Dictionary = shots[si]
 	var P = game.player

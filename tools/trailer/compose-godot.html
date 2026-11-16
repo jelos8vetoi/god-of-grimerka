@@ -1,0 +1,226 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>trailer</title>
+<style>@font-face{font-family:"Russo One";src:url(RussoOne-Regular.ttf)}html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="v" width="1280" height="720"></canvas>
+<script>
+const W = 1280, H = 720, FPS = 30, LEN = 30;
+const SHOTS = [
+  { t0: 0, t1: 3.2, p: 'A', n: 97, slowzoom: 1 },
+  { t0: 3.2, t1: 6.4, p: 'B', n: 101, from: 4, slowzoom: 1 },
+  { t0: 6.4, t1: 8.5, p: 'C', n: 81, from: 43, sp: .65, slowzoom: 1 },
+  { t0: 10, t1: 11.5, p: 'X2_', n: 105, from: 40, br: 1.7 },
+  { t0: 11.5, t1: 12, p: 'D3_', n: 45, from: 8 },
+  { t0: 12, t1: 13.5, p: 'X1_', n: 97, from: 14 },
+  { t0: 13.5, t1: 14, p: 'D5_', n: 45, from: 8 },
+  { t0: 14, t1: 15, p: 'X3_', n: 77, from: 8 },
+  { t0: 15, t1: 15.5, p: 'D7_', n: 45, from: 8, br: 1.25 },
+  { t0: 15.5, t1: 16, p: 'D4_', n: 45, from: 8 },
+  { t0: 16, t1: 17, p: 'X4_', n: 65, from: 2 },
+  { t0: 17, t1: 17.5, p: 'D8_', n: 45, from: 8 },
+  { t0: 17.5, t1: 18, p: 'D2_', n: 45, from: 8, br: 1.5 },
+  { t0: 18, t1: 18.5, p: 'H1_', n: 41, from: 22, boss: 1, name: 'LIL DREY' },
+  { t0: 18.5, t1: 19, p: 'H2_', n: 41, from: 22, boss: 2, name: 'ПЕРВЫЙ КОРОЛЬ', br: 1.6 },
+  { t0: 19, t1: 19.5, p: 'H3_', n: 41, from: 22, boss: 3, name: 'ЛЕДИ ХАЙП' },
+  { t0: 19.5, t1: 20, p: 'H4_', n: 41, from: 22, boss: 4, name: 'КОРОЛЬ ДИЗЛАЙК' },
+  { t0: 20, t1: 20.5, p: 'H5_', n: 41, from: 22, boss: 5, name: 'МЕЙДЖОР' },
+  { t0: 20.5, t1: 21, p: 'H6_', n: 41, from: 22, boss: 6, name: 'СЕРЁГА РПЛЮС' },
+  { t0: 21, t1: 21.5, p: 'H7_', n: 41, from: 22, boss: 7, name: 'АНАР АБДУЛАЕВ' },
+  { t0: 21.5, t1: 22, p: 'H8_', n: 41, from: 22, boss: 8, name: 'DENYA8' },
+  { t0: 22, t1: 22.5, p: 'H9_', n: 41, from: 22, boss: 9, name: '9MICE' },
+  { t0: 22.5, t1: 24.5, p: 'I9_', n: 91, from: 24, slowzoom: 1 }];
+const VO = [['vo1', .5], ['vo2', 3.6], ['vo3', 6.95], ['vo4', 8.62], ['vo5', 10.05], ['vo6', 12.05], ['vo7', 14.0], ['vo8', 16.05], ['vo9', 22.6], ['vo10', 25.5]];
+const SPEECH = {"vo1":[0.12,2.29],"vo2":[0.12,2.15],"vo3":[0.12,1.4],"vo4":[0.12,1.33],"vo5":[0.12,1.11],"vo6":[0.12,1.02],"vo7":[0.12,0.92],"vo8":[0.14,0.97],"vo9":[0.12,1.8],"vo10":[0.13,1.32]};
+const HITS = [3.2, 6.75, 8.5, 10.97, 12.47, 13.4, 14, 16.2, 18, 18.5, 19, 19.5, 20, 20.5, 21, 21.5, 22, 22.5, 24.5], CUTS = SHOTS.map(q => q.t0).filter(v => v >= 10);
+const LOGO = 24.5;
+const c = document.getElementById('v'), x = c.getContext('2d');
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v, ease = k => 1 - Math.pow(1 - clamp(k, 0, 1), 3);
+const blobs = {}, bmp = {}, pend = {};
+let keyart, icon, grain, lastBmp = null;
+
+function shot(t) { for (const q of SHOTS) if (t >= q.t0 && t < q.t1) return q; return null; }
+function key(t) {
+  for (const s of SHOTS) if (s.p && t >= s.t0 && t < s.t1) { const i = clamp((s.from || 0) + Math.floor((t - s.t0) * FPS * (s.sp || 1)), 0, s.n - 1); return s.p + String(i).padStart(3, '0'); }
+  return null;
+}
+function want(t) {   // декодируем кадры на ~1.2 c вперёд, старые освобождаем
+  const need = new Set(); for (let d = 0; d < 1.2; d += 1 / FPS) { const k = key(t + d); if (k) need.add(k); }
+  need.add('A060'); for (const k of need) if (!bmp[k] && !pend[k] && blobs[k]) pend[k] = createImageBitmap(blobs[k]).then(b => { bmp[k] = b; delete pend[k]; });
+  for (const k in bmp) if (!need.has(k) && k !== key(t) && k !== lastBmp && k !== 'A060') { bmp[k].close(); delete bmp[k]; }
+}
+function txt(s, size, X, Y, o) {
+  o = o || {}; x.save(); x.font = size + 'px "Russo One"'; x.textAlign = o.align || 'left'; x.textBaseline = 'alphabetic'; x.globalAlpha = o.a == null ? 1 : o.a;
+  if (o.glow) { x.shadowColor = o.glow; x.shadowBlur = o.blur || 30; }
+  x.fillStyle = o.color || '#fff'; x.fillText(s, X, Y); x.restore();
+}
+function lower(s, sub, t, t0, t1) {    // титр внизу слева
+  if (t < t0 || t > t1) return; const a = clamp((t - t0) / .35, 0, 1) * clamp((t1 - t) / .35, 0, 1), sl = (1 - ease((t - t0) / .5)) * 60;
+  x.save(); x.globalAlpha = a; x.fillStyle = '#ff3b3b'; x.fillRect(70 - sl, 560, 6, sub ? 78 : 50); x.restore();
+  txt(s, 38, 92 - sl, 598, { a, glow: 'rgba(0,0,0,.9)', blur: 12 }); if (sub) txt(sub, 18, 94 - sl, 630, { a, color: '#ffb3a8' });
+}
+function slam(s, t, t0) {             // удар-заголовок по центру
+  const k = t - t0; if (k < 0 || k > .95) return; const sc = 1 + 0.9 * Math.pow(1 - ease(k / .16), 2), a = clamp(k / .05, 0, 1) * clamp((.95 - k) / .15, 0, 1);
+  x.save(); x.translate(W / 2, H / 2 + 30); x.scale(sc, sc); txt(s, 112, 0, 0, { align: 'center', a, glow: '#ff2a2a', blur: 40 }); x.restore();
+}
+const rnd = i => { const v = Math.sin(i * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+function art(z, dy) {                 // зимний двор: заполняет кадр, медленный наезд
+  const k = Math.max(W / keyart.width, H / keyart.height) * z, w = keyart.width * k, h = keyart.height * k; x.drawImage(keyart, (W - w) / 2, (H - h) / 2 + (dy || 0), w, h);
+}
+function snow(t, a) {
+  x.save(); x.fillStyle = '#fff';
+  for (let i = 0; i < 140; i++) { const sp = .05 + rnd(i) * .09, yy = ((t * sp + rnd(i + 50)) % 1) * (H + 20) - 10, xx = (rnd(i + 99) * W + Math.sin(t * .8 + i) * 18 + t * 14) % W, r = .8 + rnd(i + 7) * 1.8; x.globalAlpha = a * (.25 + rnd(i + 3) * .6); x.beginPath(); x.arc(xx, yy, r, 0, 6.3); x.fill(); }
+  x.restore();
+}
+function embers(t, a, col, n) {       // искры ауры: летят снизу вверх
+  x.save(); x.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < (n || 70); i++) { const sp = .18 + rnd(i) * .35, ph = (t * sp + rnd(i + 20)) % 1, xx = rnd(i + 40) * W + Math.sin(t * 1.7 + i) * 26, yy = H * (1.05 - ph * 1.15), r = (2 + rnd(i + 9) * 5) * (1 - ph * .6);
+    const g = x.createRadialGradient(xx, yy, 0, xx, yy, r * 3); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.globalAlpha = a * (1 - ph) * (.5 + rnd(i + 5) * .5); x.fillStyle = g; x.fillRect(xx - r * 3, yy - r * 3, r * 6, r * 6); }
+  x.restore();
+}
+function auraGlow(t, col, cy, a) {    // столб света за героем
+  x.save(); x.globalCompositeOperation = 'lighter'; const p = .82 + .18 * Math.sin(t * 9);
+  let g = x.createRadialGradient(W / 2, H * cy, 10, W / 2, H * cy, 330); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.globalAlpha = Math.min(1, .62 * a * p); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  g = x.createLinearGradient(W / 2 - 150, 0, W / 2 + 150, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(.5, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.globalAlpha = Math.min(1, .42 * a * p); x.fillStyle = g; x.fillRect(W / 2 - 150, 0, 300, H * cy + 40);
+  x.restore();
+}
+function auraVal(t) {
+  if (t >= 22.5) return '∞'; let v;
+  if (t < 6.75) v = 100 + Math.floor((t - 3.2) / .25) * 60; else if (t < 10) v = 10000 + Math.floor((t - 6.75) * 30) * 37;
+  else v = Math.round(12000 * Math.pow(1.42, Math.floor((t - 10) * 2)) + ((t * 30 | 0) % 7) * 113);
+  return '+' + String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+function draw(t) {
+  const k = key(t); let sh = 0; for (const h of HITS) if (t >= h && t < h + .35) sh = (1 - (t - h) / .35) * (h < 10 ? 9 : 15);
+  x.save(); x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+  if (sh) x.translate((Math.random() - .5) * sh, (Math.random() - .5) * sh);
+  const q = shot(t), im = k && bmp[k] ? bmp[k] : (k && lastBmp && bmp[lastBmp] ? bmp[lastBmp] : null); if (k && bmp[k]) lastBmp = k;
+  if (im) {
+    const dq = t - q.t0, fast = !q.slowzoom;
+    // удар-зум на склейке у быстрых планов, медленный наезд у длинных; на ПЕРЕГРУЗЕ — толчок
+    let z = fast ? 1.03 + .1 * Math.pow(1 - clamp(dq / .22, 0, 1), 2) + dq * .025 : 1.02 + dq * .014;
+    if (q.p === 'C' && t >= 6.75) z *= 1 + .1 * Math.pow(1 - clamp((t - 6.75) / .4, 0, 1), 2);
+    x.save(); x.translate(W / 2, H / 2); x.scale(z, z);
+    if (q.br) x.filter = 'brightness(' + q.br + ')';
+    x.drawImage(im, -W / 2, -H / 2, W, H); x.filter = 'none';
+    if (fast && dq < .1) { x.globalCompositeOperation = 'lighter'; x.globalAlpha = .45 * (1 - dq / .1); x.drawImage(im, -W / 2 - 16, -H / 2, W, H); x.drawImage(im, -W / 2 + 16, -H / 2, W, H); }
+    x.restore();
+    if (q.p === 'B' || q.p === 'C' || q.p === 'I9_') embers(t, q.p === 'B' ? .5 : .9, q.p === 'B' ? '#ffc23b' : '#ff5a1c', 60);
+  }
+  x.restore();
+  if (t < LOGO) {
+    // цвет: холод в тенях, виньетка, зерно, кинорамка
+    x.save(); x.globalCompositeOperation = 'soft-light'; x.fillStyle = 'rgba(40,10,60,.3)'; x.fillRect(0, 0, W, H); x.restore();
+    const g = x.createRadialGradient(W / 2, H / 2, H * .32, W / 2, H / 2, H * .95); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.6)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.globalAlpha = .06; x.drawImage(grain, -Math.random() * 256, -Math.random() * 256); x.globalAlpha = 1;
+    x.fillStyle = '#000'; x.fillRect(0, 0, W, 52); x.fillRect(0, H - 52, W, 52);
+  }
+  if (t < 1) { x.fillStyle = `rgba(0,0,0,${1 - t})`; x.fillRect(0, 0, W, H); }
+  lower('ТОМСК. ЯНВАРЬ. −34°', 'у кента забрали голос', t, .5, 3.0);
+  lower('ОНИ ДУМАЛИ, Я ПРОМОЛЧУ', 'шесть часов до релиза', t, 3.7, 6.2);
+  if (t >= 6.75 && t < 8.5) {                       // имя героя
+    const kk = t - 6.75, sc = 1 + 1.4 * Math.pow(1 - ease(kk / .2), 2), a = clamp(kk / .05, 0, 1) * clamp((8.5 - t) / .2, 0, 1);
+    x.fillStyle = 'rgba(0,0,0,' + .3 * a + ')'; x.fillRect(0, 0, W, H);
+    x.save(); x.translate(W / 2, H - 150); x.scale(sc, sc); txt('ПАХАН', 150, 0, 0, { align: 'center', a: a * .97, color: '#fff3d6', glow: '#ff7a1c', blur: 60 }); x.restore();
+    if (kk < .18) { x.fillStyle = `rgba(255,235,200,${.9 * (1 - kk / .18)})`; x.fillRect(0, 0, W, H); }
+  }
+  if (t >= 8.5 && t < 10) {                         // удар и тишина
+    x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+    const a = clamp((t - 8.55) / .1, 0, 1) * clamp((10 - t) / .12, 0, 1), full = 'И Я ИДУ ЗА СВОИМ', n = Math.floor(clamp((t - 8.62) / 1.0, 0, 1) * full.length);
+    txt(full.slice(0, n), 72, W / 2 - 385, H / 2 + 24, { a, color: '#ffc23b', glow: '#ff7a1c', blur: 34 });
+    embers(t, .5 * a, '#ff7a1c', 40);
+  }
+  // удары-заголовки внизу кадра, чтобы не закрывать бой
+  for (const [w, t0] of [['9 СЕРВЕРОВ', 10], ['9 БОССОВ', 12], ['ОДИН БАЛОН', 14], ['0 ПОЩАДЫ', 16]]) {
+    const kk = t - t0; if (kk < 0 || kk > 1.0) continue; const sc = 1 + .8 * Math.pow(1 - ease(kk / .16), 2), a = clamp(kk / .05, 0, 1) * clamp((1.0 - kk) / .15, 0, 1);
+    x.save(); x.translate(W / 2, H - 96); x.scale(sc, sc); txt(w, 84, 0, 0, { align: 'center', a, glow: '#ff2a2a', blur: 36 }); x.restore();
+  }
+  if (q && q.boss) {                                // боссы: номер и имя
+    const dq = t - q.t0, a = clamp(dq / .05, 0, 1) * clamp((q.t1 - t) / .07, 0, 1), sl = (1 - ease(dq / .14)) * 50;
+    txt('БОСС 0' + q.boss + ' / 09', 22, 78 - sl, 108, { a, color: '#ffb3a8' });
+    txt(q.name, 76, 74 - sl, H - 92, { a, glow: '#ff2a2a', blur: 28 });
+  }
+  if (t >= 3.2 && t < LOGO && !(t >= 8.5 && t < 10)) { // счётчик ауры
+    const v = auraVal(t), inf = v === '∞', a = clamp((t - 3.2) / .4, 0, 1), big = t >= 22.5 ? 1 + .5 * Math.pow(1 - clamp((t - 22.5) / .3, 0, 1), 2) : 1;
+    txt('АУРА', 18, W - 76, 104, { align: 'right', a, color: '#ffd9a0' });
+    x.save(); x.translate(W - 76, 150); x.scale(big, big); txt(v, inf ? 76 : 44, 0, inf ? 14 : 0, { align: 'right', a, color: inf ? '#fff3d6' : '#ffc23b', glow: inf ? '#ff7a1c' : 'rgba(255,140,30,.8)', blur: inf ? 40 : 18 }); x.restore();
+  }
+  if (t >= 22.9 && t < 24.4) { const kk = t - 22.9, sc = 1 + .9 * Math.pow(1 - ease(kk / .18), 2), a = clamp(kk / .06, 0, 1) * clamp((24.4 - t) / .2, 0, 1); x.save(); x.translate(W / 2, H - 110); x.scale(sc, sc); txt('АУРА БЕСКОНЕЧНА', 64, 0, 0, { align: 'center', a, color: '#fff3d6', glow: '#ff7a1c', blur: 40 }); x.restore(); }
+  if (t >= 23.9 && t < LOGO) { x.fillStyle = `rgba(255,240,215,${Math.pow((t - 23.9) / .6, 2)})`; x.fillRect(0, 0, W, H); }
+  if (t >= LOGO) {                                  // логотип поверх кадра с героями, за ним — огонь ауры
+    const k2 = t - LOGO, bg = bmp['A060'] || keyart, z = 1.12 + k2 * .01;
+    x.save(); x.translate(W / 2, H / 2); x.scale(z, z); x.filter = 'blur(6px) brightness(.55)'; x.drawImage(bg, -W / 2, -H / 2, W, H); x.filter = 'none'; x.restore();
+    x.fillStyle = 'rgba(4,2,8,.45)'; x.fillRect(0, 0, W, H);
+    x.save(); x.globalCompositeOperation = 'lighter'; const g2 = x.createRadialGradient(W / 2, 320, 20, W / 2, 320, 560); g2.addColorStop(0, 'rgba(255,90,28,.5)'); g2.addColorStop(1, 'rgba(0,0,0,0)'); x.globalAlpha = .7 + .2 * Math.sin(k2 * 5); x.fillStyle = g2; x.fillRect(0, 0, W, H); x.restore();
+    embers(t, .9, '#ff7a1c', 110);
+    const a1 = ease(k2 / .5), a2 = clamp((k2 - 1.8) / .5, 0, 1), a3 = clamp((k2 - 2.6) / .5, 0, 1), sc = 1 + .5 * Math.pow(1 - ease(k2 / .35), 2);
+    x.save(); x.translate(W / 2, 320); x.scale(sc, sc);
+    x.font = '60px "Russo One"'; const w1 = x.measureText('GOD ').width, w2 = x.measureText('OF').width;
+    txt('GOD', 60, -(w1 + w2) / 2, -128, { a: a1 }); txt('OF', 60, -(w1 + w2) / 2 + w1, -128, { a: a1, color: '#ffc23b' });
+    txt('GRIMERKA', 150, 0, 6, { align: 'center', a: a1, color: '#fff3d6', glow: 'rgba(255,110,30,' + (.7 + .3 * Math.sin(k2 * 3)) + ')', blur: 60 });
+    x.restore();
+    txt('ТЕПЕРЬ НА GODOT 4  ·  ДЕВЯТЬ ГЛАВ  ·  ДЕВЯТЬ БОССОВ', 22, W / 2, 392, { align: 'center', a: a2, color: '#d0d6e2' });
+    x.globalAlpha = a3; x.fillStyle = '#ff5a1c'; x.fillRect(W / 2 - 210, 438, 420, 52); x.globalAlpha = 1;
+    txt('ИГРАТЬ БЕСПЛАТНО', 26, W / 2, 474, { align: 'center', a: a3 });
+    txt('github.com/jelos8vetoi/god-of-grimerka', 18, W / 2, 528, { align: 'center', a: a3, color: '#ffd23b' });
+    x.fillStyle = '#000'; x.fillRect(0, 0, W, 52); x.fillRect(0, H - 52, W, 52);
+    if (k2 < .5) { x.fillStyle = `rgba(255,240,215,${1 - k2 / .5})`; x.fillRect(0, 0, W, H); }
+    if (t > LEN - .6) { x.fillStyle = `rgba(0,0,0,${(t - (LEN - .6)) / .6})`; x.fillRect(0, 0, W, H); }
+  }
+  for (const h of CUTS) if (t >= h && t < h + .1) { x.fillStyle = `rgba(255,255,255,${.5 * (1 - (t - h) / .1)})`; x.fillRect(0, 0, W, H); }
+}
+
+async function load() {
+  await document.fonts.load('40px "Russo One"');
+  const img = async u => { const i = new Image(); i.src = u; await i.decode(); return i; };
+  keyart = await img('winter-menu.png'); icon = await img('icon.png');
+  grain = document.createElement('canvas'); grain.width = grain.height = W + 256; { const g = grain.getContext('2d'), d = g.createImageData(grain.width, grain.height); for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } g.putImageData(d, 0, 0); }
+  const jobs = []; for (const s of SHOTS) if (s.p) for (let i = 0; i < s.n; i++) { const k = s.p + String(i).padStart(3, '0'); jobs.push(fetch('frames/' + k + '.jpg').then(r => r.blob()).then(b => blobs[k] = b)); }
+  await Promise.all(jobs);
+}
+
+async function record(dry) {
+  await load();
+  const ac = new AudioContext({ sampleRate: 48000 }), dest = ac.createMediaStreamDestination();
+  const dec = async u => ac.decodeAudioData(await (await fetch(u)).arrayBuffer());
+  const music = await dec('music.wav'), vo = {}; for (const [n] of VO) vo[n] = await dec(n + '.wav');
+  // голос: тёплый низ, компрессия, немного зала
+  const bus = ac.createDynamicsCompressor(); bus.threshold.value = -8; bus.knee.value = 6; bus.ratio.value = 12; bus.attack.value = .003; bus.release.value = .2;
+  const out = ac.createGain(); out.gain.value = .9; bus.connect(out); out.connect(dest);
+  const vin = ac.createGain(); vin.gain.value = 1.6;
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 70;
+  const low = ac.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 220; low.gain.value = 5;
+  const pres = ac.createBiquadFilter(); pres.type = 'peaking'; pres.frequency.value = 3200; pres.gain.value = 3; pres.Q.value = .8;
+  const comp = ac.createDynamicsCompressor(); comp.threshold.value = -24; comp.ratio.value = 4; comp.attack.value = .005; comp.release.value = .15;
+  const conv = ac.createConvolver(); { const n = ac.sampleRate * 1.3, ir = ac.createBuffer(2, n, ac.sampleRate); for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3); } conv.buffer = ir; }
+  const wet = ac.createGain(); wet.gain.value = .16;
+  vin.connect(hp); hp.connect(low); low.connect(pres); pres.connect(comp); comp.connect(bus); comp.connect(conv); conv.connect(wet); wet.connect(bus);
+  const mg = ac.createGain(); mg.gain.value = .9; mg.connect(bus);
+  const T0 = ac.currentTime + .4;
+  const ms = ac.createBufferSource(); ms.buffer = music; ms.connect(mg); ms.start(T0);
+  for (const [n, at] of VO) {
+    const s = ac.createBufferSource(); s.buffer = vo[n]; s.connect(vin); s.start(T0 + at);
+    const [a, b] = SPEECH[n]; mg.gain.setTargetAtTime(.42, T0 + at + a - .12, .05); mg.gain.setTargetAtTime(.9, T0 + at + b + .05, .25);
+  }
+  const vtrack = c.captureStream(0).getVideoTracks()[0];
+  const stream = new MediaStream([vtrack, dest.stream.getAudioTracks()[0]]);
+  const mime = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4'].find(m => MediaRecorder.isTypeSupported(m));
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 9e6, audioBitsPerSecond: 192000 }), chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  const done = new Promise(r => rec.onstop = r);
+  let frames = 0, missing = 0, lastF = -1;
+  rec.start(1000);
+  await new Promise(res => {
+    const loop = () => {
+      const t = ac.currentTime - T0;
+      if (t >= LEN + .1) { res(); return; }
+      if (t >= 0) { const fi = Math.floor(t * FPS); if (fi !== lastF) { lastF = fi; want(t); const k = key(t); if (k && !bmp[k]) missing++; draw(t); vtrack.requestFrame(); frames++; } else want(t); } else { x.fillStyle = '#000'; x.fillRect(0, 0, W, H); want(0); }
+      requestAnimationFrame(loop);
+    };
+    loop();
+  });
+  rec.stop(); await done;
+  const blob = new Blob(chunks, { type: mime });
+  const r = await fetch('/__save?name=trailer.mp4', { method: 'PUT', body: blob });
+  return { mime, frames, missing, mb: +(blob.size / 1048576).toFixed(1), saved: await r.text() };
+}
+window.record = record;
+</script></body></html>
