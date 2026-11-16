@@ -4,6 +4,7 @@ extends Node
 const ACTIONS := {
 	"up": [KEY_W], "down": [KEY_S], "left": [KEY_A], "right": [KEY_D],
 	"roll": [KEY_SPACE], "block": [KEY_SHIFT], "sprint": [KEY_CTRL], "adlib": [KEY_Q], "rage": [KEY_R], "heat": [KEY_E],
+	"ipod": [KEY_UP],
 	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11],
 }
 
@@ -141,7 +142,7 @@ func show_menu() -> void:
 		box.add_child(button("ПРОДОЛЖИТЬ", func(): start_game(true)))
 	box.add_child(button("НОВАЯ ИГРА", func(): start_game(false, 0)))
 	box.add_child(button("ВЫХОД", get_tree().quit))
-	box.add_child(label("WASD — бег · мышь — камера · ЛКМ — удары балоном · ПКМ — добивание · E — Heat · Пробел — перекат · Shift — блок · Q — ад-либ madk1d · R — ПЕРЕГРУЗ · F11 — полный экран", 15, Color("cfd6e4")))
+	box.add_child(label("WASD — бег · мышь — камера · ЛКМ — удары балоном · ПКМ — добивание · E — Heat · Пробел — перекат · Shift — блок · Q — ад-либ madk1d · R — ПЕРЕГРУЗ · ↑ — iPod · F11 — полный экран", 15, Color("cfd6e4")))
 
 func label(t: String, size: int, col: Color) -> Label:
 	var l := Label.new()
