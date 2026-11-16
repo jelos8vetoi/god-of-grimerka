@@ -364,6 +364,9 @@ func _ik_arm(rots: Array, side: String, grip: Vector3, D: Vector3, sgn: float) -
 	F = F.normalized()
 	var kl: Vector3 = hd["k"]
 	var fl: Vector3 = hd["f"]
+	# у части моделей (madk1d) нет пальцев — ось костяшек берём поперёк кисти
+	if kl.length() < 0.001 or abs(kl.normalized().dot(fl.normalized())) > 0.99:
+		kl = fl.cross(Vector3.UP if abs(fl.normalized().y) < 0.9 else Vector3.RIGHT)
 	var Bl := Basis(kl, fl, kl.cross(fl)).orthonormalized()
 	var Bw := Basis(Dn, F, Dn.cross(F)).orthonormalized()
 	var Rh := (Bw * Bl.inverse()).get_rotation_quaternion()
@@ -610,6 +613,7 @@ func play(nm: String, blend := 0.18, speed := 1.0) -> void:
 		return
 	cur = nm
 	ev_prev = -0.001
+	player.speed_scale = 1.0
 	player.play(full, blend, speed)
 
 ## проиграть один раз за duration секунд
@@ -619,6 +623,7 @@ func play_for(nm: String, duration: float, blend := 0.09) -> void:
 		return
 	cur = nm
 	ev_prev = -0.001
+	player.speed_scale = 1.0
 	var ln := player.get_animation(full).length
 	player.play(full, blend, ln / max(0.05, duration))
 	player.seek(0.0, true)

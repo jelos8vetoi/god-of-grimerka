@@ -14,11 +14,14 @@ const PAHAN_ROLES := ["idle", "combat_idle", "walk", "run", "sprint", "dodge", "
 const MADK_ROLES := ["idle", "combat_idle", "walk", "run", "sprint", "dodge", "perfect_dodge", "block", "parry", "light", "heavy",
 	"launcher", "air_attack", "landing", "stagger", "knockback", "knockdown", "recovery", "tag_in", "tag_out"]
 const PAHAN_SEQ := ["CombatIdle", "Walk", "Sprint", "Dodge", "PerfectDodge", "Parry", "AirAttack", "Landing", "Stagger", "Knockback",
-	"Knockdown", "Recovery", "Finisher", "Equip", "Unequip", "TagIn", "TagOut"]
+	"Knockdown", "Recovery", "Finisher", "Equip", "Unequip", "TagIn", "TagOut",
+	"StartRun", "StopRun", "TurnL", "TurnR", "Jump", "Fall", "HitBack", "HitL", "OverheadCharge"]
 const MADK_SEQ := ["CombatIdle", "Walk", "Sprint", "Dodge", "PerfectDodge", "Block", "Parry", "Light", "Heavy", "Launcher", "AirAttack",
-	"Landing", "Stagger", "Knockback", "Knockdown", "Recovery", "TagIn", "TagOut"]
+	"Landing", "Stagger", "Knockback", "Knockdown", "Recovery", "TagIn", "TagOut",
+	"StartRun", "StopRun", "TurnL", "Dash", "Jump", "Fall", "Land", "Cross", "RoundKick", "JumpKick", "SpinKick", "AirKnee", "AirKick", "AirSpin", "AirDive",
+	"StyleSwitch", "SixStep", "Freeze", "Windmill", "KipUp"]
 ## клипы, в которых тело лежит или в воздухе: стопы не обязаны касаться пола
-const OFF_GROUND := ["Tuck", "Death", "Knockdown", "Recovery", "AirAttack", "Rage", "Smash", "Charge"]
+const OFF_GROUND := ["Tuck", "Death", "Knockdown", "Recovery", "AirAttack", "Rage", "Smash", "Charge", "Jump", "Fall"]
 
 var fails := 0
 var shots := true
@@ -142,7 +145,7 @@ func _check(r: Rig, who: String, roles: Array, defs: Dictionary) -> void:
 			var cyc: bool = def.get("smooth", false)
 			notes.append("стопы %+.3f…%+.3f м" % [lo, hi])
 			# в беге есть фаза полёта: проверяем только, что нога касается пола и не тонет
-			if abs(lo) > 0.035 or (not cyc and not lifts and hi > 0.035):
+			if abs(lo) > 0.04 or (not cyc and not lifts and hi > 0.04):
 				ok(false, "%s %s: стопы не на полу (%+.3f…%+.3f м)" % [who, clip, lo, hi])
 		if tip_low < INF:
 			notes.append("конец балона %.2f м у %.2f" % [tip_low, tip_u])

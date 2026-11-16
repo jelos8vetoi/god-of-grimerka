@@ -1,0 +1,315 @@
+## Анимации в игре (этап 03): -- --animlab=<папка>, запускать с --fixed-fps 30 --resolution 1280x720.
+## Настоящая глава, настоящие Пахан и madk1d, их контроллеры, AnimState и FootIK; своя камера сбоку.
+## Сцены: перемещение (старт, бег, остановка, шаг, рывок, поворот на месте), удар, комбо, получение урона
+## с разных сторон, падение и подъём, прыжок; madk1d — рывок и удары, аэрокомбо, брейк, перемещение.
+## Каждая сцена — лист из 16 кадров lab_<сцена>.png. В перемещении меряются стопы: насколько опорная стопа
+## проскальзывает по земле и не уходит ли под пол. В конце — «ANIMLAB ok» или «ANIMLAB ОШИБОК: n».
+extends Node
+
+var game
+var out := ""
+var cam: Camera3D
+var slow := 1.0
+var scenes: Array = []
+var si := -1
+var f := 0
+var thumbs: Array = []
+var fails := 0
+var P
+var B
+var meas := {}            # кто → {"prev": {сторона: Vector3}, "slip": [], "pen": float, "float": float}
+var measure_on := false
+var trace := false
+
+const TW := 480
+const TH := 270
+
+func _ready() -> void:
+	cam = Camera3D.new()
+	cam.fov = 45.0
+	cam.far = 200.0
+	game.add_child(cam)
+	DirAccess.make_dir_recursive_absolute(out)
+	_build()
+	# --only=01,09 — только эти сцены
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--only="):
+			var want := a.substr(7).split(",")
+			scenes = scenes.filter(func(sc): return want.has(String(sc["n"]).substr(0, 2)))
+		if a == "--nofootik":
+			FootIK.off = true
+		if a == "--trace":
+			trace = true
+
+func owns_camera() -> bool:
+	return true
+
+func hide_hud() -> bool:
+	return true
+
+func ok(c: bool, msg: String) -> void:
+	print(("ANIMLAB ok: " if c else "ANIMLAB ОШИБКА: ") + msg)
+	if not c:
+		fails += 1
+
+func _stage() -> void:
+	game.ch = 0
+	game._load_chapter(false)
+	game.mode = "idle"
+	game.over = false
+	game.banner_t = 0.0
+	game.dlg_box.visible = false
+	game.toast_t = 0.0
+	P = game.player
+	B = game.buddy
+	P.hp = P.max_hp
+	P.state = "move"
+	P.swag = 0.0
+	P.rage = 0.0
+	P.auto_input = {}
+	P.global_position = Vector3(0, 0.05, 4.0)
+	P.face = PI
+	P.velocity = Vector3.ZERO
+	game.cam_yaw = 0.0
+	_park_buddy(Vector3(-2.4, 0.05, 6.0))
+
+func _park_buddy(at: Vector3) -> void:
+	B.global_position = at
+	B.target = at
+	B.wait = 99.0
+	B.velocity = Vector3.ZERO
+
+func _hold_buddy() -> void:
+	B.target = B.global_position
+	B.wait = 99.0
+
+func _look(from: Vector3, at: Vector3) -> void:
+	cam.global_position = from
+	cam.look_at(at)
+
+## камера сбоку от героя (side — с какой стороны, dist — расстояние)
+func _side(who: Node3D, dist := 5.2, h := 1.3, side := 1.0) -> void:
+	var p: Vector3 = who.global_position
+	_look(p + Vector3(side * dist, h, -0.6), p + Vector3(0, 0.75, 0))
+
+func _build() -> void:
+	# 1. перемещение Пахана: стоит → бег → остановка → шаг → остановка → рывок → остановка → разворот на месте
+	scenes.append({"n": "01_pahan_move", "len": 330, "measure": "P", "setup": func(): _stage(), "tick": func(i):
+		P.inv = 1.0
+		_park_buddy(P.global_position + Vector3(-3.5, 0, 0))
+		var inp := {}
+		if i >= 20 and i < 62:
+			inp = {"move": Vector2(0, 1)}
+		elif i >= 95 and i < 140:
+			inp = {"move": Vector2(0, -0.45)}
+		elif i >= 170 and i < 205:
+			inp = {"move": Vector2(0, 1), "sprint": "hold"}
+		P.auto_input = inp
+		if i == 250:
+			P.turn_to = wrapf(P.face + 2.5, -PI, PI)
+		_side(P)})
+	# 2. удар: лёгкий и тяжёлый по ботам
+	scenes.append({"n": "02_pahan_strike", "len": 95, "setup": func():
+		_stage()
+		for x in [-1.0, 1.0]:
+			game.spawn_enemy("bot", P.global_position + Vector3(x, 0, -2.3)), "tick": func(i):
+		P.inv = 1.0
+		_hold_buddy()
+		P.auto_input = {"attack": "press"} if i == 3 else ({"heavy": "press"} if i == 40 else {})
+		_look(P.global_position + Vector3(4.4, 1.5, -1.0), P.global_position + Vector3(0, 0.9, -1.2))})
+	# 3. комбо: четыре лёгких и тяжёлый
+	scenes.append({"n": "03_pahan_combo", "len": 120, "setup": func():
+		_stage()
+		for x in [-1.1, 0.0, 1.1]:
+			game.spawn_enemy("bot", P.global_position + Vector3(x, 0, -2.3 - abs(x) * 0.2)), "tick": func(i):
+		P.inv = 1.0
+		_hold_buddy()
+		var presses := {2: "attack", 14: "attack", 26: "attack", 38: "attack", 52: "heavy"}
+		P.auto_input = {presses[i]: "press"} if presses.has(i) else {}
+		_look(P.global_position + Vector3(4.3, 1.5, -1.2), P.global_position + Vector3(0, 0.95, -1.3))})
+	# 4. получение урона: спереди, сзади, слева, справа, сильный удар (отброс)
+	scenes.append({"n": "04_pahan_hurt", "len": 150, "shots": [0, 7, 10, 14, 34, 37, 41, 61, 64, 68, 88, 91, 95, 115, 119, 126], "setup": func(): _stage(), "tick": func(i):
+		_hold_buddy()
+		P.auto_input = {}
+		P.hp = P.max_hp
+		var fw := Vector3(sin(P.face), 0, cos(P.face))
+		var left := Vector3(cos(P.face), 0, -sin(P.face))
+		var hits := {5: [fw, 10.0], 32: [-fw, 10.0], 59: [left, 10.0], 86: [-left, 10.0], 113: [fw, 25.0]}
+		if hits.has(i):
+			P.inv = 0.0
+			P.state = "move"
+			P.take_damage(float(hits[i][1]), P.global_position + (hits[i][0] as Vector3) * 2.0)
+		_look(P.global_position + Vector3(2.6, 1.3, -2.4), P.global_position + Vector3(0, 0.85, 0))})
+	# 5. падение и подъём, затем прыжок и приземление
+	scenes.append({"n": "05_pahan_down_up_jump", "len": 160, "shots": [1, 6, 12, 20, 34, 48, 58, 66, 76, 92, 103, 110, 116, 122, 130, 145], "setup": func(): _stage(), "tick": func(i):
+		P.inv = 1.0
+		_hold_buddy()
+		P.auto_input = {}
+		if i == 2:
+			P.state = "lab"
+			P.velocity = Vector3.ZERO
+			P.anim.action("knockdown", 0.9)
+		elif i == 45:
+			P.anim.action("recovery", 1.1)
+		elif i == 82:
+			P.state = "move"
+		elif i == 100:
+			P.anim.jump()
+		elif i == 109:
+			P.velocity.y = 6.5
+		_side(P, 5.6, 1.2)})
+	# 6. madk1d: рывок, двойка, удар с разворота, вертушка, прыжковая атака, смена стиля
+	scenes.append({"n": "06_madk_strikes", "len": 170, "shots": [1, 6, 12, 26, 37, 50, 57, 70, 76, 82, 95, 102, 110, 124, 134, 150], "setup": func():
+		_stage()
+		P.global_position = Vector3(-7.0, 0.05, 2.0)
+		_park_buddy(Vector3(-1.5, 0.05, 2.0))
+		B.face = PI, "tick": func(i):
+		P.inv = 1.0
+		var acts := {2: ["Dash", 0.32], 22: ["Light", 0.28], 32: ["Cross", 0.28], 44: ["RoundKick", 0.45], 64: ["SpinKick", 0.5], 88: ["JumpKick", 0.55], 118: ["StyleSwitch", 0.8]}
+		if acts.has(i):
+			B.anim.action(acts[i][0], acts[i][1])
+		_hold_buddy()
+		_side(B, 5.0, 1.1)})
+	# 7. madk1d: аэрокомбо — прыжок, колено, нога, оборот, удар вниз с пикированием
+	scenes.append({"n": "07_madk_air", "len": 110, "shots": [1, 5, 9, 14, 18, 21, 25, 29, 33, 38, 42, 47, 52, 58, 64, 75], "setup": func():
+		_stage()
+		P.global_position = Vector3(-7.0, 0.05, 2.0)
+		_park_buddy(Vector3(-1.5, 0.05, 2.0))
+		B.face = PI, "tick": func(i):
+		P.inv = 1.0
+		if i == 2:
+			B.anim.jump()
+		elif i == 7:
+			B.velocity.y = 8.0
+		var acts := {16: ["AirKnee", 0.32], 26: ["AirKick", 0.32], 36: ["AirSpin", 0.45], 50: ["AirDive", 0.5]}
+		if acts.has(i):
+			B.anim.action(acts[i][0], acts[i][1])
+		_hold_buddy()
+		_look(B.global_position + Vector3(3.6, 0.6, -0.6), B.global_position + Vector3(0, 0.7, 0))})
+	# 8. madk1d: брейк — шесть шагов, фриз, на спину и мельница, подъём разгибом
+	scenes.append({"n": "08_madk_breaker", "len": 270, "setup": func():
+		_stage()
+		P.global_position = Vector3(-7.0, 0.05, 2.0)
+		_park_buddy(Vector3(-1.5, 0.05, 2.0))
+		B.face = PI * 0.75, "tick": func(i):
+		P.inv = 1.0
+		var acts := {2: ["SixStep", 2.8], 88: ["Freeze", 1.8], 144: ["knockdown", 0.45], 158: ["Windmill", 1.8], 214: ["KipUp", 0.75]}
+		if acts.has(i):
+			B.anim.action(acts[i][0], acts[i][1])
+		_hold_buddy()
+		_look(B.global_position + Vector3(3.2, 1.4, 2.4), B.global_position + Vector3(0, 0.45, 0))})
+	# 9. madk1d: перемещение — старт, бег, остановка, разворот на месте
+	scenes.append({"n": "09_madk_move", "len": 200, "measure": "B", "setup": func():
+		_stage()
+		P.global_position = Vector3(0, 0.05, 2.0)
+		_park_buddy(Vector3(-2.0, 0.05, 3.5)), "tick": func(i):
+		P.inv = 1.0
+		P.auto_input = {}
+		if i == 10:
+			B.target = B.global_position + Vector3(0, 0, -3.8)
+		elif i == 70:
+			B.target = B.global_position + Vector3(0, 0, 3.8)
+		elif i < 130:
+			B.wait = 99.0
+		if i == 140:
+			game.cam_yaw = 2.6        # кент смотрит туда же, куда игрок: поворот направления — разворот на месте
+		B.wait = 99.0
+		_side(B, 5.4, 1.2, -1.0)})
+
+func frame(_dt: float) -> void:
+	if si < 0:
+		_next()
+		return
+	if si >= scenes.size():
+		return
+	var s: Dictionary = scenes[si]
+	var n: int = s["len"]
+	# на экране — картинка прошлого кадра: снимаем её, если это один из 16 кадров листа
+	var k := f - 1
+	var sh: Array = s["shots"]
+	if k >= 0 and thumbs.size() < sh.size() and k == int(sh[thumbs.size()]):
+		var img: Image = get_viewport().get_texture().get_image()
+		img.resize(TW, TH)
+		thumbs.append(img)
+	if f >= n:
+		_finish(s)
+		_next()
+		return
+	(s["tick"] as Callable).call(f)
+	if trace and f % 3 == 0 and s.has("measure"):
+		var w: Node3D = P if s["measure"] == "P" else B
+		print("TRACE %d %s %s ss=%.2f v=%.2f floor=%s slip=%.3f locks=%s/%s" % [f, w.anim.state, w.rig.cur, w.rig.player.speed_scale, Vector2(w.velocity.x, w.velocity.z).length(), w.is_on_floor(), w.feet.slip, w.feet.feet["r"]["locked"], w.feet.feet["l"]["locked"]])
+	f += 1
+
+func _next() -> void:
+	si += 1
+	f = 0
+	thumbs.clear()
+	measure_on = false
+	if si >= scenes.size():
+		print("ANIMLAB ok" if fails == 0 else "ANIMLAB ОШИБОК: %d" % fails)
+		get_tree().quit()
+		return
+	var s: Dictionary = scenes[si]
+	if not s.has("shots"):
+		var sh := []
+		for i in 16:
+			sh.append(int(round(i * (int(s["len"]) - 1) / 15.0)))
+		s["shots"] = sh
+	(s["setup"] as Callable).call()
+	cam.make_current()
+	if s.has("measure"):
+		_measure_start(P if s["measure"] == "P" else B)
+
+func _finish(s: Dictionary) -> void:
+	var sheet := Image.create(TW * 4, TH * 4, false, Image.FORMAT_RGBA8)
+	for i in thumbs.size():
+		var im: Image = thumbs[i]
+		im.convert(Image.FORMAT_RGBA8)
+		sheet.blit_rect(im, Rect2i(0, 0, TW, TH), Vector2i((i % 4) * TW, (i / 4) * TH))
+	sheet.save_png(out.path_join("lab_%s.png" % s["n"]))
+	if s.has("measure"):
+		_measure_report(s["n"])
+	print("ANIMLAB сцена %s: кадров %d" % [s["n"], thumbs.size()])
+
+# ---------------- замер стоп ----------------
+var m_who: Node3D
+func _measure_start(who: Node3D) -> void:
+	m_who = who
+	meas = {"prev": {}, "slip": [], "pen": 0.0, "steps": 0}
+	var sk: Skeleton3D = who.rig.skel
+	if not sk.skeleton_updated.is_connected(_on_skel):
+		sk.skeleton_updated.connect(_on_skel)
+	measure_on = true
+
+## после всех слоёв (анимация, балон, iPod, стопы) — где стопы на самом деле
+func _on_skel() -> void:
+	if not measure_on or m_who == null or not m_who.is_on_floor():
+		return
+	var r: Rig = m_who.rig
+	var gx := r.skel.global_transform
+	var ground: float = m_who.global_position.y
+	for s in ["r", "l"]:
+		var F: Dictionary = m_who.feet.feet[s]
+		var a: Vector3 = (gx * r.skel.get_bone_global_pose(F["foot"])).origin
+		var h := a.y - ground - float(F["rest_h"])
+		meas["pen"] = min(float(meas["pen"]), h)
+		var prev: Dictionary = meas["prev"]
+		if h < 0.03 and prev.has(s) and prev[s] != null:
+			var d := Vector2(a.x - (prev[s] as Vector3).x, a.z - (prev[s] as Vector3).z).length()
+			(meas["slip"] as Array).append(d / (1.0 / 30.0))
+		prev[s] = a if h < 0.03 else null
+
+func _measure_report(name: String) -> void:
+	measure_on = false
+	var sk: Skeleton3D = m_who.rig.skel
+	if sk.skeleton_updated.is_connected(_on_skel):
+		sk.skeleton_updated.disconnect(_on_skel)
+	var sl: Array = meas["slip"]
+	sl.sort()
+	var med: float = sl[sl.size() / 2] if not sl.is_empty() else 0.0
+	var p90: float = sl[int(sl.size() * 0.9)] if not sl.is_empty() else 0.0
+	print("ANIMLAB %s: опорная стопа — медиана %.2f м/с, 90%% кадров < %.2f м/с (кадров опоры %d); ниже пола до %.3f м" % [name, med, p90, sl.size(), meas["pen"]])
+	# стоя стопа неподвижна и так, поэтому мерило — 90-й процентиль: он ловит скольжение на старте, остановке и повороте
+	ok(p90 < 0.25, "%s: опорная стопа не скользит (90%% кадров < %.2f м/с)" % [name, p90])
+	ok(float(meas["pen"]) > -0.04, "%s: стопы не уходят под пол (%.3f м)" % [name, meas["pen"]])
