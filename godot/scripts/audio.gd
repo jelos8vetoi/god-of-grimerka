@@ -43,6 +43,13 @@ var log_t := 0.0
 var labels := {}
 var ipod_focus_target := 0.0  # 0 — обычный микс, 1 — iPod открыт
 var ipod_focus := 0.0
+## Режим наушников: пока Пахан слушает iPod во вставленных EarPods, музыка локации, эффекты и окружение уходят в тишину;
+## голоса (Voice) и сам iPod (своя шина) не трогаются. Это временный множитель поверх громкости игрока — в настройки не пишется.
+const HP_SILENCE_DB := -60.0
+const HP_IN := 0.3           # секунд на приглушение
+const HP_OUT := 0.45         # и на возврат
+var headphone := 0.0         # 0 — обычный микс, 1 — слышны только iPod и голоса
+var headphone_on := false
 var ipod_lowpass: AudioEffectLowPassFilter
 var ipod_reverb: AudioEffectReverb
 
@@ -263,7 +270,8 @@ func _process(dt: float) -> void:
 		log_t -= dt
 		if log_t <= 0.0:
 			log_t = 1.0
-			print("MUSIC набор=%s состояние=%s слои=%s приглушение=%.1f дБ пик музыки=%.1f дБ пик окружения=%.1f дБ" % [cur, state, str(want), duck,
+			print("MUSIC набор=%s состояние=%s слои=%s приглушение=%.1f дБ наушники=%.2f шины: Music %.1f SFX %.1f Ambient %.1f Voice %.1f дБ · пик музыки=%.1f дБ пик окружения=%.1f дБ" % [cur, state, str(want), duck, headphone,
+				AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Music")), AudioServer.get_bus_volume_db(AudioServer.get_bus_index("SFX")), AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Ambient")), AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Voice")),
 				AudioServer.get_bus_peak_volume_left_db(AudioServer.get_bus_index("Music"), 0), AudioServer.get_bus_peak_volume_left_db(AudioServer.get_bus_index("Ambient"), 0)])
 
 func _want(v: Array) -> void:
@@ -272,15 +280,33 @@ func _want(v: Array) -> void:
 
 func _mix(dt: float, ducking: float) -> void:
 	duck = lerpf(duck, ducking, 1.0 - exp(-3.0 * dt))
+	headphone_on = listening()
+	headphone = move_toward(headphone, 1.0 if headphone_on else 0.0, dt / (HP_IN if headphone_on else HP_OUT))
+	var hp_db := HP_SILENCE_DB * headphone * headphone * (3.0 - 2.0 * headphone)
+	for b in ["SFX", "Ambient"]:
+		AudioServer.set_bus_volume_db(AudioServer.get_bus_index(b), linear_to_db(max(0.0001, float(vol[b]))) + hp_db)
 	ipod_focus = lerpf(ipod_focus, ipod_focus_target, 1.0 - exp(-3.2 * dt))
 	var focus_volume := lerpf(1.0, 0.68, ipod_focus)
-	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(max(0.0001, float(vol["Music"]) * focus_volume)) + duck)
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(max(0.0001, float(vol["Music"]) * focus_volume)) + duck + hp_db)
 	ipod_lowpass.cutoff_hz = lerpf(22000.0, 5600.0, ipod_focus)
 	ipod_reverb.wet = 0.16 * ipod_focus
 	ipod_reverb.dry = 1.0 - 0.08 * ipod_focus
 	for i in layers.size():
 		var target := linear_to_db(max(0.001, want[i]))
 		layers[i].volume_db = lerpf(layers[i].volume_db, target, 1.0 - exp(-(2.5 if target > layers[i].volume_db else 1.2) * dt))
+
+## Слушает ли Пахан iPod в наушниках прямо сейчас: трек выбран, играет, не на паузе, вкладыши в ушах.
+func listening() -> bool:
+	var game = main.game
+	if game == null or not is_instance_valid(game) or game.get("ipod") == null:
+		return false
+	var ip = game.ipod
+	if ip == null or not is_instance_valid(ip) or not ip.is_listening():
+		return false
+	var pl = game.get("player")
+	if pl != null and is_instance_valid(pl) and pl.get("pod") != null and pl.pod_synced:
+		return pl.pod.buds_in()
+	return true
 
 ## фон окружения локации: плавная смена
 func _bed(key: String) -> void:
