@@ -5,3 +5,6 @@ tools/godot/
 
 # музыка и окружение Godot-версии: создаются командой node tools/godot-music.cjs
 godot/assets/music/
+
+# локальный кэш редактора Godot; не переносится между разработчиками
+godot/.godot/
