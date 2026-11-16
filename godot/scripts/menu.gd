@@ -146,6 +146,7 @@ var info: Label
 var panel: Control             # открытый экран (загрузка, настройки, дополнительно, подтверждение)
 var panel_rows: Array = []     # [[Label, Callable]]
 var panel_sel := 0
+var hero_vp: SubViewport       # сцена с героями (для рендера в установщик: -- --menu-render=<файл.png>)
 var chars: TextureRect
 var chars_home := Vector2.ZERO
 var update_cb := Callable()
@@ -190,6 +191,9 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_fit)
 	_fit()
 	_select(0 if has_save else 1, false)
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--menu-render="):
+			_render_heroes(arg.substr(14))
 	# для проверки по снимкам: -- --menu=new|load|settings|extras сразу открывает экран
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--menu="):
@@ -243,6 +247,7 @@ func _build_characters() -> void:
 	vp.msaa_3d = Viewport.MSAA_4X
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(vp)
+	hero_vp = vp
 	var we := WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
@@ -751,3 +756,18 @@ func _process(dt: float) -> void:
 	mirror.position = Vector2(chars.position.x, chars_home.y + MIRROR - (chars.position.y - chars_home.y))
 	var ghost: TextureRect = chars.get_meta("ghost")
 	ghost.position = ghost.position.lerp(Vector2(330, -330) + Vector2(m.x * 22.0, m.y * 8.0), 1.0 - exp(-3.0 * dt))
+
+## Рендер героев в PNG для установщика (tools/setup): те же модели и свет, что в меню, сразу в чёрно-белом с постеризацией.
+func _render_heroes(path: String) -> void:
+	await get_tree().create_timer(1.5).timeout
+	var img := hero_vp.get_texture().get_image()
+	img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			var l := smoothstep(0.04, 0.8, c.r * 0.3 + c.g * 0.59 + c.b * 0.11)
+			l = lerpf(l, floorf(l * 5.0 + 0.5) / 5.0, 0.55)
+			img.set_pixel(x, y, Color(l, l, l, c.a))
+	img.save_png(path)
+	print("MENU render ", path)
+	get_tree().quit()

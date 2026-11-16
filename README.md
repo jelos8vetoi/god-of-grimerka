@@ -20,7 +20,9 @@
 
 ## Скачать игру
 
-**[Скачать лаунчер GOD OF GRIMERKA](https://github.com/jelos8vetoi/god-of-grimerka/releases/download/godot-build/GOD-OF-GRIMERKA-Launcher.exe)** — один раз. Он сам ставит игру в `%LOCALAPPDATA%GOD OF GRIMERKA Godot`, при каждом запуске проверяет обновления на GitHub и докачивает новую сборку.
+**[Скачать установщик GOD OF GRIMERKA](https://github.com/jelos8vetoi/god-of-grimerka/releases/download/godot-build/GOD-OF-GRIMERKA-Setup.exe)** — ставит игру и лаунчер в выбранную папку, делает ярлыки; удаляется из «Приложений» Windows, сохранения остаются.
+
+Без установки: **[лаунчер](https://github.com/jelos8vetoi/god-of-grimerka/releases/download/godot-build/GOD-OF-GRIMERKA-Launcher.exe)** — один раз. Он сам ставит игру в `%LOCALAPPDATA%GOD OF GRIMERKA Godot`, при каждом запуске проверяет обновления на GitHub и докачивает новую сборку.
 
 Без лаунчера: [страница сборки](https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build) · [игра .exe напрямую](https://github.com/jelos8vetoi/god-of-grimerka/releases/download/godot-build/GOD-OF-GRIMERKA-Godot.exe)
 

@@ -10,6 +10,7 @@ on:
       - 'tools/godot-music.cjs'
       - 'tools/publish-godot.cjs'
       - 'tools/launcher/**'
+      - 'tools/setup/**'
       - '.github/workflows/godot-build.yml'
   workflow_dispatch:
 

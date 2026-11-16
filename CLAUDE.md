@@ -72,6 +72,8 @@ https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build
 
 Лаунчер (`tools/launcher/Launcher.cs`, `build.cmd`, ассет `GOD-OF-GRIMERKA-Launcher.exe` в том же релизе): скачивается один раз, ставит игру в `%LOCALAPPDATA%GOD OF GRIMERKA Godot` (папка `GOD OF GRIMERKA` занята старым лаунчером браузерной версии), сверяет SHA-256 файла в релизе с `installed.txt`, докачивает, сам обновляется и запускает игру с `-- --launcher=<путь>`. Ключи для проверки: `--check-only` (всё, кроме запуска игры), `--no-self-update`.
 
+Установщик (`tools/setup/Setup.cs`, `build.cmd`, ассет `GOD-OF-GRIMERKA-Setup.exe`): рисованное окно в стиле меню (C#, GDI+), героев берёт из `tools/setup/heroes.png` — рендера моделей из меню (`Godot … -- --menu-render=<путь>`). Качает игру и лаунчер из релиза с проверкой SHA-256, ставит по умолчанию в `%LOCALAPPDATA%\\Programs\\GOD OF GRIMERKA`, кладёт метку `grimerka-install.txt` (по ней лаунчер держит игру в своей папке), `Uninstall.exe` и запись в HKCU. Данные игрока (`%APPDATA%\\Godot\\app_userdata\\GOD OF GRIMERKA`) не трогает без галочки. Подробно и ключи проверки — `docs/INSTALLER.md`. Старый `tools/installer` — от браузерной версии.
+
 Игра сама проверяет обновление: в меню появляется кнопка «Вышло обновление», если коммит сборки (`godot/data/build.json`, пишется при сборке) не совпадает с коммитом в описании релиза.
 
 Локально `node tools/publish-godot.cjs` нужен только для проверки (`--dry`) или если автосборка сломалась; он отказывается работать при незакоммиченных или незапушенных правках в `godot/`.
