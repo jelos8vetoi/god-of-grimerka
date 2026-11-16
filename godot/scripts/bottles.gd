@@ -9,6 +9,7 @@ const SIZE := 0.34              # высота бутылки, м
 const MODEL_H := 98.0           # высота модели в её единицах (ось Y, горлышко вверху)
 const GRAVITY := 14.0
 const WATER := Color(0.55, 0.82, 1.0)
+const MAX_FLYING := 12          # больше бутылок в воздухе одновременно не бывает
 
 var p
 var game
@@ -72,13 +73,10 @@ func show_prop(on: bool) -> void:
 func hand_pos() -> Vector3:
 	return prop_att.global_position
 
-## Куда и с какой скоростью летит бросок: в цель в секторе перед героем (центр корпуса), иначе — вперёд по взгляду.
-func aim(a: AttackData, power: float) -> Array:
-	var from: Vector3 = hand_pos() if prop_att.is_inside_tree() else p.global_position + Vector3(0, 1.3, 0)
+## Цели броска по убыванию удобства: враги в секторе перед героем на дистанции атаки.
+func targets_for(a: AttackData) -> Array:
 	var fwd := Vector3(sin(p.face), 0, cos(p.face))
-	var target: Vector3 = p.global_position + fwd * 9.0 + Vector3(0, 0.9, 0)
-	var best = null
-	var bs := -1.0
+	var list := []
 	for e in game.enemies:
 		if not is_instance_valid(e) or not e.alive():
 			continue
@@ -90,24 +88,64 @@ func aim(a: AttackData, power: float) -> Array:
 		var ang := fwd.angle_to(d / dist)
 		if ang > a.arc * 0.5:
 			continue
-		var score := (1.0 - ang / (a.arc * 0.5)) * 2.0 + (1.0 - dist / a.reach)
-		if score > bs:
-			bs = score
-			best = e
-	if best != null:
-		target = best.global_position + Vector3(0, best.height * 0.6, 0)
-	var speed: float = float(a.extra.get("speed", 17.0)) * (1.0 + 0.25 * power)
-	var d2 := target - from
-	var tm: float = max(0.22, d2.length() / speed)
-	return [from, d2 / tm + Vector3(0, 0.5 * GRAVITY * tm, 0), best]
+		list.append([(1.0 - ang / (a.arc * 0.5)) * 2.0 + (1.0 - dist / a.reach), e])
+	list.sort_custom(func(x, y): return x[0] > y[0])
+	return list.map(func(it): return it[1])
 
-## бросок: бутылка вылетает из руки
+## Откуда вылетает бутылка: правая рука (стиль «Водяра») или левая (бросок из комбо балоном).
+func throw_from(a: AttackData) -> Vector3:
+	if String(a.extra.get("hand", "r")) == "l":
+		var r: Rig = p.rig
+		return (r.skel.global_transform * r.skel.get_bone_global_pose(r.bone["lhand"])).origin
+	return hand_pos() if prop_att.is_inside_tree() else p.global_position + Vector3(0, 1.3, 0)
+
+## Куда и с какой скоростью летит бросок: в цель (центр корпуса, с упреждением — враг может бежать или лететь),
+## без цели — вперёд по взгляду с отклонением yaw. Возвращает [откуда, скорость, цель].
+func aim(a: AttackData, power: float, target = null, yaw := 0.0) -> Array:
+	var from := throw_from(a)
+	var fwd := Vector3(sin(p.face + yaw), 0, cos(p.face + yaw))
+	var at: Vector3 = p.global_position + fwd * 9.0 + Vector3(0, 0.9, 0)
+	var speed: float = float(a.extra.get("speed", 17.0)) * (1.0 + 0.25 * power)
+	if target == null and yaw == 0.0:
+		var list := targets_for(a)
+		if not list.is_empty():
+			target = list[0]
+	if target != null:
+		at = target.global_position + Vector3(0, float(target.height) * 0.6, 0)
+		var t0: float = max(0.22, (at - from).length() / speed)
+		var lead: Vector3 = target.velocity * t0            # упреждение: где цель будет, когда бутылка долетит
+		if target.state == "air":
+			lead.y -= 0.5 * 20.0 * t0 * t0                # подброшенный падает
+		at += lead.limit_length(4.0)
+		at.y = max(at.y, target.global_position.y - 2.0)
+	var d2 := at - from
+	var tm: float = max(0.22, d2.length() / speed)
+	return [from, d2 / tm + Vector3(0, 0.5 * GRAVITY * tm, 0), target]
+
+## бросок: бутылки вылетают из руки. extra.count — сколько (двойной, веер): каждая в свою цель,
+## а если целей меньше — веером по сторонам от первой.
 func throw(a: AttackData, power: float) -> void:
-	var am := aim(a, power)
-	var n := _make()
-	add_child(n)
-	n.global_position = am[0]
-	flying.append({"node": n, "vel": am[1], "a": a, "power": power, "life": 3.0, "spin": Vector3(randf_range(6, 11), randf_range(-3, 3), randf_range(-4, 4))})
+	var n: int = a.extra.get("count", 1)
+	var list := targets_for(a)
+	var fan: float = a.extra.get("fan", 0.14)
+	for i in n:
+		var am: Array
+		if i < list.size():
+			am = aim(a, power, list[i])
+		elif list.is_empty():
+			am = aim(a, power, null, (i - (n - 1) * 0.5) * fan * 2.0 + (0.0001 if n == 1 else 0.0)) if n > 1 else aim(a, power)
+		else:
+			am = aim(a, power, list[0])
+			am[1] = (am[1] as Vector3).rotated(Vector3.UP, (i - list.size() + 1) * fan * (1.0 if i % 2 == 0 else -1.0))
+		if flying.size() >= MAX_FLYING:
+			# предел объектов в полёте: самая старая бутылка разбивается на месте
+			var old: Dictionary = flying.pop_front()
+			_shatter(old, (old["node"] as Node3D).global_position, Vector3.UP, null)
+			(old["node"] as Node3D).queue_free()
+		var node := _make()
+		add_child(node)
+		node.global_position = am[0]
+		flying.append({"node": node, "vel": am[1], "a": a, "power": power, "life": 3.0, "spin": Vector3(randf_range(6, 11), randf_range(-3, 3), randf_range(-4, 4))})
 	show_prop(false)
 	game.main.sfx("sfx_swing", -6.0, 1.3 if power < 0.3 else 1.0)
 
@@ -195,6 +233,9 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 		h.power = a.power
 		h.attack_id = a.id
 		h.style_id = "bottles"
+		if enemy.state == "air":
+			h.stagger *= 1.5              # по цели в воздухе — сбивает сильнее
+			hits_log[hits_log.size() - 1]["air"] = true
 		h.source = p
 		h.pos = at
 		enemy.interrupt_weak()

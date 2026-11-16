@@ -39,6 +39,12 @@ static func add_to(A: Dictionary) -> void:
 	A["BottleThrowHeavy"] = {"d": 1.0, "ground": true, "n": 56, "ev": {"release": 0.36}, "k": [[0.0, cocked],
 		[0.16, Poses.add(cocked, {"spine": {"y": -0.12, "x": -0.08}, "rarm": {"x": -0.15}}), "out"],
 		[0.38, released, "in"], [0.6, Poses.add(follow, {"spine": {"x": 0.12}, "lleg": {"x": 0.2}}), "out2"], [1.0, ready, "io"]]}
+	# бросок из комбо балоном: левой рукой, балон остаётся в правой у земли
+	var hold := Poses.W(Poses.PH_HOLD, Poses.PH_DIR)
+	A["BottleSnap"] = {"d": 1.0, "ground": true, "n": 40, "ev": {"release": 0.42}, "k": [[0.0, Poses.ph({}), hold],
+		[0.26, Poses.ph(Poses.add(st, {"spine": {"y": 0.35}, "head": {"y": -0.3}, "larm": {"x": -2.3, "z": 0.5}, "lfa": {"x": -1.5}})), hold, "out"],
+		[0.44, Poses.ph(Poses.add(st, {"spine": {"y": -0.45, "x": 0.25}, "head": {"y": 0.4}, "larm": {"x": -1.4, "z": 0.15}, "lfa": {"x": -0.05}})), hold, "in"],
+		[0.64, Poses.ph(Poses.add(st, {"spine": {"y": -0.5, "x": 0.3}, "larm": {"x": -0.4, "z": 0.1}, "lfa": {"x": -0.3}})), hold, "out2"], [1.0, Poses.ph({}), hold, "io"]]}
 	# достал бутылку из кармана куртки (после того как балон ушёл за спину)
 	A["BottleDraw"] = {"d": 1.0, "ground": true, "ev": {"draw": 0.5}, "k": [[0.0, Poses.ph({})],
 		[0.45, Poses.ph({"spine": {"y": 0.15, "x": 0.1}, "head": {"x": 0.25, "y": -0.2}, "rarm": {"x": 0.25, "y": 0.5, "z": -0.1}, "rfa": {"x": -1.3}}), "io"], [1.0, ready, "io"]]}

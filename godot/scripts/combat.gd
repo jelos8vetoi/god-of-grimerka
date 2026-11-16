@@ -117,7 +117,7 @@ func clear_buffer() -> void:
 func ready_at(a: AttackData) -> bool:
 	if a == null or clock < float(cooldowns.get(a.id, -9.0)):
 		return false
-	if a.ammo > 0 and ammo_of(style.id) < a.ammo:
+	if a.ammo > 0 and ammo_of(String(a.extra.get("ammo_style", style.id))) < a.ammo:
 		if clock - ammo_msg > 1.2:
 			ammo_msg = clock
 			game.popup(p.global_position + Vector3(0, 2.2, 0), "пусто — подожди", Color(0.7, 0.85, 1.0))
@@ -277,7 +277,8 @@ func tick_attack(dt: float, dir: Vector3) -> void:
 		hit_i += 1
 		if a.projectile != "":
 			# дистанционная атака: в момент «попадания» снаряд вылетает из руки, урон нанесёт он сам
-			ammo[style.id] = max(0.0, ammo_of(style.id) - a.ammo)
+			var pool := String(a.extra.get("ammo_style", style.id))      # бросок из комбо балоном тратит запас «Водяры»
+			ammo[pool] = max(0.0, ammo_of(pool) - a.ammo)
 			p.launch_projectile(a, charged)
 		else:
 			_resolve_hits(hit_i - 1, hit_log.get(hit_i - 1, {}).is_empty())

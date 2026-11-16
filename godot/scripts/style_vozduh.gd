@@ -71,16 +71,21 @@ static func build() -> StyleData:
 		"knockback": 2.0, "launch": -18.0, "heavy": true, "power": 2, "slam": 0.6, "from": 0.16, "trail_boost": 1.5, "feedback": "vz_quake"}))
 	s.add(AttackData.make({"id": "vz_heat_finish", "kind": "heat", "title": "ДОБИЛ", "clip": "Finisher", "duration": 1.0, "hits": [0.6], "damage": 95.0, "stagger": 90.0, "reach": 3.2, "arc": 2.6,
 		"knockback": 2.0, "launch": 5.0, "heavy": true, "power": 2, "slam": 0.6, "step": [0.12, 0.3, 4.0], "from": 0.06, "trail_boost": 1.5, "feedback": "vz_quake"}))
+	# ---- [F] бутылка из комбо: левой рукой, не выпуская балон; тратит запас «Водяры»; цепочка идёт дальше ----
+	s.add(AttackData.make({"id": "vz_bottle", "kind": "ranged", "clip": "BottleSnap", "duration": 0.6, "hits": [0.42], "damage": 9.0, "stagger": 22.0, "reach": 12.0, "arc": 1.6,
+		"knockback": 2.0, "projectile": "bottle", "ammo": 1, "combo_from": 0.6, "recovery": 0.94, "from": 0.12, "feedback": "bt_hit",
+		"extra": {"speed": 17.0, "slow": 2.5, "slow_k": 0.6, "hand": "l", "ammo_style": "bottles"}}))
 	# ---- Heat-действие: удар сверху и полный замах с замедлением ----
 	s.add(AttackData.make({"id": "vz_heat_smash", "kind": "heat", "clip": "Smash", "duration": 0.92, "hits": [0.59], "damage": 60.0, "stagger": 60.0, "reach": 3.2, "arc": 2.4,
 		"knockback": 1.0, "launch": 7.5, "heavy": true, "power": 2, "slam": 0.6, "combo_from": 0.8, "trail_boost": 1.5}))
 	s.add(AttackData.make({"id": "vz_heat_swing", "kind": "heat", "clip": "FullSwing", "duration": 0.85, "hits": [0.34], "damage": 90.0, "stagger": 80.0, "reach": 3.4, "arc": 3.0,
 		"knockback": 20.0, "launch": 7.0, "heavy": true, "power": 2, "step": [0.14, 0.4, 6.0], "trail_boost": 1.5}))
 	s.links = {
-		"": {"light": "vz_light1", "heavy": "vz_overhead"},
-		"vz_light1": {"light": "vz_light2", "heavy": "vz_nail"},
-		"vz_light2": {"light": "vz_upper", "heavy": "vz_fullswing"},
-		"vz_upper": {"light": "vz_slam", "heavy": "vz_spin"},
+		"": {"light": "vz_light1", "heavy": "vz_overhead", "throw": "vz_bottle"},
+		"vz_light1": {"light": "vz_light2", "heavy": "vz_nail", "throw": "vz_bottle"},
+		"vz_light2": {"light": "vz_upper", "heavy": "vz_fullswing", "throw": "vz_bottle"},
+		"vz_upper": {"light": "vz_slam", "heavy": "vz_spin", "throw": "vz_bottle"},      # подбросил → бутылка по цели в воздухе
+		"vz_bottle": {"light": "vz_light2", "heavy": "vz_nail"},
 		"vz_overhead": {"heavy": "vz_quake", "light": "vz_rise"},  # тяжёлый → тяжёлый / тяжёлый → подброс
 		"vz_rise": {"light": "vz_slam", "heavy": "vz_spin"},
 		"vz_parry_light": {"light": "vz_light2", "heavy": "vz_quake"},
