@@ -23,6 +23,8 @@ static func _make(id: String) -> StyleData:
 	match id:
 		"vozduh":
 			return StyleVozduh.build()
+		"bottles":
+			return StyleBottles.build()
 	var s := StyleData.new()
 	s.id = id
 	if PLANNED.has(id):

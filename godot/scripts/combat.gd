@@ -47,12 +47,34 @@ var charge_snd := false        # звук заряда — только если
 var ring_cd := 0.0
 var tip_prev := Vector3.ZERO  # конец оружия на прошлом кадре (для sweep)
 var tip_ok := false
+var ammo := {}                # id стиля → запас (бутылки)
+var ammo_msg := -9.0
 var last_hits := 0            # сколько целей задел последний момент попадания (для проверок)
 
 func _init(owner, g, s: StyleData) -> void:
 	p = owner
 	game = g
 	style = s
+
+## каждый физический кадр: часы ядра и восстановление запаса стилей
+func tick(dt: float) -> void:
+	clock += dt
+	for id in ammo:
+		var st: StyleData = Styles.by_id(id)
+		if st.ammo_regen > 0.0 and float(ammo[id]) < st.ammo_max:
+			ammo[id] = min(float(st.ammo_max), float(ammo[id]) + dt / st.ammo_regen)
+
+func ammo_of(id: String) -> float:
+	if not ammo.has(id):
+		ammo[id] = float(Styles.by_id(id).ammo_max)
+	return ammo[id]
+
+## сменить стиль: текущая атака обрывается, буфер ввода сохраняется (нажатое во время смены сработает после)
+func set_style(s: StyleData) -> void:
+	interrupt()
+	style = s
+	if s.ammo_max > 0:
+		ammo_of(s.id)
 
 func k() -> float:
 	return t / cur.duration if cur != null else 0.0
@@ -90,7 +112,14 @@ func clear_buffer() -> void:
 	buf_action = ""
 
 func ready_at(a: AttackData) -> bool:
-	return a != null and clock >= float(cooldowns.get(a.id, -9.0))
+	if a == null or clock < float(cooldowns.get(a.id, -9.0)):
+		return false
+	if a.ammo > 0 and ammo_of(style.id) < a.ammo:
+		if clock - ammo_msg > 1.2:
+			ammo_msg = clock
+			game.popup(p.global_position + Vector3(0, 2.2, 0), "пусто — подожди", Color(0.7, 0.85, 1.0))
+		return false
+	return true
 
 ## Из стойки: если в буфере есть нажатие и можно начать — начинает. true — атака (или заряд) пошла.
 func try_start() -> bool:
@@ -232,10 +261,15 @@ func tick_attack(dt: float, dir: Vector3) -> void:
 	# моменты попадания: каждый открывает окно, в котором цель может быть задета один раз
 	while hit_i < hs.size() and kk >= float(hs[hit_i]):
 		hit_i += 1
-		_resolve_hits(hit_i - 1, hit_log.get(hit_i - 1, {}).is_empty())
+		if a.projectile != "":
+			# дистанционная атака: в момент «попадания» снаряд вылетает из руки, урон нанесёт он сам
+			ammo[style.id] = max(0.0, ammo_of(style.id) - a.ammo)
+			p.launch_projectile(a, charged)
+		else:
+			_resolve_hits(hit_i - 1, hit_log.get(hit_i - 1, {}).is_empty())
 	if a.detect == "sweep" and hit_i < hs.size() and kk >= float(hs[hit_i]) - a.hit_lead:
 		_resolve_hits(hit_i, hit_log.get(hit_i, {}).is_empty(), true)     # хитбокс оружия открыт ещё до момента удара: задевает по пути
-	if hit_i > 0 and kk <= float(hs[hit_i - 1]) + a.hit_window:
+	if a.projectile == "" and hit_i > 0 and kk <= float(hs[hit_i - 1]) + a.hit_window:
 		_resolve_hits(hit_i - 1, false)      # окно ещё открыто: добираем тех, кто вошёл в зону позже
 	_track_tip()
 	if a.slam >= 0.0 and not slam_done and kk >= a.slam:
@@ -297,6 +331,7 @@ func _end(natural: bool) -> void:
 func interrupt() -> void:
 	if cur != null:
 		_end(false)
+	p.aim_preview(null, 0.0)
 	p.spin_off = 0.0
 	game.charge_zoom = 0.0
 
@@ -311,15 +346,21 @@ func tick_charge(dt: float, dir: Vector3) -> void:
 	if not charge_snd and p.held("heavy"):
 		charge_snd = true
 		game.main.sfx("sfx_charge", -4.0)
-	p.face = lerp_angle(p.face, target_face(4.0, dir), 1.0 - exp(-10.0 * dt))
+	p.face = lerp_angle(p.face, target_face(max(4.0, cur.reach), dir), 1.0 - exp(-10.0 * dt))
+	if cur.projectile != "":
+		p.aim_preview(cur, charge_t / style.charge_max)      # прицел: траектория броска
 	# заряд видно и слышно: кольца стягиваются к ногам, оружие светится, камера поджимается и дрожит
 	var c := charge_t / style.charge_max
 	ring_cd -= dt
-	if ring_cd <= 0.0:
+	if ring_cd <= 0.0 and cur.projectile == "":
 		ring_cd = 0.24 - 0.1 * c
 		game.fx.ground_ring(p.global_position, 3.2 + 1.5 * c, 0.5, Color(1.0, 0.6 - 0.2 * c, 0.2, 0.55), 0.26)
-	game.charge_zoom = c
-	game.rumble(0.1 + 0.16 * c)
+	game.charge_zoom = c * (0.4 if cur.projectile != "" else 1.0)
+	if cur.projectile == "":
+		game.rumble(0.1 + 0.16 * c)
+	if charge_t >= style.charge_max * 0.79 and not maxed and cur.projectile != "":
+		maxed = true
+		game.main.sfx("sfx_ui", -6.0, 1.4)
 	if charge_t >= style.charge_max * 0.79 and not maxed:
 		maxed = true
 		var wp2: Array = p.rig.weapon_points()
@@ -327,7 +368,8 @@ func tick_charge(dt: float, dir: Vector3) -> void:
 			game.fx.flash(wp2[1], 1.6, Color(1.0, 0.75, 0.4), "magic_03", 0.3)
 		game.main.sfx("sfx_parry", -6.0, 1.5)
 		game.popup(p.global_position + Vector3(0, 2.3, 0), "МАКС!", Color(1, 0.6, 0.2))
-	if not p.held("heavy") or charge_t >= style.charge_max:
+	if not p.held("heavy") or (charge_t >= style.charge_max and cur.projectile == ""):
+		p.aim_preview(null, 0.0)
 		# заряд усиливает удар: урон, отбрасывание, подброс, равновесие; больше половины — отклик как у добивания
 		var keep := charge_t * cur.charge_gain
 		var fs: AttackData = cur.with({"damage": cur.damage * (1.0 + keep), "knockback": cur.knockback * (1.0 + keep * 0.5), "launch": cur.launch + keep * 2.0,

@@ -58,6 +58,15 @@ func tap(a: String) -> void:
 	await get_tree().physics_frame
 	P.auto_input = {}
 
+## перейти на стиль и дождаться конца смены
+func to_style(key: String) -> void:
+	await tap(key)
+	var n := 0
+	while (P.state == "switch" or P.switch_to != "") and n < 90:
+		await get_tree().physics_frame
+		n += 1
+	await frames(2)
+
 func stage(kinds: Array, dist := 2.2) -> Array:
 	game.ch = 0
 	game._load_chapter(false)
@@ -76,6 +85,11 @@ func stage(kinds: Array, dist := 2.2) -> Array:
 	P.face = PI
 	P.velocity = Vector3.ZERO
 	P.combat.interrupt()
+	if P.style.id != "vozduh" or P.switch_to != "":
+		P.switch_to = "vozduh"
+		P._finish_switch()
+	P.combat.ammo = {}
+	P.bottles.hits_log = []
 	P.combat.clear_buffer()
 	P.combat.cooldowns = {}
 	P.combat.chain_block = -9.0
@@ -135,7 +149,7 @@ func _run() -> void:
 		var pr := s.problems()
 		ok(pr.is_empty(), "стиль %s (%s, %s): данные согласованы%s%s" % [id, s.title, s.owner, "" if s.ready else " — объявлен, атак пока нет", "" if pr.is_empty() else ": " + "; ".join(pr)])
 	var vz := Styles.by_id("vozduh")
-	ok(vz.ready and vz.attacks.size() == 13 and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
+	ok(vz.ready and vz.attacks.size() == 13 and Styles.by_id("bottles").ready and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
 	var clips_ok := true
 	await stage([])
 	for aid in vz.attacks:
@@ -449,6 +463,159 @@ func _run() -> void:
 		"стоп-кадр растёт с весом удара: лёгкий %.3f < подброс %.3f < тяжёлый %.3f < завершающий %.3f < в землю %.3f < по земле %.3f с" % [stops["hit_light"], stops["vz_launcher"], stops["vz_heavy"], stops["vz_finisher"], stops["vz_slam"], stops["vz_quake"]])
 	ok(fb.has("hit_light") and fb.has("vz_finisher"), "в бою сработали разные отклики (%s)" % str(fb))
 	game.feedback_fired.disconnect(on_fb)
+
+
+	# ================= этап 06: стиль «Бутылки с водой» =================
+	var bt := Styles.by_id("bottles")
+	ok(bt.ready and bt.problems().is_empty() and bt.ammo_max == 6, "стиль bottles готов: атак %d, запас %d, восстановление %.1f с" % [bt.attacks.size(), bt.ammo_max, bt.ammo_regen])
+	# ---------- 17. смена стиля ----------
+	es = await stage([])
+	await tap("style2")
+	ok(P.state == "switch", "[2]: началась смена стиля (балон уходит за спину)")
+	await to_style("style2")
+	ok(P.style.id == "bottles" and P.rig.holstered and P.state == "move", "стиль — бутылки, балон в чехле за спиной")
+	await frames(6)
+	ok(P.bottles.prop_att.visible and P.rig.cur == "BottleIdle", "бутылка в руке, стойка с бутылкой (клип %s)" % P.rig.cur)
+	await shot("07_bottle_idle.png")
+	ok(game.style_label.text.begins_with("[2] Бутылки") and game.style_label.text.count("●") == 6, "HUD: %s" % game.style_label.text)
+
+	# ---------- 18. быстрый бросок по боту, клипперу и хейтеру ----------
+	for kind in ["bot", "clipper", "hater"]:
+		es = await stage([kind], 7.0)
+		await to_style("style2")
+		var hp_b: float = es[0].hp
+		await tap("attack")
+		var flew_n := 0
+		var seen_air := false
+		while P.bottles.hits_log.is_empty() and flew_n < 90:
+			await get_tree().physics_frame
+			flew_n += 1
+			if not P.bottles.flying.is_empty() and not seen_air:
+				seen_air = true
+				if kind == "bot":
+					await shot("08_bottle_flight.png")
+		await frames(2)
+		if kind == "bot":
+			await shot("09_bottle_splash.png")
+		var hit_enemy: bool = not P.bottles.hits_log.is_empty() and P.bottles.hits_log[0]["kind"] == "enemy"
+		ok(seen_air and hit_enemy and abs((hp_b - es[0].hp) - 9.0) < 0.01 and es[0].slow_t > 0.0, "%s на 7 м: бутылка летела, попала, урон %.0f, замедлен на %.1f с (×%.2f)" % [kind, hp_b - es[0].hp, es[0].slow_t, es[0].slow_k])
+		await until_free()
+	ok(abs(P.combat.ammo_of("bottles") - 5.0) < 0.6, "бросок тратит бутылку (осталось %.1f)" % P.combat.ammo_of("bottles"))
+
+	# ---------- 19. мимо: бутылка разбивается об окружение ----------
+	es = await stage([])
+	await to_style("style2")
+	await tap("attack")
+	var wn := 0
+	while P.bottles.hits_log.is_empty() and wn < 120:
+		await get_tree().physics_frame
+		wn += 1
+	ok(not P.bottles.hits_log.is_empty() and P.bottles.hits_log[0]["kind"] == "world", "без цели бутылка летит вперёд и разбивается о землю (через %d кадров)" % wn)
+	await until_free()
+
+	# ---------- 20. усиленный бросок: прицел, оглушение, всплеск ----------
+	es = await stage(["bot", "clipper"], 6.0)
+	es[1].global_position = es[0].global_position + Vector3(1.5, 0, 0.3)
+	await to_style("style2")
+	var hp_p: float = es[0].hp
+	P.auto_input = {"heavy": "press"}
+	await frames(2)
+	P.auto_input = {"heavy": "hold"}
+	await frames(18)
+	var dots_on := 0
+	for d in P.bottles.dots:
+		if d.visible:
+			dots_on += 1
+	ok(P.state == "charge" and P.rig.cur == "BottleAim" and dots_on >= 10, "удержание ПКМ: прицел, бутылка занесена, траектория из %d точек" % dots_on)
+	await shot("10_bottle_aim.png")
+	P.auto_input = {}
+	var pn := 0
+	while P.bottles.hits_log.is_empty() and pn < 120:
+		await get_tree().physics_frame
+		pn += 1
+	await frames(2)
+	var first: Dictionary = P.bottles.hits_log[0] if not P.bottles.hits_log.is_empty() else {}
+	var main_e = first.get("enemy", null)
+	var other = es[1] if main_e == es[0] else es[0]
+	ok(main_e != null and (hp_p - es[0].hp > 16.0 or main_e == es[1]) and main_e.state == "stun", "усиленный: цель оглушена (%s), урон по ней больше обычного" % (main_e.state if main_e != null else "—"))
+	ok(other.slow_t > 0.0 and not P.bottles.dots[0].visible, "всплеск намочил соседа (замедлен на %.1f с), прицел убран" % other.slow_t)
+	await until_free()
+
+	# ---------- 21. бутылка сбивает слабый замах ----------
+	es = await stage(["bot"], 6.0)
+	await to_style("style2")
+	es[0].stun_t = 0.0
+	es[0].state = "wind"
+	es[0].t = -5.0                 # долгий замах: успеем попасть
+	await tap("attack")
+	var qn := 0
+	while P.bottles.hits_log.is_empty() and qn < 90:
+		es[0].state = "wind" if es[0].state == "wind" else es[0].state
+		await get_tree().physics_frame
+		qn += 1
+	ok(es[0].state != "wind", "враг в замахе: после бутылки замах сбит (состояние %s)" % es[0].state)
+	await until_free()
+
+	# ---------- 22. запас: кончается и восстанавливается ----------
+	es = await stage(["bot"], 7.0)
+	es[0].hp = 99999.0
+	es[0].max_hp = 99999.0
+	await to_style("style2")
+	var thrown := 0
+	P.combat.attack_started.connect(func(_a): thrown += 1, CONNECT_ONE_SHOT)
+	log_started = []
+	P.auto_input = {"attack": "press"}          # жмём каждый кадр 6 секунд
+	await frames(360)                          # физика идёт 60 раз в секунду
+	P.auto_input = {}
+	await until_free()
+	var per6 := log_started.size()
+	ok(per6 <= 8 and P.combat.ammo_of("bottles") < 1.5, "спам 6 секунд: брошено %d (запас 6 + восстановление), осталось %.1f — бесконечно не выйдет" % [per6, P.combat.ammo_of("bottles")])
+	P.combat.ammo["bottles"] = 0.0
+	log_started = []
+	await tap("attack")
+	await frames(4)
+	ok(log_started.is_empty() and P.state == "move", "без бутылок бросок не начинается")
+	await frames(200)
+	ok(P.combat.ammo_of("bottles") >= 1.0, "через 3,3 с бутылка восстановилась (%.1f)" % P.combat.ammo_of("bottles"))
+
+	# ---------- 23. бросок → балон → тяжёлый ----------
+	es = await stage(["bot"], 4.5)
+	es[0].hp = 99999.0
+	es[0].max_hp = 99999.0
+	await to_style("style2")
+	log_started = []
+	await tap("attack")
+	while P.combat.cur != null and P.combat.hit_i == 0:
+		await get_tree().physics_frame
+	var t_throw: float = P.combat.clock
+	await tap("style1")
+	var sw: bool = P.state == "switch"
+	await frames(4)
+	await tap("heavy")                          # нажато во время смены: должно сработать сразу после
+	var hn := 0
+	while not log_started.has("vz_overhead") and hn < 90:
+		await get_tree().physics_frame
+		hn += 1
+	var gap2: float = P.combat.clock - t_throw
+	await frames(12)
+	await shot("11_throw_to_balon.png")
+	ok(sw and log_started.has("vz_overhead") and P.style.id == "vozduh" and not P.rig.holstered and gap2 < 0.8, "бросок → [1] → ПКМ: смена сразу после вылета бутылки, балон в руке, тяжёлый удар через %.2f с после броска" % gap2)
+	await until_free(400)
+
+	# ---------- 24. бросок после уклонения ----------
+	es = await stage(["bot"], 8.0)
+	es[0].hp = 99999.0
+	await to_style("style2")
+	P.auto_input = {"roll": "press", "move": Vector2(1, 0)}
+	await frames(2)
+	P.auto_input = {}
+	await until_free()
+	log_started = []
+	await tap("attack")
+	ok(log_started == ["bt_roll"], "после уклонения — бросок с ходу: %s" % str(log_started))
+	await until_free()
+	ok(bt.attack("bt_quick").damage < vz.attack("vz_light1").damage * 0.5 and bt.attack("bt_power").damage < vz.attack("vz_overhead").damage * 0.5, "баланс: бутылка бьёт слабее половины удара балона (%.0f и %.0f против %.0f и %.0f)" % [bt.attack("bt_quick").damage, bt.attack("bt_power").damage, vz.attack("vz_light1").damage, vz.attack("vz_overhead").damage])
+	await stage([])
 
 	print("COMBAT итог: ошибок %d" % fails)
 	get_tree().quit()

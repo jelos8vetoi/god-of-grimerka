@@ -1,0 +1,253 @@
+## Бутылки с водой (этап 06): бутылка в руке Пахана, полёт, попадание, разбивание и всплеск.
+## Бросок запускает ядро боя (combat.gd) в момент попадания атаки стиля «bottles»; здесь — всё, что после вылета из руки.
+## Модель — assets/models/bottle.glb. Звук всплеска синтезируется (в проекте нет записи воды), стекло — sfx_glass.
+class_name Bottles
+extends Node3D
+
+const MODEL := "res://assets/models/bottle.glb"
+const SIZE := 0.34              # высота бутылки, м
+const MODEL_H := 98.0           # высота модели в её единицах (ось Y, горлышко вверху)
+const GRAVITY := 14.0
+const WATER := Color(0.55, 0.82, 1.0)
+
+var p
+var game
+var scene: PackedScene
+var prop: Node3D                # бутылка в кулаке
+var prop_att: BoneAttachment3D
+var flying: Array = []          # [{node, vel, a: AttackData, power, life, spin}]
+var dots: Array = []            # точки траектории при прицеливании
+var splash_snd: AudioStreamWAV
+var hits_log: Array = []        # для проверок: [{kind, enemy, pos}]
+
+func setup(player, g) -> void:
+	p = player
+	game = g
+	scene = load(MODEL)
+	# бутылка в правом кулаке: горлышко в кулаке, корпус выходит со стороны мизинца — как балон
+	var r: Rig = p.rig
+	prop_att = BoneAttachment3D.new()
+	prop_att.bone_name = r.skel.get_bone_name(r.bone["rhand"])
+	r.skel.add_child(prop_att)
+	var hd: Dictionary = r.hand["r"]
+	var Y: Vector3 = (hd["k"] as Vector3) * r.weapon_sign
+	var Z: Vector3 = hd["f"]
+	Z = (Z - Y * Z.dot(Y)).normalized()
+	var hold := Node3D.new()
+	var sk_scale: float = r.skel_xf.basis.get_scale().x * r.model.scale.x
+	hold.transform = Transform3D(Basis(Y.cross(Z), Y, Z).orthonormalized().scaled(Vector3.ONE / sk_scale), hd["grip"])
+	prop_att.add_child(hold)
+	prop = _make()
+	# модель: низ в нуле, горлышко вверху → переворачиваем, чтобы горлышко (y ≈ 88 %) оказалось в кулаке
+	prop.rotation.x = PI
+	prop.position.y = SIZE * 0.88
+	hold.add_child(prop)
+	prop_att.visible = false
+	splash_snd = _synth_splash()
+	for i in 14:
+		var d := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.045
+		sm.height = 0.09
+		d.mesh = sm
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.albedo_color = Color(0.7, 0.9, 1.0, 0.8)
+		d.material_override = m
+		d.visible = false
+		d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(d)
+		dots.append(d)
+	top_level = true
+
+func _make() -> Node3D:
+	var n: Node3D = scene.instantiate()
+	n.scale = Vector3.ONE * (SIZE / MODEL_H)
+	return n
+
+func show_prop(on: bool) -> void:
+	prop_att.visible = on
+
+func hand_pos() -> Vector3:
+	return prop_att.global_position
+
+## Куда и с какой скоростью летит бросок: в цель в секторе перед героем (центр корпуса), иначе — вперёд по взгляду.
+func aim(a: AttackData, power: float) -> Array:
+	var from: Vector3 = hand_pos() if prop_att.is_inside_tree() else p.global_position + Vector3(0, 1.3, 0)
+	var fwd := Vector3(sin(p.face), 0, cos(p.face))
+	var target: Vector3 = p.global_position + fwd * 9.0 + Vector3(0, 0.9, 0)
+	var best = null
+	var bs := -1.0
+	for e in game.enemies:
+		if not is_instance_valid(e) or not e.alive():
+			continue
+		var d: Vector3 = e.global_position - p.global_position
+		d.y = 0
+		var dist := d.length()
+		if dist > a.reach or dist < 0.3:
+			continue
+		var ang := fwd.angle_to(d / dist)
+		if ang > a.arc * 0.5:
+			continue
+		var score := (1.0 - ang / (a.arc * 0.5)) * 2.0 + (1.0 - dist / a.reach)
+		if score > bs:
+			bs = score
+			best = e
+	if best != null:
+		target = best.global_position + Vector3(0, best.height * 0.6, 0)
+	var speed: float = float(a.extra.get("speed", 17.0)) * (1.0 + 0.25 * power)
+	var d2 := target - from
+	var tm: float = max(0.22, d2.length() / speed)
+	return [from, d2 / tm + Vector3(0, 0.5 * GRAVITY * tm, 0), best]
+
+## бросок: бутылка вылетает из руки
+func throw(a: AttackData, power: float) -> void:
+	var am := aim(a, power)
+	var n := _make()
+	add_child(n)
+	n.global_position = am[0]
+	flying.append({"node": n, "vel": am[1], "a": a, "power": power, "life": 3.0, "spin": Vector3(randf_range(6, 11), randf_range(-3, 3), randf_range(-4, 4))})
+	show_prop(false)
+	game.main.sfx("sfx_swing", -6.0, 1.3 if power < 0.3 else 1.0)
+
+## траектория при прицеливании (удержание тяжёлого)
+func preview(a: AttackData, power: float) -> void:
+	var am := aim(a, power)
+	var pos: Vector3 = am[0]
+	var v: Vector3 = am[1]
+	for i in dots.size():
+		var tm := (i + 1) * 0.055
+		var d: MeshInstance3D = dots[i]
+		d.visible = true
+		d.global_position = pos + v * tm + Vector3(0, -0.5 * GRAVITY * tm * tm, 0)
+		(d.material_override as StandardMaterial3D).albedo_color.a = 0.85 - 0.05 * i
+
+func hide_preview() -> void:
+	for d in dots:
+		(d as MeshInstance3D).visible = false
+
+func _physics_process(dt: float) -> void:
+	if flying.is_empty():
+		return
+	var space := get_world_3d().direct_space_state
+	for i in range(flying.size() - 1, -1, -1):
+		var f: Dictionary = flying[i]
+		var n: Node3D = f["node"]
+		var from := n.global_position
+		f["vel"] = (f["vel"] as Vector3) + Vector3(0, -GRAVITY * dt, 0)
+		var to := from + (f["vel"] as Vector3) * dt
+		f["life"] = float(f["life"]) - dt
+		var hit_e = null
+		var hit_at := to
+		# хёртбокс врага — капсула (радиус, высота): ближайшая точка пути бутылки за кадр
+		for e in game.enemies:
+			if not is_instance_valid(e) or not e.alive():
+				continue
+			var mid: Vector3 = e.global_position + Vector3(0, float(e.height) * 0.5, 0)
+			var c: Vector3 = Geometry3D.get_closest_point_to_segment(mid, from, to)
+			if Vector2(c.x - mid.x, c.z - mid.z).length() <= float(e.radius) + 0.2 and c.y >= e.global_position.y - 0.1 and c.y <= e.global_position.y + float(e.height) + 0.25:
+				hit_e = e
+				hit_at = c
+				break
+		var normal := Vector3.UP
+		var world := false
+		if hit_e == null:
+			var q := PhysicsRayQueryParameters3D.create(from, to, 1)
+			q.exclude = [p.get_rid()]
+			var r: Dictionary = space.intersect_ray(q)
+			if not r.is_empty():
+				world = true
+				hit_at = r["position"]
+				normal = r["normal"]
+		if hit_e != null or world or float(f["life"]) <= 0.0:
+			_shatter(f, hit_at, normal, hit_e)
+			n.queue_free()
+			flying.remove_at(i)
+			continue
+		n.global_position = to
+		n.rotation += (f["spin"] as Vector3) * dt
+
+## бутылка разбилась: стекло, вода, урон и замедление
+func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
+	var a: AttackData = f["a"]
+	var power: float = f["power"]
+	var dir: Vector3 = (f["vel"] as Vector3).normalized()
+	var flat := Vector3(dir.x, 0, dir.z).normalized() if Vector2(dir.x, dir.z).length() > 0.01 else Vector3.FORWARD
+	var fx = game.fx
+	fx.flash(at, 0.9 + 0.5 * power, Color(0.85, 0.95, 1.0), "star_04", 0.12)
+	fx.sparks(at, (normal - dir * 0.4).normalized(), 16 + int(10 * power), WATER, 0.9, 70.0)     # брызги
+	fx.sparks(at, normal, 8, Color(0.95, 1.0, 1.0), 1.2, 85.0)                                    # осколки
+	fx.dust(at, 4, Color(0.7, 0.88, 1.0, 0.4), 0.6, 0.2)
+	fx.ring(at, 1.0 + 0.8 * power, Color(WATER.r, WATER.g, WATER.b, 0.6), 0.18)
+	game.main.sfx("sfx_glass", -3.0, 1.15)
+	_play_splash(at)
+	hits_log.append({"kind": "enemy" if enemy != null else "world", "enemy": enemy, "pos": at})
+	var slow_s: float = a.extra.get("slow", 0.0)
+	if enemy != null:
+		var h := HitInfo.new()
+		h.damage = p.combat.damage_for(a, enemy)
+		h.stagger = a.stagger
+		h.dir = flat
+		h.knockback = a.knockback
+		h.stun = a.stun
+		h.heavy = a.heavy
+		h.power = a.power
+		h.attack_id = a.id
+		h.style_id = "bottles"
+		h.source = p
+		h.pos = at
+		enemy.interrupt_weak()
+		enemy.take_hit_info(h)
+		if slow_s > 0.0 and is_instance_valid(enemy):
+			enemy.slow(slow_s, float(a.extra.get("slow_k", 0.6)))
+		p.swag = min(100.0, p.swag + 3.0)
+		game.feedback(a.feedback if a.feedback != "" else "bt_hit", at, flat, 1.0, WATER)
+		p.combat.attack_hit.emit(a, 1)
+	else:
+		# мимо: лужа на земле или всплеск на стене
+		fx.ground_ring(Vector3(at.x, at.y + 0.03, at.z), 0.2, 1.4 + power, Color(WATER.r, WATER.g, WATER.b, 0.5), 0.35)
+	# всплеск задевает тех, кто рядом: без урона, но мочит (замедляет) и чуть сбивает равновесие
+	var splash: float = a.extra.get("splash", 0.0)
+	if splash > 0.0:
+		for e in game.enemies:
+			if is_instance_valid(e) and e.alive() and e != enemy and e.global_position.distance_to(at) <= splash + float(e.radius):
+				e.stagger(a.stagger * 0.4)
+				if slow_s > 0.0:
+					e.slow(slow_s * 0.7, float(a.extra.get("slow_k", 0.6)))
+				fx.sparks(e.global_position + Vector3(0, float(e.height) * 0.6, 0), Vector3.UP, 5, WATER, 0.5)
+
+func _play_splash(at: Vector3) -> void:
+	var sp := AudioStreamPlayer3D.new()
+	sp.stream = splash_snd
+	sp.bus = "SFX"
+	sp.volume_db = -4.0
+	sp.pitch_scale = randf_range(0.9, 1.15)
+	sp.max_distance = 40.0
+	add_child(sp)
+	sp.global_position = at
+	sp.play()
+	sp.finished.connect(sp.queue_free)
+
+## всплеск воды: шум с быстрым спадом, приглушённый простым фильтром (как звуки podsfx.gd — без файлов)
+func _synth_splash() -> AudioStreamWAV:
+	var rate := 22050
+	var n := int(rate * 0.38)
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	var lp := 0.0
+	var rs := 12345
+	for i in n:
+		rs = (rs * 1103515245 + 12345) & 0x7fffffff
+		var noise := float(rs % 2000) / 1000.0 - 1.0
+		var t := float(i) / n
+		var cut := lerpf(0.55, 0.08, t)                     # фильтр закрывается: «плюх» → шипение капель
+		lp += (noise - lp) * cut
+		var env := pow(1.0 - t, 2.2) * (1.0 if i > 40 else i / 40.0)
+		var v := int(clampf(lp * env * 1.6, -1.0, 1.0) * 32000.0)
+		data.encode_s16(i * 2, v)
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.mix_rate = rate
+	w.data = data
+	return w

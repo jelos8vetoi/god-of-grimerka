@@ -121,6 +121,7 @@ var auto_len := 45.0
 var shots_done := {}
 var fps_samples: Array = []
 var director = null
+var style_label: Label        # текущий боевой стиль и запас (бутылки)
 var ipod
 var bot_acc := 0.0
 var bot_pf := -1
@@ -1244,6 +1245,9 @@ func _build_hud() -> void:
 	q_label = _lbl("", 15, Color(0.4, 0.85, 1))
 	q_label.position = Vector2(0, 58)
 	bars.add_child(q_label)
+	style_label = _lbl("", 15, Color(0.85, 0.88, 0.95))
+	style_label.position = Vector2(0, 80)
+	bars.add_child(style_label)
 	top_label = _lbl("", 18, Color(1, 0.9, 0.7))
 	top_label.position = Vector2(40, 22)
 	hud_root.add_child(top_label)
@@ -1464,6 +1468,7 @@ func _update_hud(dt: float) -> void:
 	swag_fill.color = Color(1, 0.25, 0.05) if player.rage > 0.0 else (Color(1, 0.85, 0.3) if full else Color(1, 0.6, 0.15))
 	swag_label.text = "ПЕРЕГРУЗ!" if player.rage > 0.0 else ("СВЭГ ПОЛОН — [R]" if full else ("СВЭГ · [E] Heat" if player.swag >= 40.0 else "СВЭГ"))
 	q_label.text = "[Q] madk1d: ад-либ готов" if buddy.cd <= 0.0 else "[Q] madk1d: %.0f с" % buddy.cd
+	style_label.text = player.style_hud()
 	var alive := enemies.filter(func(e): return is_instance_valid(e) and e.state != "dead").size()
 	var obj := ""
 	if mode == "fight":

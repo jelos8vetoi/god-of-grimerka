@@ -233,8 +233,9 @@ func _physics_process(dt: float) -> void:
 						mv += d.normalized() * (sep - d.length()) * 1.5
 			if p.state == "dead":
 				mv = Vector3.ZERO
-			velocity.x += mv.x * float(cfg["speed"])
-			velocity.z += mv.z * float(cfg["speed"])
+			var wet: float = slow_k if slow_t > 0.0 else 1.0       # облит водой: идёт медленнее
+			velocity.x += mv.x * float(cfg["speed"]) * wet
+			velocity.z += mv.z * float(cfg["speed"]) * wet
 			if mv.length() > 0.2:
 				rig.play("Run", 0.2, float(cfg["speed"]) / 3.5)
 			else:
@@ -519,6 +520,8 @@ func stun(sec: float) -> void:
 	_update_bar()
 
 func _process(_dt: float) -> void:
+	if slow_t > 0.0 and alive() and Engine.get_process_frames() % 14 == 0:
+		game.fx.sparks(global_position + Vector3(0, height * 0.75, 0), Vector3.DOWN, 2, Color(0.55, 0.82, 1.0), 0.25, 60.0)   # капает вода
 	var c: float = game.clock
 	if boss_id == "botlord":
 		var on := shielded()
@@ -646,6 +649,16 @@ func stagger(v: float) -> bool:
 		rig.play_for("Hit", 0.45, 0.04)
 	else:
 		stun(1.0)
+	return true
+
+## Слабый замах (обычный враг готовит удар) сбивается: бутылка в лицо, поток воздуха.
+func interrupt_weak() -> bool:
+	if boss_id != "" or state != "wind":
+		return false
+	state = "hurt"
+	t = 0.0
+	ring.visible = false
+	rig.play_for("Hit", 0.45, 0.04)
 	return true
 
 ## Замедлить на время (не действует на боссов сильнее, чем вполовину).
