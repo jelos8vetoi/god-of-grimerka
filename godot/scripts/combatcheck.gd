@@ -112,6 +112,7 @@ func stage(kinds: Array, dist := 2.2) -> Array:
 	P.tyaga.heat = 0.0
 	P.tyaga.lock = 0.0
 	P.tyaga.events = []
+	P.tyaga.thrown = []
 	P.tyaga.mode = "off"
 	P.tyaga.unit.visible = false
 	P.tyaga._clear_ride()
@@ -879,7 +880,7 @@ func _run() -> void:
 
 	# ================= этап 07: ТЯГА-812 =================
 	var tg := Styles.by_id("tyaga812")
-	ok(tg.ready and tg.problems().is_empty() and tg.attacks.size() == 5, "стиль tyaga812 готов: воздействий %d (притягивание, выстрел, выброс, таран, волчок)" % tg.attacks.size())
+	ok(tg.ready and tg.problems().is_empty() and tg.attacks.size() == 8, "стиль tyaga812 готов: воздействий %d" % tg.attacks.size())
 	cam_off = Vector3(3.6, 1.9, 2.6)
 	cam_at = Vector3(0, 0.8, -0.6)
 	# ---------- 25. [3]: пылесос выкатывается, руки на трубе ----------
@@ -997,6 +998,57 @@ func _run() -> void:
 	P.auto_input = {}
 	await frames(8)
 	ok(hp_c - es[0].hp >= 45.0 - 0.01, "притянул → выброс: пойманный получил %.0f (30 × 1,5 и тики)" % (hp_c - es[0].hp))
+
+	# ---------- бросок пойманного врага ----------
+	es = await stage(["bot", "clipper"], 4.0)
+	for e in es:
+		e.hp = 9999.0
+		e.max_hp = 9999.0
+	es[1].global_position = P.global_position + Vector3(0.2, 0, -7.5)       # второй стоит дальше, на линии броска
+	await to_style("style3")
+	await frames(30)
+	P.auto_input = {"attack": "hold"}
+	var tn2 := 0
+	while not P.tyaga.caught.has(es[0].get_instance_id()) and tn2 < 240:
+		await get_tree().physics_frame
+		tn2 += 1
+	var z_before: float = es[0].global_position.z
+	var hp_far: float = es[1].hp
+	P.tyaga.events = []
+	P.auto_input = {"attack": "hold", "heavy": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {}                                   # короткое нажатие
+	var threw: bool = await tg_event("throw", 30)
+	await frames(8)
+	await shot("16b_tyaga_throw.png")
+	var bowled: bool = await tg_event("bowl", 90)
+	await frames(20)
+	ok(threw and z_before - es[0].global_position.z > 3.0, "короткое ПКМ с пойманным у сопла: бросок, враг улетел на %.1f м" % (z_before - es[0].global_position.z))
+	ok(bowled and abs((hp_far - es[1].hp) - 16.0) < 0.01, "брошенный сбил второго врага: тот получил %.0f" % (hp_far - es[1].hp))
+	# ---------- всасывание ослабленного ----------
+	for kind in ["bot", "clipper", "hater"]:
+		es = await stage([kind], 4.0)
+		es[0].hp = es[0].max_hp * 0.2
+		await to_style("style3")
+		await frames(30)
+		P.tyaga.events = []
+		P.auto_input = {"attack": "hold"}
+		var swal: bool = await tg_event("swallow", 240)
+		P.auto_input = {}
+		ok(swal and not es[0].alive(), "%s с 20%% здоровья: притянут и всосан целиком" % kind)
+	es = await stage(["bot"], 4.0)
+	es[0].hp = es[0].max_hp * 0.6
+	await to_style("style3")
+	await frames(30)
+	P.tyaga.events = []
+	P.auto_input = {"attack": "hold"}
+	await frames(120)
+	P.auto_input = {}
+	var no_sw := true
+	for ev in P.tyaga.events:
+		if ev[0] == "swallow":
+			no_sw = false
+	ok(no_sw or es[0].hp <= 0.0, "врага с 60 % здоровья сразу не всасывает — только когда тики доведут до четверти")
 
 	# ---------- 28. нагрев ----------
 	es = await stage([])
@@ -1130,8 +1182,54 @@ func _run() -> void:
 		if ev[0] == "spin":
 			spin_n = ev[1]
 	ok(spun and spin_n == 2, "удар с разворота на ходу задел обоих врагов по бокам (%d)" % spin_n)
-	# сход и сбитие с пылесоса
+	# таран на ускорении и соскок на ходу
+	es = await stage(["bot"], 9.0)
+	P.global_position = Vector3(0, 0.05, 11.0)
+	es[0].global_position = Vector3(0, 0.05, -1.0)
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	await to_style("style3")
 	await frames(30)
+	await tap("heat")
+	await frames(40)
+	P.tyaga.events = []
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	var br: bool = await tg_event("ram", 240)
+	await frames(6)
+	ok(br and es[0].state == "air", "таран на ускорении подбрасывает врага (состояние %s)" % es[0].state)
+	es = await stage(["bot", "clipper"], 9.0)
+	P.global_position = Vector3(0, 0.05, 10.0)
+	es[0].global_position = Vector3(1.3, 0.05, 2.0)
+	es[1].global_position = Vector3(-1.3, 0.05, 2.0)
+	for e in es:
+		e.hp = 9999.0
+		e.max_hp = 9999.0
+	await to_style("style3")
+	await frames(30)
+	await tap("heat")
+	await frames(40)
+	P.tyaga.events = []
+	P.auto_input = {"move": Vector2(0, 1)}
+	while P.global_position.z > 2.6:
+		await get_tree().physics_frame
+	P.auto_input = {"heat": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {}
+	var leaped: bool = await tg_event("leap", 20)
+	var leap_n := 0
+	for ev in P.tyaga.events:
+		if ev[0] == "leap":
+			leap_n = ev[1]
+	await frames(6)
+	await shot("23b_tyaga_leap.png")
+	await frames(40)
+	ok(leaped and leap_n == 2 and P.tyaga.mode == "hold", "E на ходу — соскок с ударом вокруг: задеты оба врага (%d), герой на ногах" % leap_n)
+	# сход и сбитие с пылесоса
+	es = await stage([])
+	await to_style("style3")
+	await frames(30)
+	await tap("heat")
+	await frames(40)
 	await tap("heat")
 	await frames(40)
 	ok(P.tyaga.mode == "hold" and P.tyaga.unit.position.distance_to(TyagaClips.V_HOLD) < 0.05 and abs(P.body.rotation.z) < 0.01, "сход: герой на ногах, пылесос вернулся к руке, крен снят")

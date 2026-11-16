@@ -40,6 +40,8 @@ var puff := 0.0
 var hum: AudioStreamPlayer
 var events: Array = []        # что произошло (для проверок): ["shot", n], ["ram", враг]…
 var msg_t := -9.0
+var hold_t := 0.0             # сколько держат ПКМ (короткое нажатие с пойманным врагом — бросок)
+var thrown: Array = []        # брошенные враги: [{e, t, hit: {id: true}}]
 
 func setup(player, g) -> void:
 	p = player
@@ -123,6 +125,7 @@ func on_hurt() -> void:
 
 # ---------------- кадр ----------------
 func idle_tick(dt: float) -> void:
+	_thrown_tick(dt)
 	# стиль не выбран или герой занят (перекат, урон): пылесос только докатывается на место и остывает
 	_cool(dt)
 	if mode == "out":
@@ -153,6 +156,7 @@ func _cool(dt: float) -> void:
 ## состояние "tyaga" героя: dir — ввод движения в мире
 func tick(dt: float, dir: Vector3) -> void:
 	mt += dt
+	_thrown_tick(dt)
 	var heat0 := heat
 	match mode:
 		"off", "out":
@@ -180,6 +184,7 @@ func tick(dt: float, dir: Vector3) -> void:
 				mode = "charge"
 				mt = 0.0
 				charge_t = 0.0
+				hold_t = 0.0
 			elif (p.held("attack") or p.pressed("heavy")) and not ready_to_work():
 				_say("перегрев — остывает")
 		"suck":
@@ -296,6 +301,19 @@ func _suck(dt: float, dir: Vector3) -> void:
 		else:
 			now[e.get_instance_id()] = true
 			e.kb = Vector3.ZERO
+			if float(e.hp) <= float(e.max_hp) * float(ex["swallow"]):
+				# ослабленного затягивает целиком
+				var at: Vector3 = e.global_position + Vector3(0, float(e.height) * 0.5, 0)
+				game.fx.twirl(at, 2.2, style.color, 0.4)
+				game.fx.sparks(at, (n - at).normalized(), 14, style.color, 1.2, 30.0)
+				game.popup(at + Vector3(0, 0.8, 0), "ВСОСАЛ", Color(0.8, 0.95, 1.0))
+				game.main.sfx("sfx_wave", -6.0, 1.6)
+				e.take_hit(99999.0, to.normalized() if to.length() > 0.01 else -f, 0.0, true)
+				p.swag = min(100.0, p.swag + 8.0)
+				_heat(8.0)
+				now.erase(e.get_instance_id())
+				events.append(["swallow", e])
+				continue
 			if do_tick:
 				var h := HitInfo.new()
 				h.damage = p.combat.damage_for(a, e)
@@ -335,11 +353,13 @@ func _suck(dt: float, dir: Vector3) -> void:
 		# притянул — и сразу выброс: заряд начинается с половины
 		mode = "charge"
 		mt = 0.0
+		hold_t = 0.0
 		charge_t = float(style.attack("tg_burst").extra["charge"]) * 0.5
 
 # ---------------- MODE 3: выброс ----------------
 func _charge(dt: float, dir: Vector3) -> void:
 	charge_t += dt
+	hold_t += dt
 	p.velocity.x = move_toward(p.velocity.x, 0.0, 30.0 * dt)
 	p.velocity.z = move_toward(p.velocity.z, 0.0, 30.0 * dt)
 	var aim: Vector3 = dir if dir.length() > 0.3 else p.aim_dir()
@@ -354,7 +374,10 @@ func _charge(dt: float, dir: Vector3) -> void:
 		if is_instance_valid(e) and e.alive() and caught.has(e.get_instance_id()):
 			e.stun(0.3)
 	if not p.held("heavy"):
-		_blast(charge_t >= need)
+		if hold_t <= float(style.attack("tg_throw").extra["tap"]) and not caught.is_empty():
+			_throw()                         # короткое нажатие с пойманным у сопла — бросок
+		else:
+			_blast(charge_t >= need)
 
 func _blast(big: bool) -> void:
 	var a: AttackData = style.attack("tg_burst" if big else "tg_shot")
@@ -421,6 +444,84 @@ func _blast(big: bool) -> void:
 	p.rig.play_for("TyagaBlast", a.duration, 0.05)
 	mode = "blast"
 	mt = 0.0
+
+## Бросок пойманного: враг у сопла вылетает вперёд и по пути сбивает других.
+func _throw() -> void:
+	var a: AttackData = style.attack("tg_throw")
+	var n := nozzle()
+	var f := fwd()
+	var best = null
+	var bd := 1e9
+	for e in game.enemies:
+		if is_instance_valid(e) and e.alive() and caught.has(e.get_instance_id()) and e.global_position.distance_to(n) < bd:
+			bd = e.global_position.distance_to(n)
+			best = e
+	caught = {}
+	pulling = []
+	if best == null:
+		_blast(false)
+		return
+	var h := HitInfo.new()
+	h.damage = p.combat.damage_for(a, best)
+	h.stagger = a.stagger
+	h.dir = f
+	h.knockback = a.knockback
+	h.launch = a.launch
+	h.power = a.power
+	h.attack_id = a.id
+	h.style_id = style.id
+	h.source = p
+	h.pos = best.global_position + Vector3(0, float(best.height) * 0.5, 0)
+	best.take_hit_info(h)
+	thrown.append({"e": best, "t": float(a.extra["fly"]), "hit": {}})
+	game.fx.muzzle(n + Vector3(0, 0.3, 0), style.color)
+	game.main.sfx("sfx_wave", -3.0, 1.5)
+	game.popup(p.global_position + Vector3(0, 2.4, 0), a.title, Color(0.8, 0.95, 1.0))
+	game.feedback(a.feedback, h.pos, f, 1.0, style.color)
+	_heat(float(a.extra["heat"]))
+	events.append(["throw", best])
+	p.velocity = -f * 3.0
+	p.rig.play_for("TyagaBlast", a.duration, 0.05)
+	mode = "blast"
+	mt = 0.0
+
+## брошенный враг летит: кого заденет — тому урон и отброс (каждому один раз)
+func _thrown_tick(dt: float) -> void:
+	if thrown.is_empty():
+		return
+	var a: AttackData = style.attack("tg_bowl")
+	for i in range(thrown.size() - 1, -1, -1):
+		var th: Dictionary = thrown[i]
+		th["t"] = float(th["t"]) - dt
+		var body = th["e"]
+		if float(th["t"]) <= 0.0 or not is_instance_valid(body):
+			thrown.remove_at(i)
+			continue
+		for e in game.enemies:
+			if not is_instance_valid(e) or e == body or not e.alive() or (th["hit"] as Dictionary).has(e.get_instance_id()):
+				continue
+			var d: Vector3 = e.global_position - body.global_position
+			d.y = 0
+			if d.length() > a.reach + float(e.radius):
+				continue
+			(th["hit"] as Dictionary)[e.get_instance_id()] = true
+			var h := HitInfo.new()
+			h.damage = p.combat.damage_for(a, e)
+			h.stagger = a.stagger
+			h.dir = d.normalized() if d.length() > 0.05 else fwd()
+			h.knockback = a.knockback
+			h.launch = a.launch
+			h.power = a.power
+			h.attack_id = a.id
+			h.style_id = style.id
+			h.source = p
+			h.pos = e.global_position + Vector3(0, float(e.height) * 0.5, 0)
+			e.interrupt_weak()
+			e.take_hit_info(h)
+			game.fx.hit(h.pos, h.dir, 1, style.color)
+			game.main.sfx("sfx_hit_heavy", -2.0, 1.2)
+			game.feedback(a.feedback, h.pos, h.dir, 1.0, style.color)
+			events.append(["bowl", e])
 
 # ---------------- MODE 1: езда ----------------
 func _ride(dt: float, dir: Vector3) -> void:
@@ -524,6 +625,13 @@ func _ride(dt: float, dir: Vector3) -> void:
 			game.fx.sparks(back, Vector3.UP, 2, Color(1.0, 0.85, 0.5), 0.4, 50.0)
 	game.fov_kick = max(float(game.fov_kick), speed * 0.28)
 	if p.pressed("heat") and grounded and flip_t <= 0.0 and spin_t < 0.0:
+		var leap: AttackData = style.attack("tg_leap")
+		if speed >= float(leap.extra["min_speed"]):
+			# соскок на ходу: удар вокруг и окно для удара с ходу в любом стиле
+			_area_hit(leap, p.global_position, "leap")
+			game.fx.dust(p.global_position + Vector3(0, 0.1, 0), 10, game.fx.DUST, 1.0)
+			game.popup(p.global_position + Vector3(0, 2.4, 0), leap.title, Color(0.8, 0.95, 1.0))
+			p.combat.open("dodge", 0.9)
 		mode = "dismount"
 		mt = 0.0
 		speed = 0.0
@@ -549,7 +657,8 @@ func _ram() -> void:
 		h.stagger = a.stagger
 		h.dir = (f + d.normalized() * 0.4).normalized()
 		h.knockback = speed * a.knockback
-		h.launch = a.launch
+		var boosted: bool = speed >= float(a.extra["boost_speed"])
+		h.launch = float(a.extra["boost_launch"]) if boosted else a.launch      # таран на ускорении подбрасывает выше
 		h.power = a.power
 		h.attack_id = a.id
 		h.style_id = style.id
@@ -557,6 +666,8 @@ func _ram() -> void:
 		h.pos = e.global_position + Vector3(0, float(e.height) * 0.5, 0)
 		e.interrupt_weak()
 		e.take_hit_info(h)
+		if boosted:
+			game.popup(p.global_position + Vector3(0, 2.4, 0), "ТАРАН", Color(0.8, 0.95, 1.0))
 		game.fx.hit(h.pos, h.dir, 1, style.color)
 		game.main.sfx("sfx_hit_heavy", -2.0, 1.1)
 		game.feedback(a.feedback, h.pos, f, clampf(speed / 10.0, 0.6, 1.4), style.color)

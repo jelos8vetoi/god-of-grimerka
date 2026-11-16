@@ -15,16 +15,23 @@ static func build() -> StyleData:
 	s.roles = {"idle": "TyagaHold", "combat_idle": "TyagaHold"}
 	# MODE 2 — притягивание: поток из сопла; пойманный у сопла получает тики урона и стоит оглушённый
 	s.add(AttackData.make({"id": "tg_suck", "kind": "tyaga", "clip": "TyagaSuck", "hits": [0.0], "damage": 4.0, "stagger": 10.0, "reach": 7.0, "arc": 1.0, "knockback": 0.0,
-		"extra": {"heat": 16.0, "max": 3, "max_height": 2.2, "pull_far": 5.0, "pull_near": 9.5, "catch": 1.25, "tick": 0.3, "hold_stun": 0.45, "move": 1.6}}))
+		"extra": {"heat": 16.0, "max": 3, "max_height": 2.2, "swallow": 0.25, "pull_far": 5.0, "pull_near": 9.5, "catch": 1.25, "tick": 0.3, "hold_stun": 0.45, "move": 1.6}}))
 	# MODE 3 — выброс: короткое нажатие — воздушный выстрел вперёд
 	s.add(AttackData.make({"id": "tg_shot", "kind": "tyaga", "title": "", "clip": "TyagaBlast", "duration": 0.45, "hits": [0.1], "damage": 14.0, "stagger": 30.0, "reach": 6.5, "arc": 0.9,
 		"knockback": 12.0, "launch": 2.5, "power": 1, "feedback": "tg_shot", "extra": {"heat": 25.0, "recoil": 4.0}}))
 	# …удержание — заряд и мощный выброс по области вокруг сопла; пойманные притягиванием получают в полтора раза больше
 	s.add(AttackData.make({"id": "tg_burst", "kind": "tyaga", "title": "ПЕРЕГРУЗКА ДАВЛЕНИЯ", "clip": "TyagaBlast", "duration": 0.55, "hits": [0.1], "damage": 30.0, "stagger": 60.0, "reach": 5.0, "arc": 6.3,
 		"knockback": 16.0, "launch": 5.5, "heavy": true, "power": 2, "feedback": "tg_burst", "extra": {"heat": 55.0, "recoil": 7.5, "charge": 0.45, "caught_mul": 1.5}}))
+	# бросок пойманного: короткое ПКМ, пока враг у сопла, — он летит вперёд и сбивает тех, в кого попадёт
+	s.add(AttackData.make({"id": "tg_throw", "kind": "tyaga", "title": "ЛОВИ", "clip": "TyagaBlast", "duration": 0.45, "hits": [0.1], "damage": 12.0, "stagger": 30.0, "reach": 1.4, "arc": 6.3,
+		"knockback": 20.0, "launch": 4.5, "power": 1, "feedback": "tg_shot", "extra": {"heat": 15.0, "fly": 0.8, "tap": 0.18}}))
+	s.add(AttackData.make({"id": "tg_bowl", "kind": "tyaga", "clip": "TyagaBlast", "hits": [0.0], "damage": 16.0, "stagger": 35.0, "reach": 1.3, "arc": 6.3, "knockback": 9.0, "launch": 3.0, "power": 1, "feedback": "hit_heavy"}))
+	# соскок на скорости: E на ходу — прыжок с пылесоса с ударом вокруг
+	s.add(AttackData.make({"id": "tg_leap", "kind": "tyaga", "title": "СОСКОК", "clip": "RideDismount", "hits": [0.5], "damage": 20.0, "stagger": 30.0, "reach": 2.6, "arc": 6.3, "knockback": 8.0, "launch": 3.0,
+		"heavy": true, "power": 1, "feedback": "vz_heavy", "extra": {"min_speed": 5.0}}))
 	# MODE 1 — езда: таран на скорости и удар с разворота на ходу
 	s.add(AttackData.make({"id": "tg_ram", "kind": "tyaga", "clip": "RideSit", "hits": [0.0], "damage": 10.0, "stagger": 35.0, "reach": 1.0, "arc": 2.4, "knockback": 1.3, "launch": 3.0, "power": 1,
-		"feedback": "tg_ram", "extra": {"min_speed": 5.0, "per_speed": 1.2, "cd": 0.6, "keep": 0.7}}))
+		"feedback": "tg_ram", "extra": {"min_speed": 5.0, "per_speed": 1.2, "cd": 0.6, "keep": 0.7, "boost_speed": 12.0, "boost_launch": 6.5}}))
 	s.add(AttackData.make({"id": "tg_spin", "kind": "tyaga", "title": "ВОЛЧОК", "clip": "RideSpin", "duration": 0.5, "hits": [0.5], "damage": 18.0, "stagger": 25.0, "reach": 2.5, "arc": 6.3, "knockback": 7.0,
 		"heavy": true, "power": 1, "cooldown": 0.8, "feedback": "vz_heavy", "extra": {"heat": 10.0}}))
 	return s
