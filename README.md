@@ -28,6 +28,7 @@
 - Запуск: положи Godot 4.7 в `tools/godot` и открой `play-godot.cmd` (или открой папку `godot` в редакторе Godot).
 - Автотест: `Godot_v4.7.2-stable_win64_console.exe --path godot -- --autotest=папка` — бот сам проходит волны, сохраняет скриншоты и пишет FPS.
 - Звуки ударов синтезируются: `node tools/godot-sfx.js`.
+- Сборка .exe: шаблоны экспорта Godot 4.7.2 (Windows) в `%APPDATA%/Godot/export_templates/4.7.2.stable`, затем `Godot_v4.7.2-stable_win64_console.exe --headless --path godot --export-release Windows "../dist/godot/GOD OF GRIMERKA.exe"` — один файл ~155 МБ со всем внутри.
 
 ## Как запустить
 
