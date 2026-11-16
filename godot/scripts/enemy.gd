@@ -55,6 +55,7 @@ var fly := false            # убитый летит по дуге
 var fly_v := Vector3.ZERO
 var bounces := 0
 var trail: Trail
+var spiked := false         # сбит в землю ударом сверху: приземлится с грохотом
 var special_cd := 3.5      # до особого приёма босса
 var sp_events: Array = []  # [время, что сделать] внутри приёма
 var sp_dur := 0.0
@@ -295,6 +296,11 @@ func _physics_process(dt: float) -> void:
 			# сбит с ног: летит по дуге, пока не коснётся земли
 			if t > 0.12 and is_on_floor():
 				game.fx.land(global_position, 1.0)
+				if spiked:
+					spiked = false
+					game.fx.slam(global_position, 0.8, Color(1.0, 0.8, 0.42))
+					game.shake(0.3)
+					game.main.sfx("sfx_boom", -4.0, 1.1)
 				game.main.sfx("sfx_thud", -5.0)
 				game.shake(0.1)
 				kb *= 0.3
@@ -574,6 +580,14 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 	if hp <= 0.0:
 		_die(dir, heavy, launch, knock)
 		return
+	if launch < 0.0:
+		if state == "air" and boss_id == "":
+			spiked = true
+			velocity.y = launch
+			kb = dir * 1.5
+			launch = 0.0
+		else:
+			launch = 4.5
 	if launch > 0.0 and boss_id == "":
 		# подброс: тяжёлых подкидывает слабее; в воздухе отбрасывание не гаснет
 		state = "air"

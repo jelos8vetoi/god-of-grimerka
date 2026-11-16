@@ -9,21 +9,23 @@ const HEIGHT := 1.85
 ## step — [с, по, скорость]: шаг в удар, cancel — с какой доли можно продолжить цепочку, launch — подброс врага,
 ## slam — когда балон бьёт в землю, scrape — когда чиркает по земле, drop — когда после удара падает на землю,
 ## from — с какой доли клипа начинать, если удар идёт в цепочке (балон уже не за спиной, а там, где его оставил прошлый удар).
+## Цепочка лёгких — один тяжёлый рисунок: мах вправо-налево → наотмашь обратно → рывок снизу вверх (подбрасывает) →
+## двумя руками сверху в землю (сбивает подброшенного вниз). Каждый следующий удар бьёт весомее предыдущего.
 const LIGHT := [
-	{"clip": "Light1", "dur": 1.0, "hits": [0.52], "dmg": 28.0, "range": 2.7, "arc": 2.6, "kb": 4.5, "step": [0.44, 0.64, 4.2], "cancel": 0.7, "drop": 0.75},
-	{"clip": "Light2", "dur": 0.98, "hits": [0.5], "dmg": 28.0, "range": 2.7, "arc": 2.6, "kb": 4.5, "step": [0.42, 0.62, 4.2], "cancel": 0.7, "from": 0.17, "drop": 0.74},
-	{"clip": "Upper", "dur": 0.98, "hits": [0.5], "dmg": 32.0, "range": 2.7, "arc": 2.2, "kb": 3.0, "launch": 5.5, "step": [0.42, 0.56, 3.6], "cancel": 0.68, "from": 0.12, "scrape": 0.36, "drop": 0.87},
-	{"clip": "Spin", "dur": 0.9, "hits": [0.42, 0.68], "dmg": 24.0, "range": 2.9, "arc": 6.3, "kb": 6.0, "spin": 1.0, "cancel": 0.84, "from": 0.08},
+	{"clip": "Light1", "dur": 0.88, "hits": [0.52], "dmg": 28.0, "range": 2.7, "arc": 2.6, "kb": 4.5, "step": [0.44, 0.64, 4.6], "cancel": 0.68, "drop": 0.75},
+	{"clip": "Light2", "dur": 0.86, "hits": [0.5], "dmg": 30.0, "range": 2.7, "arc": 2.6, "kb": 5.0, "step": [0.42, 0.62, 4.6], "cancel": 0.68, "from": 0.17, "drop": 0.74},
+	{"clip": "Upper", "dur": 0.86, "hits": [0.5], "dmg": 32.0, "range": 2.7, "arc": 2.2, "kb": 3.0, "launch": 6.0, "step": [0.42, 0.56, 4.0], "cancel": 0.62, "from": 0.12, "scrape": 0.36, "drop": 0.87},
+	{"clip": "Heavy", "dur": 1.0, "hits": [0.57], "dmg": 44.0, "range": 3.0, "arc": 2.2, "kb": 4.0, "launch": -18.0, "heavy": true, "slam": 0.61, "step": [0.5, 0.6, 3.6], "from": 0.36, "name": "В ЗЕМЛЮ"},
 ]
 const FINISH := [
-	{"clip": "Heavy", "dur": 1.2, "hits": [0.57], "dmg": 60.0, "range": 3.0, "arc": 2.0, "kb": 5.0, "launch": 6.0, "heavy": true, "slam": 0.61, "step": [0.5, 0.6, 4.0], "from": 0.08, "name": "ОВЕРХЕД"},
-	{"clip": "Nail", "dur": 0.84, "hits": [0.42], "dmg": 48.0, "range": 2.9, "arc": 1.8, "kb": 3.0, "heavy": true, "stun": 1.5, "step": [0.3, 0.46, 5.0], "from": 0.08, "drop": 0.52, "name": "ГВОЗДЬ"},
-	{"clip": "FullSwing", "dur": 0.9, "hits": [0.34], "dmg": 55.0, "range": 3.2, "arc": 3.6, "kb": 15.0, "launch": 6.5, "heavy": true, "charge": true, "step": [0.14, 0.4, 6.5], "name": "ПОЛНЫЙ ЗАМАХ"},
-	{"clip": "Spin", "dur": 1.3, "hits": [0.24, 0.37, 0.5, 0.63, 0.76], "dmg": 16.0, "range": 3.0, "arc": 6.3, "kb": 3.0, "spin": 3.0, "heavy": true, "last_launch": 6.0, "from": 0.08, "name": "НУНЧАКИ"},
+	{"clip": "Heavy", "dur": 1.05, "hits": [0.57], "dmg": 60.0, "range": 3.0, "arc": 2.0, "kb": 5.0, "launch": 6.0, "heavy": true, "slam": 0.61, "step": [0.5, 0.6, 4.0], "from": 0.08, "name": "ОВЕРХЕД"},
+	{"clip": "Nail", "dur": 0.76, "hits": [0.42], "dmg": 48.0, "range": 2.9, "arc": 1.8, "kb": 3.0, "heavy": true, "stun": 1.5, "step": [0.3, 0.46, 5.0], "from": 0.08, "drop": 0.52, "name": "ГВОЗДЬ"},
+	{"clip": "FullSwing", "dur": 0.85, "hits": [0.34], "dmg": 55.0, "range": 3.2, "arc": 3.6, "kb": 15.0, "launch": 6.5, "heavy": true, "charge": true, "step": [0.14, 0.4, 6.5], "name": "ПОЛНЫЙ ЗАМАХ"},
+	{"clip": "Spin", "dur": 1.2, "hits": [0.24, 0.37, 0.5, 0.63, 0.76], "dmg": 16.0, "range": 3.0, "arc": 6.3, "kb": 3.0, "spin": 3.0, "heavy": true, "last_launch": 6.0, "from": 0.08, "name": "НУНЧАКИ"},
 ]
 const HEAT := [
-	{"clip": "Smash", "dur": 1.0, "hits": [0.59], "dmg": 60.0, "range": 3.2, "arc": 2.4, "kb": 1.0, "launch": 7.5, "heavy": true, "super": true, "slam": 0.6, "cancel": 0.8},
-	{"clip": "FullSwing", "dur": 0.9, "hits": [0.34], "dmg": 90.0, "range": 3.4, "arc": 3.0, "kb": 20.0, "launch": 7.0, "heavy": true, "super": true, "step": [0.14, 0.4, 6.0]},
+	{"clip": "Smash", "dur": 0.92, "hits": [0.59], "dmg": 60.0, "range": 3.2, "arc": 2.4, "kb": 1.0, "launch": 7.5, "heavy": true, "super": true, "slam": 0.6, "cancel": 0.8},
+	{"clip": "FullSwing", "dur": 0.85, "hits": [0.34], "dmg": 90.0, "range": 3.4, "arc": 3.0, "kb": 20.0, "launch": 7.0, "heavy": true, "super": true, "step": [0.14, 0.4, 6.0]},
 ]
 const GOLD := Color(1.0, 0.8, 0.42)
 const HOT := Color(1.0, 0.45, 0.15)
@@ -284,8 +286,13 @@ func _physics_process(dt: float) -> void:
 				var wpd := rig.weapon_points()
 				if not wpd.is_empty():
 					game.fx.scrape(wpd[1], fwd)
-				game.main.sfx("sfx_clang", -9.0, 0.7)
-				game.shake(0.1)
+					game.fx.dust(wpd[1] + Vector3(0, 0.08, 0), 6, game.fx.DUST, 0.7)
+					game.fx.ground_ring(wpd[1], 0.3, 1.9, Color(1.0, 0.9, 0.7, 0.55), 0.25)
+					game.fx.scorch(wpd[1], 0.8, GOLD)
+				game.main.sfx("sfx_clang", -5.0, 0.7)
+				game.main.sfx("sfx_thud", -4.0, 0.8)
+				game.shake(0.2)
+				game.fov_kick = max(game.fov_kick, 1.5)
 			# вертушка: разгон и торможение, а не ровное вращение
 			spin_off = -TAU * float(atk.get("spin", 0.0)) * smoothstep(0.14, 0.88, k)
 			if heat_q.is_empty():
@@ -560,7 +567,7 @@ func _deal_hit() -> void:
 			game.main.sfx("sfx_hit_heavy", 0.0)
 		if tier == 2:
 			game.main.sfx("sfx_crack", 1.0)
-		game.impact(tier, where, 1.0 + charged * 0.4)
+		game.impact(tier, where, 1.0 + charged * 0.4 + combo * 0.18)
 		if tier == 2 or atk.has("name"):
 			game.bark("finish", 9.0, 0.7)
 

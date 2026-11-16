@@ -660,8 +660,8 @@ func punch(k: float, pos: Vector3) -> void:
 func impact(tier: int, pos: Vector3, mul := 1.0) -> void:
 	match tier:
 		0:
-			hitstop(0.055)
-			shake(0.16)
+			hitstop(0.055 * mul)
+			shake(0.16 * mul)
 			pp["aberr"] = max(float(pp["aberr"]), 0.22)
 		1:
 			hitstop(0.12 * mul)
