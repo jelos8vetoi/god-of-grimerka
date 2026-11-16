@@ -165,6 +165,9 @@ func begin(from_save: bool, chapter := -1) -> void:
 	if chapter >= 0:
 		ch = chapter
 		step = -1
+	if ch >= chapters():      # сохранение из времён девяти глав: начинаем доступную главу заново
+		ch = chapters() - 1
+		step = -1
 	_apply_upgrades()
 	_load_chapter(step < 0, ch == 0 and step < 0 and main.trailer == "")
 	fx.prewarm(player.global_position)
@@ -230,14 +233,23 @@ func _exit_hall() -> void:
 		next_step())
 	tw.tween_property(fade, "color:a", 0.0, 0.7)
 
+## Сколько глав доступно. В игре — только первая (Menu.CHAPTERS): главы 2–9 остались в данных и коде, но не запускаются,
+## вместо них будет открытый мир. Проверки (--smoke, --autotest, --chapter=N) по-прежнему ходят по всем.
+func chapters() -> int:
+	var all: int = story["CH"].size()
+	if main.onechapter:
+		return mini(all, Menu.CHAPTERS)
+	return all if main.testing() != "" or main.start_ch >= 0 else mini(all, Menu.CHAPTERS)
+
 func next_step() -> void:
 	step += 1
 	var steps: Array = chapter()["steps"]
 	if step >= steps.size():
 		ch += 1
 		step = 0
-		if ch >= story["CH"].size():
-			_credits("КОНЕЦ", "")
+		if ch >= chapters():
+			ch = chapters() - 1
+			_credits("ГЛАВА 1 ПРОЙДЕНА", "Это пока вся игра. Дальше будет открытый мир — продолжение следует.")
 			return
 		_load_chapter(true)
 	_save()
@@ -1216,6 +1228,7 @@ func _build_hud() -> void:
 	dlg_box.add_child(hint)
 	pause_panel = _make_panel("ПАУЗА", "WASD — бег · ЛКМ — удары (до четырёх подряд) · ПКМ — добивание: зависит от числа ударов перед ним, с двух — полный замах (держи ПКМ)\nE — Heat-добивание (40 СВЭГа) · Пробел — перекат · Shift — блок, вовремя — парирование · Q — ад-либ madk1d · R — ПЕРЕГРУЗ", [["ПРОДОЛЖИТЬ", func(): set_paused(false)], ["В МЕНЮ", _to_menu]])
 	pause_panel.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	Menu.add_display_buttons(pause_panel.get_child(0), get_window())   # полный экран и синхронизация — те же, что в настройках меню
 	main.audio.add_sliders(pause_panel.get_child(0))   # громкость музыки, эффектов, окружения и голоса
 	pause_panel.visible = false
 
