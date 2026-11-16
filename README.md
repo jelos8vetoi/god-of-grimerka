@@ -32,7 +32,8 @@
 - **Эффекты на текстурах**: аура из пламени и рунный круг под ногами, снаряды с ореолом и хвостом, зоны ударов боссов с рунами и столбом пламени, порталы появления врагов, молнии боссов, звёздочки над оглушёнными, вихрь ад-либа, дым вместо «тонущих» тел.
 - **Локации** под каждую главу: двор хрущёвок, подвал, неоновая лента, болото, крыша башни, кладбище, ботоферма, чарты, Ядро.
 - Сюжет и баланс берутся из `godot/data/story.json` — выгрузка из `js/data.js` браузерной версии.
-- **Запуск**: положи Godot 4.7 в `tools/godot` и открой `play-godot.cmd`. Готовый .exe — в релизах.
+- **Запуск**: положи Godot 4.7 в `tools/godot` и открой `play-godot.cmd`. Готовый .exe — всегда по одной ссылке, в релизе [`godot-build`](https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build); что менялось — в `godot/CHANGELOG.md`.
+- **Обновить сборку может любой из авторов**: допиши раздел в `godot/CHANGELOG.md`, закоммить и запушь, затем `node tools/publish-godot.cjs` — он соберёт .exe и зальёт его в тот же релиз вместе с описанием. Нужны Godot 4.7.2 в `tools/godot`, шаблоны экспорта и GitHub CLI (`gh auth login`).
 - **Проверки** (подробно в `CLAUDE.md`): `--autotest` (бот играет сам), `--smoke` (все девять глав), `--posesheet` (листы поз), `--trailer` (кадры трейлера, `godot/scripts/director.gd`).
 - **Трейлер**: кадры снимает сама игра, монтаж — `tools/trailer/compose-godot.html`, музыка — `tools/trailer/music.js`.
 - **Сборка .exe**: шаблоны экспорта Godot 4.7.2 в `%APPDATA%/Godot/export_templates/4.7.2.stable`, затем `Godot_v4.7.2-stable_win64_console.exe --headless --path godot --export-release Windows "../dist/godot/GOD OF GRIMERKA.exe"`.
