@@ -48,7 +48,8 @@ var drag: WeaponDrag        # инерция балона поверх аним�
 var style: StyleData        # текущий боевой стиль (styles.gd)
 var combat: Combat          # ядро боя: буфер ввода, окна комбо, попадания, урон (combat.gd)
 var bottles: Bottles         # бутылки с водой: в руке, в полёте, всплеск (bottles.gd)
-var own_styles: Array = ["vozduh", "bottles"]   # стили, между которыми Пахан переключается ([1], [2])
+var tyaga: Tyaga             # пылесос ТЯГА-808: езда, притягивание, выброс (tyaga.gd)
+var own_styles: Array = ["vozduh", "bottles", "tyaga808"]   # стили Пахана: [1], [2], [3]
 var switch_to := ""          # идёт смена стиля: на какой
 var switch_t := 0.0
 var switch_buf := false      # во время смены нажали удар: сработает сразу после
@@ -103,6 +104,9 @@ func _ready() -> void:
 	bottles = Bottles.new()
 	add_child(bottles)
 	bottles.setup(self, game)
+	tyaga = Tyaga.new()
+	body.add_child(tyaga)
+	tyaga.setup(self, game)
 	scrape_p = AudioStreamPlayer.new()
 	var scr: AudioStreamWAV = load("res://assets/audio/sfx_scrape.wav")
 	scr.loop_mode = AudioStreamWAV.LOOP_FORWARD
@@ -226,6 +230,7 @@ func _physics_process(dt: float) -> void:
 		if state != "move":
 			combat.interrupt()
 			_finish_switch()
+			tyaga.on_hurt()
 			state = "move"
 		rig.play("Idle", 0.3)
 		move_and_slide()
@@ -250,6 +255,11 @@ func _physics_process(dt: float) -> void:
 		if pressed("style%d" % (i + 1)):
 			set_style(own_styles[i])
 	var spd := 5.6 * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0)
+	# ТЯГА-808: в этом стиле «свободное» состояние героя ведёт пылесос
+	if style.id == "tyaga808" and state == "move" and switch_to == "":
+		state = "tyaga"
+	if state != "tyaga":
+		tyaga.idle_tick(dt)
 	match state:
 		"move", "block":
 			var blocking := held("block")
@@ -305,6 +315,8 @@ func _physics_process(dt: float) -> void:
 				rig.set_holstered(true)
 			if sk >= 1.0:
 				_finish_switch()
+		"tyaga":
+			tyaga.tick(dt, dir)
 		"attack":
 			combat.tick_attack(dt, dir)
 		"charge":
@@ -374,7 +386,7 @@ func _on_clip_event(_clip: String, ev: String) -> void:
 func set_style(id: String) -> bool:
 	if id == style.id or switch_to != "" or not Styles.by_id(id).ready or game.paused_story():
 		return false
-	var free := state == "move" or (state == "attack" and combat.cur != null and combat.hit_i > 0)
+	var free := state == "move" or (state == "attack" and combat.cur != null and combat.hit_i > 0) or (state == "tyaga" and tyaga.mode == "hold")
 	if not free:
 		return false
 	combat.interrupt()
@@ -384,12 +396,18 @@ func set_style(id: String) -> bool:
 	switch_buf = false
 	state = "switch"
 	bottles.show_prop(false)
+	if style.id == "tyaga808":
+		tyaga.leave()                 # пылесос откатывается
 	if id == "vozduh":
 		rig.play_for("Equip", SWITCH_T, 0.08)
 	elif style.id == "vozduh":
 		rig.play_for("Unequip", SWITCH_T, 0.08)
-	else:
+	elif id == "bottles":
 		rig.play_for("BottleDraw", SWITCH_T, 0.08)
+	else:
+		rig.play("TyagaHold", 0.3)
+	if id == "tyaga808":
+		tyaga.enter()                 # пылесос выкатывается из-за спины, пока идёт смена
 	game.feedback("equip", global_position + Vector3(0, 1.2, 0))
 	return true
 
@@ -424,6 +442,10 @@ func aim_preview(a: AttackData, power: float) -> void:
 ## строка HUD: стиль и запас
 func style_hud() -> String:
 	var n := own_styles.find(style.id) + 1
+	if style.id == "tyaga808":
+		var cells := int(round(tyaga.heat / 12.5))
+		var tip := "перегрев!" if tyaga.lock > 0.0 else ("[E] сойти" if tyaga.riding() else "[E] сесть")
+		return "[%d] %s  нагрев %s%s  %s" % [n, style.title, "▮".repeat(cells), "▯".repeat(8 - cells), tip]
 	if style.ammo_max > 0:
 		var have := int(floor(combat.ammo_of(style.id)))
 		return "[%d] %s  %s%s" % [n, style.title, "●".repeat(have), "○".repeat(style.ammo_max - have)]
@@ -524,6 +546,7 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		t = 0.0
 		combat.interrupt()
 		_finish_switch()
+		tyaga.on_hurt()
 		spin.rotation.x = 0.0
 		velocity = -to.normalized() * 4.0
 		# сильный удар отбрасывает (герой остаётся на ногах), обычный — вздрагивает; длительность оглушения та же
@@ -582,7 +605,7 @@ func _process(dt: float) -> void:
 	# бутылка в кулаке: есть запас, не идёт смена стиля, рука не занята iPod, бутылка ещё не брошена
 	bottles.show_prop(style.id == "bottles" and switch_to == "" and state != "dead" and not pod.busy() and combat.ammo_of("bottles") >= 1.0 and not (state == "attack" and combat.hit_i > 0))
 	# стопы: прилегание к земле всегда, кроме переката, гибели и полёта; фиксация опоры — только в перемещении
-	feet.weight = move_toward(feet.weight, 0.0 if state in ["roll", "dead"] or not is_on_floor() else 1.0, dt * 8.0)
+	feet.weight = move_toward(feet.weight, 0.0 if state in ["roll", "dead"] or not is_on_floor() or tyaga.riding() else 1.0, dt * 8.0)
 	feet.lock = 1.0 if state in ["move", "block"] and anim.state != "fall" else 0.0
 	# в стойке и на бегу балон живёт по инерции; в ударах, блоке и перекате его ведёт анимация
 	drag.floor_y = global_position.y + 0.06
