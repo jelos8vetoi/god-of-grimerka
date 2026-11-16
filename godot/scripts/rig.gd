@@ -33,6 +33,32 @@ var weapon: Node3D         # оружие в кулаке: ось +Y, от -weap
 var weapon_bone := -1
 var weapon_grip := 0.0
 var flash_mat: StandardMaterial3D
+
+## Роли: стандартные имена боевых анимаций → клип (первый найденный). Контроллеры просят роль, а не клип:
+## новый стиль задаёт свои клипы через style_map под теми же ролями, и код боя под него менять не нужно.
+const ROLES := {
+	"idle": ["Idle"], "combat_idle": ["CombatIdle", "Idle"], "walk": ["Walk", "Run"], "run": ["Run"], "sprint": ["Sprint", "Run"],
+	"dodge": ["Dodge", "Tuck"], "roll": ["Tuck", "Dodge"], "perfect_dodge": ["PerfectDodge", "Dodge"],
+	"block": ["Block"], "parry": ["Parry", "Block"],
+	"light": ["Light1", "Light"], "heavy": ["Heavy"], "launcher": ["Launcher", "Upper"], "air_attack": ["AirAttack", "Heavy"], "landing": ["Landing"],
+	"stagger": ["Stagger", "Hit"], "hit": ["Hit"], "knockback": ["Knockback", "Stagger", "Hit"], "knockdown": ["Knockdown", "Death"], "recovery": ["Recovery", "GetUp"],
+	"finisher": ["Finisher", "Smash", "Heavy"], "equip": ["Equip"], "unequip": ["Unequip"], "tag_in": ["TagIn"], "tag_out": ["TagOut"], "death": ["Death"],
+}
+const IK_HAND_BIAS := 0.2
+const IK_ELBOW_BIAS := 0.35   # см. _ik_arm: устойчивость локтя     # см. _ik_arm: устойчивость кисти, когда оружие смотрит вдоль руки
+var style_map := {}           # роль → клип текущего стиля; проверяется раньше ROLES
+var events := {}              # клип → {событие: доля клипа или [доли]} из ключа "ev" в описании клипа
+var ev_prev := -1.0
+## Событие внутри клипа (шаг, хват, касание земли): приходит, когда анимация проходит отмеченную долю — с учётом
+## скорости, стоп-кадра и замедления, потому что считается по положению самой анимации, а не по таймеру.
+signal clip_event(clip: String, ev: String)
+## Чехол: оружие можно убрать за спину (крепление к кости) и достать обратно — set_holstered.
+var holstered := false
+var hand_att: Node3D
+var back_att: BoneAttachment3D
+var hand_xf := Transform3D()
+var back_xf := Transform3D()
+var weapon_hand_bone := -1
 static var _lib_cache := {}   # библиотека анимаций на модель+набор поз: одинаковым врагам не пересчитываем
 
 func setup(path: String, height: float, poses: Dictionary, shadows := true, wsign := 1.0, cache_key := "") -> void:
@@ -85,6 +111,9 @@ func setup(path: String, height: float, poses: Dictionary, shadows := true, wsig
 		if cache_key != "":
 			_lib_cache[cache_key] = lib
 	player.add_animation_library("g", lib)
+	for nm in poses:
+		if (poses[nm] as Dictionary).has("ev"):
+			events[nm] = poses[nm]["ev"]
 	play("Idle", 0.0)
 
 func _find_skeleton(n: Node) -> Skeleton3D:
@@ -323,7 +352,13 @@ func _ik_arm(rots: Array, side: String, grip: Vector3, D: Vector3, sgn: float) -
 	# ориентация кисти: ось костяшек вдоль оружия, пальцы — продолжение руки
 	var Dn := D.normalized() * sgn
 	var away := (grip - S)
-	var F := (away - Dn * away.dot(Dn))
+	# пальцы смотрят от плеча поперёк оружия. Когда оружие идёт почти вдоль руки, это направление вырождается
+	# и кисть переворачивалась за один кадр (рывок предплечья). Небольшая постоянная добавка «вниз и наружу»
+	# держит кисть непрерывной: вдали от вырождения она почти не влияет, вблизи — решает она.
+	var Fr: Vector3 = (away - Dn * away.dot(Dn)) / max(0.0001, away.length())
+	var ref := dir_sk(Vector3(-0.5 if side == "r" else 0.5, -1.0, 0.0)).normalized()
+	ref = ref - Dn * ref.dot(Dn)
+	var F: Vector3 = Fr + ref * IK_HAND_BIAS
 	if F.length() < 0.001:
 		F = dir_sk(Vector3(0, -1, 0))
 	F = F.normalized()
@@ -339,8 +374,11 @@ func _ik_arm(rots: Array, side: String, grip: Vector3, D: Vector3, sgn: float) -
 	var to := W - S
 	var d: float = clamp(to.length(), 0.05, (L1 + L2) * 0.999)
 	var u := to.normalized()
-	var pole := dir_sk(Vector3(-1.0 if side == "r" else 1.0, -0.7, -0.35))
-	var pp := (pole - u * pole.dot(u))
+	var pole := dir_sk(Vector3(-1.0 if side == "r" else 1.0, -0.7, -0.35)).normalized()
+	# локоть смотрит наружу-вниз-назад; когда рука сама вытянута туда же, полюс вырождается и локоть перескакивал —
+	# вторая, слабая опора (локоть назад) держит его непрерывным
+	var pole2 := dir_sk(Vector3(-0.3 if side == "r" else 0.3, 0.0, -1.0)).normalized()
+	var pp: Vector3 = (pole - u * pole.dot(u)) + (pole2 - u * pole2.dot(u)) * IK_ELBOW_BIAS
 	if pp.length() < 0.001:
 		pp = dir_sk(Vector3(0, -1, 0))
 	pp = pp.normalized()
@@ -536,14 +574,21 @@ func _build(def: Dictionary, prefix: String) -> Animation:
 		var pose: Dictionary = key[1]
 		K.append({"t": float(key[0]), "rots": pose_rots(pose), "ik": ik, "e": e, "drop": float(pose.get("drop", 0.0)), "lift": float(pose.get("lift", 0.0))})
 	if smooth:
-		# циклы шага: ключ в ключ, сглаживает сам движок
+		# циклы шага: ключ в ключ, сглаживает сам движок; с "ground" таз в каждом ключе ставится так, что нижняя стопа на полу
+		var gr: bool = def.get("ground", false)
 		for kk in K:
 			var rk: Array = (kk["rots"] as Array).duplicate()
 			if kk["ik"] != null:
 				_apply_ik(rk, kk["ik"])
 			for k in tracks:
 				anim.rotation_track_insert_key(tracks[k], float(kk["t"]) * dur, rk[bone[k]])
-			anim.position_track_insert_key(hp_t, float(kk["t"]) * dur, rest_pos[hips] + to_hips * Vector3(0, -float(kk["drop"]) * hips_h, 0))
+			var hy := -float(kk["drop"]) * hips_h
+			if gr and foot_pts.size() > 0:
+				var low := INF
+				for fp in foot_pts:
+					low = min(low, (skel_xf * (_chain(rk, fp[0])[1] as Vector3)).y - float(fp[1]))
+				hy = -low + float(kk["lift"]) * hips_h
+			anim.position_track_insert_key(hp_t, float(kk["t"]) * dur, rest_pos[hips] + to_hips * Vector3(0, hy, 0))
 		return anim
 	# остальное запекаем по кадрам: у каждого ключа своя плавность, оружие идёт по дуге, а не по прямой
 	var ground: bool = def.get("ground", false)
@@ -564,6 +609,7 @@ func play(nm: String, blend := 0.18, speed := 1.0) -> void:
 	if cur == nm and player.is_playing() and player.get_animation(full).loop_mode != Animation.LOOP_NONE:
 		return
 	cur = nm
+	ev_prev = -0.001
 	player.play(full, blend, speed)
 
 ## проиграть один раз за duration секунд
@@ -572,6 +618,7 @@ func play_for(nm: String, duration: float, blend := 0.09) -> void:
 	if not player.has_animation(full):
 		return
 	cur = nm
+	ev_prev = -0.001
 	var ln := player.get_animation(full).length
 	player.play(full, blend, ln / max(0.05, duration))
 	player.seek(0.0, true)
@@ -579,6 +626,86 @@ func play_for(nm: String, duration: float, blend := 0.09) -> void:
 func clip_len(nm: String) -> float:
 	var full := "g/" + nm
 	return player.get_animation(full).length if player.has_animation(full) else 1.0
+
+func has_clip(nm: String) -> bool:
+	return player != null and player.has_animation("g/" + nm)
+
+## Клип для роли: сначала стиль, затем список ROLES. С оружием в чехле берётся вариант «…Bare», если он есть.
+func role_clip(role: String) -> String:
+	var names: Array = ROLES.get(role, [role])
+	if style_map.has(role):
+		names = [style_map[role]] + names
+	for nm in names:
+		if holstered and has_clip(String(nm) + "Bare"):
+			return String(nm) + "Bare"
+		if has_clip(nm):
+			return nm
+	return ""
+
+func play_role(role: String, blend := 0.18, speed := 1.0) -> String:
+	var nm := role_clip(role)
+	if nm != "":
+		play(nm, blend, speed)
+	return nm
+
+func play_role_for(role: String, duration: float, blend := 0.09) -> String:
+	var nm := role_clip(role)
+	if nm != "":
+		play_for(nm, duration, blend)
+	return nm
+
+## текущая доля клипа 0..1
+func clip_frac() -> float:
+	if player == null or cur == "" or player.current_animation != "g/" + cur:
+		return 0.0
+	return player.current_animation_position / max(0.0001, player.current_animation_length)
+
+func _process(_dt: float) -> void:
+	if events.is_empty() or player == null or not events.has(cur) or not player.is_playing() or player.current_animation != "g/" + cur:
+		return
+	var k := clip_frac()
+	var ev: Dictionary = events[cur]
+	if k < ev_prev:
+		# цикл пошёл заново: досылаем хвост прошлого круга
+		_emit_range(ev, ev_prev, 1.0)
+		ev_prev = -0.001
+	_emit_range(ev, ev_prev, k)
+	ev_prev = k
+
+func _emit_range(ev: Dictionary, a: float, b: float) -> void:
+	for e in ev:
+		var fr: Array = ev[e] if ev[e] is Array else [ev[e]]
+		for f in fr:
+			if float(f) > a and float(f) <= b:
+				clip_event.emit(cur, String(e))
+
+## Место в чехле: кость (обычно spine2), куда смотрит оружие от хвата (dir, оси персонажа) и где хват (off, доли роста от кости).
+func setup_holster(bone_key: String, dir: Array, off: Array, roll := 0.0) -> void:
+	if weapon == null or back_att != null:
+		return
+	var b: int = bone[bone_key]
+	if b < 0:
+		return
+	hand_att = weapon.get_parent()
+	hand_xf = weapon.transform
+	weapon_hand_bone = weapon_bone
+	var G := _globals(rest_rot)
+	var gq: Quaternion = G[0][b]
+	var up := (gq.inverse() * dir_sk(Vector3(dir[0], dir[1], dir[2]))).normalized()
+	var q := Quaternion(Vector3.UP, up) * Quaternion(Vector3.UP, roll)
+	back_xf = Transform3D(Basis(q).scaled(weapon.scale), gq.inverse() * (skel_xf.basis.inverse() * Vector3(off[0], off[1], off[2]) * model_height))
+	back_att = BoneAttachment3D.new()
+	back_att.bone_name = skel.get_bone_name(b)
+	skel.add_child(back_att)
+
+## Достать (false) или убрать (true) оружие. В чехле weapon_bone = -1: инерция (drag.gd), след и weapon_points молчат.
+func set_holstered(on: bool) -> void:
+	if weapon == null or back_att == null or on == holstered:
+		return
+	holstered = on
+	weapon.reparent(back_att if on else hand_att, false)
+	weapon.transform = back_xf if on else hand_xf
+	weapon_bone = -1 if on else weapon_hand_bone
 
 ## Оружие в кулак. axis — ось модели оружия вдоль древка ("y" или "z"), from → to — от навершия к концу;
 ## grip — доля длины от from, где центр кулака; length — длина в долях роста; part — фильтр треугольников по высоте модели;

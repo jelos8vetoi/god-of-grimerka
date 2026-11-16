@@ -108,6 +108,11 @@ func _ready() -> void:
 			ps.seq = Array(v.slice(2))
 			add_child(ps)
 			return
+		if arg.begins_with("--animcheck="):
+			var ac = preload("res://scripts/animcheck.gd").new()
+			ac.out = arg.substr(12)
+			add_child(ac)
+			return
 	if testing() != "":
 		start_game(false, max(start_ch, 0))
 	elif start_ch >= 0:

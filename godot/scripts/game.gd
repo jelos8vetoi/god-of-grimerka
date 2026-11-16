@@ -51,6 +51,9 @@ var post: ColorRect
 var post_mat: ShaderMaterial
 var pp := {"aberr": 0.0, "blur": 0.0, "flash": 0.0, "ripple_a": 0.0, "ripple_t": 0.0}
 signal intro_done
+## отклик боя (feedback.gd): каждое событие и подтверждение попадания — для HUD, вибрации и будущих стилей
+signal feedback_fired(name: String, pos: Vector3, power: float)
+signal hit_confirmed(pos: Vector3, power: float)
 const INTRO_CAM := 2.8       # секунд облёта камеры при входе из меню
 const INTRO_HUD := 1.6       # с этого момента по очереди появляется HUD
 var intro_on := false        # игру запустили из меню с переходом (main.cinematic_start)
@@ -764,19 +767,11 @@ func punch(k: float, pos: Vector3) -> void:
 
 ## Один вызов на попадание: стоп-кадр, тряска и экранный отклик по силе удара (0 — лёгкий, 1 — тяжёлый, 2 — добивание).
 func impact(tier: int, pos: Vector3, mul := 1.0) -> void:
-	match tier:
-		0:
-			hitstop(0.055 * mul)
-			shake(0.16 * mul)
-			pp["aberr"] = max(float(pp["aberr"]), 0.22)
-		1:
-			hitstop(0.12 * mul)
-			shake(0.42)
-			punch(0.55, pos)
-		_:
-			hitstop(min(0.2, 0.16 * mul))
-			shake(0.75)
-			punch(1.0, pos)
+	feedback(["hit_light", "hit_heavy", "hit_super"][clampi(tier, 0, 2)], pos, Vector3.ZERO, mul)
+
+## Отклик боя по имени события: таблица каналов — в feedback.gd.
+func feedback(name: String, pos: Vector3, dir := Vector3.ZERO, mul := 1.0, col := Color(1.0, 0.82, 0.45)) -> void:
+	Feedback.fire(self, name, pos, dir, mul, col)
 
 func heat_cam(sec: float) -> void:
 	heat_t = sec
