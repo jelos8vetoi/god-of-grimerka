@@ -14,6 +14,7 @@ var music: AudioStreamPlayer
 var audio                 # менеджер звука (audio.gd)
 var audiolog := false     # --audiolog: печатать состояние музыки раз в секунду (и не глушить её в проверках)
 var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка iPod по кадрам (scripts/ipodcheck.gd)
+var transcheck := ""        # --transcheck=<папка>: проверка переходов из меню в игру и паузы (scripts/transcheck.gd)
 var deathcheck := ""        # --deathcheck=<папка>: проверка сцены гибели (scripts/deathcheck.gd)
 var uiqa := ""              # --uiqa=<папка>: сквозная проверка всего интерфейса (scripts/uiqa.gd)
 var onechapter := false     # --onechapter: и в проверках только доступные игроку главы (проверка концовки первой главы)
@@ -73,6 +74,8 @@ func _ready() -> void:
 			start_ch = max(start_ch, 0)
 		elif arg.begins_with("--launcher="):
 			launcher = arg.substr(11)
+		elif arg.begins_with("--transcheck="):
+			transcheck = arg.substr(13)
 		elif arg.begins_with("--deathcheck="):
 			deathcheck = arg.substr(13)
 		elif arg.begins_with("--uiqa="):
@@ -111,6 +114,11 @@ func _ready() -> void:
 		start_game(false, start_ch)
 	else:
 		show_menu()
+		if transcheck != "":
+			var tq = preload("res://scripts/transcheck.gd").new()
+			tq.main = self
+			tq.out = transcheck
+			add_child(tq)
 		if deathcheck != "":
 			var dq = preload("res://scripts/deathcheck.gd").new()
 			dq.main = self
@@ -215,7 +223,27 @@ func _check_update(on_update: Callable) -> void:
 func testing() -> String:
 	return autotest + smoke + trailer
 
-func start_game(from_save := false, chapter := -1) -> void:
+## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
+## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
+var intro_fx: IntroFX
+func cinematic_start(from_save: bool, chapter := -1, line := "") -> void:
+	if intro_fx == null:
+		intro_fx = IntroFX.new()
+		add_child(intro_fx)
+	if intro_fx.busy or game != null:
+		return
+	await intro_fx.cover("WELCOME BACK" if from_save else "ENTERING THE CLOUD", line)
+	if from_save:
+		var d = JSON.parse_string(FileAccess.get_file_as_string("user://grimerka_save.json")) if FileAccess.file_exists("user://grimerka_save.json") else null
+		if not (d is Dictionary):
+			await intro_fx.fail("Сохранение не читается — начни новую игру.", show_menu)
+			return
+	start_game(from_save, chapter, true)
+	for i in 3:
+		await get_tree().process_frame
+	intro_fx.reveal()
+
+func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 	if menu:
 		menu.queue_free()
 		menu = null
@@ -238,6 +266,7 @@ func start_game(from_save := false, chapter := -1) -> void:
 	if smoke != "":
 		game.auto_kill = 1.6
 	game.auto_len = auto_len
+	game.intro_on = cinematic
 	if trailer != "":
 		var d = preload("res://scripts/director.gd").new()
 		d.game = game

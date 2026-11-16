@@ -1,11 +1,10 @@
 ## Меню паузы: чёрно-белая композиция по утверждённому референсу.
-## Слева — шесть огромных наклонённых названий вкладок, сверху по центру — логотип, справа — Пахан в расслабленной
-## музыкальной позе (отдельная сцена в SubViewport: настоящая модель, Rig, позы Poses.pahan_pause(), PodHand и EarPods),
-## справа внизу — две белые панели с настоящими здоровьем и прослушиваниями, подсказки управления.
-## Игровой мир останавливается сразу (game.set_paused), меню раскрывается слоями за ~0,6 с; игровой Пахан не трогается.
+## Слева — шесть огромных наклонённых названий вкладок, сверху по центру — логотип, справа — настоящий Пахан в игровом мире:
+## пауза замораживает его в той позе, в какой застала, а игровая камера плавно наезжает на него (см. «камера» ниже).
+## Справа внизу — две белые панели с настоящими здоровьем и прослушиваниями, подсказки управления.
+## Игровой мир останавливается сразу (game.set_paused), меню раскрывается слоями, пока едет камера.
 ## Вкладки показывают только то, что в игре есть: СТАТУС, РАЗВИТИЕ, ГРУППА, ЗАДАНИЕ, МУЗЫКА, СИСТЕМА.
 ## Все будущие системы прокачки добавляются во вкладку РАЗВИТИЕ (см. docs/PROGRESSION_MENU_INTEGRATION.md).
-## Раз в 25–45 с, если музыка играет в наушниках и игрок не трогает меню, Пахан сам достаёт iPod, переключает трек и убирает его.
 class_name PauseMenu
 extends Control
 
@@ -25,8 +24,27 @@ const TABS := [
 	["СИСТЕМА", Vector2(380, 716), 92, -23.0],
 ]
 const HINTS := ["Здоровье, СВЭГ, перегруз, глава", "Улучшения за прослушивания", "Пахан и madk1d", "Что сейчас делать", "iPod: трек и управление", "Настройки и выход"]
-const T_ENTER := 0.5
-const T_EXIT := 0.35
+## Подложка меню: замерший мир почти без цвета, слева (под вкладками) уходит в черноту, справа, где Пахан, светлее;
+## поверх — редкие диагональные штрихи и плёночное зерно.
+const PAUSE_BG := """
+shader_type canvas_item;
+uniform sampler2D screen : hint_screen_texture, filter_linear_mipmap, repeat_disable;
+float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+void fragment() {
+	vec2 uv = SCREEN_UV;
+	vec3 c = textureLod(screen, uv, 0.0).rgb;
+	float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+	vec3 col = mix(c, vec3(l), 0.85);
+	float left = 1.0 - smoothstep(0.12, 0.62, uv.x);
+	col *= 1.0 - (0.3 + 0.6 * left);
+	vec2 q = (uv - vec2(0.68, 0.48)) * vec2(1.6, 1.0);
+	col *= 1.0 - smoothstep(0.35, 1.0, length(q)) * 0.45;
+	float d = uv.x * 0.93 - uv.y * 0.36;
+	col += 0.03 * step(0.985, fract(d * 9.0 + h(vec2(floor(d * 9.0), 3.0)) * 0.2));
+	col += (h(uv * 900.0 + floor(TIME * 24.0)) - 0.5) * 0.06;
+	COLOR = vec4(col, 1.0);
+}
+"""
 
 var game
 var stage: Control
@@ -49,27 +67,10 @@ var card_sel := 0
 var hp_text: Label
 var hp_fill: ColorRect
 var xp_text: Label
-var now_tag: Label
-var idle_t := 0.0               # сколько секунд игрок не трогал меню
-# сцена с Паханом
-var vp: SubViewport
-var rig: Rig
-var pod: PodHand
-var tilt: Node3D
-var face: TextureRect
-var clip := ""
-var check := ""                 # автономная проверка iPod: "" / check / take / inspect / switch / return
-var check_t := 0.0
-var next_check := 30.0
-var switched := false
-var checks_done := 0
-var rng := RandomNumberGenerator.new()
-
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	visible = false
-	rng.randomize()
 	serif = SystemFont.new()
 	serif.font_names = PackedStringArray(["Bodoni MT Black", "Bodoni MT", "Playfair Display Black", "Playfair Display", "Georgia", "Times New Roman", "serif"])
 	serif.font_weight = 900
@@ -83,7 +84,7 @@ func _ready() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_STOP
 	bg_mat = ShaderMaterial.new()
 	var sh := Shader.new()
-	sh.code = Menu.BG_SHADER.replace("glow_floor_dummy()", "glow * 0.5 * (1.0 - depth)")
+	sh.code = PAUSE_BG
 	bg_mat.shader = sh
 	bg.material = bg_mat
 	add_child(bg)
@@ -92,7 +93,10 @@ func _ready() -> void:
 	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(stage)
 	_build_rings()
-	_build_preview()
+	char_mat = ShaderMaterial.new()
+	var cs := Shader.new()
+	cs.code = Menu.CHAR_SHADER
+	char_mat.shader = cs
 	_build_logo()
 	_build_tabs()
 	_build_panels()
@@ -105,7 +109,6 @@ func _fit() -> void:
 	size = vs
 	bg.position = Vector2.ZERO
 	bg.size = vs
-	bg_mat.set_shader_parameter("aspect", vs.x / max(1.0, vs.y))
 	var k: float = min(vs.x / STAGE.x, vs.y / STAGE.y)
 	stage.scale = Vector2.ONE * k
 	stage.position = (vs - STAGE * k) * 0.5
@@ -274,153 +277,159 @@ func _build_panels() -> void:
 		_text(hints, h[1], 18, WHITE, Vector2(x + 60, -1), serif)
 		x += 170.0
 	_layer(hints)
-	now_tag = _text(stage, "", 17, WHITE, Vector2(1000, 660), serif)
-	now_tag.size = Vector2(560, 50)
-	now_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	now_tag.modulate.a = 0.0
 
-# ---------------- сцена с Паханом ----------------
-func _build_preview() -> void:
-	vp = SubViewport.new()
-	vp.size = Vector2i(900, 900)
-	vp.own_world_3d = true
-	vp.transparent_bg = true
-	vp.msaa_3d = Viewport.MSAA_4X
-	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	add_child(vp)
-	var we := WorldEnvironment.new()
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0, 0, 0, 0)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(1, 1, 1)
-	env.ambient_light_energy = 0.3
-	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
-	we.environment = env
-	vp.add_child(we)
-	var key := DirectionalLight3D.new()
-	key.rotation = Vector3(-0.5, 0.7, 0.0)
-	key.light_energy = 0.85
-	vp.add_child(key)
-	var back := DirectionalLight3D.new()
-	back.rotation = Vector3(-0.3, PI - 0.6, 0.0)
-	back.light_energy = 0.7
-	vp.add_child(back)
-	var cam := Camera3D.new()
-	cam.fov = 26.0
-	cam.position = Vector3(0.0, 1.0, 5.2)
-	vp.add_child(cam)
-	# весь риг наклоняется назад вокруг таза: в пространстве скелета Пахан остаётся «вертикальным»,
-	# поэтому карман, взгляд и провод PodHand работают как в игре
-	tilt = Node3D.new()
-	tilt.position = Vector3(0.0, 0.95, 0.0)
-	vp.add_child(tilt)
-	rig = Rig.new()
-	tilt.add_child(rig)
-	rig.position.y = -0.95
-	rig.setup("res://assets/models/pahan.glb", 1.85, Poses.pahan_pause(), false, 1.0, "pause_pahan")
-	pod = PodHand.new()
-	pod.setup(rig)
-	pod.pocket_show = true
-	if pod.sfx:
-		pod.sfx.queue_free()
-		pod.sfx = null
-	rig.skel.add_child(pod)
-	face = TextureRect.new()
-	face.texture = vp.get_texture()
-	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	face.size = Vector2(900, 900)
-	face.position = Vector2(660, -10)
-	face.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var cm := ShaderMaterial.new()
-	var cs := Shader.new()
-	cs.code = Menu.CHAR_SHADER
-	cm.shader = cs
-	face.material = cm
-	stage.add_child(face)
-	_layer(face)
+# ---------------- камера: наезд на настоящего Пахана ----------------
+## Мир стоит (SceneTree.paused), Пахан замер ровно в той позе, в какой его застала пауза: аниматор и физика стоят вместе с миром.
+## Игровая камера в паузе не обновляется, поэтому её ведёт меню (этот узел работает и на паузе): по дуге вокруг груди Пахана
+## — от того места, где камера была, к крупному плану спереди-сбоку. Пахан смещён вправо (h_offset), слева — вкладки.
+## При закрытии та же дуга назад, а в конце камере возвращаются точные локальное положение, угол обзора и смещения.
+const T_IN := 0.7
+const T_OUT := 0.45
+const CAM_DIST := 2.6       # до груди Пахана в крупном плане, м
+const CAM_HIGH := 0.18      # чуть выше груди
+const CAM_FOV := 50.0
+const CAM_SIDE := -0.8      # h_offset: Пахан в правой части кадра
+const SIDE_ANGLE := 1.0     # насколько сбоку от лица, рад
+var state := "closed"       # closed → opening → open → closing → closed
+var cam_k := 0.0            # 0 — игровая камера, 1 — крупный план
+var cam_taken := false
+var cam_home := Transform3D()
+var cam_from := Transform3D()
+var cam_fov := 62.0
+var cam_h := 0.0
+var cam_v := 0.0
+var pivot_pt := Vector3.ZERO
+var orbit := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]   # угол, радиус, высота — у игровой камеры и у крупного плана
+var cam_tw: Tween
+var char_mat: ShaderMaterial    # монохромный материал для портрета madk1d на странице «Группа»
 
-func _play(nm: String, blend := 0.25) -> void:
-	if clip == nm:
+static func _ease(k: float) -> float:
+	var x := clampf(k, 0.0, 1.0)
+	return x * x * (3.0 - 2.0 * x)
+
+func _take_camera() -> void:
+	var cam: Camera3D = game.cam
+	cam_home = cam.transform
+	cam_from = cam.global_transform
+	cam_fov = cam.fov
+	cam_h = cam.h_offset
+	cam_v = cam.v_offset
+	var pl = game.player
+	pivot_pt = pl.global_position + Vector3(0, 1.05, 0)
+	var rel := cam_from.origin - pivot_pt
+	var a0 := atan2(rel.x, rel.z)
+	var f: float = pl.face
+	var al := f + SIDE_ANGLE
+	var ar := f - SIDE_ANGLE
+	var a1 := al if absf(angle_difference(a0, al)) <= absf(angle_difference(a0, ar)) else ar
+	orbit = [a0, Vector2(rel.x, rel.z).length(), rel.y, a1, CAM_DIST, CAM_HIGH]
+	cam_taken = true
+
+## Где камера при k (0..1): по дуге вокруг груди, взгляд из исходного поворачивается к груди; стены не пробивает.
+func cam_pose(k: float) -> Transform3D:
+	var e := _ease(k)
+	var a: float = float(orbit[0]) + angle_difference(float(orbit[0]), float(orbit[3])) * e
+	var r: float = lerpf(float(orbit[1]), float(orbit[4]), e)
+	var hh: float = lerpf(float(orbit[2]), float(orbit[5]), e)
+	var pos := pivot_pt + Vector3(sin(a) * r, hh, cos(a) * r)
+	if e > 0.0:
+		var space: PhysicsDirectSpaceState3D = game.player.get_world_3d().direct_space_state
+		var q := PhysicsRayQueryParameters3D.create(pivot_pt, pos)
+		q.exclude = [game.player.get_rid()]
+		var hit: Dictionary = space.intersect_ray(q)
+		if not hit.is_empty():
+			var dir := (pos - pivot_pt).normalized()
+			pos = pivot_pt + dir * maxf(0.9, ((hit["position"] as Vector3) - pivot_pt).length() - 0.25)
+	if e <= 0.0:
+		return cam_from
+	var look := Basis.looking_at(pivot_pt + Vector3(0, -0.05, 0) - pos, Vector3.UP)
+	var qb := cam_from.basis.get_rotation_quaternion().slerp(look.get_rotation_quaternion(), e)
+	return Transform3D(Basis(qb), pos)
+
+func _apply_camera() -> void:
+	if not cam_taken or game == null or not is_instance_valid(game.cam):
 		return
-	clip = nm
-	rig.play(nm, blend)
+	var e := _ease(cam_k)
+	game.cam.global_transform = cam_pose(cam_k)
+	game.cam.fov = lerpf(cam_fov, CAM_FOV, e)
+	game.cam.h_offset = lerpf(cam_h, CAM_SIDE, e)
+	game.cam.v_offset = lerpf(cam_v, 0.0, e)
 
-func _listening() -> bool:
-	return game.ipod != null and game.ipod.is_listening()
+func _give_camera_back() -> void:
+	if cam_taken and game != null and is_instance_valid(game.cam):
+		game.cam.transform = cam_home
+		game.cam.fov = cam_fov
+		game.cam.h_offset = cam_h
+		game.cam.v_offset = cam_v
+	cam_taken = false
+	cam_k = 0.0
+
+func _cam_to(k: float, sec: float) -> Tween:
+	if is_instance_valid(cam_tw):
+		cam_tw.kill()
+	cam_tw = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	cam_tw.tween_property(self, "cam_k", k, maxf(0.05, sec))
+	return cam_tw
 
 # ---------------- открыть / закрыть ----------------
 func open() -> void:
-	if is_open and not closing:
+	if state == "opening" or state == "open":
 		return
+	var resume := state == "closing"            # Esc посреди закрытия: разворачиваемся обратно
+	state = "opening"
 	is_open = true
 	closing = false
 	visible = true
-	idle_t = 0.0
-	check = ""
-	next_check = rng.randf_range(25.0, 45.0)
 	_close_card()
-	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	pod.set_seated(game.ipod != null and bool(game.ipod.earbuds_in))
-	pod.want = false
-	pod.u = 0.0
-	# Пахан: из обычной стойки — в позу отдыха
-	clip = ""
-	rig.play("Idle", 0.0)
-	rig.play_for("PauseEnter", T_ENTER, 0.05)
-	clip = "PauseEnter"
-	tilt.rotation = Vector3.ZERO
-	tilt.position = Vector3(0.0, 0.95, 0.0)
+	if not resume:
+		_take_camera()
+		game.hud_root.visible = false
+		game.main.sfx("sfx_ui", -8.0, 0.62)
+	_cam_to(1.0, T_IN * (1.0 - cam_k)).tween_callback(func(): if state == "opening": state = "open")
+	# интерфейс: слоями, каждый следующий на 40 мс позже; пока камера едет
 	var tw := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS).set_parallel(true)
-	tw.tween_property(tilt, "rotation", Vector3(-0.36, -0.42, 0.2), T_ENTER).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(tilt, "position", Vector3(0.05, 1.12, 0.0), T_ENTER).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	# интерфейс: слоями, каждый следующий на 40 мс позже
-	bg.modulate.a = 0.0
-	tw.tween_property(bg, "modulate:a", 1.0, 0.16)
+	bg.modulate.a = 0.0 if not resume else bg.modulate.a
+	tw.tween_property(bg, "modulate:a", 1.0, 0.4).set_delay(0.0 if resume else 0.3)      # мир темнеет к концу наезда, пока Пахан ещё не справа
 	for i in layers.size():
 		var n: CanvasItem = layers[i][0]
 		var home: Vector2 = layers[i][1]
-		n.modulate.a = 0.0
-		n.set("position", home + Vector2(-34.0 if home.x < 700.0 else 34.0, 0.0))
-		tw.tween_property(n, "modulate:a", 1.0, 0.18).set_delay(0.06 + i * 0.04)
-		tw.tween_property(n, "position", home, 0.22).set_delay(0.06 + i * 0.04).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		if not resume:
+			n.modulate.a = 0.0
+			n.set("position", home + Vector2(-34.0 if home.x < 700.0 else 34.0, 0.0))
+		tw.tween_property(n, "modulate:a", 1.0, 0.18).set_delay(0.12 + i * 0.04)
+		tw.tween_property(n, "position", home, 0.22).set_delay(0.12 + i * 0.04).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_select(sel, false)
 	_refresh()
 
-## Закрыть с анимацией и вернуть игру.
+## Закрыть с анимацией: меню уходит, камера возвращается по той же дуге, игра продолжается с того же кадра.
 func close() -> void:
 	if not is_open or closing:
 		return
+	state = "closing"
 	closing = true
 	_close_card()
-	# iPod в руке не остаётся: проверка обрывается, устройство — сразу в карман
-	check = ""
-	pod.want = false
-	pod.u = 0.0
-	now_tag.modulate.a = 0.0
-	rig.play_for("PauseExit", T_EXIT, 0.06)
-	clip = "PauseExit"
+	game.main.sfx("sfx_ui", -10.0, 0.8)
 	var tw := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS).set_parallel(true)
-	tw.tween_property(tilt, "rotation", Vector3.ZERO, T_EXIT).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(tilt, "position", Vector3(0.0, 0.95, 0.0), T_EXIT).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	for i in layers.size():
 		var n: CanvasItem = layers[layers.size() - 1 - i][0]
 		tw.tween_property(n, "modulate:a", 0.0, 0.14).set_delay(i * 0.018)
-	tw.tween_property(bg, "modulate:a", 0.0, 0.16).set_delay(T_EXIT - 0.16)
-	tw.chain().tween_callback(func(): game.set_paused(false))
+	tw.tween_property(bg, "modulate:a", 0.0, 0.3).set_delay(0.08)
+	_cam_to(0.0, T_OUT * maxf(0.35, cam_k)).tween_callback(func():
+		if state == "closing":
+			game.set_paused(false))
 
-## Скрыть сразу, без анимации (вызывает game.set_paused(false)).
+## Скрыть сразу, без анимации (вызывает game.set_paused(false)): камера и HUD — на место.
 func shut() -> void:
+	if is_instance_valid(cam_tw):
+		cam_tw.kill()
+	_give_camera_back()
+	state = "closed"
 	is_open = false
 	closing = false
 	visible = false
-	check = ""
 	_close_card()
-	if vp:
-		vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	if pod:
-		pod.want = false
-		pod.u = 0.0
+	if game != null and is_instance_valid(game.hud_root):
+		game.hud_root.visible = true
 
 # ---------------- вкладки ----------------
 func _select(i: int, sound := true) -> void:
@@ -738,7 +747,7 @@ func _buddy_portrait() -> Control:
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	t.custom_minimum_size = Vector2(230, 300)
-	t.material = face.material
+	t.material = char_mat
 	return t
 
 ## Рисунок iPod для страницы «Музыка»: серебристый корпус, экран с нотой и колесо.
@@ -833,7 +842,6 @@ func _refresh() -> void:
 func _unhandled_input(e: InputEvent) -> void:
 	if not is_open or closing or not (e is InputEventKey) or not e.pressed or e.echo:
 		return
-	idle_t = 0.0
 	var k: int = e.physical_keycode
 	var up := k == KEY_W or k == KEY_UP
 	var down := k == KEY_S or k == KEY_DOWN
@@ -863,69 +871,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	get_viewport().set_input_as_handled()
 
-func _input(e: InputEvent) -> void:
-	if is_open and e is InputEventMouseMotion:
-		idle_t = 0.0
-
-# ---------------- жизнь Пахана ----------------
-## Запустить проверку iPod прямо сейчас (для проверки по кадрам); в игре её запускает таймер.
-func check_now() -> void:
-	if check == "":
-		check = "check"
-		check_t = 0.0
-		switched = false
-
-func _process(dt: float) -> void:
-	if not is_open:
-		return
-	_refresh()
-	if closing:
-		return
-	idle_t += dt
-	var music := _listening()
-	# базовая поза: вход доигрывается, потом музыка — кивает, тишина — просто дышит; пока iPod в руке — без кивков
-	if clip == "PauseEnter":
-		if not rig.player.is_playing():
-			_play("PauseMusicIdle" if music else "PauseIdle", 0.3)
-	else:
-		_play("PauseMusicIdle" if music and check == "" else "PauseIdle", 0.35)
-	now_tag.modulate.a = move_toward(now_tag.modulate.a, 0.0, dt * 0.45)
-	# автономная проверка iPod
-	if check == "":
-		if music and card == null and idle_t >= 8.0 and pod.buds_in():
-			next_check -= dt
-			if next_check <= 0.0:
-				check_now()
-		return
-	check_t += dt
-	if not music and check != "return":      # музыка остановилась посреди проверки: ничего не включаем, убираем iPod
-		check = "return"
-		pod.want = false
-	match check:
-		"check":                               # замедлился, глянул вниз
-			if check_t > 0.45:
-				check = "take"
-				pod.want = true
-		"take":                                # достаёт
-			if pod.u >= 1.0:
-				check = "inspect"
-				check_t = 0.0
-		"inspect":                             # смотрит на экран
-			if check_t > 0.9:
-				check = "switch"
-				check_t = 0.0
-				pod.press("next")
-				switched = game.ipod.next_track_from_pause()
-				if switched:
-					var n: Dictionary = game.ipod.now_playing()
-					now_tag.text = "NOW PLAYING\n%s — %s" % [n["title"], n["artist"]]
-					now_tag.modulate.a = 1.6
-		"switch":                              # ещё немного смотрит и убирает
-			if check_t > 0.9:
-				check = "return"
-				pod.want = false
-		"return":
-			if pod.u <= 0.0:
-				check = ""
-				checks_done += 1
-				next_check = rng.randf_range(25.0, 45.0)
+func _process(_dt: float) -> void:
+	_apply_camera()
+	if is_open:
+		_refresh()

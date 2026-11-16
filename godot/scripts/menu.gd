@@ -146,6 +146,7 @@ var info: Label
 var panel: Control             # открытый экран (загрузка, настройки, дополнительно, подтверждение)
 var panel_rows: Array = []     # [[Label, Callable]]
 var panel_sel := 0
+var launching := false        # переход в игру начался: меню больше не реагирует
 var hero_vp: SubViewport       # сцена с героями (для рендера в установщик: -- --menu-render=<файл.png>)
 var chars: TextureRect
 var chars_home := Vector2.ZERO
@@ -541,18 +542,41 @@ func _select(i: int, sound := true) -> void:
 		if rows[k]["sub"] != null:
 			(rows[k]["sub"] as Label).add_theme_color_override("font_color", Color(0.15, 0.15, 0.17) if on else GREY)
 
+## Запуск игры: нажатый пункт вспыхивает и вытягивается, остальное меню гаснет, затем общий переход (main.cinematic_start).
+func launch(from_save: bool, chapter := -1) -> void:
+	if launching:
+		return
+	launching = true
+	main.sfx("sfx_ui", -2.0, 0.72)
+	var line := ("Глава %d · %s" % [chapter_no(), chapter_name(chapter_no() - 1)]) if from_save else "Глава 1 · %s" % chapter_name(0)
+	var tw := create_tween().set_parallel(true)
+	band.modulate = Color(1.6, 1.6, 1.6)
+	tw.tween_property(band, "modulate", Color.WHITE, 0.3)
+	tw.tween_property(band, "scale", Vector2(1.22, 1.12), 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	for k in rows.size():
+		if k != sel:
+			tw.tween_property(rows[k]["root"], "modulate:a", 0.0, 0.25).set_delay(0.04 * k)
+	for c in stage.get_children():
+		if c != list and c is CanvasItem:
+			tw.tween_property(c, "modulate:a", 0.0, 0.45).set_delay(0.1)
+	tw.tween_property(info, "modulate:a", 0.0, 0.3)
+	await get_tree().create_timer(0.32).timeout
+	main.cinematic_start(from_save, chapter, line)
+
 func _activate() -> void:
+	if launching:
+		return
 	main.sfx("sfx_ui")
 	match sel:
 		0:
 			if has_save:
-				main.start_game(true)
+				launch(true)
 		1:
 			if has_save:
 				_open("NEW GAME", ["Сохранение будет перезаписано:", "Глава %d · %s" % [chapter_no(), chapter_name(chapter_no() - 1)], "Начать заново с первой главы?"],
-					[["НАЧАТЬ ЗАНОВО", func(): main.start_game(false, 0)], ["ОТМЕНА", _close]], 1)
+					[["НАЧАТЬ ЗАНОВО", func(): launch(false, 0)], ["ОТМЕНА", _close]], 1)
 			else:
-				main.start_game(false, 0)
+				launch(false, 0)
 		2:
 			_open_load()
 		3:
@@ -658,6 +682,8 @@ func _panel_select(i: int, sound := true) -> void:
 
 ## dir: +1 — Enter / вправо, −1 — влево (только для настроек).
 func _panel_activate(dir := 1) -> void:
+	if launching:
+		return
 	if panel_rows.is_empty():
 		return
 	var r: Dictionary = panel_rows[panel_sel]
@@ -687,7 +713,7 @@ func _open_load() -> void:
 		"Глава %d · %s" % [chapter_no(), chapter_name(chapter_no() - 1)],
 		"Шаг главы: %d   ·   Прослушивания: %d" % [int(save.get("step", 0)) + 1, int(save.get("xp", 0))],
 		"Улучшения — здоровье: %d · сила: %d · ад-либ madk1d: %d" % [int(up.get("hp", 0)), int(up.get("dmg", 0)), int(up.get("q", 0))],
-	], [["ЗАГРУЗИТЬ", func(): main.start_game(true)], ["НАЗАД", _close]])
+	], [["ЗАГРУЗИТЬ", func(): launch(true)], ["НАЗАД", _close]])
 
 func _open_settings() -> void:
 	var acts: Array = []
@@ -713,6 +739,8 @@ func _open_extras() -> void:
 
 # ---------------- ввод и жизнь ----------------
 func _unhandled_input(e: InputEvent) -> void:
+	if launching:
+		return
 	if not (e is InputEventKey) or not e.pressed or e.echo:
 		return
 	var k: int = e.physical_keycode

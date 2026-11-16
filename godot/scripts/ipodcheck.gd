@@ -1064,7 +1064,7 @@ func _run_pause() -> void:
 	await wait(0.12)
 	await full_shot("pause_1_opening.png")
 	await wait(0.75)
-	ok(pm.clip in ["PauseIdle", "PauseMusicIdle"], "через 0,9 с Пахан уже в позе отдыха (клип %s)" % pm.clip)
+	ok(pm.state == "open" and pm.cam_taken, "через 0,9 с камера наехала на Пахана, меню открыто")
 	var all_in := true
 	for l in pm.layers:
 		all_in = all_in and (l[0] as CanvasItem).modulate.a > 0.98
@@ -1112,7 +1112,6 @@ func _run_pause() -> void:
 	# ---- музыка в наушниках: Пахан кивает, игра приглушена ----
 	ipod.earbuds_in = true
 	pl.pod.set_seated(true)
-	pm.pod.set_seated(true)
 	pm._open_page(4)
 	await wait(0.2)
 	pm.card_sel = 1
@@ -1120,7 +1119,6 @@ func _run_pause() -> void:
 	await wait(0.9)
 	pm._close_card()
 	ok(ipod.is_listening(), "страница «Музыка» запускает тот же плеер iPod")
-	ok(pm.clip == "PauseMusicIdle", "музыка играет — Пахан кивает (клип %s)" % pm.clip)
 	ok(audio.headphone > 0.99, "режим наушников включён (%.2f)" % audio.headphone)
 	ok(bus_db("Music") < -55.0 and bus_db("SFX") < -55.0 and bus_db("Ambient") < -55.0, "приглушены: Music %.0f, SFX %.0f, Ambient %.0f дБ" % [bus_db("Music"), bus_db("SFX"), bus_db("Ambient")])
 	ok(absf(bus_db("Voice") - voice0) < 0.01, "голоса не тронуты (Voice %.1f дБ)" % bus_db("Voice"))
@@ -1129,50 +1127,28 @@ func _run_pause() -> void:
 	await wait(0.5)
 	await full_shot("pause_3_music.png")
 
-	# ---- Пахан сам проверяет iPod и переключает трек ----
+	# ---- смена трека со страницы «Музыка»: тот же плеер, микс не сбрасывается ----
 	var idx0: int = ipod.track_index
-	var seen := []
-	var marks := {}
-	pm.check_now()
-	var t0 := Time.get_ticks_msec()
-	while (pm.check != "" or seen.is_empty()) and Time.get_ticks_msec() - t0 < 9000:
-		await get_tree().process_frame
-		if seen.is_empty() or seen.back() != pm.check:
-			seen.append(pm.check)
-		for m in [["take", 0.45, "pause_4_reach"], ["take", 0.85, "pause_5_take"], ["inspect", 0.0, "pause_6_inspect"], ["switch", 0.0, "pause_7_switch"], ["return", 0.0, "pause_8_return"]]:
-			if pm.check == m[0] and (float(m[1]) == 0.0 or pm.pod.u >= float(m[1])) and not marks.has(m[2]):
-				marks[m[2]] = true
-				if m[0] == "inspect" or m[0] == "switch":
-					await wait(0.3)
-				await full_shot(String(m[2]) + ".png")
-	var took := (Time.get_ticks_msec() - t0) / 1000.0
-	print("IPOD проверка плеера: ", seen, " за %.1f с" % took)
-	ok(seen == ["check", "take", "inspect", "switch", "return", ""], "последовательность: посмотрел → достал → смотрит → переключил → убрал")
-	ok(ipod.track_index != idx0 and ipod.is_listening(), "трек действительно сменился (%d → %d) и играет" % [idx0, ipod.track_index])
-	ok(pm.pod.u <= 0.0 and pm.pod.device_state() == "IN_POCKET" and pm.pod.buds_in(), "iPod снова в кармане, наушники в ушах")
-	ok(pm.now_tag.text.begins_with("NOW PLAYING") and pm.now_tag.modulate.a > 0.1, "подпись NOW PLAYING показана")
-	ok(took > 2.5 and took < 6.0, "проверка плеера заняла %.1f с" % took)
+	pm._open_page(4)
+	await wait(0.2)
+	pm.card_sel = 2
+	pm._card_activate()                       # «Следующий»
 	await wait(0.6)
-	await full_shot("pause_9_idle_again.png")
+	ok(ipod.track_index != idx0 and ipod.is_listening() and audio.headphone > 0.99, "трек сменился (%d → %d), играет, режим наушников держится" % [idx0, ipod.track_index])
+	pm._close_card()
 
-	# ---- пауза трека: кивки прекращаются, микс возвращается ----
+	# ---- пауза трека: микс возвращается ----
 	ipod.pause_toggle_play()
 	await wait(1.0)
-	ok(pm.clip == "PauseIdle" and audio.headphone < 0.01 and bus_db("SFX") > -20.0, "трек на паузе: Пахан просто дышит, микс вернулся (SFX %.1f дБ)" % bus_db("SFX"))
-	pm.check_now()
-	await wait(0.2)
-	pm.check = ""                              # вручную запущенная проверка без музыки ничего не переключает
+	ok(audio.headphone < 0.01 and bus_db("SFX") > -20.0, "трек на паузе: микс вернулся (SFX %.1f дБ)" % bus_db("SFX"))
 	ipod.pause_toggle_play()
 	await wait(0.6)
 
-	# ---- Esc посреди проверки плеера ----
-	pm.check_now()
-	while pm.pod.u < 0.5:
-		await get_tree().process_frame
+	# ---- закрытие паузы ----
 	var idx1: int = ipod.track_index
 	await tap(KEY_ESCAPE)
-	await wait(0.7)
-	ok(not get_tree().paused and not pm.is_open and pm.pod.u <= 0.0 and pm.check == "", "Esc посреди проверки: меню закрыто, iPod в кармане, проверка оборвана")
+	await wait(0.9)
+	ok(not get_tree().paused and not pm.is_open and not pm.cam_taken, "Esc: меню закрыто, камера отдана игре")
 	ok(ipod.track_index == idx1, "после закрытия трек сам не переключился")
 	ok(pl.global_position.distance_to(pos0) < 0.01, "игровой Пахан не сдвинулся (%.3f м)" % pl.global_position.distance_to(pos0))
 	ok(Input.mouse_mode == Input.MOUSE_MODE_CAPTURED, "мышь снова захвачена игрой")
@@ -1202,7 +1178,7 @@ func _run_pause() -> void:
 	# открыть и закрыть ещё раз: без наушников автономной проверки нет
 	await tap(KEY_ESCAPE)
 	await wait(0.9)
-	ok(pm.is_open and not pm.pod.buds.visible, "пауза без наушников: вкладышей нет")
+	ok(pm.is_open and not pl.pod.buds_in(), "пауза без наушников открывается")
 	pm.close()
 	await wait(0.7)
 	ok(not get_tree().paused, "закрытие по «Вернуться в игру»")
