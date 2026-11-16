@@ -42,7 +42,7 @@ class LauncherForm : Form
 	const string LauncherAsset = "GOD-OF-GRIMERKA-Launcher.exe";
 	const string UserAgent = "god-of-grimerka-launcher";
 
-	readonly string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GOD OF GRIMERKA Godot");   // "GOD OF GRIMERKA" занята старым лаунчером браузерной версии
+	string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GOD OF GRIMERKA Godot");   // "GOD OF GRIMERKA" занята старым лаунчером браузерной версии
 	readonly string self = Application.ExecutablePath;
 	readonly bool noSelfUpdate;
 	readonly bool checkOnly;
@@ -60,6 +60,9 @@ class LauncherForm : Form
 
 	public LauncherForm(string[] args)
 	{
+		// поставлен установщиком (рядом лежит его метка) — игра живёт в той же папке, что и лаунчер
+		if (File.Exists(Path.Combine(Path.GetDirectoryName(self), "grimerka-install.txt")))
+			dir = Path.GetDirectoryName(self);
 		foreach (string a in args)
 		{
 			if (a == "--no-self-update") noSelfUpdate = true;
