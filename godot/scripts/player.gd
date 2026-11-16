@@ -292,6 +292,8 @@ func _physics_process(dt: float) -> void:
 					face = rotate_toward(face, turn_to, 3.0 * dt)
 					if abs(angle_difference(face, turn_to)) < 0.02:
 						turn_to = NAN
+				if held("sprint") and dir.length() > 0.5 and anim.state == "move":
+					combat.open("sprint", 0.12)   # на бегу с рывком: удар с разгона
 				if anim_hold <= 0.0 or dir.length() > 0.1:
 					var hs := Vector2(velocity.x, velocity.z).length() if dir.length() > 0.1 else 0.0
 					anim.tick(dt, hs, turn, is_on_floor(), velocity.y, enemies_near(), held("sprint") or rage > 0.0)
@@ -333,6 +335,8 @@ func _physics_process(dt: float) -> void:
 				game.fx.dust(global_position + Vector3(0, 0.15, 0), 5, game.fx.DUST, 0.6)
 				combat.dodged()
 				if perfect:
+					combat.open("perfect", 0.7)
+					swag = min(100.0, swag + 12.0)
 					# идеальный уклон: вышел из переката низко, балон уже отведён для ответа
 					perfect = false
 					rig.play_role_for("perfect_dodge", 0.55, 0.06)
@@ -480,12 +484,15 @@ func try_heat() -> void:
 	swag -= 40.0
 	var to: Vector3 = best.global_position - global_position
 	game.cam_yaw = atan2(-to.x, -to.z)
-	best.stun(2.5)
+	# вариант добивания — по положению цели: в воздухе, оглушена / лежит, стоит
+	var ctx := "air" if best.state == "air" else ("stun" if best.state in ["stun", "down", "getup"] else "")
+	if ctx != "air":
+		best.stun(2.5)
 	inv = 1.7
 	game.heat_cam(1.5)
 	game.banner("HEAT", "прилёт VOZDUHом", Color(1, 0.75, 0.2))
 	game.bark("heat", 4.0)
-	combat.begin_heat()
+	combat.begin_heat(ctx)
 
 func start_roll(dir: Vector3) -> void:
 	state = "roll"
@@ -532,10 +539,13 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 			game.feedback("parry", global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.6, to.normalized(), 1.0, Color(0.5, 0.85, 1.0))
 			rig.play_role_for("parry", 0.45, 0.05)
 			anim_hold = 0.4
+			combat.open("parry", 0.8)      # окно ответа: следующий удар — контратака
 			game.bark("parry", 5.0)
 			swag = min(100.0, swag + 20.0)
 			return
 		dmg *= 0.2
+		combat.open("block", 0.5)          # принял на блок — можно толкнуть в ответ
+		swag = min(100.0, swag + 3.0)
 		game.feedback("block", global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.5, -to.normalized(), 1.0, Color(0.7, 0.85, 1.0))
 	else:
 		game.main.sfx("sfx_hurt", -2.0)

@@ -15,6 +15,11 @@ extends Resource
 @export var links := {}
 @export var heat: Array = []          # цепочка Heat-действия: id атак подряд
 @export var after_dodge := {}         # ввод сразу после уклонения: {"light": id, "heavy": id}
+## Особые окна: что делает ввод сразу после события. Ключи — parry (парировал), perfect (идеальный уклон),
+## block (принял удар на блок), dodge (уклонился), sprint (на бегу с рывком): {"parry": {"heavy": "vz_parry_heavy"}}
+@export var after := {}
+## Heat-цепочки по положению цели: "air" — цель в воздухе, "stun" — оглушена или лежит; иначе — heat
+@export var heat_ctx := {}
 @export var dodge_window := 0.35      # сколько секунд после уклонения действует after_dodge
 @export var charge_clip := "Charge"   # клип удержания заряда
 @export var charge_max := 1.2         # сколько секунд копится заряд
@@ -47,6 +52,14 @@ func problems() -> Array:
 		for inp in links[f]:
 			if not attacks.has(links[f][inp]):
 				out.append("граф: %s → %s ведёт к несуществующей %s" % [f, inp, links[f][inp]])
+	for w in after:
+		for inp in after[w]:
+			if not attacks.has(after[w][inp]):
+				out.append("окно %s: %s ведёт к несуществующей %s" % [w, inp, after[w][inp]])
+	for c in heat_ctx:
+		for aid in heat_ctx[c]:
+			if not attacks.has(aid):
+				out.append("heat %s: нет атаки %s" % [c, aid])
 	for aid in heat:
 		if not attacks.has(aid):
 			out.append("heat: нет атаки %s" % aid)
