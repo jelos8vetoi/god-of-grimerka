@@ -118,6 +118,8 @@ func stage(kinds: Array, dist := 2.2) -> Array:
 	P.bottles.hits_log = []
 	P.combat.clear_buffer()
 	P.combat.cooldowns = {}
+	P.combat.windows = {}
+	P.combat.recent = []
 	P.combat.chain_block = -9.0
 	game.cam_yaw = 0.0
 	game.buddy.global_position = Vector3(-6, 0.05, 8)
@@ -175,7 +177,7 @@ func _run() -> void:
 		var pr := s.problems()
 		ok(pr.is_empty(), "стиль %s (%s, %s): данные согласованы%s%s" % [id, s.title, s.owner, "" if s.ready else " — объявлен, атак пока нет", "" if pr.is_empty() else ": " + "; ".join(pr)])
 	var vz := Styles.by_id("vozduh")
-	ok(vz.ready and vz.attacks.size() == 13 and Styles.by_id("bottles").ready and Styles.by_id("tyaga812").ready and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
+	ok(vz.ready and vz.attacks.size() == 24 and Styles.by_id("bottles").ready and Styles.by_id("tyaga812").ready and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
 	var clips_ok := true
 	await stage([])
 	for aid in vz.attacks:
@@ -348,6 +350,9 @@ func _run() -> void:
 	es = await stage(["bot", "bot"])
 	for e in es:
 		e.hp = 99999.0
+	for e in es:
+		e.stun_t = 0.0
+		e.state = "chase"         # цель на ногах: обычная Heat-цепочка
 	P.swag = 100.0
 	await tap("heat")
 	await until_free(400)
@@ -490,6 +495,141 @@ func _run() -> void:
 	ok(fb.has("hit_light") and fb.has("vz_finisher"), "в бою сработали разные отклики (%s)" % str(fb))
 	game.feedback_fired.disconnect(on_fb)
 
+
+	# ================= Балон VOZDUH: контратаки, разгон, Heat =================
+	# ---------- парирование → ответ ----------
+	for pair in [["heavy", "vz_parry_heavy"], ["attack", "vz_parry_light"]]:
+		es = await stage(["bot"])
+		es[0].hp = 99999.0
+		es[0].max_hp = 99999.0
+		P.inv = 0.0
+		P.auto_input = {"block": "hold"}
+		await frames(3)
+		var sw0: float = P.swag
+		P.take_damage(10.0, es[0].global_position, es[0])       # удар в первые 0,22 с блока — парирование
+		P.auto_input = {}
+		P.inv = 9999.0
+		var parried: bool = P.hp == P.max_hp and P.swag >= sw0 + 20.0
+		await frames(4)
+		log_started = []
+		await tap(pair[0])
+		await frames(3)
+		ok(parried and log_started == [pair[1]], "парирование → %s: %s (СВЭГ +%.0f)" % [pair[0], str(log_started), P.swag - sw0])
+		await until_free(400)
+	# ---------- блок → толчок ----------
+	es = await stage(["bot"])
+	es[0].hp = 99999.0
+	P.inv = 0.0
+	P.auto_input = {"block": "hold"}
+	await frames(30)
+	var hp_bl: float = P.hp
+	P.take_damage(10.0, es[0].global_position, es[0])
+	P.auto_input = {}
+	P.inv = 9999.0
+	await frames(3)
+	log_started = []
+	await tap("attack")
+	await frames(3)
+	ok(abs((hp_bl - P.hp) - 2.0) < 0.01 and log_started == ["vz_block_shove"], "блок (урон 10 → %.0f) → ЛКМ: %s" % [hp_bl - P.hp, str(log_started)])
+	await until_free()
+	# ---------- идеальный уклон → ответ ----------
+	for pair in [["attack", "vz_perfect_swing"], ["heavy", "vz_perfect_launch"]]:
+		es = await stage(["bot"])
+		es[0].hp = 99999.0
+		es[0].max_hp = 99999.0
+		P.global_position = Vector3(0, 0.05, 6.4)
+		P.inv = 0.0
+		var sw1: float = P.swag
+		P.auto_input = {"roll": "press", "move": Vector2(0, 1)}
+		await frames(2)
+		P.auto_input = {}
+		await frames(6)
+		P.take_damage(10.0, es[0].global_position, es[0])       # удар во время неуязвимости переката — «ТАЙМИНГ!»
+		await until_free()
+		P.inv = 9999.0
+		log_started = []
+		await tap(pair[0])
+		await frames(3)
+		ok(P.hp == P.max_hp and P.swag >= sw1 + 12.0 and log_started == [pair[1]], "идеальный уклон (СВЭГ +%.0f) → %s: %s" % [P.swag - sw1, pair[0], str(log_started)])
+		await until_free(400)
+	# ---------- удар с разгона ----------
+	for pair in [["attack", "vz_dash_swing"], ["heavy", "vz_dash_slam"]]:
+		es = await stage(["bot"], 9.0)
+		es[0].hp = 99999.0
+		es[0].max_hp = 99999.0
+		P.global_position = Vector3(0, 0.05, 9.0)
+		es[0].global_position = Vector3(0, 0.05, 1.0)
+		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+		await frames(36)
+		log_started = []
+		var z_d: float = P.global_position.z
+		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", pair[0]: "press"}
+		await get_tree().physics_frame
+		P.auto_input = {}
+		await frames(3)
+		var first_d: String = log_started[0] if not log_started.is_empty() else ""
+		await until_free(400)
+		ok(first_d == pair[1] and z_d - P.global_position.z > 1.5, "на бегу с рывком %s → %s, героя пронесло ещё на %.1f м" % [pair[0], first_d, z_d - P.global_position.z])
+	es = await stage(["bot"])
+	es[0].hp = 99999.0
+	await tap("attack")
+	ok(log_started == ["vz_light1"], "с места — обычный удар (%s)" % str(log_started))
+	await until_free()
+	# ---------- тяжёлый → подброс ----------
+	es = await stage(["bot"])
+	es[0].hp = 99999.0
+	es[0].max_hp = 99999.0
+	await chain(["heavy", "attack"])
+	await frames(30)
+	var up_ok: bool = es[0].state == "air" or es[0].velocity.y > 0.5
+	await until_free(400)
+	ok(log_started == ["vz_overhead", "vz_rise"], "тяжёлый → ЛКМ: подброс (%s), враг подброшен: %s" % [str(log_started), up_ok])
+	# ---------- Heat: три варианта по положению цели ----------
+	es = await stage(["bot"])
+	es[0].hp = 99999.0
+	es[0].max_hp = 99999.0
+	P.swag = 100.0
+	await tap("heat")
+	await frames(3)
+	var heat_stun: Array = log_started.duplicate()
+	await frames(40)
+	await shot("06b_heat_finish.png")
+	await until_free(400)
+	es = await stage(["bot"])
+	es[0].hp = 99999.0
+	es[0].max_hp = 99999.0
+	es[0].stun_t = 0.0
+	es[0].state = "chase"
+	P.swag = 100.0
+	await tap("heat")
+	await until_free(400)
+	var heat_std: Array = log_started.duplicate()
+	es = await stage(["bot"])
+	es[0].hp = 99999.0
+	es[0].max_hp = 99999.0
+	es[0].stun_t = 0.0
+	es[0].state = "air"
+	es[0].velocity.y = 9.0
+	P.swag = 100.0
+	await tap("heat")
+	await until_free(400)
+	var heat_air: Array = log_started.duplicate()
+	ok(heat_stun == ["vz_heat_finish"] and heat_std == ["vz_heat_smash", "vz_heat_swing"] and heat_air == ["vz_heat_air", "vz_heat_spike"], "Heat по цели: оглушена — %s, стоит — %s, в воздухе — %s" % [str(heat_stun), str(heat_std), str(heat_air)])
+	# ---------- СВЭГ за разнообразие ----------
+	es = await stage(["bot"])
+	es[0].hp = 99999.0
+	es[0].max_hp = 99999.0
+	await chain(["attack", "attack", "attack"])
+	await until_free(400)
+	var varied: float = P.swag
+	es = await stage(["bot"])
+	es[0].hp = 99999.0
+	es[0].max_hp = 99999.0
+	for i in 3:
+		await tap("attack")
+		await until_free()
+		await frames(14)
+	ok(varied > P.swag + 5.0, "три разных удара подряд дают СВЭГа больше, чем один и тот же трижды (%.0f против %.0f)" % [varied, P.swag])
 
 	# ================= этап 06: стиль «Водяра» =================
 	var bt := Styles.by_id("bottles")

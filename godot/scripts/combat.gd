@@ -14,6 +14,7 @@
 class_name Combat
 extends RefCounted
 
+const WINDOWS := ["parry", "perfect", "block", "dodge", "sprint"]
 const HOLD_MIN := 0.16        # удержание короче — это нажатие, а не заряд
 
 signal attack_started(a: AttackData)
@@ -39,6 +40,8 @@ var clock := 0.0
 var cooldowns := {}           # id атаки → когда снова можно
 var chain_block := 0.0        # до какого времени нельзя начать новую цепочку
 var dodge_until := -9.0       # до какого времени действует «атака после уклонения»
+var windows := {}             # особые окна: имя → до какого времени открыто (парировал, уклонился, на бегу…)
+var recent: Array = []        # какие атаки попадали последними: разнообразие комбо копит СВЭГ быстрее
 var heat_q: Array = []
 var charge_t := 0.0
 var charged := 0.0            # заряд, с которым выпущен текущий удар
@@ -128,9 +131,15 @@ func try_start() -> bool:
 		return false
 	var a: AttackData = null
 	var from_dodge := false
-	if clock <= dodge_until and style.after_dodge.has(act):
-		a = style.attack(style.after_dodge[act])     # атака сразу после уклонения: оружие уже в движении
-		from_dodge = a != null
+	# особые окна по важности: ответ на парирование, идеальный уклон, блок, уклон, удар с разгона
+	for w in WINDOWS:
+		if clock <= float(windows.get(w, -9.0)):
+			var map: Dictionary = style.after.get(w, style.after_dodge if w == "dodge" else {})
+			if map.has(act) and ready_at(style.attack(map[act])):
+				a = style.attack(map[act])       # оружие уже в движении: клип стартует с from
+				from_dodge = true
+				windows.erase(w)
+				break
 	if a == null:
 		if act == "light" and clock < chain_block:
 			return false                               # пауза после оборванной цепочки: нельзя спамить первым ударом
@@ -138,7 +147,6 @@ func try_start() -> bool:
 	if not ready_at(a):
 		return false
 	clear_buffer()
-	dodge_until = -9.0
 	chain = 0
 	prev_id = ""
 	begin(a, from_dodge)
@@ -146,7 +154,11 @@ func try_start() -> bool:
 
 ## уклонение закончено: на короткое время открыты «атаки после уклонения»
 func dodged() -> void:
-	dodge_until = clock + style.dodge_window
+	open("dodge", style.dodge_window)
+
+## открыть особое окно на sec секунд (parry, perfect, block, dodge, sprint)
+func open(w: String, sec: float) -> void:
+	windows[w] = clock + sec
 
 # ---------------- запуск ----------------
 ## начать атаку (или её заряд). chained — удар продолжает цепочку: клип стартует с a.from.
@@ -177,7 +189,7 @@ func _launch(a: AttackData, chained: bool) -> void:
 		t = a.from * a.duration
 		p.rig.player.seek(a.from * p.rig.clip_len(a.clip), true)
 	p.trail.boost = a.trail_boost
-	p.trail.set_color(style.color_hot if a.power >= 2 or p.rage > 0.0 else style.color)
+	p.trail.set_color(style.color_hot if a.power >= 2 or p.rage > 0.0 or p.swag >= 70.0 else style.color)   # высокий СВЭГ — след раскалён
 	if a.cooldown > 0.0:
 		cooldowns[a.id] = clock + a.cooldown
 	attack_started.emit(a)
@@ -194,13 +206,15 @@ func _begin_charge(a: AttackData) -> void:
 	charge_snd = false
 
 ## Heat-действие стиля: цепочка атак style.heat подряд
-func begin_heat() -> void:
+## ctx — положение цели: "air", "stun" или "" (см. StyleData.heat_ctx)
+func begin_heat(ctx := "") -> void:
+	var list: Array = style.heat_ctx.get(ctx, style.heat)
 	heat_q = []
-	for i in range(1, style.heat.size()):
-		heat_q.append(style.attack(style.heat[i]))
+	for i in range(1, list.size()):
+		heat_q.append(style.attack(list[i]))
 	chain = 0
 	prev_id = ""
-	_launch(style.attack(style.heat[0]), false)
+	_launch(style.attack(list[0]), list[0] != style.heat[0])
 
 # ---------------- цель ----------------
 ## Куда бить: к ближайшему врагу в секторе перед собой (по движению или по камере), иначе — просто вперёд
@@ -472,7 +486,15 @@ func _resolve_hits(idx: int, first: bool, sweep_only := false) -> void:
 		n += 1
 	var was := last_hits
 	last_hits += n
-	p.swag = min(100.0, p.swag + 6.0 * n)
+	# СВЭГ: за попадание и ещё за разнообразие — удар, которого не было среди четырёх последних, даёт больше
+	var fresh := 0.0 if recent.has(a.id) else 4.0
+	if was == 0:
+		recent.append(a.id)
+		if recent.size() > 4:
+			recent.pop_front()
+	else:
+		fresh = 0.0
+	p.swag = min(100.0, p.swag + 6.0 * n + fresh)
 	if was > 0:
 		return                        # цель вошла в зону позже: урон есть, общий отклик уже был
 	if a.title != "" and idx == 0:
