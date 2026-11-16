@@ -29,7 +29,7 @@ const SHOTS = [
   { t0: 22, t1: 22.5, p: 'H9_', n: 41, from: 22, boss: 9, name: '9MICE' },
   { t0: 22.5, t1: 24.5, p: 'I9_', n: 91, from: 24, slowzoom: 1 }];
 const VO = [['vo1', .5], ['vo2', 3.6], ['vo3', 6.95], ['vo4', 8.62], ['vo5', 10.05], ['vo6', 12.05], ['vo7', 14.0], ['vo8', 16.05], ['vo9', 22.6], ['vo10', 25.5]];
-const SPEECH = {"vo1":[0.12,2.29],"vo2":[0.12,2.15],"vo3":[0.12,1.4],"vo4":[0.12,1.33],"vo5":[0.12,1.11],"vo6":[0.12,1.02],"vo7":[0.12,0.92],"vo8":[0.14,0.97],"vo9":[0.12,1.8],"vo10":[0.13,1.32]};
+const SPEECH = {"vo1":[0.12,1.64],"vo2":[0.14,1.3],"vo3":[0.1,1.02],"vo4":[0.06,1.26],"vo5":[0,0.82],"vo6":[0.2,1.12],"vo7":[0.08,0.7],"vo8":[0.14,1],"vo9":[0.06,1.74],"vo10":[0.1,0.88]};
 const HITS = [3.2, 6.75, 8.5, 10.97, 12.47, 13.4, 14, 16.2, 18, 18.5, 19, 19.5, 20, 20.5, 21, 21.5, 22, 22.5, 24.5], CUTS = SHOTS.map(q => q.t0).filter(v => v >= 10);
 const LOGO = 24.5;
 const c = document.getElementById('v'), x = c.getContext('2d');
@@ -208,13 +208,13 @@ async function record(dry) {
   const done = new Promise(r => rec.onstop = r);
   let frames = 0, missing = 0, lastF = -1;
   rec.start(1000);
-  await new Promise(res => {
+  await new Promise(res0 => { let res = res0;
     const loop = () => {
       const t = ac.currentTime - T0;
       if (t >= LEN + .1) { res(); return; }
       if (t >= 0) { const fi = Math.floor(t * FPS); if (fi !== lastF) { lastF = fi; want(t); const k = key(t); if (k && !bmp[k]) missing++; draw(t); vtrack.requestFrame(); frames++; } else want(t); } else { x.fillStyle = '#000'; x.fillRect(0, 0, W, H); want(0); }
-      requestAnimationFrame(loop);
     };
+    const tick = ac.createScriptProcessor(512, 1, 1); tick.onaudioprocess = () => { if (!tick.done) { loop(); } }; const zg = ac.createGain(); zg.gain.value = 0; tick.connect(zg); zg.connect(ac.destination); const _res = res; res = () => { tick.done = 1; tick.disconnect(); _res(); };
     loop();
   });
   rec.stop(); await done;

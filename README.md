@@ -18,6 +18,12 @@
 
 Идеи и баги — во вкладку Issues.
 
+## Скачать игру
+
+**[GOD OF GRIMERKA для Windows — последняя сборка](https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build)** · [скачать .exe напрямую](https://github.com/jelos8vetoi/god-of-grimerka/releases/download/godot-build/GOD-OF-GRIMERKA-Godot.exe)
+
+Сборка обновляется сама после каждого изменения игры. Установка не нужна; в меню игра подскажет, если вышла версия новее. Что менялось — в [`godot/CHANGELOG.md`](godot/CHANGELOG.md), как работать вдвоём — в [`COLLABORATION.md`](COLLABORATION.md).
+
 ## Godot-версия (основная)
 
 Игра переехала на **Godot 4.7** — папка `godot/`. Там весь сюжет: девять глав, диалоги, девять боссов с фазами, прокачка между главами, два финала, сохранение.

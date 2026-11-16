@@ -129,6 +129,7 @@ func show_menu() -> void:
 	box.position = Vector2(-330, -260)
 	box.size = Vector2(660, 520)
 	menu.add_child(box)
+	_check_update(box)
 	var title := label("GOD OF GRIMERKA", 72, Color("f3ead8"))
 	title.add_theme_color_override("font_outline_color", Color(0.5, 0.12, 0.05))
 	title.add_theme_constant_override("outline_size", 10)
@@ -173,6 +174,29 @@ func button(t: String, cb: Callable) -> Button:
 	b.pressed.connect(func(): sfx("sfx_ui"); cb.call())
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	return b
+
+## Проверка обновления: сборка знает свой коммит (data/build.json), а в описании релиза godot-build записан коммит свежей.
+## Если они разные — в меню появляется кнопка, которая открывает страницу с новой версией. Без сети просто ничего не происходит.
+const RELEASE_API := "https://api.github.com/repos/jelos8vetoi/god-of-grimerka/releases/tags/godot-build"
+const RELEASE_URL := "https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build"
+func _check_update(box: Container) -> void:
+	if testing() != "" or not FileAccess.file_exists("res://data/build.json"):
+		return
+	var mine = JSON.parse_string(FileAccess.get_file_as_string("res://data/build.json"))
+	if not (mine is Dictionary):
+		return
+	var ver := label("сборка %s · %s" % [String(mine.get("sha", "?")), String(mine.get("time", ""))], 13, Color(0.7, 0.72, 0.78))
+	ver.position = Vector2(16, 12)
+	menu.add_child(ver)
+	var http := HTTPRequest.new()
+	menu.add_child(http)
+	http.request_completed.connect(func(_result: int, code: int, _headers: PackedStringArray, body: PackedByteArray):
+		if code != 200 or not is_instance_valid(box):
+			return
+		var d = JSON.parse_string(body.get_string_from_utf8())
+		if d is Dictionary and String(d.get("body", "")).find("`%s`" % String(mine.get("sha", ""))) < 0:
+			box.add_child(button("ВЫШЛО ОБНОВЛЕНИЕ — СКАЧАТЬ", func(): OS.shell_open(RELEASE_URL))))
+	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
 	return autotest + smoke + trailer
