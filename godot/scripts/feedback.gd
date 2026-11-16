@@ -24,6 +24,12 @@ const EVENTS := {
 	"hit_light": {"stop": 0.055, "stop_mul": true, "shake": 0.16, "shake_mul": true, "aberr": 0.22, "confirm": 0.5},
 	"hit_heavy": {"stop": 0.12, "stop_mul": true, "shake": 0.42, "punch": 0.55, "confirm": 0.8},
 	"hit_super": {"stop": 0.16, "stop_mul": true, "stop_max": 0.2, "shake": 0.75, "punch": 1.0, "confirm": 1.0},
+	# Балон VOZDUH: у каждого типа удара свой стоп-кадр и толчок камеры — вес чувствуется по-разному
+	"vz_launcher": {"stop": 0.085, "stop_mul": true, "shake": 0.26, "aberr": 0.3, "fov": 2.0, "confirm": 0.6},
+	"vz_heavy": {"stop": 0.12, "stop_mul": true, "shake": 0.42, "punch": 0.55, "fx": "heavy_dust", "confirm": 0.8},
+	"vz_slam": {"stop": 0.14, "stop_mul": true, "stop_max": 0.19, "shake": 0.5, "punch": 0.6, "fx": "heavy_dust", "confirm": 0.9},
+	"vz_finisher": {"stop": 0.13, "stop_mul": true, "stop_max": 0.19, "shake": 0.46, "punch": 0.6, "fov": 2.5, "fx": "heavy_dust", "confirm": 0.9},
+	"vz_quake": {"stop": 0.16, "stop_mul": true, "stop_max": 0.2, "shake": 0.7, "punch": 0.9, "fx": "quake", "confirm": 1.0},
 	# защита
 	"parry": {"sfx": [["sfx_parry", 0.0, 1.0]], "fx": "hit1", "punch": 0.6, "slow": 0.4, "text": "ПАРИРОВАНИЕ", "text_col": Color(0.4, 0.85, 1.0), "text_up": 1.1, "confirm": 0.8},
 	"block": {"sfx": [["sfx_block", -2.0, 1.0]], "fx": "sparks"},
@@ -87,6 +93,14 @@ static func _fx(game, kind: String, pos: Vector3, dir: Vector3, col: Color) -> v
 			fx.scorch(pos, 0.8, col)
 		"step":
 			fx.dust(pos, 3, fx.DUST, 0.45)
+		"heavy_dust":
+			# тяжёлое попадание: пыль из-под ног цели
+			fx.dust(Vector3(pos.x, game.player.global_position.y + 0.1, pos.z), 7, fx.DUST, 0.8)
+		"quake":
+			var g := Vector3(pos.x, game.player.global_position.y + 0.05, pos.z)
+			fx.dust(g + Vector3(0, 0.08, 0), 14, fx.DUST, 1.2)
+			fx.ground_ring(g, 0.5, 4.2, Color(col.r, col.g, col.b, 0.6), 0.4)
+			fx.ground_ring(g, 0.3, 2.6, Color(1.0, 0.95, 0.85, 0.5), 0.3)
 		"land":
 			fx.dust(pos + Vector3(0, 0.1, 0), 8, fx.DUST, 0.8)
 			fx.ground_ring(pos, 0.3, 1.6, Color(1.0, 0.95, 0.85, 0.4), 0.3)

@@ -53,8 +53,8 @@ func shot(name: String) -> void:
 
 ## одно нажатие: один физический кадр
 func tap(a: String) -> void:
-	P.auto_input = {a: "press"}
 	await get_tree().physics_frame
+	P.auto_input = {a: "press"}
 	await get_tree().physics_frame
 	P.auto_input = {}
 
@@ -135,7 +135,7 @@ func _run() -> void:
 		var pr := s.problems()
 		ok(pr.is_empty(), "стиль %s (%s, %s): данные согласованы%s%s" % [id, s.title, s.owner, "" if s.ready else " — объявлен, атак пока нет", "" if pr.is_empty() else ": " + "; ".join(pr)])
 	var vz := Styles.by_id("vozduh")
-	ok(vz.ready and vz.attacks.size() == 10 and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
+	ok(vz.ready and vz.attacks.size() == 13 and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
 	var clips_ok := true
 	await stage([])
 	for aid in vz.attacks:
@@ -331,6 +331,124 @@ func _run() -> void:
 	await until_free(400)
 	var lost2: float = hp_before - es[0].hp
 	ok(lost2 > vz.attack("vz_fullswing").damage * 1.5, "заряженный удар сильнее обычного: %.0f урона при базе %.0f" % [lost2, vz.attack("vz_fullswing").damage])
+
+
+	# ================= этап 05: стиль Балон VOZDUH =================
+	var fb := []
+	var on_fb := func(n: String, _pos: Vector3, _pw: float) -> void: fb.append(n)
+	game.feedback_fired.connect(on_fb)
+	# ---------- 12. тяжёлый → тяжёлый: удар сверху, затем удар по земле вокруг ----------
+	es = await stage(["bot", "clipper", "hater"])
+	for e in es:
+		e.hp = 99999.0
+		e.max_hp = 99999.0
+	es[2].global_position = P.global_position + Vector3(0.4, 0, 2.2)      # хейтер за спиной: круговой удар достаёт и его
+	var hp_h: float = es[2].hp
+	await chain(["heavy", "heavy"])
+	await frames(20)
+	await shot("04_quake.png")
+	await until_free(400)
+	ok(log_started == ["vz_overhead", "vz_quake"], "тяжёлый → тяжёлый: %s" % str(log_started))
+	ok(es[2].hp < hp_h, "удар по земле бьёт вокруг: враг за спиной получил %.0f" % (hp_h - es[2].hp))
+	ok(fb.has("vz_heavy") and fb.has("vz_quake"), "у удара сверху и удара по земле свой отклик (%s)" % str(fb))
+
+	# ---------- 13. подброс → удар в воздухе: на боте, клиппере и хейтере ----------
+	for kind in ["bot", "clipper", "hater"]:
+		es = await stage([kind])
+		es[0].hp = 99999.0
+		es[0].max_hp = 99999.0
+		await chain(["attack", "attack", "attack"])
+		var n3 := 0
+		while es[0].state != "air" and n3 < 60:
+			await get_tree().physics_frame
+			n3 += 1
+		var flew: bool = es[0].state == "air"
+		var hp_a: float = es[0].hp
+		var n4 := 0
+		while not P.combat.in_combo_window() and P.state == "attack" and n4 < 200:
+			await get_tree().physics_frame
+			n4 += 1
+		await tap("attack")
+		var spiked := false
+		for i in 50:
+			await get_tree().physics_frame
+			if es[0].spiked:
+				spiked = true
+		if kind == "bot":
+			await shot("05_air_spike.png")
+		await until_free(400)
+		ok(flew and spiked and es[0].hp < hp_a, "%s: подброшен (%s), в воздухе вбит в землю (%s), урон %.0f" % [kind, flew, spiked, hp_a - es[0].hp])
+
+	# ---------- 14. удар после уклонения ----------
+	for pair in [["attack", "vz_roll_swing", "attack", "vz_light2"], ["heavy", "vz_roll_launch", "attack", "vz_slam"]]:
+		es = await stage(["bot"])
+		es[0].hp = 99999.0
+		es[0].max_hp = 99999.0
+		P.global_position = Vector3(0, 0.05, 6.4)       # перекат вперёд, к врагу
+		P.auto_input = {"roll": "press", "move": Vector2(0, 1)}
+		await frames(2)
+		P.auto_input = {}
+		await until_free()
+		log_started = []
+		await tap(pair[0])
+		var first_id: String = log_started[0] if not log_started.is_empty() else ""
+		var k0: float = P.combat.k() if P.combat.cur != null else -1.0
+		var n5 := 0
+		while not P.combat.in_combo_window() and P.state == "attack" and n5 < 200:
+			await get_tree().physics_frame
+			n5 += 1
+		await tap(pair[2])
+		await frames(3)
+		ok(first_id == pair[1] and k0 > 0.2 and log_started.size() >= 2 and log_started[1] == pair[3], "после уклонения %s → %s с ходу (клип с %.2f), дальше %s: %s" % [pair[0], pair[1], k0, pair[3], str(log_started)])
+		await until_free(400)
+	es = await stage(["bot"])
+	es[0].hp = 99999.0
+	await frames(30)                                  # уклонения давно не было
+	await tap("attack")
+	ok(log_started == ["vz_light1"], "без уклонения — обычный первый удар: %s" % str(log_started))
+	await until_free()
+
+	# ---------- 15. замах удара сверху: нажатие — обычный удар, удержание — усиленный ----------
+	es = await stage(["bot"])
+	es[0].hp = 99999.0
+	es[0].max_hp = 99999.0
+	var h0: float = es[0].hp
+	await tap("heavy")
+	await until_free(400)
+	var tap_dmg: float = h0 - es[0].hp
+	es = await stage(["bot"])              # первый удар отбросил врага: ставим заново
+	es[0].hp = 99999.0
+	es[0].max_hp = 99999.0
+	h0 = es[0].hp
+	P.auto_input = {"heavy": "press"}
+	await frames(2)
+	P.auto_input = {"heavy": "hold"}
+	await frames(30)
+	var in_charge: bool = P.state == "charge" and P.rig.cur == "OverheadCharge"
+	await shot("06_overhead_charge.png")
+	P.auto_input = {}
+	await until_free(400)
+	var hold_dmg: float = h0 - es[0].hp
+	ok(abs(tap_dmg - 60.0) < 0.01 and in_charge and hold_dmg > tap_dmg * 1.25, "удар сверху: нажатие — %.0f урона, удержание секунду (замах над головой) — %.0f" % [tap_dmg, hold_dmg])
+
+	# ---------- 16. вес: равновесие и разный стоп-кадр ----------
+	es = await stage(["bot"])
+	es[0].hp = 99999.0
+	es[0].max_hp = 99999.0
+	es[0].stun_t = 0.0
+	es[0].state = "chase"
+	es[0].poise = es[0].poise_max
+	fb.clear()
+	await chain(["attack", "heavy"])
+	await until_free(400)
+	ok(es[0].poise < es[0].poise_max - 40.0 or es[0].state == "stun", "лёгкий + ГВОЗДЬ снимают больше 40 равновесия из 60 (осталось %.0f, состояние %s)" % [es[0].poise, es[0].state])
+	var stops := {}
+	for n in ["hit_light", "vz_launcher", "vz_heavy", "vz_slam", "vz_finisher", "vz_quake"]:
+		stops[n] = float(Feedback.EVENTS[n]["stop"])
+	ok(stops["hit_light"] < stops["vz_launcher"] and stops["vz_launcher"] < stops["vz_heavy"] and stops["vz_heavy"] < stops["vz_finisher"] and stops["vz_finisher"] < stops["vz_slam"] and stops["vz_slam"] < stops["vz_quake"],
+		"стоп-кадр растёт с весом удара: лёгкий %.3f < подброс %.3f < тяжёлый %.3f < завершающий %.3f < в землю %.3f < по земле %.3f с" % [stops["hit_light"], stops["vz_launcher"], stops["vz_heavy"], stops["vz_finisher"], stops["vz_slam"], stops["vz_quake"]])
+	ok(fb.has("hit_light") and fb.has("vz_finisher"), "в бою сработали разные отклики (%s)" % str(fb))
+	game.feedback_fired.disconnect(on_fb)
 
 	print("COMBAT итог: ошибок %d" % fails)
 	get_tree().quit()
