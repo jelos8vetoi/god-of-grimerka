@@ -8,3 +8,6 @@ godot/assets/music/
 
 # локальный кэш редактора Godot; не переносится между разработчиками
 godot/.godot/
+
+# метка сборки: её пишет tools/publish-godot.cjs перед экспортом
+godot/data/build.json

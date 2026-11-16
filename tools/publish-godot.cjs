@@ -57,6 +57,7 @@ if (!has('--no-export')) {
   const before = fs.existsSync(exe) ? fs.statSync(exe).mtimeMs : 0;
   // музыка в git не лежит (её делает скрипт за десять секунд): если файлов нет — создаём, затем импортируем новое
   if (!fs.existsSync(path.join(root, 'godot', 'assets', 'music', 'loc_snow_base.wav'))) { console.log('генерирую музыку…'); run('node', [path.join(root, 'tools', 'godot-music.cjs')]); }
+  fs.writeFileSync(path.join(root, 'godot', 'data', 'build.json'), JSON.stringify({ sha, time: when }));
   try { run(godot, ['--headless', '--path', 'godot', '--import']); } catch (e) {}
   console.log('собираю .exe…');
   let out = '';
