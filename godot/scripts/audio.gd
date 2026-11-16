@@ -295,6 +295,32 @@ func _mix(dt: float, ducking: float) -> void:
 		var target := linear_to_db(max(0.001, want[i]))
 		layers[i].volume_db = lerpf(layers[i].volume_db, target, 1.0 - exp(-(2.5 if target > layers[i].volume_db else 1.2) * dt))
 
+## Низкий короткий удар под надпись «ПАХАН УМЕР»: синтезируется на лету, идёт через шину Music.
+var accent_p: AudioStreamPlayer
+func death_accent() -> void:
+	if accent_p == null:
+		var rate := 22050
+		var n := int(rate * 1.6)
+		var bytes := PackedByteArray()
+		bytes.resize(n * 2)
+		var ph := 0.0
+		for i in n:
+			var tt := float(i) / rate
+			ph += TAU * (46.0 + 30.0 * exp(-tt * 9.0)) / rate
+			var v := (sin(ph) + 0.3 * sin(ph * 2.0)) * (1.0 - exp(-tt * 400.0)) * exp(-tt * 2.6) * 0.5
+			bytes.encode_s16(i * 2, clampi(int(v * 32767.0), -32768, 32767))
+		var w := AudioStreamWAV.new()
+		w.format = AudioStreamWAV.FORMAT_16_BITS
+		w.mix_rate = rate
+		w.data = bytes
+		accent_p = AudioStreamPlayer.new()
+		accent_p.stream = w
+		accent_p.bus = "Music"
+		accent_p.volume_db = 4.0
+		add_child(accent_p)
+	if main.testing() == "":
+		accent_p.play()
+
 ## Слушает ли Пахан iPod в наушниках прямо сейчас: трек выбран, играет, не на паузе, вкладыши в ушах.
 func listening() -> bool:
 	var game = main.game

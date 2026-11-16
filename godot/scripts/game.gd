@@ -50,6 +50,8 @@ var fx
 var post: ColorRect
 var post_mat: ShaderMaterial
 var pp := {"aberr": 0.0, "blur": 0.0, "flash": 0.0, "ripple_a": 0.0, "ripple_t": 0.0}
+var death                    # сцена гибели (scripts/death.gd), пока идёт; иначе null
+var death_mono := 0.0        # 0 — цвет, 1 — чёрно-белый кадр с зерном (ведёт сцена гибели)
 var ipod_focus := 0.0
 var ipod_motion := 0.0
 var ipod_focus_quality := 1.0
@@ -424,12 +426,16 @@ func on_player_dead() -> void:
 	bark("dead", 3.0)
 	over = true
 	slowmo(1.2)
-	await get_tree().create_timer(2.2, true, false, true).timeout
-	if main.testing() != "":
+	if main.testing() != "":            # бот в прогонах сцену не смотрит
+		await get_tree().create_timer(2.2, true, false, true).timeout
 		_retry()
 		return
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_show_panel("ПАХАН УПАЛ", "кент не вытянет это один", [["ЕЩЁ РАЗ", _retry], ["В МЕНЮ", _to_menu]])
+	# сцена гибели: камера, чёрно-белый кадр, надпись и кнопки — scripts/death.gd; она же — открытое окно (panel)
+	_close_panel()
+	death = DeathSeq.new()
+	death.game = self
+	hud.add_child(death)
+	panel = death
 
 func _retry() -> void:
 	_close_panel()
@@ -764,6 +770,10 @@ func _process(dt: float) -> void:
 	fov_kick = lerpf(fov_kick, 0.0, 1.0 - exp(-9.0 * rdt))
 	zoom_s = lerpf(zoom_s, charge_zoom, 1.0 - exp(-6.0 * rdt))
 	cam.fov = float(Opts.v("fov")) + fov_kick - 9.0 * zoom_s
+	if death != null and is_instance_valid(death) and death.owns_camera():
+		cam.global_transform = death.camera()      # камеру ведёт сцена гибели
+		cam.h_offset = 0.0
+		cam.v_offset = 0.0
 	cam_attributes.dof_blur_far_enabled = ipod_focus > 0.002
 	# A restrained DOF pass establishes depth; the lightweight screen pass below
 	# supplies the remaining focus separation without turning the world to mush.
@@ -825,6 +835,7 @@ uniform float vign = 0.0;
 uniform float flash = 0.0;
 uniform float lines = 0.0;
 uniform float aspect = 1.777;
+uniform float mono = 0.0;
 uniform float focus = 0.0;
 uniform float focus_motion = 0.0;
 uniform float focus_quality = 1.0;
@@ -896,6 +907,16 @@ void fragment() {
 	float attention_edge = smoothstep(0.44, 1.18, length(attention_delta));
 	col *= 1.0 - attention_edge * focus * 0.17;
 	col *= 1.0 - smoothstep(0.35, 1.0, len) * vign;
+	if (mono > 0.001) {
+		// сцена гибели: цвет уходит, кадр темнеет к краям, появляется плёночное зерно
+		float gl = dot(col, vec3(0.2126, 0.7152, 0.0722));
+		gl = mix(gl, smoothstep(0.02, 0.92, gl), 0.6 * mono);
+		col = mix(col, vec3(gl), mono);
+		col *= 1.0 - 0.3 * mono;
+		col *= 1.0 - smoothstep(0.3, 1.05, len) * 0.62 * mono;
+		float gn = fract(sin(dot(uv * 1000.0 + floor(TIME * 24.0) * 7.31, vec2(12.9898, 78.233))) * 43758.5453);
+		col += (gn - 0.5) * 0.09 * mono;
+	}
 	col += vec3(flash);
 	COLOR = vec4(col, 1.0);
 }
@@ -927,7 +948,7 @@ func _update_post(rdt: float) -> void:
 	var heat := 1.0 if heat_t > 0.0 else 0.0
 	var vg: float = 0.45 * zoom_s + 0.35 * heat + (0.16 if player.rage > 0.0 else 0.0) + 0.14 * ipod_focus
 	var ln: float = 0.8 * zoom_s + 0.7 * heat
-	var on: bool = float(pp["aberr"]) > 0.01 or float(pp["blur"]) > 0.01 or float(pp["flash"]) > 0.003 or float(pp["ripple_a"]) > 0.0 or vg > 0.01 or ipod_focus > 0.001
+	var on: bool = float(pp["aberr"]) > 0.01 or float(pp["blur"]) > 0.01 or float(pp["flash"]) > 0.003 or float(pp["ripple_a"]) > 0.0 or vg > 0.01 or ipod_focus > 0.001 or death_mono > 0.001
 	post.visible = on
 	if not on:
 		return
@@ -941,6 +962,7 @@ func _update_post(rdt: float) -> void:
 	post_mat.set_shader_parameter("vign", vg)
 	post_mat.set_shader_parameter("lines", ln)
 	post_mat.set_shader_parameter("aspect", vs.x / max(1.0, vs.y))
+	post_mat.set_shader_parameter("mono", death_mono)
 	post_mat.set_shader_parameter("focus", ipod_focus)
 	post_mat.set_shader_parameter("focus_motion", ipod_motion)
 	post_mat.set_shader_parameter("focus_quality", ipod_focus_quality)
@@ -1372,6 +1394,7 @@ func _update_hud(dt: float) -> void:
 	# Keep gameplay information present, but let the foreground iPod win the hierarchy.
 	hud_root.modulate = Color(lerpf(1.0, 0.80, ipod_focus), lerpf(1.0, 0.82, ipod_focus),
 		lerpf(1.0, 0.86, ipod_focus), lerpf(1.0, 0.82, ipod_focus))
+	hud_root.modulate.a *= 1.0 - death_mono          # в сцене гибели HUD уходит вместе с цветом
 	hp_fill.size.x = 414.0 * clamp(player.hp / player.max_hp, 0.0, 1.0)
 	var full: bool = player.swag >= 100.0
 	swag_fill.size.x = 314.0 * (player.rage / 8.0 if player.rage > 0.0 else player.swag / 100.0)

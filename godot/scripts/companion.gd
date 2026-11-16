@@ -37,7 +37,7 @@ func _physics_process(dt: float) -> void:
 	var p = game.player
 	var pp: Vector3 = p.global_position
 	cd = max(0.0, cd - dt)
-	if game.paused_story():
+	if game.paused_story() or game.over:      # разговор или гибель героя: стоит, не дерётся
 		velocity = Vector3(0, velocity.y - 20.0 * dt, 0)
 		rig.play("Idle", 0.3)
 		move_and_slide()

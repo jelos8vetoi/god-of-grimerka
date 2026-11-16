@@ -14,6 +14,7 @@ var music: AudioStreamPlayer
 var audio                 # менеджер звука (audio.gd)
 var audiolog := false     # --audiolog: печатать состояние музыки раз в секунду (и не глушить её в проверках)
 var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка iPod по кадрам (scripts/ipodcheck.gd)
+var deathcheck := ""        # --deathcheck=<папка>: проверка сцены гибели (scripts/deathcheck.gd)
 var uiqa := ""              # --uiqa=<папка>: сквозная проверка всего интерфейса (scripts/uiqa.gd)
 var onechapter := false     # --onechapter: и в проверках только доступные игроку главы (проверка концовки первой главы)
 var launcher := ""          # --launcher=<путь>: игру запустил лаунчер, обновление — через него
@@ -72,6 +73,8 @@ func _ready() -> void:
 			start_ch = max(start_ch, 0)
 		elif arg.begins_with("--launcher="):
 			launcher = arg.substr(11)
+		elif arg.begins_with("--deathcheck="):
+			deathcheck = arg.substr(13)
 		elif arg.begins_with("--uiqa="):
 			uiqa = arg.substr(7)
 		elif arg == "--onechapter":
@@ -108,6 +111,11 @@ func _ready() -> void:
 		start_game(false, start_ch)
 	else:
 		show_menu()
+		if deathcheck != "":
+			var dq = preload("res://scripts/deathcheck.gd").new()
+			dq.main = self
+			dq.out = deathcheck
+			add_child(dq)
 		if uiqa != "":
 			var q = preload("res://scripts/uiqa.gd").new()
 			q.main = self
