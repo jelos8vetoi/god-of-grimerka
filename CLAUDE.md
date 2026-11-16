@@ -66,6 +66,8 @@ $G --headless --path godot --export-release Windows "../dist/godot/GOD OF GRIMER
 Сборку руками не выкладываем: после вливания PR в `main` GitHub сам собирает .exe и обновляет релиз **`godot-build`** (`.github/workflows/godot-build.yml`, шаг — `node tools/publish-godot.cjs`). Ссылка на игру всегда одна:
 https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build
 
+Лаунчер (`tools/launcher/Launcher.cs`, `build.cmd`, ассет `GOD-OF-GRIMERKA-Launcher.exe` в том же релизе): скачивается один раз, ставит игру в `%LOCALAPPDATA%GOD OF GRIMERKA Godot` (папка `GOD OF GRIMERKA` занята старым лаунчером браузерной версии), сверяет SHA-256 файла в релизе с `installed.txt`, докачивает, сам обновляется и запускает игру с `-- --launcher=<путь>`. Ключи для проверки: `--check-only` (всё, кроме запуска игры), `--no-self-update`.
+
 Игра сама проверяет обновление: в меню появляется кнопка «Вышло обновление», если коммит сборки (`godot/data/build.json`, пишется при сборке) не совпадает с коммитом в описании релиза.
 
 Локально `node tools/publish-godot.cjs` нужен только для проверки (`--dry`) или если автосборка сломалась; он отказывается работать при незакоммиченных или незапушенных правках в `godot/`.
