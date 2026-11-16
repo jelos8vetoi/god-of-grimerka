@@ -16,6 +16,7 @@ var audiolog := false     # --audiolog: печатать состояние му
 var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка iPod по кадрам (scripts/ipodcheck.gd)
 var onechapter := false     # --onechapter: и в проверках только доступные игроку главы (проверка концовки первой главы)
 var launcher := ""          # --launcher=<путь>: игру запустил лаунчер, обновление — через него
+var ipodpause := false      # вместе с --ipodcheck: меню паузы и режим наушников (--pause)
 var ipodbuds := false       # вместе с --ipodcheck: только наушники EarPods (--buds)
 var ipodhand := false       # вместе с --ipodcheck: только проверка руки и позы (--hand)
 var voicecheck := false   # --voicecheck: пройти диалог главы и напечатать, какие реплики заиграли
@@ -72,6 +73,8 @@ func _ready() -> void:
 			launcher = arg.substr(11)
 		elif arg == "--onechapter":
 			onechapter = true
+		elif arg == "--pause":
+			ipodpause = true
 		elif arg == "--buds":
 			ipodbuds = true
 		elif arg == "--hand":
@@ -212,6 +215,7 @@ func start_game(from_save := false, chapter := -1) -> void:
 		chk.out = ipodcheck
 		chk.hand_only = ipodhand
 		chk.buds_only = ipodbuds
+		chk.pause_only = ipodpause
 		add_child(chk)
 	if smoke != "":
 		game.auto_kill = 1.6

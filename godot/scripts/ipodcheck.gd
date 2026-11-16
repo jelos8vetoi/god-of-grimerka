@@ -6,6 +6,7 @@ extends Node
 var game
 var out := ""
 var fails := 0
+var pause_only := false    # --pause: меню паузы и режим наушников
 var buds_only := false     # --buds: наушники EarPods
 var hand_only := false
 var view_seq := 1
@@ -99,6 +100,10 @@ func _run() -> void:
 		return
 	if buds_only:
 		await _run_buds()
+		return
+	if pause_only:
+		AudioServer.set_bus_mute(0, false)
+		await _run_pause()
 		return
 
 	# ---- шины: эффекты iPod не должны задевать голос, эффекты и окружение ----
@@ -1018,3 +1023,193 @@ func _run_polish() -> void:
 	ok(count_buds() == 1 and pl.rig.skel.find_children("PodDevice", "Node3D", false, false).size() == 1, "в конце: по одному iPod и комплекту наушников")
 	ok(pod.sfx.get_child_count() == 3, "звуковые плееры не размножились")
 	ok(pod.buds.im.get_surface_count() <= 1, "геометрия провода пересобирается, а не копится (%d поверхн.)" % pod.buds.im.get_surface_count())
+
+# ---------------- меню паузы и режим наушников (--pause) ----------------
+func bus_db(b: String) -> float:
+	return AudioServer.get_bus_volume_db(AudioServer.get_bus_index(b))
+
+func full_shot(name: String) -> void:
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+
+func _run_pause() -> void:
+	var pm = game.pause_panel
+	var n := 0
+	while game.mode == "dlg" and n < 200:
+		await tap(KEY_ENTER, 0.04)
+		n += 1
+	await wait(1.2)
+	for f in ["test.wav"]:
+		if FileAccess.file_exists(out.path_join(f)):
+			ipod._import_files(PackedStringArray([out.path_join(f)]))
+	await wait(0.3)
+	ipod.repeat_mode = 2          # тестовый трек короткий: по кругу, чтобы музыка не кончилась посреди проверки
+	ipod._select_track(0)
+	ipod.player.stop()
+	ipod.player.stream_paused = false
+	await wait(0.8)
+	await full_shot("pause_0_game.png")
+
+	# ---- звук 1: iPod молчит — обычный микс ----
+	var vol0: Dictionary = audio.vol.duplicate()
+	var sfx0 := bus_db("SFX")
+	var amb0 := bus_db("Ambient")
+	var voice0 := bus_db("Voice")
+	ok(audio.headphone < 0.01 and sfx0 > -20.0 and amb0 > -20.0, "iPod молчит: обычный микс (SFX %.1f, Ambient %.1f, Voice %.1f дБ)" % [sfx0, amb0, voice0])
+
+	# ---- пауза клавишей Esc: открытие слоями ----
+	var pos0: Vector3 = pl.global_position
+	await tap(KEY_ESCAPE)
+	ok(get_tree().paused and pm.is_open, "Esc: игра остановлена сразу, меню открывается")
+	await wait(0.12)
+	await full_shot("pause_1_opening.png")
+	await wait(0.75)
+	ok(pm.clip in ["PauseIdle", "PauseMusicIdle"], "через 0,9 с Пахан уже в позе отдыха (клип %s)" % pm.clip)
+	var all_in := true
+	for l in pm.layers:
+		all_in = all_in and (l[0] as CanvasItem).modulate.a > 0.98
+	ok(all_in, "все слои интерфейса раскрылись")
+	await full_shot("pause_2_open.png")
+	# клавиши: S — вниз по вкладкам, Enter — открыть, Esc — назад, Esc — закрыть
+	var s0: int = pm.sel
+	await tap(KEY_S)
+	ok(pm.sel == (s0 + 1) % 6, "S переключает вкладку")
+	await tap(KEY_ENTER)
+	await wait(0.2)
+	ok(pm.card != null, "Enter открывает страницу")
+	await tap(KEY_ESCAPE)
+	await wait(0.2)
+	ok(pm.card == null and pm.is_open and get_tree().paused, "Esc со страницы — назад к вкладкам, пауза остаётся")
+	for i in 6:
+		pm._select(i, false)
+		pm._open_page(i)
+		await wait(0.35)
+		await full_shot("pause_tab_%d.png" % i)
+		pm._close_card()
+	# ---- развитие: покупка не двигает сюжет и не лечит ----
+	game.xp = 600
+	pl.hp = 50.0
+	var step0: int = game.step
+	var ch0: int = game.ch
+	var mode0: String = game.mode
+	pm._open_page(1)
+	await wait(0.2)
+	pm.card_sel = 0
+	pm._card_activate()
+	await wait(0.2)
+	ok(game.xp == 350 and int(game.up["hp"]) == 1 and pl.max_hp == 120.0, "куплено «Здоровье +20»: прослушиваний %d, уровень %d, максимум %d" % [game.xp, game.up["hp"], pl.max_hp])
+	ok(pl.hp == 70.0, "покупка не лечит полностью (здоровье %d)" % pl.hp)
+	ok(game.step == step0 and game.ch == ch0 and game.mode == mode0 and get_tree().paused, "сюжет не сдвинулся (шаг %d, режим %s)" % [game.step, game.mode])
+	pm.card_sel = 1
+	pm._card_activate()
+	ok(game.xp == 100 and int(game.up["dmg"]) == 1, "куплена «Сила»: осталось %d" % game.xp)
+	pm.card_sel = 2
+	pm._card_activate()
+	ok(game.xp == 100 and int(game.up["q"]) == 0, "на ад-либ не хватает — ничего не списано")
+	await full_shot("pause_tab_1_bought.png")
+	pm._close_card()
+
+	# ---- музыка в наушниках: Пахан кивает, игра приглушена ----
+	ipod.earbuds_in = true
+	pl.pod.set_seated(true)
+	pm.pod.set_seated(true)
+	pm._open_page(4)
+	await wait(0.2)
+	pm.card_sel = 1
+	pm._card_activate()                       # ▶ со страницы «Музыка»
+	await wait(0.9)
+	pm._close_card()
+	ok(ipod.is_listening(), "страница «Музыка» запускает тот же плеер iPod")
+	ok(pm.clip == "PauseMusicIdle", "музыка играет — Пахан кивает (клип %s)" % pm.clip)
+	ok(audio.headphone > 0.99, "режим наушников включён (%.2f)" % audio.headphone)
+	ok(bus_db("Music") < -55.0 and bus_db("SFX") < -55.0 and bus_db("Ambient") < -55.0, "приглушены: Music %.0f, SFX %.0f, Ambient %.0f дБ" % [bus_db("Music"), bus_db("SFX"), bus_db("Ambient")])
+	ok(absf(bus_db("Voice") - voice0) < 0.01, "голоса не тронуты (Voice %.1f дБ)" % bus_db("Voice"))
+	ok(audio.vol == vol0, "настройки громкости игрока не изменились")
+	ok(AudioServer.get_bus_index("IPod") >= 0 and not AudioServer.is_bus_mute(0), "iPod на своей шине, общий звук не выключался")
+	await wait(0.5)
+	await full_shot("pause_3_music.png")
+
+	# ---- Пахан сам проверяет iPod и переключает трек ----
+	var idx0: int = ipod.track_index
+	var seen := []
+	var marks := {}
+	pm.check_now()
+	var t0 := Time.get_ticks_msec()
+	while (pm.check != "" or seen.is_empty()) and Time.get_ticks_msec() - t0 < 9000:
+		await get_tree().process_frame
+		if seen.is_empty() or seen.back() != pm.check:
+			seen.append(pm.check)
+		for m in [["take", 0.45, "pause_4_reach"], ["take", 0.85, "pause_5_take"], ["inspect", 0.0, "pause_6_inspect"], ["switch", 0.0, "pause_7_switch"], ["return", 0.0, "pause_8_return"]]:
+			if pm.check == m[0] and (float(m[1]) == 0.0 or pm.pod.u >= float(m[1])) and not marks.has(m[2]):
+				marks[m[2]] = true
+				if m[0] == "inspect" or m[0] == "switch":
+					await wait(0.3)
+				await full_shot(String(m[2]) + ".png")
+	var took := (Time.get_ticks_msec() - t0) / 1000.0
+	print("IPOD проверка плеера: ", seen, " за %.1f с" % took)
+	ok(seen == ["check", "take", "inspect", "switch", "return", ""], "последовательность: посмотрел → достал → смотрит → переключил → убрал")
+	ok(ipod.track_index != idx0 and ipod.is_listening(), "трек действительно сменился (%d → %d) и играет" % [idx0, ipod.track_index])
+	ok(pm.pod.u <= 0.0 and pm.pod.device_state() == "IN_POCKET" and pm.pod.buds_in(), "iPod снова в кармане, наушники в ушах")
+	ok(pm.now_tag.text.begins_with("NOW PLAYING") and pm.now_tag.modulate.a > 0.1, "подпись NOW PLAYING показана")
+	ok(took > 2.5 and took < 6.0, "проверка плеера заняла %.1f с" % took)
+	await wait(0.6)
+	await full_shot("pause_9_idle_again.png")
+
+	# ---- пауза трека: кивки прекращаются, микс возвращается ----
+	ipod.pause_toggle_play()
+	await wait(1.0)
+	ok(pm.clip == "PauseIdle" and audio.headphone < 0.01 and bus_db("SFX") > -20.0, "трек на паузе: Пахан просто дышит, микс вернулся (SFX %.1f дБ)" % bus_db("SFX"))
+	pm.check_now()
+	await wait(0.2)
+	pm.check = ""                              # вручную запущенная проверка без музыки ничего не переключает
+	ipod.pause_toggle_play()
+	await wait(0.6)
+
+	# ---- Esc посреди проверки плеера ----
+	pm.check_now()
+	while pm.pod.u < 0.5:
+		await get_tree().process_frame
+	var idx1: int = ipod.track_index
+	await tap(KEY_ESCAPE)
+	await wait(0.7)
+	ok(not get_tree().paused and not pm.is_open and pm.pod.u <= 0.0 and pm.check == "", "Esc посреди проверки: меню закрыто, iPod в кармане, проверка оборвана")
+	ok(ipod.track_index == idx1, "после закрытия трек сам не переключился")
+	ok(pl.global_position.distance_to(pos0) < 0.01, "игровой Пахан не сдвинулся (%.3f м)" % pl.global_position.distance_to(pos0))
+	ok(Input.mouse_mode == Input.MOUSE_MODE_CAPTURED, "мышь снова захвачена игрой")
+	ok(ipod.is_listening() and audio.headphone > 0.99, "после паузы музыка играет, режим наушников держится")
+
+	# ---- диалог с музыкой в наушниках и без ----
+	game.start_dialog(["N|Проверка микса в диалоге."], func(): game.mode = mode0)
+	await wait(1.5)
+	ok(absf(ipod.mix_volume - ipod.volume * 0.42) < 0.04, "диалог: iPod тише (%.2f из %.2f)" % [ipod.mix_volume, ipod.volume])
+	ok(absf(bus_db("Voice") - voice0) < 0.01 and bus_db("SFX") < -55.0 and bus_db("Ambient") < -55.0, "диалог: голос на месте, эффекты и окружение приглушены")
+	ipod.pause_toggle_play()
+	await wait(1.4)
+	ok(audio.duck < -3.0 and bus_db("Music") > -30.0 and bus_db("Music") < bus_db("Voice"), "диалог без iPod: музыка локации тише на %.1f дБ (Music %.1f дБ)" % [-audio.duck, bus_db("Music")])
+	await tap(KEY_ENTER)
+	await tap(KEY_ENTER)
+	await wait(1.2)
+	ok(game.mode == mode0 and audio.duck > -1.0, "после диалога музыка вернулась (приглушение %.1f дБ)" % audio.duck)
+
+	# ---- наушники сняты: режим выключается ----
+	ipod.pause_toggle_play()
+	await wait(0.8)
+	ok(audio.headphone > 0.99, "снова играет в наушниках")
+	ipod.earbuds_in = false
+	pl.pod.set_seated(false)
+	await wait(0.9)
+	ok(audio.headphone < 0.01 and bus_db("SFX") > -20.0, "наушники сняты: режим выключен, эффекты слышны")
+	# открыть и закрыть ещё раз: без наушников автономной проверки нет
+	await tap(KEY_ESCAPE)
+	await wait(0.9)
+	ok(pm.is_open and not pm.pod.buds.visible, "пауза без наушников: вкладышей нет")
+	pm.close()
+	await wait(0.7)
+	ok(not get_tree().paused, "закрытие по «Вернуться в игру»")
+	# убрать за собой тестовый трек из папки iPod
+	for i in range(ipod.tracks.size() - 1, -1, -1):
+		if bool(ipod.tracks[i].get("local", false)):
+			ipod.track_index = i
+			ipod._remove_current()
+	print("IPOD итог: ошибок %d" % fails)
+	get_tree().quit()

@@ -278,6 +278,41 @@ func _place_emerging() -> void:
 	device.modulate.a = clampf(emerge * 3.0, 0.0, 1.0)
 
 
+# ---------- для меню паузы и микшера: тот же плеер, без открытия интерфейса ----------
+## Музыка действительно звучит в наушниках.
+func is_listening() -> bool:
+	return player != null and player.stream != null and player.playing and not player.stream_paused and earbuds_in
+
+## Что сейчас в плеере: для страницы «Музыка» и подписи NOW PLAYING.
+func now_playing() -> Dictionary:
+	var has := track_index >= 0 and track_index < tracks.size()
+	return {"has": has, "title": String(tracks[track_index]["title"]) if has else "", "artist": String(tracks[track_index].get("artist", "")) if has else "",
+		"pos": player.get_playback_position() if player.stream != null else 0.0, "len": player.stream.get_length() if player.stream != null else 0.0,
+		"playing": player.stream != null and player.playing and not player.stream_paused, "paused": player.stream != null and player.stream_paused,
+		"count": tracks.size(), "index": track_index, "buds": earbuds_in, "volume": volume}
+
+func pause_toggle_play() -> void:
+	_play()
+
+## Шаг по списку (−1 / +1) той же логикой, что у колеса. true — трек действительно сменился.
+func pause_step_track(delta: int) -> bool:
+	var next_index := _manual_track_index(delta)
+	if next_index < 0 or next_index == track_index:
+		return false
+	_select_track(next_index)
+	return track_index == next_index
+
+## Пахан сам переключает трек в паузе: только если музыка реально играет в наушниках и треков больше одного.
+func next_track_from_pause() -> bool:
+	if not is_listening() or tracks.size() < 2:
+		return false
+	return pause_step_track(1)
+
+func pause_set_volume(v: float) -> void:
+	volume = clampf(v, 0.0, 1.0)
+	_save_settings()
+
+
 func _can_toggle() -> bool:
 	if game == null or game.over:
 		return false

@@ -662,8 +662,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if over:
 		return
-	if e.is_action_pressed("pause") and panel == null:
-		set_paused(not get_tree().paused)
+	if e.is_action_pressed("pause") and panel == null and not get_tree().paused:
+		set_paused(true)      # закрывает паузу само меню: пока игра стоит, этот узел ввода не получает
 	if e.is_action_pressed("adlib") and not get_tree().paused and not paused_story():
 		if not buddy.adlib():
 			popup(buddy.global_position + Vector3(0, 2.1, 0), "перезарядка", Color(0.6, 0.7, 0.8))
@@ -800,10 +800,10 @@ func _process(dt: float) -> void:
 			if dlg_i == 6:
 				_shot(OS.get_user_data_dir(), "voicecheck.png")   # кадр диалога: видно, как стоят герои
 			if dlg_i == 7:
-				pause_panel.visible = true   # и кадр меню паузы: видно ползунки громкости
+				pause_panel.open()   # и кадр меню паузы
 				_shot(OS.get_user_data_dir(), "pausecheck.png")
 			if dlg_i == 8:
-				pause_panel.visible = false
+				pause_panel.shut()
 			dlg_chars = 9999.0
 			_dlg_advance()
 		if mode != "dlg" or dlg_i > 9:
@@ -1226,11 +1226,11 @@ func _build_hud() -> void:
 	var hint := _lbl("ЛКМ / ПРОБЕЛ — ДАЛЕЕ   ·   TAB — ПРОПУСТИТЬ СЦЕНУ", 13, Color(0.55, 0.6, 0.7))
 	hint.position = Vector2(28, 162)
 	dlg_box.add_child(hint)
-	pause_panel = _make_panel("ПАУЗА", "WASD — бег · ЛКМ — удары (до четырёх подряд) · ПКМ — добивание: зависит от числа ударов перед ним, с двух — полный замах (держи ПКМ)\nE — Heat-добивание (40 СВЭГа) · Пробел — перекат · Shift — блок, вовремя — парирование · Q — ад-либ madk1d · R — ПЕРЕГРУЗ", [["ПРОДОЛЖИТЬ", func(): set_paused(false)], ["В МЕНЮ", _to_menu]])
-	pause_panel.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
-	Menu.add_display_buttons(pause_panel.get_child(0), get_window())   # полный экран и синхронизация — те же, что в настройках меню
-	main.audio.add_sliders(pause_panel.get_child(0))   # громкость музыки, эффектов, окружения и голоса
-	pause_panel.visible = false
+	# меню паузы целиком — scripts/pausemenu.gd (вкладки, сцена с Паханом, анимация открытия)
+	var pm := PauseMenu.new()
+	pm.game = self
+	pause_panel = pm
+	hud.add_child(pm)
 
 func _make_panel(title: String, sub: String, buttons: Array) -> Control:
 	var p := ColorRect.new()
@@ -1268,8 +1268,12 @@ func _close_panel() -> void:
 func set_paused(v: bool) -> void:
 	if over:
 		return
-	get_tree().paused = v
-	pause_panel.visible = v
+	if v:
+		get_tree().paused = true      # мир останавливается сразу; меню раскрывается уже на стоящей игре
+		pause_panel.open()
+	else:
+		pause_panel.shut()
+		get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if v or panel != null or (ipod != null and ipod.captures_gameplay_input()) else Input.MOUSE_MODE_CAPTURED
 
 func _to_menu() -> void:
@@ -1280,6 +1284,36 @@ func _to_menu() -> void:
 # ---------------- прокачка, выбор, финал ----------------
 func _cost(k: String) -> int:
 	return [250, 500, 800, 1200, 1700, 2400][min(int(up[k]), 5)]
+
+## Покупка улучшения из меню паузы: те же цены и эффекты, что в мастерской, но сюжет не двигается и здоровье не лечится
+## (кроме прибавки от самого улучшения здоровья). Мастерская (_open_shop) по закрытии зовёт next_step — из паузы её звать нельзя.
+func buy_upgrade(k: String) -> bool:
+	if not up.has(k) or int(up[k]) >= 5 or xp < _cost(k):
+		return false
+	var hp_before: float = player.hp
+	xp -= _cost(k)
+	up[k] = int(up[k]) + 1
+	_apply_upgrades()
+	player.hp = minf(player.max_hp, hp_before + (20.0 if k == "hp" else 0.0))
+	_save()
+	return true
+
+## Текущая задача простыми словами — для HUD и страницы «Задание».
+func objective() -> String:
+	var alive := enemies.filter(func(e): return is_instance_valid(e) and e.state != "dead").size()
+	match mode:
+		"fight":
+			return "Разбей врагов: осталось %d" % (alive + pending.size())
+		"boss":
+			if boss_e != null and is_instance_valid(boss_e) and story["BOSS"].has(boss_e.boss_id):
+				var b: Dictionary = story["BOSS"][boss_e.boss_id]
+				return "Победи босса: %s — %s" % [b["n"], b["sub"]]
+			return "Победи босса"
+		"exit":
+			return "Выйди из подъезда во двор"
+		"dlg":
+			return "Дослушай разговор"
+	return "Иди дальше"
 
 func _open_shop() -> void:
 	mode = "shop"

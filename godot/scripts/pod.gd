@@ -74,6 +74,7 @@ var glow := 0.0              # подсветка экрана настояще�
 var lcd_mats: Array = []     # [материал, цвет, яркость] светящихся частей экрана
 var tap_kind := ""           # каким было последнее нажатие на колесо: select / menu / next / previous / play / scroll
 var frame_dt := 0.0
+var pocket_show := false    # показ в меню паузы: iPod выглядывает из кармана и виден, провод идёт к нему; в игре всегда false
 var pose_hold := false      # главное меню: застывшая поза — iPod у левого уха, наушники надеты, взгляд прямо
 var presses := 0            # сколько раз палец нажимал на колесо (для проверки)
 var tap := 0.0               # короткое движение большого пальца при нажатии на колесо
@@ -400,10 +401,15 @@ func _process_modification_with_delta(delta: float) -> void:
 		state = St.LOWERING if u > U_DRAW else St.PUTTING_AWAY
 	var hips := sk.get_bone_global_pose(b_hips)
 	if u <= 0.0:
-		device.visible = false
 		looking = false
 		_release_balloon(false)
-		_place_buds(sk, hips, Transform3D(), false, 0.0)
+		if pocket_show:
+			device.visible = true
+			device.transform = _pocket_xf(hips)
+			_place_buds(sk, hips, device.transform, false, 1.0)
+		else:
+			device.visible = false
+			_place_buds(sk, hips, Transform3D(), false, 0.0)
 		return
 	clock += dt
 	tap = max(0.0, tap - dt * 7.0)
@@ -507,8 +513,8 @@ func _process_modification_with_delta(delta: float) -> void:
 	# устройство: в кармане — на тазе, после захвата — в кулаке
 	var hand := sk.get_bone_global_pose(b_hand)
 	var in_hand := _ss(U_GRAB, U_DRAW, u)
-	var xf := (hips * pocket_dev_l).interpolate_with(Transform3D(hand.basis.orthonormalized(), hand.origin) * mount, in_hand)
-	var show := _ss(U_GRAB - 0.05, U_GRAB + 0.05, u)
+	var xf := _pocket_xf(hips).interpolate_with(Transform3D(hand.basis.orthonormalized(), hand.origin) * mount, in_hand)
+	var show := 1.0 if pocket_show else _ss(U_GRAB - 0.05, U_GRAB + 0.05, u)
 	device.visible = show > 0.0
 	device.transform = Transform3D(xf.basis.scaled(Vector3.ONE * lerpf(0.35, 1.0, show)), xf.origin)
 	look_goal = device.transform * Vector3(0, DEV_H * 0.23, DEV_H * 0.06)
@@ -545,6 +551,13 @@ func _process_modification_with_delta(delta: float) -> void:
 	_place_buds(sk, hips, device.transform, true, show)
 	dbg["look"] = (hd2.basis * fwd_l).normalized().angle_to((look_goal - hd2 * eye_l).normalized())
 	dbg["gap"] = (sk.get_bone_global_pose(b_hand) * grip_l).distance_to(device.transform * Vector3(0, -DEV_H * HOLD, -DEV_H * OUT_PALM))
+
+## iPod в кармане. В показе паузы он приподнят и вынесен наружу, чтобы выглядывал из кармана.
+func _pocket_xf(hips: Transform3D) -> Transform3D:
+	var xf := hips * pocket_dev_l
+	if pocket_show:
+		xf.origin += hips.basis * Vector3(0.03, 0.05, 0.045)
+	return xf
 
 ## Где висят вкладыши, пока не надеты: на проводе под iPod, ножками вверх, отверстием вбок.
 func _storage() -> Dictionary:
@@ -608,7 +621,7 @@ func _place_buds(sk: Skeleton3D, hips: Transform3D, dev: Transform3D, out: bool,
 	# провод: штекер в iPod (сверху слева) или в кармане → разветвитель → ножки вкладышей
 	var jack: Vector3
 	var jdir: Vector3
-	if out and show > 0.0:
+	if (out and show > 0.0) or pocket_show:
 		jack = dev * Vector3(-DEV_H * 0.6 * 0.3, DEV_H * 0.5, 0)
 		jdir = dev.basis.y.normalized()
 	else:
