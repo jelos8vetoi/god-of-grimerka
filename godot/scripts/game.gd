@@ -734,8 +734,6 @@ func _say(pl: AudioStreamPlayer, line: String, vol := 0.0) -> bool:
 	if not ResourceLoader.exists(path):
 		return false
 	pl.stream = load(path)
-	# M — madk1d без голоса: его заметки читает телефон; MV — голос вернулся, звучит чисто
-	pl.bus = "Phone" if line.begins_with("M|") else "Master"
 	pl.volume_db = vol
 	pl.play()
 	return true
