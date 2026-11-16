@@ -9,6 +9,7 @@ var wait := 0.0
 var face := 0.0
 var say_t := 0.0
 var cd := 0.0
+var cd_max := 10.0
 var track: AudioStreamPlayer
 
 func _ready() -> void:
@@ -35,6 +36,12 @@ func _physics_process(dt: float) -> void:
 	var p = game.player
 	var pp: Vector3 = p.global_position
 	cd = max(0.0, cd - dt)
+	if game.paused_story():
+		velocity = Vector3(0, velocity.y - 20.0 * dt, 0)
+		rig.play("Idle", 0.3)
+		move_and_slide()
+		body.rotation.y = face
+		return
 	wait -= dt
 	var far := global_position.distance_to(pp)
 	if far > 14.0:
@@ -78,7 +85,7 @@ func _physics_process(dt: float) -> void:
 func adlib() -> bool:
 	if cd > 0.0:
 		return false
-	cd = 10.0
+	cd = cd_max
 	say_t = 2.1
 	rig.play_for("Cheer", 2.0, 0.08)
 	track.play()

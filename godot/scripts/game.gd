@@ -1,300 +1,414 @@
-## Глава «Томск»: зимний двор хрущёвок ночью, камера из-за плеча, три волны врагов, интерфейс, эффекты.
+## Игра целиком: девять глав сюжета (data/story.json из браузерной версии), диалоги, волны, боссы с фазами,
+## прокачка между главами, выбор финала, сохранение. Камера из-за плеча, интерфейс, эффекты.
+## Режимы проверки: --autotest (бот играет сам), --smoke (быстрый прогон всех глав), --trailer (съёмка кадров).
 extends Node3D
 
 const ARENA := 15.0
-const WAVES := [
-	{"name": "ВОЛНА 1 — БОТЫ", "list": ["bot", "bot", "bot", "bot", "bot"]},
-	{"name": "ВОЛНА 2 — КЛИППЕРЫ", "list": ["bot", "bot", "bot", "clipper", "clipper", "clipper"]},
-	{"name": "ВОЛНА 3 — ХЕЙТЕРЫ", "list": ["clipper", "clipper", "clipper", "hater", "hater", "hater", "bot", "bot"]},
-]
+const SAVE := "user://grimerka_save.json"
+const MAX_ALIVE := 9
 
 var main
+var story: Dictionary
 var player
 var buddy
+var world: Node3D
 var enemies: Array = []
+var diff_hp := 1.0
+# сюжет
+var ch := 0
+var step := -1
+var mode := "idle"          # dlg / fight / boss / shop / choice / end / idle
+var waves: Array = []
+var wave_i := -1
+var pending: Array = []
+var spawn_cd := 0.0
+var wave_wait := 1.0
+var boss_e = null
+var step_done_t := -1.0
+var xp := 0
+var up := {"hp": 0, "dmg": 0, "q": 0}
+var kills := 0
+var over := false
+# диалог
+var dlg: Array = []
+var dlg_i := 0
+var dlg_chars := 0.0
+var dlg_after: Callable
+# камера
 var cam_yaw := PI
 var cam_pitch := -0.32
 var pivot: Node3D
 var spring: SpringArm3D
 var cam: Camera3D
 var shake_a := 0.0
-var wave := -1
-var wave_wait := 2.5
-var kills := 0
-var over := false
+var heat_t := 0.0
+var clock := 0.0
+var stop_until := 0.0
+var slow_until := 0.0
 # интерфейс
 var hud: CanvasLayer
 var hp_fill: ColorRect
 var swag_fill: ColorRect
 var swag_label: Label
-var wave_label: Label
+var top_label: Label
 var q_label: Label
+var xp_label: Label
 var fps_label: Label
 var banner_title: Label
 var banner_sub: Label
 var banner_t := 0.0
+var toast_label: Label
+var toast_t := 0.0
 var flash: ColorRect
 var pause_panel: Control
-var end_panel: Control
-var snow: GPUParticles3D
+var panel: Control
+var dlg_box: Control
+var dlg_name: Label
+var dlg_text: Label
+var boss_box: Control
+var boss_fill: ColorRect
+var boss_name: Label
+var hud_root: Control
+# снаряды и зоны
 var bolts: Array = []
-# автотест
+var zones: Array = []
+# проверки
 var auto_t := 0.0
-var auto_shots := [3.0, 9.0, 15.0, 21.0, 27.0, 33.0, 40.0]
+var auto_kill := -1.0
+var auto_len := 45.0
+var shots_done := {}
 var fps_samples: Array = []
+var director = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
-	_build_world()
+	story = JSON.parse_string(FileAccess.get_file_as_string("res://data/story.json"))
 	player = preload("res://scripts/player.gd").new()
 	player.game = self
 	add_child(player)
-	player.global_position = Vector3(0, 0, 4)
 	buddy = preload("res://scripts/companion.gd").new()
 	buddy.game = self
 	add_child(buddy)
-	buddy.global_position = Vector3(-1.8, 0, 4.5)
 	_build_camera()
 	_build_hud()
-	if main.autotest == "":
+	if main.testing() == "":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	banner("ТОМСК. ЯНВАРЬ. −34°", "у кента забрали голос — разбирайся", Color(1, 0.85, 0.55))
 
-# ---------------- мир ----------------
-func _build_world() -> void:
-	var env := Environment.new()
-	var sky := Sky.new()
-	var sm := ProceduralSkyMaterial.new()
-	sm.sky_top_color = Color(0.02, 0.03, 0.08)
-	sm.sky_horizon_color = Color(0.16, 0.12, 0.2)
-	sm.ground_bottom_color = Color(0.02, 0.02, 0.03)
-	sm.ground_horizon_color = Color(0.12, 0.1, 0.14)
-	sky.sky_material = sm
-	env.background_mode = Environment.BG_SKY
-	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 1.4
-	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 1.1
-	env.glow_enabled = true
-	env.glow_intensity = 0.7
-	env.glow_bloom = 0.08
-	env.glow_hdr_threshold = 0.9
-	env.ssao_enabled = true
-	env.ssao_intensity = 1.6
-	env.fog_enabled = true
-	env.fog_light_color = Color(0.22, 0.24, 0.33)
-	env.fog_density = 0.018
-	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.08
-	var we := WorldEnvironment.new()
-	we.environment = env
-	add_child(we)
-	var moon := DirectionalLight3D.new()
-	moon.light_color = Color(0.65, 0.72, 1.0)
-	moon.light_energy = 0.55
-	moon.shadow_enabled = true
-	moon.directional_shadow_max_distance = 45.0
-	moon.rotation = Vector3(deg_to_rad(-52), deg_to_rad(-35), 0)
-	add_child(moon)
-	var fill := DirectionalLight3D.new()
-	fill.light_color = Color(1.0, 0.86, 0.75)
-	fill.light_energy = 0.55
-	fill.shadow_enabled = false
-	fill.rotation = Vector3(deg_to_rad(-25), deg_to_rad(160), 0)
-	add_child(fill)
-	# асфальт со снегом
-	var ground := MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(90, 90)
-	pm.subdivide_width = 1
-	ground.mesh = pm
-	var gmat := StandardMaterial3D.new()
-	var noise := FastNoiseLite.new()
-	noise.frequency = 0.02
-	var nt := NoiseTexture2D.new()
-	nt.noise = noise
-	nt.width = 512
-	nt.height = 512
-	nt.seamless = true
-	var gr := Gradient.new()
-	gr.set_color(0, Color(0.13, 0.14, 0.17))
-	gr.set_color(1, Color(0.62, 0.66, 0.74))
-	gr.add_point(0.55, Color(0.2, 0.21, 0.25))
-	nt.color_ramp = gr
-	gmat.albedo_texture = nt
-	gmat.uv1_scale = Vector3(6, 6, 1)
-	gmat.roughness = 0.85
-	ground.material_override = gmat
-	add_child(ground)
-	_static_box(Vector3(0, -0.5, 0), Vector3(90, 1, 90), null)
-	# стены арены (невидимые) и хрущёвки вокруг
-	for s in [[Vector3(0, 2, -ARENA - 0.5), Vector3(2 * ARENA + 2, 4, 1)], [Vector3(0, 2, ARENA + 0.5), Vector3(2 * ARENA + 2, 4, 1)], [Vector3(-ARENA - 0.5, 2, 0), Vector3(1, 4, 2 * ARENA + 2)], [Vector3(ARENA + 0.5, 2, 0), Vector3(1, 4, 2 * ARENA + 2)]]:
-		_static_box(s[0], s[1], null)
-	var facade := _facade_texture()
-	for b in [[Vector3(0, 0, -ARENA - 7), 0.0, 34.0], [Vector3(-ARENA - 7, 0, 0), PI / 2, 30.0], [Vector3(ARENA + 7, 0, -2), -PI / 2, 30.0], [Vector3(6, 0, ARENA + 9), PI, 26.0]]:
-		_building(b[0], b[1], b[2], facade)
-	# фонари
-	for lp in [Vector3(-11, 0, -11), Vector3(11, 0, -11), Vector3(-11, 0, 11), Vector3(11, 0, 11), Vector3(0, 0, -13.5)]:
-		_lamp(lp)
-	# сугробы, скамейки, мусорки, бочки
-	var snow_mat := StandardMaterial3D.new()
-	snow_mat.albedo_color = Color(0.86, 0.9, 0.98)
-	snow_mat.roughness = 0.95
-	for i in 26:
-		var a := randf() * TAU
-		var edge := Vector3(clamp(cos(a) * 30.0, -ARENA + 0.8, ARENA - 0.8), 0, clamp(sin(a) * 30.0, -ARENA + 0.8, ARENA - 0.8))
-		var mi := MeshInstance3D.new()
-		var sp := SphereMesh.new()
-		sp.radius = randf_range(0.9, 2.0)
-		sp.height = sp.radius * 2.0
-		mi.mesh = sp
-		mi.scale = Vector3(1.6, 0.35, 1.0)
-		mi.rotation.y = randf() * TAU
-		mi.position = edge
-		mi.material_override = snow_mat
-		add_child(mi)
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.36, 0.22, 0.14)
-	var metal := StandardMaterial3D.new()
-	metal.albedo_color = Color(0.2, 0.3, 0.24)
-	metal.metallic = 0.4
-	for bn in [[Vector3(-6, 0, -12.5), 0.0], [Vector3(6, 0, -12.5), 0.0], [Vector3(-13, 0, 4), PI / 2]]:
-		var bench := _box(bn[0] + Vector3(0, 0.45, 0), Vector3(2.2, 0.12, 0.6), wood)
-		bench.rotation.y = bn[1]
-		_static_box(bn[0] + Vector3(0, 0.4, 0), Vector3(2.2, 0.8, 0.6), null, bn[1])
-	for db in [Vector3(12.5, 0, 6), Vector3(12.5, 0, 8.2)]:
-		_box(db + Vector3(0, 0.65, 0), Vector3(1.8, 1.3, 1.2), metal)
-		_static_box(db + Vector3(0, 0.65, 0), Vector3(1.8, 1.3, 1.2), null)
-	# снегопад вокруг камеры
-	snow = GPUParticles3D.new()
-	snow.amount = 1800
-	snow.lifetime = 7.0
-	snow.preprocess = 7.0
-	snow.visibility_aabb = AABB(Vector3(-25, -15, -25), Vector3(50, 30, 50))
-	var sp2 := ParticleProcessMaterial.new()
-	sp2.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	sp2.emission_box_extents = Vector3(22, 1, 22)
-	sp2.direction = Vector3(0.15, -1, 0)
-	sp2.initial_velocity_min = 0.6
-	sp2.initial_velocity_max = 1.2
-	sp2.gravity = Vector3(0.2, -0.9, 0)
-	sp2.turbulence_enabled = true
-	sp2.turbulence_noise_strength = 0.4
-	snow.process_material = sp2
-	var q := QuadMesh.new()
-	q.size = Vector2(0.05, 0.05)
-	var qm := StandardMaterial3D.new()
-	qm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	qm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	qm.albedo_color = Color(1, 1, 1, 0.85)
-	qm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	q.material = qm
-	snow.draw_pass_1 = q
-	snow.position.y = 12
-	add_child(snow)
+func begin(from_save: bool, chapter := -1) -> void:
+	if from_save and FileAccess.file_exists(SAVE):
+		var d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
+		if d is Dictionary:
+			ch = int(d.get("ch", 0))
+			step = int(d.get("step", 0)) - 1
+			xp = int(d.get("xp", 0))
+			for k in up:
+				up[k] = int(d.get("up", {}).get(k, 0))
+	if chapter >= 0:
+		ch = chapter
+		step = -1
+	_apply_upgrades()
+	_load_chapter(step < 0)
+	next_step()
 
-func _box(pos: Vector3, size: Vector3, mat: Material) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
-	mi.position = pos
-	if mat:
-		mi.material_override = mat
-	add_child(mi)
-	return mi
+func _save() -> void:
+	if main.testing() != "":
+		return
+	var f := FileAccess.open(SAVE, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify({"ch": ch, "step": step, "xp": xp, "up": up}))
 
-func _static_box(pos: Vector3, size: Vector3, _mat, rot := 0.0) -> void:
-	var sb := StaticBody3D.new()
-	sb.collision_layer = 1 | 8
-	var cs := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = size
-	cs.shape = bs
-	sb.add_child(cs)
-	sb.position = pos
-	sb.rotation.y = rot
-	add_child(sb)
+func _apply_upgrades() -> void:
+	player.max_hp = 100.0 + 20.0 * up["hp"]
+	player.hp = player.max_hp
+	player.dmg_mul = 1.0 + 0.12 * up["dmg"]
+	buddy.cd_max = 10.0 - 1.5 * up["q"]
 
-func _facade_texture() -> Array:
-	# панельный фасад: 12 окон в ряд, 5 этажей; часть окон горит тёплым светом
-	var w := 768
-	var h := 320
-	var alb := Image.create(w, h, false, Image.FORMAT_RGBA8)
-	var emi := Image.create(w, h, false, Image.FORMAT_RGBA8)
-	alb.fill(Color(0.42, 0.4, 0.38))
-	emi.fill(Color(0, 0, 0))
-	for y in 5:
-		alb.fill_rect(Rect2i(0, y * 64 + 60, w, 4), Color(0.3, 0.29, 0.28))
-		for x in 12:
-			var r := Rect2i(x * 64 + 14, y * 64 + 14, 36, 34)
-			var lit := randf() < 0.38
-			var c := Color(1.0, 0.78, 0.42) if lit else Color(0.08, 0.1, 0.16)
-			alb.fill_rect(r, c)
-			alb.fill_rect(Rect2i(r.position.x + 17, r.position.y, 2, r.size.y), Color(0.3, 0.29, 0.28))
-			if lit:
-				emi.fill_rect(r, Color(1.0, 0.7, 0.35) * randf_range(0.6, 1.0))
-	return [ImageTexture.create_from_image(alb), ImageTexture.create_from_image(emi)]
+# ---------------- главы ----------------
+func chapter() -> Dictionary:
+	return story["CH"][ch]
 
-func _building(pos: Vector3, rot: float, width: float, tex: Array) -> void:
-	var root := Node3D.new()
-	root.position = pos
-	root.rotation.y = rot
-	add_child(root)
-	var hgt := 15.0
-	var core := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(width, hgt, 10)
-	core.mesh = bm
-	core.position.y = hgt / 2
-	var cm := StandardMaterial3D.new()
-	cm.albedo_color = Color(0.3, 0.29, 0.28)
-	core.material_override = cm
-	root.add_child(core)
-	var front := MeshInstance3D.new()
-	var qm := QuadMesh.new()
-	qm.size = Vector2(width, hgt)
-	front.mesh = qm
-	front.position = Vector3(0, hgt / 2, 5.02)
-	var fm := StandardMaterial3D.new()
-	fm.albedo_texture = tex[0]
-	fm.emission_enabled = true
-	fm.emission_texture = tex[1]
-	fm.emission_energy_multiplier = 2.2
-	fm.uv1_scale = Vector3(width / 30.0 * 1.0, 1, 1)
-	fm.texture_repeat = true
-	front.material_override = fm
-	root.add_child(front)
-	var roof := MeshInstance3D.new()
-	var rb := BoxMesh.new()
-	rb.size = Vector3(width + 0.4, 0.5, 10.4)
-	roof.mesh = rb
-	roof.position.y = hgt + 0.25
-	var rm := StandardMaterial3D.new()
-	rm.albedo_color = Color(0.85, 0.88, 0.95)
-	roof.material_override = rm
-	root.add_child(roof)
+func _load_chapter(show_title: bool) -> void:
+	_clear_fight()
+	if world:
+		world.free()
+	world = preload("res://scripts/world.gd").new()
+	add_child(world)
+	world.build(String(chapter()["th"]["deco"]))
+	player.global_position = Vector3(0, 0.05, 4)
+	player.velocity = Vector3.ZERO
+	buddy.global_position = Vector3(-1.8, 0.05, 4.5)
+	buddy.target = Vector3.ZERO
+	cam_yaw = PI
+	player.face = PI
+	if show_title:
+		banner("ГЛАВА %d. %s" % [ch + 1, String(chapter()["name"])], String(chapter()["place"]), Color(1, 0.85, 0.55), 4.0)
 
-func _lamp(p: Vector3) -> void:
-	var pole := _box(p + Vector3(0, 2.4, 0), Vector3(0.14, 4.8, 0.14), null)
-	var pm := StandardMaterial3D.new()
-	pm.albedo_color = Color(0.15, 0.15, 0.17)
-	pole.material_override = pm
-	var head := _box(p + Vector3(0, 4.85, 0), Vector3(0.6, 0.18, 0.35), null)
-	var hm := StandardMaterial3D.new()
-	hm.albedo_color = Color(1, 0.85, 0.6)
-	hm.emission_enabled = true
-	hm.emission = Color(1, 0.75, 0.45)
-	hm.emission_energy_multiplier = 6.0
-	head.material_override = hm
-	var l := OmniLight3D.new()
-	l.position = p + Vector3(0, 4.5, 0)
-	l.light_color = Color(1, 0.72, 0.45)
-	l.light_energy = 2.6
-	l.omni_range = 11.0
-	l.omni_attenuation = 1.2
-	add_child(l)
+func next_step() -> void:
+	step += 1
+	var steps: Array = chapter()["steps"]
+	if step >= steps.size():
+		ch += 1
+		step = 0
+		if ch >= story["CH"].size():
+			_credits("КОНЕЦ", "")
+			return
+		_load_chapter(true)
+	_save()
+	_run_step()
+
+func _run_step() -> void:
+	var s: Dictionary = chapter()["steps"][step]
+	step_done_t = -1.0
+	match String(s["t"]):
+		"dlg":
+			_clear_fight()
+			start_dialog(s["l"], next_step)
+		"fight":
+			mode = "fight"
+			waves = s["w"]
+			wave_i = -1
+			wave_wait = 1.2
+			pending = []
+		"boss":
+			mode = "boss"
+			boss_e = _make_enemy("", String(s["id"]), Vector3(0, 0, -7))
+			var b: Dictionary = story["BOSS"][s["id"]]
+			banner(String(b["n"]), String(b["sub"]), Color(b["c"]), 3.2)
+			boss_name.text = "%s — %s" % [b["n"], b["sub"]]
+			main.sfx("sfx_rage", -4.0, 0.7)
+		"give":
+			toast(String(s.get("msg", "")))
+			var o: Dictionary = s.get("o", {})
+			if o.has("hp"):
+				player.max_hp += float(o["hp"])
+			player.hp = player.max_hp
+			next_step()
+		"shop":
+			_open_shop()
+		"choice":
+			_open_choice()
+		_:
+			next_step()
+
+func _clear_fight() -> void:
+	for e in enemies:
+		if is_instance_valid(e):
+			e.queue_free()
+	enemies = []
+	for b in bolts:
+		if is_instance_valid(b["n"]):
+			b["n"].queue_free()
+	bolts = []
+	for z in zones:
+		if is_instance_valid(z["n"]):
+			z["n"].queue_free()
+	zones = []
+	pending = []
+	boss_e = null
+
+func paused_story() -> bool:
+	return mode == "dlg" or mode == "shop" or mode == "choice" or mode == "end"
+
+# ---------------- бой ----------------
+func _update_fight(dt: float) -> void:
+	enemies = enemies.filter(func(e): return is_instance_valid(e))
+	var alive := enemies.filter(func(e): return e.state != "dead").size()
+	if mode == "fight":
+		if spawn_cd > 0.0:
+			spawn_cd -= dt
+		if not pending.is_empty() and alive < MAX_ALIVE and spawn_cd <= 0.0:
+			spawn_enemy(pending.pop_front(), Vector3.INF)
+			spawn_cd = 0.3
+		elif pending.is_empty() and alive == 0 and step_done_t < 0.0:
+			wave_wait -= dt
+			if wave_wait <= 0.0:
+				wave_i += 1
+				if wave_i >= waves.size():
+					step_done_t = 1.4
+					banner("ЧИСТО", "", Color(1, 0.85, 0.3), 1.6)
+				else:
+					for grp in waves[wave_i]:
+						for i in int(grp[1]):
+							pending.append(String(grp[0]))
+					pending.shuffle()
+					if waves.size() > 1:
+						toast("Волна %d / %d" % [wave_i + 1, waves.size()])
+					main.sfx("sfx_wave", -8.0)
+					wave_wait = 1.6
+	elif mode == "boss":
+		if boss_e and is_instance_valid(boss_e):
+			boss_fill.size.x = 596.0 * clamp(boss_e.hp / boss_e.max_hp, 0.0, 1.0)
+			if auto_kill > 0.0 and boss_e.alive() and boss_e.age > 5.0:
+				boss_e.take_hit(99999.0, Vector3.FORWARD, 0.0, true)
+	if step_done_t >= 0.0:
+		step_done_t -= dt
+		if step_done_t < 0.0 and not over:
+			player.hp = min(player.max_hp, player.hp + player.max_hp * 0.35)
+			next_step()
+	if auto_kill > 0.0:
+		for e in enemies:
+			if e.alive() and e.boss_id == "" and e.age > auto_kill:
+				e.take_hit(99999.0, Vector3.FORWARD, 2.0, true)
+
+func _make_enemy(kind: String, boss_id: String, pos: Vector3):
+	var e = preload("res://scripts/enemy.gd").new()
+	e.kind = kind
+	e.boss_id = boss_id
+	e.game = self
+	add_child(e)
+	e.global_position = pos
+	e.face = atan2(player.global_position.x - pos.x, player.global_position.z - pos.z)
+	enemies.append(e)
+	return e
+
+func spawn_enemy(kind: String, pos: Vector3) -> void:
+	if enemies.size() > 26:
+		return
+	if pos == Vector3.INF or not in_arena(pos, 1.0):
+		for n in 20:
+			var a := randf() * TAU
+			pos = Vector3(cos(a), 0, sin(a)) * randf_range(7.0, 12.5)
+			if pos.distance_to(player.global_position) > 6.0:
+				break
+	pos.y = 0.05
+	_make_enemy(kind, "", pos)
+
+func in_arena(p: Vector3, margin: float) -> bool:
+	return abs(p.x) < ARENA - margin and abs(p.z) < ARENA - margin
+
+func on_kill(e) -> void:
+	kills += 1
+	xp += int(e.cfg.get("xp", 10))
+	player.swag = min(100.0, player.swag + 6.0)
+	if e.boss_id != "":
+		slowmo(1.6)
+		shake(0.7)
+		banner("СЕРВЕР ЗАЧИЩЕН", "%s повержен" % String(e.boss["n"]), Color(1, 0.85, 0.3), 3.0)
+		for o in enemies:
+			if o != e and is_instance_valid(o) and o.alive():
+				o.take_hit(99999.0, Vector3.FORWARD, 2.0, true)
+		step_done_t = 3.2
+	elif mode == "fight" and pending.is_empty():
+		var left := enemies.filter(func(x): return is_instance_valid(x) and x.state != "dead").size()
+		if left == 0:
+			slowmo(0.6)
+
+func on_player_dead() -> void:
+	over = true
+	slowmo(1.2)
+	await get_tree().create_timer(2.2, true, false, true).timeout
+	if main.testing() != "":
+		_retry()
+		return
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_show_panel("ПАХАН УПАЛ", "кент не вытянет это один", [["ЕЩЁ РАЗ", _retry], ["В МЕНЮ", _to_menu]])
+
+func _retry() -> void:
+	_close_panel()
+	over = false
+	player.hp = player.max_hp
+	player.state = "move"
+	player.swag = 0.0
+	player.rage = 0.0
+	player.rig.play("Idle", 0.1)
+	player.global_position = Vector3(0, 0.05, 4)
+	_clear_fight()
+	boss_box.visible = false
+	if main.testing() == "":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_run_step()
+
+# ---------------- снаряды и зоны удара ----------------
+func spawn_bolt(pos: Vector3, vel: Vector3, dmg: float, owner_e, homing := false, col := Color(0.4, 1.0, 0.55)) -> void:
+	var m := MeshInstance3D.new()
+	var s := SphereMesh.new()
+	s.radius = 0.18
+	s.height = 0.36
+	m.mesh = s
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = col.lightened(0.3)
+	mat.emission_enabled = true
+	mat.emission = col
+	mat.emission_energy_multiplier = 4.0
+	m.material_override = mat
+	add_child(m)
+	m.global_position = pos
+	bolts.append({"n": m, "v": vel, "dmg": dmg, "life": 3.0 if homing else 2.4, "from": owner_e, "homing": homing})
+
+func _update_bolts(dt: float) -> void:
+	var pp: Vector3 = player.global_position + Vector3(0, 1.0, 0)
+	for b in bolts.duplicate():
+		b["life"] -= dt
+		var n: Node3D = b["n"]
+		if b["homing"]:
+			var want: Vector3 = (pp - n.global_position).normalized() * (b["v"] as Vector3).length()
+			b["v"] = (b["v"] as Vector3).lerp(want, 1.0 - exp(-1.6 * dt))
+		n.global_position += b["v"] * dt
+		if n.global_position.distance_to(pp) < 0.7:
+			player.take_damage(b["dmg"], n.global_position, b["from"] if is_instance_valid(b["from"]) else null)
+			b["life"] = 0.0
+		if b["life"] <= 0.0 or not in_arena(n.global_position, -1.0):
+			n.queue_free()
+			bolts.erase(b)
+
+## круг на земле: через delay секунд бьёт всех внутри радиуса
+func telegraph(pos: Vector3, radius: float, delay: float, dmg: float, owner_e) -> void:
+	var m := MeshInstance3D.new()
+	var c := CylinderMesh.new()
+	c.top_radius = radius
+	c.bottom_radius = radius
+	c.height = 0.04
+	m.mesh = c
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(1, 0.12, 0.08, 0.25)
+	m.material_override = mat
+	add_child(m)
+	m.global_position = Vector3(pos.x, 0.06, pos.z)
+	zones.append({"n": m, "mat": mat, "t": delay, "t0": delay, "r": radius, "dmg": dmg, "from": owner_e, "ring": false})
+
+## расходящееся кольцо: бьёт, когда проходит через игрока (перекат спасает)
+func expanding_ring(pos: Vector3, max_r: float, dur: float, dmg: float, owner_e) -> void:
+	var m := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.92
+	tm.outer_radius = 1.0
+	m.mesh = tm
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(1, 0.3, 0.15)
+	m.material_override = mat
+	add_child(m)
+	m.global_position = Vector3(pos.x, 0.15, pos.z)
+	m.scale = Vector3(0.5, 0.3, 0.5)
+	zones.append({"n": m, "mat": mat, "t": dur, "t0": dur, "r": max_r, "dmg": dmg, "from": owner_e, "ring": true, "hit": false})
+
+func _update_zones(dt: float) -> void:
+	var pp: Vector3 = player.global_position
+	for z in zones.duplicate():
+		z["t"] -= dt
+		var n: Node3D = z["n"]
+		var k: float = 1.0 - clamp(z["t"] / z["t0"], 0.0, 1.0)
+		var src = z["from"] if is_instance_valid(z["from"]) else null
+		if z["ring"]:
+			var r: float = 0.5 + (float(z["r"]) - 0.5) * k
+			n.scale = Vector3(r, 0.3, r)
+			var d := Vector2(pp.x - n.global_position.x, pp.z - n.global_position.z).length()
+			if not z["hit"] and abs(d - r) < 0.55:
+				z["hit"] = true
+				player.take_damage(z["dmg"], n.global_position, src)
+		else:
+			(z["mat"] as StandardMaterial3D).albedo_color.a = 0.2 + 0.5 * k
+			if z["t"] <= 0.0:
+				shockwave(n.global_position, Color(1, 0.4, 0.2))
+				main.sfx("sfx_hit_heavy", -8.0)
+				if Vector2(pp.x - n.global_position.x, pp.z - n.global_position.z).length() < float(z["r"]):
+					player.take_damage(z["dmg"], n.global_position, src)
+		if z["t"] <= 0.0:
+			n.queue_free()
+			zones.erase(z)
 
 # ---------------- камера ----------------
 func _build_camera() -> void:
@@ -307,150 +421,136 @@ func _build_camera() -> void:
 	pivot.add_child(spring)
 	cam = Camera3D.new()
 	cam.fov = 62.0
-	cam.far = 200.0
+	cam.far = 250.0
 	spring.add_child(cam)
 	cam.make_current()
 
 func _unhandled_input(e: InputEvent) -> void:
-	if over:
-		return
-	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and mode != "dlg":
 		cam_yaw -= e.relative.x * 0.0028
 		cam_pitch = clamp(cam_pitch - e.relative.y * 0.0022, -1.1, 0.35)
-	elif e is InputEventMouseButton and e.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not get_tree().paused:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	if e.is_action_pressed("pause"):
+	if mode == "dlg":
+		if e.is_action_pressed("attack") or e.is_action_pressed("roll") or (e is InputEventKey and e.pressed and e.physical_keycode == KEY_ENTER):
+			_dlg_advance()
+		elif e is InputEventKey and e.pressed and e.physical_keycode == KEY_TAB:
+			_dlg_finish()
+		return
+	if over:
+		return
+	if e.is_action_pressed("pause") and panel == null:
 		set_paused(not get_tree().paused)
-	if e.is_action_pressed("adlib") and not get_tree().paused:
+	if e.is_action_pressed("adlib") and not get_tree().paused and not paused_story():
 		if not buddy.adlib():
 			popup(buddy.global_position + Vector3(0, 2.1, 0), "перезарядка", Color(0.6, 0.7, 0.8))
 
 func shake(a: float) -> void:
 	shake_a = max(shake_a, a)
 
+func heat_cam(sec: float) -> void:
+	heat_t = sec
+
+func hitstop(sec: float) -> void:
+	stop_until = max(stop_until, clock + sec)
+
+func slowmo(sec: float) -> void:
+	slow_until = max(slow_until, clock + sec)
+
 func _process(dt: float) -> void:
 	var rdt: float = dt / max(Engine.time_scale, 0.001)
+	clock += rdt
+	heat_t = max(0.0, heat_t - rdt)
+	Engine.time_scale = 0.05 if clock < stop_until else (0.3 if clock < slow_until else (0.45 if heat_t > 0.0 else 1.0))
+	if director:
+		Engine.time_scale *= director.slow
+	if director:
+		director.frame(rdt)
 	var target: Vector3 = player.global_position + Vector3(0, 1.55, 0)
-	pivot.global_position = pivot.global_position.lerp(target, 1.0 - exp(-14.0 * rdt)) if pivot.global_position != Vector3.ZERO else target
-	pivot.rotation = Vector3(cam_pitch, cam_yaw, 0)
-	spring.position = Vector3(0.55, 0, 0)
+	var want_len := 4.6
+	var yaw := cam_yaw
+	var pitch := cam_pitch
+	if mode == "dlg" and not director:
+		# диалог: камера спереди-сбоку, на героев
+		target = (player.global_position + buddy.global_position) * 0.5 + Vector3(0, 1.25, 0)
+		yaw = player.face + PI + 0.55
+		pitch = -0.08
+		want_len = 4.0
+	elif heat_t > 0.0:
+		want_len = 2.9
+	if not director or not director.owns_camera():
+		pivot.global_position = pivot.global_position.lerp(target, 1.0 - exp(-14.0 * rdt)) if pivot.global_position != Vector3.ZERO else target
+		pivot.rotation.y = lerp_angle(pivot.rotation.y, yaw, 1.0 - exp(-9.0 * rdt)) if mode == "dlg" else yaw
+		pivot.rotation.x = lerp(pivot.rotation.x, pitch, 1.0 - exp(-9.0 * rdt)) if mode == "dlg" else pitch
+		spring.spring_length = lerp(spring.spring_length, want_len, 1.0 - exp(-8.0 * rdt))
+		spring.position = Vector3(0.55, 0, 0)
 	shake_a = max(0.0, shake_a - rdt * 1.8)
 	cam.h_offset = randf_range(-1, 1) * shake_a * 0.25
 	cam.v_offset = randf_range(-1, 1) * shake_a * 0.25
-	snow.global_position = Vector3(player.global_position.x, 12.0, player.global_position.z)
+	if world:
+		world.follow(player.global_position)
 	_update_hud(rdt)
-	_update_bolts(dt)
-	_update_waves(dt)
-	if main.autotest != "":
+	if mode == "dlg":
+		_update_dialog(rdt)
+	elif not over:
+		_update_bolts(dt)
+		_update_zones(dt)
+		_update_fight(dt)
+	if main.autotest != "" or main.smoke != "":
 		_autotest(rdt)
 
-# ---------------- волны ----------------
-func _update_waves(dt: float) -> void:
-	if over:
+# ---------------- диалоги ----------------
+func start_dialog(lines: Array, after: Callable) -> void:
+	mode = "dlg"
+	dlg = lines
+	dlg_i = -1
+	dlg_after = after
+	dlg_box.visible = true
+	player.velocity = Vector3.ZERO
+	# кент встаёт рядом
+	var side := Vector3(cos(player.face), 0, -sin(player.face))
+	var bp: Vector3 = player.global_position + side * 1.3
+	if in_arena(bp, 0.6):
+		buddy.global_position = bp
+	buddy.face = player.face
+	_dlg_advance()
+
+func _dlg_advance() -> void:
+	if dlg_i >= 0 and dlg_chars < dlg_text.text.length():
+		dlg_chars = 9999.0
 		return
-	enemies = enemies.filter(func(e): return is_instance_valid(e))
-	var alive := enemies.filter(func(e): return e.state != "dead").size()
-	if alive == 0:
-		wave_wait -= dt
-		if wave_wait <= 0.0:
-			wave += 1
-			if wave >= WAVES.size():
-				_victory()
-				return
-			banner(WAVES[wave]["name"], "врагов: %d" % WAVES[wave]["list"].size(), Color(1, 0.4, 0.3))
-			main.sfx("sfx_wave", -4.0)
-			for i in WAVES[wave]["list"].size():
-				_spawn(WAVES[wave]["list"][i], i)
-			wave_wait = 2.5
+	dlg_i += 1
+	if dlg_i >= dlg.size():
+		_dlg_finish()
+		return
+	var line := String(dlg[dlg_i])
+	var p := line.find("|")
+	var code := line.substr(0, p)
+	var spk: Dictionary = story["SPK"].get(code, {"n": "", "c": "#ffffff"})
+	dlg_name.text = _clean(String(spk["n"]))
+	dlg_name.add_theme_color_override("font_color", Color(spk["c"]))
+	dlg_text.text = _clean(line.substr(p + 1))
+	dlg_text.add_theme_color_override("font_color", Color(0.75, 0.8, 0.9) if code == "N" else Color.WHITE)
+	dlg_chars = 0.0
+	if code == "MV":
+		main.sfx("sfx_parry", -10.0)
 
-func _spawn(kind: String, i: int) -> void:
-	var e = preload("res://scripts/enemy.gd").new()
-	e.kind = kind
-	e.game = self
-	add_child(e)
-	var a := randf() * TAU
-	var pos := Vector3.ZERO
-	for n in 20:
-		a = randf() * TAU
-		pos = Vector3(cos(a), 0, sin(a)) * randf_range(7.0, 12.5)
-		if in_arena(pos, 1.5) and pos.distance_to(player.global_position) > 6.0:
-			break
-	e.global_position = pos
-	e.face = atan2(player.global_position.x - pos.x, player.global_position.z - pos.z)
-	enemies.append(e)
+func _dlg_finish() -> void:
+	dlg_box.visible = false
+	mode = "idle"
+	dlg_after.call()
 
-func in_arena(p: Vector3, margin: float) -> bool:
-	return abs(p.x) < ARENA - margin and abs(p.z) < ARENA - margin
+func _update_dialog(dt: float) -> void:
+	dlg_chars += dt * 55.0
+	dlg_text.visible_characters = int(dlg_chars)
 
-func on_kill(_e) -> void:
-	kills += 1
-	player.swag = min(100.0, player.swag + 6.0)
-	var left := enemies.filter(func(x): return is_instance_valid(x) and x.state != "dead").size()
-	if left == 0 and wave < WAVES.size() - 1:
-		slowmo(0.7)
-		banner("ЧИСТО", "следующая волна", Color(1, 0.85, 0.3))
-	elif left == 0:
-		slowmo(1.0)
-
-func on_player_dead() -> void:
-	over = true
-	slowmo(1.2)
-	await get_tree().create_timer(2.2, true, false, true).timeout
-	_end_screen("ПАХАН УПАЛ", "кент не вытянет это один")
-
-func _victory() -> void:
-	over = true
-	banner("ТОМСК ЗАЧИЩЕН", "убито врагов: %d" % kills, Color(1, 0.85, 0.3))
-	await get_tree().create_timer(2.5, true, false, true).timeout
-	_end_screen("ТОМСК ЗАЧИЩЕН", "дальше — первый сервер (в следующей обнове Godot-версии)")
-
-# ---------------- снаряды хейтера ----------------
-func spawn_bolt(pos: Vector3, dir: Vector3, dmg: float, owner_e) -> void:
-	var m := MeshInstance3D.new()
-	var s := SphereMesh.new()
-	s.radius = 0.18
-	s.height = 0.36
-	m.mesh = s
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(0.5, 1.0, 0.6)
-	mat.emission_enabled = true
-	mat.emission = Color(0.3, 1.0, 0.5)
-	mat.emission_energy_multiplier = 4.0
-	m.material_override = mat
-	var l := OmniLight3D.new()
-	l.light_color = Color(0.4, 1, 0.5)
-	l.light_energy = 1.5
-	l.omni_range = 3.0
-	m.add_child(l)
-	add_child(m)
-	m.global_position = pos
-	bolts.append({"n": m, "v": dir * 9.0, "dmg": dmg, "life": 2.2, "from": owner_e})
-
-func _update_bolts(dt: float) -> void:
-	for b in bolts.duplicate():
-		b["life"] -= dt
-		var n: Node3D = b["n"]
-		n.global_position += b["v"] * dt
-		var pp: Vector3 = player.global_position + Vector3(0, 1.0, 0)
-		if n.global_position.distance_to(pp) < 0.7:
-			player.take_damage(b["dmg"], n.global_position, b["from"] if is_instance_valid(b["from"]) else null)
-			b["life"] = 0.0
-		if b["life"] <= 0.0 or not in_arena(n.global_position, -1.0):
-			n.queue_free()
-			bolts.erase(b)
+func _clean(s: String) -> String:
+	var out := ""
+	for i in s.length():
+		var c := s.unicode_at(i)
+		if c < 0x1F000 and not (c >= 0x2600 and c <= 0x27BF) and c != 0xFE0F:
+			out += s[i]
+	return out.strip_edges()
 
 # ---------------- эффекты ----------------
-func hitstop(sec: float) -> void:
-	Engine.time_scale = 0.05
-	await get_tree().create_timer(sec, true, false, true).timeout
-	Engine.time_scale = 1.0
-
-func slowmo(sec: float) -> void:
-	Engine.time_scale = 0.3
-	await get_tree().create_timer(sec, true, false, true).timeout
-	Engine.time_scale = 1.0
-
 func popup(pos: Vector3, text: String, col: Color) -> void:
 	var l := Label3D.new()
 	l.text = text
@@ -483,7 +583,7 @@ func shockwave(pos: Vector3, col: Color) -> void:
 	mat.albedo_color = col
 	m.material_override = mat
 	add_child(m)
-	m.global_position = pos + Vector3(0, 0.2, 0)
+	m.global_position = Vector3(pos.x, 0.2, pos.z)
 	m.scale = Vector3(0.5, 0.1, 0.5)
 	var tw := create_tween()
 	tw.set_parallel(true)
@@ -495,11 +595,20 @@ func damage_flash() -> void:
 	flash.color.a = 0.35
 	shake(0.25)
 
-func banner(title: String, sub: String, col: Color) -> void:
+func banner(title: String, sub: String, col: Color, sec := 2.6) -> void:
 	banner_title.text = title
 	banner_sub.text = sub
 	banner_title.add_theme_color_override("font_color", col)
-	banner_t = 2.6
+	banner_t = sec
+
+func toast(text: String) -> void:
+	toast_label.text = _clean(text)
+	toast_t = 3.5
+
+func boss_bark(who: String, text: String, col: Color) -> void:
+	banner(text, who, col, 2.8)
+	main.sfx("sfx_rage", -6.0, 1.2)
+	shake(0.4)
 
 # ---------------- интерфейс ----------------
 func _lbl(text: String, size: int, col := Color.WHITE) -> Label:
@@ -515,21 +624,22 @@ func _lbl(text: String, size: int, col := Color.WHITE) -> Label:
 func _build_hud() -> void:
 	hud = CanvasLayer.new()
 	add_child(hud)
+	var vs := get_viewport().get_visible_rect().size
 	flash = ColorRect.new()
 	flash.color = Color(0.8, 0, 0, 0)
 	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(flash)
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(root)
+	hud_root = Control.new()
+	hud_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(hud_root)
 	var name_l := _lbl("ПАХАН", 26)
-	name_l.position = Vector2(40, get_viewport().get_visible_rect().size.y - 150)
-	root.add_child(name_l)
+	name_l.position = Vector2(40, vs.y - 150)
+	hud_root.add_child(name_l)
 	var bars := Control.new()
-	bars.position = Vector2(40, get_viewport().get_visible_rect().size.y - 110)
-	root.add_child(bars)
+	bars.position = Vector2(40, vs.y - 110)
+	hud_root.add_child(bars)
 	var hp_bg := ColorRect.new()
 	hp_bg.color = Color(0, 0, 0, 0.6)
 	hp_bg.size = Vector2(420, 26)
@@ -555,32 +665,81 @@ func _build_hud() -> void:
 	q_label = _lbl("", 15, Color(0.4, 0.85, 1))
 	q_label.position = Vector2(0, 58)
 	bars.add_child(q_label)
-	wave_label = _lbl("", 22, Color(1, 0.9, 0.7))
-	wave_label.position = Vector2(get_viewport().get_visible_rect().size.x / 2 - 200, 20)
-	wave_label.size = Vector2(400, 30)
-	wave_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	root.add_child(wave_label)
+	top_label = _lbl("", 18, Color(1, 0.9, 0.7))
+	top_label.position = Vector2(40, 22)
+	hud_root.add_child(top_label)
+	xp_label = _lbl("", 18, Color(0.55, 1, 0.6))
+	xp_label.position = Vector2(vs.x - 260, 22)
+	xp_label.size = Vector2(220, 26)
+	xp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hud_root.add_child(xp_label)
 	fps_label = _lbl("", 15, Color(0.5, 1, 0.5))
-	fps_label.position = Vector2(get_viewport().get_visible_rect().size.x - 110, get_viewport().get_visible_rect().size.y - 34)
-	root.add_child(fps_label)
-	banner_title = _lbl("", 64)
+	fps_label.position = Vector2(vs.x - 110, vs.y - 34)
+	hud_root.add_child(fps_label)
+	toast_label = _lbl("", 20, Color(0.75, 0.9, 1))
+	toast_label.position = Vector2(0, 100)
+	toast_label.size = Vector2(vs.x, 30)
+	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hud_root.add_child(toast_label)
+	banner_title = _lbl("", 60)
 	banner_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	banner_title.position = Vector2(0, 150)
-	banner_title.size = Vector2(get_viewport().get_visible_rect().size.x, 80)
-	root.add_child(banner_title)
+	banner_title.position = Vector2(0, 160)
+	banner_title.size = Vector2(vs.x, 80)
+	hud_root.add_child(banner_title)
 	banner_sub = _lbl("", 22, Color(0.9, 0.9, 0.95))
 	banner_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	banner_sub.position = Vector2(0, 235)
-	banner_sub.size = Vector2(get_viewport().get_visible_rect().size.x, 40)
-	root.add_child(banner_sub)
-	# пауза
-	pause_panel = _panel("ПАУЗА", [["ПРОДОЛЖИТЬ", func(): set_paused(false)], ["В МЕНЮ", func(): _to_menu()]])
+	banner_sub.position = Vector2(0, 240)
+	banner_sub.size = Vector2(vs.x, 40)
+	hud_root.add_child(banner_sub)
+	# полоса босса
+	boss_box = Control.new()
+	boss_box.position = Vector2(vs.x / 2 - 300, 54)
+	boss_box.visible = false
+	hud_root.add_child(boss_box)
+	var bb := ColorRect.new()
+	bb.color = Color(0, 0, 0, 0.65)
+	bb.size = Vector2(600, 18)
+	bb.position = Vector2(0, 26)
+	boss_box.add_child(bb)
+	boss_fill = ColorRect.new()
+	boss_fill.color = Color(1, 0.3, 0.2)
+	boss_fill.position = Vector2(2, 28)
+	boss_fill.size = Vector2(596, 14)
+	boss_box.add_child(boss_fill)
+	boss_name = _lbl("", 18, Color(1, 0.85, 0.8))
+	boss_name.size = Vector2(600, 24)
+	boss_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boss_box.add_child(boss_name)
+	# диалог
+	dlg_box = ColorRect.new()
+	(dlg_box as ColorRect).color = Color(0.02, 0.03, 0.06, 0.88)
+	dlg_box.position = Vector2(vs.x * 0.12, vs.y - 250)
+	dlg_box.size = Vector2(vs.x * 0.76, 190)
+	dlg_box.visible = false
+	hud.add_child(dlg_box)
+	var stripe := ColorRect.new()
+	stripe.color = Color(1, 0.25, 0.2)
+	stripe.size = Vector2(5, 190)
+	dlg_box.add_child(stripe)
+	dlg_name = _lbl("", 22)
+	dlg_name.position = Vector2(28, 14)
+	dlg_box.add_child(dlg_name)
+	dlg_text = Label.new()
+	dlg_text.add_theme_font_size_override("font_size", 24)
+	dlg_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	dlg_text.position = Vector2(28, 52)
+	dlg_text.size = Vector2(vs.x * 0.76 - 56, 110)
+	dlg_box.add_child(dlg_text)
+	var hint := _lbl("ЛКМ / ПРОБЕЛ — ДАЛЕЕ   ·   TAB — ПРОПУСТИТЬ СЦЕНУ", 13, Color(0.55, 0.6, 0.7))
+	hint.position = Vector2(28, 162)
+	dlg_box.add_child(hint)
+	pause_panel = _make_panel("ПАУЗА", "WASD — бег · ЛКМ — удары (до четырёх подряд) · ПКМ — добивание: зависит от числа ударов перед ним, с двух — полный замах (держи ПКМ)\nE — Heat-добивание (40 СВЭГа) · Пробел — перекат · Shift — блок, вовремя — парирование · Q — ад-либ madk1d · R — ПЕРЕГРУЗ", [["ПРОДОЛЖИТЬ", func(): set_paused(false)], ["В МЕНЮ", _to_menu]])
 	pause_panel.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 	pause_panel.visible = false
 
-func _panel(title: String, buttons: Array) -> Control:
+func _make_panel(title: String, sub: String, buttons: Array) -> Control:
 	var p := ColorRect.new()
-	p.color = Color(0.02, 0.02, 0.05, 0.8)
+	p.color = Color(0.02, 0.02, 0.05, 0.84)
 	p.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hud.add_child(p)
 	var box := VBoxContainer.new()
@@ -588,59 +747,119 @@ func _panel(title: String, buttons: Array) -> Control:
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)
 	box.add_theme_constant_override("separation", 16)
 	p.add_child(box)
-	var t := _lbl(title, 56)
+	var t := _lbl(title, 54)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	t.name = "Title"
 	box.add_child(t)
-	var sub := _lbl("", 22, Color(0.85, 0.85, 0.9))
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.name = "Sub"
-	box.add_child(sub)
+	var s := _lbl(sub, 20, Color(0.85, 0.85, 0.9))
+	s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	s.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	s.custom_minimum_size = Vector2(900, 0)
+	s.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(s)
 	for b in buttons:
 		box.add_child(main.button(b[0], b[1]))
 	return p
+
+func _show_panel(title: String, sub: String, buttons: Array) -> void:
+	_close_panel()
+	panel = _make_panel(title, sub, buttons)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+func _close_panel() -> void:
+	if panel:
+		panel.queue_free()
+		panel = null
 
 func set_paused(v: bool) -> void:
 	if over:
 		return
 	get_tree().paused = v
 	pause_panel.visible = v
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if v else Input.MOUSE_MODE_CAPTURED
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if v or panel != null else Input.MOUSE_MODE_CAPTURED
 
 func _to_menu() -> void:
 	get_tree().paused = false
 	Engine.time_scale = 1.0
 	main.show_menu()
 
-func _end_screen(title: String, sub: String) -> void:
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	end_panel = _panel(title, [["ЕЩЁ РАЗ", func(): main.start_game()], ["В МЕНЮ", func(): _to_menu()]])
-	(end_panel.find_child("Sub", true, false) as Label).text = sub
-	if main.autotest != "":
-		end_panel.visible = false
+# ---------------- прокачка, выбор, финал ----------------
+func _cost(k: String) -> int:
+	return [250, 500, 800, 1200, 1700, 2400][min(int(up[k]), 5)]
+
+func _open_shop() -> void:
+	mode = "shop"
+	if main.testing() != "":
+		_close_shop()
+		return
+	var rows := [["hp", "ЗДОРОВЬЕ +20"], ["dmg", "СИЛА +12% урона"], ["q", "КЕНТ: ад-либ на 1,5 с чаще"]]
+	var btns := []
+	for r in rows:
+		var k: String = r[0]
+		var can: bool = xp >= _cost(k) and int(up[k]) < 5
+		btns.append(["%s — %d  [ур. %d]%s" % [r[1], _cost(k), up[k], "" if can else "  ✕"], func():
+			if xp >= _cost(k) and int(up[k]) < 5:
+				xp -= _cost(k)
+				up[k] = int(up[k]) + 1
+				_apply_upgrades()
+			_open_shop()])
+	btns.append(["ДАЛЬШЕ", _close_shop])
+	_show_panel("МАСТЕРСКАЯ ДЯДИ СЕВЫ", "прослушиваний: %d" % xp, btns)
+
+func _close_shop() -> void:
+	_close_panel()
+	if main.testing() == "":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	mode = "idle"
+	next_step()
+
+func _open_choice() -> void:
+	mode = "choice"
+	if main.testing() != "":
+		_ending("ENDING_A")
+		return
+	_show_panel("ЯДРО", "Алгоритм повержен. Что дальше?", [["СЛОМАТЬ ЯДРО", func(): _ending("ENDING_A")], ["ЗАНЯТЬ ТРОН", func(): _ending("ENDING_B")]])
+
+func _ending(key: String) -> void:
+	_close_panel()
+	if main.testing() == "":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	start_dialog(story[key], func(): _credits("GOD OF GRIMERKA", "спасибо, что дослушал до конца"))
+
+func _credits(title: String, sub: String) -> void:
+	mode = "end"
+	over = true
+	if FileAccess.file_exists(SAVE) and main.testing() == "":
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE))
+	if main.testing() != "":
+		return
+	_show_panel(title, sub, [["В МЕНЮ", _to_menu]])
 
 func _update_hud(dt: float) -> void:
 	hp_fill.size.x = 414.0 * clamp(player.hp / player.max_hp, 0.0, 1.0)
 	var full: bool = player.swag >= 100.0
 	swag_fill.size.x = 314.0 * (player.rage / 8.0 if player.rage > 0.0 else player.swag / 100.0)
 	swag_fill.color = Color(1, 0.25, 0.05) if player.rage > 0.0 else (Color(1, 0.85, 0.3) if full else Color(1, 0.6, 0.15))
-	swag_label.text = "ПЕРЕГРУЗ!" if player.rage > 0.0 else ("СВЭГ ПОЛОН — [R]" if full else "СВЭГ")
+	swag_label.text = "ПЕРЕГРУЗ!" if player.rage > 0.0 else ("СВЭГ ПОЛОН — [R]" if full else ("СВЭГ · [E] Heat" if player.swag >= 40.0 else "СВЭГ"))
 	q_label.text = "[Q] madk1d: ад-либ готов" if buddy.cd <= 0.0 else "[Q] madk1d: %.0f с" % buddy.cd
 	var alive := enemies.filter(func(e): return is_instance_valid(e) and e.state != "dead").size()
-	wave_label.text = ("ВОЛНА %d / %d   ·   врагов: %d" % [wave + 1, WAVES.size(), alive]) if wave >= 0 and not over else ""
+	var obj := ""
+	if mode == "fight":
+		obj = "   ·   врагов: %d" % (alive + pending.size())
+	top_label.text = "ГЛАВА %d · %s%s" % [ch + 1, String(chapter()["name"]), obj]
+	xp_label.text = "▶ %d" % xp
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second()
+	boss_box.visible = mode == "boss" and boss_e != null and is_instance_valid(boss_e) and boss_e.state != "dead"
 	flash.color.a = max(0.0, flash.color.a - dt * 1.5)
 	banner_t -= dt
 	var a: float = clamp(banner_t / 0.5, 0.0, 1.0)
 	banner_title.modulate.a = a
 	banner_sub.modulate.a = a
+	toast_t -= dt
+	toast_label.modulate.a = clamp(toast_t / 0.5, 0.0, 1.0)
+	hud_root.visible = not (director and director.hide_hud())
 
-# ---------------- автотест: бот играет сам, делает скриншоты и меряет FPS ----------------
-func _autotest(dt: float) -> void:
-	auto_t += dt
-	player.hp = max(player.hp, 60.0)
-	if auto_t > 2.0:
-		fps_samples.append(Engine.get_frames_per_second())
+# ---------------- проверки: бот играет сам ----------------
+func bot_input(dt: float) -> void:
 	var near = null
 	var nd := 1e9
 	for e in enemies:
@@ -652,36 +871,61 @@ func _autotest(dt: float) -> void:
 	var inp := {}
 	if near:
 		var to: Vector3 = near.global_position - player.global_position
-		var want := atan2(-to.x, -to.z)
-		cam_yaw = lerp_angle(cam_yaw, want, 1.0 - exp(-5.0 * dt))
-		if nd > 2.0:
+		cam_yaw = lerp_angle(cam_yaw, atan2(-to.x, -to.z), 1.0 - exp(-5.0 * dt))
+		var reach: float = 2.0 + near.radius
+		if nd > reach:
 			inp["move"] = Vector2(0, 1)
-		elif fmod(auto_t, 2.0) < dt:
+		elif fmod(auto_t, 2.4) < dt:
 			inp["heavy"] = "press"
-		elif fmod(auto_t, 0.35) < dt:
+		elif fmod(auto_t, 0.3) < dt:
 			inp["attack"] = "press"
+		if player.swag >= 40.0 and nd < 3.0 and fmod(auto_t, 5.0) < dt:
+			inp["heat"] = "press"
 	if fmod(auto_t, 6.0) < dt:
 		inp["roll"] = "press"
 		inp["move"] = Vector2(1, 0)
 	if player.swag >= 100.0:
 		inp["rage"] = "press"
-	if abs(auto_t - 12.0) < dt or abs(auto_t - 30.0) < dt:
+	if fmod(auto_t, 11.0) < dt and near:
 		buddy.adlib()
 	player.auto_input = inp
-	for s in auto_shots.duplicate():
-		if auto_t >= s:
-			auto_shots.erase(s)
-			_shot("shot_%02d.png" % int(s))
-	if auto_t > 45.0 or over and auto_t > 8.0:
-		fps_samples.sort()
-		var avg := 0.0
-		for f in fps_samples:
-			avg += f
-		avg /= max(1, fps_samples.size())
-		print("AUTOTEST fps_avg=%.0f fps_min=%d wave=%d kills=%d hp=%.0f" % [avg, fps_samples[0] if fps_samples.size() else 0, wave + 1, kills, player.hp])
-		get_tree().quit()
 
-func _shot(name: String) -> void:
+func _autotest(dt: float) -> void:
+	auto_t += dt
+	player.hp = max(player.hp, player.max_hp * 0.6)
+	if auto_t > 2.0:
+		fps_samples.append(Engine.get_frames_per_second())
+	if mode == "dlg":
+		if fmod(auto_t, 0.12) < dt:
+			dlg_chars = 9999.0
+			_dlg_advance()
+		player.auto_input = {}
+	else:
+		bot_input(dt)
+	var out: String = main.autotest if main.autotest != "" else main.smoke
+	if main.smoke != "":
+		# по кадру на бой и на босса каждой главы
+		var key := "ch%d_%s" % [ch + 1, mode]
+		if (mode == "fight" or mode == "boss") and not shots_done.has(key) and enemies.size() > 0 and is_instance_valid(enemies[0]) and enemies[0].age > 2.2:
+			shots_done[key] = true
+			_shot(out, key + ".png")
+		if mode == "end" or auto_t > 400.0:
+			print("SMOKE done ch=%d step=%d mode=%s kills=%d shots=%d t=%.0f" % [ch + 1, step, mode, kills, shots_done.size(), auto_t])
+			get_tree().quit()
+	else:
+		for s in [3.0, 9.0, 15.0, 21.0, 27.0, 33.0, 40.0]:
+			if auto_t >= s and not shots_done.has(s):
+				shots_done[s] = true
+				_shot(out, "shot_%02d.png" % int(s))
+		if auto_t > auto_len:
+			var avg := 0.0
+			for f in fps_samples:
+				avg += f
+			avg /= max(1, fps_samples.size())
+			fps_samples.sort()
+			print("AUTOTEST fps_avg=%.0f fps_min=%d ch=%d step=%d mode=%s kills=%d hp=%.0f" % [avg, fps_samples[0] if fps_samples.size() else 0, ch + 1, step, mode, kills, player.hp])
+			get_tree().quit()
+
+func _shot(dir: String, name: String) -> void:
 	await RenderingServer.frame_post_draw
-	var img := get_viewport().get_texture().get_image()
-	img.save_png(main.autotest.path_join(name))
+	get_viewport().get_texture().get_image().save_png(dir.path_join(name))

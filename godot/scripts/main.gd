@@ -3,7 +3,7 @@ extends Node
 
 const ACTIONS := {
 	"up": [KEY_W], "down": [KEY_S], "left": [KEY_A], "right": [KEY_D],
-	"roll": [KEY_SPACE], "block": [KEY_SHIFT], "sprint": [KEY_CTRL], "adlib": [KEY_Q], "rage": [KEY_R],
+	"roll": [KEY_SPACE], "block": [KEY_SHIFT], "sprint": [KEY_CTRL], "adlib": [KEY_Q], "rage": [KEY_R], "heat": [KEY_E],
 	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11],
 }
 
@@ -13,6 +13,10 @@ var music: AudioStreamPlayer
 var sfx_pool: Array[AudioStreamPlayer] = []
 var sfx_cache := {}
 var autotest := ""
+var smoke := ""
+var trailer := ""
+var start_ch := -1
+var auto_len := 45.0
 var font: Font
 
 func _ready() -> void:
@@ -41,8 +45,26 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--autotest="):
 			autotest = arg.substr(11)
-	if autotest != "":
-		start_game()
+		elif arg.begins_with("--smoke="):
+			smoke = arg.substr(8)
+		elif arg.begins_with("--trailer="):
+			trailer = arg.substr(10)
+		elif arg.begins_with("--chapter="):
+			start_ch = int(arg.substr(10)) - 1
+		elif arg.begins_with("--seconds="):
+			auto_len = float(arg.substr(10))
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--posesheet="):
+			var ps = preload("res://scripts/posesheet.gd").new()
+			var v := arg.substr(12).split(",")
+			ps.out = v[0]
+			ps.who = v[1] if v.size() > 1 else ""
+			add_child(ps)
+			return
+	if testing() != "":
+		start_game(false, max(start_ch, 0))
+	elif start_ch >= 0:
+		start_game(false, start_ch)
 	else:
 		show_menu()
 
@@ -98,9 +120,11 @@ func show_menu() -> void:
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, 40)
 	box.add_child(gap)
-	box.add_child(button("НОВАЯ ИГРА · ТОМСК", start_game))
+	if FileAccess.file_exists("user://grimerka_save.json"):
+		box.add_child(button("ПРОДОЛЖИТЬ", func(): start_game(true)))
+	box.add_child(button("НОВАЯ ИГРА", func(): start_game(false, 0)))
 	box.add_child(button("ВЫХОД", get_tree().quit))
-	box.add_child(label("WASD — бег · мышь — камера · ЛКМ — удар балоном · ПКМ — тяжёлый · Пробел — перекат · Shift — блок · Q — ад-либ madk1d · R — ПЕРЕГРУЗ · F11 — полный экран", 15, Color("cfd6e4")))
+	box.add_child(label("WASD — бег · мышь — камера · ЛКМ — удары балоном · ПКМ — добивание · E — Heat · Пробел — перекат · Shift — блок · Q — ад-либ madk1d · R — ПЕРЕГРУЗ · F11 — полный экран", 15, Color("cfd6e4")))
 
 func label(t: String, size: int, col: Color) -> Label:
 	var l := Label.new()
@@ -133,15 +157,28 @@ func button(t: String, cb: Callable) -> Button:
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	return b
 
-func start_game() -> void:
+func testing() -> String:
+	return autotest + smoke + trailer
+
+func start_game(from_save := false, chapter := -1) -> void:
 	if menu:
 		menu.queue_free()
 		menu = null
 	if game:
 		game.queue_free()
 	music.volume_db = -16.0
-	if not music.playing:
+	if not music.playing and trailer == "":
 		music.play()
 	game = preload("res://scripts/game.gd").new()
 	game.main = self
 	add_child(game)
+	if smoke != "":
+		game.auto_kill = 1.6
+	game.auto_len = auto_len
+	if trailer != "":
+		var d = preload("res://scripts/director.gd").new()
+		d.game = game
+		d.out = trailer
+		game.director = d
+		game.add_child(d)
+	game.begin(from_save, chapter)
