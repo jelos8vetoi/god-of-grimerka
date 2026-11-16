@@ -168,16 +168,22 @@ func _aura_emitter(tex_name: String, amount: int, life: float, size: Vector2, v0
 	return p
 
 func pressed(a: String) -> bool:
+	if game.ipod != null and game.ipod.captures_gameplay_input():
+		return false
 	if auto_input.has(a):
 		return auto_input[a] == "press"
 	return Input.is_action_just_pressed(a)
 
 func held(a: String) -> bool:
+	if game.ipod != null and game.ipod.captures_gameplay_input():
+		return false
 	if auto_input.has(a):
 		return true
 	return Input.is_action_pressed(a)
 
 func input_dir() -> Vector3:
+	if game.ipod != null and game.ipod.captures_gameplay_input():
+		return Vector3.ZERO
 	var v := Vector2.ZERO
 	if auto_input.has("move"):
 		v = auto_input["move"]
