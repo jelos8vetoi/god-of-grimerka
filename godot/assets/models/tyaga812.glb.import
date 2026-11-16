@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cmyh8ve6iu54h"
-path="res://.godot/imported/tyaga808.glb-6a368db05a5746b00bc46141951194c8.scn"
+uid="uid://brmeqei7tyfmn"
+path="res://.godot/imported/tyaga812.glb-564aed6971dbda3b3753ac397d3e9cd9.scn"
 
 [deps]
 
-source_file="res://assets/models/tyaga808.glb"
-dest_files=["res://.godot/imported/tyaga808.glb-6a368db05a5746b00bc46141951194c8.scn"]
+source_file="res://assets/models/tyaga812.glb"
+dest_files=["res://.godot/imported/tyaga812.glb-564aed6971dbda3b3753ac397d3e9cd9.scn"]
 
 [params]
 

@@ -175,7 +175,7 @@ func _run() -> void:
 		var pr := s.problems()
 		ok(pr.is_empty(), "стиль %s (%s, %s): данные согласованы%s%s" % [id, s.title, s.owner, "" if s.ready else " — объявлен, атак пока нет", "" if pr.is_empty() else ": " + "; ".join(pr)])
 	var vz := Styles.by_id("vozduh")
-	ok(vz.ready and vz.attacks.size() == 13 and Styles.by_id("bottles").ready and Styles.by_id("tyaga808").ready and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
+	ok(vz.ready and vz.attacks.size() == 13 and Styles.by_id("bottles").ready and Styles.by_id("tyaga812").ready and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
 	var clips_ok := true
 	await stage([])
 	for aid in vz.attacks:
@@ -491,7 +491,7 @@ func _run() -> void:
 	game.feedback_fired.disconnect(on_fb)
 
 
-	# ================= этап 06: стиль «Бутылки с водой» =================
+	# ================= этап 06: стиль «Водяра» =================
 	var bt := Styles.by_id("bottles")
 	ok(bt.ready and bt.problems().is_empty() and bt.ammo_max == 6, "стиль bottles готов: атак %d, запас %d, восстановление %.1f с" % [bt.attacks.size(), bt.ammo_max, bt.ammo_regen])
 	# ---------- 17. смена стиля ----------
@@ -503,7 +503,7 @@ func _run() -> void:
 	await frames(6)
 	ok(P.bottles.prop_att.visible and P.rig.cur == "BottleIdle", "бутылка в руке, стойка с бутылкой (клип %s)" % P.rig.cur)
 	await shot("07_bottle_idle.png")
-	ok(game.style_label.text.begins_with("[2] Бутылки") and game.style_label.text.count("●") == 6, "HUD: %s" % game.style_label.text)
+	ok(game.style_label.text.begins_with("[2] Водяра") and game.style_label.text.count("●") == 6, "HUD: %s" % game.style_label.text)
 
 	# ---------- 18. быстрый бросок по боту, клипперу и хейтеру ----------
 	for kind in ["bot", "clipper", "hater"]:
@@ -644,9 +644,9 @@ func _run() -> void:
 	await stage([])
 
 
-	# ================= этап 07: ТЯГА-808 =================
-	var tg := Styles.by_id("tyaga808")
-	ok(tg.ready and tg.problems().is_empty() and tg.attacks.size() == 5, "стиль tyaga808 готов: воздействий %d (притягивание, выстрел, выброс, таран, волчок)" % tg.attacks.size())
+	# ================= этап 07: ТЯГА-812 =================
+	var tg := Styles.by_id("tyaga812")
+	ok(tg.ready and tg.problems().is_empty() and tg.attacks.size() == 5, "стиль tyaga812 готов: воздействий %d (притягивание, выстрел, выброс, таран, волчок)" % tg.attacks.size())
 	cam_off = Vector3(3.6, 1.9, 2.6)
 	cam_at = Vector3(0, 0.8, -0.6)
 	# ---------- 25. [3]: пылесос выкатывается, руки на трубе ----------
@@ -658,12 +658,12 @@ func _run() -> void:
 	await frames(40)
 	var rh: float = bone_pos("rhand").distance_to(tg_point(TyagaClips.TUBE_HI))
 	var lh: float = bone_pos("lhand").distance_to(tg_point(TyagaClips.TUBE_LO))
-	ok(rolling and P.style.id == "tyaga808" and P.state == "tyaga" and P.tyaga.mode == "hold" and P.rig.holstered, "[3]: пылесос выкатился из-за спины (не возник на месте), стиль ТЯГА-808, балон за спиной")
+	ok(rolling and P.style.id == "tyaga812" and P.state == "tyaga" and P.tyaga.mode == "hold" and P.rig.holstered, "[3]: пылесос выкатился из-за спины (не возник на месте), стиль ТЯГА-812, балон за спиной")
 	ok(rh < 0.22 and lh < 0.22, "обе руки на трубе: правая в %.2f м от верхнего хвата, левая в %.2f м от нижнего (запястье–кулак ≈ 0,15)" % [rh, lh])
 	var wheels: float = P.tyaga.unit.global_position.y - P.global_position.y
 	ok(abs(wheels) < 0.03, "пылесос стоит на земле (%.3f м)" % wheels)
 	await shot("12_tyaga_hold.png")
-	ok(game.style_label.text.begins_with("[3] ТЯГА-808"), "HUD: %s" % game.style_label.text)
+	ok(game.style_label.text.begins_with("[3] ТЯГА-812"), "HUD: %s" % game.style_label.text)
 
 	# ---------- 26. MODE 2: притягивание — бот, клиппер, хейтер ----------
 	for kind in ["bot", "clipper", "hater"]:

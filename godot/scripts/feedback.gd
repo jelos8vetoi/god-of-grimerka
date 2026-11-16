@@ -30,10 +30,10 @@ const EVENTS := {
 	"vz_slam": {"stop": 0.14, "stop_mul": true, "stop_max": 0.19, "shake": 0.5, "punch": 0.6, "fx": "heavy_dust", "confirm": 0.9},
 	"vz_finisher": {"stop": 0.13, "stop_mul": true, "stop_max": 0.19, "shake": 0.46, "punch": 0.6, "fov": 2.5, "fx": "heavy_dust", "confirm": 0.9},
 	"vz_quake": {"stop": 0.16, "stop_mul": true, "stop_max": 0.2, "shake": 0.7, "punch": 0.9, "fx": "quake", "confirm": 1.0},
-	# бутылки с водой: лёгкий отклик — оружие контроля, не урона
+	# водяра: лёгкий отклик — оружие контроля, не урона
 	"bt_hit": {"stop": 0.03, "shake": 0.1, "aberr": 0.15, "confirm": 0.4},
 	"bt_power": {"stop": 0.07, "shake": 0.26, "aberr": 0.3, "fov": 1.5, "confirm": 0.7},
-	# ТЯГА-808: воздушный выстрел, выброс по области, таран
+	# ТЯГА-812: воздушный выстрел, выброс по области, таран
 	"tg_shot": {"stop": 0.05, "shake": 0.28, "aberr": 0.3, "fov": 2.5, "confirm": 0.6},
 	"tg_burst": {"stop": 0.12, "shake": 0.7, "punch": 0.85, "fov": 4.0, "confirm": 1.0},
 	"tg_ram": {"stop": 0.07, "stop_mul": true, "shake": 0.35, "punch": 0.4, "fx": "heavy_dust", "confirm": 0.8},

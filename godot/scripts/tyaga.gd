@@ -1,4 +1,4 @@
-## ТЯГА-808 (этап 07): пылесос Пахана и его три режима. Узел живёт в player.body (поворачивается вместе с героем),
+## ТЯГА-812 (этап 07): пылесос Пахана и его три режима. Узел живёт в player.body (поворачивается вместе с героем),
 ## player.gd в состоянии "tyaga" каждый физический кадр зовёт tick(): здесь решается скорость, поворот, клип и всё,
 ## что пылесос делает с врагами. Числа — в style_tyaga.gd, точки модели и клипы — в clips_tyaga.gd.
 ##
@@ -10,7 +10,7 @@
 class_name Tyaga
 extends Node3D
 
-const MODEL := "res://assets/models/tyaga808.glb"
+const MODEL := "res://assets/models/tyaga812.glb"
 
 var p
 var game
@@ -44,7 +44,7 @@ var msg_t := -9.0
 func setup(player, g) -> void:
 	p = player
 	game = g
-	style = Styles.by_id("tyaga808")
+	style = Styles.by_id("tyaga812")
 	unit = Node3D.new()
 	add_child(unit)
 	var m: Node3D = (load(MODEL) as PackedScene).instantiate()

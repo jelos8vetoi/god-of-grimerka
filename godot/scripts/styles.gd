@@ -3,10 +3,10 @@
 ## Новый стиль: файл style_<имя>.gd с build() → строка в _make(); код ядра менять не нужно.
 class_name Styles
 
-const ORDER := ["vozduh", "bottles", "tyaga808", "skateboard", "guitar", "breaker"]
+const ORDER := ["vozduh", "bottles", "tyaga812", "skateboard", "guitar", "breaker"]
 const PLANNED := {
-	"bottles": ["Бутылки с водой", "pahan", "дистанция: броски, контроль и подготовка комбо"],
-	"tyaga808": ["ТЯГА-808", "pahan", "пылесос: езда, притягивание, выброс воздуха"],
+	"bottles": ["Водяра", "pahan", "дистанция: броски, контроль и подготовка комбо"],
+	"tyaga812": ["ТЯГА-812", "pahan", "пылесос: езда, притягивание, выброс воздуха"],
 	"skateboard": ["Скейтборд", "madk1d", "скорость и удары доской"],
 	"guitar": ["Электрогитара", "madk1d", "размашистые удары и звуковые волны"],
 	"breaker": ["Breaker Style", "madk1d", "брейк: удары ногами, вращения, аэрокомбо"],
@@ -25,7 +25,7 @@ static func _make(id: String) -> StyleData:
 			return StyleVozduh.build()
 		"bottles":
 			return StyleBottles.build()
-		"tyaga808":
+		"tyaga812":
 			return StyleTyaga.build()
 	var s := StyleData.new()
 	s.id = id
