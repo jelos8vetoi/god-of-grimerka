@@ -11,6 +11,10 @@ var say_t := 0.0
 var cd := 0.0
 var cd_max := 10.0
 var track: AudioStreamPlayer
+var anim: AnimState         # перемещение и движения (anim_state.gd), профиль быстрый — MadkMoves.PROFILE
+var feet: FootIK
+var idle_t := 0.0           # сколько стоит без дела: время от времени выдаёт брейк-движение
+var show_cd := 9.0
 
 func _ready() -> void:
 	var col := CollisionShape3D.new()
@@ -26,7 +30,13 @@ func _ready() -> void:
 	add_child(body)
 	rig = Rig.new()
 	body.add_child(rig)
-	rig.setup("res://assets/models/madk1d.glb", 1.68, Poses.madk1d())
+	var defs := Poses.madk1d()
+	rig.setup("res://assets/models/madk1d.glb", 1.68, defs)
+	anim = AnimState.new(rig, defs, MadkMoves.PROFILE)
+	feet = FootIK.new()
+	feet.setup(rig)
+	feet.exclude = [get_rid()]
+	rig.skel.add_child(feet)
 	track = AudioStreamPlayer.new()
 	track.stream = load("res://assets/audio/adlib_dynasty.wav")
 	track.volume_db = -2.0
@@ -61,32 +71,69 @@ func _physics_process(dt: float) -> void:
 				target = c
 				break
 		wait = randf_range(1.6, 3.6)
+	var turn := 0.0
 	var d := target - global_position
 	d.y = 0
 	var spd := 8.5 if far > 4.5 else 4.6
-	if d.length() > 0.15 and say_t <= 0.0:
+	var acting := anim.state == "action" and anim.hold > 0.0   # брейк или приём: стоит на месте, тело ведёт root motion
+	if acting:
+		velocity.x = 0.0
+		velocity.z = 0.0
+	elif d.length() > 0.15 and say_t <= 0.0:
 		var v: Vector3 = d.normalized() * min(spd, d.length() / dt)
 		velocity.x = v.x
 		velocity.z = v.z
 		face = lerp_angle(face, atan2(d.x, d.z), 1.0 - exp(-10.0 * dt))
-		# далеко отстал — рывок, иначе бег
-		if spd > 6.0:
-			rig.play_role("sprint", 0.2, spd / 8.5)
-		else:
-			rig.play_role("run", 0.2, spd / 4.6)
 	else:
 		velocity.x = 0.0
 		velocity.z = 0.0
 		var aim2: Vector3 = p.aim_dir()
-		face = lerp_angle(face, atan2(aim2.x, aim2.z), 1.0 - exp(-4.0 * dt))
-		if say_t <= 0.0:
-			# враги рядом — боксёрская стойка
-			rig.play_role("combat_idle" if p.enemies_near(9.0) else "idle", 0.3)
+		var want_face := atan2(aim2.x, aim2.z)
+		turn = angle_difference(face, want_face)
+		# большой доворот — шагом на месте (TurnL/TurnR), мелкий — плавно (стопы держит FootIK)
+		face = lerp_angle(face, want_face, 1.0 - exp(-(10.0 if anim.state == "turn" else 4.0) * dt))
 	if say_t > 0.0:
 		say_t -= dt
-	velocity.y -= 20.0 * dt
+	else:
+		# далеко отстал — рывок; враги рядом — боксёрская стойка; переходы и скорость шага — AnimState
+		var hs := Vector2(velocity.x, velocity.z).length()
+		anim.tick(dt, hs, turn, is_on_floor(), velocity.y, p.enemies_near(9.0), spd > 6.0)
+		_show_off(dt, hs, p)
+	if not apply_root(dt):
+		velocity.y -= 20.0 * dt
 	move_and_slide()
 	body.rotation.y = face
+	feet.weight = 1.0 if is_on_floor() else 0.0
+	feet.lock = 0.0 if anim.state == "action" else 1.0
+
+## Root motion и вращение клипа (рывок, прыжковая атака, вертушка, мельница): смещение за кадр — в скорость тела.
+## true, если клип сам ведёт и высоту (воздушные приёмы) — тогда гравитацию в этот кадр не применяем.
+func apply_root(dt: float) -> bool:
+	var rm := anim.root_step()
+	if rm.is_empty() or dt <= 0.0:
+		return false
+	var loc: Vector3 = rm[0]
+	var wv := Vector3(sin(face), 0, cos(face)) * loc.z + Vector3(cos(face), 0, -sin(face)) * loc.x
+	velocity.x = wv.x / dt
+	velocity.z = wv.z / dt
+	face += float(rm[1])
+	var air: bool = (anim.defs[anim.root_clip] as Dictionary).has("root") and abs(loc.y) > 0.00001 if anim.root_clip != "" else false
+	if air:
+		velocity.y = loc.y / dt
+	return air
+
+## Без врагов и без дела madk1d время от времени выдаёт брейк: шесть шагов, фриз или смену стойки.
+func _show_off(dt: float, hs: float, p) -> void:
+	if hs > 0.3 or p.enemies_near(14.0) or anim.busy():
+		idle_t = 0.0
+		return
+	idle_t += dt
+	if idle_t > show_cd:
+		idle_t = 0.0
+		show_cd = randf_range(12.0, 20.0)
+		var pick: Array = [["SixStep", 2.8], ["Freeze", 1.8], ["StyleSwitch", 0.8]].pick_random()
+		anim.action(pick[0], pick[1])
+		wait = max(wait, float(pick[1]) + 0.5)
 
 func adlib() -> bool:
 	if cd > 0.0:

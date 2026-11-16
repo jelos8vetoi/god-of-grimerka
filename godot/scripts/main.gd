@@ -28,6 +28,7 @@ var sfx_cache := {}
 var autotest := ""
 var smoke := ""
 var trailer := ""
+var animlab := ""          # --animlab=<папка>: анимации в игре — сцены, листы кадров, замеры стоп (scripts/animlab.gd)
 var start_ch := -1
 var auto_len := 45.0
 var font: Font
@@ -65,6 +66,8 @@ func _ready() -> void:
 			autotest = arg.substr(11)
 		elif arg.begins_with("--smoke="):
 			smoke = arg.substr(8)
+		elif arg.begins_with("--animlab="):
+			animlab = arg.substr(10)
 		elif arg.begins_with("--trailer="):
 			trailer = arg.substr(10)
 		elif arg.begins_with("--chapter="):
@@ -226,7 +229,7 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer
+	return autotest + smoke + trailer + animlab
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
@@ -272,6 +275,12 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 		game.auto_kill = 1.6
 	game.auto_len = auto_len
 	game.intro_on = cinematic
+	if animlab != "":
+		var lab = preload("res://scripts/animlab.gd").new()
+		lab.game = game
+		lab.out = animlab
+		game.director = lab
+		game.add_child(lab)
 	if trailer != "":
 		var d = preload("res://scripts/director.gd").new()
 		d.game = game

@@ -79,6 +79,9 @@ var scr_cd := 0.0
 var drop_done := false
 var anim_hold := 0.0        # реакция (парирование, идеальный уклон, отброс) доигрывает, стойка её не перебивает
 var perfect := false        # в этом перекате был идеальный уклон
+var anim: AnimState         # перемещение: старт, бег, остановка, поворот, падение (anim_state.gd)
+var feet: FootIK            # стопы на земле и без скольжения (foot_ik.gd)
+var turn_to := NAN          # стоя: развернуться на месте к этому углу (переступанием, TurnL/TurnR)
 
 func _ready() -> void:
 	var col := CollisionShape3D.new()
@@ -107,6 +110,11 @@ func _ready() -> void:
 	rig.skel.add_child(drag)
 	rig.setup_holster("spine2", Poses.PH_HOLSTER_DIR, Poses.PH_HOLSTER_OFF)
 	rig.clip_event.connect(_on_clip_event)
+	anim = AnimState.new(rig, Poses.pahan_armed(), PahanMoves.PROFILE)
+	feet = FootIK.new()
+	feet.setup(rig)
+	feet.exclude = [get_rid()]
+	rig.skel.add_child(feet)
 	pod = PodHand.new()
 	pod.setup(rig)
 	rig.skel.add_child(pod)
@@ -262,17 +270,23 @@ func _physics_process(dt: float) -> void:
 			velocity.z = dir.z * spd
 			if state == "move":
 				if dir.length() > 0.1:
-					face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-12.0 * dt))
+					# тяжёлый: на старте разворачивается медленнее, чем на бегу
+					face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-(6.0 if anim.state == "start" else 12.0) * dt))
 					anim_hold = 0.0
-					# рывок / бег / шаг (стик наклонён слабо); пыль из-под ног — по событиям шага в клипе (_on_clip_event)
-					if held("sprint") or rage > 0.0:
-						rig.play_role("sprint", 0.18, spd / 7.0)
-					elif dir.length() < 0.6:
-						rig.play_role("walk", 0.2, max(0.4, spd * dir.length() / 2.8))
-					else:
-						rig.play_role("run", 0.18, spd / 5.6)
-				elif anim_hold <= 0.0:
-					rig.play_role("combat_idle" if enemies_near() else "idle", 0.25)
+				# старт, бег, шаг, рывок, остановка, стойка — решает AnimState; скорость круга шага подогнана под скорость тела.
+				# Пыль из-под ног на рывке — по событиям шага в клипе (_on_clip_event)
+				var turn := 0.0
+				if dir.length() > 0.1 or anim_hold > 0.0:
+					turn_to = NAN
+				elif not is_nan(turn_to):
+					# тяжёлый разворот на месте: тело поворачивается не быстрее 3 рад/с, ноги переступают
+					turn = angle_difference(face, turn_to)
+					face = rotate_toward(face, turn_to, 3.0 * dt)
+					if abs(angle_difference(face, turn_to)) < 0.02:
+						turn_to = NAN
+				if anim_hold <= 0.0 or dir.length() > 0.1:
+					var hs := Vector2(velocity.x, velocity.z).length() if dir.length() > 0.1 else 0.0
+					anim.tick(dt, hs, turn, is_on_floor(), velocity.y, enemies_near(), held("sprint") or rage > 0.0)
 			if pressed("roll"):
 				start_roll(dir)
 			elif pressed("attack"):
@@ -649,7 +663,16 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 			rig.play_role_for("knockback", 0.6, 0.05)
 			anim_hold = 0.55
 		else:
-			rig.play_role_for("hit", 0.4, 0.06)
+			# откуда пришёл удар: спереди — вздрагивает, сзади — бросает вперёд, сбоку — сгибает в сторону
+			var tn := to.normalized() if to.length() > 0.01 else Vector3(sin(face), 0, cos(face))
+			var fw := Vector3(sin(face), 0, cos(face))
+			var left := Vector3(cos(face), 0, -sin(face))
+			var role := "hit"
+			if fw.dot(tn) < -0.4:
+				role = "HitBack"
+			elif abs(left.dot(tn)) > 0.6:
+				role = "HitL" if left.dot(tn) > 0.0 else "HitR"
+			rig.play_role_for(role, 0.4, 0.06)
 	if rage > 0.0:
 		dmg *= 0.65
 	hp -= dmg
@@ -688,6 +711,9 @@ func _process(dt: float) -> void:
 	if pod.busy():
 		face = lerp_angle(face, pod_face if pod.want or pod.u >= 1.0 else pod_face0, 1.0 - exp(-5.0 * dt))
 		body.rotation.y = face
+	# стопы: прилегание к земле всегда, кроме переката, гибели и полёта; фиксация опоры — только в перемещении
+	feet.weight = move_toward(feet.weight, 0.0 if state in ["roll", "dead"] or not is_on_floor() else 1.0, dt * 8.0)
+	feet.lock = 1.0 if state in ["move", "block"] and anim.state != "fall" else 0.0
 	# в стойке и на бегу балон живёт по инерции; в ударах, блоке и перекате его ведёт анимация
 	drag.floor_y = global_position.y + 0.06
 	var free := 1.0 if state == "move" or state == "hurt" else 0.0
