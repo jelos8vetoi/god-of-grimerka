@@ -51,6 +51,12 @@ var post_mat: ShaderMaterial
 var pp := {"aberr": 0.0, "blur": 0.0, "flash": 0.0, "ripple_a": 0.0, "ripple_t": 0.0}
 var ripple_c := Vector2(0.5, 0.5)
 var last_flash := -9.0
+# озвучка: реплики диалогов и боевые выкрики (файлы делает tools/godot-voice.cjs)
+var voice: AudioStreamPlayer
+var bark_v: AudioStreamPlayer
+var bark_m: AudioStreamPlayer
+var barks: Dictionary = {}
+var bark_cd := {}
 var heat_t := 0.0
 var clock := 0.0
 var stop_until := 0.0
@@ -95,6 +101,16 @@ var bot_pf := -1
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 	story = JSON.parse_string(FileAccess.get_file_as_string("res://data/story.json"))
+	fx = preload("res://scripts/fx.gd").new()
+	fx.game = self
+	add_child(fx)
+	barks = JSON.parse_string(FileAccess.get_file_as_string("res://data/barks.json"))
+	voice = AudioStreamPlayer.new()
+	add_child(voice)
+	bark_v = AudioStreamPlayer.new()
+	add_child(bark_v)
+	bark_m = AudioStreamPlayer.new()
+	add_child(bark_m)
 	player = preload("res://scripts/player.gd").new()
 	player.game = self
 	add_child(player)
@@ -108,9 +124,6 @@ func _ready() -> void:
 			add_child(pre)
 			pre.setup("res://assets/models/%s.glb" % it[0], 1.7, it[1], false, 1.0, it[0])
 			pre.free()
-	fx = preload("res://scripts/fx.gd").new()
-	fx.game = self
-	add_child(fx)
 	_build_camera()
 	_build_post()
 	_build_hud()
@@ -250,6 +263,8 @@ func _update_fight(dt: float) -> void:
 				if wave_i >= waves.size():
 					step_done_t = 1.4
 					banner("ЧИСТО", "", Color(1, 0.85, 0.3), 1.6)
+					bark("clear", 6.0)
+					fx.twinkle(player.global_position + Vector3(0, 1.0, 0), 14, Color(1, 0.85, 0.4), 1.0)
 				else:
 					for grp in waves[wave_i]:
 						for i in int(grp[1]):
@@ -268,6 +283,7 @@ func _update_fight(dt: float) -> void:
 		step_done_t -= dt
 		if step_done_t < 0.0 and not over:
 			player.hp = min(player.max_hp, player.hp + player.max_hp * 0.35)
+			fx.twinkle(player.global_position + Vector3(0, 1.0, 0), 18, Color(0.45, 1.0, 0.55), 0.8)
 			next_step()
 	if auto_kill > 0.0:
 		for e in enemies:
@@ -309,6 +325,8 @@ func in_arena(p: Vector3, margin: float) -> bool:
 
 func on_kill(e) -> void:
 	kills += 1
+	if e.fly:
+		bark("cheer", 16.0, 0.25)
 	xp += int(e.cfg.get("xp", 10))
 	player.swag = min(100.0, player.swag + 6.0)
 	if e.boss_id != "":
@@ -317,6 +335,8 @@ func on_kill(e) -> void:
 		fx.slam(e.global_position, 1.8, Color(e.boss["c"]))
 		punch(1.0, e.global_position + Vector3(0, 1.2, 0))
 		main.sfx("sfx_boom", 2.0, 0.7)
+		fx.lightning(e.global_position, e.height * 2.4, Color(e.boss["c"]))
+		bark("boss", 3.0)
 		banner("СЕРВЕР ЗАЧИЩЕН", "%s повержен" % String(e.boss["n"]), Color(1, 0.85, 0.3), 3.0)
 		for o in enemies:
 			if o != e and is_instance_valid(o) and o.alive():
@@ -330,6 +350,7 @@ func on_kill(e) -> void:
 			slowmo(0.6)
 
 func on_player_dead() -> void:
+	bark("dead", 3.0)
 	over = true
 	slowmo(1.2)
 	await get_tree().create_timer(2.2, true, false, true).timeout
@@ -356,21 +377,9 @@ func _retry() -> void:
 
 # ---------------- снаряды и зоны удара ----------------
 func spawn_bolt(pos: Vector3, vel: Vector3, dmg: float, owner_e, homing := false, col := Color(0.4, 1.0, 0.55)) -> void:
-	var m := MeshInstance3D.new()
-	var s := SphereMesh.new()
-	s.radius = 0.18
-	s.height = 0.36
-	m.mesh = s
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = col.lightened(0.3)
-	mat.emission_enabled = true
-	mat.emission = col
-	mat.emission_energy_multiplier = 4.0
-	m.material_override = mat
-	add_child(m)
-	m.global_position = pos
-	bolts.append({"n": m, "v": vel, "dmg": dmg, "life": 3.0 if homing else 2.4, "from": owner_e, "homing": homing})
+	var n: Node3D = fx.bolt(col, homing)
+	n.global_position = pos
+	bolts.append({"n": n, "v": vel, "dmg": dmg, "life": 3.0 if homing else 2.4, "from": owner_e, "homing": homing, "col": col})
 
 func _update_bolts(dt: float) -> void:
 	var pp: Vector3 = player.global_position + Vector3(0, 1.0, 0)
@@ -385,41 +394,21 @@ func _update_bolts(dt: float) -> void:
 			player.take_damage(b["dmg"], n.global_position, b["from"] if is_instance_valid(b["from"]) else null)
 			b["life"] = 0.0
 		if b["life"] <= 0.0 or not in_arena(n.global_position, -1.0):
+			fx.bolt_pop(n.global_position, b["col"])
 			n.queue_free()
 			bolts.erase(b)
 
 ## круг на земле: через delay секунд бьёт всех внутри радиуса
 func telegraph(pos: Vector3, radius: float, delay: float, dmg: float, owner_e) -> void:
-	var m := MeshInstance3D.new()
-	var c := CylinderMesh.new()
-	c.top_radius = radius
-	c.bottom_radius = radius
-	c.height = 0.04
-	m.mesh = c
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(1, 0.12, 0.08, 0.25)
-	m.material_override = mat
-	add_child(m)
-	m.global_position = Vector3(pos.x, 0.06, pos.z)
-	zones.append({"n": m, "mat": mat, "t": delay, "t0": delay, "r": radius, "dmg": dmg, "from": owner_e, "ring": false})
+	var z: Dictionary = fx.zone(pos, radius, Color(1.0, 0.16, 0.08))
+	z.merge({"t": delay, "t0": delay, "r": radius, "dmg": dmg, "from": owner_e, "ring": false})
+	zones.append(z)
 
 ## расходящееся кольцо: бьёт, когда проходит через игрока (перекат спасает)
 func expanding_ring(pos: Vector3, max_r: float, dur: float, dmg: float, owner_e) -> void:
-	var m := MeshInstance3D.new()
-	var tm := TorusMesh.new()
-	tm.inner_radius = 0.92
-	tm.outer_radius = 1.0
-	m.mesh = tm
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(1, 0.3, 0.15)
-	m.material_override = mat
-	add_child(m)
-	m.global_position = Vector3(pos.x, 0.15, pos.z)
-	m.scale = Vector3(0.5, 0.3, 0.5)
-	zones.append({"n": m, "mat": mat, "t": dur, "t0": dur, "r": max_r, "dmg": dmg, "from": owner_e, "ring": true, "hit": false})
+	var z: Dictionary = fx.wave_ring(pos, Color(1.0, 0.35, 0.15))
+	z.merge({"t": dur, "t0": dur, "r": max_r, "dmg": dmg, "from": owner_e, "ring": true, "hit": false})
+	zones.append(z)
 
 func _update_zones(dt: float) -> void:
 	var pp: Vector3 = player.global_position
@@ -428,20 +417,25 @@ func _update_zones(dt: float) -> void:
 		var n: Node3D = z["n"]
 		var k: float = 1.0 - clamp(z["t"] / z["t0"], 0.0, 1.0)
 		var src = z["from"] if is_instance_valid(z["from"]) else null
+		var d := Vector2(pp.x - n.global_position.x, pp.z - n.global_position.z).length()
 		if z["ring"]:
 			var r: float = 0.5 + (float(z["r"]) - 0.5) * k
-			n.scale = Vector3(r, 0.3, r)
-			var d := Vector2(pp.x - n.global_position.x, pp.z - n.global_position.z).length()
+			(z["a"] as Node3D).scale = Vector3.ONE * r / 0.42
+			(z["b"] as Node3D).scale = Vector3.ONE * r * 0.84 / 0.42
 			if not z["hit"] and abs(d - r) < 0.55:
 				z["hit"] = true
 				player.take_damage(z["dmg"], n.global_position, src)
 		else:
-			(z["mat"] as StandardMaterial3D).albedo_color.a = 0.2 + 0.5 * k
+			# заливка растёт до ободка, руны крутятся, ободок мигает всё чаще — видно, сколько осталось
+			var r0: float = z["r"]
+			(z["fill"] as Node3D).scale = Vector3.ONE * max(0.01, r0 / 0.4 * k)
+			(z["rune"] as Node3D).rotation.y += dt * 2.5
+			((z["rim"] as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.a = 0.6 + 0.4 * sin(clock * (9.0 + 20.0 * k))
 			if z["t"] <= 0.0:
-				fx.slam(n.global_position, clampf(float(z["r"]) / 2.2, 0.6, 1.3), Color(1, 0.4, 0.2))
+				fx.slam(n.global_position, clampf(r0 / 2.2, 0.6, 1.3), Color(1, 0.4, 0.2))
 				main.sfx("sfx_boom", -6.0, 1.2)
 				shake(0.18)
-				if Vector2(pp.x - n.global_position.x, pp.z - n.global_position.z).length() < float(z["r"]):
+				if d < r0:
 					player.take_damage(z["dmg"], n.global_position, src)
 		if z["t"] <= 0.0:
 			n.queue_free()
@@ -692,6 +686,7 @@ func _dlg_advance() -> void:
 	if dlg_i >= 0 and dlg_chars < dlg_text.text.length():
 		dlg_chars = 9999.0
 		return
+	voice.stop()
 	dlg_i += 1
 	if dlg_i >= dlg.size():
 		_dlg_finish()
@@ -705,10 +700,12 @@ func _dlg_advance() -> void:
 	dlg_text.text = _clean(line.substr(p + 1))
 	dlg_text.add_theme_color_override("font_color", Color(0.75, 0.8, 0.9) if code == "N" else Color.WHITE)
 	dlg_chars = 0.0
+	_say(voice, line, 3.0)
 	if code == "MV":
 		main.sfx("sfx_parry", -10.0)
 
 func _dlg_finish() -> void:
+	voice.stop()
 	dlg_box.visible = false
 	mode = "idle"
 	dlg_after.call()
@@ -724,6 +721,36 @@ func _clean(s: String) -> String:
 		if c < 0x1F000 and not (c >= 0x2600 and c <= 0x27BF) and c != 0xFE0F:
 			out += s[i]
 	return out.strip_edges()
+
+# ---------------- озвучка ----------------
+## файл реплики: код говорящего и начало md5 от всей строки «код|текст» — так же называет файлы tools/godot-voice.cjs
+func _voice_path(line: String) -> String:
+	return "res://assets/voice/%s_%s.mp3" % [line.substr(0, line.find("|")), line.md5_text().substr(0, 10)]
+
+func _say(pl: AudioStreamPlayer, line: String, vol := 0.0) -> bool:
+	if main.testing() != "":
+		return false
+	var path := _voice_path(line)
+	if not ResourceLoader.exists(path):
+		return false
+	pl.stream = load(path)
+	# M — madk1d без голоса: его заметки читает телефон; MV — голос вернулся, звучит чисто
+	pl.bus = "Phone" if line.begins_with("M|") else "Master"
+	pl.volume_db = vol
+	pl.play()
+	return true
+
+## Боевой выкрик из data/barks.json: не поверх диалога, не чаще раза в gap секунд на вид, с вероятностью chance.
+func bark(kind: String, gap := 8.0, chance := 1.0) -> void:
+	if mode == "dlg" or over and kind != "dead" or not barks.has(kind) or clock < float(bark_cd.get(kind, 0.0)) or randf() > chance:
+		return
+	var arr: Array = barks[kind]
+	var line: String = arr[randi() % arr.size()]
+	var pl := bark_m if line.begins_with("M") else bark_v
+	if pl.playing:
+		return
+	if _say(pl, line, 2.0):
+		bark_cd[kind] = clock + gap
 
 # ---------------- эффекты ----------------
 func popup(pos: Vector3, text: String, col: Color) -> void:

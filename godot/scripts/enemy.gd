@@ -53,6 +53,8 @@ var fly := false            # убитый летит по дуге
 var fly_v := Vector3.ZERO
 var bounces := 0
 var trail: Trail
+var glint := false          # предупреждающая вспышка перед ударом уже была
+var stars: Node3D           # звёздочки над оглушённым
 
 func _ready() -> void:
 	if boss_id != "":
@@ -102,19 +104,9 @@ func _ready() -> void:
 		trail.setup(rig, Color(0.55, 0.9, 1.0) if m == "clipper" else Color(0.75, 0.55, 1.0), 0.3)
 		trail.min_speed = 6.0
 	rig.play_for("Spawn", 1.0, 0.0)
-	ring = MeshInstance3D.new()
-	var tm := TorusMesh.new()
-	tm.inner_radius = 0.7
-	tm.outer_radius = 0.85
-	ring.mesh = tm
-	ring.scale = Vector3(1, 0.05, 1) * (height / 1.7)
-	ring.position.y = 0.05
-	var rm := StandardMaterial3D.new()
-	rm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	rm.albedo_color = Color(1, 0.15, 0.1)
-	ring.material_override = rm
+	# кольцо замаха у ног: текстурное, растёт, пока враг заносит удар
+	ring = game.fx.flat(self, "circle_03", Color(1.0, 0.16, 0.1, 0.9), 2.0 * height / 1.7)
 	ring.visible = false
-	add_child(ring)
 	if boss_id == "":
 		bar_img = Image.create(64, 8, false, Image.FORMAT_RGBA8)
 		hp_bar = Sprite3D.new()
@@ -126,7 +118,10 @@ func _ready() -> void:
 		add_child(hp_bar)
 	game.main.sfx("sfx_spawn", -10.0)
 	game.fx.dust(global_position + Vector3(0, 0.15, 0), 8, game.fx.DUST, 0.9)
-	game.fx.ground_ring(global_position, 0.4, 2.4 * height / 1.7, Color(1.0, 0.25, 0.2, 0.5), 0.5)
+	game.fx.portal(global_position, 2.8 * height / 1.7, Color(1.0, 0.25, 0.2, 0.75), 1.0)
+	if boss_id != "":
+		game.fx.lightning(global_position, height * 2.4, Color(boss["c"]))
+		game.fx.portal(global_position, 4.5 * height / 1.7, Color(boss["c"]), 1.4, "magic_02")
 
 func _setup_boss() -> void:
 	boss = game.story["BOSS"][boss_id]
@@ -237,7 +232,11 @@ func _physics_process(dt: float) -> void:
 		"wind":
 			face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-6.0 * dt))
 			var k: float = t / float(cfg["wind"])
-			ring.scale = Vector3(1.0 + k * 0.4, 0.05, 1.0 + k * 0.4) * (height / 1.7)
+			ring.scale = Vector3.ONE * 2.0 * (1.0 + k * 0.4) * (height / 1.7)
+			if not glint and k > 0.66:
+				# блик перед самым ударом — по нему ставят блок и перекат
+				glint = true
+				game.fx.flash(global_position + Vector3(0, height * 0.82, 0) + Vector3(sin(face), 0, cos(face)) * radius, 0.9 * height / 1.7, Color(1.0, 0.3, 0.2), "star_07", 0.2)
 			if k >= 1.0:
 				ring.visible = false
 				if boss_id != "":
@@ -321,9 +320,9 @@ func _physics_process(dt: float) -> void:
 			else:
 				var sp := global_position + Vector3(kb.x, 0, kb.z) * dt
 				global_position = Vector3(clampf(sp.x, -lim, lim), global_position.y, clampf(sp.z, -lim, lim))
-				if t > 3.0 and boss_id == "":
-					position.y -= dt * 0.6
-				if t > 5.0 and boss_id == "":
+				if t > 2.6 and boss_id == "":
+					# тело не тонет в полу, а рассыпается дымом с искрами
+					game.fx.poof(global_position, height / 1.7, Color(0.85, 0.8, 0.95))
 					queue_free()
 			body.rotation.y = face
 			return
@@ -335,27 +334,33 @@ func _wind(clip: String, w: float) -> void:
 	state = "wind"
 	t = 0.0
 	ring.visible = true
+	glint = false
 	cfg["wind"] = w
 	rig.play_for(clip, w * 2.0, 0.08)
 
 func _teleport_near(pos: Vector3, r: float) -> void:
 	var c: Color = cfg.get("tint", Color(0.7, 0.6, 1.0))
-	game.shockwave(global_position, c)
+	game.fx.poof(global_position, height / 1.7, c)
 	var a := randf() * TAU
 	var np := pos + Vector3(cos(a), 0, sin(a)) * r
 	if game.in_arena(np, 1.0):
 		global_position = np
-	game.shockwave(global_position, c)
+	game.fx.twirl(global_position, 3.2, c, 0.5, "twirl_03")
+	game.fx.poof(global_position, height / 1.7, c)
 	game.main.sfx("sfx_cast", -8.0, 1.4)
 
 func _strike(dist: float, dir: Vector3) -> void:
 	if cfg.has("summoner"):
 		game.main.sfx("sfx_cast", -6.0, 0.7)
+		game.fx.portal(global_position, 4.2, Color(1.0, 0.82, 0.25, 0.8), 0.9, "magic_02")
+		game.fx.portal(global_position, 3.0, Color(1.0, 0.82, 0.25, 0.5), 0.9)
 		for i in 2:
 			game.spawn_enemy("bot", global_position + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2)))
 		return
 	if cfg.has("ranged"):
 		game.main.sfx("sfx_cast", -6.0)
+		var wp := rig.weapon_points()
+		game.fx.muzzle(wp[1] if not wp.is_empty() else global_position + Vector3(0, height * 0.75, 0) + dir * 0.6, Color(0.4, 1.0, 0.55))
 		game.spawn_bolt(global_position + Vector3(0, height * 0.75, 0) + dir * 0.6, dir * 9.0, float(cfg["dmg"]), self, cfg.has("homing"))
 		return
 	game.main.sfx("sfx_slash" if kind == "clipper" else "sfx_swing", -6.0)
@@ -475,6 +480,13 @@ func stun(sec: float) -> void:
 
 func _process(_dt: float) -> void:
 	var c: float = game.clock
+	if state == "stun":
+		if stars == null:
+			stars = game.fx.stun_stars(self, height + 0.3)
+		stars.visible = true
+		stars.rotation.y = c * 5.0
+	elif stars != null and stars.visible:
+		stars.visible = false
 	if flash_on:
 		var a := clampf((flash_until - c) / 0.1, 0.0, 1.0)
 		rig.flash(a * 0.55, Color(1.0, 0.9, 0.72))
@@ -510,6 +522,7 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 			dmg *= 0.25
 			launch = 0.0
 			game.popup(global_position + Vector3(0, height + 0.2, 0), "ЩИТ", Color(0.5, 0.75, 1))
+			game.fx.shield(global_position + Vector3(0, height * 0.6, 0) - dir * radius, -dir, Color(0.5, 0.75, 1.0), 1.5 * height / 1.7)
 			game.main.sfx("sfx_block", -4.0)
 	hp -= dmg
 	kb = dir * knock * (0.25 if boss_id != "" else 1.0)
@@ -520,6 +533,7 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		var np: int = clamp(int(floor((1.0 - hp / max_hp) * phases.size())), 0, phases.size() - 1)
 		if np > phase:
 			phase = np
+			game.fx.lightning(global_position, height * 2.2, Color(boss["c"]))
 			var barks: Array = boss.get("barks", [])
 			if phase < barks.size() and String(barks[phase]) != "":
 				game.boss_bark(String(boss["n"]), String(barks[phase]), Color(boss["c"]))

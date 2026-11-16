@@ -17,9 +17,13 @@ var chunk_i := 0
 var lights: Array = []
 var light_i := 0
 var decals: Array = []
+var twinkle_pool: Array = []
+var twinkle_i := 0
 
 func _ready() -> void:
-	for n in ["star_08", "star_04", "flare_01", "magic_05", "magic_03", "circle_02", "circle_05", "scorch_01", "scorch_02", "spark_05", "spark_06", "smoke_04", "smoke_07", "trace_01", "light_01", "twirl_02", "dirt_02"]:
+	for n in ["star_08", "star_04", "flare_01", "magic_05", "magic_03", "circle_02", "circle_05", "scorch_01", "scorch_02", "spark_05", "spark_06", "smoke_04", "smoke_07", "trace_01", "light_01", "twirl_02", "dirt_02",
+			"flame_05", "flame_06", "light_02", "light_03", "magic_01", "magic_02", "magic_04", "star_05", "star_06", "star_07", "star_09", "spark_01", "spark_02", "twirl_01", "twirl_03",
+			"circle_01", "circle_03", "circle_04", "symbol_02", "smoke_05", "smoke_08", "trace_06", "trace_07", "scratch_01", "muzzle_01", "muzzle_04", "fire_02"]:
 		tex[n] = load(DIR + n + ".png")
 	for i in 10:
 		spark_pool.append(_make_sparks())
@@ -27,6 +31,8 @@ func _ready() -> void:
 		dust_pool.append(_make_dust(tex["smoke_04"] if i % 2 == 0 else tex["smoke_07"]))
 	for i in 3:
 		chunk_pool.append(_make_chunks())
+	for i in 4:
+		twinkle_pool.append(_make_twinkle())
 	for i in 3:
 		var l := OmniLight3D.new()
 		l.omni_range = 6.0
@@ -224,7 +230,7 @@ func _mat(t: Texture2D, col: Color, add: bool, billboard: bool, on_top := false)
 
 static var _quad: QuadMesh
 
-func _sprite(t: String, pos: Vector3, col: Color, add := true, billboard := true, on_top := false) -> MeshInstance3D:
+func _sprite(t: String, pos: Vector3, col: Color, add := true, billboard := true, on_top := false, parent: Node = null) -> MeshInstance3D:
 	if _quad == null:
 		_quad = QuadMesh.new()
 		_quad.size = Vector2(1, 1)
@@ -232,8 +238,12 @@ func _sprite(t: String, pos: Vector3, col: Color, add := true, billboard := true
 	mi.mesh = _quad
 	mi.material_override = _mat(tex[t], col, add, billboard, on_top)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
-	mi.global_position = pos
+	if parent != null:
+		parent.add_child(mi)
+		mi.position = pos
+	else:
+		add_child(mi)
+		mi.global_position = pos
 	return mi
 
 ## вспышка-звезда в точке удара: мгновенно раздувается и гаснет
@@ -338,6 +348,7 @@ func hit(pos: Vector3, dir: Vector3, tier: int, col := Color(1.0, 0.82, 0.45)) -
 func slam(pos: Vector3, size := 1.0, col := Color(1.0, 0.7, 0.3)) -> void:
 	var g := Vector3(pos.x, 0.0, pos.z)
 	scorch(g, 2.2 * size, col)
+	pillar(g, 2.3 * size, Color(col.r, col.g, col.b, 0.85))
 	ground_ring(g, 0.6, 5.5 * size, col, 0.4)
 	ground_ring(g, 0.4, 3.2 * size, Color.WHITE, 0.25, "circle_05")
 	dust(g + Vector3(0, 0.2, 0), 18, DUST, 1.5 * size)
@@ -363,3 +374,217 @@ func prewarm(pos: Vector3) -> void:
 	chunks(pos + Vector3(0, -0.6, 0), 3)
 	flash(pos + Vector3(0, 0.3, 0), 0.5, Color(1, 0.8, 0.4, 0.3), "star_04", 0.2)
 	ground_ring(pos, 0.5, 3.0, Color(1, 0.85, 0.5, 0.6), 0.5)
+	twinkle(pos + Vector3(0, 0.8, 0), 6, Color(1, 0.85, 0.5, 0.5))
+	portal(pos, 2.2, Color(1, 0.8, 0.4, 0.4), 0.6)
+
+# ---------- искорки-звёзды: лечение, зачистка, исчезновение тел ----------
+func _make_twinkle() -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.amount = 18
+	p.lifetime = 0.95
+	p.one_shot = true
+	p.explosiveness = 0.75
+	p.emitting = false
+	p.visibility_aabb = AABB(Vector3(-6, -2, -6), Vector3(12, 10, 12))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = 0.6
+	pm.direction = Vector3.UP
+	pm.spread = 40.0
+	pm.initial_velocity_min = 0.8
+	pm.initial_velocity_max = 2.4
+	pm.gravity = Vector3(0, 0.6, 0)
+	pm.scale_min = 0.5
+	pm.scale_max = 1.4
+	pm.scale_curve = _fade_curve(false)
+	p.process_material = pm
+	var q := QuadMesh.new()
+	q.size = Vector2(0.4, 0.4)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.albedo_texture = tex["star_07"]
+	m.vertex_color_use_as_albedo = true
+	q.material = m
+	p.draw_pass_1 = q
+	add_child(p)
+	return p
+
+func twinkle(pos: Vector3, count: int, col: Color, radius := 0.6) -> void:
+	var p: GPUParticles3D = twinkle_pool[twinkle_i]
+	twinkle_i = (twinkle_i + 1) % twinkle_pool.size()
+	var pm := p.process_material as ParticleProcessMaterial
+	pm.emission_sphere_radius = radius
+	pm.color = col
+	p.amount_ratio = clampf(count / 18.0, 0.1, 1.0)
+	p.global_position = pos
+	p.restart()
+	p.emitting = true
+
+## столб пламени из земли: две скрещённые вертикальные плоскости
+func pillar(pos: Vector3, h: float, col: Color, t := "muzzle_01", sec := 0.3) -> void:
+	var a0 := randf() * PI
+	for i in 2:
+		var mi := _sprite(t, Vector3(pos.x, pos.y + h * 0.5, pos.z), col, true, false)
+		mi.rotation.y = a0 + i * PI / 2
+		mi.scale = Vector3(h * 0.6, h * 0.35, 1.0)
+		mi.position.y = pos.y + h * 0.175
+		var tw := mi.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(mi, "scale", Vector3(h * 0.5, h, 1.0), sec * 0.35).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+		tw.tween_property(mi, "position:y", pos.y + h * 0.5, sec * 0.35).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+		tw.chain().tween_property(mi.material_override, "albedo_color:a", 0.0, sec * 0.65)
+		tw.parallel().tween_property(mi, "scale:x", h * 0.25, sec * 0.65)
+		tw.chain().tween_callback(mi.queue_free)
+
+## молния сверху в точку
+func lightning(pos: Vector3, h: float, col: Color) -> void:
+	pillar(pos, h, col, "spark_05" if randf() < 0.5 else "spark_06", 0.22)
+	flash(pos + Vector3(0, 0.3, 0), h * 0.5, col, "star_09", 0.2)
+	light(pos + Vector3(0, 1.0, 0), col, 4.0, 0.25, 8.0)
+
+## светящийся круг на земле, вращается: появление врагов, призыв
+func portal(pos: Vector3, size: float, col: Color, sec := 1.0, t := "light_03") -> void:
+	var mi := _sprite(t, Vector3(pos.x, pos.y + 0.06, pos.z), Color(col.r, col.g, col.b, 0.0), true, false)
+	mi.rotation.x = -PI / 2
+	mi.scale = Vector3.ONE * size * 0.35
+	var tw := mi.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(mi, "scale", Vector3.ONE * size, sec * 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(mi.material_override, "albedo_color:a", col.a, sec * 0.3)
+	tw.tween_property(mi, "rotation:y", 4.0, sec)
+	tw.chain().tween_property(mi.material_override, "albedo_color:a", 0.0, sec * 0.35)
+	tw.tween_callback(mi.queue_free)
+
+## вихрь по земле: ад-либ, телепорт
+func twirl(pos: Vector3, size: float, col: Color, sec := 0.6, t := "twirl_01") -> void:
+	var mi := _sprite(t, Vector3(pos.x, pos.y + 0.09, pos.z), col, true, false)
+	mi.rotation.x = -PI / 2
+	mi.rotation.y = randf() * TAU
+	mi.scale = Vector3.ONE * size * 0.25
+	var tw := mi.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(mi, "scale", Vector3.ONE * size, sec).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	tw.tween_property(mi, "rotation:y", mi.rotation.y - 5.0, sec)
+	tw.tween_property(mi.material_override, "albedo_color:a", 0.0, sec).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(mi.queue_free)
+
+## хлопок дыма с искорками: тело исчезло, телепорт
+func poof(pos: Vector3, size: float, col: Color) -> void:
+	dust(pos + Vector3(0, 0.5, 0), int(12 * size), Color(col.r, col.g, col.b, 0.5), 0.9 * size, 0.0)
+	twinkle(pos + Vector3(0, 0.7, 0), 10, col, 0.5 * size)
+	ring(pos + Vector3(0, 0.6, 0), 1.6 * size, Color(col.r, col.g, col.b, 0.6), 0.2)
+
+## следы когтей / клинка по герою
+func claw(pos: Vector3, col: Color, size := 1.7) -> void:
+	flash(pos, size, col, "scratch_01", 0.22)
+
+## вспышка щита навстречу удару
+func shield(pos: Vector3, dir: Vector3, col: Color, size := 1.5) -> void:
+	var mi := _sprite("circle_01", pos, col, true, false)
+	if dir.length() > 0.01 and abs(dir.normalized().y) < 0.99:
+		mi.look_at(pos + dir)
+	mi.scale = Vector3.ONE * size * 0.6
+	var tw := mi.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(mi, "scale", Vector3.ONE * size, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(mi.material_override, "albedo_color:a", 0.0, 0.22).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(mi.queue_free)
+	sparks(pos, dir + Vector3(0, 0.4, 0), 10, col, 0.7)
+
+## вспышка у навершия посоха при выстреле
+func muzzle(pos: Vector3, col: Color) -> void:
+	flash(pos, 1.3, col, "star_09", 0.14)
+	flash(pos, 1.0, Color.WHITE, "star_06", 0.1)
+	light(pos, col, 2.0, 0.15, 4.0)
+
+# ---------- то, что живёт дольше одного кадра ----------
+## плоский спрайт на земле в чужом узле (кольцо замаха, зона удара)
+func flat(parent: Node, t: String, col: Color, size: float, y := 0.05) -> MeshInstance3D:
+	var mi := _sprite(t, Vector3.ZERO, col, true, false, false, parent)
+	mi.rotation.x = -PI / 2
+	mi.position = Vector3(0, y, 0)
+	mi.scale = Vector3.ONE * size
+	return mi
+
+## звёздочки над оглушённым: три значка по кругу, крутит сам враг
+func stun_stars(parent: Node, y: float) -> Node3D:
+	var n := Node3D.new()
+	parent.add_child(n)
+	n.position.y = y
+	for i in 3:
+		var s := _sprite("symbol_02", Vector3.ZERO, Color(1.0, 0.85, 0.25), true, true, true, n)
+		s.position = Vector3(cos(i * TAU / 3.0), 0, sin(i * TAU / 3.0)) * 0.38
+		s.scale = Vector3.ONE * 0.3
+	n.visible = false
+	return n
+
+var _bolt_res := {}
+
+## снаряд: яркое ядро, ореол и хвост из гаснущих точек
+func bolt(col: Color, homing: bool) -> Node3D:
+	var n := Node3D.new()
+	add_child(n)
+	var halo := _sprite("light_02", Vector3.ZERO, Color(col.r, col.g, col.b, 0.75), true, true, false, n)
+	halo.scale = Vector3.ONE * (1.25 if homing else 1.0)
+	var core := _sprite("magic_04" if homing else "star_09", Vector3.ZERO, col.lightened(0.6), true, true, false, n)
+	core.scale = Vector3.ONE * (0.95 if homing else 0.75)
+	var tw := core.create_tween().set_loops()
+	tw.tween_property(core, "scale", core.scale * 1.3, 0.12)
+	tw.tween_property(core, "scale", core.scale, 0.12)
+	var key := col.to_html()
+	if not _bolt_res.has(key):
+		var pm := ParticleProcessMaterial.new()
+		pm.gravity = Vector3.ZERO
+		pm.initial_velocity_min = 0.0
+		pm.initial_velocity_max = 0.3
+		pm.spread = 180.0
+		pm.scale_min = 0.6
+		pm.scale_max = 1.1
+		pm.scale_curve = _fade_curve(false)
+		pm.color = col
+		var q := QuadMesh.new()
+		q.size = Vector2(0.42, 0.42)
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		m.albedo_texture = tex["star_05"]
+		m.vertex_color_use_as_albedo = true
+		q.material = m
+		_bolt_res[key] = [pm, q]
+	var p := GPUParticles3D.new()
+	p.amount = 12
+	p.lifetime = 0.38
+	p.process_material = _bolt_res[key][0]
+	p.draw_pass_1 = _bolt_res[key][1]
+	p.visibility_aabb = AABB(Vector3(-6, -6, -6), Vector3(12, 12, 12))
+	n.add_child(p)
+	return n
+
+## снаряд попал или погас
+func bolt_pop(pos: Vector3, col: Color) -> void:
+	flash(pos, 1.0, col, "star_06", 0.14)
+	sparks(pos, Vector3.UP, 8, col, 0.5, 180.0)
+
+## зона удара на земле: ободок, руны и заливка, которая растёт до взрыва. Возвращает узлы для обновления.
+func zone(pos: Vector3, radius: float, col: Color) -> Dictionary:
+	var n := Node3D.new()
+	add_child(n)
+	n.global_position = Vector3(pos.x, 0.0, pos.z)
+	var rim := flat(n, "circle_03", Color(col.r, col.g, col.b, 0.9), radius / 0.42, 0.07)
+	var rune := flat(n, "magic_02" if radius > 1.8 else "magic_01", Color(col.r, col.g, col.b, 0.55), radius * 1.9, 0.08)
+	var fill := flat(n, "light_03", Color(col.r, col.g, col.b, 0.5), 0.01, 0.06)
+	return {"n": n, "rim": rim, "rune": rune, "fill": fill}
+
+## расходящееся кольцо по земле (размер задаётся снаружи каждый кадр)
+func wave_ring(pos: Vector3, col: Color) -> Dictionary:
+	var n := Node3D.new()
+	add_child(n)
+	n.global_position = Vector3(pos.x, 0.0, pos.z)
+	var a := flat(n, "circle_03", col, 1.0, 0.16)
+	var b := flat(n, "circle_04", Color(col.r, col.g, col.b, 0.5), 1.0, 0.12)
+	return {"n": n, "a": a, "b": b}

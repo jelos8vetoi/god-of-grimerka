@@ -409,6 +409,11 @@ func _particles(T: Dictionary) -> void:
 	qm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	qm.albedo_color = col
 	qm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	# частицы окружения — на текстурах Kenney: мягкие хлопья, искры-звёзды, падающие штрихи данных
+	var ptex := {"snow": "star_05", "embers": "star_07", "sparks": "star_06", "spores": "circle_05", "dust": "circle_05", "data": "trace_07"}
+	if ptex.has(kind):
+		qm.albedo_texture = load("res://assets/fx/%s.png" % ptex[kind])
+		q.size = Vector2(size * 3.0, size * 26.0) if kind == "data" else Vector2(size, size) * (4.5 if kind in ["snow", "spores", "dust"] else 5.5)
 	if kind in ["embers", "sparks", "data"]:
 		qm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	q.material = qm

@@ -90,7 +90,13 @@ func adlib() -> bool:
 	rig.play_for("Cheer", 2.0, 0.08)
 	track.play()
 	game.popup(global_position + Vector3(0, 2.1, 0), ["ЭЙ!", "ПОЕХАЛИ!", "КАТЮХА!", "sexyswag!"].pick_random(), Color(0.36, 0.82, 1))
-	game.shockwave(global_position, Color(0.36, 0.82, 1))
+	var wave := Color(0.36, 0.82, 1)
+	game.shockwave(global_position, wave)
+	game.fx.twirl(global_position, 6.5, wave, 0.7)
+	game.fx.twirl(global_position, 3.6, Color(1, 1, 1, 0.7), 0.5, "twirl_03")
+	game.fx.twinkle(global_position + Vector3(0, 1.2, 0), 16, wave, 1.2)
+	game.fx.light(global_position + Vector3(0, 1.2, 0), wave, 4.0, 0.4, 8.0)
+	game.bark("adlib", 0.0)
 	for e in game.enemies:
 		if is_instance_valid(e) and e.alive() and e.global_position.distance_to(global_position) < 7.0:
 			e.take_hit(15.0, (e.global_position - global_position).normalized(), 5.0)

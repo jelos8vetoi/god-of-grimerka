@@ -1,0 +1,62 @@
+// Озвучка Пахана и madk1d для Godot-версии через Fish Audio.
+// Берёт реплики V (Пахан), M и MV (madk1d) из godot/data/story.json и боевые выкрики из godot/data/barks.json,
+// кладёт по файлу на реплику в godot/assets/voice/<код>_<md5 строки, 10 знаков>.mp3 — игра ищет файл по тому же имени.
+// Уже готовые файлы не трогает, файлы от удалённых реплик стирает.
+// Ключ и голоса — только через переменные окружения, в git их не класть:
+//   FISH_KEY=sk-fish-... FISH_REF_V=<id голоса Пахана> FISH_REF_M=<id голоса madk1d> node tools/godot-voice.cjs [--limit=N] [--dry]
+const fs = require('fs'), path = require('path'), crypto = require('crypto');
+const root = path.join(__dirname, '..', 'godot');
+const out = path.join(root, 'assets', 'voice');
+const key = process.env.FISH_KEY, refs = { V: process.env.FISH_REF_V, M: process.env.FISH_REF_M, MV: process.env.FISH_REF_M };
+const dry = process.argv.includes('--dry');
+const limit = +(process.argv.find(a => a.startsWith('--limit=')) || '').slice(8) || 1e9;
+if (!dry && (!key || !refs.V || !refs.M)) { console.error('нужны FISH_KEY, FISH_REF_V, FISH_REF_M'); process.exit(1); }
+fs.mkdirSync(out, { recursive: true });
+
+const story = JSON.parse(fs.readFileSync(path.join(root, 'data', 'story.json'), 'utf8'));
+const barks = JSON.parse(fs.readFileSync(path.join(root, 'data', 'barks.json'), 'utf8'));
+const lines = new Set();
+for (const ch of story.CH) for (const st of ch.steps) if (st.t === 'dlg') for (const l of st.l) lines.add(l);
+for (const k of ['ENDING_A', 'ENDING_B']) for (const l of story[k] || []) lines.add(l);
+for (const k in barks) for (const l of barks[k]) lines.add(l);
+
+// как в игре (_clean): без эмодзи и значков
+const clean = s => [...s].filter(ch => { const c = ch.codePointAt(0); return c < 0x1F000 && !(c >= 0x2600 && c <= 0x27BF) && c !== 0xFE0F; }).join('').trim();
+const jobs = [];
+for (const l of lines) {
+  const p = l.indexOf('|'), code = l.slice(0, p);
+  if (!refs.hasOwnProperty(code)) continue;
+  let text = clean(l.slice(p + 1));
+  if (!/[a-zа-яё]/i.test(text)) continue;             // «...» и подобное не озвучиваем
+  if (!/[.!?…]$/.test(text)) text += '.';
+  const name = code + '_' + crypto.createHash('md5').update(l, 'utf8').digest('hex').slice(0, 10) + '.mp3';
+  jobs.push({ code, text, name });
+}
+const want = new Set(jobs.map(j => j.name));
+for (const f of fs.readdirSync(out)) if (f.endsWith('.mp3') && !want.has(f)) { fs.unlinkSync(path.join(out, f)); try { fs.unlinkSync(path.join(out, f + '.import')); } catch (e) {} console.log('удалён лишний', f); }
+const todo = jobs.filter(j => !fs.existsSync(path.join(out, j.name))).slice(0, limit);
+const chars = todo.reduce((s, j) => s + j.text.length, 0);
+console.log(`реплик: ${jobs.length}, осталось сделать: ${todo.length}, знаков: ${chars}`);
+if (dry) { for (const j of todo.slice(0, 12)) console.log(j.name, j.text); process.exit(0); }
+
+async function tts(j, attempt = 0) {
+  const r = await fetch('https://api.fish.audio/v1/tts', { method: 'POST',
+    headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', model: process.env.FISH_MODEL || 's1' },
+    body: JSON.stringify({ text: j.text, reference_id: refs[j.code], format: 'mp3', mp3_bitrate: 64, normalize: true, latency: 'normal' }) });
+  if (!r.ok) {
+    const msg = (await r.text()).slice(0, 200);
+    if ((r.status === 429 || r.status >= 500) && attempt < 4) { await new Promise(res => setTimeout(res, 2000 * (attempt + 1))); return tts(j, attempt + 1); }
+    throw new Error(j.name + ' ' + r.status + ' ' + msg);
+  }
+  const b = Buffer.from(await r.arrayBuffer());
+  if (b.length < 800) throw new Error(j.name + ' пустой ответ');
+  fs.writeFileSync(path.join(out, j.name), b);
+  console.log(j.name, b.length, j.text.slice(0, 50));
+}
+(async () => {
+  let i = 0, fail = 0;
+  const worker = async () => { while (i < todo.length) { const j = todo[i++]; try { await tts(j); } catch (e) { fail++; console.error('ОШИБКА', e.message); } } };
+  await Promise.all([worker(), worker(), worker()]);
+  console.log(`готово, ошибок: ${fail}`);
+  process.exit(fail ? 1 : 0);
+})();

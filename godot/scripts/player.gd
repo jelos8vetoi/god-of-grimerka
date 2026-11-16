@@ -32,6 +32,9 @@ var rig: Rig
 var body: Node3D      # поворот по направлению взгляда
 var spin: Node3D      # кувырок вокруг центра тела
 var aura: GPUParticles3D
+var aura2: GPUParticles3D
+var aura_ring: MeshInstance3D
+var step_cd := 0.0
 var aura_light: OmniLight3D
 var hp := 100.0
 var max_hp := 100.0
@@ -92,45 +95,11 @@ func _ready() -> void:
 	add_child(charge_light)
 	_make_aura()
 
+## Аура полного СВЭГа и ПЕРЕГРУЗА: языки пламени вокруг героя, искры-звёзды и рунный круг под ногами (текстуры Kenney).
 func _make_aura() -> void:
-	aura = GPUParticles3D.new()
-	aura.amount = 90
-	aura.lifetime = 1.1
-	aura.position.y = 0.2
-	var pm := ParticleProcessMaterial.new()
-	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
-	pm.emission_ring_axis = Vector3.UP
-	pm.emission_ring_radius = 0.55
-	pm.emission_ring_inner_radius = 0.2
-	pm.emission_ring_height = 0.1
-	pm.direction = Vector3.UP
-	pm.spread = 12.0
-	pm.initial_velocity_min = 1.4
-	pm.initial_velocity_max = 2.6
-	pm.gravity = Vector3(0, 0.6, 0)
-	pm.scale_min = 0.6
-	pm.scale_max = 1.3
-	var curve := CurveTexture.new()
-	var c := Curve.new()
-	c.add_point(Vector2(0, 1))
-	c.add_point(Vector2(1, 0))
-	curve.curve = c
-	pm.scale_curve = curve
-	aura.process_material = pm
-	var q := QuadMesh.new()
-	q.size = Vector2(0.18, 0.18)
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	m.albedo_texture = _dot_tex()
-	m.albedo_color = Color(1.0, 0.75, 0.25)
-	m.vertex_color_use_as_albedo = true
-	q.material = m
-	aura.draw_pass_1 = q
-	aura.emitting = false
-	add_child(aura)
+	aura = _aura_emitter("flame_05", 38, 0.95, Vector2(0.75, 1.0), 1.3, 2.6)
+	aura2 = _aura_emitter("star_07", 16, 1.2, Vector2(0.17, 0.17), 0.7, 1.9)
+	aura_ring = game.fx.flat(self, "magic_02", Color(1.0, 0.75, 0.3, 0.0), 2.7, 0.06)
 	aura_light = OmniLight3D.new()
 	aura_light.position.y = 1.0
 	aura_light.omni_range = 4.0
@@ -138,18 +107,47 @@ func _make_aura() -> void:
 	aura_light.light_color = Color(1, 0.7, 0.3)
 	add_child(aura_light)
 
-func _dot_tex() -> Texture2D:
-	var g := GradientTexture2D.new()
-	g.fill = GradientTexture2D.FILL_RADIAL
-	g.fill_from = Vector2(0.5, 0.5)
-	g.fill_to = Vector2(1.0, 0.5)
-	var gr := Gradient.new()
-	gr.set_color(0, Color(1, 1, 1, 1))
-	gr.set_color(1, Color(1, 1, 1, 0))
-	g.gradient = gr
-	g.width = 64
-	g.height = 64
-	return g
+func _aura_emitter(tex_name: String, amount: int, life: float, size: Vector2, v0: float, v1: float) -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.amount = amount
+	p.lifetime = life
+	p.position.y = 0.15
+	p.local_coords = true   # аура держится на герое, а не остаётся шлейфом позади
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	pm.emission_ring_axis = Vector3.UP
+	pm.emission_ring_radius = 0.6
+	pm.emission_ring_inner_radius = 0.25
+	pm.emission_ring_height = 0.1
+	pm.direction = Vector3.UP
+	pm.spread = 10.0
+	pm.initial_velocity_min = v0
+	pm.initial_velocity_max = v1
+	pm.gravity = Vector3(0, 0.6, 0)
+	pm.scale_min = 0.6
+	pm.scale_max = 1.3
+	var c := Curve.new()
+	c.add_point(Vector2(0, 0.4))
+	c.add_point(Vector2(0.25, 1.0))
+	c.add_point(Vector2(1, 0.0))
+	var curve := CurveTexture.new()
+	curve.curve = c
+	pm.scale_curve = curve
+	p.process_material = pm
+	var q := QuadMesh.new()
+	q.size = size
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.albedo_texture = load("res://assets/fx/%s.png" % tex_name)
+	m.albedo_color = Color(1.0, 0.75, 0.25)
+	q.material = m
+	p.draw_pass_1 = q
+	p.emitting = false
+	add_child(p)
+	return p
 
 func pressed(a: String) -> bool:
 	if auto_input.has(a):
@@ -196,6 +194,7 @@ func _physics_process(dt: float) -> void:
 		body.rotation.y = face
 		aura.emitting = false
 		trail.enabled = false
+		aura2.emitting = false
 		game.charge_zoom = 0.0
 		return
 	if rage > 0.0:
@@ -221,6 +220,10 @@ func _physics_process(dt: float) -> void:
 				if dir.length() > 0.1:
 					face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-12.0 * dt))
 					rig.play("Run", 0.18, spd / 5.6)
+					step_cd -= dt
+					if step_cd <= 0.0 and (held("sprint") or rage > 0.0):
+						step_cd = 0.24
+						game.fx.dust(global_position + Vector3(0, 0.12, 0), 3, game.fx.DUST, 0.45)
 				else:
 					rig.play("Idle", 0.25)
 			if pressed("roll"):
@@ -352,6 +355,11 @@ func _physics_process(dt: float) -> void:
 	aura.amount_ratio = 1.0 if glow > 1.5 else 0.6
 	aura_light.light_energy = lerp(aura_light.light_energy, glow * 1.6, 1.0 - exp(-6.0 * dt))
 	aura_light.light_color = mat.albedo_color
+	aura2.emitting = aura.emitting
+	((aura2.draw_pass_1 as QuadMesh).material as StandardMaterial3D).albedo_color = mat.albedo_color
+	var rm := aura_ring.material_override as StandardMaterial3D
+	rm.albedo_color = Color(mat.albedo_color.r, mat.albedo_color.g, mat.albedo_color.b, lerpf(rm.albedo_color.a, 0.8 if glow > 0.0 else 0.0, 1.0 - exp(-5.0 * dt)))
+	aura_ring.rotation.y += dt * (2.6 if rage > 0.0 else 0.9)
 
 func start_attack(a: Dictionary) -> void:
 	state = "attack"
@@ -454,6 +462,7 @@ func try_heat() -> void:
 	inv = 1.7
 	game.heat_cam(1.5)
 	game.banner("HEAT", "прилёт VOZDUHом", Color(1, 0.75, 0.2))
+	game.bark("heat", 4.0)
 	heat_q = [HEAT[1]]
 	start_attack(HEAT[0])
 
@@ -476,6 +485,8 @@ func start_rage() -> void:
 	game.main.sfx("sfx_rage", 0.0)
 	game.shake(0.8)
 	game.fx.slam(global_position, 1.5, HOT)
+	game.fx.lightning(global_position, 5.0, HOT)
+	game.bark("rage", 4.0)
 	game.punch(1.0, global_position + Vector3(0, 1.0, 0))
 	game.hitstop(0.12)
 	game.banner("ПЕРЕГРУЗ!", "урон ×1.6 на 8 секунд", Color(1, 0.4, 0.15))
@@ -523,6 +534,8 @@ func _deal_hit() -> void:
 		if tier == 2:
 			game.main.sfx("sfx_crack", 1.0)
 		game.impact(tier, where, 1.0 + charged * 0.4)
+		if tier == 2 or atk.has("name"):
+			game.bark("finish", 9.0, 0.7)
 
 func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 	if state == "dead":
@@ -541,6 +554,7 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 			game.popup(global_position + Vector3(0, 2.2, 0), "ПАРИРОВАНИЕ", Color(0.4, 0.85, 1))
 			game.fx.hit(global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.6, to.normalized(), 1, Color(0.5, 0.85, 1.0))
 			game.punch(0.6, global_position + Vector3(0, 1.1, 0))
+			game.bark("parry", 5.0)
 			swag = min(100.0, swag + 20.0)
 			game.slowmo(0.4)
 			return
@@ -550,6 +564,7 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 	else:
 		game.main.sfx("sfx_hurt", -2.0)
 		game.fx.hit(global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.3, -to.normalized(), 0, Color(1.0, 0.3, 0.25))
+		game.fx.claw(global_position + Vector3(0, 1.15, 0) + to.normalized() * 0.4, Color(1.0, 0.25, 0.2))
 		state = "hurt"
 		t = 0.0
 		spin_off = 0.0
@@ -561,6 +576,9 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		dmg *= 0.65
 	hp -= dmg
 	game.damage_flash()
+	if hp > 0.0 and hp < max_hp * 0.4:
+		game.bark("hurt", 14.0)
+		game.bark("worry", 22.0)
 	inv = 0.55
 	if hp <= 0.0:
 		hp = 0.0

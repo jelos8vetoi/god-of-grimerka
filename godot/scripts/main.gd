@@ -33,6 +33,22 @@ func _ready() -> void:
 		m.button_index = a[1]
 		InputMap.action_add_event(a[0], m)
 	font = load("res://assets/fonts/RussoOne-Regular.ttf")
+	# шина «телефон»: madk1d без голоса печатает в заметках, телефон читает вслух его голосом — узкая полоса и лёгкий хрип
+	if AudioServer.get_bus_index("Phone") < 0:
+		AudioServer.add_bus()
+		var bi := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(bi, "Phone")
+		var hp := AudioEffectHighPassFilter.new()
+		hp.cutoff_hz = 380.0
+		var lp := AudioEffectLowPassFilter.new()
+		lp.cutoff_hz = 3400.0
+		var ds := AudioEffectDistortion.new()
+		ds.mode = AudioEffectDistortion.MODE_OVERDRIVE
+		ds.drive = 0.18
+		AudioServer.add_bus_effect(bi, hp)
+		AudioServer.add_bus_effect(bi, lp)
+		AudioServer.add_bus_effect(bi, ds)
+		AudioServer.set_bus_volume_db(bi, 3.0)
 	music = AudioStreamPlayer.new()
 	music.stream = load("res://assets/audio/music_dynasty.mp3")
 	(music.stream as AudioStreamMP3).loop = true
