@@ -12,8 +12,9 @@
 // Ключи:  --no-export  не пересобирать, залить уже лежащий dist/godot/GOD OF GRIMERKA.exe
 //         --force      публиковать, даже если есть незакоммиченные или незапушенные правки в godot/
 //         --dry        только показать, что будет сделано
+//         --no-launcher не собирать и не заливать лаунчер
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
-const TAG = 'godot-build', ASSET = 'GOD-OF-GRIMERKA-Godot.exe';
+const TAG = 'godot-build', ASSET = 'GOD-OF-GRIMERKA-Godot.exe', LAUNCHER = 'GOD-OF-GRIMERKA-Launcher.exe';
 const root = path.join(__dirname, '..');
 const godot = process.env.GODOT || path.join(root, 'tools', 'godot', 'Godot_v4.7.2-stable_win64_console.exe');
 const exe = path.join(root, 'dist', 'godot', 'GOD OF GRIMERKA.exe');
@@ -41,7 +42,9 @@ if (!has('--force')) {
 const when = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 const title = 'GOD OF GRIMERKA — Godot-сборка для Windows';
 const notes = [
-  'Актуальная сборка Godot-версии. Скачай `' + ASSET + '` ниже и запусти — установка не нужна.',
+  '**Скачай `' + LAUNCHER + '` один раз** — он сам ставит игру, проверяет обновления при каждом запуске и докачивает новую сборку. Игра ставится в `%LOCALAPPDATA%\\GOD OF GRIMERKA Godot`.',
+  '',
+  'Без лаунчера: скачай `' + ASSET + '` и запусти — установка не нужна.',
   '',
   'Последнее обновление: **' + first[1] + '** · собрано ' + when + ' · коммит `' + sha + '`.',
   'Как обновить сборку самому — в `tools/publish-godot.cjs` и в README.',
@@ -67,6 +70,12 @@ if (!has('--no-export')) {
     fail('сборка не удалась (игра запущена и держит файл? нет шаблонов экспорта?).\n' + out.split('\n').filter(l => /ERROR/.test(l)).slice(0, 5).join('\n'));
 }
 if (!fs.existsSync(exe)) fail('нет файла ' + exe);
+// лаунчер: маленький .exe на C# (компилятор .NET Framework есть в любой Windows), собирается каждый раз
+const launcherExe = path.join(root, 'dist', LAUNCHER);
+if (!has('--no-launcher')) {
+  console.log('собираю лаунчер…');
+  try { run('cmd.exe', ['/c', path.join(root, 'tools', 'launcher', 'build.cmd')]); } catch (e) { fail('лаунчер не собрался:\n' + String(e.stdout || '') + String(e.stderr || e.message)); }
+}
 const tmp = path.join(path.dirname(exe), ASSET), notesFile = path.join(path.dirname(exe), 'notes.md');
 fs.copyFileSync(exe, tmp);
 fs.writeFileSync(notesFile, notes);
@@ -81,6 +90,7 @@ try {
   }
   console.log('заливаю ' + ASSET + ' (' + Math.round(fs.statSync(tmp).size / 1048576) + ' МБ)…');
   run('gh', ['release', 'upload', TAG, tmp, '--clobber']);
+  if (fs.existsSync(launcherExe)) { console.log('заливаю ' + LAUNCHER + '…'); run('gh', ['release', 'upload', TAG, launcherExe, '--clobber']); }
   run('gh', ['release', 'edit', TAG, '--title', title, '--notes-file', notesFile, '--latest=false']);
   console.log('готово: ' + run('gh', ['release', 'view', TAG, '--json', 'url', '--jq', '.url']).trim());
 } catch (e) {

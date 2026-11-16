@@ -14,6 +14,7 @@ var music: AudioStreamPlayer
 var audio                 # менеджер звука (audio.gd)
 var audiolog := false     # --audiolog: печатать состояние музыки раз в секунду (и не глушить её в проверках)
 var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка iPod по кадрам (scripts/ipodcheck.gd)
+var launcher := ""          # --launcher=<путь>: игру запустил лаунчер, обновление — через него
 var ipodbuds := false       # вместе с --ipodcheck: только наушники EarPods (--buds)
 var ipodhand := false       # вместе с --ipodcheck: только проверка руки и позы (--hand)
 var voicecheck := false   # --voicecheck: пройти диалог главы и напечатать, какие реплики заиграли
@@ -65,6 +66,8 @@ func _ready() -> void:
 		elif arg.begins_with("--ipodcheck="):
 			ipodcheck = arg.substr(12)
 			start_ch = max(start_ch, 0)
+		elif arg.begins_with("--launcher="):
+			launcher = arg.substr(11)
 		elif arg == "--buds":
 			ipodbuds = true
 		elif arg == "--hand":
@@ -197,6 +200,8 @@ func _check_update(box: Container) -> void:
 	if not (mine is Dictionary):
 		return
 	var ver := label("сборка %s · %s" % [String(mine.get("sha", "?")), String(mine.get("time", ""))], 13, Color(0.7, 0.72, 0.78))
+	ver.autowrap_mode = TextServer.AUTOWRAP_OFF   # без переноса: у подписи вне контейнера нет ширины, и она шла столбиком по букве
+	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	ver.position = Vector2(16, 12)
 	menu.add_child(ver)
 	var http := HTTPRequest.new()
@@ -206,7 +211,13 @@ func _check_update(box: Container) -> void:
 			return
 		var d = JSON.parse_string(body.get_string_from_utf8())
 		if d is Dictionary and String(d.get("body", "")).find("`%s`" % String(mine.get("sha", ""))) < 0:
-			box.add_child(button("ВЫШЛО ОБНОВЛЕНИЕ — СКАЧАТЬ", func(): OS.shell_open(RELEASE_URL))))
+			if launcher != "" and FileAccess.file_exists(launcher):
+				# лаунчер сам скачает новую сборку и снова запустит игру
+				box.add_child(button("ВЫШЛО ОБНОВЛЕНИЕ — ОБНОВИТЬ", func():
+					OS.create_process(launcher, PackedStringArray())
+					get_tree().quit()))
+			else:
+				box.add_child(button("ВЫШЛО ОБНОВЛЕНИЕ — СКАЧАТЬ", func(): OS.shell_open(RELEASE_URL))))
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:

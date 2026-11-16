@@ -44,6 +44,10 @@ gh pr create --base main --fill
 
 https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build
 
+Друзьям проще всего кинуть лаунчер — его качают один раз, дальше он сам обновляет игру: https://github.com/jelos8vetoi/god-of-grimerka/releases/download/godot-build/GOD-OF-GRIMERKA-Launcher.exe
+
+- Лаунчер — `tools/launcher/Launcher.cs` (C#, собирается встроенным в Windows компилятором .NET Framework через `tools/launcher/build.cmd`). Автосборка собирает его и кладёт в тот же релиз.
+
 - Перед Pull Request допиши сверху в `godot/CHANGELOG.md` раздел `## дата · что сделано` — этот текст станет описанием релиза.
 - Музыка в git не лежит: её создаёт `node tools/godot-music.cjs` (нужен Node.js). `play-godot.cmd` запускает его сам при первом запуске.
 - Ход сборки видно во вкладке Actions репозитория. Запустить её вручную: Actions → «Godot-сборка» → Run workflow.
