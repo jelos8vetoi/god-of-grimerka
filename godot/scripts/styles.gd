@@ -25,6 +25,8 @@ static func _make(id: String) -> StyleData:
 			return StyleVozduh.build()
 		"bottles":
 			return StyleBottles.build()
+		"tyaga808":
+			return StyleTyaga.build()
 	var s := StyleData.new()
 	s.id = id
 	if PLANNED.has(id):

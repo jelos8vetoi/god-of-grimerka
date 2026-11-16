@@ -230,7 +230,7 @@ func _holster(r: Rig) -> void:
 
 ## для раскадровок «достать/убрать»: где балон на этой доле клипа
 func _equip_state(r: Rig, clip: String, u: float) -> void:
-	if clip.ends_with("Bare"):
+	if clip.ends_with("Bare") or clip.begins_with("Bottle") or clip.begins_with("Tyaga") or clip.begins_with("Ride"):   # в этих стилях балон за спиной
 		r.set_holstered(true)
 	elif clip == "Equip":
 		r.set_holstered(u < 0.36)
