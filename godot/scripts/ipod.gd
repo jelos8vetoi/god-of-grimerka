@@ -318,7 +318,7 @@ func _can_toggle() -> bool:
 		return false
 	if opened:
 		return true
-	return not get_tree().paused and not game.paused_story()
+	return not get_tree().paused and not game.paused_story() and not game.intro_busy()
 
 
 func toggle() -> void:

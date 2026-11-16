@@ -194,6 +194,11 @@ func _run() -> void:
 	await key(KEY_ENTER)
 	await wait(2.5)
 	var game = main.game
+	# запуск из меню идёт через кинематографичный переход: ждём, пока камера займёт место и откроется ввод
+	var tq := Time.get_ticks_msec()
+	while game != null and (game.intro_busy() or (main.intro_fx != null and main.intro_fx.busy)) and Time.get_ticks_msec() - tq < 10000:
+		await get_tree().process_frame
+	ok(game != null and not game.intro_busy(), "переход из меню завершился, управление отдано")
 	ok(game != null and main.menu == null, "%s запускает игру, меню убрано" % ("Continue" if has_save else "New Game"))
 	if game == null:
 		_finish()

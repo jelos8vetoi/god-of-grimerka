@@ -50,6 +50,12 @@ var fx
 var post: ColorRect
 var post_mat: ShaderMaterial
 var pp := {"aberr": 0.0, "blur": 0.0, "flash": 0.0, "ripple_a": 0.0, "ripple_t": 0.0}
+signal intro_done
+const INTRO_CAM := 2.8       # секунд облёта камеры при входе из меню
+const INTRO_HUD := 1.6       # с этого момента по очереди появляется HUD
+var intro_on := false        # игру запустили из меню с переходом (main.cinematic_start)
+var intro_t := -1.0          # время облёта; −1 — облёта нет
+var intro_a0 := 0.0          # откуда камера заходит: угол вокруг Пахана
 var death                    # сцена гибели (scripts/death.gd), пока идёт; иначе null
 var death_mono := 0.0        # 0 — цвет, 1 — чёрно-белый кадр с зерном (ведёт сцена гибели)
 var ipod_focus := 0.0
@@ -173,7 +179,65 @@ func begin(from_save: bool, chapter := -1) -> void:
 	_apply_upgrades()
 	_load_chapter(step < 0, ch == 0 and step < 0 and main.trailer == "")
 	fx.prewarm(player.global_position)
+	if intro_on:
+		start_intro()
+		await intro_done      # сюжет (диалог, бой) начинается, когда камера заняла место и управление отдано
 	next_step()
+
+## Облёт при входе из меню: камера начинает сбоку от Пахана на уровне груди и по дуге приходит на игровое место;
+## HUD появляется по очереди (здоровье, СВЭГ, madk1d, глава и задание, остальное). Ввод заблокирован, пока облёт идёт.
+func start_intro() -> void:
+	intro_t = 0.0
+	intro_a0 = player.face + 1.15
+	var order := {}
+	order[swag_label] = 1
+	order[q_label] = 2
+	order[top_label] = 3
+	order[xp_label] = 4
+	order[fps_label] = 4
+	if banner_t > 0.0:
+		banner_t += 1.4          # заставка локации («ТОМСК…») не должна пройти за шторкой
+	var tw := create_tween().set_parallel(true)
+	for c in hud_root.get_children():
+		var ci := c as CanvasItem
+		if ci == null or c == banner_title or c == banner_sub or c == toast_label:     # их прозрачность ведёт сама игра
+			continue
+		var rank: int = order.get(c, 0)
+		ci.modulate.a = 0.0
+		tw.tween_property(ci, "modulate:a", 1.0, 0.35).set_delay(INTRO_HUD + rank * 0.16)
+		if c is Control:
+			var home: Vector2 = (c as Control).position
+			(c as Control).position = home + Vector2(-24, 0)
+			tw.tween_property(c, "position", home, 0.4).set_delay(INTRO_HUD + rank * 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+func intro_busy() -> bool:
+	return intro_t >= 0.0
+
+func _intro_camera(rdt: float) -> void:
+	intro_t += rdt
+	var k := clampf(intro_t / INTRO_CAM, 0.0, 1.0)
+	var e := k * k * k * (k * (k * 6.0 - 15.0) + 10.0)
+	var home := spring.global_transform * Transform3D(Basis(), Vector3(0, 0, spring.get_hit_length()))
+	var chest: Vector3 = player.global_position + Vector3(0, 1.05, 0)
+	var rel: Vector3 = home.origin - chest
+	var a1 := atan2(rel.x, rel.z)
+	var a := intro_a0 + angle_difference(intro_a0, a1) * e
+	var r := lerpf(3.3, Vector2(rel.x, rel.z).length(), e)
+	var hh := lerpf(-0.1, rel.y, e)
+	var pos: Vector3 = chest + Vector3(sin(a) * r, hh, cos(a) * r)
+	var q := PhysicsRayQueryParameters3D.create(chest, pos)
+	q.exclude = [player.get_rid()]
+	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty():
+		pos = chest + (pos - chest).normalized() * maxf(0.9, ((hit["position"] as Vector3) - chest).length() - 0.25)
+	var look := Basis.looking_at(chest - pos, Vector3.UP)
+	var qb := look.get_rotation_quaternion().slerp(home.basis.get_rotation_quaternion(), e)
+	cam.global_transform = Transform3D(Basis(qb), pos)
+	cam.fov = lerpf(44.0, cam.fov, e)
+	if k >= 1.0:
+		intro_t = -1.0
+		cam.transform = Transform3D(Basis(), Vector3(0, 0, spring.get_hit_length()))
+		intro_done.emit()
 
 func _save() -> void:
 	if main.testing() != "":
@@ -655,6 +719,8 @@ func _build_camera() -> void:
 	cam.make_current()
 
 func _unhandled_input(e: InputEvent) -> void:
+	if intro_busy():           # вступительный облёт: ни паузы, ни диалога, ни ад-либа
+		return
 	if ipod != null and ipod.captures_gameplay_input():
 		return
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and mode != "dlg":
@@ -770,6 +836,8 @@ func _process(dt: float) -> void:
 	fov_kick = lerpf(fov_kick, 0.0, 1.0 - exp(-9.0 * rdt))
 	zoom_s = lerpf(zoom_s, charge_zoom, 1.0 - exp(-6.0 * rdt))
 	cam.fov = float(Opts.v("fov")) + fov_kick - 9.0 * zoom_s
+	if intro_t >= 0.0:
+		_intro_camera(rdt)
 	if death != null and is_instance_valid(death) and death.owns_camera():
 		cam.global_transform = death.camera()      # камеру ведёт сцена гибели
 		cam.h_offset = 0.0

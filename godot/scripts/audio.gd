@@ -227,7 +227,7 @@ func _process(dt: float) -> void:
 		return
 	# заглавный трек в игре уходит
 	if main.music.playing:
-		main.music.volume_db = move_toward(main.music.volume_db, -60.0, dt * 45.0)
+		main.music.volume_db = move_toward(main.music.volume_db, -60.0, dt * 22.0)      # заглавный трек меню уходит за ~2,5 с
 		if main.music.volume_db <= -59.0:
 			main.music.stop()
 	var key: String = "hall" if game.in_hall else String(game.chapter()["th"]["deco"])
@@ -257,8 +257,10 @@ func _process(dt: float) -> void:
 		stinger("defeat")
 		_set_state("defeat")
 	dead_seen = dead
+	if game.get_tree().paused and game.pause_panel != null and game.pause_panel.is_open:
+		ducking = -6.0      # меню паузы: игра тише, но не пропадает
 	if game.mode == "dlg":
-		ducking = -4.0      # в диалоге музыка тише примерно на 37%, но не пропадает
+		ducking = min(ducking, -4.0)      # в диалоге музыка тише примерно на 37%, но не пропадает
 	if sting.playing:
 		ducking = min(ducking, -7.0)
 	if dead:
