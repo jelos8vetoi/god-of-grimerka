@@ -63,6 +63,11 @@ var shield_n: Array = []   # призванные боты, которые де�
 var shield_fx: MeshInstance3D
 var glint := false          # предупреждающая вспышка перед ударом уже была
 var stars: Node3D           # звёздочки над оглушённым
+var poise := 60.0           # равновесие: удары снимают его (HitInfo.stagger); кончилось — враг сбит (оглушён), даже в замахе
+var poise_max := 60.0
+var poise_t := 9.0          # сколько секунд назад по равновесию били: через 2 с оно восстанавливается
+var slow_t := 0.0           # замедление (облит водой и т. п.), с
+var slow_k := 1.0           # множитель скорости на время замедления
 
 func _ready() -> void:
 	if boss_id != "":
@@ -144,6 +149,8 @@ func _setup_boss() -> void:
 	if look["model"] == "pahan":
 		cfg["clip"] = "Light1"
 	max_hp = float(boss["hp"]) * 0.75 * float(game.diff_hp)
+	poise_max = 200.0      # босса сбить труднее: нужна серия тяжёлых
+	poise = poise_max
 
 func _tint(c: Color, alpha: float, emit: float) -> void:
 	for mi in rig.model.find_children("*", "MeshInstance3D", true, false):
@@ -178,6 +185,10 @@ func _update_bar() -> void:
 func _physics_process(dt: float) -> void:
 	t += dt
 	age += dt
+	poise_t += dt
+	if poise_t > 2.0:
+		poise = min(poise_max, poise + poise_max * 0.5 * dt)
+	slow_t = max(0.0, slow_t - dt)
 	var p = game.player
 	var to: Vector3 = p.global_position - global_position
 	to.y = 0
@@ -605,6 +616,44 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		ring.visible = false
 		rig.play_for("Hit", 0.45, 0.04)
 	_update_bar()
+
+## Попадание от ядра боя (combat.gd): урон и отбрасывание — как раньше, плюс оглушение атаки и равновесие.
+func take_hit_info(h: HitInfo) -> void:
+	if not alive():
+		return
+	take_hit(h.damage, h.dir, h.knockback, h.heavy, h.launch)
+	if not alive():
+		return
+	if h.stun > 0.0:
+		stun(h.stun)
+	stagger(h.stagger)
+
+## Снять равновесие. Кончилось — враг сбит: обычный оглушён на секунду (замах прерывается), босс вздрагивает и теряет замах.
+func stagger(v: float) -> bool:
+	if v <= 0.0 or not alive() or state in ["stun", "air", "down", "getup", "spawn", "special"]:
+		return false
+	poise -= v
+	poise_t = 0.0
+	if poise > 0.0:
+		return false
+	poise = poise_max
+	game.popup(global_position + Vector3(0, height + 0.5, 0), "СБИТ", Color(1.0, 0.75, 0.3))
+	game.fx.twinkle(global_position + Vector3(0, height * 0.9, 0), 6, Color(1.0, 0.85, 0.4), 0.8)
+	if boss_id != "":
+		state = "hurt"
+		t = 0.0
+		ring.visible = false
+		rig.play_for("Hit", 0.45, 0.04)
+	else:
+		stun(1.0)
+	return true
+
+## Замедлить на время (не действует на боссов сильнее, чем вполовину).
+func slow(sec: float, k := 0.55) -> void:
+	if not alive():
+		return
+	slow_t = max(slow_t, sec)
+	slow_k = k if boss_id == "" else lerpf(1.0, k, 0.5)
 
 func _die(dir: Vector3, heavy: bool, launch := 0.0, knock := 5.0) -> void:
 	var was_air := state == "air"

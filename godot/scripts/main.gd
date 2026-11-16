@@ -28,6 +28,7 @@ var sfx_cache := {}
 var autotest := ""
 var smoke := ""
 var trailer := ""
+var combatcheck := ""     # --combatcheck=<папка>: ядро боя в игре (scripts/combatcheck.gd)
 var animlab := ""          # --animlab=<папка>: анимации в игре — сцены, листы кадров, замеры стоп (scripts/animlab.gd)
 var start_ch := -1
 var auto_len := 45.0
@@ -66,6 +67,8 @@ func _ready() -> void:
 			autotest = arg.substr(11)
 		elif arg.begins_with("--smoke="):
 			smoke = arg.substr(8)
+		elif arg.begins_with("--combatcheck="):
+			combatcheck = arg.substr(14)
 		elif arg.begins_with("--animlab="):
 			animlab = arg.substr(10)
 		elif arg.begins_with("--trailer="):
@@ -229,7 +232,7 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer + animlab
+	return autotest + smoke + trailer + animlab + combatcheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
@@ -275,6 +278,12 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 		game.auto_kill = 1.6
 	game.auto_len = auto_len
 	game.intro_on = cinematic
+	if combatcheck != "":
+		var cc = preload("res://scripts/combatcheck.gd").new()
+		cc.game = game
+		cc.out = combatcheck
+		game.director = cc
+		game.add_child(cc)
 	if animlab != "":
 		var lab = preload("res://scripts/animlab.gd").new()
 		lab.game = game
