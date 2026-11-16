@@ -51,4 +51,8 @@ wav('thud', .35, t => Math.sin(2 * Math.PI * (95 * Math.exp(-t * 14) + 45) * t) 
 wav('charge', 1.3, t => (Math.sin(2 * Math.PI * (70 + 130 * t * t) * t) * .6 + Math.sin(2 * Math.PI * (140 + 260 * t * t) * t) * .25 + noise(.05 + .25 * t) * .35) * Math.min(1, t / .25) * Math.min(1, (1.3 - t) / .15));
 // хлёсткий «крэк» полного удара: сухой щелчок, стекло, низ
 wav('crack', .55, t => noise(.9) * env(t, .0005, .012) * 1.4 + [1, 2.3, 3.7].reduce((s, m, i) => s + Math.sin(2 * Math.PI * 900 * m * t) * env(t, .001, .07 / (i + 1)) * .4, 0) + Math.sin(2 * Math.PI * (120 * Math.exp(-t * 12) + 38) * t) * env(t, .002, .2));
+// балон волочится по земле: зацикленный металлический шорох (громкость и высоту игра меняет по скорости)
+wav('scrape', 1.2, t => { const w = 2 * Math.PI * t / 1.2; return (noise(.55) - noise(.2)) * (.75 + .25 * Math.sin(w * 3)) + Math.sin(2 * Math.PI * 2350 * t + 3 * Math.sin(w * 5)) * .05 + Math.sin(2 * Math.PI * 3120 * t) * .03; });
+// удар тяжёлым металлом: низкий глухой звон
+wav('clang', .7, t => [1, 2.32, 3.9, 5.6].reduce((s, m, i) => s + Math.sin(2 * Math.PI * 185 * m * t) * env(t, .002, .22 / (i + 1)) / (i + 1), 0) + Math.sin(2 * Math.PI * (70 * Math.exp(-t * 9) + 38) * t) * env(t, .002, .16) * 1.1 + noise(.5) * env(t, .001, .015) * .6);
 console.log('sfx ->', out);

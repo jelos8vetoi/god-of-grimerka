@@ -10,6 +10,7 @@ const ACTIONS := {
 var game: Node
 var menu: Control
 var music: AudioStreamPlayer
+var voicecheck := false   # --voicecheck: пройти диалог главы и напечатать, какие реплики заиграли
 var sfx_pool: Array[AudioStreamPlayer] = []
 var sfx_cache := {}
 var autotest := ""
@@ -33,6 +34,10 @@ func _ready() -> void:
 		m.button_index = a[1]
 		InputMap.action_add_event(a[0], m)
 	font = load("res://assets/fonts/RussoOne-Regular.ttf")
+	# отдельная шина для голосов: их громкость не зависит от музыки и эффектов, и её можно измерить в --voicecheck
+	if AudioServer.get_bus_index("Voice") < 0:
+		AudioServer.add_bus()
+		AudioServer.set_bus_name(AudioServer.bus_count - 1, "Voice")
 	music = AudioStreamPlayer.new()
 	music.stream = load("res://assets/audio/music_dynasty.mp3")
 	(music.stream as AudioStreamMP3).loop = true
@@ -51,6 +56,9 @@ func _ready() -> void:
 			trailer = arg.substr(10)
 		elif arg.begins_with("--chapter="):
 			start_ch = int(arg.substr(10)) - 1
+		elif arg == "--voicecheck":
+			voicecheck = true
+			start_ch = max(start_ch, 0)
 		elif arg.begins_with("--seconds="):
 			auto_len = float(arg.substr(10))
 	for arg in OS.get_cmdline_user_args():

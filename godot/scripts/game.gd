@@ -57,6 +57,14 @@ var bark_v: AudioStreamPlayer
 var bark_m: AudioStreamPlayer
 var barks: Dictionary = {}
 var bark_cd := {}
+var peak_db := -200.0
+var dlg_face := 0.0          # куда смотрел герой до диалога: по этой стороне ставится камера
+var dlg_voiced := false      # у текущей реплики есть голос (иначе текст «печатается» со щелчками)
+var tick_n := 0
+# подъезд: игра начинается на площадке, после первого разговора герой сам выходит во двор
+var in_hall := false
+var fade: ColorRect
+var exit_mark: MeshInstance3D
 var heat_t := 0.0
 var clock := 0.0
 var stop_until := 0.0
@@ -143,7 +151,7 @@ func begin(from_save: bool, chapter := -1) -> void:
 		ch = chapter
 		step = -1
 	_apply_upgrades()
-	_load_chapter(step < 0)
+	_load_chapter(step < 0, ch == 0 and step < 0 and main.trailer == "")
 	fx.prewarm(player.global_position)
 	next_step()
 
@@ -164,21 +172,48 @@ func _apply_upgrades() -> void:
 func chapter() -> Dictionary:
 	return story["CH"][ch]
 
-func _load_chapter(show_title: bool) -> void:
+func _load_chapter(show_title: bool, hall := false) -> void:
 	_clear_fight()
 	if world:
 		world.free()
 	world = preload("res://scripts/world.gd").new()
 	add_child(world)
-	world.build(String(chapter()["th"]["deco"]))
-	player.global_position = Vector3(0, 0.05, 4)
+	in_hall = hall
+	world.build("hall" if hall else String(chapter()["th"]["deco"]))
+	player.global_position = Vector3(0.5, 0.05, 3.2) if hall else Vector3(0, 0.05, 4)
 	player.velocity = Vector3.ZERO
-	buddy.global_position = Vector3(-1.8, 0.05, 4.5)
+	buddy.global_position = Vector3(-0.8, 0.05, 3.4) if hall else Vector3(-1.8, 0.05, 4.5)
 	buddy.target = Vector3.ZERO
 	cam_yaw = PI
 	player.face = PI
-	if show_title:
+	if hall:
+		banner("ТОМСК", "подъезд · три часа ночи", Color(1, 0.85, 0.55), 3.0)
+	elif show_title:
 		banner("ГЛАВА %d. %s" % [ch + 1, String(chapter()["name"])], String(chapter()["place"]), Color(1, 0.85, 0.55), 4.0)
+
+## разговор закончился: в подъезде дальше надо выйти во двор самому, иначе — следующий шаг сюжета
+func _dlg_done() -> void:
+	if not in_hall:
+		next_step()
+		return
+	mode = "exit"
+	toast("Выйди из подъезда во двор")
+	exit_mark = fx.flat(self, "circle_03", Color(1.0, 0.8, 0.35, 0.8), 2.0, 0.07)
+	exit_mark.position = Vector3(0, 0.07, -4.1)
+
+func _exit_hall() -> void:
+	mode = "idle"
+	in_hall = false
+	if exit_mark:
+		exit_mark.queue_free()
+		exit_mark = null
+	main.sfx("sfx_roll", -4.0, 0.6)
+	var tw := create_tween()
+	tw.tween_property(fade, "color:a", 1.0, 0.35)
+	tw.tween_callback(func():
+		_load_chapter(true)
+		next_step())
+	tw.tween_property(fade, "color:a", 0.0, 0.7)
 
 func next_step() -> void:
 	step += 1
@@ -199,7 +234,7 @@ func _run_step() -> void:
 	match String(s["t"]):
 		"dlg":
 			_clear_fight()
-			start_dialog(s["l"], next_step)
+			start_dialog(s["l"], _dlg_done)
 		"fight":
 			mode = "fight"
 			waves = s["w"]
@@ -321,6 +356,8 @@ func melee_attackers() -> int:
 	return n
 
 func in_arena(p: Vector3, margin: float) -> bool:
+	if in_hall:
+		return p.x > -2.2 + margin * 0.5 and p.x < 3.7 - margin * 0.5 and abs(p.z) < 4.7 - margin * 0.5
 	return abs(p.x) < ARENA - margin and abs(p.z) < ARENA - margin
 
 func on_kill(e) -> void:
@@ -536,7 +573,7 @@ func _process(dt: float) -> void:
 	if mode == "dlg" and not director:
 		# диалог: камера спереди-сбоку, на героев
 		target = (player.global_position + buddy.global_position) * 0.5 + Vector3(0, 1.25, 0)
-		yaw = player.face + PI + 0.55
+		yaw = dlg_face - 0.5   # камера перед героями, чуть сбоку: видно оба лица
 		pitch = -0.08
 		want_len = 4.0
 	elif heat_t > 0.0:
@@ -569,11 +606,39 @@ func _process(dt: float) -> void:
 		world.follow(player.global_position)
 	_update_hud(rdt)
 	if mode == "dlg":
+		var to_b: Vector3 = buddy.global_position - player.global_position
+		if to_b.length() > 0.3 and to_b.length() < 4.0:
+			var tk := 1.0 - exp(-7.0 * rdt)
+			player.face = lerp_angle(player.face, lerp_angle(dlg_face, atan2(to_b.x, to_b.z), 0.78), tk)
+			buddy.face = lerp_angle(buddy.face, lerp_angle(dlg_face, atan2(-to_b.x, -to_b.z), 0.78), tk)
+	if mode == "exit":
+		# метка у двери пульсирует; дошёл до проёма — выходим во двор
+		if exit_mark:
+			exit_mark.scale = Vector3.ONE * (2.0 + 0.25 * sin(clock * 4.0))
+		if player.global_position.z < -3.9 and abs(player.global_position.x) < 1.4:
+			_exit_hall()
+	# музыка уходит под голос
+	if not director:
+		main.music.volume_db = lerpf(main.music.volume_db, -28.0 if voice.playing else -16.0, 1.0 - exp(-6.0 * rdt))
+	if mode == "dlg":
 		_update_dialog(rdt)
 	elif not over:
 		_update_bolts(dt)
 		_update_zones(dt)
 		_update_fight(dt)
+	if main.voicecheck:
+		auto_t += rdt
+		peak_db = max(peak_db, AudioServer.get_bus_peak_volume_left_db(AudioServer.get_bus_index("Voice"), 0))
+		if mode == "dlg" and auto_t > 0.6:
+			auto_t = -0.9
+			print("VOICE строка %d: pos=%.2f playing=%s пик=%.1f дБ" % [dlg_i, voice.get_playback_position(), voice.playing, peak_db])
+			peak_db = -200.0
+			if dlg_i == 6:
+				_shot(OS.get_user_data_dir(), "voicecheck.png")   # кадр диалога: видно, как стоят герои
+			dlg_chars = 9999.0
+			_dlg_advance()
+		if mode != "dlg" or dlg_i > 9:
+			get_tree().quit()
 	if main.autotest != "" or main.smoke != "":
 		_autotest(rdt)
 
@@ -680,6 +745,7 @@ func start_dialog(lines: Array, after: Callable) -> void:
 	if in_arena(bp, 0.6):
 		buddy.global_position = bp
 	buddy.face = player.face
+	dlg_face = player.face
 	_dlg_advance()
 
 func _dlg_advance() -> void:
@@ -700,7 +766,8 @@ func _dlg_advance() -> void:
 	dlg_text.text = _clean(line.substr(p + 1))
 	dlg_text.add_theme_color_override("font_color", Color(0.75, 0.8, 0.9) if code == "N" else Color.WHITE)
 	dlg_chars = 0.0
-	_say(voice, line, 3.0)
+	dlg_voiced = _say(voice, line, 0.0)
+	tick_n = 0
 	if code == "MV":
 		main.sfx("sfx_parry", -10.0)
 
@@ -713,6 +780,11 @@ func _dlg_finish() -> void:
 func _update_dialog(dt: float) -> void:
 	dlg_chars += dt * 55.0
 	dlg_text.visible_characters = int(dlg_chars)
+	# у реплик без голоса (рассказчик, боссы) текст печатается с тихими щелчками
+	var shown: int = min(int(dlg_chars), dlg_text.text.length())
+	if not dlg_voiced and shown / 3 > tick_n and main.testing() == "":
+		tick_n = shown / 3
+		main.sfx("sfx_ui", -24.0, 0.7)
 
 func _clean(s: String) -> String:
 	var out := ""
@@ -732,10 +804,15 @@ func _say(pl: AudioStreamPlayer, line: String, vol := 0.0) -> bool:
 		return false
 	var path := _voice_path(line)
 	if not ResourceLoader.exists(path):
+		if main.voicecheck:
+			print("VOICE нет файла %s для: %s" % [path.get_file(), line.left(40)])
 		return false
 	pl.stream = load(path)
+	pl.bus = "Voice"
 	pl.volume_db = vol
 	pl.play()
+	if main.voicecheck:
+		print("VOICE play %s len=%.2f playing=%s bus=%s vol=%.1f master=%.1f mute=%s" % [path.get_file(), pl.stream.get_length(), pl.playing, pl.bus, pl.volume_db, AudioServer.get_bus_volume_db(0), AudioServer.is_bus_mute(0)])
 	return true
 
 ## Боевой выкрик из data/barks.json: не поверх диалога, не чаще раза в gap секунд на вид, с вероятностью chance.
@@ -815,6 +892,11 @@ func _build_hud() -> void:
 	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(flash)
+	fade = ColorRect.new()
+	fade.color = Color(0, 0, 0, 0)
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(fade)
 	hud_root = Control.new()
 	hud_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1030,6 +1112,8 @@ func _update_hud(dt: float) -> void:
 	var obj := ""
 	if mode == "fight":
 		obj = "   ·   врагов: %d" % (alive + pending.size())
+	if mode == "exit":
+		obj = "   ·   выйди из подъезда во двор"
 	top_label.text = "ГЛАВА %d · %s%s" % [ch + 1, String(chapter()["name"]), obj]
 	xp_label.text = "▶ %d" % xp
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second()
@@ -1093,6 +1177,10 @@ func _autotest(dt: float) -> void:
 			dlg_chars = 9999.0
 			_dlg_advance()
 		player.auto_input = {}
+	elif mode == "exit":
+		var door: Vector3 = Vector3(0, 0, -5) - player.global_position
+		cam_yaw = atan2(-door.x, -door.z)
+		player.auto_input = {"move": Vector2(0, 1)}
 	else:
 		bot_input(dt)
 	var out: String = main.autotest if main.autotest != "" else main.smoke

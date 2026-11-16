@@ -1,4 +1,4 @@
-## Локации глав: одна арена 30×30, оформление по стилю главы (deco из сюжета).
+## Локации глав: одна арена 30×30, оформление по стилю главы (deco из сюжета). Отдельно — hall: подъезд, с которого начинается игра.
 ## snow — двор хрущёвок, basement — подвал, neon — неоновая лента, swamp — болото комментов, glass — крыша башни,
 ## grave — кладбище аккаунтов, server — ботоферма, chart — чарты, core — Ядро Алгоритма.
 extends Node3D
@@ -64,6 +64,8 @@ func build(d: String) -> void:
 
 func _theme(d: String) -> Dictionary:
 	match d:
+		"hall":
+			return {"indoor": true, "sky": [Color(0.02, 0.02, 0.025)], "amb": Color(0.3, 0.3, 0.28), "fog": Color(0.1, 0.1, 0.1), "fog_d": 0.012, "key": Color(1, 1, 1), "key_e": 0.0, "g": [Color(0.3, 0.29, 0.27), Color(0.36, 0.35, 0.32)], "p": "dust"}
 		"basement":
 			return {"indoor": true, "sky": [Color(0.03, 0.02, 0.02)], "amb": Color(0.35, 0.25, 0.2), "fog": Color(0.18, 0.12, 0.08), "fog_d": 0.03, "key": Color(1, 0.8, 0.6), "key_e": 0.25, "g": [Color(0.18, 0.12, 0.09), Color(0.32, 0.22, 0.15)], "p": "dust"}
 		"neon":
@@ -424,3 +426,101 @@ func _particles(T: Dictionary) -> void:
 func follow(p: Vector3) -> void:
 	if particles:
 		particles.global_position = Vector3(p.x, particles.global_position.y, p.z)
+
+## Подъезд хрущёвки — площадка первого этажа, с неё начинается игра (порт вестибюля из браузерной версии).
+## Плитка в шашечку, крашеные стены, лестница наверх, почтовые ящики, двери квартир, дрожащая лампа.
+## Выход во двор — проём в стене z = -5, из него бьёт холодный уличный свет.
+func _deco_hall(_T: Dictionary) -> void:
+	var W := 4.0
+	var L := 5.0
+	var H := 3.2
+	var green := _mat(Color(0.2, 0.33, 0.27))
+	var white := _mat(Color(0.7, 0.68, 0.6))
+	var conc := _mat(Color(0.4, 0.38, 0.35))
+	var dark := _mat(Color(0.13, 0.13, 0.12))
+	var wood := _mat(Color(0.3, 0.19, 0.12))
+	var metal := _mat(Color(0.3, 0.34, 0.4), 0.0, 0.5)
+	var t1 := _mat(Color(0.33, 0.29, 0.25))
+	var t2 := _mat(Color(0.5, 0.47, 0.4))
+	for ix in 8:
+		for iz in 10:
+			_box(Vector3(-W + 0.5 + ix, 0.01, -L + 0.5 + iz), Vector3(0.97, 0.02, 0.97), t1 if (ix + iz) % 2 == 0 else t2)
+	# стены: низ — зелёная краска, верх — побелка, между ними тёмная полоса
+	for sx in [-1.0, 1.0]:
+		_box(Vector3(sx * (W + 0.1), 0.75, 0), Vector3(0.2, 1.5, 2 * L), green)
+		_box(Vector3(sx * (W + 0.1), 2.35, 0), Vector3(0.2, 1.7, 2 * L), white)
+		_box(Vector3(sx * (W + 0.005), 1.5, 0), Vector3(0.02, 0.05, 2 * L), dark)
+		_static_box(Vector3(sx * (W + 0.5), H / 2, 0), Vector3(1, H, 2 * L + 2))
+	_box(Vector3(0, 0.75, L + 0.1), Vector3(2 * W, 1.5, 0.2), green)
+	_box(Vector3(0, 2.35, L + 0.1), Vector3(2 * W, 1.7, 0.2), white)
+	_static_box(Vector3(0, H / 2, L + 0.5), Vector3(2 * W + 2, H, 1))
+	for sx in [-1.0, 1.0]:
+		_box(Vector3(sx * 2.4, 0.75, -L - 0.1), Vector3(3.2, 1.5, 0.2), green)
+		_box(Vector3(sx * 2.4, 2.35, -L - 0.1), Vector3(3.2, 1.7, 0.2), white)
+	_box(Vector3(0, 2.7, -L - 0.1), Vector3(1.6, 1.0, 0.2), white)
+	_static_box(Vector3(0, H / 2, -L - 0.5), Vector3(2 * W + 2, H, 1))
+	_box(Vector3(0, H + 0.1, 0), Vector3(2 * W + 0.4, 0.2, 2 * L + 0.4), white)
+	_static_box(Vector3(0, H + 0.5, 0), Vector3(2 * W + 2, 1, 2 * L + 2))
+	# выход во двор: распахнутая дверь, за проёмом — ночь и снег
+	_box(Vector3(0, 1.1, -L - 0.22), Vector3(1.6, 2.2, 0.05), _mat(Color(0.5, 0.66, 1.0), 2.4))
+	_box(Vector3(-0.86, 1.1, -L + 0.72), Vector3(0.07, 2.15, 1.45), wood)
+	for sx in [-0.84, 0.84]:
+		_box(Vector3(sx, 1.1, -L + 0.02), Vector3(0.1, 2.25, 0.12), dark)
+	_box(Vector3(0, 2.24, -L + 0.02), Vector3(1.78, 0.1, 0.12), dark)
+	_box(Vector3(0, 0.025, -L + 0.55), Vector3(1.5, 0.03, 1.0), _mat(Color(0.85, 0.88, 0.95)))
+	_light(Vector3(0, 1.4, -L + 0.9), Color(0.5, 0.68, 1.0), 2.4, 6.5)
+	# двери квартир и коврики
+	for sx in [-2.0, 2.0]:
+		_box(Vector3(sx, 1.05, L - 0.04), Vector3(1.0, 2.1, 0.1), wood)
+		_box(Vector3(sx, 1.72, L - 0.1), Vector3(0.16, 0.1, 0.02), _mat(Color(0.8, 0.7, 0.4), 0.3))
+		_box(Vector3(sx + 0.36, 1.0, L - 0.11), Vector3(0.05, 0.14, 0.05), _mat(Color(0.7, 0.62, 0.4), 0.0, 0.4))
+		_box(Vector3(sx, 0.03, L - 0.72), Vector3(0.9, 0.03, 0.55), _mat(Color(0.35, 0.12, 0.1)))
+	# почтовые ящики
+	for row in 2:
+		for col in 5:
+			var mz := -1.4 + col * 0.42
+			var my := 1.2 + row * 0.38
+			_box(Vector3(W - 0.11, my, mz), Vector3(0.2, 0.34, 0.38), metal)
+			_box(Vector3(W - 0.22, my + 0.08, mz), Vector3(0.02, 0.03, 0.24), dark)
+	# лестница наверх: десять ступеней, площадка, перила
+	for i in 10:
+		var top := (i + 1) * 0.17
+		_box(Vector3(-3.2, top / 2, 1.82 - 0.36 * i), Vector3(1.6, top, 0.36), conc)
+		_box(Vector3(-2.42, top + 0.45, 1.82 - 0.36 * i), Vector3(0.04, 0.9, 0.04), dark)
+	_box(Vector3(-3.2, 1.62, -3.2), Vector3(1.6, 0.16, 3.2), conc)
+	var rail := _box(Vector3(-2.42, 1.86, 0.2), Vector3(0.06, 0.06, 4.0), dark)
+	rail.rotation.x = atan(1.7 / 3.6)
+	_static_box(Vector3(-3.2, 1.0, -1.3), Vector3(1.7, 2.0, 7.2))
+	# батарея, труба, щиток
+	for i in 8:
+		_box(Vector3(W - 0.14, 0.55, -3.9 + i * 0.1), Vector3(0.12, 0.6, 0.07), _mat(Color(0.62, 0.6, 0.52)))
+	_cyl(Vector3(W - 0.25, H / 2, L - 0.3), 0.09, H, conc)
+	_box(Vector3(W - 0.1, 1.9, 2.6), Vector3(0.14, 0.6, 0.45), metal)
+	# лампа на проводе: «на площадке дрожит лампа»
+	_box(Vector3(0, H - 0.2, 0.8), Vector3(0.02, 0.4, 0.02), dark)
+	_box(Vector3(0, H - 0.48, 0.8), Vector3(0.18, 0.22, 0.18), _mat(Color(1.0, 0.8, 0.45), 1.5))
+	var lamp := OmniLight3D.new()
+	lamp.position = Vector3(0, H - 0.7, 0.8)
+	lamp.light_color = Color(1.0, 0.76, 0.42)
+	lamp.light_energy = 1.9
+	lamp.omni_range = 9.0
+	lamp.shadow_enabled = true
+	add_child(lamp)
+	var tw := lamp.create_tween().set_loops()
+	for st in [[1.9, 1.7], [0.5, 0.05], [1.9, 0.5], [0.9, 0.04], [1.8, 0.08], [0.4, 0.06], [1.9, 2.4]]:
+		tw.tween_property(lamp, "light_energy", st[0], 0.03)
+		tw.tween_interval(st[1])
+	_light(Vector3(0.5, 2.3, 3.9), Color(1.0, 0.8, 0.55), 0.9, 5.0)
+	# надписи на стенах
+	var font = load("res://assets/fonts/RussoOne-Regular.ttf")
+	for it in [["VOZDUH", Vector3(W - 0.01, 2.2, 1.2), -PI / 2, 110, Color(0.75, 0.16, 0.14)], ["ПОДЪЕЗД 3", Vector3(2.4, 2.45, -L + 0.01), 0.0, 70, Color(0.16, 0.2, 0.18)], ["МАРК БЫЛ ТУТ", Vector3(-0.6, 1.9, L - 0.01), PI, 44, Color(0.12, 0.14, 0.2)]]:
+		var lb := Label3D.new()
+		lb.text = it[0]
+		lb.font = font
+		lb.font_size = it[3]
+		lb.pixel_size = 0.006
+		lb.modulate = it[4]
+		lb.outline_size = 0
+		lb.position = it[1]
+		lb.rotation.y = it[2]
+		add_child(lb)

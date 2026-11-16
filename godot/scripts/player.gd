@@ -7,22 +7,23 @@ const HEIGHT := 1.85
 ## Heat-действие [E] — добивание с замедлением.
 ## Поля удара: dur — длительность клипа, hits — доли клипа, когда балон проходит цель (совпадают с ключами в poses.gd),
 ## step — [с, по, скорость]: шаг в удар, cancel — с какой доли можно продолжить цепочку, launch — подброс врага,
-## slam — когда балон бьёт в землю, scrape — когда чиркает по земле.
+## slam — когда балон бьёт в землю, scrape — когда чиркает по земле, drop — когда после удара падает на землю,
+## from — с какой доли клипа начинать, если удар идёт в цепочке (балон уже не за спиной, а там, где его оставил прошлый удар).
 const LIGHT := [
-	{"clip": "Light1", "dur": 0.62, "hits": [0.42], "dmg": 20.0, "range": 2.6, "arc": 2.6, "kb": 4.0, "step": [0.28, 0.46, 5.0], "cancel": 0.6},
-	{"clip": "Light2", "dur": 0.62, "hits": [0.42], "dmg": 20.0, "range": 2.6, "arc": 2.6, "kb": 4.0, "step": [0.28, 0.46, 5.0], "cancel": 0.6},
-	{"clip": "Upper", "dur": 0.66, "hits": [0.43], "dmg": 24.0, "range": 2.6, "arc": 2.2, "kb": 3.0, "launch": 5.5, "step": [0.3, 0.46, 4.0], "cancel": 0.62, "scrape": 0.35},
-	{"clip": "Spin", "dur": 0.78, "hits": [0.4, 0.66], "dmg": 18.0, "range": 2.9, "arc": 6.3, "kb": 6.0, "spin": 1.0, "cancel": 0.82},
+	{"clip": "Light1", "dur": 1.0, "hits": [0.52], "dmg": 28.0, "range": 2.7, "arc": 2.6, "kb": 4.5, "step": [0.44, 0.64, 4.2], "cancel": 0.7, "drop": 0.75},
+	{"clip": "Light2", "dur": 0.98, "hits": [0.5], "dmg": 28.0, "range": 2.7, "arc": 2.6, "kb": 4.5, "step": [0.42, 0.62, 4.2], "cancel": 0.7, "from": 0.17, "drop": 0.74},
+	{"clip": "Upper", "dur": 0.98, "hits": [0.5], "dmg": 32.0, "range": 2.7, "arc": 2.2, "kb": 3.0, "launch": 5.5, "step": [0.42, 0.56, 3.6], "cancel": 0.68, "from": 0.12, "scrape": 0.36, "drop": 0.87},
+	{"clip": "Spin", "dur": 0.9, "hits": [0.42, 0.68], "dmg": 24.0, "range": 2.9, "arc": 6.3, "kb": 6.0, "spin": 1.0, "cancel": 0.84, "from": 0.08},
 ]
 const FINISH := [
-	{"clip": "Heavy", "dur": 0.95, "hits": [0.55], "dmg": 55.0, "range": 3.0, "arc": 2.0, "kb": 5.0, "launch": 6.0, "heavy": true, "slam": 0.58, "step": [0.46, 0.56, 4.0], "name": "ОВЕРХЕД"},
-	{"clip": "Nail", "dur": 0.68, "hits": [0.41], "dmg": 45.0, "range": 2.9, "arc": 1.8, "kb": 3.0, "heavy": true, "stun": 1.5, "step": [0.28, 0.44, 5.5], "name": "ГВОЗДЬ"},
-	{"clip": "FullSwing", "dur": 0.8, "hits": [0.34], "dmg": 55.0, "range": 3.2, "arc": 3.6, "kb": 15.0, "launch": 6.5, "heavy": true, "charge": true, "step": [0.14, 0.36, 7.0], "name": "ПОЛНЫЙ ЗАМАХ"},
-	{"clip": "Spin", "dur": 1.25, "hits": [0.22, 0.35, 0.48, 0.61, 0.74], "dmg": 16.0, "range": 3.0, "arc": 6.3, "kb": 3.0, "spin": 3.0, "heavy": true, "last_launch": 6.0, "name": "НУНЧАКИ"},
+	{"clip": "Heavy", "dur": 1.2, "hits": [0.57], "dmg": 60.0, "range": 3.0, "arc": 2.0, "kb": 5.0, "launch": 6.0, "heavy": true, "slam": 0.61, "step": [0.5, 0.6, 4.0], "from": 0.08, "name": "ОВЕРХЕД"},
+	{"clip": "Nail", "dur": 0.84, "hits": [0.42], "dmg": 48.0, "range": 2.9, "arc": 1.8, "kb": 3.0, "heavy": true, "stun": 1.5, "step": [0.3, 0.46, 5.0], "from": 0.08, "drop": 0.52, "name": "ГВОЗДЬ"},
+	{"clip": "FullSwing", "dur": 0.9, "hits": [0.34], "dmg": 55.0, "range": 3.2, "arc": 3.6, "kb": 15.0, "launch": 6.5, "heavy": true, "charge": true, "step": [0.14, 0.4, 6.5], "name": "ПОЛНЫЙ ЗАМАХ"},
+	{"clip": "Spin", "dur": 1.3, "hits": [0.24, 0.37, 0.5, 0.63, 0.76], "dmg": 16.0, "range": 3.0, "arc": 6.3, "kb": 3.0, "spin": 3.0, "heavy": true, "last_launch": 6.0, "from": 0.08, "name": "НУНЧАКИ"},
 ]
 const HEAT := [
-	{"clip": "Smash", "dur": 0.9, "hits": [0.6], "dmg": 60.0, "range": 3.2, "arc": 2.4, "kb": 1.0, "launch": 7.5, "heavy": true, "super": true, "slam": 0.6, "cancel": 0.8},
-	{"clip": "FullSwing", "dur": 0.85, "hits": [0.34], "dmg": 90.0, "range": 3.4, "arc": 3.0, "kb": 20.0, "launch": 7.0, "heavy": true, "super": true, "step": [0.14, 0.36, 6.0]},
+	{"clip": "Smash", "dur": 1.0, "hits": [0.59], "dmg": 60.0, "range": 3.2, "arc": 2.4, "kb": 1.0, "launch": 7.5, "heavy": true, "super": true, "slam": 0.6, "cancel": 0.8},
+	{"clip": "FullSwing", "dur": 0.9, "hits": [0.34], "dmg": 90.0, "range": 3.4, "arc": 3.0, "kb": 20.0, "launch": 7.0, "heavy": true, "super": true, "step": [0.14, 0.4, 6.0]},
 ]
 const GOLD := Color(1.0, 0.8, 0.42)
 const HOT := Color(1.0, 0.45, 0.15)
@@ -65,6 +66,10 @@ var scrape_done := false
 var ring_cd := 0.0
 var charged := 0.0    # заряд, с которым выпущен текущий удар (0..1.2)
 var maxed := false
+var drag: WeaponDrag        # инерция балона поверх анимации
+var scrape_p: AudioStreamPlayer
+var scr_cd := 0.0
+var drop_done := false
 
 func _ready() -> void:
 	var col := CollisionShape3D.new()
@@ -88,6 +93,16 @@ func _ready() -> void:
 	trail = Trail.new()
 	rig.add_child(trail)
 	trail.setup(rig, GOLD, 0.22)
+	drag = WeaponDrag.new()
+	drag.rig = rig
+	rig.skel.add_child(drag)
+	scrape_p = AudioStreamPlayer.new()
+	var scr: AudioStreamWAV = load("res://assets/audio/sfx_scrape.wav")
+	scr.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	scr.loop_end = int(scr.get_length() * scr.mix_rate)
+	scrape_p.stream = scr
+	scrape_p.volume_db = -80.0
+	add_child(scrape_p)
 	charge_light = OmniLight3D.new()
 	charge_light.omni_range = 5.0
 	charge_light.light_energy = 0.0
@@ -264,6 +279,13 @@ func _physics_process(dt: float) -> void:
 				if not wp.is_empty():
 					game.fx.scrape(wp[1], fwd)
 					game.main.sfx("sfx_slash", -10.0, 0.7)
+			if atk.has("drop") and not drop_done and k >= float(atk["drop"]):
+				drop_done = true
+				var wpd := rig.weapon_points()
+				if not wpd.is_empty():
+					game.fx.scrape(wpd[1], fwd)
+				game.main.sfx("sfx_clang", -9.0, 0.7)
+				game.shake(0.1)
 			# вертушка: разгон и торможение, а не ровное вращение
 			spin_off = -TAU * float(atk.get("spin", 0.0)) * smoothstep(0.14, 0.88, k)
 			if heat_q.is_empty():
@@ -282,9 +304,9 @@ func _physics_process(dt: float) -> void:
 				spin_off = 0.0
 				if queued == "light" and combo < LIGHT.size() - 1:
 					combo += 1
-					start_attack(LIGHT[combo])
+					start_attack(LIGHT[combo], true)
 				elif queued == "heavy":
-					start_finisher(combo + 1)
+					start_finisher(combo + 1, true)
 				else:
 					state = "move"
 					combo = 0
@@ -361,7 +383,7 @@ func _physics_process(dt: float) -> void:
 	rm.albedo_color = Color(mat.albedo_color.r, mat.albedo_color.g, mat.albedo_color.b, lerpf(rm.albedo_color.a, 0.8 if glow > 0.0 else 0.0, 1.0 - exp(-5.0 * dt)))
 	aura_ring.rotation.y += dt * (2.6 if rage > 0.0 else 0.9)
 
-func start_attack(a: Dictionary) -> void:
+func start_attack(a: Dictionary, chained := false) -> void:
 	state = "attack"
 	atk = a
 	t = 0.0
@@ -374,7 +396,11 @@ func start_attack(a: Dictionary) -> void:
 	charged = 0.0
 	face = _aim_face(float(a["range"]), input_dir())
 	body.rotation.y = face
-	rig.play_for(a["clip"], a["dur"], 0.07)
+	rig.play_for(a["clip"], a["dur"], 0.12 if chained else 0.08)
+	drop_done = false
+	if chained and a.has("from"):
+		t = float(a["from"]) * float(a["dur"])
+		rig.player.seek(float(a["from"]) * rig.clip_len(a["clip"]), true)
 	trail.boost = 1.5 if a.has("super") else (1.25 if a.has("heavy") else 1.0)
 	trail.set_color(HOT if a.has("super") or rage > 0.0 else GOLD)
 
@@ -425,7 +451,7 @@ func _slam(fwd: Vector3) -> void:
 	game.punch(1.0 if big else 0.5, at)
 
 ## тяжёлый удар: n — после скольких лёгких нажат (0 — с места)
-func start_finisher(n: int) -> void:
+func start_finisher(n: int, chained := false) -> void:
 	var fin: Dictionary = FINISH[min(n, FINISH.size() - 1)]
 	combo = 0
 	if fin.has("charge"):
@@ -438,7 +464,7 @@ func start_finisher(n: int) -> void:
 		rig.play("Charge", 0.12)
 		game.main.sfx("sfx_charge", -4.0)
 		return
-	start_attack(fin)
+	start_attack(fin, chained)
 
 ## Heat-действие: рядом враг и есть 40 СВЭГа — удар сверху и полный замах с замедлением и наездом камеры
 func try_heat() -> void:
@@ -529,6 +555,7 @@ func _deal_hit() -> void:
 		if atk.has("name") and hit_i == 1:
 			game.popup(global_position + Vector3(0, 2.4, 0), atk["name"], Color(1, 0.8, 0.3))
 		game.main.sfx("sfx_glass" if randf() < 0.5 else "sfx_hit", -2.0)
+		game.main.sfx("sfx_clang", -2.0 if tier > 0 else -6.0, 0.8 if tier > 0 else 1.0)   # низкий металл
 		if tier >= 1:
 			game.main.sfx("sfx_hit_heavy", 0.0)
 		if tier == 2:
@@ -587,6 +614,22 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		game.on_player_dead()
 
 func _process(dt: float) -> void:
+	# в стойке и на бегу балон живёт по инерции; в ударах, блоке и перекате его ведёт анимация
+	drag.floor_y = global_position.y + 0.06
+	var free := 1.0 if state == "move" or state == "hurt" else 0.0
+	drag.weight = move_toward(drag.weight, free, dt * (8.0 if free < drag.weight else 2.5))
+	var sp: float = drag.scrape_speed if drag.weight > 0.3 else 0.0
+	var loud := clampf((sp - 0.8) / 5.0, 0.0, 1.0)
+	if loud > 0.0 and not scrape_p.playing and game.main.testing() == "":
+		scrape_p.play()
+	scrape_p.volume_db = lerpf(scrape_p.volume_db, lerpf(-34.0, -17.0, loud) if loud > 0.0 else -80.0, 1.0 - exp(-10.0 * dt))
+	scrape_p.pitch_scale = 0.85 + 0.35 * loud
+	scr_cd -= dt
+	if sp > 2.2 and scr_cd <= 0.0:
+		scr_cd = 0.11
+		game.fx.sparks(drag.tip, Vector3.UP, 3, GOLD, 0.3, 55.0)
+		if randf() < 0.35:
+			game.fx.dust(drag.tip + Vector3(0, 0.05, 0), 2, game.fx.DUST, 0.3)
 	var want := 0.0
 	if state == "charge":
 		want = 1.0 + 4.0 * charge_t

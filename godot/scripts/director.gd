@@ -145,19 +145,33 @@ func _ready() -> void:
 			game.auto_t += 1.0 / 30.0
 			game.bot_input(1.0 / 30.0)})
 	# проверочные планы боя (снимаются только по имени через --shots): камера сбоку, видно дугу балона и отклик врагов
-	var tests := [["T1_", 110, {2: "attack", 14: "attack", 26: "attack", 38: "attack"}], ["T2_", 60, {2: "heavy"}], ["T3_", 70, {2: "attack", 13: "heavy"}], ["T4_", 100, {2: "attack", 14: "attack", 26: "attack", 38: "attack", 52: "heavy"}]]
+	var tests := [["T1_", 110, {2: "attack", 14: "attack", 26: "attack", 38: "attack"}], ["T2_", 60, {2: "heavy"}], ["T3_", 70, {2: "attack", 13: "heavy"}], ["T4_", 100, {2: "attack", 14: "attack", 26: "attack", 38: "attack", 52: "heavy"}],
+		# T5_ — без врагов: бег, поворот, остановка — видно, как балон волочится и отстаёт
+		["T5_", 130, {1: {"move": Vector2(0, 1)}, 45: {"move": Vector2(1, 0)}, 80: {}}]]
 	for tt in tests:
 		var presses: Dictionary = tt[2]
+		var empty: bool = tt[0] == "T5_"
+		var hold := {"in": {}}
 		shots.append({"n": tt[0], "test": true, "warm": 40, "len": tt[1], "own": true, "setup": func():
 			_stage(0)
 			game.cam_yaw = 0.0
 			P.face = PI
-			for x in [-1.1, 0.0, 1.1]:
-				game.spawn_enemy("bot", P.global_position + Vector3(x, 0, -2.3 - abs(x) * 0.2)), "tick": func(i):
+			for x in ([] if empty else [-1.1, 0.0, 1.1]):
+				game.spawn_enemy("bot", P.global_position + Vector3(x, 0, -2.3 - abs(x) * 0.2))
+			hold["in"] = {}, "tick": func(i):
 			P.inv = 1.0
 			_park_buddy()
-			P.auto_input = {presses[i]: "press"} if presses.has(i) else {}
-			_look(P.global_position + Vector3(4.3, 1.5, -1.2), P.global_position + Vector3(0, 0.95, -1.3))})
+			var inp: Dictionary = {}
+			if presses.has(i) and presses[i] is Dictionary:
+				hold["in"] = presses[i]
+			inp = (hold["in"] as Dictionary).duplicate()
+			if presses.has(i) and presses[i] is String:
+				inp[presses[i]] = "press"
+			P.auto_input = inp
+			if empty:
+				_look(Vector3(5.5, 2.2, -1.0), P.global_position + Vector3(0, 0.7, 0))
+			else:
+				_look(P.global_position + Vector3(4.3, 1.5, -1.2), P.global_position + Vector3(0, 0.95, -1.3))})
 	# --shots=A,X4_ — снять только названные планы
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shots="):
