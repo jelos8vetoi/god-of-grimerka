@@ -54,6 +54,10 @@ var switch_to := ""          # идёт смена стиля: на какой
 var switch_t := 0.0
 var switch_buf := false      # во время смены нажали удар: сработает сразу после
 const SWITCH_T := 0.42
+var hero := "pahan"          # кем управляет игрок: pahan / madk1d (смена — Tab, game.swap_heroes)
+var heroes := {}             # имя → {rig, anim, feet, trail, styles, style}
+var m_weapons := {}          # оружие madk1d по стилям: id → {att, weapon, bone, grip}
+var skate: Skate             # скейтборд: езда и трюки (skate.gd)
 var FINISH: Array = []      # тяжёлые удары стиля по числу лёгких перед ними (для съёмки трейлера)
 var scrape_p: AudioStreamPlayer
 var scr_cd := 0.0
@@ -101,6 +105,37 @@ func _ready() -> void:
 	pod = PodHand.new()
 	pod.setup(rig)
 	rig.skel.add_child(pod)
+	heroes["pahan"] = {"rig": rig, "anim": anim, "feet": feet, "trail": trail, "styles": own_styles, "style": "vozduh"}
+	# madk1d как второй герой игрока: свой риг, оружие стилей, состояния анимации и стопы
+	var mr := Rig.new()
+	spin.add_child(mr)
+	mr.position.y = -0.9
+	var mdefs := Poses.madk1d()
+	mr.setup("res://assets/models/madk1d.glb", 1.68, mdefs)
+	for sid in ["skateboard", "guitar"]:
+		var sd: StyleData = Styles.by_id(sid)
+		if sd.ready and not sd.weapon.is_empty():
+			var att: Node3D = mr.attach(sd.weapon["path"], sd.weapon["side"], sd.weapon["opt"])
+			m_weapons[sid] = {"att": att, "weapon": mr.weapon, "bone": mr.weapon_bone, "grip": mr.weapon_grip}
+			att.visible = false
+	var mt := Trail.new()
+	mr.add_child(mt)
+	mt.setup(mr, Color(0.36, 0.82, 1.0), 0.2)
+	var mf := FootIK.new()
+	mf.setup(mr)
+	mf.exclude = [get_rid()]
+	mr.skel.add_child(mf)
+	mr.clip_event.connect(_on_clip_event)
+	mr.visible = false
+	var mstyles := []
+	for sid in ["skateboard", "guitar"]:
+		if Styles.by_id(sid).ready:
+			mstyles.append(sid)
+	heroes["madk1d"] = {"rig": mr, "anim": AnimState.new(mr, mdefs, MadkMoves.PROFILE), "feet": mf, "trail": mt, "styles": mstyles, "style": mstyles[0] if not mstyles.is_empty() else ""}
+	skate = Skate.new()
+	body.add_child(skate)
+	skate.setup(self, game)
+	combat.attack_hit.connect(_on_attack_hit)
 	bottles = Bottles.new()
 	add_child(bottles)
 	bottles.setup(self, game)
@@ -231,6 +266,7 @@ func _physics_process(dt: float) -> void:
 			combat.interrupt()
 			_finish_switch()
 			tyaga.on_hurt()
+			skate.off()
 			state = "move"
 		rig.play("Idle", 0.3)
 		move_and_slide()
@@ -256,6 +292,9 @@ func _physics_process(dt: float) -> void:
 	for i in own_styles.size():
 		if pressed("style%d" % (i + 1)):
 			set_style(own_styles[i])
+	if pressed("tag") and switch_to == "" and (state == "move" or (state == "tyaga" and tyaga.mode == "hold")):
+		game.swap_heroes()
+		return
 	var spd := 5.6 * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0)
 	# ТЯГА-812: в этом стиле «свободное» состояние героя ведёт пылесос
 	if style.id == "tyaga812" and state == "move" and switch_to == "":
@@ -294,6 +333,9 @@ func _physics_process(dt: float) -> void:
 					face = rotate_toward(face, turn_to, 3.0 * dt)
 					if abs(angle_difference(face, turn_to)) < 0.02:
 						turn_to = NAN
+				if style.id == "skateboard" and state == "move" and held("sprint") and dir.length() > 0.3 and is_on_floor():
+					skate.mount()            # Ctrl на бегу: доска под ноги
+					return
 				if held("sprint") and dir.length() > 0.5 and anim.state == "move":
 					combat.open("sprint", 0.12)   # на бегу с рывком: удар с разгона
 				if anim_hold <= 0.0 or dir.length() > 0.1:
@@ -313,6 +355,17 @@ func _physics_process(dt: float) -> void:
 			velocity.z = move_toward(velocity.z, 0.0, 30.0 * dt)
 			switch_t += dt
 			var sk := switch_t / SWITCH_T
+			if hero == "madk1d":
+				spin_off = -TAU * smoothstep(0.1, 0.6, sk)
+				if sk >= 0.55:
+					equip_madk(switch_to)
+				if sk >= 1.0:
+					spin_off = 0.0
+					_finish_switch()
+				velocity.y -= 20.0 * dt
+				move_and_slide()
+				body.rotation.y = face + spin_off
+				return
 			if switch_to == "vozduh" and sk >= 0.36:
 				rig.set_holstered(false)
 			elif style.id == "vozduh" and sk >= 0.64:
@@ -321,6 +374,8 @@ func _physics_process(dt: float) -> void:
 				_finish_switch()
 		"tyaga":
 			tyaga.tick(dt, dir)
+		"skate":
+			skate.tick(dt, dir)
 		"attack":
 			combat.tick_attack(dt, dir)
 		"charge":
@@ -402,6 +457,10 @@ func set_style(id: String) -> bool:
 	switch_buf = false
 	state = "switch"
 	bottles.show_prop(false)
+	if hero == "madk1d":
+		rig.play_for("StyleSwitch", SWITCH_T, 0.06)      # оборот на месте, оружие меняется на середине
+		game.feedback("equip", global_position + Vector3(0, 1.2, 0))
+		return true
 	if style.id == "tyaga812":
 		tyaga.leave()                 # пылесос откатывается
 	if id == "vozduh":
@@ -423,7 +482,11 @@ func _finish_switch() -> void:
 		return
 	style = Styles.by_id(switch_to)
 	switch_to = ""
-	rig.set_holstered(style.id != "vozduh")
+	spin_off = 0.0
+	if hero == "madk1d":
+		equip_madk(style.id)
+	else:
+		rig.set_holstered(style.id != "vozduh")
 	rig.style_map = style.roles
 	combat.set_style(style)
 	if switch_buf:
@@ -432,6 +495,65 @@ func _finish_switch() -> void:
 	if state == "switch":
 		state = "move"
 	game.popup(global_position + Vector3(0, 2.3, 0), style.title, style.color)
+
+## Сменить героя под управлением игрока. Риг, состояния анимации, стопы, след и набор стилей — свои у каждого.
+func set_hero(id: String) -> void:
+	if id == hero or not heroes.has(id):
+		return
+	combat.interrupt()
+	_finish_switch()
+	if hero == "pahan":
+		if style.id == "tyaga812":
+			tyaga.leave()
+		bottles.show_prop(false)
+		bottles.hide_preview()
+	else:
+		skate.off()
+	heroes[hero]["style"] = style.id
+	rig.visible = false
+	trail.enabled = false
+	hero = id
+	var h: Dictionary = heroes[id]
+	rig = h["rig"]
+	anim = h["anim"]
+	feet = h["feet"]
+	trail = h["trail"]
+	own_styles = h["styles"]
+	rig.visible = true
+	style = Styles.by_id(String(h["style"]))
+	combat.set_style(style)
+	rig.style_map = style.roles
+	if id == "madk1d":
+		equip_madk(style.id)
+	spin_off = 0.0
+	spin.rotation.x = 0.0
+	state = "move"
+
+## оружие madk1d по стилю: в кулаке видно только оно
+func equip_madk(sid: String) -> void:
+	var r: Rig = heroes["madk1d"]["rig"]
+	for k2 in m_weapons:
+		(m_weapons[k2]["att"] as Node3D).visible = k2 == sid and not skate.on
+	if m_weapons.has(sid):
+		r.weapon = m_weapons[sid]["weapon"]
+		r.weapon_bone = m_weapons[sid]["bone"]
+		r.weapon_grip = m_weapons[sid]["grip"]
+
+## показать или спрятать оружие в руке (доска уходит под ноги)
+func show_weapon(on: bool) -> void:
+	if hero == "madk1d" and m_weapons.has(style.id):
+		(m_weapons[style.id]["att"] as Node3D).visible = on
+
+## множитель урона от состояния героя (заряды трюков и т. п.) — его спрашивает ядро боя
+func damage_bonus(_a: AttackData) -> float:
+	if hero == "madk1d" and style.id == "skateboard":
+		return skate.bonus()
+	return 1.0
+
+## попадание ударом ядра: заряды трюков потрачены
+func _on_attack_hit(_a: AttackData, _n: int) -> void:
+	if hero == "madk1d" and style.id == "skateboard":
+		skate.charges = 0
 
 ## ядро боя: момент броска — снаряд вылетает из руки
 func launch_projectile(a: AttackData, charged: float) -> void:
@@ -448,6 +570,8 @@ func aim_preview(a: AttackData, power: float) -> void:
 ## строка HUD: стиль и запас
 func style_hud() -> String:
 	var n := own_styles.find(style.id) + 1
+	if style.id == "skateboard":
+		return "[%d] %s  трюки %s%s  %s" % [n, style.title, "◆".repeat(skate.charges), "◇".repeat(3 - skate.charges), "на доске" if skate.on else "[Ctrl] на доску"]
 	if style.id == "tyaga812":
 		var cells := int(round(tyaga.heat / 12.5))
 		var tip := "перегрев!" if tyaga.lock > 0.0 else ("[E] сойти" if tyaga.riding() else "[E] сесть")
@@ -561,6 +685,7 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		combat.interrupt()
 		_finish_switch()
 		tyaga.on_hurt()
+		skate.off("hurt")
 		spin.rotation.x = 0.0
 		velocity = -to.normalized() * 4.0
 		# сильный удар отбрасывает (герой остаётся на ногах), обычный — вздрагивает; длительность оглушения та же
@@ -597,7 +722,7 @@ func _process(dt: float) -> void:
 	# iPod: пока интерфейс открыт, герой держит устройство перед собой. Он встаёт вполоборота к камере,
 	# лицом к правому краю кадра — туда, где интерфейс, — иначе iPod у груди закрыт спиной. После — поворачивается обратно.
 	var ip = game.ipod
-	var pod_open: bool = pod_force or (ip != null and (ip.opened or ip.device.visible) and state == "move")
+	var pod_open: bool = hero == "pahan" and (pod_force or (ip != null and (ip.opened or ip.device.visible) and state == "move"))
 	if pod_open and not pod.want:
 		if not pod.busy():
 			pod_face0 = face
@@ -617,9 +742,9 @@ func _process(dt: float) -> void:
 		face = lerp_angle(face, pod_face if pod.want or pod.u >= 1.0 else pod_face0, 1.0 - exp(-5.0 * dt))
 		body.rotation.y = face
 	# бутылка в кулаке: есть запас, не идёт смена стиля, рука не занята iPod, бутылка ещё не брошена
-	bottles.show_prop(style.id == "bottles" and switch_to == "" and state != "dead" and not pod.busy() and combat.ammo_of("bottles") >= 1.0 and not (state == "attack" and combat.hit_i > 0))
+	bottles.show_prop(hero == "pahan" and style.id == "bottles" and switch_to == "" and state != "dead" and not pod.busy() and combat.ammo_of("bottles") >= 1.0 and not (state == "attack" and combat.hit_i > 0))
 	# стопы: прилегание к земле всегда, кроме переката, гибели и полёта; фиксация опоры — только в перемещении
-	feet.weight = move_toward(feet.weight, 0.0 if state in ["roll", "dead"] or not is_on_floor() or tyaga.riding() else 1.0, dt * 8.0)
+	feet.weight = move_toward(feet.weight, 0.0 if state in ["roll", "dead"] or not is_on_floor() or tyaga.riding() or skate.on else 1.0, dt * 8.0)
 	feet.lock = 1.0 if state in ["move", "block"] and anim.state != "fall" else 0.0
 	# в стойке и на бегу балон живёт по инерции; в ударах, блоке и перекате его ведёт анимация
 	drag.floor_y = global_position.y + 0.06

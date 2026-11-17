@@ -15,6 +15,8 @@ var anim: AnimState         # перемещение и движения (anim_s
 var feet: FootIK
 var idle_t := 0.0           # сколько стоит без дела: время от времени выдаёт брейк-движение
 var show_cd := 9.0
+var look := "madk1d"         # кого показывает напарник: когда игрок управляет madk1d, рядом идёт Пахан
+var looks := {}              # имя → {rig, anim, feet}
 
 func _ready() -> void:
 	var col := CollisionShape3D.new()
@@ -37,6 +39,7 @@ func _ready() -> void:
 	feet.setup(rig)
 	feet.exclude = [get_rid()]
 	rig.skel.add_child(feet)
+	looks["madk1d"] = {"rig": rig, "anim": anim, "feet": feet}
 	track = AudioStreamPlayer.new()
 	track.stream = load("res://assets/audio/adlib_dynasty.wav")
 	track.volume_db = -2.0
@@ -106,6 +109,31 @@ func _physics_process(dt: float) -> void:
 	feet.weight = 1.0 if is_on_floor() else 0.0
 	feet.lock = 0.0 if anim.state == "action" else 1.0
 
+## Показать другого героя (смена героя игроком). Пахан-напарник собирается при первом обращении.
+func set_look(id: String) -> void:
+	if id == look:
+		return
+	if not looks.has(id):
+		var r := Rig.new()
+		body.add_child(r)
+		var defs := Poses.pahan_armed()
+		r.setup("res://assets/models/pahan.glb", 1.85, defs, true, -1.0)
+		var sv: StyleData = Styles.by_id("vozduh")
+		r.attach(sv.weapon["path"], sv.weapon["side"], sv.weapon["opt"])
+		var f := FootIK.new()
+		f.setup(r)
+		f.exclude = [get_rid()]
+		r.skel.add_child(f)
+		looks[id] = {"rig": r, "anim": AnimState.new(r, defs, PahanMoves.PROFILE), "feet": f}
+	rig.visible = false
+	look = id
+	rig = looks[id]["rig"]
+	anim = looks[id]["anim"]
+	feet = looks[id]["feet"]
+	rig.visible = true
+	rig.play("Idle", 0.0)
+	say_t = 0.0
+
 ## Root motion и вращение клипа (рывок, прыжковая атака, вертушка, мельница): смещение за кадр — в скорость тела.
 ## true, если клип сам ведёт и высоту (воздушные приёмы) — тогда гравитацию в этот кадр не применяем.
 func apply_root(dt: float) -> bool:
@@ -124,7 +152,7 @@ func apply_root(dt: float) -> bool:
 
 ## Без врагов и без дела madk1d время от времени выдаёт брейк: шесть шагов, фриз или смену стойки.
 func _show_off(dt: float, hs: float, p) -> void:
-	if hs > 0.3 or p.enemies_near(14.0) or anim.busy():
+	if look != "madk1d" or hs > 0.3 or p.enemies_near(14.0) or anim.busy():
 		idle_t = 0.0
 		return
 	idle_t += dt
@@ -140,7 +168,7 @@ func adlib() -> bool:
 		return false
 	cd = cd_max
 	say_t = 2.1
-	rig.play_for("Cheer", 2.0, 0.08)
+	rig.play_for("Cheer" if look == "madk1d" else "Rage", 2.0, 0.08)
 	track.play()
 	game.popup(global_position + Vector3(0, 2.1, 0), ["ЭЙ!", "ПОЕХАЛИ!", "КАТЮХА!", "sexyswag!"].pick_random(), Color(0.36, 0.82, 1))
 	var wave := Color(0.36, 0.82, 1)

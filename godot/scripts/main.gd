@@ -6,6 +6,7 @@ const ACTIONS := {
 	"roll": [KEY_SPACE], "block": [KEY_SHIFT], "sprint": [KEY_CTRL], "adlib": [KEY_Q], "rage": [KEY_R], "heat": [KEY_E],
 	"ipod": [KEY_UP],
 	"throw": [KEY_F],
+	"tag": [KEY_TAB],
 	"style1": [KEY_1], "style2": [KEY_2], "style3": [KEY_3],
 	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11],
 }
