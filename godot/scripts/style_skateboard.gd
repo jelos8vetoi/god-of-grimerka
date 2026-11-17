@@ -14,7 +14,7 @@ static func build() -> StyleData:
 	s.color = Color(0.36, 0.82, 1.0)
 	s.color_hot = Color(1.0, 0.9, 0.4)
 	s.chain_cd = 0.1
-	s.roles = {"idle": "ArmedIdle", "combat_idle": "ArmedIdle"}
+	s.roles = {"idle": "ArmedIdle", "combat_idle": "ArmedIdle", "walk": "SkWalk", "run": "SkRun", "sprint": "SkSprint"}      # с доской в руках — свои шаг и бег
 	s.hit_sfx = [[["sfx_hit", -3.0, 1.3]], [["sfx_hit_heavy", -2.0, 1.2]], [["sfx_hit_heavy", 0.0, 1.0], ["sfx_crack", -2.0, 1.2]]]
 	# ---- на ногах: два быстрых маха и удар с разворота ----
 	s.add(AttackData.make({"id": "sk_swing1", "kind": "light", "clip": "SkTail", "duration": 0.5, "hits": [0.5], "damage": 14.0, "stagger": 12.0, "reach": 2.3, "arc": 2.6,

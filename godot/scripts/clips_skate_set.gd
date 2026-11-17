@@ -9,9 +9,25 @@ static func add_to(A: Dictionary) -> void:
 	var lfw := {"lup": {"x": -0.55}, "lleg": {"x": 0.6}, "rup": {"x": 0.3}, "rleg": {"x": 0.2}}
 	var rfw := {"rup": {"x": -0.55}, "rleg": {"x": 0.6}, "lup": {"x": 0.3}, "lleg": {"x": 0.2}}
 	var T2 := {"two": 0.1}
-	var rest := Poses.W([-0.18, 0.36, 0.04], [-0.1, -0.4, -0.9])
+	var rest := Poses.W([-0.2, 0.33, 0.14], [0.8, 0.45, 0.4], {"two": 0.22})      # доска тяжёлая: двумя руками наискось перед корпусом — правая у хвоста, левая выше по деке
 	var side := Poses.W([-0.2, 0.37, 0.06], [-0.92, -0.3, 0.1])
 	var hold: Dictionary = Poses.mk(Poses.add(st, {"spine": {"x": 0.1, "y": -0.12}, "larm": {"x": -0.7, "y": -0.2}, "lfa": {"x": -1.5}}))
+	# шаг, бег, рывок с доской в руках: ноги — как обычно, доску несут двумя руками у корпуса (на бегу ниже и ближе)
+	for row in [["Walk", "SkWalk", [-0.2, 0.33, 0.14], [0.8, 0.45, 0.4]], ["Run", "SkRun", [-0.2, 0.32, 0.13], [0.82, 0.4, 0.42]], ["Sprint", "SkSprint", [-0.2, 0.31, 0.13], [0.84, 0.34, 0.44]]]:
+		if not A.has(row[0]):
+			continue
+		var c: Dictionary = (A[row[0]] as Dictionary).duplicate(true)
+		var n := 0
+		for kf in c["k"]:
+			var bob: float = 0.008 * sin(float(n) / 8.0 * TAU * 2.0)
+			var gp: Array = row[2]
+			var ik := Poses.W([gp[0], gp[1] + bob, gp[2]], row[3], {"two": 0.22})
+			if (kf as Array).size() <= 2:
+				(kf as Array).append(ik)
+			else:
+				(kf as Array).insert(2, ik)
+			n += 1
+		A[row[1]] = c
 	# ---------- пять лёгких ----------
 	# хвостом: короткий рубящий сверху-справа вниз-влево
 	A["SkTail"] = {"d": 1.0, "ground": true, "n": 48, "k": [[0.0, hold, rest],
@@ -27,6 +43,7 @@ static func add_to(A: Dictionary) -> void:
 		[1.0, hold, rest, "io"]]}
 	# ногой и доской: прямой удар правой ногой, доска отведена — и следом тычок доской двумя руками
 	A["SkKickPush"] = {"d": 1.0, "ground": true, "n": 56, "ev": {"hit": [0.28, 0.56]}, "k": [[0.0, hold, rest],
+		[0.08, hold, Poses.W([-0.22, 0.41, 0.05], [-0.1, 0.92, -0.05]), "io"],      # доска уходит назад через верх: без переворота кисти
 		[0.16, Poses.mk(Poses.add(st, {"spine": {"x": -0.1}, "rup": {"x": -1.2}, "rleg": {"x": 1.5}})), Poses.W([-0.24, 0.42, -0.06], [-0.6, 0.3, -0.74]), "out"],
 		[0.28, Poses.mk(Poses.add(st, {"spine": {"x": -0.28}, "rup": {"x": -1.5}, "rleg": {"x": 0.1}, "lleg": {"x": 0.25}})), Poses.W([-0.26, 0.42, -0.1], [-0.6, 0.3, -0.74]), "in"],
 		[0.42, Poses.mk(Poses.add(rfw, Poses.tw(-0.2, -0.25, 0.1))), Poses.W([-0.16, 0.42, 0.0], [0.0, 0.08, 1.0], T2), "out"],
