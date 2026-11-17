@@ -270,6 +270,14 @@ func _run() -> void:
 	B.dodge_cd = 0.0
 	var e3 = game._make_enemy("bot", "", B.global_position + Vector3(1.2, 0, 0))
 	await frames(70)
+	for old in [e1, e2]:      # прежние враги не должны замахнуться раньше проверяемого: иначе отскок уже потрачен
+		if is_instance_valid(old) and old.alive():
+			old.state = "chase"
+			old.cool = 999.0
+			old.global_position = B.global_position + Vector3(-9.0, 0, 0)
+	await frames(2)
+	B.dodge_cd = 0.0
+	B.events = []
 	e3.global_position = B.global_position + Vector3(1.2, 0, 0)
 	e3.state = "wind"
 	e3.t = 0.0

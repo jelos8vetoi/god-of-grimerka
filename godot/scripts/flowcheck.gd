@@ -112,6 +112,7 @@ func wait_switch(max_frames := 150) -> float:
 
 ## поставить стиль без проверок (подготовка сцены)
 func put(id: String) -> void:
+	await wait_switch()      # смена, начатая в прошлой сцене, должна доиграть — иначе стиль поменяется уже после подготовки
 	if P.style.id == id:
 		return
 	await tap(key_of(id))
@@ -248,6 +249,11 @@ func _run() -> void:
 	while not P.combat.in_combo_window() and n < 200:
 		await get_tree().physics_frame
 		n += 1
+	await tap("attack")             # ЛКМ, ЛКМ, ПКМ — ПОЛНЫЙ ЗАМАХ (после этапа 1 ЛКМ, ПКМ — подброс, а не завершитель)
+	n = 0
+	while not (P.combat.cur != null and P.combat.cur.id == "vz_light2" and P.combat.in_combo_window()) and n < 200:
+		await get_tree().physics_frame
+		n += 1
 	await tap("heavy")              # завершитель цепочки
 	n = 0
 	while not (P.combat.cur != null and P.combat.cur.kind == "finisher" and P.combat.hit_i > 0) and n < 200:
@@ -364,6 +370,8 @@ func _run() -> void:
 		await frames(30)
 		var idle_peak: float = wf.peak
 		wf.peak = 0.0
+		e.global_position = P.global_position + Vector3(0, 0, -2.0)      # враг за полсекунды успевает отойти — ставим обратно под удар
+		e.stun(3.0)
 		await strike_until("attack", "hit")
 		await frames(4)
 		var rang: float = wf.ring

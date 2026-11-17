@@ -605,7 +605,10 @@ func abilities(p) -> Array:
 			out.append(rage)
 		"tyaga812":
 			out.append(["E", "СОЙТИ" if p.tyaga.riding() else "ЕЗДА", "ride", 0.0 if p.tyaga.lock > 0.0 else 1.0, "%.1f" % p.tyaga.lock if p.tyaga.lock > 0.0 else ""])
-			out.append(rage)
+			if p.tyaga.riding():
+				out.append(rage)
+			else:
+				out.append(["F", "КОЛЕНО" if not p.tyaga.caught.is_empty() else "ШИРОКИЙ", "chord", 0.0 if p.tyaga.lock > 0.0 else 1.0, ""])      # на ногах: [F] — приём пылесоса
 		"skateboard":
 			out.append(["F", "ТРЮК", "trick", p.skate.charges / 3.0, ""])
 			out.append(rage)
