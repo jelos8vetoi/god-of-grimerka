@@ -520,7 +520,7 @@ func _on_clip_event(_clip: String, ev: String) -> void:
 func set_style(id: String) -> bool:
 	if id == style.id or switch_to != "" or not Styles.by_id(id).ready or game.paused_story():
 		return false
-	var free: bool = state == "move" or flow.can_cancel() or (state == "tyaga" and tyaga.mode == "hold")
+	var free: bool = state == "move" or flow.can_cancel() or (state == "tyaga" and tyaga.mode in ["hold", "in", "off"])      # и пока пылесос ещё выкатывается
 	if not free:
 		return false
 	switch_len = flow.begin(style.id, id)      # до interrupt: Perfect Swap судится по идущему удару

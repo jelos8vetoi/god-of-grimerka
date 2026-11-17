@@ -88,4 +88,9 @@ func _init() -> void:
 		print("AUDIT %s цепочка ЛКМ: %d — %s" % [id, chain.size(), " → ".join(chain)])
 		print("AUDIT %s связки: узлов %d; после окон: %s; Heat: %d; после подброса: %s" % [id, s.links.size(), "; ".join(after) if after.size() > 0 else "нет", s.heat.size(), "; ".join(air) if air.size() > 0 else "нет"])
 		print("AUDIT %s роли стиля: %s" % [id, str(s.roles)])
+		if id == "tyaga812":
+			var ln := 0
+			for k in StyleTyaga.LINKS:
+				ln += (StyleTyaga.LINKS[k] as Array).size()
+			print("AUDIT tyaga812 связки режимов (StyleTyaga.LINKS): узлов %d, переходов %d" % [StyleTyaga.LINKS.size(), ln])
 	quit()

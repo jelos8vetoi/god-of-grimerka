@@ -1000,7 +1000,7 @@ func _run() -> void:
 
 	# ================= этап 07: ТЯГА-812 =================
 	var tg := Styles.by_id("tyaga812")
-	ok(tg.ready and tg.problems().is_empty() and tg.attacks.size() == 8, "стиль tyaga812 готов: воздействий %d" % tg.attacks.size())
+	ok(tg.ready and tg.problems().is_empty() and tg.attacks.size() == 17, "стиль tyaga812 готов: воздействий %d" % tg.attacks.size())
 	cam_off = Vector3(3.6, 1.9, 2.6)
 	cam_at = Vector3(0, 0.8, -0.6)
 	# ---------- 25. [3]: пылесос выкатывается, руки на трубе ----------

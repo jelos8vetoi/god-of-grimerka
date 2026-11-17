@@ -55,7 +55,7 @@ static func build() -> StyleData:
 	mk.call("bt_run", {"title": "НА БЕГУ", "clip": "BtRunThrow", "duration": 0.56, "stagger": 24.0, "step": [0.0, 0.9, 5.6]}, {})
 	mk.call("bt_jump", {"title": "В ПРЫЖКЕ", "clip": "BtJumpThrow", "duration": 0.5, "hits": [0.45], "damage": 11.0, "stagger": 28.0}, {"speed": 19.0, "hop": 3.0, "draw": 0.86})
 	mk.call("bt_slide", {"title": "В СКОЛЬЖЕНИИ", "clip": "BtSlideThrow", "duration": 0.66, "hits": [0.45], "stagger": 26.0, "step": [0.0, 0.7, 7.5]}, {"speed": 19.0, "draw": 0.88})
-	mk.call("bt_close", {"title": "В УПОР", "clip": "BtCloseThrow", "duration": 0.56, "hits": [0.3], "damage": 14.0, "stagger": 40.0, "knockback": 7.0, "reach": 5.0, "combo_from": 0.55}, {"speed": 22.0, "splash": 1.6})
+	mk.call("bt_close", {"title": "В УПОР", "clip": "BtCloseThrow", "duration": 0.56, "hits": [0.3], "damage": 14.0, "stagger": 40.0, "knockback": 7.0, "reach": 5.0, "combo_from": 0.55, "power": 1}, {"speed": 22.0, "splash": 1.6})      # сильный: Tab после него — DOUBLE IMPACT
 	mk.call("bt_roll", {"clip": "BtRollThrow", "duration": 0.5, "from": 0.2, "stagger": 28.0}, {})
 	# усиленный: прицел удержанием, летит быстрее, оглушает, всплеск мочит соседей; по оглушённому — LAST DROP
 	s.add(AttackData.make({"id": "bt_power", "kind": "ranged", "title": "ОБЛИЛ", "clip": "BottleThrowHeavy", "duration": 0.7, "hits": [0.36], "damage": 16.0, "stagger": 45.0, "reach": 16.0, "arc": 1.4,

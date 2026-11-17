@@ -11,7 +11,7 @@ extends Node
 ## shake — на сколько радиан вздрагивает, ring — секунд затухания, freq — частота гула, squash — смятие при ударе,
 ## stretch — вытягивание в махе, idle — покачивание в покое, rumble — дребезг от скорости
 const SETS := {
-	"vozduh": {"shake": 0.07, "ring": 0.16, "freq": 34.0, "squash": 0.06, "stretch": 0.07, "idle": 0.5},
+	"vozduh": {"shake": 0.12, "ring": 0.16, "freq": 34.0, "squash": 0.06, "stretch": 0.07, "idle": 0.4},
 	"bottles": {"shake": 0.1, "ring": 0.22, "freq": 46.0, "squash": 0.04, "stretch": 0.0, "idle": 1.4, "axis": false},
 	"skateboard": {"shake": 0.08, "ring": 0.2, "freq": 44.0, "squash": 0.05, "stretch": 0.06, "idle": 0.7},
 	"guitar": {"shake": 0.06, "ring": 0.5, "freq": 72.0, "squash": 0.03, "stretch": 0.05, "idle": 0.7},

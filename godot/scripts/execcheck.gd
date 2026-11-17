@@ -253,6 +253,7 @@ func _run() -> void:
 		await frames(4)
 		ep.hp = ep.max_hp * 0.55
 		ok(not ep.exec_ready(), "55 % здоровья на ногах: обычным способом не добить")
+		P.combat.windows.clear()      # окно прошлого случая ещё открыто — оно бы и сработало
 		P.combat.open(c[0], 0.6)
 		P.execution.events = []
 		await tap("heat")

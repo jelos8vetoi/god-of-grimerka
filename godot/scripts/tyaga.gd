@@ -6,6 +6,11 @@
 ##                    E — сесть, пробел — перекат как обычно
 ##   верхом (ride):   WASD — куда ехать, Ctrl — ускорение, Shift — занос (держать; назад в заносе — разворот на месте),
 ##                    пробел — прыжок, ЛКМ — удар с разворота, ПКМ — воздушный выстрел, E — сойти; на скорости — таран
+##   этап 3 — на ногах: F — ШИРОКИЙ выброс (с пойманным у сопла — КОЛЕНО); отпустить ПКМ с блоком — В ЗЕМЛЮ,
+##            с прыжком — ВВЕРХ; короткий выброс по врагу у сопла — В УПОР;
+##            верхом: назад — тормоз и задний ход, ЛКМ в заносе — ХЛЫСТ, ЛКМ в прыжке — ПРИЗЕМЛЕНИЕ,
+##            таран в заносе — БОРТОМ, в прыжке — С НЕБА; связки режимов — StyleTyaga.LINKS
+##   шланг: модель цельная, поэтому кости строятся здесь (_rig_hose): труба идёт за руками героя, шланг гнётся
 ##   нагрев: притягивание, выброс и ускорение греют; 100 — перегрев, 2,5 с ничего не работает
 class_name Tyaga
 extends Node3D
@@ -48,6 +53,30 @@ var events: Array = []        # что произошло (для проверо
 var msg_t := -9.0
 var hold_t := 0.0             # сколько держат ПКМ (короткое нажатие с пойманным врагом — бросок)
 var thrown: Array = []        # брошенные враги: [{e, t, hit: {id: true}}]
+# этап 3
+const HOSE_N := 5             # звеньев шланга: кость 0 — корпус, HOSE_N — труба со щёткой
+var model: Node3D             # модель пылесоса (в её осях заданы кости)
+var hskel: Skeleton3D         # кости, построенные в коде
+var prig                      # риг Пахана: откуда брать руки
+var wand_q := Quaternion.IDENTITY   # куда труба повёрнута относительно покоя
+var wand_p := Vector3.ZERO          # и куда сдвинута, ед. модели
+var w_hi := Vector3.ZERO      # точки трубы в осях модели
+var w_lo := Vector3.ZERO
+var w_mid := Vector3.ZERO
+var w_c := Vector3.ZERO
+var w_noz := Vector3.ZERO
+var act := {}                 # приём на ногах: {kind, a, hit}
+var clip_t := 0.0             # сколько ещё не трогать клип (идёт короткий клип приёма)
+var link_from := ""           # последний приём: для связок
+var link_t := 0.0
+var rev := false              # задний ход
+var braking := false
+var kick_cd := 0.0
+var dh_t := -1.0              # удар в заносе
+var dh_hit := false
+var slam := false             # падает камнем после ЛКМ в прыжке
+var drifting := false
+var side_k := 0.0             # на сколько радиан пылесос несёт боком
 
 func setup(player, g) -> void:
 	p = player
@@ -60,13 +89,127 @@ func setup(player, g) -> void:
 	var m: Node3D = (load(MODEL) as PackedScene).instantiate()
 	m.rotation.y = PI * 0.5                    # щётка вперёд
 	m.scale = Vector3.ONE * TyagaClips.K
+	model = m
+	_rig_hose(m)
 	rock.add_child(m)
 	unit.visible = false
+	prig = (p.heroes["pahan"] as Dictionary)["rig"] if p.heroes.has("pahan") else p.rig
+	if hskel != null:
+		(prig.skel as Skeleton3D).skeleton_updated.connect(_wand_update)
 	hum = AudioStreamPlayer.new()
 	hum.stream = _synth_hum()
 	hum.bus = "SFX"
 	hum.volume_db = -80.0
 	add_child(hum)
+
+# ---------------- кости шланга и трубы ----------------
+## точка пылесоса (м, оси героя) → оси модели
+static func to_model(pt: Vector3) -> Vector3:
+	return Vector3(-pt.z, pt.y, pt.x) / TyagaClips.K
+
+## Насколько вершина модели принадлежит трубе: 1 — труба и щётка, 0 — корпус, между — шланг (по высоте).
+## Модель — один кусок, части различаются только положением: труба идёт наискось от щётки (x ≈ −49, y = 0)
+## к ручке (x ≈ 17, y ≈ 94), шланг спускается от ручки сзади (x > 33) и по полу уходит в корпус (y < 38).
+static func hose_w(v: Vector3) -> float:
+	if v.y > 85.0:
+		return 1.0
+	var line: float = 0.70 * v.y - 49.0
+	var by_h: float = smoothstep(12.0, 85.0, v.y)
+	if v.y <= 38.0:
+		if v.x < (-17.0 if v.y < 14.0 else line + 12.0):
+			return 1.0
+		return by_h * smoothstep(30.0, 38.0, v.x)
+	if v.x < line + 14.0:
+		return 1.0
+	return by_h
+
+func _find_mesh(n: Node) -> MeshInstance3D:
+	if n is MeshInstance3D:
+		return n
+	for c in n.get_children():
+		var r := _find_mesh(c)
+		if r != null:
+			return r
+	return null
+
+## Кости в коде: каждой вершине — две соседние кости цепочки корпус → шланг → труба.
+func _rig_hose(m: Node3D) -> void:
+	var mi := _find_mesh(m)
+	if mi == null or mi.mesh == null:
+		return
+	var src: Mesh = mi.mesh
+	var out := ArrayMesh.new()
+	for si in src.get_surface_count():
+		var arr: Array = src.surface_get_arrays(si)
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var bones := PackedInt32Array()
+		var ws := PackedFloat32Array()
+		bones.resize(vs.size() * 4)
+		ws.resize(vs.size() * 4)
+		for i in vs.size():
+			var u: float = hose_w(vs[i]) * float(HOSE_N)
+			var b0: int = mini(int(u), HOSE_N - 1)
+			var fr: float = u - float(b0)
+			bones[i * 4] = b0
+			bones[i * 4 + 1] = b0 + 1
+			ws[i * 4] = 1.0 - fr
+			ws[i * 4 + 1] = fr
+		arr[Mesh.ARRAY_BONES] = bones
+		arr[Mesh.ARRAY_WEIGHTS] = ws
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		out.surface_set_material(si, src.surface_get_material(si))
+	out.custom_aabb = src.get_aabb().grow(70.0)
+	hskel = Skeleton3D.new()
+	hskel.name = "HoseSkel"
+	for k in HOSE_N + 1:
+		hskel.add_bone("hose%d" % k)
+	mi.get_parent().add_child(hskel)
+	hskel.transform = mi.transform
+	mi.mesh = out
+	mi.skin = hskel.create_skin_from_rest_transforms()
+	mi.skeleton = NodePath("../HoseSkel")
+	w_hi = to_model(TyagaClips.TUBE_HI)
+	w_lo = to_model(TyagaClips.TUBE_LO)
+	w_mid = to_model(TyagaClips.TUBE_MID)
+	w_c = (w_hi + w_lo) * 0.5
+	w_noz = to_model(TyagaClips.NOZZLE)
+
+## После каждого обновления скелета героя: труба встаёт туда, где её держат руки, шланг тянется между ней и корпусом.
+## На ногах трубу задают обе руки (положение и наклон), верхом — правая (только сдвиг, труба как рычаг).
+func _wand_update() -> void:
+	if hskel == null or not unit.visible:
+		return
+	var sk: Skeleton3D = prig.skel
+	var q := Quaternion.IDENTITY
+	var tr := Vector3.ZERO
+	if p.hero == "pahan" and p.state == "tyaga" and mode in ["hold", "suck", "charge", "blast", "act", "ride"]:
+		var inv: Transform3D = model.global_transform.affine_inverse() * sk.global_transform
+		var hr: Vector3 = inv * (sk.get_bone_global_pose(prig.bone["rhand"]) * ((prig.hand["r"] as Dictionary)["grip"] as Vector3))
+		if mode == "ride":
+			tr = (hr - w_mid).limit_length(14.0)
+		else:
+			var hl: Vector3 = inv * (sk.get_bone_global_pose(prig.bone["lhand"]) * ((prig.hand["l"] as Dictionary)["grip"] as Vector3))
+			var d0: Vector3 = w_hi - w_lo
+			var d1: Vector3 = hr - hl
+			if abs(d1.length() - d0.length()) < d0.length() * 0.4:      # обе руки на трубе
+				q = Quaternion(d0.normalized(), d1.normalized())
+				var ang: float = q.get_angle()
+				if ang > 1.5:
+					q = Quaternion.IDENTITY.slerp(q, 1.5 / ang)
+				tr = ((hr + hl) * 0.5 - w_c).limit_length(55.0)
+	wand_q = wand_q.slerp(q, 0.5)
+	wand_p = wand_p.lerp(tr, 0.5)
+	for k in HOSE_N + 1:
+		var t: float = float(k) / float(HOSE_N)
+		var qt: Quaternion = Quaternion.IDENTITY.slerp(wand_q, t)
+		hskel.set_bone_pose_rotation(k, qt)
+		hskel.set_bone_pose_position(k, w_c + wand_p * t - qt * w_c)
+
+## где сопло на самом деле (с учётом того, куда руки повернули трубу) — для эффектов
+func nozzle_real() -> Vector3:
+	if hskel == null:
+		return nozzle()
+	return model.global_transform * (wand_q * (w_noz - w_c) + w_c + wand_p)
 
 func riding() -> bool:
 	return mode in ["ride", "mount", "dismount"]
@@ -122,6 +265,11 @@ func _clear_ride() -> void:
 	lean = 0.0
 	caught = {}
 	pulling = []
+	rev = false
+	braking = false
+	slam = false
+	dh_t = -1.0
+	act = {}
 
 ## Корпус пылесоса живёт: мотор мелко трясёт его (сильнее при работе и перегреве), на ходу он переваливается
 ## с колеса на колесо и подпрыгивает, при выстреле воздухом — отдача назад, при прыжке вытягивается, при
@@ -141,7 +289,11 @@ func _process(dt: float) -> void:
 				kick = 1.0
 			"burst":
 				kick = 1.6
-			"land", "bump", "ram", "bowl", "flip":
+			"shot_ride", "point", "wide", "up":
+				kick = 1.0
+			"ground", "slam":
+				squash = 1.4
+			"land", "bump", "ram", "bowl", "flip", "side", "airram", "brake":
 				squash = 1.0
 			"jump":
 				squash = -0.8
@@ -158,7 +310,7 @@ func _process(dt: float) -> void:
 			power = 1.0
 		"charge":
 			power = 0.6 + 0.6 * clampf(charge_t / 1.0, 0.0, 1.0)
-		"blast":
+		"blast", "act":
 			power = 0.8
 		"ride", "mount", "dismount":
 			power = 0.35 + 0.5 * clampf(speed / 12.0, 0.0, 1.0)
@@ -193,6 +345,8 @@ func on_hurt() -> void:
 # ---------------- кадр ----------------
 func idle_tick(dt: float) -> void:
 	_thrown_tick(dt)
+	link_t = max(0.0, link_t - dt)
+	clip_t = 0.0
 	# стиль не выбран или герой занят (перекат, урон): пылесос только докатывается на место и остывает
 	_cool(dt)
 	if mode == "out":
@@ -224,6 +378,9 @@ func _cool(dt: float) -> void:
 func tick(dt: float, dir: Vector3) -> void:
 	mt += dt
 	_thrown_tick(dt)
+	link_t = max(0.0, link_t - dt)
+	clip_t = max(0.0, clip_t - dt)
+	kick_cd = max(0.0, kick_cd - dt)
 	var heat0 := heat
 	match mode:
 		"off", "out":
@@ -243,6 +400,8 @@ func tick(dt: float, dir: Vector3) -> void:
 			elif p.pressed("heat"):
 				if not p.execution.try_start():      # рядом враг, которого можно добить, — добивание, иначе сесть верхом
 					_mount()
+			elif p.pressed("throw") and ready_to_work():
+				_act("wide")
 			elif p.held("attack") and ready_to_work():
 				mode = "suck"
 				mt = 0.0
@@ -259,6 +418,19 @@ func tick(dt: float, dir: Vector3) -> void:
 			_suck(dt, dir)
 		"charge":
 			_charge(dt, dir)
+		"act":
+			var aa: AttackData = act["a"]
+			p.velocity.x = move_toward(p.velocity.x, 0.0, 14.0 * dt)
+			p.velocity.z = move_toward(p.velocity.z, 0.0, 14.0 * dt)
+			for e in game.enemies:      # пойманных держим на месте до удара
+				if not act["hit"] and is_instance_valid(e) and e.alive() and caught.has(e.get_instance_id()):
+					e.stun(0.2)
+			if not act["hit"] and mt >= a_time(aa):
+				act["hit"] = true
+				_act_hit()
+			if mt >= aa.duration * 0.94:
+				mode = "hold"
+				act = {}
 		"blast":
 			p.velocity.x = move_toward(p.velocity.x, 0.0, 16.0 * dt)
 			p.velocity.z = move_toward(p.velocity.z, 0.0, 16.0 * dt)
@@ -307,8 +479,8 @@ func _foot(dt: float, dir: Vector3, k: float) -> void:
 	if dir.length() > 0.1:
 		p.face = lerp_angle(p.face, atan2(dir.x, dir.z), 1.0 - exp(-8.0 * dt))
 		p.rig.play("TyagaWalk", 0.2, clampf(spd * dir.length() / 2.6, 0.5, 1.8))
-	else:
-		p.rig.play("TyagaHold", 0.25)
+	elif clip_t <= 0.0:
+		p.rig.play("TyagaOverheat" if lock > 0.0 else "TyagaHold", 0.25)      # перегрелся — отмахивается от дыма
 
 func _mount() -> void:
 	mode = "mount"
@@ -325,7 +497,11 @@ func _suck(dt: float, dir: Vector3) -> void:
 	p.velocity.z = dir.z * spd
 	var aim: Vector3 = p.aim_dir()
 	p.face = lerp_angle(p.face, atan2(aim.x, aim.z), 1.0 - exp(-5.0 * dt))      # поток идёт туда, куда смотрит камера
-	p.rig.play("TyagaSuck", 0.12)
+	if mt < 0.18:
+		if p.rig.cur != "TyagaSuckIn":
+			p.rig.play_for("TyagaSuckIn", 0.18, 0.05)      # переход: шаг вперёд и упор
+	else:
+		p.rig.play("TyagaSuck", 0.12)
 	_heat(float(ex["heat"]) * dt)
 	var n := nozzle()
 	var f := fwd()
@@ -396,6 +572,8 @@ func _suck(dt: float, dir: Vector3) -> void:
 					e.stun(float(ex["hold_stun"]))
 				game.fx.sparks(h.pos, to.normalized(), 4, style.color, 0.5)
 	caught = now
+	if not caught.is_empty():
+		_mark("tg_suck")
 	# вражеские снаряды поток тоже забирает
 	for b in game.bolts:
 		var bn: Node3D = b["n"]
@@ -414,9 +592,13 @@ func _suck(dt: float, dir: Vector3) -> void:
 		game.fx.sparks(far, (n - far).normalized(), 2, Color(0.8, 0.95, 1.0), 1.4, 6.0)
 		game.fx.dust(n + f * 0.5, 1, Color(0.8, 0.9, 1.0, 0.3), 0.4, 0.0)
 	game.rumble(0.08)
-	if not p.held("attack") or not ready_to_work():
+	if p.pressed("throw") and ready_to_work():
+		_act("knee" if not caught.is_empty() else "wide")      # [F]: пойманному — коленом, иначе широкий выброс
+	elif not p.held("attack") or not ready_to_work():
 		mode = "hold"
 		pulling = []
+		p.rig.play_for("TyagaSuckOut", 0.24, 0.06)      # переход: поток оборвался — качнуло вперёд
+		clip_t = 0.24
 	elif p.pressed("heavy") and ready_to_work():
 		# притянул — и сразу выброс: заряд начинается с половины
 		mode = "charge"
@@ -444,6 +626,12 @@ func _charge(dt: float, dir: Vector3) -> void:
 	if not p.held("heavy"):
 		if hold_t <= float(style.attack("tg_throw").extra["tap"]) and not caught.is_empty():
 			_throw()                         # короткое нажатие с пойманным у сопла — бросок
+		elif p.held("block"):
+			_act("ground")                   # с блоком — в землю
+		elif p.held("jump"):
+			_act("up")                       # с прыжком — вверх
+		elif charge_t < need and _point_blank():
+			_act("point")                    # враг у самого сопла — в упор
 		else:
 			_blast(charge_t >= need)
 
@@ -452,6 +640,7 @@ func _blast(big: bool) -> void:
 	var n := nozzle()
 	var f := fwd()
 	var hits := 0
+	var lm := _link_mul(a.id)
 	for e in game.enemies:
 		if not is_instance_valid(e) or not e.alive():
 			continue
@@ -466,7 +655,7 @@ func _blast(big: bool) -> void:
 		if big and dist < 1.6:
 			dn = (dn + f * 1.5).normalized()        # те, кто у самого сопла, улетают вперёд
 		var h := HitInfo.new()
-		h.damage = p.combat.damage_for(a, e) * (float(a.extra.get("caught_mul", 1.0)) if caught.has(e.get_instance_id()) else 1.0)
+		h.damage = p.combat.damage_for(a, e) * (float(a.extra.get("caught_mul", 1.0)) if caught.has(e.get_instance_id()) else 1.0) * lm
 		h.stagger = a.stagger
 		h.dir = dn
 		h.knockback = a.knockback
@@ -505,11 +694,15 @@ func _blast(big: bool) -> void:
 	game.charge_zoom = 0.0
 	_heat(float(a.extra["heat"]))
 	events.append(["burst" if big else "shot", hits])
+	_mark(a.id)
 	if riding():
 		speed = max(0.0, speed - 3.0)          # верхом отдача гасит скорость
+		rev = false
+		p.rig.play_for("RideShot", 0.35, 0.05)
+		clip_t = 0.35
 		return
 	p.velocity = -f * float(a.extra["recoil"])
-	p.rig.play_for("TyagaBlast", a.duration, 0.05)
+	p.rig.play_for(a.clip, a.duration, 0.05)
 	mode = "blast"
 	mt = 0.0
 
@@ -530,7 +723,7 @@ func _throw() -> void:
 		_blast(false)
 		return
 	var h := HitInfo.new()
-	h.damage = p.combat.damage_for(a, best)
+	h.damage = p.combat.damage_for(a, best) * _link_mul(a.id)
 	h.stagger = a.stagger
 	h.dir = f
 	h.knockback = a.knockback
@@ -549,7 +742,7 @@ func _throw() -> void:
 	_heat(float(a.extra["heat"]))
 	events.append(["throw", best])
 	p.velocity = -f * 3.0
-	p.rig.play_for("TyagaBlast", a.duration, 0.05)
+	p.rig.play_for(a.clip, a.duration, 0.05)
 	mode = "blast"
 	mt = 0.0
 
@@ -597,6 +790,7 @@ func _ride(dt: float, dir: Vector3) -> void:
 	var grounded: bool = p.is_on_floor()
 	var want := dir.length() > 0.2
 	var drift: bool = p.held("roll") and grounded and speed > 2.5
+	drifting = drift
 	var boost: bool = p.held("sprint") and want and ready_to_work()
 	# столкновение со стеной: тело не проехало, сколько должно было
 	var real := Vector2(p.get_real_velocity().x, p.get_real_velocity().z).length()
@@ -617,6 +811,8 @@ func _ride(dt: float, dir: Vector3) -> void:
 	elif want:
 		var target := atan2(dir.x, dir.z)
 		var off := angle_difference(heading, target)
+		if rev and abs(off) < 1.7:
+			rev = false
 		if abs(off) > 2.4 and speed > 3.0 and grounded:
 			if drift:
 				flip_t = float(R["flip"])                 # занос + назад: разворот
@@ -624,14 +820,39 @@ func _ride(dt: float, dir: Vector3) -> void:
 				game.main.sfx("sfx_scrape", -6.0, 1.3)
 				events.append(["flip", 0])
 			else:
+				if not braking:
+					braking = true
+					game.main.sfx("sfx_scrape", -9.0, 1.0)
+					events.append(["brake", 0])
 				speed = move_toward(speed, 0.0, float(R["brake"]) * dt)   # назад без заноса — тормоз
+		elif grounded and (rev or (braking and abs(off) > 2.4)):
+			# дотормозил и всё ещё держит «назад» — задний ход: нос на месте, пылесос пятится
+			if speed > 0.3:
+				speed = move_toward(speed, 0.0, float(R["brake"]) * dt)
+			else:
+				if not rev:
+					rev = true
+					events.append(["reverse", 0])
+				speed = move_toward(speed, -float(R["vrev"]), float(R["accel"]) * 0.7 * dt)
+				heading = rotate_toward(heading, target + PI, float(R["steer"]) * 0.6 * dt)
 		else:
+			braking = false
+			if abs(speed) < 0.6 and grounded and kick_cd <= 0.0 and flip_t <= 0.0:
+				# с места: толчок ногой
+				speed = float(R["kick"])
+				kick_cd = 1.2
+				p.rig.play_for("RideKick", 0.3, 0.05)
+				clip_t = 0.3
+				game.fx.dust(p.global_position + Vector3(0, 0.08, 0), 3, game.fx.DUST, 0.5)
+				events.append(["kick", 0])
 			var rate: float = float(R["steer_drift"] if drift else R["steer"]) * (clampf(speed / 3.0, 0.45, 1.0) if grounded else 0.35)
 			var h0 := heading
 			heading = rotate_toward(heading, target, rate * dt)
 			turn = angle_difference(h0, heading) / max(dt, 0.0001)
 			speed = move_toward(speed, float(R["vboost"] if boost else R["vmax"]), float(R["accel"]) * (1.4 if boost else 1.0) * dt)
 	else:
+		braking = false
+		rev = false
 		speed = move_toward(speed, 0.0, float(R["coast"]) * dt)
 	if boost:
 		_heat(float(R["boost_heat"]) * dt)
@@ -639,6 +860,7 @@ func _ride(dt: float, dir: Vector3) -> void:
 	var hd := Vector3(sin(heading), 0, cos(heading))
 	var grip: float = R["grip_drift"] if drift else R["grip"]
 	vdir = vdir.lerp(hd, 1.0 - exp(-grip * dt)).normalized() if grounded else vdir
+	side_k = vdir.angle_to(hd)
 	p.velocity.x = vdir.x * speed
 	p.velocity.z = vdir.z * speed
 	p.face = heading
@@ -653,12 +875,49 @@ func _ride(dt: float, dir: Vector3) -> void:
 		air = false
 		game.feedback("land", p.global_position)
 		events.append(["land", 0])
+		if slam:
+			# упал камнем: удар по области вокруг
+			slam = false
+			var sa: AttackData = style.attack("tg_slam")
+			_area_hit(sa, p.global_position, "slam")
+			game.fx.ground_ring(p.global_position + Vector3(0, 0.05, 0), 0.4, sa.reach * 2.0, Color(0.8, 0.95, 1.0, 0.7), 0.35)
+			game.fx.dust(p.global_position + Vector3(0, 0.1, 0), 14, game.fx.DUST, 1.2)
+			game.main.sfx("sfx_boom", -5.0, 1.4)
+			p.rig.play_for("RideSlamLand", 0.35, 0.04)
+			clip_t = 0.35
+			speed *= 0.5
 	# наклон в поворот и на разгоне: пылесос и герой кренятся вместе
 	lean = lerpf(lean, clampf(-turn * 0.09 * clampf(speed / 8.0, 0.0, 1.0), -0.38, 0.38) * (1.6 if drift else 1.0), 1.0 - exp(-9.0 * dt))
 	p.body.rotation.z = lean
 	p.body.rotation.x = lerpf(p.body.rotation.x, -0.12 if air else (0.06 if boost else 0.0), 1.0 - exp(-8.0 * dt))
 	# удар с разворота на ходу
-	if spin_t >= 0.0:
+	if dh_t >= 0.0:
+		# удар в заносе идёт
+		dh_t += dt
+		var da: AttackData = style.attack("tg_drift")
+		if not dh_hit and dh_t >= a_time(da):
+			dh_hit = true
+			_area_hit(da, p.global_position, "drift")
+		if dh_t >= da.duration:
+			dh_t = -1.0
+	elif spin_t < 0.0 and p.pressed("attack") and air and not slam:
+		# ЛКМ в прыжке: камнем вниз
+		slam = true
+		p.velocity.y = -float(style.attack("tg_slam").extra["dive"])
+		p.rig.play_for("RideSlam", 0.3, 0.05)
+		clip_t = 1.5
+		game.main.sfx("sfx_swing_heavy", -4.0, 0.8)
+		events.append(["dive", 0])
+	elif spin_t < 0.0 and p.pressed("attack") and drift and spin_cd <= 0.0:
+		var da2: AttackData = style.attack("tg_drift")
+		dh_t = 0.0
+		dh_hit = false
+		spin_cd = da2.cooldown
+		p.rig.play_for("RideDriftHit", da2.duration, 0.05)
+		clip_t = da2.duration
+		game.main.sfx("sfx_swing_heavy", -3.0, 1.3)
+		_heat(float(da2.extra["heat"]))
+	elif spin_t >= 0.0:
 		spin_t += dt
 		var a: AttackData = style.attack("tg_spin")
 		var ks: float = spin_t / a.duration
@@ -682,8 +941,8 @@ func _ride(dt: float, dir: Vector3) -> void:
 	# таран
 	_ram()
 	# клип и следы
-	if spin_t < 0.0 and not air and (p.rig.cur != "RideJump" or not p.rig.player.is_playing()):
-		p.rig.play("RideDrift" if drift else ("RideBoost" if boost else "RideSit"), 0.15)
+	if spin_t < 0.0 and dh_t < 0.0 and clip_t <= 0.0 and not air and (p.rig.cur != "RideJump" or not p.rig.player.is_playing()):
+		p.rig.play("RideReverse" if rev else ("RideBrake" if braking and speed > 0.3 else ("RideDrift" if drift else ("RideBoost" if boost else "RideSit"))), 0.15)
 	puff -= dt
 	if grounded and puff <= 0.0 and (speed > 3.0 or drift):
 		puff = 0.05 if drift else 0.11
@@ -708,7 +967,9 @@ func _ride(dt: float, dir: Vector3) -> void:
 		p.rig.play_for("RideDismount", float(R["dismount"]), 0.06)
 
 func _ram() -> void:
-	var a: AttackData = style.attack("tg_ram")
+	var a: AttackData = style.attack("tg_airram" if air else "tg_ram")
+	if not air and drifting and side_k > float(style.attack("tg_side").extra["slip"]):
+		a = style.attack("tg_side")      # несёт боком — бьёт бортом
 	if speed < float(a.extra["min_speed"]):
 		return
 	var f := vdir
@@ -723,8 +984,9 @@ func _ram() -> void:
 		var h := HitInfo.new()
 		h.damage = (a.damage + speed * float(a.extra["per_speed"])) * p.combat.damage_for(a, e) / a.damage
 		h.stagger = a.stagger
-		h.dir = (f + d.normalized() * 0.4).normalized()
+		h.dir = (f + d.normalized() * (0.4 if a.id == "tg_ram" else 1.6)).normalized()      # бортом — в сторону от пылесоса
 		h.knockback = speed * a.knockback
+		h.stun = a.stun
 		var boosted: bool = speed >= float(a.extra["boost_speed"])
 		h.launch = float(a.extra["boost_launch"]) if boosted else a.launch      # таран на ускорении подбрасывает выше
 		h.power = a.power
@@ -736,15 +998,22 @@ func _ram() -> void:
 		e.take_hit_info(h)
 		if boosted:
 			game.popup(p.global_position + Vector3(0, 2.4, 0), "ТАРАН", Color(0.8, 0.95, 1.0))
+		if a.id != "tg_ram":
+			game.popup(p.global_position + Vector3(0, 2.4, 0), a.title, Color(0.8, 0.95, 1.0))
+			if clip_t <= 0.0:
+				p.rig.play_for(a.clip, 0.3, 0.05)
+				clip_t = 0.3
+		_mark(a.id)
 		game.fx.hit(h.pos, h.dir, 1, style.color)
 		game.main.sfx("sfx_hit_heavy", -2.0, 1.1)
 		game.feedback(a.feedback, h.pos, f, clampf(speed / 10.0, 0.6, 1.4), style.color)
 		p.swag = min(100.0, p.swag + 5.0)
 		speed *= float(a.extra["keep"]) if e.boss_id == "" else 0.3     # о босса пылесос почти останавливается
-		events.append(["ram", e])
+		events.append(["ram" if a.id == "tg_ram" else ("side" if a.id == "tg_side" else "airram"), e])
 
 func _area_hit(a: AttackData, at: Vector3, tag: String) -> void:
 	var hits := 0
+	var lm := _link_mul(a.id)
 	for e in game.enemies:
 		if not is_instance_valid(e) or not e.alive():
 			continue
@@ -753,7 +1022,7 @@ func _area_hit(a: AttackData, at: Vector3, tag: String) -> void:
 		if d.length() > a.reach + float(e.radius):
 			continue
 		var h := HitInfo.new()
-		h.damage = p.combat.damage_for(a, e)
+		h.damage = p.combat.damage_for(a, e) * lm
 		h.stagger = a.stagger
 		h.dir = d.normalized() if d.length() > 0.05 else fwd()
 		h.knockback = a.knockback
@@ -772,7 +1041,150 @@ func _area_hit(a: AttackData, at: Vector3, tag: String) -> void:
 		game.main.sfx("sfx_hit_heavy", -1.0)
 		if a.title != "":
 			game.popup(p.global_position + Vector3(0, 2.4, 0), a.title, Color(0.8, 0.95, 1.0))
+	if hits > 0:
+		_mark(a.id)
 	events.append([tag, hits])
+
+# ---------------- этап 3: приёмы на ногах и связки ----------------
+## момент удара приёма, с
+func a_time(a: AttackData) -> float:
+	return a.duration * float(a.hits[0])
+
+## запомнить приём: следующий из таблицы связок ударит сильнее
+func _mark(id: String) -> void:
+	link_from = id
+	link_t = StyleTyaga.LINK_T
+
+## множитель урона: приём идёт сразу после другого из StyleTyaga.LINKS — связка
+func _link_mul(id: String) -> float:
+	if link_t > 0.0 and (StyleTyaga.LINKS.get(link_from, []) as Array).has(id):
+		events.append(["link", link_from + ">" + id])
+		game.popup(p.global_position + Vector3(0, 2.9, 0), "СВЯЗКА", style.color_hot)
+		link_t = 0.0
+		return StyleTyaga.LINK_MUL
+	return 1.0
+
+## есть ли враг у самого сопла (для выброса в упор)
+func _point_blank() -> bool:
+	var a: AttackData = style.attack("tg_point")
+	var n := nozzle()
+	for e in game.enemies:
+		if is_instance_valid(e) and e.alive():
+			var d: Vector3 = e.global_position - n
+			d.y = 0
+			if d.length() <= float(a.extra["near"]) + float(e.radius):
+				return true
+	return false
+
+func _info(a: AttackData, e, dir: Vector3, mul: float) -> HitInfo:
+	var h := HitInfo.new()
+	h.damage = p.combat.damage_for(a, e) * mul
+	h.stagger = a.stagger
+	h.dir = dir
+	h.knockback = a.knockback
+	h.launch = a.launch
+	h.stun = a.stun
+	h.heavy = a.heavy
+	h.power = a.power
+	h.attack_id = a.id
+	h.style_id = style.id
+	h.source = p
+	h.pos = e.global_position + Vector3(0, float(e.height) * 0.55, 0)
+	return h
+
+## начать приём на ногах: knee, wide, ground, up, point
+func _act(kind: String) -> void:
+	var a: AttackData = style.attack("tg_" + kind)
+	act = {"kind": kind, "a": a, "hit": false}
+	mode = "act"
+	mt = 0.0
+	charge_t = 0.0
+	game.charge_zoom = 0.0
+	pulling = []
+	p.rig.play_for(a.clip, a.duration, 0.05)
+	if kind == "knee":
+		p.velocity = fwd() * float(a.extra["lunge"])
+		game.main.sfx("sfx_swing_heavy", -4.0, 1.25)
+	else:
+		game.main.sfx("sfx_charge", -9.0, 1.3)
+
+func _act_hit() -> void:
+	var kind: String = act["kind"]
+	var a: AttackData = act["a"]
+	var n := nozzle()
+	var f := fwd()
+	var mul := _link_mul(a.id)
+	var hits := 0
+	var origin: Vector3 = n if kind == "ground" else p.global_position
+	for e in game.enemies:
+		if not is_instance_valid(e) or not e.alive():
+			continue
+		var d: Vector3 = e.global_position - origin
+		d.y = 0
+		var dist := d.length()
+		if dist > a.reach + float(e.radius):
+			continue
+		if a.arc < 6.0 and dist > 0.7 and f.angle_to(d / dist) > a.arc * 0.5:
+			continue
+		var dn: Vector3 = d / dist if dist > 0.05 else f
+		var m2 := mul
+		if kind == "up" and e.state != "air":
+			if dist > float(a.extra["ground_reach"]) + float(e.radius):
+				continue
+			m2 *= float(a.extra["ground_mul"])      # стоящего рядом задевает слабее
+		if kind in ["knee", "point"]:
+			dn = f
+		var h := _info(a, e, dn, m2)
+		e.interrupt_weak()
+		e.take_hit_info(h)
+		if kind == "wide" and is_instance_valid(e) and e.alive():
+			e.slow(float(a.extra["slow"]), 0.6)
+		game.fx.hit(h.pos, dn, 1 if a.heavy else 0, style.color)
+		hits += 1
+	for b in game.bolts:      # снаряды сдувает
+		if kind != "knee" and ((b["n"] as Node3D).global_position - n).length() < a.reach:
+			b["life"] = 0.0
+	caught = {}
+	# видно и слышно
+	var fx = game.fx
+	var nr := nozzle_real()
+	var col := Color(0.8, 0.95, 1.0, 0.6)
+	match kind:
+		"wide":
+			for i in range(-2, 3):
+				var dd: Vector3 = f.rotated(Vector3.UP, float(i) * 0.5)
+				fx.ring(p.global_position + dd * 2.4 + Vector3(0, 0.7, 0), 1.3, col, 0.24)
+			fx.muzzle(nr + Vector3(0, 0.1, 0), style.color)
+			fx.dust(n + f * 1.2, 8, game.fx.DUST, 1.0)
+			game.main.sfx("sfx_wave", -3.0, 1.55)
+		"ground":
+			fx.ground_ring(Vector3(n.x, p.global_position.y + 0.05, n.z), 0.4, a.reach * 2.0, Color(0.8, 0.95, 1.0, 0.75), 0.4)
+			fx.dust(n, 18, game.fx.DUST, 1.5)
+			game.main.sfx("sfx_boom", -4.0, 1.5)
+		"up":
+			for i in 4:
+				fx.ring(nr + f * 0.6 + Vector3(0, 0.5 + i * 0.9, 0), 1.0 + i * 0.35, Color(0.8, 0.95, 1.0, 0.6 - i * 0.1), 0.2 + i * 0.05)
+			fx.muzzle(nr, style.color)
+			game.main.sfx("sfx_wave", -3.0, 1.75)
+		"point":
+			fx.muzzle(nr + Vector3(0, 0.1, 0), style.color)
+			fx.ring(nr + f * 0.8 + Vector3(0, 0.3, 0), 1.8, Color(1, 1, 1, 0.7), 0.2)
+			fx.dust(n + f * 0.6, 10, game.fx.DUST, 1.1)
+			game.main.sfx("sfx_boom", -3.0, 1.7)
+		"knee":
+			if hits > 0:
+				game.main.sfx("sfx_hit_heavy", -2.0, 1.15)
+	if hits > 0 or kind != "knee":
+		game.feedback(a.feedback, (p.global_position + f * 1.2 + Vector3(0, 0.8, 0)), f, 1.0, style.color)
+	if hits > 0 and a.title != "":
+		game.popup(p.global_position + Vector3(0, 2.4, 0), a.title, Color(0.8, 0.95, 1.0))
+	if a.extra.has("heat"):
+		_heat(float(a.extra["heat"]))
+	if a.extra.has("recoil"):
+		p.velocity = -f * float(a.extra["recoil"])
+	events.append([kind, hits])
+	if hits > 0:
+		_mark(a.id)
 
 # ---------------- звук мотора ----------------
 func _hum(level: float) -> void:
