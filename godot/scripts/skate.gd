@@ -126,6 +126,8 @@ func tick(dt: float, dir: Vector3) -> void:
 		if charges > 0:
 			p.combat.open("dodge", 0.9)          # после трюков — окно ответного удара
 		events.append(["land", n])
+		if p.wbones.has("board_ride"):
+			(p.wbones["board_ride"] as WeaponBones).bump(1.0)      # дека прогнулась под весом
 	# ---- руление и скорость ----
 	var want := dir.length() > 0.2
 	sliding = p.held("roll") and grounded and speed > 3.0
@@ -175,6 +177,8 @@ func tick(dt: float, dir: Vector3) -> void:
 			p.rig.play_for("SkateOllie", 0.7, 0.06)
 			game.main.sfx("sfx_roll", -6.0, 1.7)
 			events.append(["ollie", 0])
+			if p.wbones.has("board_ride"):
+				(p.wbones["board_ride"] as WeaponBones).bump(-0.7)      # щелчок хвостом: дека выгнулась обратно
 		elif p.pressed("attack") or (sliding and p.combat.buffered() == "light"):
 			# сход в удар: с разгона — мах, из слайда — подсечка
 			var a: AttackData = style.attack("sk_sweep" if sliding else "sk_dash")

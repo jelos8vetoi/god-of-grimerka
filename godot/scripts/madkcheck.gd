@@ -269,5 +269,52 @@ func _run() -> void:
 	await close("c09_guitar_chord.png", 0.6)
 	await frames(40)
 	ok(chord_clip == "GtStrum" and e.hp < hp1, "POWER CHORD: клип «%s», волна попала (урон %.0f)" % [chord_clip, hp1 - e.hp])
+	# ================= 7. кости оружия: гнётся в махе и от попадания, потом успокаивается =================
+	for row in [["madk1d", "style2", "guitar"], ["madk1d", "style1", "skateboard"], ["pahan", "style1", "vozduh"]]:
+		if row[0] == "pahan":
+			if P.hero != "pahan":
+				game.swap_heroes()
+			await frames(4)
+			game.tag.reset()
+			P.global_position = Vector3(0, 0.05, 4.0)
+			P.face = PI
+			P.state = "move"
+			P.inv = 9999.0
+			await wait_switch()
+			if P.style.id != "vozduh":
+				await tap("style1")
+				await wait_switch()
+			await frames(50)
+		else:
+			await stage(row[1], row[2])
+		var wb: WeaponBones = P.wbones.get(row[2])
+		if wb == null:
+			ok(false, "%s: костей у оружия нет" % row[2])
+			continue
+		var e2 = foe(Vector3(0, 0, -2.0))
+		e2.stun(5.0)
+		await frames(110)      # доску за это время достают из-за спины — ждём, пока рука успокоится
+		var rest0: float = wb.bend
+		wb.peak = 0.0
+		await tap("attack")
+		n = 0
+		while P.state != "move" and n < 200:
+			await get_tree().physics_frame
+			n += 1
+		var swing_peak: float = wb.peak
+		await frames(90)
+		ok(wb.skel.get_bone_count() == WeaponBones.N + 1 and swing_peak > 0.03 and swing_peak <= float(wb.cfg["bend"]) + 0.001 and wb.bend < 0.02 and rest0 < 0.02 and e2.hp < 9999.0, "%s: кости построены (%d), в ударе оружие гнётся до %.2f рад (предел %.2f), в покое прямое (%.3f)" % [row[2], wb.skel.get_bone_count(), swing_peak, float(wb.cfg["bend"]), wb.bend])
+	# доска под ногами: прогиб при приземлении
+	await stage("style1", "skateboard")
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	await frames(40)
+	var rb: WeaponBones = P.wbones.get("board_ride")
+	if rb != null:
+		rb.peak = 0.0
+	await tap("jump", {"move": Vector2(0, 1), "sprint": "hold"})
+	await frames(70)
+	ok(rb != null and rb.peak > 0.03, "доска под ногами прогибается на прыжке и приземлении (до %.2f рад)" % (rb.peak if rb != null else 0.0))
+	P.auto_input = {}
+	await frames(40)
 	print("MADKCHECK ok" if fails == 0 else "MADKCHECK ОШИБОК: %d" % fails)
 	get_tree().quit()
