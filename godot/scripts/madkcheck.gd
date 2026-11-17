@@ -511,6 +511,26 @@ func _run() -> void:
 	await close("c25_br_final.png", 0.8)
 	await until_free()
 	ok(log_ids == ["br_toprock", "br_freeze", "br_finisher"] and fin_clip == "BrFinal", "удар → [F] фриз → [F] FINAL FREEZE: %s, клип «%s»" % [str(log_ids), fin_clip])
+	# ================= 10. гитара: удары в прыжке =================
+	await stage("style2", "guitar")
+	var g1 = foe(Vector3(0, 0, -2.0))
+	g1.stun(9.0)
+	await frames(4)
+	log_ids = []
+	await tap("jump")
+	await frames(10)
+	await tap("attack")
+	await frames(8)
+	await close("c30_gt_air.png", 0.8)
+	n = 0
+	while not P.combat.in_combo_window() and P.state == "attack" and n < 120:
+		await get_tree().physics_frame
+		n += 1
+	await tap("heavy")
+	await frames(40)
+	await until_free()
+	ok(log_ids.size() >= 1 and log_ids[0] == "gt_airstrike" and g1.hp < 9999.0, "гитара в прыжке: %s, попал (урон %.0f)" % [str(log_ids), 9999.0 - g1.hp])
+	ok(P.rig.has_clip("GtIdleVar") and P.style.roles.get("idle_var", "") == "GtIdleVar", "гитара: вариация покоя — проверка строя")
 	# ================= 7. кости оружия: гнётся в махе и от попадания, потом успокаивается =================
 	for row in [["madk1d", "style2", "guitar"], ["madk1d", "style1", "skateboard"], ["pahan", "style1", "vozduh"]]:
 		if row[0] == "pahan":

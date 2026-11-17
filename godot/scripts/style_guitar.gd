@@ -15,7 +15,7 @@ static func build() -> StyleData:
 	s.color = Color(0.7, 0.9, 1.0)
 	s.color_hot = Color(1.0, 0.85, 0.4)
 	s.chain_cd = 0.1
-	s.roles = {"idle": "GtIdle", "combat_idle": "GtIdle", "walk": "GtWalk", "run": "GtRun", "sprint": "GtSprint"}
+	s.roles = {"idle": "GtIdle", "combat_idle": "GtIdle", "walk": "GtWalk", "run": "GtRun", "sprint": "GtSprint", "idle_var": "GtIdleVar"}
 	s.charge_clip = "GtStrumHold"
 	s.hit_sfx = [[["sfx_hit", -3.0, 0.9]], [["sfx_hit_heavy", -2.0, 0.9]], [["sfx_hit_heavy", 0.0, 0.8], ["sfx_crack", -2.0, 1.0]]]
 	# ---- физические удары ----
@@ -29,14 +29,19 @@ static func build() -> StyleData:
 		"knockback": 5.0, "launch": -18.0, "heavy": true, "power": 1, "slam": 0.58, "step": [0.4, 0.58, 4.0], "from": 0.06, "combo_from": 0.8, "feedback": "vz_slam"}))
 	s.add(AttackData.make({"id": "gt_launch", "kind": "launcher", "clip": "GtUpper", "duration": 0.62, "hits": [0.5], "damage": 20.0, "stagger": 20.0, "reach": 2.5, "arc": 2.2,
 		"knockback": 2.0, "launch": 7.0, "heavy": true, "power": 1, "step": [0.36, 0.55, 4.5], "from": 0.1, "combo_from": 0.6, "feedback": "vz_launcher"}))
-	s.add(AttackData.make({"id": "gt_spin", "kind": "finisher", "title": "GUITAR SPIN", "clip": "GtSpin", "duration": 0.95, "hits": [0.25, 0.4, 0.55, 0.7], "damage": 9.0, "stagger": 10.0, "reach": 2.7, "arc": 6.3,
+	s.add(AttackData.make({"id": "gt_spin", "kind": "finisher", "title": "GUITAR SPIN", "clip": "GtWhirl", "duration": 0.95, "hits": [0.25, 0.4, 0.55, 0.7], "damage": 9.0, "stagger": 10.0, "reach": 2.7, "arc": 6.3,
 		"knockback": 3.0, "spin": 2.0, "heavy": true, "power": 1, "last_launch": 4.0, "from": 0.08, "combo_from": 0.78, "feedback": "vz_finisher"}))
 	s.add(AttackData.make({"id": "gt_counter", "kind": "light", "title": "ОТВЕТ", "clip": "GtSwing2", "duration": 0.46, "hits": [0.5], "damage": 26.0, "stagger": 30.0, "reach": 2.6, "arc": 2.8,
 		"knockback": 8.0, "step": [0.3, 0.6, 7.0], "combo_from": 0.62, "from": 0.25, "feedback": "vz_heavy"}))
-	s.add(AttackData.make({"id": "gt_dash", "kind": "light", "title": "С РАЗГОНА", "clip": "GtJab", "duration": 0.46, "hits": [0.48], "damage": 22.0, "stagger": 25.0, "reach": 3.0, "arc": 1.8,
+	s.add(AttackData.make({"id": "gt_dash", "kind": "light", "title": "С РАЗГОНА", "clip": "GtDash", "duration": 0.46, "hits": [0.48], "damage": 22.0, "stagger": 25.0, "reach": 3.0, "arc": 1.8,
 		"knockback": 9.0, "step": [0.22, 0.6, 9.0], "combo_from": 0.62, "from": 0.2, "cooldown": 1.0, "feedback": "vz_heavy"}))
 	s.add(AttackData.make({"id": "gt_jump", "kind": "slam", "title": "С ПРЫЖКА", "clip": "GtFinal", "duration": 0.85, "hits": [0.62], "damage": 36.0, "stagger": 45.0, "reach": 3.0, "arc": 3.0,
 		"knockback": 6.0, "launch": 4.0, "heavy": true, "power": 1, "slam": 0.62, "step": [0.2, 0.6, 7.0], "from": 0.12, "cooldown": 2.0, "feedback": "vz_slam"}))
+	# ---- в прыжке ----
+	s.add(AttackData.make({"id": "gt_airstrike", "kind": "light", "title": "С ЛЁТА", "clip": "GtAirStrike", "duration": 0.44, "hits": [0.5], "damage": 17.0, "stagger": 18.0, "reach": 2.6, "arc": 2.6,
+		"knockback": 4.0, "combo_from": 0.6, "extra": {"hop": 2.5}}))
+	s.add(AttackData.make({"id": "gt_airsmash", "kind": "slam", "title": "СВЕРХУ", "clip": "GtAirSmash", "duration": 0.5, "hits": [0.55], "damage": 30.0, "stagger": 45.0, "reach": 2.8, "arc": 2.4,
+		"knockback": 4.0, "launch": -16.0, "heavy": true, "power": 1, "slam": 0.55, "feedback": "vz_slam"}))
 	# ---- музыкальные способности ----
 	s.add(AttackData.make({"id": "gt_chord", "kind": "ranged", "title": "POWER CHORD", "clip": "GtStrum", "duration": 0.5, "hits": [0.4], "damage": 22.0, "stagger": 30.0, "reach": 8.0, "arc": 0.9,
 		"knockback": 9.0, "power": 1, "cooldown": 1.2, "combo_from": 0.62, "from": 0.1, "feedback": "tg_shot", "extra": {"sound": "chord", "wave": "cone"}}))
@@ -45,7 +50,7 @@ static func build() -> StyleData:
 	for i in 2:
 		s.add(AttackData.make({"id": "gt_airriff%d" % (i + 1), "kind": "ranged", "title": "AIR RIFF", "clip": "GtAirRiff", "duration": 0.42, "hits": [0.4], "damage": 14.0, "stagger": 15.0, "reach": 9.0, "arc": 1.6,
 			"knockback": 1.0, "launch": 5.5, "power": 1, "combo_from": 0.6, "from": 0.12, "feedback": "vz_launcher", "extra": {"sound": "airriff", "wave": "up", "air_only": true}}))
-	s.add(AttackData.make({"id": "gt_final", "kind": "finisher", "title": "FINAL TRACK", "clip": "GtFinal", "duration": 1.1, "hits": [0.62], "damage": 60.0, "stagger": 80.0, "reach": 4.6, "arc": 6.3,
+	s.add(AttackData.make({"id": "gt_final", "kind": "finisher", "title": "FINAL TRACK", "clip": "GtFinalTrack", "duration": 1.1, "hits": [0.62], "damage": 60.0, "stagger": 80.0, "reach": 4.6, "arc": 6.3,
 		"knockback": 12.0, "launch": 6.0, "heavy": true, "power": 2, "slam": 0.62, "from": 0.06, "feedback": "tg_burst", "extra": {"sound": "final", "wave": "final", "bars": 4}}))
 	s.links = {
 		"": {"light": "gt_body", "heavy": "gt_slam", "throw": "gt_chord"},
@@ -61,11 +66,15 @@ static func build() -> StyleData:
 		"gt_feedback": {"light": "gt_launch", "heavy": "gt_slam"},                       # FEEDBACK → подброс
 		"gt_counter": {"light": "gt_turn", "heavy": "gt_launch", "throw": "gt_chord"},
 		"gt_dash": {"light": "gt_neck", "heavy": "gt_spin", "throw": "gt_chord"},
+		# в прыжке: удар с лёта → удар сверху; F — AIR RIFF
+		"air": {"light": "gt_airstrike", "heavy": "gt_airsmash", "throw": "gt_airriff1"},
+		"gt_airstrike": {"light": "gt_airstrike", "heavy": "gt_airsmash", "throw": "gt_airriff1"},
 	}
 	s.after = {
 		"dodge": {"light": "gt_counter", "heavy": "gt_feedback"},
 		"perfect": {"light": "gt_counter", "heavy": "gt_feedback"},
 		"block": {"light": "gt_counter", "heavy": "gt_feedback"},
 		"sprint": {"light": "gt_dash", "heavy": "gt_jump"},
+		"parry": {"light": "gt_counter", "heavy": "gt_launch"},
 	}
 	return s
