@@ -5,7 +5,7 @@
 class_name Opts
 
 const PATH := "user://grimerka_display.json"
-const DEFAULT := {"fullscreen": false, "vsync": true, "fps": 0, "window": 0, "fov": 62.0, "sens": 1.0, "invert_y": false, "master": 1.0}
+const DEFAULT := {"fullscreen": false, "vsync": true, "fps": 0, "window": 0, "fov": 62.0, "sens": 1.0, "invert_y": false, "master": 1.0, "shake": 1.0, "less_flash": false}
 const FPS := [0, 30, 60, 120, 144]
 const WINDOWS := [[1280, 720], [1600, 900], [1920, 1080], [2560, 1440]]
 static var data := {}
@@ -76,6 +76,9 @@ static func rows(w: Window, audio, ipod) -> Array:
 	r.append([func(): return "УГОЛ ОБЗОРА: %d°" % int(v("fov")), func(d: int): put("fov", clampf(float(v("fov")) + 2.0 * d, 50.0, 80.0))])
 	r.append([func(): return "ЧУВСТВИТЕЛЬНОСТЬ МЫШИ: " + _pct(float(v("sens"))), func(d: int): put("sens", clampf(snappedf(float(v("sens")) + 0.1 * d, 0.1), 0.3, 2.5))])
 	r.append([func(): return "ИНВЕРСИЯ ПО ВЕРТИКАЛИ: " + ("ВКЛ" if bool(v("invert_y")) else "ВЫКЛ"), func(_d: int): put("invert_y", not bool(v("invert_y")))])
+	r.append(["#ЭФФЕКТЫ"])
+	r.append([func(): return "ТРЯСКА КАМЕРЫ: " + _pct(float(v("shake"))), func(d: int): put("shake", clampf(snappedf(float(v("shake")) + 0.25 * d, 0.25), 0.0, 1.0))])
+	r.append([func(): return "МЕНЬШЕ ВСПЫШЕК: " + ("ВКЛ" if bool(v("less_flash")) else "ВЫКЛ"), func(_d: int): put("less_flash", not bool(v("less_flash")))])
 	r.append(["#ЗВУК"])
 	r.append([func(): return "ОБЩАЯ ГРОМКОСТЬ: " + _pct(float(v("master"))), func(d: int): put("master", clampf(snappedf(float(v("master")) + 0.05 * d, 0.05), 0.0, 1.0), w)])
 	for b in [["Music", "МУЗЫКА ИГРЫ"], ["SFX", "ЭФФЕКТЫ"], ["Ambient", "ОКРУЖЕНИЕ"], ["Voice", "ГОЛОСА"]]:
