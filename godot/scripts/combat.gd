@@ -117,6 +117,8 @@ func clear_buffer() -> void:
 func ready_at(a: AttackData) -> bool:
 	if a == null or clock < float(cooldowns.get(a.id, -9.0)):
 		return false
+	if not p.can_use(a):
+		return false                   # у героя нет ресурса на эту атаку (ритм гитары и т. п.)
 	if a.ammo > 0 and ammo_of(String(a.extra.get("ammo_style", style.id))) < a.ammo:
 		if clock - ammo_msg > 1.2:
 			ammo_msg = clock
@@ -275,6 +277,7 @@ func tick_attack(dt: float, dir: Vector3) -> void:
 	# моменты попадания: каждый открывает окно, в котором цель может быть задета один раз
 	while hit_i < hs.size() and kk >= float(hs[hit_i]):
 		hit_i += 1
+		p.on_attack_moment(a, hit_i - 1)      # звук и вид способности — дело героя и стиля
 		if a.projectile != "":
 			# дистанционная атака: в момент «попадания» снаряд вылетает из руки, урон нанесёт он сам
 			var pool := String(a.extra.get("ammo_style", style.id))      # бросок из комбо балоном тратит запас «Водяры»
@@ -319,7 +322,7 @@ func tick_attack(dt: float, dir: Vector3) -> void:
 		var h: AttackData = heat_q.pop_front()
 		attack_ended.emit(a, true)
 		_launch(h, false)
-	elif nxt != null and kk > a.combo_from and kk <= a.combo_to:
+	elif nxt != null and ((kk > a.combo_from and kk <= a.combo_to) or (hit_i > 0 and kk > float(hs[0]) + 0.02 and kk <= a.combo_from and p.early_cancel(a, act))):
 		p.spin_off = 0.0
 		clear_buffer()
 		prev_id = a.id
@@ -419,6 +422,8 @@ func targets(a: AttackData, idx: int, sweep_only := false) -> Array:
 	for e in game.enemies:
 		if not is_instance_valid(e) or not e.alive() or seen.has(e.get_instance_id()):
 			continue
+		if a.extra.get("air_only", false) and e.state != "air":
+			continue                    # бьёт только тех, кто в воздухе
 		var d: Vector3 = e.global_position - p.global_position
 		d.y = 0
 		var dn: Vector3 = d.normalized() if d.length() > 0.01 else fwd
