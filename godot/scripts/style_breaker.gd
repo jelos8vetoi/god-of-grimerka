@@ -24,7 +24,7 @@ static func build() -> StyleData:
 	s.add(AttackData.make({"id": "br_sixstep", "kind": "light", "title": "SIX-STEP", "clip": "SixStep", "duration": 0.62, "hits": [0.3, 0.6], "damage": 8.0, "stagger": 12.0, "reach": 2.2, "arc": 6.3,
 		"knockback": 2.0, "spin": 0.5, "combo_from": 0.7, "extra": {"inv": 0.18}}))
 	s.add(AttackData.make({"id": "br_sweep", "kind": "light", "title": "ПОДСЕЧКА", "clip": "LegSweep", "duration": 0.56, "hits": [0.5], "damage": 14.0, "stagger": 35.0, "reach": 2.5, "arc": 6.3,
-		"knockback": 3.0, "launch": 2.5, "stun": 0.6, "spin": 1.0, "combo_from": 0.72, "feedback": "vz_launcher", "extra": {"spinny": true}}))
+		"knockback": 3.0, "launch": 2.5, "stun": 0.6, "spin": 1.0, "combo_from": 0.72, "feedback": "vz_launcher", "extra": {"spinny": true, "react": "knockdown"}}))
 	# ---- ПКМ: вертолёт с места; после ударов — мельница, вращение на голове, флэр ----
 	s.add(AttackData.make({"id": "br_heli", "kind": "heavy", "title": "ВЕРТОЛЁТ", "clip": "Helicopter", "duration": 0.85, "hits": [0.3, 0.45, 0.6, 0.75], "damage": 7.0, "stagger": 10.0, "reach": 2.5, "arc": 6.3,
 		"knockback": 3.0, "spin": 2.0, "heavy": true, "power": 1, "last_launch": 3.0, "combo_from": 0.82, "feedback": "vz_heavy", "extra": {"hop": 5.5, "spinny": true}}))

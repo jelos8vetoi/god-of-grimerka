@@ -10,6 +10,7 @@ var launch := 0.0
 var stun := 0.0
 var heavy := false
 var power := 0              # 0 — лёгкий, 1 — тяжёлый, 2 — добивание
+var react := ""             # подсказка реакции от атаки: "knockdown" (подсечка), "knockback" (отбросить)
 var attack_id := ""
 var style_id := ""
 var source: Node = null

@@ -484,6 +484,7 @@ func _resolve_hits(idx: int, first: bool, sweep_only := false) -> void:
 		h.heavy = a.heavy
 		h.power = power
 		h.attack_id = a.id
+		h.react = String(a.extra.get("react", ""))
 		h.style_id = style.id
 		h.source = p
 		h.pos = where
