@@ -31,6 +31,8 @@ static func _make(id: String) -> StyleData:
 			return StyleSkateboard.build()
 		"guitar":
 			return StyleGuitar.build()
+		"breaker":
+			return StyleBreaker.build()
 	var s := StyleData.new()
 	s.id = id
 	if PLANNED.has(id):

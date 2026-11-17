@@ -147,6 +147,7 @@ static func madk1d() -> Dictionary:
 			[0.85, mk({"spine": {"x": 0.1}, "rarm": {"x": -1.2}, "larm": {"x": -1.2}, "rfa": {"x": -0.8}, "lfa": {"x": -0.8}})], [1.0, mk({})]]},
 	}.merged(MadkClips.combat()).merged(MadkMoves.all())
 	MadkWeaponClips.add_to(A)
+	BreakerClips.add_to(A)
 	return A
 
 ## Поза «лежит на спине» — общая для падения и подъёма.

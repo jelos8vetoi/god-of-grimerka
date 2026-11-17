@@ -59,6 +59,7 @@ var heroes := {}             # имя → {rig, anim, feet, trail, styles, style
 var m_weapons := {}          # оружие madk1d по стилям: id → {att, weapon, bone, grip}
 var skate: Skate             # скейтборд: езда и трюки (skate.gd)
 var guitar: Guitar           # электрогитара: ритм, дисторшн, волны и звук (guitar.gd)
+var breaker: Breaker         # Breaker Style: поток, Freeze, риск (breaker.gd)
 var FINISH: Array = []      # тяжёлые удары стиля по числу лёгких перед ними (для съёмки трейлера)
 var scrape_p: AudioStreamPlayer
 var scr_cd := 0.0
@@ -129,7 +130,7 @@ func _ready() -> void:
 	mr.clip_event.connect(_on_clip_event)
 	mr.visible = false
 	var mstyles := []
-	for sid in ["skateboard", "guitar"]:
+	for sid in ["skateboard", "guitar", "breaker"]:
 		if Styles.by_id(sid).ready:
 			mstyles.append(sid)
 	heroes["madk1d"] = {"rig": mr, "anim": AnimState.new(mr, mdefs, MadkMoves.PROFILE), "feet": mf, "trail": mt, "styles": mstyles, "style": mstyles[0] if not mstyles.is_empty() else ""}
@@ -139,6 +140,10 @@ func _ready() -> void:
 	guitar = Guitar.new()
 	add_child(guitar)
 	guitar.setup(self, game)
+	breaker = Breaker.new()
+	add_child(breaker)
+	breaker.setup(self, game)
+	combat.attack_started.connect(func(a: AttackData) -> void: breaker.on_start(a))
 	combat.attack_hit.connect(_on_attack_hit)
 	bottles = Bottles.new()
 	add_child(bottles)
@@ -286,6 +291,9 @@ func _physics_process(dt: float) -> void:
 	# нажатия ударов помнит буфер ядра боя: сработают, когда откроется окно
 	combat.tick(dt)
 	guitar.tick(dt)
+	breaker.tick(dt)
+	if pressed("throw"):
+		breaker.on_press_freeze()          # Breaker: точность Freeze считается от момента нажатия
 	if pressed("attack") or pressed("heavy") or pressed("throw"):
 		guitar.on_press()                  # гитара: нажатие в такт усиливает удар
 	if pressed("attack"):
@@ -545,6 +553,8 @@ func equip_madk(sid: String) -> void:
 		r.weapon = m_weapons[sid]["weapon"]
 		r.weapon_bone = m_weapons[sid]["bone"]
 		r.weapon_grip = m_weapons[sid]["grip"]
+	else:
+		r.weapon_bone = -1            # стиль без оружия: следа и точек оружия нет
 
 ## показать или спрятать оружие в руке (доска уходит под ноги)
 func show_weapon(on: bool) -> void:
@@ -557,10 +567,14 @@ func damage_bonus(_a: AttackData) -> float:
 		return skate.bonus()
 	if guitar.active():
 		return guitar.bonus()
+	if breaker.active():
+		return breaker.bonus()
 	return 1.0
 
 ## ядро боя: хватает ли герою ресурса на атаку
 func can_use(a: AttackData) -> bool:
+	if breaker.active():
+		return breaker.can_use(a)
 	return guitar.can_use(a) if guitar.active() else true
 
 ## ядро боя: можно ли продолжить цепочку раньше окна комбо (RIFF CANCEL гитары тратит деление ритма)
@@ -577,6 +591,7 @@ func _on_attack_hit(a: AttackData, n: int) -> void:
 	if hero == "madk1d" and style.id == "skateboard":
 		skate.charges = 0
 	guitar.on_hit(a, n)
+	breaker.on_hit(a)
 
 ## ядро боя: момент броска — снаряд вылетает из руки
 func launch_projectile(a: AttackData, charged: float) -> void:
@@ -595,6 +610,8 @@ func style_hud() -> String:
 	var n := own_styles.find(style.id) + 1
 	if style.id == "guitar":
 		return "[%d] %s  %s" % [n, style.title, guitar.hud()]
+	if style.id == "breaker":
+		return "[%d] %s  %s" % [n, style.title, breaker.hud()]
 	if style.id == "skateboard":
 		return "[%d] %s  трюки %s%s  %s" % [n, style.title, "◆".repeat(skate.charges), "◇".repeat(3 - skate.charges), "на доске" if skate.on else "[Ctrl] на доску"]
 	if style.id == "tyaga812":
@@ -687,6 +704,7 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 			perfect = true
 			game.feedback("perfect_dodge", global_position)
 		return
+	dmg *= breaker.on_hurt()             # Breaker: во вращении бьют больнее, поток сгорает
 	var to: Vector3 = from - global_position
 	to.y = 0
 	if state == "block" and aim_dir().angle_to(to.normalized()) < 1.4:
