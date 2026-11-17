@@ -85,6 +85,8 @@ class SetupForm : Form
 	string installDir;
 	bool optDesktop = true, optStart = true, optLaunch = true, optPrev = true, sound = true;
 	string prevDir = "", prevStamp = "";
+	long locationFree;
+	float nextDiskCheck;
 
 	// состояние
 	Scr scr = Scr.Intro, next = Scr.Intro;
@@ -109,8 +111,13 @@ class SetupForm : Form
 	string resultNote = "";
 
 	// графика
-	Bitmap back, heroes, grain, specks;
+	Bitmap back, heroes, portrait, grain, grainLayer, specks;
+	Size grainSize;
+	Bitmap scaledBack, scaledHeroes, scaledPortrait;
+	float artScale;
 	string serifName, techName;
+	readonly Dictionary<float, Font> serifFonts = new Dictionary<float, Font>();
+	readonly Dictionary<float, Font> techFonts = new Dictionary<float, Font>();
 	readonly Dictionary<string, SoundPlayer> sfx = new Dictionary<string, SoundPlayer>();
 	readonly Random rnd = new Random(7);
 
@@ -152,6 +159,19 @@ class SetupForm : Form
 		techName = Pick(new string[] { "Bahnschrift", "Segoe UI", "Arial" });
 		BuildArt();
 		BuildSounds();
+		Disposed += delegate
+		{
+			foreach (Font f in serifFonts.Values) f.Dispose();
+			foreach (Font f in techFonts.Values) f.Dispose();
+			foreach (SoundPlayer player in sfx.Values) player.Dispose();
+			back.Dispose();
+			if (heroes != null) heroes.Dispose();
+			if (portrait != null) portrait.Dispose();
+			if (grainLayer != null) grainLayer.Dispose();
+			grain.Dispose();
+			specks.Dispose();
+			DisposeScaledArt();
+		};
 		scr = uninstallMode ? Scr.Uninstall : Scr.Intro;
 		next = scr;
 		Layout2();
@@ -160,7 +180,13 @@ class SetupForm : Form
 
 		System.Windows.Forms.Timer tm = new System.Windows.Forms.Timer();
 		tm.Interval = 16;
-		tm.Tick += delegate { Step(); Invalidate(); };
+		tm.Tick += delegate
+		{
+			Step();
+			if (WindowState != FormWindowState.Minimized)
+				Invalidate();
+		};
+		Disposed += delegate { tm.Dispose(); };
 		tm.Start();
 		MouseMove += delegate(object s, MouseEventArgs e) { mouse = ToStage(e.Location); };
 		MouseLeave += delegate { mouse = new PointF(-1, -1); };
@@ -199,7 +225,16 @@ class SetupForm : Form
 	void BuildArt()
 	{
 		using (Stream st = Assembly.GetExecutingAssembly().GetManifestResourceStream("heroes.png"))
-			if (st != null) heroes = new Bitmap(st);
+			if (st != null)
+				using (Bitmap source = new Bitmap(st))
+				{
+					heroes = new Bitmap(1000, 900, PixelFormat.Format32bppPArgb);
+					using (Graphics g = Graphics.FromImage(heroes))
+					{
+						g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+						g.DrawImage(source, 0, 0, heroes.Width, heroes.Height);
+					}
+				}
 		// фон: мазки сухой кистью, кольца, силуэт города, мокрый пол
 		back = new Bitmap((int)W, (int)H, PixelFormat.Format32bppPArgb);
 		using (Graphics g = Graphics.FromImage(back))
@@ -243,7 +278,7 @@ class SetupForm : Form
 					g.FillEllipse(b, r.Next((int)W), r.Next((int)H), s, s);
 				}
 		}
-		grain = new Bitmap(256, 256, PixelFormat.Format32bppArgb);
+		grain = new Bitmap(256, 256, PixelFormat.Format32bppPArgb);
 		specks = new Bitmap(256, 256, PixelFormat.Format32bppArgb);
 		Random q = new Random(5);
 		for (int y = 0; y < 256; y++)
@@ -257,6 +292,16 @@ class SetupForm : Form
 			for (int i = 0; i < 26; i++)
 				using (SolidBrush b = new SolidBrush(Color.FromArgb(200, 8, 8, 9)))
 					g.FillEllipse(b, q.Next(256), q.Next(256), 2 + q.Next(9), 1 + q.Next(4));
+		if (heroes != null)
+		{
+			// Crop the pre-tinted portrait to the area visible during parallax.
+			portrait = new Bitmap(1282, 908, PixelFormat.Format32bppPArgb);
+			using (Graphics g = Graphics.FromImage(portrait))
+			{
+				g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+				Hero(g, heroes, 11, -334, 2300, 2070, 0.22f, 0.5f);
+			}
+		}
 	}
 
 	// ---------------- звук: синтезируется при запуске, файлов нет ----------------
@@ -330,8 +375,12 @@ class SetupForm : Form
 
 	bool DirOk(out string why)
 	{
+		return DirOk(FreeBytes(installDir), out why);
+	}
+
+	bool DirOk(long free, out string why)
+	{
 		why = "";
-		long free = FreeBytes(installDir);
 		if (free < 0) { why = "Диск недоступен — выбери другую папку."; return false; }
 		if (free < needBytes) { why = "Не хватает места: нужно " + Mb(needBytes) + ", свободно " + Mb(free) + "."; return false; }
 		return true;
@@ -364,6 +413,8 @@ class SetupForm : Form
 				Add("exit", "EXIT", 96, 668, 300, 60);
 				break;
 			case Scr.Location:
+				locationFree = FreeBytes(installDir);
+				nextDiskCheck = t + 1f;
 				Add("change", "CHANGE LOCATION", 110, 470, 420, 60);
 				Add("next", "NEXT", 110, 700, 300, 76);
 				Add("back", "BACK", 430, 708, 220, 60);
@@ -436,7 +487,10 @@ class SetupForm : Form
 					d.Description = "Куда поставить GOD OF GRIMERKA";
 					d.SelectedPath = Directory.Exists(installDir) ? installDir : Path.GetDirectoryName(installDir);
 					if (d.ShowDialog(this) == DialogResult.OK)
+					{
 						installDir = d.SelectedPath.TrimEnd('\\').EndsWith("GOD OF GRIMERKA", StringComparison.OrdinalIgnoreCase) ? d.SelectedPath : Path.Combine(d.SelectedPath, "GOD OF GRIMERKA");
+						nextDiskCheck = t;
+					}
 				}
 				break;
 			case "next": { string why; if (DirOk(out why)) Go(Scr.Options); break; }
@@ -493,13 +547,23 @@ class SetupForm : Form
 			bool over = b.R.Contains(mouse);
 			if (over && !b.Small && main.IndexOf(b) != focus) { focus = main.IndexOf(b); Play("hover"); }
 			bool hot = over || (!b.Small && main.IndexOf(b) == focus);
-			b.Hover += ((hot ? 1f : 0f) - b.Hover) * Math.Min(1f, dt * 14f);
+			float target = hot ? 1f : 0f;
+			if (b.Hover != target)
+			{
+				b.Hover += (target - b.Hover) * Math.Min(1f, dt * 14f);
+				if (Math.Abs(b.Hover - target) < 0.005f) b.Hover = target;
+			}
 		}
 		if (scr == Scr.Location)
 		{
+			if (t >= nextDiskCheck)
+			{
+			locationFree = FreeBytes(installDir);
+				nextDiskCheck = t + 1f;
+			}
 			string why;
 			Btn nx = btns.Find(delegate(Btn b) { return b.Id == "next"; });
-			if (nx != null) nx.Enabled = DirOk(out why);
+			if (nx != null) nx.Enabled = DirOk(locationFree, out why);
 		}
 		if (scr == Scr.Installing)
 		{
@@ -527,12 +591,22 @@ class SetupForm : Form
 		Draw(e.Graphics, ClientSize);
 	}
 
-	Font F(bool serif, float size) { return new Font(serif ? serifName : techName, size, serif ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel); }
+	Font F(bool serif, float size)
+	{
+		Dictionary<float, Font> fonts = serif ? serifFonts : techFonts;
+		Font font;
+		if (!fonts.TryGetValue(size, out font))
+		{
+			font = new Font(serif ? serifName : techName, size, serif ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
+			fonts.Add(size, font);
+		}
+		return font;
+	}
 
 	void Txt(Graphics g, string s, bool serif, float size, Color c, float x, float y, float alpha)
 	{
 		if (alpha <= 0.01f) return;
-		using (Font f = F(serif, size))
+		Font f = F(serif, size);
 		using (SolidBrush b = new SolidBrush(Color.FromArgb((int)(255 * Math.Min(1f, alpha)), c)))
 			g.DrawString(s, f, b, x, y, StringFormat.GenericTypographic);
 	}
@@ -540,7 +614,7 @@ class SetupForm : Form
 	void TxtBox(Graphics g, string s, bool serif, float size, Color c, RectangleF r, StringAlignment al, float alpha)
 	{
 		if (alpha <= 0.01f) return;
-		using (Font f = F(serif, size))
+		Font f = F(serif, size);
 		using (SolidBrush b = new SolidBrush(Color.FromArgb((int)(255 * Math.Min(1f, alpha)), c)))
 		using (StringFormat sf = new StringFormat(StringFormat.GenericTypographic))
 		{
@@ -571,20 +645,62 @@ class SetupForm : Form
 		using (TextureBrush tb = new TextureBrush(specks)) g.FillPolygon(tb, p);
 	}
 
-	void Hero(Graphics g, float x, float y, float w, float h, float alpha, float dim)
+	void Hero(Graphics g, Bitmap image, float x, float y, float w, float h, float alpha, float dim)
 	{
-		if (heroes == null || alpha <= 0.01f) return;
+		if (image == null || alpha <= 0.01f) return;
+		Rectangle dest = new Rectangle((int)x, (int)y, (int)w, (int)h);
+		if (alpha == 1f && dim == 1f)
+		{
+			g.DrawImage(image, dest);
+			return;
+		}
 		ColorMatrix m = new ColorMatrix();
 		m.Matrix00 = m.Matrix11 = m.Matrix22 = dim;
 		m.Matrix33 = alpha;
 		using (ImageAttributes ia = new ImageAttributes())
 		{
 			ia.SetColorMatrix(m);
-			g.DrawImage(heroes, new Rectangle((int)x, (int)y, (int)w, (int)h), 0, 0, heroes.Width, heroes.Height, GraphicsUnit.Pixel, ia);
+			g.DrawImage(image, dest, 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, ia);
 		}
 	}
 
 	static float Ease(float x) { x = Math.Max(0f, Math.Min(1f, x)); return 1f - (1f - x) * (1f - x) * (1f - x); }
+
+	void DisposeScaledArt()
+	{
+		if (scaledBack != null) scaledBack.Dispose();
+		if (scaledHeroes != null) scaledHeroes.Dispose();
+		if (scaledPortrait != null) scaledPortrait.Dispose();
+	}
+
+	static Bitmap ScaleArt(Bitmap image, float scale)
+	{
+		if (image == null) return null;
+		Bitmap scaled = new Bitmap(Math.Max(1, (int)(image.Width * scale)), Math.Max(1, (int)(image.Height * scale)), PixelFormat.Format32bppPArgb);
+		using (Graphics g = Graphics.FromImage(scaled))
+		{
+			g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+			g.DrawImage(image, 0, 0, scaled.Width, scaled.Height);
+		}
+		return scaled;
+	}
+
+	void DrawGrain(Graphics g, Size client)
+	{
+		if (grainLayer == null || grainSize != client)
+		{
+			if (grainLayer != null) grainLayer.Dispose();
+			grainLayer = new Bitmap(client.Width + 255, client.Height + 255, PixelFormat.Format32bppPArgb);
+			grainSize = client;
+			using (Graphics layer = Graphics.FromImage(grainLayer))
+			using (TextureBrush brush = new TextureBrush(grain))
+				layer.FillRectangle(brush, 0, 0, grainLayer.Width, grainLayer.Height);
+		}
+		GraphicsState state = g.Save();
+		g.ResetTransform();
+		g.DrawImageUnscaled(grainLayer, -rnd.Next(256), -rnd.Next(256));
+		g.Restore(state);
+	}
 
 	// появление элемента: задержка d секунд от входа на экран; возвращает 0..1
 	float In(float d) { return Ease((scrT - d) / 0.32f) * fade; }
@@ -593,19 +709,33 @@ class SetupForm : Form
 	{
 		g.Clear(Color.Black);
 		float k = Math.Min(client.Width / W, client.Height / H);
-		g.TranslateTransform((client.Width - W * k) / 2f, (client.Height - H * k) / 2f);
+		if (k <= 0f) return;
+		int left = (int)((client.Width - W * k) / 2f), top = (int)((client.Height - H * k) / 2f);
+		if (scaledBack == null || artScale != k)
+		{
+			DisposeScaledArt();
+			scaledBack = ScaleArt(back, k);
+			scaledHeroes = ScaleArt(heroes, k);
+			scaledPortrait = ScaleArt(portrait, k);
+			artScale = k;
+		}
+		g.SetClip(new Rectangle(left, top, scaledBack.Width, scaledBack.Height));
+		g.DrawImageUnscaled(scaledBack, left, top);
+		float px = mouse.X < 0 ? 0f : Math.Max(-0.5f, Math.Min(0.5f, mouse.X / W - 0.5f));
+		float py = mouse.Y < 0 ? 0f : Math.Max(-0.5f, Math.Min(0.5f, mouse.Y / H - 0.5f));
+		bool busy = scr == Scr.Installing;
+		float heroA = (scr == Scr.Uninstall || scr == Scr.UninstallDone ? 0.45f : 1f) * Ease(t / 0.9f);
+		if (scaledPortrait != null)
+			Hero(g, scaledPortrait, left + (319 + px * 22) * k, top + (-4 + py * 8) * k, scaledPortrait.Width, scaledPortrait.Height, heroA, 1f);
+		if (scaledHeroes != null)
+			Hero(g, scaledHeroes, left + (615 - px * 14 + (1f - Ease(t / 0.9f)) * 60f) * k, top + (10 - py * 6 + (float)Math.Sin(t * 0.7) * 1.5f) * k, scaledHeroes.Width, scaledHeroes.Height, heroA, busy ? 0.55f + 0.45f * shownPct / 100f : 1f);
+
+		g.TranslateTransform(left, top);
 		g.ScaleTransform(k, k);
 		g.SmoothingMode = SmoothingMode.AntiAlias;
 		g.TextRenderingHint = TextRenderingHint.AntiAlias;
-		g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+		g.InterpolationMode = InterpolationMode.Bilinear;
 		g.SetClip(new RectangleF(0, 0, W, H));
-		g.DrawImage(back, 0, 0, W, H);
-		// герои: крупный тёмный портрет сзади, сами герои справа — чуть плывут за курсором
-		float px = mouse.X < 0 ? 0f : (mouse.X / W - 0.5f), py = mouse.Y < 0 ? 0f : (mouse.Y / H - 0.5f);
-		bool busy = scr == Scr.Installing;
-		float heroA = (scr == Scr.Uninstall || scr == Scr.UninstallDone ? 0.45f : 1f) * Ease(t / 0.9f);
-		Hero(g, 330 + px * 22, -330 + py * 8, 2300, 2070, 0.22f * heroA, 0.5f);
-		Hero(g, 615 - px * 14 + (1f - Ease(t / 0.9f)) * 60f, 10 - py * 6 + (float)Math.Sin(t * 0.7) * 1.5f, 1000, 900, heroA, busy ? 0.55f + 0.45f * shownPct / 100f : 1f);
 
 		switch (scr)
 		{
@@ -622,12 +752,7 @@ class SetupForm : Form
 		// нижние подписи
 		Txt(g, "ENTER — выбрать   ·   ↑ ↓ — перейти   ·   ESC — назад", false, 15, Grey, 48, 862, fade);
 		TxtBox(g, "BUILD " + (build != "" ? build : "—") + "   ·   GOD OF GRIMERKA", false, 14, Grey, new RectangleF(1100, 858, 470, 24), StringAlignment.Far, 1f);
-		// зерно и редкий сбой кадра
-		using (TextureBrush tb = new TextureBrush(grain))
-		{
-			tb.TranslateTransform(rnd.Next(256), rnd.Next(256));
-			g.FillRectangle(tb, 0, 0, W, H);
-		}
+		DrawGrain(g, client);
 		float gl = (float)Math.Sin(t * 1.7) * (float)Math.Sin(t * 0.37);
 		if (gl > 0.93f && shotsDir == null)
 			using (SolidBrush b = new SolidBrush(Color.FromArgb(26, 255, 255, 255)))
@@ -670,9 +795,9 @@ class SetupForm : Form
 		Txt(g, "КУДА СТАВИМ", true, 84, White, 104, 130, In(0.05f));
 		Band(g, 96, 300, 640 * In(0.15f), 74, 21, In(0.15f));
 		TxtBox(g, installDir, false, 26, Ink, new RectangleF(116, 300, 600, 74), StringAlignment.Near, In(0.2f));
-		long free = FreeBytes(installDir);
+		long free = locationFree;
 		string why;
-		bool okDir = DirOk(out why);
+		bool okDir = DirOk(free, out why);
 		Txt(g, "НУЖНО: " + Mb(needBytes) + "    СВОБОДНО: " + (free < 0 ? "—" : Mb(free)), true, 26, White, 110, 400, In(0.25f));
 		Txt(g, okDir ? "Права администратора не нужны.\nСохранения лежат отдельно и при обновлении не трогаются." : why, false, 18, okDir ? Silver : White, 110, 560, In(0.3f));
 		if (!okDir) Band(g, 96, 600, 14, 14, 3, In(0.3f));
@@ -697,7 +822,7 @@ class SetupForm : Form
 		Band(g, 0, 0, 700 * shownPct / 100f, 68, 31, a);
 		g.Restore(st);
 		Txt(g, ((int)shownPct).ToString(), true, 300, White, 96, 100, a);
-		using (Font f = F(true, 300))
+		Font f = F(true, 300);
 		{
 			float w = g.MeasureString(((int)shownPct).ToString(), f, 2000, StringFormat.GenericTypographic).Width;
 			Txt(g, "%", true, 120, Silver, 110 + w, 270, a);
@@ -720,7 +845,7 @@ class SetupForm : Form
 		Txt(g, "INSTALLATION", true, 66, Ink, 96, 156, In(0.12f));
 		Txt(g, "COMPLETE", true, 66, Ink, 96, 222, In(0.18f));
 		Logo(g, 96, 330, 0.34f, In(0.3f));
-		using (Font nf = F(false, 16))
+		Font nf = F(false, 16);
 		using (SolidBrush nb = new SolidBrush(Color.FromArgb((int)(255 * In(0.4f)), Silver)))
 			g.DrawString(resultNote, nf, nb, new RectangleF(100, 440, 600, 56));
 		TxtBox(g, "SEE YOU IN THE CLOUD.", true, 22, Grey, new RectangleF(660, 800, 440, 30), StringAlignment.Near, In(0.6f));
@@ -730,7 +855,7 @@ class SetupForm : Form
 	{
 		DrawHeader(g, "!!", "ERROR");
 		Txt(g, "НЕ ВЫШЛО", true, 100, White, 96, 170, In(0.05f));
-		using (Font f = F(false, 22))
+		Font f = F(false, 22);
 		using (SolidBrush b = new SolidBrush(Color.FromArgb((int)(255 * In(0.15f)), Silver)))
 			g.DrawString(failText, f, b, new RectangleF(100, 340, 620, 200));
 	}
@@ -769,7 +894,7 @@ class SetupForm : Form
 				using (SolidBrush sb = new SolidBrush(Color.FromArgb((int)(255 * a), tc)))
 					g.FillPolygon(sb, new PointF[] { new PointF(r.X + 4, r.Y + r.Height * 0.3f), new PointF(r.X + 4 + size * 0.34f, r.Y + r.Height * 0.5f), new PointF(r.X + 4, r.Y + r.Height * 0.7f) });
 				float avail = r.Width - 24 - size * 0.42f;
-				using (Font mf = F(true, size))
+				Font mf = F(true, size);
 				{
 					float tw = g.MeasureString(b.Text, mf, 4000, StringFormat.GenericTypographic).Width;
 					if (tw > avail) size *= avail / tw;
