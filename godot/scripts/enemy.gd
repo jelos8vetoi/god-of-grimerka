@@ -36,6 +36,7 @@ var stun_t := 0.0
 var face := 0.0
 var kb := Vector3.ZERO
 var ring: MeshInstance3D
+var tell: MeshInstance3D      # предупреждение на земле: форма — ровно зона удара (fx.tell_shape, _tell_start)
 var hp_bar: Sprite3D
 var bar_img: Image
 var height := 1.7
@@ -147,6 +148,7 @@ func _ready() -> void:
 	# кольцо замаха у ног: текстурное, растёт, пока враг заносит удар
 	ring = game.fx.flat(self, "circle_03", Color(1.0, 0.16, 0.1, 0.9), 2.0 * height / 1.7, 0.05, false)
 	ring.visible = false
+	tell = game.fx.tell_node(self)
 	if boss_id == "":
 		bar_img = Image.create(64, 8, false, Image.FORMAT_RGBA8)
 		hp_bar = Sprite3D.new()
@@ -321,12 +323,15 @@ func _physics_process(dt: float) -> void:
 			face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-6.0 * dt))
 			var k: float = t / float(cfg["wind"])
 			ring.scale = Vector3.ONE * 2.0 * (1.0 + k * 0.4) * (height / 1.7)
+			if tell != null and tell.visible:
+				_tell_tick(k)
 			if not glint and k > 0.66:
 				# блик перед самым ударом — по нему ставят блок и перекат
 				glint = true
 				game.fx.flash(global_position + Vector3(0, height * 0.82, 0) + Vector3(sin(face), 0, cos(face)) * radius, 0.9 * height / 1.7, Color(1.0, 0.3, 0.2), "star_07", 0.2)
 			if k >= 1.0:
 				ring.visible = false
+				_tell_end()
 				if boss_id != "":
 					_boss_strike(dist, dir)
 				else:
@@ -437,7 +442,7 @@ func _physics_process(dt: float) -> void:
 func _wind(clip: String, w: float) -> void:
 	state = "wind"
 	t = 0.0
-	ring.visible = true
+	ring.visible = not _tell_start()
 	glint = false
 	cfg["wind"] = w
 	rig.play_for(clip, w * 2.0, 0.08)
@@ -478,6 +483,61 @@ func _strike(dist: float, dir: Vector3) -> void:
 	var reach: float = float(cfg["range"]) + (1.2 if cfg.has("lunge") else 0.3)
 	if dist < reach and Vector3(sin(face), 0, cos(face)).angle_to(dir) < 1.1:
 		game.player.take_damage(float(cfg["dmg"]), global_position, self)
+
+## Предупреждение по форме удара (та же зона, что проверяют _strike и _boss_strike). false — у удара своя метка
+## (снаряды босса, прыжок, волна — у них свои зоны game.telegraph / expanding_ring), тогда остаётся прежнее кольцо.
+var tell_r := 0.0
+var tell_half := 0.0
+var tell_lane := 0.0
+func _tell_start() -> bool:
+	if tell == null:
+		return false
+	var m: Dictionary = VfxProfiles.enemy_motif(self)
+	var r := 0.0
+	var half := 1.1
+	var lane := 0.0
+	if boss_id != "":
+		match move:
+			"slam":
+				r = float(cfg["range"]) + 1.6
+				half = PI
+			"charge":
+				r = 10.0                     # рывок ~0,8 с; задевает, если герой ближе 0,7 дальности
+				lane = float(cfg["range"]) * 0.7
+			"fan":
+				r = 10.0
+				half = 0.5
+			"shock", "leap", "burst", "spiral", "wall", "homing", "rain", "mines", "beam", "summon", "tp":
+				return false
+			_:
+				r = float(cfg["range"]) + 0.8
+				half = PI
+	elif cfg.has("summoner"):
+		r = 4.2
+		half = PI
+	elif cfg.has("ranged"):
+		r = minf(float(cfg["range"]), 11.0)
+		lane = 0.5
+	elif cfg.has("slam"):
+		r = float(cfg["slam"])
+		half = PI
+	else:
+		r = float(cfg["range"]) + (1.2 if cfg.has("lunge") else 0.3)
+		half = 1.1
+	tell_r = r
+	tell_half = half
+	tell_lane = lane
+	game.fx.tell_shape(tell, global_position, face, r, half, lane, int(m["pattern"]), m["main"])
+	return true
+
+func _tell_tick(k: float) -> void:
+	# ведёт за врагом и его взглядом: зона удара считается по face в момент удара
+	tell.global_transform = Transform3D(Basis(Vector3.UP, face + PI) * Basis(Vector3(1, 0, 0), -PI / 2) * Basis.from_scale(Vector3(tell_r * 2.0, tell_r * 2.0, 1.0)), Vector3(global_position.x, global_position.y + 0.06, global_position.z))
+	tell.set_instance_shader_parameter("progress", k)
+
+func _tell_end() -> void:
+	if tell != null:
+		tell.visible = false
 
 # ---------------- боссы ----------------
 func _boss_pick(dist: float) -> void:
@@ -583,10 +643,13 @@ func stun(sec: float) -> void:
 	t = 0.0
 	stun_t = sec
 	ring.visible = false
+	_tell_end()
 	rig.play_for("Hit", 0.5, 0.06)
 	_update_bar()
 
 func _process(_dt: float) -> void:
+	if tell != null and tell.visible and state != "wind":
+		tell.visible = false        # замах сорван (удар, оглушение, смерть) — метки нет
 	if slow_t > 0.0 and alive() and Engine.get_process_frames() % 14 == 0:
 		game.fx.sparks(global_position + Vector3(0, height * 0.75, 0), Vector3.DOWN, 2, Color(0.55, 0.82, 1.0), 0.25, 60.0)   # капает вода
 	var c: float = game.clock
@@ -682,6 +745,7 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		if np > phase:
 			phase = np
 			game.fx.lightning(global_position, height * 2.2, Color(boss["c"]))
+			game.fx.boss_phase(self)
 			var barks: Array = boss.get("barks", [])
 			if phase < barks.size() and String(barks[phase]) != "":
 				game.boss_bark(String(boss["n"]), String(barks[phase]), Color(boss["c"]), String(boss.get("sp", "")))
@@ -882,6 +946,7 @@ func stagger(v: float) -> bool:
 		ring.visible = false
 		rig.play_for("Hit", 0.6, 0.04)
 		game.popup(global_position + Vector3(0, height + 0.9, 0), "ОТКРЫТ", Color(1.0, 0.5, 0.3))
+		game.fx.boss_open(self)
 	else:
 		stun(1.0)
 	return true

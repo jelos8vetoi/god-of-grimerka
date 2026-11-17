@@ -2,6 +2,8 @@
 ## 1) реестр: у каждой атаки шести стилей есть профиль, рисунки не совпадают; строки «VFXREG id | название | вид | стиль | герой |
 ##    было | профиль» — аудит; 2) шейдеры vfx_arc и vfx_ring собираются; 3) эффект рисует только настоящее попадание:
 ##    промах — ничего, попадание — в тот же кадр, что и урон; 4) не больше двух полных профилей за кадр; 5) финалы девяти пар;
+## 6б) враги и боссы: метка удара на земле — ровно зона попадания (герой у края внутри — урон, снаружи — нет),
+##    рисунок попадания по герою, цвет босса из story.json, фаза и «ОТКРЫТ» (листы vfx_enemies.png, vfx_bosses.png);
 ## 6) «меньше вспышек» и «тряска 0 %»; 7) кадр: среднее и 95-й процентиль без эффектов и под нагрузкой.
 ## Снимки: листы по стилям (vfx_<стиль>.png, клетки по порядку реестра), финалы пар (vfx_duo.png).
 ## В конце «VFXCHECK ok» или «VFXCHECK ОШИБОК: n».
@@ -234,6 +236,42 @@ func _run() -> void:
 			duo_cells.append(await grab())
 	sheet(duo_cells, "vfx_duo.png")
 	ok(duo_cells.size() == 9, "финалы девяти пар сняты")
+	# ---- 6б. враги: метка = зона удара ----
+	e.queue_free()
+	await frames(5)
+	var tcells: Array = []
+	for k in ["bot", "clipper", "hater", "troll", "ghost", "lawyer", "mod", "farmer"]:
+		var en = game._make_enemy(k, "", Vector3(0, 0.05, 0))
+		en.cool = 999.0
+		await frames(20)
+		await _tell_case(en, k, "", tcells)
+		en.queue_free()
+		await frames(5)
+	sheet(tcells, "vfx_enemies.png")
+	var bcells: Array = []
+	var bosses: Dictionary = game.story["BOSS"]
+	for bid in bosses:
+		var bn = game._make_enemy("", String(bid), Vector3(0, 0.05, 0))
+		bn.cool = 999.0
+		await frames(20)
+		bn.move = "slam"
+		await _tell_case(bn, String(bosses[bid]["n"]), String(bid), bcells)
+		var want := Color(bosses[bid]["c"])
+		var got: Color = bn.tell.get_instance_shader_parameter("tint")
+		ok(absf(got.r - want.r) + absf(got.g - want.g) + absf(got.b - want.b) < 0.05, "%s: метка цвета босса %s" % [bosses[bid]["n"], bosses[bid]["c"]])
+		if String(bid) == "courier":
+			game.fx.boss_phase(bn)
+			game.fx.boss_open(bn)
+			await frames(8)
+			bcells.append(await grab())
+		bn.queue_free()
+		await frames(5)
+	sheet(bcells, "vfx_bosses.png")
+	P.inv = 9999.0
+	P.hp = P.max_hp
+	P.state = "move"
+	e = foe(Vector3(0, 0.05, 0.0))
+	await frames(10)
 	# ---- 7. доступность ----
 	var lf0 = Opts.v("less_flash")
 	var sh0 = Opts.v("shake")
@@ -273,6 +311,43 @@ func _run() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED)
 	print("VFXCHECK ok" if fails == 0 else "VFXCHECK ОШИБОК: %d" % fails)
 	get_tree().quit()
+
+## Метка удара врага: видна вместо кольца, снимок сверху на середине замаха; у ближнего боя — герой у края зоны
+## внутри получает урон, снаружи нет (метка совпадает с проверкой _strike / _boss_strike); попадание рисует профиль врага.
+func _tell_case(en, name: String, bid: String, cells: Array) -> void:
+	P.global_position = Vector3(0, 0.05, 6.0)
+	en.face = 0.0
+	en._wind(String(en.cfg["clip"]), 50.0)
+	await frames(2)
+	ok(en.tell.visible and not en.ring.visible, "%s: метка удара на земле (r %.2f, угол %.2f, полоса %.2f)" % [name, en.tell_r, en.tell_half, en.tell_lane])
+	en.t = 25.0
+	await frames(3)
+	cam.global_position = en.global_position + Vector3(0.01, 9.5, 5.5)
+	cam.look_at(en.global_position + Vector3(0, 0, 1.2), Vector3.UP)
+	cam.fov = 60.0
+	cam.make_current()
+	await frames(2)
+	cells.append(await grab())
+	var melee: bool = not en.cfg.has("ranged") and not en.cfg.has("summoner")
+	if melee:
+		var res: Array = []
+		for d in [en.tell_r - 0.2, en.tell_r + 0.3]:
+			P.global_position = en.global_position + Vector3(0, 0, d)
+			P.inv = 0.0
+			P.state = "move"
+			P.hp = 9999.0
+			var pr0: int = int(game.fx.stats["prims"])
+			en.face = 0.0
+			if bid != "":
+				en._boss_strike(d, Vector3(0, 0, 1))
+			else:
+				en._strike(d, Vector3(0, 0, 1))
+			await frames(2)
+			res.append([P.hp < 9999.0, int(game.fx.stats["prims"]) > pr0])
+		ok(bool(res[0][0]) and not bool(res[1][0]), "%s: у края метки внутри — урон, снаружи — нет" % name)
+		ok(bool(res[0][1]), "%s: попадание по герою — рисунок врага" % name)
+	en._tell_end()
+	en.state = "recover"
 
 ## n кадров; если list не пуст — каждый кадр два тяжёлых профиля по случайным целям. → [среднее мс, 95-й процентиль мс]
 func measure(n: int, list: Array, pool: Array, base_only := false) -> Array:

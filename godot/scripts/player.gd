@@ -1055,6 +1055,7 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		game.main.sfx("sfx_hurt", -2.0)
 		game.fx.hit(global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.3, -to.normalized(), 0, Color(1.0, 0.3, 0.25))
 		game.fx.claw(global_position + Vector3(0, 1.15, 0) + to.normalized() * 0.4, Color(1.0, 0.25, 0.2))
+		game.fx.enemy_hit(attacker, global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.3, -to.normalized())      # рисунок типа врага / цвет босса
 		state = "hurt"
 		pod.interrupt()
 		t = 0.0
