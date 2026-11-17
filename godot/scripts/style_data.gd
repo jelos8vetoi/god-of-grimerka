@@ -25,6 +25,7 @@ extends Resource
 @export var charge_max := 1.2         # сколько секунд копится заряд
 @export var buffer := 0.3             # сколько секунд помнится нажатие (буфер ввода)
 @export var chain_cd := 0.15          # пауза перед новой цепочкой после оборванной — без спама первым ударом
+@export var close_range := 0.0         # ближе этой дистанции до врага цепочка начинается с ключа графа "close" (0 — не используется)
 @export var ammo_max := 0             # запас стиля (бутылки); 0 — стиль без запаса
 @export var ammo_regen := 0.0         # секунд на восстановление единицы запаса; 0 — не восстанавливается
 @export var hit_sfx: Array = []       # звуки попадания стиля по силе: [[лёгкий…], [тяжёлый…], [добивание…]], каждый — [[имя, дБ, высота]]
@@ -47,7 +48,7 @@ func add(a: AttackData) -> void:
 func problems() -> Array:
 	var out := []
 	for f in links:
-		if f != "" and f != "air" and not attacks.has(f):      # "" — начало с земли, "air" — начало в прыжке
+		if f != "" and f != "air" and f != "close" and not attacks.has(f):      # "" — начало с земли, "air" — начало в прыжке
 			out.append("граф: нет атаки %s" % f)
 		for inp in links[f]:
 			if not attacks.has(links[f][inp]):
