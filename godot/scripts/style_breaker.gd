@@ -14,7 +14,7 @@ static func build() -> StyleData:
 	s.color = Color(0.36, 0.82, 1.0)
 	s.color_hot = Color(1.0, 0.55, 0.9)
 	s.chain_cd = 0.08
-	s.roles = {"idle": "CombatIdle", "combat_idle": "CombatIdle"}
+	s.roles = {"idle": "BrIdle", "combat_idle": "BrIdle", "idle_var": "BrIdleVar"}      # toprock вместо обычной стойки
 	s.hit_sfx = [[["sfx_hit", -3.0, 1.2]], [["sfx_hit_heavy", -3.0, 1.2]], [["sfx_hit_heavy", 0.0, 1.0], ["sfx_crack", -2.0, 1.3]]]
 	# ---- ЛКМ: toprock → удар с разворота → footwork (шесть шагов) → подсечка ----
 	s.add(AttackData.make({"id": "br_toprock", "kind": "light", "clip": "Toprock", "duration": 0.42, "hits": [0.5], "damage": 10.0, "stagger": 10.0, "reach": 2.2, "arc": 2.2,
@@ -36,6 +36,22 @@ static func build() -> StyleData:
 		"knockback": 4.0, "spin": 2.5, "heavy": true, "power": 1, "combo_from": 0.86, "feedback": "vz_heavy", "extra": {"spinny": true}}))
 	s.add(AttackData.make({"id": "br_flare", "kind": "finisher", "title": "ФЛЭР", "clip": "Flare", "duration": 0.7, "hits": [0.45], "damage": 22.0, "stagger": 45.0, "reach": 3.2, "arc": 6.3,
 		"knockback": 8.0, "launch": 4.0, "spin": 1.0, "heavy": true, "power": 1, "combo_from": 0.8, "feedback": "vz_slam", "extra": {"spinny": true}}))
+	# ---- второй набор: удары с пола ----
+	# CC kick: нырок на руку и удар ногой по голени; [F] с места и после уклонения
+	s.add(AttackData.make({"id": "br_cc", "kind": "light", "title": "CC KICK", "clip": "CCKick", "duration": 0.46, "hits": [0.5], "damage": 13.0, "stagger": 16.0, "reach": 2.5, "arc": 1.8,
+		"knockback": 4.0, "step": [0.3, 0.5, 4.0], "combo_from": 0.66, "extra": {"inv": 0.14}}))
+	s.add(AttackData.make({"id": "br_revsweep", "kind": "light", "title": "ОБРАТНАЯ", "clip": "RevSweep", "duration": 0.5, "hits": [0.5], "damage": 13.0, "stagger": 30.0, "reach": 2.5, "arc": 6.3,
+		"knockback": 3.0, "launch": 2.0, "spin": 1.0, "combo_from": 0.7, "extra": {"spinny": true, "react": "knockdown"}}))
+	s.add(AttackData.make({"id": "br_backspin", "kind": "heavy", "title": "BACKSPIN", "clip": "Backspin", "duration": 0.8, "hits": [0.3, 0.5, 0.7], "damage": 8.0, "stagger": 12.0, "reach": 2.5, "arc": 6.3,
+		"knockback": 3.0, "spin": 2.0, "heavy": true, "power": 1, "combo_from": 0.82, "extra": {"spinny": true}}))
+	# ---- стойка на руках и акробатика ----
+	s.add(AttackData.make({"id": "br_handkick", "kind": "heavy", "title": "СТОЙКА", "clip": "HandKick", "duration": 0.6, "hits": [0.5], "damage": 22.0, "stagger": 35.0, "reach": 2.7, "arc": 2.4,
+		"knockback": 6.0, "heavy": true, "power": 1, "step": [0.2, 0.45, 4.5], "combo_from": 0.7, "feedback": "vz_heavy", "extra": {"spinny": true}}))
+	s.add(AttackData.make({"id": "br_handspin", "kind": "heavy", "title": "HANDSPIN", "clip": "HandSpin", "duration": 0.9, "hits": [0.3, 0.45, 0.6, 0.75], "damage": 8.0, "stagger": 12.0, "reach": 2.7, "arc": 6.3,
+		"knockback": 4.0, "spin": 2.0, "heavy": true, "power": 1, "last_launch": 3.5, "combo_from": 0.85, "extra": {"spinny": true}}))
+	# сальто назад с ударом: подбрасывает, на старте неуязвим — уход из-под удара
+	s.add(AttackData.make({"id": "br_backflip", "kind": "launcher", "title": "САЛЬТО", "clip": "Backflip", "duration": 0.6, "hits": [0.3], "damage": 15.0, "stagger": 22.0, "reach": 2.4, "arc": 2.4,
+		"knockback": 2.0, "launch": 7.5, "heavy": true, "power": 1, "combo_from": 0.62, "feedback": "vz_launcher", "extra": {"hop": 6.5, "inv": 0.3}}))
 	# ---- в воздухе: после подброса ----
 	s.add(AttackData.make({"id": "br_air1", "kind": "light", "clip": "AirKick", "duration": 0.36, "hits": [0.45], "damage": 12.0, "stagger": 10.0, "reach": 2.6, "arc": 2.8,
 		"knockback": 1.0, "launch": 4.5, "combo_from": 0.6, "extra": {"hop": 7.0}}))
@@ -46,25 +62,32 @@ static func build() -> StyleData:
 	# ---- Freeze: F в окне комбо любой атаки — застыл в позе; из неё — ответ, подброс или финал ----
 	s.add(AttackData.make({"id": "br_freeze", "kind": "freeze", "clip": "FreezePose", "duration": 0.75, "hits": [0.26], "damage": 0.0, "stagger": 0.0, "reach": 0.0, "arc": 0.1,
 		"knockback": 0.0, "combo_from": 0.42, "recovery": 0.98, "extra": {"freeze": true}}))
-	s.add(AttackData.make({"id": "br_counter", "kind": "light", "title": "ОТВЕТ", "clip": "KickUp", "duration": 0.44, "hits": [0.48], "damage": 24.0, "stagger": 35.0, "reach": 2.6, "arc": 2.8,
+	s.add(AttackData.make({"id": "br_counter", "kind": "light", "title": "ОТВЕТ", "clip": "BrCounter", "duration": 0.44, "hits": [0.48], "damage": 24.0, "stagger": 35.0, "reach": 2.6, "arc": 2.8,
 		"knockback": 9.0, "combo_from": 0.62, "from": 0.12, "feedback": "vz_heavy"}))
-	s.add(AttackData.make({"id": "br_finisher", "kind": "finisher", "title": "BREAKER FINISHER", "clip": "Helicopter", "duration": 1.0, "hits": [0.3, 0.42, 0.54, 0.66, 0.78], "damage": 12.0, "stagger": 25.0, "reach": 3.4, "arc": 6.3,
+	s.add(AttackData.make({"id": "br_finisher", "kind": "finisher", "title": "FINAL FREEZE", "clip": "BrFinal", "duration": 1.0, "hits": [0.3, 0.42, 0.54, 0.66, 0.78], "damage": 12.0, "stagger": 25.0, "reach": 3.4, "arc": 6.3,
 		"knockback": 6.0, "spin": 3.0, "heavy": true, "power": 2, "last_launch": 6.5, "feedback": "vz_quake", "extra": {"hop": 6.5, "finisher": true}}))
 	s.links = {
-		"": {"light": "br_toprock", "heavy": "br_heli"},
+		"": {"light": "br_toprock", "heavy": "br_heli", "throw": "br_cc"},
 		"br_toprock": {"light": "br_round", "heavy": "br_windmill", "throw": "br_freeze"},
 		"br_round": {"light": "br_sixstep", "heavy": "br_headspin", "throw": "br_freeze"},      # toprock → footwork
-		"br_sixstep": {"light": "br_sweep", "heavy": "br_flare", "throw": "br_freeze"},         # six-step → подсечка
-		"br_sweep": {"light": "br_toprock", "heavy": "br_kickup", "throw": "br_freeze"},
-		"br_heli": {"light": "br_round", "throw": "br_freeze"},
+		"br_sixstep": {"light": "br_sweep", "heavy": "br_flare", "throw": "br_freeze"},         # six-step → подсечка / удар с вращением
+		"br_sweep": {"light": "br_revsweep", "heavy": "br_windmill", "throw": "br_freeze"},     # подсечка → обратная / мельница
+		"br_revsweep": {"light": "br_toprock", "heavy": "br_backspin", "throw": "br_freeze"},   # двойная подсечка → бэкспин
+		"br_cc": {"light": "br_sweep", "heavy": "br_heli", "throw": "br_freeze"},               # CC kick → вертолёт
+		"br_backspin": {"light": "br_sweep", "heavy": "br_heli", "throw": "br_freeze"},         # бэкспин → подсечка
+		"br_heli": {"light": "br_round", "heavy": "br_handkick", "throw": "br_freeze"},
 		"br_windmill": {"heavy": "br_kickup", "light": "br_sweep", "throw": "br_freeze"},       # мельница → подброс
 		"br_headspin": {"heavy": "br_flare", "light": "br_sweep", "throw": "br_freeze"},        # вращение → удар по площади
+		"br_handkick": {"heavy": "br_handspin", "light": "br_round", "throw": "br_freeze"},     # удар из стойки → вращение на руке
+		"br_handspin": {"heavy": "br_flare", "light": "br_sweep", "throw": "br_freeze"},
 		"br_flare": {"throw": "br_freeze", "heavy": "br_kickup"},
 		"br_kickup": {"light": "br_air1", "heavy": "br_airdive", "throw": "br_freeze"},         # подброс → в воздух
+		"br_backflip": {"light": "br_air1", "heavy": "br_airdive", "throw": "br_freeze"},
 		"br_air1": {"light": "br_air2", "heavy": "br_airdive"},
 		"br_air2": {"heavy": "br_airdive", "light": "br_air1"},
 		"br_freeze": {"light": "br_counter", "heavy": "br_kickup", "throw": "br_finisher"},     # freeze → ответ / в воздух / финал
-		"br_counter": {"light": "br_round", "heavy": "br_windmill", "throw": "br_freeze"},
+		"br_counter": {"light": "br_round", "heavy": "br_handkick", "throw": "br_freeze"},
 	}
-	s.after = {"dodge": {"light": "br_counter", "heavy": "br_windmill"}, "perfect": {"light": "br_counter", "heavy": "br_headspin"}, "block": {"light": "br_counter"}}
+	s.after = {"dodge": {"light": "br_counter", "heavy": "br_windmill"}, "perfect": {"light": "br_counter", "heavy": "br_headspin"}, "block": {"light": "br_counter", "heavy": "br_backflip"},
+		"parry": {"light": "br_counter", "heavy": "br_backflip"}}
 	return s

@@ -61,7 +61,7 @@ func fwd() -> Vector3:
 ## угол: нормаль деки ищем по треугольникам с весом по площади (поперёк неё площадь разбросана уже всего).
 ## У этой модели подвески с колёсами торчат с ОБЕИХ сторон деки (так её сгенерировали). Низ — сторона с рисунком
 ## (в осях модели она смотрит в +z); лишние колёса со стороны шкурки, где стоят ноги, из сетки убираем.
-## Сам файл модели не меняется; доска в руке и за спиной остаётся как была.
+## Сам файл модели не меняется; то же делается с доской в руке и за спиной (player._weapon_bones).
 var deck_n := Vector3.UP      # нормаль деки в осях модели (от колёс к шкурке) — нужна костям доски
 func _stand_on_wheels(m: Node3D) -> void:
 	var k: float = LEN / 97.9
@@ -70,6 +70,21 @@ func _stand_on_wheels(m: Node3D) -> void:
 		m.rotation.y = PI * 0.5
 		m.scale = Vector3.ONE * k
 		return
+	var info: Array = fix_mesh(mi)
+	var n: Vector3 = info[0]
+	var lo: float = info[1]
+	var deck_d: float = info[2]
+	deck_n = n
+	# оси модели → оси доски: длинная ось вдоль хода, нормаль деки вверх
+	var from := Basis(Vector3.RIGHT, n, Vector3.RIGHT.cross(n))
+	var to := Basis(Vector3(0, 0, -1), Vector3.UP, Vector3(0, 0, -1).cross(Vector3.UP))
+	m.basis = (to * from.inverse()).scaled(Vector3.ONE * k)
+	m.position = Vector3(0, -lo * k, 0)      # колёса на земле: самая нижняя точка модели — на высоте 0
+	deck_h = (deck_d - lo) * k               # высота шкурки над землёй
+
+## Найти нормаль деки и убрать из сетки лишние подвески со стороны шкурки. Возвращает [нормаль (от колёс к шкурке),
+## нижняя точка вдоль нормали, где дека вдоль нормали]. Нужна и доске под ногами, и доске в руке.
+static func fix_mesh(mi: MeshInstance3D) -> Array:
 	var cen := PackedVector3Array()      # центры треугольников
 	var area := PackedFloat32Array()
 	for si in mi.mesh.get_surface_count():
@@ -102,7 +117,6 @@ func _stand_on_wheels(m: Node3D) -> void:
 	var n := Vector3(0, -sin(wide), cos(wide))               # поперёк этого направления — нормаль деки
 	if n.z > 0.0:
 		n = -n                                                # шкурка — в сторону −z, рисунок и рабочие колёса — в +z
-	deck_n = n
 	# где по толщине сама дека: слой с наибольшей площадью
 	var bins := {}
 	for i in cen.size():
@@ -138,12 +152,7 @@ func _stand_on_wheels(m: Node3D) -> void:
 		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr2)
 		out.surface_set_material(si, mi.mesh.surface_get_material(si))
 	mi.mesh = out
-	# оси модели → оси доски: длинная ось вдоль хода, нормаль деки вверх
-	var from := Basis(Vector3.RIGHT, n, Vector3.RIGHT.cross(n))
-	var to := Basis(Vector3(0, 0, -1), Vector3.UP, Vector3(0, 0, -1).cross(Vector3.UP))
-	m.basis = (to * from.inverse()).scaled(Vector3.ONE * k)
-	m.position = Vector3(0, -lo * k, 0)      # колёса на земле: самая нижняя точка модели — на высоте 0
-	deck_h = (deck_d - lo) * k               # высота шкурки над землёй
+	return [n, lo, deck_d]
 
 var deck_h := 0.11            # высота шкурки над землёй, м
 

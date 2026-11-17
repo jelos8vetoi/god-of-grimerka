@@ -652,6 +652,10 @@ func _weapon_bones(r: Rig, sd: StyleData) -> void:
 		return
 	var opt: Dictionary = sd.weapon["opt"]
 	var m: Node3D = r.weapon.get_child(0).get_child(0).get_child(0)
+	if sd.id == "skateboard":
+		var bmi := WeaponBones._mesh(m)
+		if bmi != null:
+			Skate.fix_mesh(bmi)      # у модели доски колёса с обеих сторон деки: лишние убираем и у доски в руке
 	var wb := WeaponBones.on(m, String(opt.get("axis", "y")), float(opt.get("from", 0.0)), float(opt.get("to", 1.0)), sd.id)
 	if wb != null:
 		wbones[sd.id] = wb

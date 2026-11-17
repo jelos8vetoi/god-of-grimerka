@@ -192,6 +192,28 @@ func _run() -> void:
 	await frames(30)
 	ok(P.board_out and board().get_parent() == bw["hand_att"] and max_w > 0.9 and P.rig.cur == "ArmedIdle" and R.weapon_bone >= 0, "враг рядом — достал доску: рука тянулась за плечо (вес %.2f), доска в руке, стойка «%s»" % [max_w, P.rig.cur])
 	await close("c04_board_hand.png", 0.7)
+	await close("c04_board_hand_side.png", -PI * 0.5)
+	# доска в руке не входит в тело: её середина и дальний конец — в стороне от оси тела
+	var pts: Array = R.weapon_points(0.5, 1.0)
+	var ax: Vector3 = bone_w("hips")
+	var clear := 9.0
+	for wp in pts:
+		clear = min(clear, Vector2((wp as Vector3).x - ax.x, (wp as Vector3).z - ax.z).length())
+	var hands_b: float = grip_w("l").distance_to(grip_w("r"))
+	ok(clear > 0.2 and hands_b > 0.2 and hands_b < 0.6, "доска в стойке — в двух руках перед корпусом (между руками %.2f м) и не входит в тело: до оси тела не меньше %.2f м" % [hands_b, clear])
+	# бег с доской в руках: обе руки на ней, в тело не входит
+	P.auto_input = {"move": Vector2(0, 1)}
+	await frames(30)
+	var run_b: String = P.rig.cur
+	var clear_run := 9.0
+	for i in 30:
+		await get_tree().physics_frame
+		for wp in R.weapon_points(0.5, 1.0):
+			clear_run = min(clear_run, Vector2((wp as Vector3).x - bone_w("hips").x, (wp as Vector3).z - bone_w("hips").z).length())
+	await close("c04_board_run_hands.png", -0.8, 2.2)
+	P.auto_input = {}
+	await frames(20)
+	ok(run_b == "SkRun" and clear_run > 0.2, "бег с доской в руках: клип «%s», доска не входит в тело (%.2f м от оси)" % [run_b, clear_run])
 	# удар доской попадает
 	e.global_position = P.global_position + Vector3(0, 0, -2.0)
 	e.stun(3.0)
@@ -389,6 +411,106 @@ func _run() -> void:
 	await frames(60)
 	ok(mount_clip == "SkateMount" and push_clip == "SkatePush" and cruise_clip == "SkateRide" and v_top > 9.0, "посадка «%s», разгон «%s», на скорости «%s» (%.1f м/с)" % [mount_clip, push_clip, cruise_clip, v_top])
 	ok(brake_clip == "SkateBrake" and v_mid < v_top - 2.0 and turned < 0.2, "назад на ходу — торможение хвостом «%s»: %.1f → %.1f м/с, нос не развернулся (%.2f рад)" % [brake_clip, v_top, v_mid, turned])
+	# ================= 9. Breaker: стойка, удары с пола, стойка на руках, сальто, финал =================
+	await stage("style3", "breaker")
+	await frames(40)
+	ok(P.rig.cur == "BrIdle", "Breaker: в покое toprock — «%s»" % P.rig.cur)
+	await close("c20_br_idle.png", 0.5)
+	var b1 = foe(Vector3(0, 0, -2.0))
+	b1.stun(20.0)
+	await frames(4)
+	# [F] с места — CC kick
+	await chain(["throw", "heavy"])
+	await until_free()
+	ok(log_ids == ["br_cc", "br_heli"], "[F] с места — CC KICK, ПКМ — вертолёт: %s" % str(log_ids))
+	# пол: подсечка → обратная → бэкспин
+	b1.global_position = P.global_position + Vector3(0, 0, -2.0)
+	b1.stun(20.0)
+	log_ids = []
+	await tap("attack")
+	for i in 4:
+		n = 0
+		while not P.combat.in_combo_window() and P.state == "attack" and n < 200:
+			await get_tree().physics_frame
+			n += 1
+		var had2: int = log_ids.size()
+		await tap("attack")
+		n = 0
+		while log_ids.size() == had2 and n < 60:
+			await get_tree().physics_frame
+			n += 1
+	n = 0
+	while not P.combat.in_combo_window() and P.state == "attack" and n < 200:
+		await get_tree().physics_frame
+		n += 1
+	await tap("heavy")
+	await frames(24)
+	await close("c21_br_backspin.png", 0.8)
+	await until_free()
+	ok(log_ids == ["br_toprock", "br_round", "br_sixstep", "br_sweep", "br_revsweep", "br_backspin"], "ЛКМ ×5, ПКМ: подсечка → обратная → бэкспин: %s" % str(log_ids))
+	# стойка на руках: вертолёт → удар из стойки → вращение на руке
+	await stage("style3", "breaker")
+	b1 = foe(Vector3(0, 0, -2.0))
+	b1.stun(20.0)
+	await frames(4)
+	log_ids = []
+	await tap("heavy")
+	n = 0
+	while not P.combat.in_combo_window() and P.state == "attack" and n < 200:
+		await get_tree().physics_frame
+		n += 1
+	await tap("heavy")
+	await frames(20)
+	await close("c22_br_handkick.png", PI * 0.5)
+	n = 0
+	while not P.combat.in_combo_window() and P.state == "attack" and n < 200:
+		await get_tree().physics_frame
+		n += 1
+	await tap("heavy")
+	await frames(26)
+	await close("c23_br_handspin.png", 0.8)
+	await until_free()
+	ok(log_ids == ["br_heli", "br_handkick", "br_handspin"], "ПКМ ×3: вертолёт → удар из стойки → вращение на руке: %s" % str(log_ids))
+	# сальто после парирования: подбрасывает
+	await stage("style3", "breaker")
+	b1 = foe(Vector3(0, 0, -2.0))
+	b1.stun(20.0)
+	await frames(4)
+	P.combat.windows.clear()
+	P.combat.open("parry", 0.6)
+	log_ids = []
+	await tap("heavy")
+	var up_seen := false
+	for i in 40:
+		await get_tree().physics_frame
+		up_seen = up_seen or b1.state == "air"
+		if i == 14:
+			await close("c24_br_backflip.png", PI * 0.5)
+	await until_free()
+	ok(log_ids.size() > 0 and log_ids[0] == "br_backflip" and up_seen, "после парирования ПКМ — САЛЬТО: %s, врага подбросило (%s)" % [str(log_ids), str(up_seen)])
+	# финал из фриза
+	await stage("style3", "breaker")
+	b1 = foe(Vector3(0, 0, -2.0))
+	b1.stun(20.0)
+	await frames(4)
+	log_ids = []
+	await tap("attack")
+	for act2 in ["throw", "throw"]:
+		n = 0
+		while not P.combat.in_combo_window() and P.state == "attack" and n < 240:
+			await get_tree().physics_frame
+			n += 1
+		var had3: int = log_ids.size()
+		await tap(act2)
+		n = 0
+		while log_ids.size() == had3 and n < 60:
+			await get_tree().physics_frame
+			n += 1
+	var fin_clip: String = P.rig.cur
+	await frames(30)
+	await close("c25_br_final.png", 0.8)
+	await until_free()
+	ok(log_ids == ["br_toprock", "br_freeze", "br_finisher"] and fin_clip == "BrFinal", "удар → [F] фриз → [F] FINAL FREEZE: %s, клип «%s»" % [str(log_ids), fin_clip])
 	# ================= 7. кости оружия: гнётся в махе и от попадания, потом успокаивается =================
 	for row in [["madk1d", "style2", "guitar"], ["madk1d", "style1", "skateboard"], ["pahan", "style1", "vozduh"]]:
 		if row[0] == "pahan":
