@@ -187,8 +187,8 @@ class SetupForm : Form
 		};
 		Disposed += delegate { tm.Dispose(); };
 		tm.Start();
-		MouseMove += delegate(object s, MouseEventArgs e) { mouse = ToStage(e.Location); repaint = true; };
-		MouseLeave += delegate { mouse = new PointF(-1, -1); repaint = true; };
+		MouseMove += delegate(object s, MouseEventArgs e) { mouse = ToStage(e.Location); };
+		MouseLeave += delegate { mouse = new PointF(-1, -1); };
 		MouseDown += delegate(object s, MouseEventArgs e) { if (e.Button == MouseButtons.Left) ClickAt(ToStage(e.Location)); };
 		KeyDown += OnKey;
 		FormClosing += delegate(object s, FormClosingEventArgs e)
@@ -688,11 +688,9 @@ class SetupForm : Form
 		g.InterpolationMode = InterpolationMode.Bilinear;
 		g.SetClip(new RectangleF(0, 0, W, H));
 		g.DrawImage(back, 0, 0, W, H);
-		// Передний портрет слегка движется за курсором.
-		float px = mouse.X < 0 ? 0f : (mouse.X / W - 0.5f), py = mouse.Y < 0 ? 0f : (mouse.Y / H - 0.5f);
 		bool busy = scr == Scr.Installing;
 		float heroA = (scr == Scr.Uninstall || scr == Scr.UninstallDone ? 0.45f : 1f) * Ease(t / 0.9f);
-		Hero(g, 615 - px * 14 + (1f - Ease(t / 0.9f)) * 60f, 10 - py * 6, 1000, 900, heroA, busy ? 0.55f + 0.45f * shownPct / 100f : 1f);
+		Hero(g, 615 + (1f - Ease(t / 0.9f)) * 60f, 10, 1000, 900, heroA, busy ? 0.55f + 0.45f * shownPct / 100f : 1f);
 
 		switch (scr)
 		{
