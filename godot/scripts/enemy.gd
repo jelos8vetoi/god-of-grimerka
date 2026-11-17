@@ -67,6 +67,21 @@ var poise := 60.0           # равновесие: удары снимают е
 var poise_max := 60.0
 var poise_t := 9.0          # сколько секунд назад по равновесию били: через 2 с оно восстанавливается
 var slow_t := 0.0           # замедление (облит водой и т. п.), с
+## Реакции на удары (этап 09): масса делит отбрасывание и снятое равновесие, броня гасит лёгкие удары,
+## launch — можно ли подбросить, down — можно ли сбить с ног подсечкой. Боссы — отдельной строкой.
+const REACT := {
+	"bot": {"mass": 1.0}, "clipper": {"mass": 0.9}, "hater": {"mass": 0.75}, "lawyer": {"mass": 1.0}, "farmer": {"mass": 0.85}, "clone": {"mass": 0.8},
+	"troll": {"mass": 2.6, "armor": 14.0, "launch": false, "down": false},      # тяжёлый: лёгкие удары не замечает, не подбрасывается
+	"ghost": {"mass": 0.6, "down": false},                                       # бесплотный: с ног не сбить, зато отлетает далеко
+	"mod": {"mass": 1.35, "armor": 8.0},                                         # в броне: лёгкий удар его не сбивает
+	"boss": {"mass": 3.0, "armor": 10.0, "launch": false, "down": false},
+}
+var react := "normal"       # последняя реакция: none, hit, stagger, heavy_stagger, knockback, knockdown, airborne
+var hurt_len := 0.35        # сколько длится текущая реакция «получил удар»
+var no_flinch := false      # броня: этот удар не сбивает состояние
+var weak_t := 0.0           # босс «открыт»: окно после срыва равновесия, урон по нему выше
+var executed := false       # убит добиванием
+var exec_mark: Label3D
 var slow_k := 1.0           # множитель скорости на время замедления
 
 func _ready() -> void:
@@ -189,6 +204,7 @@ func _physics_process(dt: float) -> void:
 	if poise_t > 2.0:
 		poise = min(poise_max, poise + poise_max * 0.5 * dt)
 	slow_t = max(0.0, slow_t - dt)
+	weak_t = max(0.0, weak_t - dt)
 	var p = game.player
 	var to: Vector3 = p.global_position - global_position
 	to.y = 0
@@ -197,7 +213,7 @@ func _physics_process(dt: float) -> void:
 	velocity.x = kb.x
 	velocity.z = kb.z
 	if state != "air":
-		kb = kb.move_toward(Vector3.ZERO, 22.0 * dt)
+		kb = kb.move_toward(Vector3.ZERO, (9.0 if state == "hurt" and react == "knockback" else 22.0) * dt)
 	if trail:
 		trail.enabled = state == "wind" or (state == "recover" and t < 0.3)
 	if game.paused_story() and state != "dead":
@@ -296,8 +312,10 @@ func _physics_process(dt: float) -> void:
 				state = "chase"
 				cool = float(cfg["cool"]) * randf_range(0.8, 1.25)
 		"hurt":
-			if t > 0.35:
+			if t > hurt_len:
 				state = "chase"
+				hurt_len = 0.35
+				body.rotation.x = 0.0
 		"stun":
 			stun_t -= dt
 			body.rotation.z = sin(t * 18.0) * 0.06
@@ -530,6 +548,21 @@ func _process(_dt: float) -> void:
 			shield_fx.scale = Vector3.ONE * height * 1.5
 		if shield_fx:
 			shield_fx.visible = on
+	var ready := exec_ready()
+	if ready and exec_mark == null:
+		exec_mark = Label3D.new()
+		exec_mark.text = "✕"
+		exec_mark.font_size = 96
+		exec_mark.outline_size = 18
+		exec_mark.modulate = Color(1.0, 0.22, 0.16)
+		exec_mark.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		exec_mark.no_depth_test = true
+		exec_mark.pixel_size = 0.006
+		exec_mark.position = Vector3(0, height + 0.75, 0)
+		add_child(exec_mark)
+	if exec_mark != null:
+		exec_mark.visible = ready
+		exec_mark.scale = Vector3.ONE * (1.0 + 0.15 * sin(c * 9.0))
 	if state == "stun":
 		if stars == null:
 			stars = game.fx.stun_stars(self, height + 0.3)
@@ -613,23 +646,131 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		rig.play("Fly", 0.08)
 	elif state == "air":
 		velocity.y = max(velocity.y, 2.5)   # в воздухе каждый удар чуть подбрасывает
-	elif state != "stun" and state != "wind" and state != "charge" and state != "down" and state != "getup" and state != "special" and (boss_id == "" or heavy):
+	elif not no_flinch and state != "stun" and state != "wind" and state != "charge" and state != "down" and state != "getup" and state != "special" and (boss_id == "" or heavy):
 		state = "hurt"
+		hurt_len = 0.35
 		t = 0.0
 		ring.visible = false
 		rig.play_for("Hit", 0.45, 0.04)
 	_update_bar()
 
-## Попадание от ядра боя (combat.gd): урон и отбрасывание — как раньше, плюс оглушение атаки и равновесие.
+func rc(key: String, def):
+	return (REACT.get("boss" if boss_id != "" else kind, {}) as Dictionary).get(key, def)
+
+## Какую реакцию даёт это попадание этому врагу: зависит от массы, брони, силы и вида удара.
+##   none — броня: вспышка и урон, враг продолжает своё;  hit — короткая реакция;  stagger — заметно сбит;
+##   heavy_stagger — надолго согнулся (можно добивать);  knockback — уезжает назад;  knockdown — падает;  airborne — в воздух.
+func reaction_for(h: HitInfo) -> String:
+	var m: float = float(rc("mass", 1.0))
+	var armor: float = float(rc("armor", 0.0))
+	if boss_id != "":
+		return "stagger" if h.heavy else "none"
+	if h.launch > 0.0 and bool(rc("launch", true)):
+		return "airborne"
+	if state == "air":
+		return "airborne"
+	if h.react == "knockdown":
+		return "knockdown" if bool(rc("down", true)) else "heavy_stagger"
+	var force: float = h.stagger / m - armor
+	var heavy: bool = h.heavy or h.power >= 1
+	if (h.react == "knockback" or h.knockback / m >= 7.0) and (heavy or armor <= 0.0):
+		return "knockback" if m < 2.0 else "stagger"
+	if heavy:
+		return "heavy_stagger" if force >= 16.0 else "stagger"
+	if armor > 0.0 and force <= 2.0:
+		return "none"
+	return "hit"
+
+## Попадание от ядра боя (combat.gd): урон, реакция по массе и броне, оглушение атаки и равновесие.
 func take_hit_info(h: HitInfo) -> void:
 	if not alive():
 		return
-	take_hit(h.damage, h.dir, h.knockback, h.heavy, h.launch)
+	var m: float = float(rc("mass", 1.0))
+	var r := reaction_for(h)
+	var launch: float = h.launch if (bool(rc("launch", true)) or h.launch < 0.0) else 0.0
+	var dmg: float = h.damage * (1.3 if weak_t > 0.0 else 1.0)
+	no_flinch = r == "none"
+	take_hit(dmg, h.dir, h.knockback / (m if h.knockback >= 6.0 else max(m, 1.0)), h.heavy, launch)      # слабый толчок лёгких врагов не разбрасывает: серия ударов должна попадать
+	no_flinch = false
 	if not alive():
 		return
-	if h.stun > 0.0:
+	react = r
+	match r:
+		"stagger":
+			if state == "hurt":
+				hurt_len = 0.6
+				rig.play_for("Hit", 0.6, 0.04)
+		"heavy_stagger":
+			if boss_id == "" and state not in ["stun", "down", "getup", "special"]:
+				state = "hurt"
+				t = 0.0
+				hurt_len = 1.0
+				ring.visible = false
+				rig.play_for("Hit", 1.0, 0.04)
+				body.rotation.x = 0.22          # согнулся
+		"knockback":
+			if state not in ["stun", "down", "getup", "special"]:
+				state = "hurt"
+				t = 0.0
+				hurt_len = 0.75
+				ring.visible = false
+				kb = h.dir * clampf(h.knockback / m, 7.0, 18.0)
+				rig.play_for("Hit", 0.75, 0.04)
+				game.fx.dust(global_position + Vector3(0, 0.1, 0), 5, game.fx.DUST, 0.7)
+		"knockdown":
+			if state != "air":
+				state = "air"
+				t = 0.0
+				ring.visible = false
+				velocity.y = 3.2
+				kb = h.dir * 2.0
+				face = atan2(-h.dir.x, -h.dir.z)
+				rig.play("Fly", 0.08)
+	if h.stun > 0.0 and r != "none":
 		stun(h.stun)
-	stagger(h.stagger)
+	stagger(h.stagger / m)
+
+## Состояние для игры и проверок — одним словом
+func react_state() -> String:
+	if not alive():
+		return "DEAD"
+	if exec_ready():
+		return "EXECUTION_READY"
+	match state:
+		"air":
+			return "AIRBORNE"
+		"down":
+			return "KNOCKDOWN"
+		"getup", "recover":
+			return "RECOVERY"
+		"stun":
+			return "STAGGER"
+		"hurt":
+			return {"heavy_stagger": "HEAVY_STAGGER", "knockback": "KNOCKBACK", "stagger": "STAGGER"}.get(react, "HIT")
+	return "NORMAL"
+
+## Можно ли добить (execution.gd). Боссов — никогда. Обычного — когда он сбит, оглушён, лежит или в воздухе и
+## здоровья не больше 40 %; почти мёртвого (15 %) — в любом состоянии; relaxed — после парирования или уклонения: до 60 %.
+func exec_ready(relaxed := false) -> bool:
+	if boss_id != "" or not alive() or state == "spawn" or kind == "clone":
+		return false
+	var k := hp / max_hp
+	if relaxed:
+		return k <= 0.6
+	if state in ["stun", "down", "getup", "air"] or (state == "hurt" and react in ["heavy_stagger", "knockback"]):
+		return k <= 0.4
+	return k <= 0.15
+
+## Держать врага на месте, пока его добивают
+func hold(sec: float) -> void:
+	if boss_id != "" or not alive():
+		return
+	state = "stun"
+	t = 0.0
+	stun_t = sec
+	kb = Vector3.ZERO
+	ring.visible = false
+	rig.play_for("Hit", sec, 0.06)
 
 ## Снять равновесие. Кончилось — враг сбит: обычный оглушён на секунду (замах прерывается), босс вздрагивает и теряет замах.
 func stagger(v: float) -> bool:
@@ -643,10 +784,17 @@ func stagger(v: float) -> bool:
 	game.popup(global_position + Vector3(0, height + 0.5, 0), "СБИТ", Color(1.0, 0.75, 0.3))
 	game.fx.twinkle(global_position + Vector3(0, height * 0.9, 0), 6, Color(1.0, 0.85, 0.4), 0.8)
 	if boss_id != "":
-		state = "hurt"
+		# босса добить нельзя: срыв равновесия открывает его на 1,4 с — замах сорван, урон по нему ×1,3.
+		# С каждым разом и с каждой фазой равновесие крепче.
+		state = "stun"
 		t = 0.0
+		stun_t = 1.4
+		weak_t = 1.4
+		poise_max *= 1.25
+		poise = poise_max
 		ring.visible = false
-		rig.play_for("Hit", 0.45, 0.04)
+		rig.play_for("Hit", 0.6, 0.04)
+		game.popup(global_position + Vector3(0, height + 0.9, 0), "ОТКРЫТ", Color(1.0, 0.5, 0.3))
 	else:
 		stun(1.0)
 	return true

@@ -60,6 +60,7 @@ var m_weapons := {}          # оружие madk1d по стилям: id → {at
 var skate: Skate             # скейтборд: езда и трюки (skate.gd)
 var guitar: Guitar           # электрогитара: ритм, дисторшн, волны и звук (guitar.gd)
 var breaker: Breaker         # Breaker Style: поток, Freeze, риск (breaker.gd)
+var execution: Execution     # контекстные добивания (execution.gd)
 var FINISH: Array = []      # тяжёлые удары стиля по числу лёгких перед ними (для съёмки трейлера)
 var scrape_p: AudioStreamPlayer
 var scr_cd := 0.0
@@ -143,6 +144,9 @@ func _ready() -> void:
 	breaker = Breaker.new()
 	add_child(breaker)
 	breaker.setup(self, game)
+	execution = Execution.new()
+	add_child(execution)
+	execution.setup(self, game)
 	combat.attack_started.connect(func(a: AttackData) -> void: breaker.on_start(a))
 	combat.attack_hit.connect(_on_attack_hit)
 	bottles = Bottles.new()
@@ -404,6 +408,8 @@ func _physics_process(dt: float) -> void:
 			tyaga.tick(dt, dir)
 		"skate":
 			skate.tick(dt, dir)
+		"exec":
+			execution.tick(dt)
 		"attack":
 			combat.tick_attack(dt, dir)
 		"charge":
@@ -649,6 +655,8 @@ func start_finisher(n: int, chained := false) -> void:
 
 ## Heat-действие: рядом враг и есть 40 СВЭГа — цепочка добивания стиля с замедлением и наездом камеры
 func try_heat() -> void:
+	if execution.try_start():          # рядом враг, которого можно добить, — добивание вместо Heat
+		return
 	if guitar.active():
 		guitar.distort()               # у гитары E — DISTORTION
 		return

@@ -174,7 +174,8 @@ func tick(dt: float, dir: Vector3) -> void:
 			if p.pressed("roll"):
 				p.start_roll(dir)
 			elif p.pressed("heat"):
-				_mount()
+				if not p.execution.try_start():      # рядом враг, которого можно добить, — добивание, иначе сесть верхом
+					_mount()
 			elif p.held("attack") and ready_to_work():
 				mode = "suck"
 				mt = 0.0
