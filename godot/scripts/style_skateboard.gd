@@ -10,7 +10,7 @@ static func build() -> StyleData:
 	s.owner = "madk1d"
 	s.ready = true
 	s.note = "скорость, трюки и удары доской: на ногах, на ходу и в воздухе"
-	s.weapon = {"path": "res://assets/models/skateboard.glb", "side": "r", "opt": {"axis": "x", "from": -48.9, "to": 48.9, "grip": 0.1, "length": 0.47}}
+	s.weapon = {"path": "res://assets/models/skateboard.glb", "side": "r", "opt": {"axis": "x", "from": -48.9, "to": 48.9, "grip": 0.1, "length": 0.56}}
 	s.color = Color(0.36, 0.82, 1.0)
 	s.color_hot = Color(1.0, 0.9, 0.4)
 	s.chain_cd = 0.1

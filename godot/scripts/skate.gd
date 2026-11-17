@@ -10,7 +10,9 @@ class_name Skate
 extends Node3D
 
 const MODEL := "res://assets/models/skateboard.glb"
-const LEN := 0.8
+const LEN := 0.94               # та же длина, что у доски в руке (0,56 роста madk1d)
+const AIR_LIFT := 0.2          # на сколько доска поднимается за ногами в прыжке, м
+const STANCE := -PI * 0.5      # поворот тела на доске: левый бок по ходу, ноги вдоль деки
 
 var p
 var game
@@ -67,6 +69,7 @@ func mount() -> void:
 	board.visible = true
 	p.show_weapon(false)
 	p.rig.position.y = -0.9 + float(StyleSkateboard.RIDE["deck"])     # стопы на деке
+	p.rig.rotation.y = STANCE
 	p.rig.play("SkateRide", 0.1)
 	p.state = "skate"
 	game.main.sfx("sfx_roll", -8.0, 1.5)
@@ -82,6 +85,7 @@ func off(to_state := "move") -> void:
 	board.rotation = Vector3.ZERO
 	p.show_weapon(true)
 	p.rig.position.y = -0.9
+	p.rig.rotation.y = 0.0
 	p.spin_off = 0.0
 	p.body.rotation.z = 0.0
 	sliding = false
@@ -225,6 +229,8 @@ func tick(dt: float, dir: Vector3) -> void:
 			spinner.rotation.x = -0.5
 	# ---- вид ----
 	board.rotation.y = lerp_angle(board.rotation.y, PI * 0.5 if sliding else 0.0, 1.0 - exp(-14.0 * dt))
+	# в воздухе доска идёт за поджатыми ногами, а не остаётся внизу
+	board.position.y = lerpf(board.position.y, AIR_LIFT if air and not diving else 0.0, 1.0 - exp(-16.0 * dt))
 	p.body.rotation.z = lerpf(p.body.rotation.z, 0.0, 1.0 - exp(-8.0 * dt))
 	if grounded and not air and spin_t < 0.0:
 		p.rig.play("SkateSlide" if sliding else "SkateRide", 0.12)
@@ -254,6 +260,7 @@ func _bail() -> void:
 	spinner.rotation = Vector3(0.4, 1.1, 0.3)
 	p.velocity = Vector3.ZERO
 	p.rig.position.y = -0.9
+	p.rig.rotation.y = 0.0
 	p.rig.play_for("Knockdown", bail_t * 0.7, 0.05)
 	game.popup(p.global_position + Vector3(0, 2.2, 0), "УПАЛ", Color(1.0, 0.45, 0.35))
 	game.main.sfx("sfx_thud", -2.0, 1.0)

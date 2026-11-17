@@ -21,6 +21,7 @@ const MADK_SEQ := ["CombatIdle", "Walk", "Sprint", "Dodge", "PerfectDodge", "Blo
 	"StartRun", "StopRun", "TurnL", "Dash", "Jump", "Fall", "Land", "Cross", "RoundKick", "JumpKick", "SpinKick", "AirKnee", "AirKick", "AirSpin", "AirDive",
 	"StyleSwitch", "SixStep", "Freeze", "Windmill", "KipUp"]
 ## клипы, в которых тело лежит или в воздухе: стопы не обязаны касаться пола
+const MADK_WEAPON_SEQ := ["ArmedIdle", "MSwing1", "MSwing2", "MSpin", "MOver", "MUpper", "MSweep", "MThrust", "MStrum", "MFinal"]
 const OFF_GROUND := ["Tuck", "Death", "Knockdown", "Recovery", "AirAttack", "Rage", "Smash", "Charge", "Jump", "Fall"]
 
 var fails := 0
@@ -55,6 +56,21 @@ func _ready() -> void:
 		for c in MADK_SEQ:
 			await _seq(m, "madk1d", c)
 	m.queue_free()
+	await get_tree().process_frame
+	# madk1d с оружием: те же проверки и раскадровки ударов доской и гитарой — как у Пахана с балоном
+	for wk in ["madk_board", "madk_guitar"]:
+		print("ANIMCHECK: " + wk)
+		var mw := _make(wk)
+		var wdefs := {}
+		var all: Dictionary = Poses.madk1d()
+		for c in MADK_WEAPON_SEQ:
+			wdefs[c] = all[c]
+		await _check(mw, wk, [], wdefs)
+		if shots:
+			for c in MADK_WEAPON_SEQ:
+				await _seq(mw, wk, c)
+		mw.queue_free()
+		await get_tree().process_frame
 	print("ANIMCHECK ok" if fails == 0 else "ANIMCHECK ОШИБОК: %d" % fails)
 	get_tree().quit()
 
@@ -67,6 +83,9 @@ func _make(k: String) -> Rig:
 		r.setup_holster("spine2", Poses.PH_HOLSTER_DIR, Poses.PH_HOLSTER_OFF)
 	else:
 		r.setup("res://assets/models/madk1d.glb", 1.68, Poses.madk1d())
+		if k == "madk_board" or k == "madk_guitar":
+			var sd: StyleData = Styles.by_id("skateboard" if k == "madk_board" else "guitar")
+			r.attach(sd.weapon["path"], sd.weapon["side"], sd.weapon["opt"])
 	return r
 
 ## поза клипа на доле u без смешивания
@@ -95,7 +114,8 @@ func _check(r: Rig, who: String, roles: Array, defs: Dictionary) -> void:
 	for role in roles:
 		if r.role_clip(role) == "":
 			miss.append(role)
-	ok(miss.is_empty(), "%s: у всех %d ролей есть клип%s" % [who, roles.size(), "" if miss.is_empty() else " (нет: %s)" % ", ".join(miss)])
+	if not roles.is_empty():
+		ok(miss.is_empty(), "%s: у всех %d ролей есть клип%s" % [who, roles.size(), "" if miss.is_empty() else " (нет: %s)" % ", ".join(miss)])
 	r.style_map = {"light": "Heavy"}
 	ok(r.role_clip("light") == "Heavy", "%s: стиль подменяет клип роли (light → %s)" % [who, r.role_clip("light")])
 	r.style_map = {}
@@ -126,7 +146,7 @@ func _check(r: Rig, who: String, roles: Array, defs: Dictionary) -> void:
 				var d := _feet_low(r) - base
 				lo = min(lo, d)
 				hi = max(hi, d)
-			if who == "pahan" and not OFF_GROUND.has(clip) and not r.holstered:
+			if r.weapon != null and who != "madk1d" and not OFF_GROUND.has(clip) and not r.holstered:
 				var wp := r.weapon_points(0.0, 1.0)
 				if not wp.is_empty():
 					if (wp[1] as Vector3).y < tip_low:
@@ -175,6 +195,8 @@ func _check(r: Rig, who: String, roles: Array, defs: Dictionary) -> void:
 	var on := func(c: String, e: String) -> void: got[c + ":" + e] = int(got.get(c + ":" + e, 0)) + 1
 	r.clip_event.connect(on)
 	for clip in r.events:
+		if not defs.has(clip):
+			continue
 		got.clear()
 		var loop: bool = (defs[clip] as Dictionary).get("loop", false)
 		var dur := r.clip_len(clip)

@@ -11,7 +11,7 @@ static func build() -> StyleData:
 	s.owner = "madk1d"
 	s.ready = true
 	s.note = "ритм и звук: удары корпусом и грифом, звуковые волны, дисторшн"
-	s.weapon = {"path": "res://assets/models/guitar.glb", "side": "r", "opt": {"axis": "x", "from": 48.95, "to": -48.95, "grip": 0.28, "length": 0.56}}
+	s.weapon = {"path": "res://assets/models/guitar.glb", "side": "r", "opt": {"axis": "x", "from": 48.95, "to": -48.95, "grip": 0.28, "length": 0.62}}
 	s.color = Color(0.7, 0.9, 1.0)
 	s.color_hot = Color(1.0, 0.85, 0.4)
 	s.chain_cd = 0.1
