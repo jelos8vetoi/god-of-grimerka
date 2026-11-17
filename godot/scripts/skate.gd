@@ -128,7 +128,7 @@ func tick(dt: float, dir: Vector3) -> void:
 		events.append(["land", n])
 	# ---- руление и скорость ----
 	var want := dir.length() > 0.2
-	sliding = p.held("block") and grounded and speed > 3.0
+	sliding = p.held("roll") and grounded and speed > 3.0
 	if want and (grounded or true):
 		heading = rotate_toward(heading, atan2(dir.x, dir.z), float(R["steer_slide"] if sliding else R["steer"]) * (1.0 if grounded else 0.4) * dt)
 	if sliding:
@@ -168,7 +168,7 @@ func tick(dt: float, dir: Vector3) -> void:
 			_gain("boardspin")
 	# ---- ввод ----
 	if grounded and not air:
-		if p.pressed("roll"):
+		if p.pressed("jump"):
 			p.velocity.y = float(R["ollie"])
 			air = true
 			p.inv = max(p.inv, 0.15)

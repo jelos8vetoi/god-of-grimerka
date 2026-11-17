@@ -3,7 +3,7 @@ extends Node
 
 const ACTIONS := {
 	"up": [KEY_W], "down": [KEY_S], "left": [KEY_A], "right": [KEY_D],
-	"roll": [KEY_SPACE], "block": [KEY_SHIFT], "sprint": [KEY_CTRL], "adlib": [KEY_Q], "rage": [KEY_R], "heat": [KEY_E],
+	"jump": [KEY_SPACE], "roll": [KEY_SHIFT], "block": [KEY_C], "sprint": [KEY_CTRL], "adlib": [KEY_Q], "rage": [KEY_R], "heat": [KEY_E],
 	"ipod": [KEY_UP],
 	"throw": [KEY_F],
 	"tag": [KEY_TAB],

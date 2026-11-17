@@ -528,7 +528,7 @@ func _ride(dt: float, dir: Vector3) -> void:
 	var R: Dictionary = StyleTyaga.RIDE
 	var grounded: bool = p.is_on_floor()
 	var want := dir.length() > 0.2
-	var drift: bool = p.held("block") and grounded and speed > 2.5
+	var drift: bool = p.held("roll") and grounded and speed > 2.5
 	var boost: bool = p.held("sprint") and want and ready_to_work()
 	# столкновение со стеной: тело не проехало, сколько должно было
 	var real := Vector2(p.get_real_velocity().x, p.get_real_velocity().z).length()
@@ -575,7 +575,7 @@ func _ride(dt: float, dir: Vector3) -> void:
 	p.velocity.z = vdir.z * speed
 	p.face = heading
 	# прыжок
-	if p.pressed("roll") and grounded:
+	if p.pressed("jump") and grounded:
 		p.velocity.y = float(R["jump"])
 		p.rig.play_for("RideJump", 0.75, 0.06)
 		game.main.sfx("sfx_roll", -6.0, 1.4)

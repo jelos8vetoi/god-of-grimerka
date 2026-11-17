@@ -24,6 +24,9 @@ var trace := false
 const TW := 480
 const TH := 270
 
+var jump_top := [0.0, 0.0, 0.0]
+var jump_air_hit := false
+
 func _ready() -> void:
 	cam = Camera3D.new()
 	cam.fov = 45.0
@@ -215,6 +218,52 @@ func _build() -> void:
 			game.cam_yaw = 2.6        # кент смотрит туда же, куда игрок: поворот направления — разворот на месте
 		B.wait = 99.0
 		_side(B, 5.4, 1.2, -1.0)})
+	# Пахан: прыжок с места, прыжок на бегу, удар в прыжке — настоящим вводом (клавиша «jump»)
+	scenes.append({"n": "10_pahan_jump", "len": 150, "shots": [9, 12, 15, 19, 24, 30, 36, 62, 66, 70, 76, 84, 104, 108, 112, 118], "setup": func():
+		_stage()
+		jump_top = [0.0, 0.0, 0.0]
+		jump_air_hit = false, "tick": func(i):
+		P.inv = 1.0
+		_park_buddy(P.global_position + Vector3(-4.5, 0, 0))
+		var inp := {}
+		if i >= 45 and i < 80:
+			inp["move"] = Vector2(0, 1)
+		if i == 10 or i == 60 or i == 100:
+			inp["jump"] = "press"
+		if i == 106:
+			inp["attack"] = "press"
+		P.auto_input = inp
+		var part := 0 if i < 45 else (1 if i < 95 else 2)
+		jump_top[part] = max(float(jump_top[part]), P.global_position.y)
+		if P.state == "attack" and not P.is_on_floor():
+			jump_air_hit = true
+		if i == 148:
+			ok(float(jump_top[0]) > 1.0 and float(jump_top[1]) > 1.0 and float(jump_top[2]) > 1.0 and jump_air_hit and P.is_on_floor(), "Пахан: прыжок с места %.2f м, на бегу %.2f м, с ударом %.2f м; удар в воздухе %s, приземлился %s" % [jump_top[0], jump_top[1], jump_top[2], jump_air_hit, P.is_on_floor()])
+		_side(P, 6.2, 1.5)})
+	# madk1d: прыжок с места, прыжок на бегу, удар в прыжке — настоящим вводом (клавиша «jump»)
+	scenes.append({"n": "11_madk_jump", "len": 150, "shots": [9, 12, 15, 19, 24, 30, 36, 62, 66, 70, 76, 84, 104, 108, 112, 118], "setup": func():
+		_stage()
+		if P.hero != "madk1d":
+			game.swap_heroes()
+		jump_top = [0.0, 0.0, 0.0]
+		jump_air_hit = false, "tick": func(i):
+		P.inv = 1.0
+		_park_buddy(P.global_position + Vector3(-4.5, 0, 0))
+		var inp := {}
+		if i >= 45 and i < 80:
+			inp["move"] = Vector2(0, 1)
+		if i == 10 or i == 60 or i == 100:
+			inp["jump"] = "press"
+		if i == 106:
+			inp["attack"] = "press"
+		P.auto_input = inp
+		var part := 0 if i < 45 else (1 if i < 95 else 2)
+		jump_top[part] = max(float(jump_top[part]), P.global_position.y)
+		if P.state == "attack" and not P.is_on_floor():
+			jump_air_hit = true
+		if i == 148:
+			ok(float(jump_top[0]) > 1.0 and float(jump_top[1]) > 1.0 and float(jump_top[2]) > 1.0 and jump_air_hit and P.is_on_floor(), "madk1d: прыжок с места %.2f м, на бегу %.2f м, с ударом %.2f м; удар в воздухе %s, приземлился %s" % [jump_top[0], jump_top[1], jump_top[2], jump_air_hit, P.is_on_floor()])
+		_side(P, 6.2, 1.5)})
 
 func frame(_dt: float) -> void:
 	if si < 0:
