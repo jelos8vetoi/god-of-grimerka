@@ -7,68 +7,94 @@ static func add_to(A: Dictionary) -> void:
 	var g := MadkClips.mg({})
 	var st := {"rup": {"x": -0.25}, "rleg": {"x": 0.4}, "lup": {"x": -0.3}, "lleg": {"x": 0.45}}
 	var sq := {"rup": {"x": -0.6}, "rleg": {"x": 0.95}, "lup": {"x": -0.6}, "lleg": {"x": 0.95}}
-	# стойка с оружием: правая рука чуть отведена, левая у груди
-	var hold: Dictionary = Poses.mk(Poses.add(st, {"spine": {"x": 0.1, "y": -0.12}, "rarm": {"x": -0.25, "z": -0.2}, "rfa": {"x": -0.7}, "larm": {"x": -0.7, "y": -0.2}, "lfa": {"x": -1.5}}))
-	A["ArmedIdle"] = {"d": 1.2, "loop": true, "ground": true, "ease": "io", "k": [[0.0, hold], [0.5, Poses.add(hold, {"spine": {"x": 0.03}, "rleg": {"x": 0.06}, "lleg": {"x": 0.06}})], [1.0, hold]]}
-	# мах справа налево
-	A["MSwing1"] = {"d": 1.0, "ground": true, "n": 40, "k": [[0.0, hold],
-		[0.28, Poses.mk(Poses.add(st, {"hips": {"y": -0.3}, "spine": {"y": -0.55}, "head": {"y": 0.5}, "rarm": {"z": -1.05, "y": -0.8}, "rfa": {"x": -0.5}, "larm": {"x": -0.8}})), "out"],
-		[0.5, Poses.mk(Poses.add(st, {"hips": {"y": 0.3}, "spine": {"y": 0.6, "x": 0.15}, "head": {"y": -0.5}, "rarm": {"z": -1.05, "y": 1.2}, "rfa": {"x": 0.1}, "lup": {"x": -0.5}, "lleg": {"x": 0.5}})), "in"],
-		[0.7, Poses.mk(Poses.add(st, {"hips": {"y": 0.35}, "spine": {"y": 0.7, "x": 0.15}, "rarm": {"z": -0.8, "y": 1.6}})), "out2"], [1.0, hold, "io"]]}
+	var lfw := {"lup": {"x": -0.55}, "lleg": {"x": 0.6}, "rup": {"x": 0.3}, "rleg": {"x": 0.2}}
+	var rfw := {"rup": {"x": -0.55}, "rleg": {"x": 0.6}, "lup": {"x": 0.3}, "lleg": {"x": 0.2}}
+	var T2 := {"two": 0.1}            # вторая рука на оружии: бьют всем оружием, двумя руками
+	# оружие в покое: в правой руке у бедра, концом назад и чуть вниз (до земли не достаёт)
+	var rest := Poses.W([-0.18, 0.36, 0.04], [-0.1, -0.4, -0.9])
+	# через это положение (сбоку, концом наружу) оружие возвращается из удара вперёд в покой — не сквозь землю
+	var side := Poses.W([-0.2, 0.37, 0.06], [-0.92, -0.3, 0.1])
+	var hold: Dictionary = Poses.mk(Poses.add(st, {"spine": {"x": 0.1, "y": -0.12}, "larm": {"x": -0.7, "y": -0.2}, "lfa": {"x": -1.5}}))
+	A["ArmedIdle"] = {"d": 1.2, "loop": true, "ground": true, "ease": "io", "k": [[0.0, hold, rest], [0.5, Poses.add(hold, {"spine": {"x": 0.03}, "rleg": {"x": 0.06}, "lleg": {"x": 0.06}}), rest], [1.0, hold, rest]]}
+	# мах справа налево двумя руками, как битой: замах за правое плечо → дуга перед собой → довод влево
+	A["MSwing1"] = {"d": 1.0, "ground": true, "n": 56, "k": [[0.0, hold, rest],
+		[0.26, Poses.mk(Poses.add(st, Poses.tw(-0.3, -0.42, -0.04))), Poses.W([-0.22, 0.48, -0.06], [-0.5, 0.5, -0.7], T2), "out"],
+		[0.42, Poses.mk(Poses.add(st, Poses.tw(0.0, -0.2, 0.05))), Poses.W([-0.25, 0.45, 0.02], [-0.92, 0.2, -0.33], T2), "in"],
+		[0.5, Poses.mk(Poses.add(lfw, Poses.tw(0.3, 0.3, 0.12))), Poses.W([-0.02, 0.44, 0.23], [0.3, 0.0, 0.95], T2), "lin"],
+		[0.64, Poses.mk(Poses.add(lfw, Poses.tw(0.5, 0.38, 0.12))), Poses.W([0.16, 0.43, 0.14], [0.92, 0.0, 0.38], T2), "out2"],
+		[1.0, hold, rest, "io"]]}
 	# наотмашь слева направо
-	A["MSwing2"] = {"d": 1.0, "ground": true, "n": 40, "k": [[0.0, hold],
-		[0.28, Poses.mk(Poses.add(st, {"hips": {"y": 0.3}, "spine": {"y": 0.6}, "head": {"y": -0.5}, "rarm": {"z": -1.0, "y": 1.6}, "rfa": {"x": -0.4}})), "out"],
-		[0.5, Poses.mk(Poses.add(st, {"hips": {"y": -0.3}, "spine": {"y": -0.55, "x": 0.15}, "head": {"y": 0.5}, "rarm": {"z": -1.05, "y": -0.6}, "rfa": {"x": 0.1}, "rup": {"x": -0.5}, "rleg": {"x": 0.5}})), "in"],
-		[0.7, Poses.mk(Poses.add(st, {"hips": {"y": -0.35}, "spine": {"y": -0.65}, "rarm": {"z": -0.9, "y": -0.9}})), "out2"], [1.0, hold, "io"]]}
+	A["MSwing2"] = {"d": 1.0, "ground": true, "n": 56, "k": [[0.0, hold, rest],
+		[0.26, Poses.mk(Poses.add(st, Poses.tw(0.3, 0.4, -0.04))), Poses.W([0.12, 0.48, 0.1], [0.6, 0.5, -0.62], T2), "out"],
+		[0.42, Poses.mk(Poses.add(st, Poses.tw(0.0, 0.2, 0.05))), Poses.W([0.08, 0.46, 0.2], [0.92, 0.2, -0.1], T2), "in"],
+		[0.5, Poses.mk(Poses.add(rfw, Poses.tw(-0.25, -0.3, 0.12))), Poses.W([-0.1, 0.44, 0.2], [-0.35, 0.0, 0.94], T2), "lin"],
+		[0.64, Poses.mk(Poses.add(rfw, Poses.tw(-0.45, -0.38, 0.1))), Poses.W([-0.3, 0.44, 0.0], [-0.86, 0.05, -0.5], T2), "out2"],
+		[1.0, hold, rest, "io"]]}
 	# вертушка: оружие на вытянутой руке, тело крутит контроллер (spin атаки)
-	A["MSpin"] = {"d": 1.0, "ground": true, "k": [[0.0, hold], [0.2, Poses.mk(Poses.add(sq, {"spine": {"y": -0.3}, "rarm": {"z": -1.1, "y": -0.4}, "larm": {"z": 0.9}})), "out"],
-		[0.8, Poses.mk(Poses.add(st, {"spine": {"z": -0.12}, "rarm": {"z": -1.15, "y": 0.5}, "rfa": {"x": 0.1}, "larm": {"z": 1.0}})), "lin"], [1.0, hold, "io"]]}
-	# удар сверху: оружие за голову — и вниз перед собой
-	A["MOver"] = {"d": 1.0, "ground": true, "n": 40, "k": [[0.0, hold],
-		[0.35, Poses.mk(Poses.add(st, {"lift": 0.03, "spine": {"x": -0.3}, "head": {"x": -0.2}, "rarm": {"x": -2.8}, "rfa": {"x": -1.0}, "larm": {"x": -2.5}, "lfa": {"x": -0.8}})), "out"],
-		[0.55, Poses.mk(Poses.add(sq, {"spine": {"x": 0.55}, "rarm": {"x": -0.9}, "rfa": {"x": 0.1}, "larm": {"x": -0.8}})), "in"],
-		[0.78, Poses.mk(Poses.add(sq, {"spine": {"x": 0.5}, "rarm": {"x": -0.8}, "larm": {"x": -0.7}})), "out2"], [1.0, hold, "io"]]}
-	# подброс: снизу вверх с приседа
-	A["MUpper"] = {"d": 1.0, "ground": true, "n": 40, "k": [[0.0, hold],
-		[0.3, Poses.mk(Poses.add(sq, {"spine": {"x": 0.3, "y": -0.35}, "rarm": {"x": 0.6}, "rfa": {"x": -0.2}})), "out"],
-		[0.5, Poses.mk(Poses.add(st, {"lift": 0.05, "spine": {"x": -0.25, "y": 0.3}, "head": {"x": -0.2}, "rarm": {"x": -2.3, "z": -0.2}, "rfa": {"x": 0.1}})), "in"],
-		[0.72, Poses.mk(Poses.add(st, {"lift": 0.03, "spine": {"x": -0.2, "y": 0.3}, "rarm": {"x": -2.4, "z": -0.2}})), "out2"], [1.0, hold, "io"]]}
-	# подсечка: низко, оружие у самой земли по кругу
-	A["MSweep"] = {"d": 1.0, "ground": true, "k": [[0.0, hold], [0.25, Poses.mk(Poses.add(sq, {"spine": {"x": 0.45, "y": -0.4}, "rarm": {"z": -0.3, "y": -0.6}, "rfa": {"x": 0.2}})), "out"],
-		[0.75, Poses.mk({"spine": {"x": 0.5}, "rup": {"x": -1.0}, "rleg": {"x": 1.6}, "lup": {"x": -1.0}, "lleg": {"x": 1.6}, "rarm": {"z": -0.35, "y": 0.6}, "rfa": {"x": 0.2}, "larm": {"z": 0.8}}), "lin"], [1.0, hold, "io"]]}
-	# тычок: выпад вперёд, оружие остриём (грифом)
-	A["MThrust"] = {"d": 1.0, "ground": true, "n": 40, "k": [[0.0, hold], [0.3, Poses.mk(Poses.add(st, {"spine": {"y": -0.4}, "rarm": {"x": 0.3, "y": -0.5}, "rfa": {"x": -1.3}})), "out"],
-		[0.48, Poses.mk(Poses.add(st, {"spine": {"y": 0.4, "x": 0.25}, "rarm": {"x": -1.5}, "rfa": {"x": 0.1}, "lup": {"x": -0.6}, "lleg": {"x": 0.5}, "rup": {"x": 0.3}})), "in"],
-		[0.68, Poses.mk(Poses.add(st, {"spine": {"y": 0.35, "x": 0.22}, "rarm": {"x": -1.45}, "lup": {"x": -0.55}, "lleg": {"x": 0.5}})), "out2"], [1.0, hold, "io"]]}
-	# игра: гитара поперёк корпуса, правая рука бьёт по струнам
-	var play: Dictionary = Poses.mk(Poses.add(st, {"spine": {"x": -0.08}, "head": {"x": -0.15}, "rarm": {"x": -0.5, "y": 0.9, "z": -0.3}, "rfa": {"x": -1.2}, "larm": {"x": -0.9, "y": -0.5}, "lfa": {"x": -1.3}}))
-	A["MStrum"] = {"d": 1.0, "ground": true, "k": [[0.0, hold], [0.25, play, "out"], [0.4, Poses.add(play, {"rfa": {"x": 0.5}, "spine": {"x": 0.2}, "head": {"x": 0.3}}), "in"],
-		[0.65, Poses.add(play, {"rfa": {"x": 0.4}, "spine": {"x": 0.15}}), "out2"], [1.0, hold, "io"]]}
-	A["MStrumHold"] = {"d": 0.4, "loop": true, "ground": true, "k": [[0.0, play], [0.5, Poses.add(play, {"rfa": {"x": 0.3}, "head": {"x": 0.1}})], [1.0, play]]}
-	# оружие вверх над головой и удар в землю с прыжка (финал)
-	A["MFinal"] = {"d": 1.0, "ground": true, "n": 48, "k": [[0.0, hold],
-		[0.3, Poses.mk(Poses.add(st, {"lift": 0.12, "spine": {"x": -0.3}, "head": {"x": -0.3}, "rarm": {"x": -2.9}, "larm": {"x": -2.9}, "rup": {"x": -0.6}, "rleg": {"x": 1.0}, "lup": {"x": -0.3}, "lleg": {"x": 0.8}})), "out"],
-		[0.5, Poses.mk(Poses.add(st, {"lift": 0.1, "spine": {"x": -0.3}, "rarm": {"x": -2.9}, "larm": {"x": -2.9}, "rup": {"x": -0.6}, "rleg": {"x": 1.0}})), "lin"],
-		[0.62, Poses.mk({"spine": {"x": 0.65}, "rarm": {"x": -0.8}, "larm": {"x": -0.8}, "rup": {"x": -1.0}, "rleg": {"x": 1.5}, "lup": {"x": -1.0}, "lleg": {"x": 1.5}}), "in"],
-		[0.85, Poses.mk({"spine": {"x": 0.6}, "rarm": {"x": -0.8}, "larm": {"x": -0.8}, "rup": {"x": -1.0}, "rleg": {"x": 1.5}, "lup": {"x": -1.0}, "lleg": {"x": 1.5}}), "io"], [1.0, hold, "io"]]}
-	# ---------- на доске: боком, колени согнуты, руки для равновесия ----------
-	var ride := {"hips": {"y": 0.9}, "spine": {"y": -0.5, "x": 0.15}, "head": {"y": -0.45}, "rup": {"x": -0.45, "z": -0.2}, "rleg": {"x": 0.75}, "lup": {"x": -0.45, "z": 0.25}, "lleg": {"x": 0.75},
-		"rarm": {"z": -0.5}, "larm": {"z": 0.6}}
+	A["MSpin"] = {"d": 1.0, "ground": true, "n": 40, "k": [[0.0, hold, rest],
+		[0.2, Poses.mk(Poses.add(sq, Poses.add(Poses.tw(0.2, 0.3, 0.12), {"larm": {"z": 0.9}}))), Poses.W([-0.26, 0.4, 0.0], [-0.85, -0.2, -0.45]), "out"],
+		[0.8, Poses.mk(Poses.add(st, Poses.add(Poses.tw(-0.1, -0.15, 0.05), {"spine": {"z": -0.12}, "larm": {"z": 1.0}}))), Poses.W([-0.32, 0.46, 0.02], [-0.92, 0.06, 0.38]), "lin"],
+		[1.0, hold, rest, "io"]]}
+	# удар сверху: оружие двумя руками над головой — и всей плоскостью вниз перед собой
+	A["MOver"] = {"d": 1.0, "ground": true, "n": 56, "k": [[0.0, hold, rest],
+		[0.18, Poses.mk(Poses.add(sq, Poses.tw(0.0, 0.0, 0.15))), Poses.W([-0.06, 0.48, 0.2], [0.0, 0.8, 0.6], T2), "io"],
+		[0.36, Poses.mk(Poses.add(st, Poses.add(Poses.tw(0.0, 0.0, -0.28), {"lift": 0.04}))), Poses.W([-0.03, 0.66, 0.17], [0.0, 0.95, -0.3], T2), "out"],
+		[0.55, Poses.mk(Poses.add(sq, Poses.tw(0.0, 0.0, 0.5))), Poses.W([-0.02, 0.3, 0.25], [0.0, -0.35, 0.94], T2), "in"],
+		[0.78, Poses.mk(Poses.add(sq, Poses.tw(0.0, 0.0, 0.45))), Poses.W([-0.02, 0.31, 0.25], [0.0, -0.3, 0.95], T2), "out2"],
+		[0.9, hold, side, "io"], [1.0, hold, rest, "out"]]}
+	# подброс: оружие от земли вверх с подшагом
+	A["MUpper"] = {"d": 1.0, "ground": true, "n": 56, "k": [[0.0, hold, rest],
+		[0.3, Poses.mk(Poses.add(sq, Poses.tw(-0.3, -0.3, 0.3))), Poses.W([-0.22, 0.3, -0.02], [-0.45, -0.55, -0.7], T2), "out"],
+		[0.42, Poses.mk(Poses.add(sq, Poses.tw(-0.1, -0.15, 0.25))), Poses.W([-0.18, 0.32, 0.12], [-0.4, -0.55, 0.73], T2), "in"],
+		[0.5, Poses.mk(Poses.add(lfw, Poses.add(Poses.tw(0.2, 0.25, -0.12), {"lift": 0.04}))), Poses.W([-0.05, 0.56, 0.22], [0.12, 0.85, 0.5], T2), "lin"],
+		[0.72, Poses.mk(Poses.add(st, Poses.add(Poses.tw(0.25, 0.3, -0.2), {"lift": 0.03}))), Poses.W([-0.1, 0.66, 0.16], [0.1, 0.97, -0.1], T2), "out2"],
+		[1.0, hold, rest, "io"]]}
+	# подсечка: присел, оружие у самой земли описывает круг (тело крутит spin)
+	var low: Dictionary = Poses.mk({"spine": {"x": 0.5}, "rup": {"x": -1.0}, "rleg": {"x": 1.6}, "lup": {"x": -1.0}, "lleg": {"x": 1.6}, "larm": {"z": 0.8}})
+	A["MSweep"] = {"d": 1.0, "ground": true, "n": 40, "k": [[0.0, hold, rest],
+		[0.25, low, Poses.W([-0.24, 0.2, 0.0], [-0.92, -0.2, -0.3]), "out"], [0.75, low, Poses.W([-0.28, 0.17, 0.06], [-0.95, -0.12, 0.28]), "lin"], [1.0, hold, rest, "io"]]}
+	# тычок: оружие отведено к бедру — выпад и удар торцом вперёд
+	A["MThrust"] = {"d": 1.0, "ground": true, "n": 48, "k": [[0.0, hold, rest],
+		[0.14, hold, side, "io"],
+		[0.3, Poses.mk(Poses.add(st, Poses.tw(-0.3, -0.35, 0.05))), Poses.W([-0.16, 0.4, -0.04], [0.05, 0.08, 0.99], T2), "out"],
+		[0.48, Poses.mk(Poses.add(lfw, Poses.tw(0.25, 0.3, 0.25))), Poses.W([-0.06, 0.42, 0.3], [0.0, 0.05, 1.0], T2), "in"],
+		[0.68, Poses.mk(Poses.add(lfw, Poses.tw(0.22, 0.26, 0.22))), Poses.W([-0.06, 0.42, 0.28], [0.0, 0.05, 1.0], T2), "out2"],
+		[0.9, hold, side, "io"], [1.0, hold, rest, "out"]]}
+	# игра: гитара поднята грифом вверх перед собой, левая рука бьёт по струнам, корпус качается
+	var up := Poses.W([-0.1, 0.46, 0.16], [0.25, 0.9, 0.35])
+	var play: Dictionary = Poses.mk(Poses.add(st, {"spine": {"x": -0.1}, "head": {"x": -0.15}, "larm": {"x": -0.9, "y": -0.5}, "lfa": {"x": -1.3}}))
+	A["MStrum"] = {"d": 1.0, "ground": true, "k": [[0.0, hold, rest], [0.25, play, up, "out"], [0.4, Poses.add(play, {"lfa": {"x": 0.6}, "spine": {"x": 0.25}, "head": {"x": 0.3}}), up, "in"],
+		[0.65, Poses.add(play, {"lfa": {"x": 0.4}, "spine": {"x": 0.18}}), up, "out2"], [1.0, hold, rest, "io"]]}
+	A["MStrumHold"] = {"d": 0.4, "loop": true, "ground": true, "k": [[0.0, play, up], [0.5, Poses.add(play, {"lfa": {"x": 0.4}, "head": {"x": 0.1}}), up], [1.0, play, up]]}
+	# финал: прыжок, оружие двумя руками над головой — и в землю
+	var tuck_j := {"rup": {"x": -0.6}, "rleg": {"x": 1.0}, "lup": {"x": -0.3}, "lleg": {"x": 0.8}}
+	A["MFinal"] = {"d": 1.0, "ground": true, "n": 56, "k": [[0.0, hold, rest],
+		[0.3, Poses.mk(Poses.add(tuck_j, Poses.add(Poses.tw(0.0, 0.0, -0.3), {"lift": 0.12}))), Poses.W([-0.03, 0.74, 0.14], [0.0, 0.95, -0.3], T2), "out"],
+		[0.5, Poses.mk(Poses.add(tuck_j, Poses.add(Poses.tw(0.0, 0.0, -0.32), {"lift": 0.1}))), Poses.W([-0.03, 0.73, 0.13], [0.0, 0.93, -0.36], T2), "lin"],
+		[0.62, Poses.mk({"spine": {"x": 0.65}, "rup": {"x": -1.0}, "rleg": {"x": 1.5}, "lup": {"x": -1.0}, "lleg": {"x": 1.5}}), Poses.W([-0.02, 0.27, 0.26], [0.0, -0.4, 0.92], T2), "in"],
+		[0.85, Poses.mk({"spine": {"x": 0.6}, "rup": {"x": -1.0}, "rleg": {"x": 1.5}, "lup": {"x": -1.0}, "lleg": {"x": 1.5}}), Poses.W([-0.02, 0.28, 0.26], [0.0, -0.36, 0.93], T2), "io"],
+		[0.9, hold, side, "io"], [1.0, hold, rest, "out"]]}
+	# ---------- на доске ----------
+	# Риг на доске развёрнут боком к движению (skate.gd): левое плечо вперёд, ноги вдоль деки — передняя у носа,
+	# задняя у хвоста; колени согнуты, голова смотрит по ходу, руки разведены для равновесия.
+	var ride := {"drop": 0.1, "spine": {"x": 0.22}, "head": {"y": 1.1, "x": -0.1}, "lup": {"z": 0.4, "x": -0.3}, "lleg": {"x": 0.65}, "rup": {"z": -0.4, "x": -0.3}, "rleg": {"x": 0.65},
+		"larm": {"z": 0.75}, "rarm": {"z": -0.75}}
 	var rd: Dictionary = Poses.mk(ride)
-	A["SkateRide"] = {"d": 0.8, "loop": true, "ease": "io", "k": [[0.0, rd], [0.5, Poses.add(rd, {"rleg": {"x": 0.1}, "lleg": {"x": 0.1}, "spine": {"x": 0.04}})], [1.0, rd]]}
-	A["SkateOllie"] = {"d": 1.0, "k": [[0.0, Poses.mk(Poses.add(ride, {"rleg": {"x": 0.5}, "lleg": {"x": 0.5}, "rup": {"x": -0.4}, "lup": {"x": -0.4}}))],
-		[0.3, Poses.mk(Poses.add(ride, {"rup": {"x": -0.8}, "lup": {"x": -0.8}, "rleg": {"x": 0.9}, "lleg": {"x": 0.9}, "rarm": {"z": -0.5}, "larm": {"z": 0.5}})), "out"], [1.0, rd, "io"]]}
+	A["SkateRide"] = {"d": 0.8, "loop": true, "ease": "io", "k": [[0.0, rd], [0.5, Poses.add(rd, {"rleg": {"x": 0.08}, "lleg": {"x": 0.08}, "drop": 0.115, "spine": {"x": 0.03}})], [1.0, rd]]}
+	# олли: присел — и ноги поджаты, руки вверх
+	A["SkateOllie"] = {"d": 1.0, "k": [[0.0, Poses.mk(Poses.add(ride, {"drop": 0.2, "lleg": {"x": 0.4}, "rleg": {"x": 0.4}, "lup": {"x": -0.3}, "rup": {"x": -0.3}}))],
+		[0.3, Poses.mk(Poses.add(ride, {"drop": 0.02, "lup": {"x": -0.6}, "rup": {"x": -0.6}, "lleg": {"x": 0.7}, "rleg": {"x": 0.7}, "larm": {"z": 0.5}, "rarm": {"z": -0.5}})), "out"], [1.0, rd, "io"]]}
 	# трюк: ноги подобраны и разведены — доска крутится под ними
-	A["SkateTrick"] = {"d": 1.0, "k": [[0.0, rd], [0.3, Poses.mk(Poses.add(ride, {"rup": {"x": -0.9, "z": -0.35}, "lup": {"x": -0.9, "z": 0.35}, "rleg": {"x": 0.8}, "lleg": {"x": 0.8}, "rarm": {"z": -0.8}, "larm": {"z": 0.8}, "spine": {"x": 0.1}})), "out"],
-		[0.75, Poses.mk(Poses.add(ride, {"rup": {"x": -0.85, "z": -0.3}, "lup": {"x": -0.85, "z": 0.3}, "rleg": {"x": 0.8}, "lleg": {"x": 0.8}, "rarm": {"z": -0.7}, "larm": {"z": 0.7}})), "lin"], [1.0, rd, "in"]]}
-	# слайд: низко, корпус откинут, рука у земли
-	var sl: Dictionary = Poses.mk(Poses.add(ride, {"drop": 0.22, "spine": {"x": -0.25, "z": -0.2}, "rup": {"x": -0.5}, "lup": {"x": -0.5}, "rleg": {"x": 0.9}, "lleg": {"x": 0.6}, "rarm": {"z": 0.5, "x": 0.4}, "larm": {"z": 0.9}}))
+	A["SkateTrick"] = {"d": 1.0, "k": [[0.0, rd], [0.3, Poses.mk(Poses.add(ride, {"drop": 0.0, "lup": {"x": -0.75, "z": 0.2}, "rup": {"x": -0.75, "z": -0.2}, "lleg": {"x": 0.8}, "rleg": {"x": 0.8}, "larm": {"z": 0.6}, "rarm": {"z": -0.6}})), "out"],
+		[0.75, Poses.mk(Poses.add(ride, {"drop": 0.0, "lup": {"x": -0.7, "z": 0.18}, "rup": {"x": -0.7, "z": -0.18}, "lleg": {"x": 0.8}, "rleg": {"x": 0.8}, "larm": {"z": 0.5}, "rarm": {"z": -0.5}})), "lin"], [1.0, rd, "in"]]}
+	# слайд: низко, корпус откинут от движения, задняя рука почти у земли
+	var sl: Dictionary = Poses.mk(Poses.add(ride, {"drop": 0.2, "spine": {"z": 0.35, "x": 0.05}, "lleg": {"x": -0.2}, "lup": {"z": 0.2}, "rleg": {"x": 0.4}, "rarm": {"z": 0.55}, "larm": {"z": 0.3}}))
 	A["SkateSlide"] = {"d": 0.4, "loop": true, "k": [[0.0, sl], [0.5, Poses.add(sl, {"spine": {"x": 0.03}})], [1.0, sl]]}
-	# удар в воздухе: нога с доской вперёд
-	A["SkateAir"] = {"d": 1.0, "k": [[0.0, rd], [0.35, Poses.mk({"spine": {"x": -0.35}, "rup": {"x": -1.5}, "rleg": {"x": 0.1}, "lup": {"x": -0.8}, "lleg": {"x": 1.4}, "rarm": {"z": -0.7}, "larm": {"z": 0.7}}), "in"],
-		[0.7, Poses.mk({"spine": {"x": -0.3}, "rup": {"x": -1.4}, "rleg": {"x": 0.2}, "lup": {"x": -0.8}, "lleg": {"x": 1.4}, "rarm": {"z": -0.6}, "larm": {"z": 0.6}}), "out2"], [1.0, rd, "io"]]}
-	# пикирование доской вниз
-	var dive: Dictionary = Poses.mk({"spine": {"x": 0.3}, "rup": {"x": -1.2}, "rleg": {"x": 0.3}, "lup": {"x": -1.2}, "lleg": {"x": 0.3}, "rarm": {"x": -2.4}, "larm": {"x": -2.4}})
+	# удар в воздухе: передняя нога с доской выбрасывается по ходу, задняя поджата
+	A["SkateAir"] = {"d": 1.0, "k": [[0.0, rd], [0.35, Poses.mk(Poses.add(ride, {"drop": 0.0, "spine": {"z": 0.3}, "lup": {"z": 0.95, "x": 0.2}, "lleg": {"x": -0.55}, "rup": {"x": -0.6}, "rleg": {"x": 0.9}, "rarm": {"z": -0.3}})), "in"],
+		[0.7, Poses.mk(Poses.add(ride, {"drop": 0.0, "spine": {"z": 0.25}, "lup": {"z": 0.85, "x": 0.2}, "lleg": {"x": -0.5}, "rup": {"x": -0.6}, "rleg": {"x": 0.9}})), "out2"], [1.0, rd, "io"]]}
+	# пикирование: сжался на доске, руки назад
+	var dive: Dictionary = Poses.mk(Poses.add(ride, {"drop": 0.22, "spine": {"x": 0.3}, "lup": {"x": -0.5}, "rup": {"x": -0.5}, "lleg": {"x": 0.7}, "rleg": {"x": 0.7}, "larm": {"z": -0.4, "x": 0.5}, "rarm": {"z": 0.4, "x": 0.5}}))
 	A["SkateDive"] = {"d": 0.4, "loop": true, "k": [[0.0, dive], [1.0, dive]]}
 	# ---------- чего не хватало герою под управлением игрока ----------
 	var tuck: Dictionary = Poses.mk({"spine": {"x": 0.45}, "spine2": {"x": 0.3}, "head": {"x": 0.35}, "lup": {"x": -1.7}, "rup": {"x": -1.7}, "lleg": {"x": 2.1}, "rleg": {"x": 2.1}, "larm": {"x": -0.9}, "rarm": {"x": -0.9}, "lfa": {"x": -1.4}, "rfa": {"x": -1.4}})
