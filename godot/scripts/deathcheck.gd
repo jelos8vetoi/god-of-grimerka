@@ -188,6 +188,48 @@ func _run() -> void:
 	ok(g.death != null and g.death.stage_name == "menu" and g.death_mono > 0.99, "повторная гибель; Enter проматывает сцену к кнопкам")
 	await key(KEY_ENTER)
 	await wait(0.8)
+	# ---- 3б. гибель madk1d: та же сцена, его падение ----
+	g = main.game
+	var gd := 0
+	while (g.paused_story() or g.over) and gd < 40:
+		await skip_dialog()
+		await wait(0.3)
+		gd += 1
+	g.tag.tag_cd = 0.0
+	if g.player.hero != "madk1d":      # прошлые гибели могли уже передать управление madk1d (Tag Team)
+		g.swap_heroes()
+	await wait(0.8)
+	ok(g.player.hero == "madk1d", "за madk1d (смена героя)")
+	g.tag.down[g.tag.mate()] = true          # Пахан выбыл: иначе Tag Team сменит героя и гибели не будет
+	g.buddy.ko_down()                         # и лежит, как в игре
+	g.player.inv = 0.0
+	g.player.take_damage(999.0, g.player.global_position + Vector3(1, 0, 0))
+	await wait(0.1)
+	ok(g.player.hero == "madk1d" and g.player.state == "dead", "madk1d погиб — сцена гибели его")
+	await watch("madk")
+	# лежит на земле, а не висит и не провалился: голова и стопы у пола
+	var mr: Rig = g.player.rig
+	var gy: float = g.player.global_position.y
+	var hy: float = (mr.skel.global_transform * mr.skel.get_bone_global_pose(mr.bone["head"]).origin).y - gy
+	var fy: float = (mr.skel.global_transform * mr.skel.get_bone_global_pose(mr.bone["lfoot"]).origin).y - gy
+	var hipy: float = (mr.skel.global_transform * mr.skel.get_bone_global_pose(mr.bone["hips"]).origin).y - gy
+	ok(hy > -0.05 and hy < 0.55 and fy > -0.05 and fy < 0.45 and hipy > -0.02 and hipy < 0.45, "madk1d лежит на земле: таз %.2f, голова %.2f, стопа %.2f м над полом" % [hipy, hy, fy])
+	ok((g.death.find_child("Title", true, false) as Label).text == "MADK1D УМЕР", "надпись — «%s»" % (g.death.find_child("Title", true, false) as Label).text)
+	g.death.sel = 0                         # «Ещё раз» (навигацию кнопок проверяет сценарий 1)
+	await key(KEY_ENTER)
+	await wait(0.8)
+	g = main.game
+	g.tag.down[g.tag.mate()] = false
+	gd = 0
+	while g.paused_story() and gd < 40:
+		await skip_dialog()
+		await wait(0.3)
+		gd += 1
+	ok(not g.over and g.player.state == "move", "«Ещё раз» за madk1d: игра идёт")
+	if g.player.hero != "pahan":
+		g.tag.tag_cd = 0.0
+		g.swap_heroes()
+		await wait(0.6)
 	# ---- 4. гибель от босса ----
 	g._clear_fight()
 	g.step = 4

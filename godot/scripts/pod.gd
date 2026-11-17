@@ -17,6 +17,18 @@
 class_name PodHand
 extends SkeletonModifier3D
 
+## Точки позы заданы под пропорции Пахана (значения по умолчанию ниже). У madk1d тело другое: ноги длиннее
+## (таз на 0,42 против 0,30), голова меньше на ~20 %, руки короче на ~15 %. Его точки пересчитаны от тех же костей —
+## карман от таза, iPod у груди от spine2, глаза и уши от головы — с поправкой на размер; setup(rig, MADK1D).
+const MADK1D := {
+	"POCKET": Vector3(0.1, 0.39, 0.03), "OUT": Vector3(0.16, 0.476, 0.1), "VIEW": Vector3(0.062, 0.535, 0.15),
+	"EYE": Vector3(0.0, 0.741, 0.136), "EAR_L": Vector3(0.145, 0.7, 0.076), "EAR_R": Vector3(-0.145, 0.7, 0.076),
+	"OFFER": Vector3(0.005, 0.53, 0.14), "SPLIT_IN": Vector3(0.0, 0.558, 0.11), "DEV_H": 0.11,
+	# длинная чёлка: при сильном наклоне головы она закрывает лицо — iPod держит выше, голову клонит меньше
+	"LOOK_NECK": 0.1, "LOOK_HEAD": 0.22,
+}
+var manage_weapon := true    # правая рука отпускает и снова берёт оружие (балон Пахана); у madk1d оружие убирает player.gd
+
 enum St { STOWED, REACHING, GRABBING, DRAWING, INSPECTING, LOWERING, PUTTING_AWAY }
 const NAMES := ["STOWED", "REACHING", "GRABBING", "DRAWING", "INSPECTING", "LOWERING", "PUTTING_AWAY"]
 const T_OPEN := 1.25         # секунд от кармана до лица
@@ -25,20 +37,20 @@ const T_REOPEN := 0.8        # повторное открытие (наушни
 const U_GRAB := 0.38
 const U_DRAW := 0.5
 # Точки в пространстве скелета в позе привязки (x — левая рука героя, y — вверх, z — вперёд; рост модели ≈ 0.8, голова — от 0.51 до 0.97)
-const POCKET := Vector3(0.108, 0.268, 0.03)    # левый карман штанов: сбоку-спереди на бедре
-const OUT := Vector3(0.17, 0.36, 0.11)         # через эту точку рука выходит из кармана — в сторону от бедра
-const VIEW := Vector3(0.075, 0.385, 0.15)       # кулак с iPod перед грудью, левее середины
-const EYE := Vector3(0.0, 0.665, 0.17)         # между глаз (за очками), по вершинам модели
+var POCKET := Vector3(0.108, 0.268, 0.03)    # левый карман штанов: сбоку-спереди на бедре
+var OUT := Vector3(0.17, 0.36, 0.11)         # через эту точку рука выходит из кармана — в сторону от бедра
+var VIEW := Vector3(0.075, 0.385, 0.15)       # кулак с iPod перед грудью, левее середины
+var EYE := Vector3(0.0, 0.665, 0.17)         # между глаз (за очками), по вершинам модели
 const HOLD := 0.1          # кулак держит iPod чуть ниже середины: доля высоты от центра корпуса до центра кулака
 const OUT_PALM := 0.36     # и насколько корпус вынесен из ладони: кулак у модели толстый, в его середине iPod утонул бы целиком
-const LOOK_NECK := 0.14     # пределы доворота шеи и головы к экрану, рад: у чиби голова огромная, сильный наклон закрывает руки
-const LOOK_HEAD := 0.34
-const DEV_H := 0.125                           # высота iPod (≈ 24 см при росте героя 1.85 м: вдвое крупнее настоящего — под кулаки и голову чиби, иначе его не разглядеть)
+var LOOK_NECK := 0.14     # пределы доворота шеи и головы к экрану, рад: у чиби голова огромная, сильный наклон закрывает руки
+var LOOK_HEAD := 0.34
+var DEV_H := 0.125                           # высота iPod (≈ 24 см при росте героя 1.85 м: вдвое крупнее настоящего — под кулаки и голову чиби, иначе его не разглядеть)
 # уши: стык щеки и волос под дужкой очков (по цвету текстуры кожа лица кончается на |x| ≈ 0.16); чуть вперёд — иначе вкладыш тонет в волосах
-const EAR_L := Vector3(0.17, 0.622, 0.092)
-const EAR_R := Vector3(-0.17, 0.622, 0.092)
-const OFFER := Vector3(0.005, 0.43, 0.165)     # куда левая рука подаёт iPod, пока правая берёт вкладыши (ближе к середине: правой иначе не дотянуться)
-const SPLIT_IN := Vector3(0.0, 0.468, 0.132)   # разветвитель на груди под подбородком, когда оба вкладыша в ушах
+var EAR_L := Vector3(0.17, 0.622, 0.092)
+var EAR_R := Vector3(-0.17, 0.622, 0.092)
+var OFFER := Vector3(0.005, 0.43, 0.165)     # куда левая рука подаёт iPod, пока правая берёт вкладыши (ближе к середине: правой иначе не дотянуться)
+var SPLIT_IN := Vector3(0.0, 0.468, 0.132)   # разветвитель на груди под подбородком, когда оба вкладыша в ушах
 const PINCH := 0.03                            # щепоть — край кулака со стороны указательного, от центра кулака
 const T_R := 3.6             # правая рука: оба вкладыша
 const T_L := 1.9             # левая рука: второй вкладыш (короче и быстрее — движения не зеркальные)
@@ -128,8 +140,10 @@ var ear_xf := {}                 # "L"/"R" → вкладыш в ухе, в ос
 var mount := Transform3D()       # iPod в осях кисти
 var pocket_dev_l := Transform3D() # iPod в кармане, в осях таза
 
-func setup(r: Rig) -> void:
+func setup(r: Rig, prof := {}) -> void:
 	rig = r
+	for k in prof:
+		set(k, prof[k])
 	var sk := rig.skel
 	b_hips = rig.bone["hips"]
 	b_sp1 = rig.bone["spine1"]
@@ -361,6 +375,8 @@ static func _rot(keys: Array, x: float) -> Quaternion:
 	return (k[0] as Quaternion).slerp(k[1], k[2])
 
 func _release_balloon(free: bool) -> void:
+	if not manage_weapon:
+		return
 	if free == balloon_free or rig.weapon == null or rig.holstered:
 		return
 	balloon_free = free
@@ -523,7 +539,7 @@ func _process_modification_with_delta(delta: float) -> void:
 	var l_pinch := hand * pinch_l
 	if r_on > 0.0:
 		var hr0 := sk.get_bone_global_pose(rb_hand)
-		if not balloon_free and rig.weapon != null and not rig.holstered:
+		if manage_weapon and not balloon_free and rig.weapon != null and not rig.holstered:
 			w_orig = rig.weapon.transform
 			w_store = hips.affine_inverse() * (hr0 * w_orig)
 			_release_balloon(true)
@@ -543,7 +559,7 @@ func _process_modification_with_delta(delta: float) -> void:
 		_solve(sk, rb_arm, rb_fa, rb_hand, rl1, rl2, rgrip_l, gr, qr, r_on, Vector3(-1.0, -0.75, -0.55), "reach_r")
 		var hr := sk.get_bone_global_pose(rb_hand)
 		dbg["miss_r"] = (hr * pinch_r).distance_to(pr) if r_on >= 1.0 else 0.0
-		if rig.weapon != null:
+		if manage_weapon and balloon_free and rig.weapon != null:
 			rig.weapon.transform = hr.affine_inverse() * (hips * w_store)
 	else:
 		_release_balloon(false)
