@@ -60,6 +60,7 @@
 
 ```bash
 $G --headless --path godot --check-only --script res://scripts/<имя>.gd      # синтаксис одного скрипта
+$G --headless --path godot --script res://scripts/animaudit.gd               # аудит анимаций по данным (без игры): роли и клипы героев, по стилям — атаки, общие клипы, цепочки, ответы; строки «AUDIT …»
 $G --path godot -- --autotest=<папка> [--chapter=N] [--seconds=S]           # бот играет сам, скриншоты и FPS
 $G --path godot -- --smoke=<папка>                                           # быстрый прогон всех 9 глав
 $G --path godot -- --posesheet=<папка>[,pahan|clipper|hater]                 # листы поз с оружием
@@ -107,6 +108,7 @@ https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build
 
 ## Боевая система
 
+- Аудит боевых анимаций и план по стилям Пахана (что есть, чего нет, порядок этапов, вопросы владельцу) — `docs/COMBAT_ANIMATION_AUDIT.md`; числа в нём — из `animaudit.gd`. Этапы 0–3 из него начинать только после одобрения владельца.
 - Аудит текущего боя, архитектура шести стилей, добиваний, Tag Team, прокачки и порядок этапов — `docs/COMBAT_SYSTEM_ROADMAP.md`. Новые боевые этапы сверять с ним; новых локаций, открытого мира и глав не делать.
 - Ядро боя и данные стилей — `docs/COMBAT_CORE.md`. В стиле тяжёлые после лёгких (`kind: "finisher"`) — завершители цепочки (Yakuza), а не добивания; добивания — отдельная система (раздел 4.6 плана).
 
