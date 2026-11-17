@@ -23,7 +23,11 @@ const REVIVE := 18.0
 const GREY := 0.5            # какая доля урона восстановима
 const REGEN := 3.0           # здоровья в секунду у отдыхающего
 const BOOST := 1.3           # урон вошедшего героя после командного приёма
-const TITLES := {"attack": "TAG ATTACK", "launcher": "TAG LAUNCHER", "double": "DOUBLE IMPACT", "counter": "TAG COUNTER", "cross": "CROSS ATTACK", "air": "AIR PARTNER COMBO", "finisher": "TEAM FINISHER"}
+const TITLES := {"attack": "TAG ATTACK", "launcher": "TAG LAUNCHER", "double": "DOUBLE IMPACT", "counter": "TAG COUNTER", "cross": "CROSS ATTACK", "air": "AIR PARTNER COMBO", "finisher": "TEAM FINISHER",
+	"air_relay": "AIR RELAY", "ground_relay": "GROUND RELAY", "rescue": "RESCUE TAG", "perfect": "PERFECT TAG"}
+const RESCUE_CD := 8.0        # спасение из-под удара — не чаще
+var rescue_cd := 0.0
+var relay := {}               # идущая вторая половина AIR RELAY: {e, t, dir}
 
 var game
 var p
@@ -93,6 +97,18 @@ func _physics_process(dt: float) -> void:
 	if game.paused_story() or game.over:
 		return
 	tag_cd = max(0.0, tag_cd - dt)
+	rescue_cd = max(0.0, rescue_cd - dt)
+	if not relay.is_empty():
+		# вторая половина AIR RELAY: напарник вбивает переданного врага в землю
+		relay["t"] = float(relay["t"]) - dt
+		if float(relay["t"]) <= 0.0:
+			var re = relay["e"]
+			var rd: Vector3 = relay["dir"]
+			relay = {}
+			if is_instance_valid(re) and re.alive():
+				strike(re, 20.0, 30.0, rd, 3.0, -16.0, true, 1)
+				game.fx.sparks(re.global_position + Vector3(0, 1.0, 0), Vector3.DOWN, 10, Color(1, 1, 1, 0.9), 1.0, 40.0)
+				events.append(["relay_slam", mate()])
 	assist_cd = max(0.0, assist_cd - dt)
 	boost_t = max(0.0, boost_t - dt)
 	var o := mate()
@@ -122,6 +138,8 @@ func tag_block() -> String:
 		return "cooldown"
 	if p.switch_to != "":
 		return "switch"
+	if p.state == "hurt" and rescue_cd <= 0.0:
+		return ""               # RESCUE TAG: напарник вытаскивает из-под ударов
 	if not p.state in ["move", "block", "attack", "tyaga", "skate"]:
 		return p.state          # hurt, roll, exec, rage, dead, charge…
 	return ""
@@ -147,13 +165,23 @@ func target():
 
 ## Какой командный приём даст смена прямо сейчас ("" — обычная смена)
 func context(e) -> String:
+	if p.state == "hurt":
+		return "rescue"
 	if e == null:
 		return ""
+	# враг уже замахнулся на героя — смена в этот момент точная
+	for en in game.enemies:
+		if is_instance_valid(en) and en.alive() and en.state == "wind" and en.global_position.distance_to(p.global_position) < 3.4:
+			return "perfect"
 	var w: Dictionary = p.combat.windows
 	var now: float = p.combat.clock
 	if now <= float(w.get("parry", -9.0)) or now <= float(w.get("perfect", -9.0)) or now <= float(w.get("dodge", -9.0)):
 		return "counter"
 	var a: AttackData = p.combat.cur
+	if e.state in ["down", "getup"]:
+		return "ground_relay"         # враг на земле — вошедший добивает по лежачему
+	if e.state == "air" and not p.is_on_floor():
+		return "air_relay"            # оба в воздухе — передача врага по воздуху
 	if p.state == "attack" and a != null and p.combat.hit_i > 0:
 		if a.kind == "launcher" or a.launch > 0.0 or e.state == "air":
 			return "launcher"
@@ -172,6 +200,19 @@ func try_tag() -> bool:
 		return false
 	var e = target()
 	var ctx := context(e)
+	if ctx in ["rescue", "perfect"]:
+		# цель — тот, кто бьёт: ближайший из замахнувшихся и атакующих
+		var nd := 4.5
+		for en in game.enemies:
+			if is_instance_valid(en) and en.alive() and en.state in ["wind", "recover", "charge", "special"] and en.global_position.distance_to(p.global_position) < nd:
+				nd = en.global_position.distance_to(p.global_position)
+				e = en
+		if e == null:
+			e = target()
+		if ctx == "rescue":
+			rescue_cd = RESCUE_CD
+			p.state = "move"      # урон оборван: герой уходит из-под ударов
+			p.inv = max(p.inv, 0.6)
 	var old_pos: Vector3 = p.global_position
 	if not game.swap_heroes():
 		return false
@@ -221,6 +262,37 @@ func _team_move(ctx: String, e, old_pos: Vector3) -> void:
 		"counter":
 			strike(e, 24.0 * k, 45.0, dir, 9.0, 0.0, true, 1)
 			p.combat.open("parry", 0.8)      # ответ продолжается: окно контратаки у вошедшего героя
+		"air_relay":
+			# вошедший бьёт врага в воздухе в сторону напарника — тот вбивает его в землю
+			p.global_position.y = max(p.global_position.y, e.global_position.y - 0.3)
+			p.velocity.y = 5.0
+			strike(e, 16.0 * k, 15.0, -dir, 3.0, 5.0, false, 1)
+			b.blink(e.global_position - dir * 1.3 + Vector3(0, 0.2, 0), dir)
+			b.velocity.y = 5.0
+			b.strike_anim("air", e.global_position)
+			relay = {"e": e, "t": 0.28, "dir": dir}
+		"ground_relay":
+			# удар по лежачему: поднимает с земли под продолжение
+			strike(e, 26.0 * k, 40.0, dir, 2.0, 5.0, true, 1)
+			game.fx.slam(e.global_position, 1.0, col)
+			game.shake(0.25)
+			p.combat.open("dodge", 0.8)
+		"rescue":
+			# сбивает нападавшего и даёт уйти: вошедший неуязвим мгновение, окно ответа открыто
+			strike(e, 12.0 * k, 70.0, dir, 12.0, 0.0, true, 1)
+			if is_instance_valid(e) and e.alive():
+				e.stun(1.0)
+			p.inv = max(p.inv, 0.8)
+			p.combat.open("parry", 0.9)
+		"perfect":
+			# точная смена под замах: усиленный ответ, враг оглушён, окно точного уклонения у вошедшего
+			strike(e, 32.0 * k, 80.0, dir, 11.0, 0.0, true, 2)
+			if is_instance_valid(e) and e.alive():
+				e.stun(1.4)
+			game.fx.slam(e.global_position, 1.2, col)
+			game.shake(0.3)
+			p.inv = max(p.inv, 0.5)
+			p.combat.open("perfect", 1.0)
 	_boss_window(e)
 
 ## Удар команды: тот же путь, что и у обычных ударов (HitInfo → реакция врага)

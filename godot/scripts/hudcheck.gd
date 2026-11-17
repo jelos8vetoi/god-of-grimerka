@@ -172,6 +172,7 @@ func _run() -> void:
 	await shot("10_madk_breaker.png")
 	ok(P.style.id == "breaker" and keys() == ["Q:АД-ЛИБ", "F:FREEZE", "R:ПЕРЕГРУЗ"] and live_previews() == ["breaker"], "[3] Breaker: способности %s, живая модель %s" % [str(keys()), str(live_previews())])
 	ok(H.previews.size() == 6, "собраны превью всех шести стилей (%d)" % H.previews.size())
+	game.tag.tag_cd = 0.0      # первая смена могла оказаться командным приёмом с долгой перезарядкой
 	await tap("tag")
 	await frames(80)
 	await shot("11_back_to_pahan.png")

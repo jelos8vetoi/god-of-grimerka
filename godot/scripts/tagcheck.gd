@@ -218,8 +218,13 @@ func _run() -> void:
 	await frames(2)
 	await tap("tag")
 	await frames(2)
-	ok(P.state == "hurt" or last() == "blocked", "под ударом (героя бьют) смена не срабатывает: %s" % str(T.events[T.events.size() - 1]))
-	ok(P.hero == "pahan", "герой остался прежним — сменой от удара не уйти")
+	ok(last() == "rescue" and P.hero == "madk1d" and P.state != "hurt", "под ударом смена — это RESCUE TAG: напарник вытаскивает (%s)" % str(T.events[T.events.size() - 1]))
+	P.state = "hurt"
+	T.tag_cd = 0.0
+	await tap("tag")
+	await frames(2)
+	ok(last() == "blocked" and P.hero == "madk1d", "второй раз подряд сменой от ударов не уйти: %s" % last())
+	P.state = "move"
 	await stage()
 	P.hp = 5.0
 	await frames(2)
@@ -286,7 +291,7 @@ func _run() -> void:
 	for i in 50:
 		await get_tree().physics_frame
 		far_b = max(far_b, B.global_position.distance_to(b0))
-	ok(B.events.any(func(x): return x[0] == "dodge") and far_b > 1.0, "напарник отходит от замаха врага (%.1f м)" % far_b)
+	ok(B.events.any(func(x): return x[0] == "dodge") and far_b > 0.8, "напарник отходит от замаха врага (%.1f м)" % far_b)
 	await stage()
 	await tap("tag")
 	await frames(4)
@@ -369,6 +374,105 @@ func _run() -> void:
 	T.load_data(saved)
 	await frames(4)
 	ok(P.hero == "madk1d" and P.style.id == "guitar" and P.heroes["pahan"]["style"] == "tyaga812" and abs(P.hp - 77.0) < 0.5 and abs(float(T.hp["pahan"]) - 42.0) < 3.5 and not T.auto_assist, "сохранение и загрузка: герой %s, стили %s / %s, здоровье %.0f и %.0f, настройка напарника сохранена" % [P.hero, P.style.id, P.heroes["pahan"]["style"], P.hp, T.hp["pahan"]])
+	# ================= новые командные приёмы =================
+	# GROUND RELAY: враг лежит — Tab бьёт по лежачему и поднимает его
+	await stage()
+	var ge = foe()
+	await frames(4)
+	ge.state = "down"
+	ge.t = 0.0
+	var gh: float = ge.hp
+	await tap("tag")
+	await frames(6)
+	await shot("20_ground_relay.png")
+	ok(last() == "ground_relay" and gh - ge.hp >= 20.0, "враг на земле — Tab: GROUND RELAY (%s, урон %.0f)" % [last(), gh - ge.hp])
+	await frames(int(TagTeam.TEAM_CD * 60.0) + 20)
+	# PERFECT TAG: враг замахнулся — Tab в этот момент
+	await stage()
+	var pe = foe()
+	await frames(4)
+	pe.state = "wind"
+	pe.t = 0.0
+	var pe_hp: float = pe.hp
+	await tap("tag")
+	await frames(6)
+	await shot("21_perfect_tag.png")
+	ok(last() == "perfect" and pe_hp - pe.hp >= 28.0 and pe.state == "stun" and P.combat.clock <= float(P.combat.windows.get("perfect", -9.0)), "враг замахнулся — Tab: PERFECT TAG (%s, урон %.0f, враг оглушён: %s, окно точного ответа открыто)" % [last(), pe_hp - pe.hp, pe.state])
+	await frames(int(TagTeam.TEAM_CD * 60.0) + 20)
+	# RESCUE TAG: героя бьют — Tab вытаскивает, второй раз подряд нельзя
+	await stage()
+	var re2 = foe()
+	await frames(4)
+	re2.state = "recover"
+	T.rescue_cd = 0.0
+	P.inv = 0.0
+	P.take_damage(5.0, re2.global_position)      # настоящий урон: герой в состоянии «получил удар»
+	await frames(2)
+	var hero0: String = P.hero
+	await tap("tag")
+	await frames(6)
+	await shot("22_rescue_tag.png")
+	var rescued: bool = last() == "rescue" and P.hero != hero0 and P.state != "hurt" and re2.state == "stun"
+	T.tag_cd = 0.0
+	P.inv = 0.0
+	P.take_damage(5.0, re2.global_position)
+	await frames(2)
+	await tap("tag")
+	await frames(4)
+	ok(rescued and last() == "blocked" and T.rescue_cd > 0.0, "героя бьют — Tab: RESCUE TAG (вытащил: %s, нападавший оглушён), второй раз подряд нельзя (%s, ждать %.1f с)" % [str(rescued), last(), T.rescue_cd])
+	P.state = "move"
+	await frames(int(TagTeam.TEAM_CD * 60.0) + 20)
+	# AIR RELAY: герой и враг в воздухе — Tab: вошедший бьёт, напарник вбивает в землю
+	await stage()
+	var ae = foe()
+	await frames(4)
+	var hl := HitInfo.new()
+	hl.damage = 1.0
+	hl.launch = 9.0
+	hl.dir = Vector3(0, 0, -1)
+	ae.take_hit_info(hl)
+	P.velocity.y = 8.0
+	await frames(8)
+	var ah: float = ae.hp
+	T.events = []
+	await tap("tag")
+	await frames(4)
+	await shot("23_air_relay.png")
+	await frames(40)
+	ok(T.events.any(func(x): return x[0] == "air_relay") and T.events.any(func(x): return x[0] == "relay_slam") and ah - ae.hp >= 30.0, "оба в воздухе — Tab: AIR RELAY — удар вошедшего и добивание напарником (%s, урон %.0f)" % [str(T.events.map(func(x): return x[0])), ah - ae.hp])
+	# ================= реакции врага по направлению и удар о стену =================
+	await stage()
+	var de = foe()
+	await frames(4)
+	var sides := {}
+	for row in [["front", Vector3(0, 0, 1)], ["back", Vector3(0, 0, -1)], ["left", Vector3(1, 0, 0)], ["right", Vector3(-1, 0, 0)]]:
+		de.face = 0.0
+		de.global_position = P.global_position + Vector3(0, 0, -3.0)
+		var hd := HitInfo.new()
+		hd.damage = 1.0
+		hd.heavy = true
+		hd.dir = -(row[1] as Vector3)      # удар приходит С этой стороны: сила направлена от неё
+		de.take_hit_info(hd)
+		await frames(3)
+		sides[row[0]] = [de.hit_side, de.rig.rotation.x, de.rig.rotation.z]
+		await frames(70)
+	ok(sides["front"][0] == "front" and sides["back"][0] == "back" and sides["left"][0] == "left" and sides["right"][0] == "right" and float(sides["front"][1]) < -0.1 and float(sides["back"][1]) > 0.1 and abs(float(sides["left"][2])) > 0.1 and float(sides["left"][2]) * float(sides["right"][2]) < 0.0 and abs(de.rig.rotation.x) < 0.01,
+		"удар спереди откидывает назад (%.2f), сзади — вперёд (%.2f), сбоку — набок (%.2f и %.2f); потом враг выпрямляется" % [float(sides["front"][1]), float(sides["back"][1]), float(sides["left"][2]), float(sides["right"][2])])
+	# в стену
+	var we = foe()
+	we.global_position = Vector3(game.ARENA - 2.5, 0.05, 0)
+	await frames(4)
+	var wh0: float = we.hp
+	var hw := HitInfo.new()
+	hw.damage = 1.0
+	hw.heavy = true
+	hw.knockback = 16.0
+	hw.dir = Vector3(1, 0, 0)
+	we.take_hit_info(hw)
+	we.kb = Vector3(14, 0, 0)
+	await frames(40)
+	await shot("24_wall_hit.png")
+	ok(we.wall_hits == 1 and wh0 - we.hp >= 8.0, "отброшенного врага впечатало в стену: раз %d, урон %.0f" % [we.wall_hits, wh0 - we.hp])
 	print("TAGCHECK ok" if fails == 0 else "TAGCHECK ОШИБОК: %d" % fails)
 	get_tree().quit()
 

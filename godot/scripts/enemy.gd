@@ -76,6 +76,11 @@ const REACT := {
 	"mod": {"mass": 1.35, "armor": 8.0},                                         # в броне: лёгкий удар его не сбивает
 	"boss": {"mass": 3.0, "armor": 10.0, "launch": false, "down": false},
 }
+var tilt := Vector2.ZERO      # наклон от удара: x — вперёд-назад, y — вбок (рад); гаснет с покачиванием
+var tilt_t := 9.0
+var hit_side := ""           # откуда пришёл последний удар: front, back, left, right
+var wall_cd := 0.0
+var wall_hits := 0           # для проверок: сколько раз врага впечатало в стену
 var react := "normal"       # последняя реакция: none, hit, stagger, heavy_stagger, knockback, knockdown, airborne
 var hurt_len := 0.35        # сколько длится текущая реакция «получил удар»
 var no_flinch := false      # броня: этот удар не сбивает состояние
@@ -210,6 +215,19 @@ func _physics_process(dt: float) -> void:
 	to.y = 0
 	var dist := to.length()
 	var dir: Vector3 = to / max(dist, 0.001)
+	# наклон от удара гаснет с одним покачиванием обратно
+	if tilt_t < 1.0:
+		tilt_t += dt
+		var tk: float = exp(-6.0 * tilt_t) * cos(tilt_t * 11.0)
+		rig.rotation.x = tilt.x * tk
+		rig.rotation.z = tilt.y * tk
+		if tilt_t >= 1.0:
+			rig.rotation.x = 0.0
+			rig.rotation.z = 0.0
+	# впечатало в стену: отброшенный враг долетел до края арены
+	wall_cd = max(0.0, wall_cd - dt)
+	if wall_cd <= 0.0 and boss_id == "" and state != "dead" and kb.length() > 6.5 and (is_on_wall() or not game.in_arena(global_position + kb.normalized() * 0.5, radius)):
+		_wall_hit()
 	velocity.x = kb.x
 	velocity.z = kb.z
 	if state != "air":
@@ -586,6 +604,18 @@ func _process(_dt: float) -> void:
 func _react(dir: Vector3, heavy: bool) -> void:
 	hit_clock = game.clock
 	hit_dir = dir
+	# удар спереди откидывает назад, сзади — бросает вперёд, сбоку — валит набок; тяжёлый — сильнее
+	var fw := Vector3(sin(face), 0, cos(face))
+	var lf := Vector3(cos(face), 0, -sin(face))
+	var d := Vector3(dir.x, 0, dir.z)
+	if d.length() > 0.05:
+		d = d.normalized()
+		var along: float = d.dot(fw)
+		var side: float = d.dot(lf)
+		hit_side = ("back" if along > 0.0 else "front") if abs(along) >= abs(side) else ("right" if side > 0.0 else "left")
+		var amp: float = (0.42 if heavy else 0.24) * (0.45 if boss_id != "" else 1.0)
+		tilt = Vector2(along, -side) * amp
+		tilt_t = 0.0
 	flash_on = true
 	flash_until = game.clock + (0.17 if heavy else 0.11)
 	rig.flash(0.55, Color(1.0, 0.9, 0.72))
@@ -653,6 +683,21 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		ring.visible = false
 		rig.play_for("Hit", 0.45, 0.04)
 	_update_bar()
+
+## Отброшенного врага впечатало в стену: урон, оглушение, отскок.
+func _wall_hit() -> void:
+	wall_cd = 1.2
+	wall_hits += 1
+	var d: Vector3 = kb.normalized()
+	var at: Vector3 = global_position + d * radius + Vector3(0, height * 0.5, 0)
+	game.fx.dust(at, 10, game.fx.DUST, 1.1)
+	game.fx.sparks(at, -d, 8, Color(1.0, 0.9, 0.7), 0.9, 40.0)
+	game.shake(0.3)
+	game.main.sfx("sfx_thud", -2.0, 0.85)
+	game.popup(global_position + Vector3(0, height + 0.6, 0), "В СТЕНУ", Color(1.0, 0.85, 0.5))
+	take_hit(8.0, -d, 2.5, true)
+	if alive():
+		stun(0.8)
 
 func rc(key: String, def):
 	return (REACT.get("boss" if boss_id != "" else kind, {}) as Dictionary).get(key, def)
