@@ -19,7 +19,7 @@ const SETS := {
 	"bottles": {"title": "РОЗОЧКА", "clip": "BottleSnap", "dur": 0.8, "beats": [[0.3, 0], [0.6, 2]], "end": "splash", "gap": 1.2},
 	"tyaga812": {"title": "НА ВЫДУВ", "clip": "TyagaSuck", "clip2": ["TyagaBlast", 0.6], "dur": 0.95, "beats": [[0.72, 2]], "end": "blast", "pull": 0.6, "gap": 1.6},
 	"skateboard": {"title": "ДЕКОЙ В ПОЛ", "clip": "MUpper", "clip2": ["MOver", 0.42], "dur": 0.95, "beats": [[0.26, 1], [0.78, 2]], "end": "slam", "gap": 1.4},
-	"guitar": {"title": "ПОСЛЕДНИЙ АККОРД", "clip": "MFinal", "dur": 1.0, "beats": [[0.62, 2]], "end": "chord", "gap": 1.5},
+	"guitar": {"title": "ПОСЛЕДНИЙ АККОРД", "clip": "GtFinal", "dur": 1.0, "beats": [[0.62, 2]], "end": "chord", "gap": 1.5},
 	"breaker": {"title": "НОКАУТ", "clip": "Helicopter", "dur": 0.9, "beats": [[0.32, 0], [0.48, 0], [0.64, 1], [0.8, 2]], "end": "launch", "spin": 2.0, "hop": 5.0, "gap": 1.3},
 }
 const CTX := {

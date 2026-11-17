@@ -56,6 +56,12 @@ var switch_buf := false      # во время смены нажали удар:
 const SWITCH_T := 0.42
 var hero := "pahan"          # кем управляет игрок: pahan / madk1d (смена — Tab, game.swap_heroes)
 var heroes := {}             # имя → {rig, anim, feet, trail, styles, style}
+var board_out := false       # доска madk1d в руке (иначе — за спиной)
+var board_t := -1.0          # идёт перенос доски: рука тянется за спину
+var board_to := false
+var fight_t := 0.0           # сколько ещё секунд считается, что идёт бой (доска в руке)
+var reach: ArmReach          # правая рука madk1d за спину и обратно поверх любой анимации
+const BOARD_SWAP := 0.36
 var m_weapons := {}          # оружие madk1d по стилям: id → {att, weapon, bone, grip}
 var skate: Skate             # скейтборд: езда и трюки (skate.gd)
 var guitar: Guitar           # электрогитара: ритм, дисторшн, волны и звук (guitar.gd)
@@ -130,6 +136,21 @@ func _ready() -> void:
 			m_weapons[sid] = {"att": att, "weapon": mr.weapon, "bone": mr.weapon_bone, "grip": mr.weapon_grip}
 			feel[sid] = WeaponFeel.on(mr.weapon.get_child(0), sid)
 			att.visible = false
+	# доска в покое — за спиной: место в чехле и слой руки, которая за ней тянется
+	if m_weapons.has("skateboard"):
+		var bw: Dictionary = m_weapons["skateboard"]
+		mr.weapon = bw["weapon"]
+		mr.weapon_bone = bw["bone"]
+		mr.setup_holster("spine2", MadkWeaponClips.BOARD_BACK_DIR, MadkWeaponClips.BOARD_BACK_OFF, MadkWeaponClips.BOARD_BACK_ROLL)
+		bw["back_att"] = mr.back_att
+		bw["back_xf"] = mr.back_xf
+		bw["hand_att"] = mr.hand_att
+		bw["hand_xf"] = mr.hand_xf
+		(bw["weapon"] as Node3D).reparent(mr.back_att, false)
+		(bw["weapon"] as Node3D).transform = mr.back_xf
+		reach = ArmReach.new()
+		reach.setup(mr)
+		mr.skel.add_child(reach)
 	var mt := Trail.new()
 	mr.add_child(mt)
 	mt.setup(mr, Color(0.36, 0.82, 1.0), 0.2)
@@ -165,6 +186,11 @@ func _ready() -> void:
 		if a.extra.has("hop") and not breaker.active():
 			velocity.y = max(velocity.y, float(a.extra["hop"])))      # удар в прыжке чуть подвешивает героя
 	combat.attack_hit.connect(_on_attack_hit)
+	combat.attack_started.connect(func(_a: AttackData) -> void:
+		fight_t = 4.0
+		if hero == "madk1d" and style.id == "skateboard" and not board_out and not skate.on:
+			board_place(true)      # удар с доской за спиной: выхватил сразу, замах это прячет
+			board_t = -1.0)
 	bottles = Bottles.new()
 	add_child(bottles)
 	bottles.setup(self, game)
@@ -487,6 +513,7 @@ func _physics_process(dt: float) -> void:
 	trail.enabled = tr
 	if tr and feel.has(style.id):
 		(feel[style.id] as WeaponFeel).swing(1.0)
+	_board_tick(dt)
 	if feel.has("board_ride"):
 		(feel["board_ride"] as WeaponFeel).drive = clampf(skate.speed / 10.0, 0.0, 1.0) if skate.on else 0.0
 	if state != "charge":
@@ -617,6 +644,9 @@ func equip_madk(sid: String) -> void:
 	var r: Rig = heroes["madk1d"]["rig"]
 	for k2 in m_weapons:
 		(m_weapons[k2]["att"] as Node3D).visible = k2 == sid and not skate.on
+	if m_weapons.has("skateboard"):
+		board_place(sid == "skateboard" and (fight_t > 0.0 or enemies_near(9.0)))      # в бою доска сразу в руке, иначе за спиной
+		board_t = -1.0
 	if m_weapons.has(sid):
 		r.weapon = m_weapons[sid]["weapon"]
 		r.weapon_bone = m_weapons[sid]["bone"]
@@ -628,6 +658,59 @@ func equip_madk(sid: String) -> void:
 func show_weapon(on: bool) -> void:
 	if hero == "madk1d" and m_weapons.has(style.id):
 		(m_weapons[style.id]["att"] as Node3D).visible = on
+		if on and style.id == "skateboard":
+			board_place(fight_t > 0.0 or enemies_near(9.0))      # сошёл с доски: в бою она в руке, иначе за спину
+			board_t = -1.0
+
+## Доска madk1d: в руке (out) или за спиной. За спиной она не оружие: след и точки удара молчат, стойка — без оружия.
+func board_place(out: bool) -> void:
+	if not m_weapons.has("skateboard"):
+		return
+	var bw: Dictionary = m_weapons["skateboard"]
+	var w: Node3D = bw["weapon"]
+	board_out = out
+	var to: Node3D = bw["hand_att"] if out else bw["back_att"]
+	if w.get_parent() != to:
+		w.reparent(to, false)
+	w.transform = bw["hand_xf"] if out else bw["back_xf"]
+	if hero == "madk1d" and style.id == "skateboard":
+		var r: Rig = heroes["madk1d"]["rig"]
+		r.weapon_bone = int(bw["bone"]) if out else -1
+		r.style_map = style.roles if out else {}
+
+## Каждый кадр: доска за спиной в покое, в руке — в бою (враги рядом, удар, урон). Достаёт и убирает рука поверх
+## анимации (ArmReach): тянется за плечо, в верхней точке доска меняет место. На доске верхом и в чужих стилях
+## доска в руках не нужна; в брейке её нет и за спиной — там крутятся на спине.
+func _board_tick(dt: float) -> void:
+	if not m_weapons.has("skateboard") or reach == null:
+		return
+	var bw: Dictionary = m_weapons["skateboard"]
+	(bw["back_att"] as Node3D).visible = not skate.on and style.id != "breaker"
+	fight_t = max(0.0, fight_t - dt)
+	if state in ["attack", "charge", "exec", "overdrive", "hurt", "block"] or enemies_near(9.0):
+		fight_t = max(fight_t, 2.5)
+	if hero != "madk1d" or style.id != "skateboard" or switch_to != "" or skate.on or state == "dead":
+		board_t = -1.0
+		reach.w = move_toward(reach.w, 0.0, dt * 8.0)
+		return
+	var want: bool = fight_t > 0.0
+	if board_t < 0.0 and want != board_out and state == "move":
+		board_t = 0.0
+		board_to = want
+	if board_t >= 0.0:
+		board_t += dt
+		var k: float = clampf(board_t / BOARD_SWAP, 0.0, 1.0)
+		var r: Rig = heroes["madk1d"]["rig"]
+		reach.target = r.skel.get_bone_global_pose(r.bone["spine2"]) * (bw["back_xf"] as Transform3D).origin
+		reach.w = sin(k * PI)
+		if k >= 0.5 and board_out != board_to:
+			board_place(board_to)
+			game.main.sfx("sfx_roll", -14.0, 1.6 if board_to else 1.2)
+		if k >= 1.0:
+			board_t = -1.0
+			reach.w = 0.0
+	else:
+		reach.w = move_toward(reach.w, 0.0, dt * 8.0)
 
 ## множитель урона от состояния героя (заряды трюков, ритм, дисторшн) — его спрашивает ядро боя
 func damage_bonus(a: AttackData) -> float:
