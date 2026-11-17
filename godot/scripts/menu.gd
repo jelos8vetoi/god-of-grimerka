@@ -720,7 +720,7 @@ func _open_settings() -> void:
 	for r in Opts.rows(get_window(), main.audio, null):
 		acts.append([r[0]] if r.size() == 1 else [r[0], null, r[1]])
 	acts.append(["#УПРАВЛЕНИЕ"])
-	acts.append(["#WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — добивание · E — Heat · Пробел — прыжок · Shift — уклонение · C — блок · Tab — смена героя · T — помощь напарника · Q — ад-либ madk1d · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"])
+	acts.append(["#WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — добивание · E — Heat · Пробел — прыжок · Shift — уклонение · C — блок · Tab — смена героя · T — помощь напарника · G — Team Overdrive · Q — ад-либ madk1d · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"])
 	acts.append(["НАЗАД", _close])
 	_open("SETTINGS", [], acts)
 

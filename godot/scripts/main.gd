@@ -6,7 +6,7 @@ const ACTIONS := {
 	"jump": [KEY_SPACE], "roll": [KEY_SHIFT], "block": [KEY_C], "sprint": [KEY_CTRL], "adlib": [KEY_Q], "rage": [KEY_R], "heat": [KEY_E],
 	"ipod": [KEY_UP],
 	"throw": [KEY_F],
-	"tag": [KEY_TAB], "assist": [KEY_T],
+	"tag": [KEY_TAB], "assist": [KEY_T], "overdrive": [KEY_G],
 	"style1": [KEY_1], "style2": [KEY_2], "style3": [KEY_3],
 	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11],
 }
@@ -35,6 +35,7 @@ var hudcheck := ""        # --hudcheck=<папка>: боевой HUD в игр�
 var execcheck := ""       # --execcheck=<папка>: реакции врагов и добивания (scripts/execcheck.gd)
 var tagcheck := ""        # --tagcheck=<папка>: Tag Team (scripts/tagcheck.gd)
 var flowcheck := ""       # --flowcheck=<папка>: смена стилей в бою (scripts/flowcheck.gd)
+var hypecheck := ""       # --hypecheck=<папка>: Team Hype и Overdrive (scripts/hypecheck.gd)
 var combatcheck := ""     # --combatcheck=<папка>: ядро боя в игре (scripts/combatcheck.gd)
 var animlab := ""          # --animlab=<папка>: анимации в игре — сцены, листы кадров, замеры стоп (scripts/animlab.gd)
 var start_ch := -1
@@ -82,6 +83,8 @@ func _ready() -> void:
 			tagcheck = arg.substr(11)
 		elif arg.begins_with("--flowcheck="):
 			flowcheck = arg.substr(12)
+		elif arg.begins_with("--hypecheck="):
+			hypecheck = arg.substr(12)
 		elif arg.begins_with("--combatcheck="):
 			combatcheck = arg.substr(14)
 		elif arg.begins_with("--animlab="):
@@ -247,7 +250,7 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck
+	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
@@ -317,6 +320,12 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 		fc.out = flowcheck
 		game.director = fc
 		game.add_child(fc)
+	if hypecheck != "":
+		var hc2 = preload("res://scripts/hypecheck.gd").new()
+		hc2.game = game
+		hc2.out = hypecheck
+		game.director = hc2
+		game.add_child(hc2)
 	if combatcheck != "":
 		var cc = preload("res://scripts/combatcheck.gd").new()
 		cc.game = game

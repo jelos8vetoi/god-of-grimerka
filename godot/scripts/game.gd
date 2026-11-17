@@ -123,6 +123,7 @@ var fps_samples: Array = []
 var director = null
 var hero_label: Label         # имя героя, которым сейчас управляет игрок
 var style_label: Label        # текущий боевой стиль и запас (бутылки)
+var hype: TeamHype            # общая шкала команды и Team Overdrive (hype.gd)
 var tag_saved: Dictionary = {}      # состояние команды из сохранения: применяется после загрузки главы
 var tag: TagTeam              # Tag Team: здоровье обоих героев, командные приёмы, выбывание (tagteam.gd)
 var combat_hud: CombatHud     # боевой HUD: портреты, полосы, карточки стилей, способности (hud.gd)
@@ -154,6 +155,9 @@ func _ready() -> void:
 	tag = TagTeam.new()
 	add_child(tag)
 	tag.setup(self)
+	hype = TeamHype.new()
+	add_child(hype)
+	hype.setup(self)
 	# анимации врагов собираем заранее, при запуске: иначе первый враг каждого вида даёт рывок посреди боя
 	for it in [["bot", Poses.bot()], ["clipper", Poses.clipper()], ["hater", Poses.hater()]]:
 		if not Rig._lib_cache.has(it[0]):
@@ -182,6 +186,7 @@ func begin(from_save: bool, chapter := -1) -> void:
 			for k in up:
 				up[k] = int(d.get("up", {}).get(k, 0))
 			tag_saved = d.get("tag", {})
+			hype.value = clampf(float(d.get("hype", 0.0)), 0.0, TeamHype.MAX)
 	if chapter >= 0:
 		ch = chapter
 		step = -1
@@ -256,7 +261,7 @@ func _save() -> void:
 		return
 	var f := FileAccess.open(SAVE, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"ch": ch, "step": step, "xp": xp, "up": up, "tag": tag.save_data()}))
+		f.store_string(JSON.stringify({"ch": ch, "step": step, "xp": xp, "up": up, "tag": tag.save_data(), "hype": hype.value}))
 
 func _apply_upgrades() -> void:
 	player.max_hp = 100.0 + 20.0 * up["hp"]
@@ -523,6 +528,7 @@ func _retry() -> void:
 	over = false
 	player.hp = player.max_hp
 	tag.reset()
+	hype.value = 0.0
 	player.state = "move"
 	player.swag = 0.0
 	player.rage = 0.0
@@ -844,6 +850,12 @@ func _process(dt: float) -> void:
 		want_len = 4.0
 	elif heat_t > 0.0:
 		want_len = 2.9
+	if hype != null and hype.active() and not (mode == "dlg" and not director):
+		# Team Overdrive: общий план на всю команду и врагов, чуть сверху; облёт ведёт hype.gd
+		var ok_k: float = hype.cam_k()
+		target = target.lerp(hype.center + Vector3(0, 1.3, 0), 0.6 * ok_k)
+		want_len = lerpf(want_len, 7.2, ok_k)
+		pitch = lerpf(pitch, -0.42, ok_k)
 	# iPod only adds a cinematic 13% dolly to the distance chosen by the normal
 	# camera state. SpringArm3D still owns the final collision-safe camera position.
 	want_len *= 1.0 - 0.13 * ipod_focus
