@@ -62,6 +62,7 @@ var board_to := false
 var fight_t := 0.0           # сколько ещё секунд считается, что идёт бой (доска в руке)
 var reach: ArmReach          # правая рука madk1d за спину и обратно поверх любой анимации
 const BOARD_SWAP := 0.36
+var wbones := {}             # кости оружия (weaponbones.gd): id стиля или "board_ride" → WeaponBones
 var m_weapons := {}          # оружие madk1d по стилям: id → {att, weapon, bone, grip}
 var skate: Skate             # скейтборд: езда и трюки (skate.gd)
 var guitar: Guitar           # электрогитара: ритм, дисторшн, волны и звук (guitar.gd)
@@ -103,6 +104,7 @@ func _ready() -> void:
 	# Балон VOZDUH: горлышко в кулаке, корпус выходит со стороны мизинца
 	style = Styles.by_id("vozduh")
 	rig.attach(style.weapon["path"], style.weapon["side"], style.weapon["opt"])
+	_weapon_bones(rig, style)
 	feel["vozduh"] = WeaponFeel.on(rig.weapon.get_child(0), "vozduh")
 	combat = Combat.new(self, game, style)
 	FINISH = [style.next("", "heavy"), style.next("vz_light1", "heavy"), style.next("vz_light2", "heavy"), style.next("vz_upper", "heavy")]
@@ -135,6 +137,7 @@ func _ready() -> void:
 			var att: Node3D = mr.attach(sd.weapon["path"], sd.weapon["side"], sd.weapon["opt"])
 			m_weapons[sid] = {"att": att, "weapon": mr.weapon, "bone": mr.weapon_bone, "grip": mr.weapon_grip}
 			feel[sid] = WeaponFeel.on(mr.weapon.get_child(0), sid)
+			_weapon_bones(mr, sd)
 			att.visible = false
 	# доска в покое — за спиной: место в чехле и слой руки, которая за ней тянется
 	if m_weapons.has("skateboard"):
@@ -169,6 +172,9 @@ func _ready() -> void:
 	body.add_child(skate)
 	skate.setup(self, game)
 	feel["board_ride"] = WeaponFeel.on(skate.spinner.get_child(0), "board_ride")
+	var rb := WeaponBones.on(skate.spinner.get_child(0), "x", -48.9, 48.9, "board_ride")      # дека под ногами прогибается
+	if rb != null:
+		wbones["board_ride"] = rb
 	guitar = Guitar.new()
 	add_child(guitar)
 	guitar.setup(self, game)
@@ -639,6 +645,16 @@ func set_hero(id: String) -> void:
 	spin.rotation.x = 0.0
 	state = "move"
 
+## Кости оружия: модель лежит внутри крепления (кулак → масштаб → ось → модель), ось и концы — из StyleData.weapon.
+func _weapon_bones(r: Rig, sd: StyleData) -> void:
+	if r.weapon == null or not WeaponBones.SETS.has(sd.id):
+		return
+	var opt: Dictionary = sd.weapon["opt"]
+	var m: Node3D = r.weapon.get_child(0).get_child(0).get_child(0)
+	var wb := WeaponBones.on(m, String(opt.get("axis", "y")), float(opt.get("from", 0.0)), float(opt.get("to", 1.0)), sd.id)
+	if wb != null:
+		wbones[sd.id] = wb
+
 ## оружие madk1d по стилю: в кулаке видно только оно
 func equip_madk(sid: String) -> void:
 	var r: Rig = heroes["madk1d"]["rig"]
@@ -752,6 +768,12 @@ func _on_attack_hit(a: AttackData, n: int) -> void:
 		var wf: WeaponFeel = feel.get("board_ride" if skate.on else style.id)
 		if wf != null:
 			wf.hit(float(a.power))      # удар отдаётся в самом оружии
+		var wb: WeaponBones = wbones.get("board_ride" if skate.on else style.id)
+		if wb != null:
+			if skate.on:
+				wb.bump(0.6 + 0.3 * float(a.power))
+			else:
+				wb.kick(float(a.power))      # и гнёт его: конец отбрасывает
 		if style.id == "bottles" and a.projectile == "":
 			(feel["bottles_l"] as WeaponFeel).hit(float(a.power))
 
