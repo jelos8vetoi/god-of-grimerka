@@ -65,6 +65,8 @@ var glint := false          # предупреждающая вспышка пе
 var stars: Node3D           # звёздочки над оглушённым
 var poise := 60.0           # равновесие: удары снимают его (HitInfo.stagger); кончилось — враг сбит (оглушён), даже в замахе
 var poise_max := 60.0
+var air_hits := 0           # ударов за этот полёт: каждый следующий подбрасывает слабее (нет вечного жонглирования)
+var air_tags := 0           # передач AIR TAG за этот полёт (tagteam.AIR_TAGS_MAX)
 var poise_base := -1.0       # равновесие до сломов: частые сломы его повышают (нет бесконечного оглушения)
 var break_n := 0
 var st_bar: Sprite3D         # полоска равновесия под полоской здоровья: видна, пока его снимают
@@ -221,6 +223,9 @@ func _physics_process(dt: float) -> void:
 	poise_t += dt
 	if poise_t > 2.0:
 		poise = min(poise_max, poise + poise_max * 0.5 * dt)
+	if state != "air" and (air_hits > 0 or air_tags > 0):
+		air_hits = 0                 # приземлился: следующий полёт — заново
+		air_tags = 0
 	if poise_t > 5.0 and break_n > 0 and boss_id == "":
 		break_n = 0                  # давно не сбивали: сопротивление спадает
 		poise_max = poise_base
@@ -693,15 +698,18 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 			launch = 4.5
 	if launch > 0.0 and boss_id == "":
 		# подброс: тяжёлых подкидывает слабее; в воздухе отбрасывание не гаснет
+		var again: bool = state == "air"      # уже летел: этот подброс — повторный
 		state = "air"
 		t = 0.0
 		ring.visible = false
-		velocity.y = launch * (0.6 if height > 2.2 else 1.0)
+		velocity.y = launch * (0.6 if height > 2.2 else 1.0) * (max(0.3, 1.0 - 0.12 * air_hits) if again else 1.0)      # подброс в воздухе слабеет с каждым ударом
+		air_hits += 1
 		kb = dir * max(knock, 2.0)
 		face = atan2(-dir.x, -dir.z)
 		rig.play("Fly", 0.08)
 	elif state == "air":
-		velocity.y = max(velocity.y, 2.5)   # в воздухе каждый удар чуть подбрасывает
+		velocity.y = max(velocity.y, 2.5 * max(0.15, 1.0 - 0.1 * air_hits))   # в воздухе каждый удар чуть подбрасывает — всё слабее
+		air_hits += 1
 	elif not no_flinch and state != "stun" and state != "wind" and state != "charge" and state != "down" and state != "getup" and state != "special" and (boss_id == "" or heavy):
 		state = "hurt"
 		hurt_len = 0.35

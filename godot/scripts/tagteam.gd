@@ -24,7 +24,7 @@ const GREY := 0.5            # какая доля урона восстанов
 const REGEN := 3.0           # здоровья в секунду у отдыхающего
 const BOOST := 1.3           # урон вошедшего героя после командного приёма
 const TITLES := {"attack": "TAG ATTACK", "launcher": "TAG LAUNCHER", "double": "DOUBLE IMPACT", "counter": "TAG COUNTER", "cross": "CROSS ATTACK", "air": "AIR PARTNER COMBO", "finisher": "TEAM FINISHER",
-	"air_relay": "AIR RELAY", "ground_relay": "GROUND RELAY", "rescue": "RESCUE TAG", "perfect": "PERFECT TAG"}
+	"air_relay": "AIR RELAY", "ground_relay": "GROUND RELAY", "rescue": "RESCUE TAG", "perfect": "PERFECT TAG", "air_tag": "AIR TAG"}
 const RESCUE_CD := 8.0        # спасение из-под удара — не чаще
 var rescue_cd := 0.0
 var relay := {}               # идущая вторая половина AIR RELAY: {e, t, dir}
@@ -39,6 +39,13 @@ var revive_t := {"pahan": 0.0, "madk1d": 0.0}
 var tag_cd := 0.0
 var assist_cd := 0.0
 var duo: Duo                 # дуэт-атака на [T] (duo.gd)
+# AIR TAG: враг в воздухе — Tab передаёт комбо напарнику; подсказка у врага
+const AIR_TAGS_MAX := 3       # передач за один полёт врага (дальше Tab — обычная смена)
+const AIR_TAG_RANGE := 7.5
+const AIR_TAG_CD := 0.35      # после передачи можно передать обратно почти сразу
+var hint: Label3D             # подсказка «[TAB] …» у цели
+var hint_kind := ""
+var hint_e = null
 var boost_t := 0.0
 var auto_assist := true      # напарник сам вступает в бой
 var auto_t := 3.0
@@ -57,6 +64,16 @@ func setup(g) -> void:
 	duo = Duo.new()
 	add_child(duo)
 	duo.setup(self)
+	hint = Label3D.new()
+	hint.font = game.main.font
+	hint.font_size = 34
+	hint.pixel_size = 0.004
+	hint.outline_size = 10
+	hint.outline_modulate = Color(0, 0, 0, 0.85)
+	hint.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	hint.no_depth_test = true
+	hint.visible = false
+	game.add_child(hint)
 	b.add_collision_exception_with(p)
 	p.add_collision_exception_with(b)
 	reset()
@@ -65,6 +82,7 @@ func setup(g) -> void:
 func reset() -> void:
 	if duo != null:
 		duo.reset()
+	_hide_hint()
 	for h in hp:
 		hp[h] = p.max_hp
 		grey[h] = 0.0
@@ -103,6 +121,7 @@ func _physics_process(dt: float) -> void:
 	if game.paused_story() or game.over:
 		return
 	tag_cd = max(0.0, tag_cd - dt)
+	_hint_tick()
 	rescue_cd = max(0.0, rescue_cd - dt)
 	if not relay.is_empty():
 		# вторая половина AIR RELAY: напарник вбивает переданного врага в землю
@@ -144,8 +163,8 @@ func tag_block() -> String:
 		return "cooldown"
 	if p.switch_to != "":
 		return "switch"
-	if duo != null and duo.active():
-		return "duo"           # идёт дуэт-атака: сменить героя нельзя, пока не кончится
+	if duo != null and duo.active() and not (duo.relay_open() and air_target() != null):
+		return "duo"           # идёт дуэт-атака: сменить героя нельзя, пока не кончится (кроме передачи по воздуху)
 	if p.state == "hurt" and rescue_cd <= 0.0:
 		return ""               # RESCUE TAG: напарник вытаскивает из-под ударов
 	if not p.state in ["move", "block", "attack", "tyaga", "skate"]:
@@ -206,6 +225,9 @@ func try_tag() -> bool:
 			game.popup(p.global_position + Vector3(0, 2.3, 0), {"hurt": "не сейчас", "cooldown": "рано", "down": "напарник выбыл"}[why], Color(0.75, 0.78, 0.85))
 		events.append(["blocked", why])
 		return false
+	var ae = air_target()
+	if ae != null:
+		return _air_tag(ae)
 	var e = target()
 	var ctx := context(e)
 	if ctx in ["rescue", "perfect"]:
@@ -231,6 +253,104 @@ func try_tag() -> bool:
 	tagged.emit(p.hero, ctx)
 	return true
 var _msg_t := -9.0
+
+# ---------------- AIR TAG ----------------
+## Враг в воздухе, которому можно передать комбо: обычный (не босс), рядом с героем, напарник досягает и свободен,
+## и передач за этот полёт меньше AIR_TAGS_MAX. Несколько в воздухе — ближайший по направлению взгляда.
+func air_target():
+	if down[mate()] or b.ko or (duo != null and duo.active() and not duo.relay_open()):
+		return null
+	if p.state in ["hurt", "dead", "exec", "overdrive", "roll"] or p.switch_to != "":
+		return null
+	var best = null
+	var bs := -1e9
+	var aim: Vector3 = p.aim_dir()
+	for en in game.enemies:
+		if not is_instance_valid(en) or not en.alive() or en.state != "air" or en.boss_id != "":
+			continue
+		if int(en.air_tags) >= AIR_TAGS_MAX:
+			continue
+		var d: Vector3 = en.global_position - p.global_position
+		d.y = 0
+		var dist := d.length()
+		if dist > AIR_TAG_RANGE or b.global_position.distance_to(en.global_position) > AIR_TAG_RANGE + 4.0:
+			continue
+		if en.global_position.y - p.global_position.y < 0.6 and en.velocity.y < 0.0:
+			continue                 # уже у самой земли и падает: не успеть
+		var sc: float = -dist + (d / max(dist, 0.001)).dot(aim) * 2.0
+		if sc > bs:
+			bs = sc
+			best = en
+	return best
+
+## сколько врагов сейчас можно продолжить в воздухе (для подсказки AIR RELAY)
+func air_count() -> int:
+	var n := 0
+	for en in game.enemies:
+		if is_instance_valid(en) and en.alive() and en.state == "air" and en.boss_id == "" and int(en.air_tags) < AIR_TAGS_MAX and en.global_position.distance_to(p.global_position) < AIR_TAG_RANGE:
+			n += 1
+	return n
+
+func _air_tag(ae) -> bool:
+	if duo.active():
+		duo._done()                  # передача из середины AIR TAG: прошлый герой отпускает цель
+	var old_hero: String = p.hero
+	if not game.swap_heroes(true):
+		return false
+	tag_cd = AIR_TAG_CD
+	# камера коротко доворачивает к передаче: в кадре цель и вошедший герой
+	var cd2: Vector3 = ae.global_position - p.global_position
+	if Vector2(cd2.x, cd2.z).length() > 0.3:
+		game.cam_yaw = lerp_angle(game.cam_yaw, atan2(-cd2.x, -cd2.z), 0.3)
+	boost_t = 2.0
+	ae.air_tags = int(ae.air_tags) + 1
+	# ушедший герой — теперь напарник: короткий удар-поддержка снизу, и в сторону
+	b.strike_anim("air", ae.global_position)
+	var col: Color = p.style.color_hot
+	game.popup(ae.global_position + Vector3(0, float(ae.height) + 0.9, 0), "AIR TAG" if air_count() < 2 else "AIR RELAY", col)
+	game.fx.sparks(ae.global_position + Vector3(0, float(ae.height) * 0.5, 0), Vector3.UP, 10, col, 0.9, 50.0)
+	duo.air_tag(ae)
+	events.append(["air_tag", p.hero, old_hero])
+	tagged.emit(p.hero, "air_tag")
+	_hide_hint()
+	return true
+
+## Подсказка у цели: показывается одна — та, что сработает по Tab прямо сейчас.
+func _hint_tick() -> void:
+	var kind := ""
+	var at = null
+	if tag_block() == "" or (duo != null and duo.relay_open()):
+		var ae = air_target()
+		if ae != null:
+			kind = "AIR RELAY" if air_count() >= 2 else "AIR TAG"
+			at = ae
+		elif not game.paused_story() and duo != null and not duo.active():
+			for en in game.enemies:
+				if is_instance_valid(en) and en.alive() and en.state == "wind" and en.global_position.distance_to(p.global_position) < 3.4:
+					kind = "PERFECT TAG"
+					at = en
+					break
+	if kind == "":
+		_hide_hint()
+		return
+	if kind != hint_kind or at != hint_e:
+		hint_kind = kind
+		hint_e = at
+		hint.text = "[TAB] " + kind + ("\nПРОДОЛЖИ КОМБО" if kind != "PERFECT TAG" else "")
+		hint.modulate = Color(1.0, 0.86, 0.35) if kind != "PERFECT TAG" else Color(1.0, 0.55, 0.4)
+		hint.scale = Vector3.ONE * 0.6
+		var tw := hint.create_tween()
+		tw.tween_property(hint, "scale", Vector3.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	hint.visible = true
+	# рядом с врагом, сбоку и выше — не в центре экрана и не поверх цифр урона
+	var cam_r: Vector3 = Vector3(cos(game.cam_yaw), 0, -sin(game.cam_yaw))
+	hint.global_position = at.global_position + Vector3(0, float(at.height) + 0.35, 0) + cam_r * 0.9
+
+func _hide_hint() -> void:
+	if hint != null:
+		hint.visible = false
+	hint_kind = ""
+	hint_e = null
 
 ## Вошедший герой появляется у цели и бьёт; что именно — по обстановке
 func _team_move(ctx: String, e, old_pos: Vector3) -> void:

@@ -57,6 +57,7 @@ var t := 0.0
 var e = null                 # цель
 var air := false
 var fin := false             # DUO FINISHER
+var relay := false           # AIR TAG: вошедший по Tab герой прыгает к цели в воздухе и бьёт своим стилем; дальше ведёт игрок
 var pair := ""
 var mate_style := ""
 var my_style := ""
@@ -291,6 +292,8 @@ func _start_lead() -> void:
 	var dir: Vector3 = flat / max(dist, 0.001)
 	lead_vel = dir * max(0.0, dist - reach) / lead_len
 	var dy: float = (e.global_position.y - p.global_position.y) if air else 0.0
+	if air and my_style == "tyaga812":
+		dy = -0.4                     # пылесос бьёт вверх с земли: подбежать под цель, а не прыгать
 	# высота: в воздух — до цели, по земле — короткий подскок (выпад)
 	lead_vel.y = (dy + 0.5 * 20.0 * lead_len * lead_len) / lead_len if air else 0.5 * 20.0 * lead_len
 	p.face = atan2(dir.x, dir.z)
@@ -307,8 +310,20 @@ func lead_step(dt: float) -> void:
 	if phase != "lead":
 		p.state = "move"
 		return
-	p.velocity.x = lead_vel.x
-	p.velocity.z = lead_vel.z
+	# цель отлетает (подброс, отброс) — прыжок её ведёт: скорость к тому месту, где она сейчас
+	var to: Vector3 = e.global_position - p.global_position
+	to.y = 0
+	var left: float = max(lead_len - t, 0.06)
+	var need: float = max(0.0, to.length() - 1.4) / left
+	var hv: Vector3 = to.normalized() * clampf(need, 0.0, 22.0) if to.length() > 0.05 else Vector3.ZERO
+	p.velocity.x = hv.x
+	p.velocity.z = hv.z
+	if hv.length() > 0.5:
+		p.face = atan2(hv.x, hv.z)
+	if air and my_style != "tyaga812":
+		# и по высоте: туда, где враг окажется к концу прыжка (он летит по дуге), чуть ниже его центра
+		var ty: float = e.global_position.y + float(e.velocity.y) * left - 10.0 * left * left - 0.3
+		p.velocity.y = clampf((ty - p.global_position.y) / left + 10.0 * left, -6.0, 14.0)
 	if t >= lead_len or p.global_position.distance_to(e.global_position) < 1.6:
 		_start_follow()
 
@@ -337,7 +352,7 @@ func _start_follow() -> void:
 		_done()
 		return
 	var f: Array = FOLLOW[my_style]["a" if air else "g"]
-	nexts = (f[1] as Array).duplicate()
+	nexts = [] if relay else (f[1] as Array).duplicate()      # в AIR TAG дальше бьёт игрок
 	if my_style == "tyaga812":
 		p.state = "tyaga"
 		if p.tyaga.mode in ["off", "out", "in"]:
@@ -379,6 +394,10 @@ func _follow_tick() -> void:
 
 # ---------------- 4. концовка пары ----------------
 func _ending() -> void:
+	if relay:
+		events.append(["relay_end", pair, p.hero])
+		_done()
+		return
 	if not is_instance_valid(e) or not e.alive():
 		_done()
 		return
@@ -425,6 +444,7 @@ func _ending() -> void:
 
 func _done() -> void:
 	phase = ""
+	relay = false
 	p.combat.chained_charge_skip = false
 	nexts = []
 	b.duo_release()
@@ -435,11 +455,40 @@ func _abort(why: String) -> void:
 	events.append(["abort", why])
 	_done()
 
+## AIR TAG (tagteam._air_tag): героя уже сменили — вошедший прыжком к цели в воздухе и бьёт воздушным ударом
+## своего стиля (настоящий удар ядра боя). Дальше цепочку ведёт игрок: никаких автоматических нажатий.
+func air_tag(en) -> void:
+	e = en
+	hero0 = p.hero
+	air = true
+	fin = false
+	relay = true
+	my_style = p.style.id
+	mate_style = style_of(tag.mate())
+	var ps: String = my_style if p.hero == "pahan" else mate_style
+	var ms: String = mate_style if p.hero == "pahan" else my_style
+	pair = ps + "|" + ms
+	opened = true
+	buf_t = -9.0
+	if p.state == "attack":
+		p.combat.interrupt()
+	if p.skate.on:
+		p.skate.off()
+	if p.tyaga.riding():
+		p.tyaga._to_hold()
+	events.append(["air_tag", pair, p.hero])
+	_start_lead()
+
+## AIR TAG ещё идёт, но цепочку уже можно передать дальше (Tab в фазе продолжения)
+func relay_open() -> bool:
+	return relay and phase == "follow"
+
 ## на смене героя, гибели или выходе: всё вернуть в обычный бой
 func reset() -> void:
 	if p != null and p.state == "duo":
 		p.state = "move"
 	phase = ""
+	relay = false
 	buf_t = -9.0
 	nexts = []
 	for f in bottles_fly:

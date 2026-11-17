@@ -186,7 +186,7 @@ func _run() -> void:
 	await tap("tag")
 	await frames(8)
 	await shot("04_tag_launcher.png")
-	ok(last() == "launcher" and e.state == "air" and (P.velocity.y > 0.5 or P.global_position.y > 0.4), "Tab, когда цель в воздухе, — TAG LAUNCHER: враг в воздухе, герой взлетел (%.1f м)" % P.global_position.y)
+	ok(last() == "air_tag" and e.state == "air" and (P.velocity.y > 0.5 or P.global_position.y > 0.4), "Tab, когда цель в воздухе, — AIR TAG (раньше TAG LAUNCHER): враг в воздухе, герой взлетел (%.1f м)" % P.global_position.y)
 	await stage()
 	e = foe()
 	await frames(4)
@@ -464,8 +464,21 @@ func _run() -> void:
 	await tap("tag")
 	await frames(4)
 	await shot("23_air_relay.png")
-	await frames(40)
-	ok(T.events.any(func(x): return x[0] == "air_relay") and T.events.any(func(x): return x[0] == "relay_slam") and ah - ae.hp >= 30.0, "оба в воздухе — Tab: AIR RELAY — удар вошедшего и добивание напарником (%s, урон %.0f)" % [str(T.events.map(func(x): return x[0])), ah - ae.hp])
+	await frames(70)      # напарник стоял в ~5 м: прыжок 0,4 с, удар — на ~45-м кадре
+	ok(T.events.any(func(x): return x[0] == "air_tag") and ah - ae.hp >= 5.0, "оба в воздухе — Tab: AIR TAG, вошедший бьёт в воздухе (урон %.0f)" % (ah - ae.hp))
+	# лимит передач за полёт исчерпан — Tab снова даёт прежний AIR RELAY: удар вошедшего и добивание напарником
+	await stage()
+	ae = foe()
+	await frames(4)
+	ae.take_hit_info(hl)
+	P.velocity.y = 8.0
+	await frames(8)
+	ae.air_tags = TagTeam.AIR_TAGS_MAX
+	ah = ae.hp
+	T.events = []
+	await tap("tag")
+	await frames(44)
+	ok(T.events.any(func(x): return x[0] == "air_relay") and T.events.any(func(x): return x[0] == "relay_slam") and ah - ae.hp >= 30.0, "после лимита AIR TAG оба в воздухе — Tab: AIR RELAY — удар вошедшего и добивание напарником (%s, урон %.0f)" % [str(T.events.map(func(x): return x[0])), ah - ae.hp])
 	# ================= реакции врага по направлению и удар о стену =================
 	await stage()
 	var de = foe()
