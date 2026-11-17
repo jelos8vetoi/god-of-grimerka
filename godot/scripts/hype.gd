@@ -34,7 +34,7 @@ const MOVES := {
 	"bottles": {"title": "ЗАЛП", "clip": "BottleThrowHeavy", "t": 0.55, "fx": "splash"},
 	"tyaga812": {"title": "ВОРОНКА", "clip": "TyagaSuck", "t": 0.6, "fx": "pull"},
 	"skateboard": {"title": "ПРОЕЗД", "clip": "MSpin", "t": 0.55, "fx": "dash"},
-	"guitar": {"title": "СОЛО", "clip": "MStrum", "t": 0.55, "fx": "chord"},
+	"guitar": {"title": "СОЛО", "clip": "GtStrum", "t": 0.55, "fx": "chord"},
 	"breaker": {"title": "ВЕРТУШКА", "clip": "Helicopter", "t": 0.6, "fx": "launch"},
 }
 const BEATS := [0.35, 0.95, 1.55, 2.3]      # вход, приём героя, приём напарника, финал

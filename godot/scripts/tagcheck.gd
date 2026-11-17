@@ -282,8 +282,11 @@ func _run() -> void:
 	e3.state = "wind"
 	e3.t = 0.0
 	var b0: Vector3 = B.global_position
-	await frames(50)
-	ok(B.events.any(func(x): return x[0] == "dodge") and B.global_position.distance_to(b0) > 1.0, "напарник отходит от замаха врага (%.1f м)" % B.global_position.distance_to(b0))
+	var far_b := 0.0      # наибольшее удаление за время отскока: потом напарник возвращается к герою
+	for i in 50:
+		await get_tree().physics_frame
+		far_b = max(far_b, B.global_position.distance_to(b0))
+	ok(B.events.any(func(x): return x[0] == "dodge") and far_b > 1.0, "напарник отходит от замаха врага (%.1f м)" % far_b)
 	await stage()
 	await tap("tag")
 	await frames(4)

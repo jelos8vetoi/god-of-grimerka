@@ -3,6 +3,11 @@
 ## Здесь же клипы, которых madk1d не хватало как играбельному герою: перекат, реакция на удар, гибель, ярость.
 class_name MadkWeaponClips
 
+## Доска за спиной (Rig.setup_holster от кости spine2): хват над правым плечом, дека наискось вниз-влево, плашмя к спине.
+const BOARD_BACK_DIR := [0.5, -0.86, -0.04]
+const BOARD_BACK_OFF := [-0.13, 0.13, -0.115]
+const BOARD_BACK_ROLL := 0.0
+
 static func add_to(A: Dictionary) -> void:
 	var g := MadkClips.mg({})
 	var st := {"rup": {"x": -0.25}, "rleg": {"x": 0.4}, "lup": {"x": -0.3}, "lleg": {"x": 0.45}}
@@ -106,3 +111,4 @@ static func add_to(A: Dictionary) -> void:
 		[0.6, Poses.mk({"hips": {"x": -1.45}, "rarm": {"z": -0.9}, "larm": {"z": 0.9}, "drop": 0.78})], [1.0, Poses._down(Callable(Poses, "mk"))]]}
 	A["Rage"] = A["Cheer"]
 	A["Charge"] = A["MStrumHold"]
+	GuitarClips.add_to(A)      # гитара в двух руках: стойка, шаг, бег, удары, игра
