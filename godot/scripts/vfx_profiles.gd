@@ -175,3 +175,40 @@ static func all_attacks() -> Array:
 		for aid in s.attacks:
 			out.append([sid, s.attacks[aid]])
 	return out
+
+## Враги: цвет, узор предупреждения (vfx_tell: 1 клетки, 2 надрезы, 3 крестики, 4 трещины, 5 волны, 6 строки)
+## и рисунок попадания по герою. Цвет — из оттенка врага (enemy.KINDS.tint), у базовых — свой.
+const ENEMY := {
+	"bot": {"main": Color(1.0, 0.32, 0.22), "edge": Color(1.0, 0.85, 0.7), "pattern": 1,
+		"hit": [{"p": "shock", "s": 1.3, "segs": 8, "col": "main"}]},
+	"clipper": {"main": Color(1.0, 0.25, 0.35), "edge": Color(1.0, 0.9, 0.95), "pattern": 2,
+		"hit": [{"p": "arc", "len": 90, "tilt": 40, "r": 0.9, "w": 0.18, "edge": 1.0, "col": "main", "dur": 0.16},
+			{"p": "arc", "len": 90, "tilt": -40, "flip": -1.0, "r": 0.9, "w": 0.18, "edge": 1.0, "col": "edge", "dur": 0.16}]},
+	"hater": {"main": Color(0.45, 1.0, 0.55), "edge": Color(0.9, 1.0, 0.9), "pattern": 3,
+		"hit": [{"p": "shock", "s": 1.4, "rays": 4, "col": "main"}]},
+	"troll": {"main": Color(0.55, 0.85, 0.3), "edge": Color(0.9, 1.0, 0.7), "pattern": 4,
+		"hit": [{"p": "shock", "s": 2.2, "waves": 1, "col": "main"}, {"p": "debris", "kind": "stone", "n": 10}]},
+	"ghost": {"main": Color(0.72, 0.6, 1.0), "edge": Color(0.95, 0.9, 1.0), "pattern": 5,
+		"hit": [{"p": "twirl", "s": 1.6, "col": "main"}, {"p": "shock", "s": 1.4, "waves": 2, "col": "edge"}]},
+	"lawyer": {"main": Color(0.92, 0.92, 1.0), "edge": Color(1.0, 0.85, 0.4), "pattern": 6,
+		"hit": [{"p": "shock", "s": 1.4, "segs": 4, "col": "edge"}]},
+	"mod": {"main": Color(0.5, 0.66, 1.0), "edge": Color(1.0, 0.35, 0.3), "pattern": 1,
+		"hit": [{"p": "shock", "s": 1.6, "segs": 6, "rays": 2, "col": "main"}]},
+	"farmer": {"main": Color(1.0, 0.82, 0.24), "edge": Color(1.0, 0.95, 0.7), "pattern": 0,
+		"hit": [{"p": "shock", "s": 1.3, "rays": 6, "col": "main"}]},
+	"clone": {"main": Color(0.8, 0.5, 1.0), "edge": Color(1.0, 1.0, 1.0), "pattern": 2,
+		"hit": [{"p": "arc", "len": 120, "tilt": 30, "r": 1.0, "w": 0.25, "col": "main", "dur": 0.16}]},
+}
+
+## Палитра врага или босса (у босса — его цвет из story.json)
+static func enemy_motif(e) -> Dictionary:
+	var m: Dictionary = (ENEMY.get(String(e.kind), ENEMY["bot"]) as Dictionary).duplicate()
+	if String(e.boss_id) != "" and e.boss.has("c"):
+		var c := Color(e.boss["c"])
+		m["main"] = c
+		m["edge"] = c.lightened(0.55)
+		m["hot"] = c.lightened(0.25)
+		m["pattern"] = 0
+		m["hit"] = [{"p": "arc", "len": 140, "tilt": 25, "r": 1.3, "w": 0.4, "col": "main", "dur": 0.2}, {"p": "shock", "s": 2.0, "rays": 6, "col": "edge"}]
+	m["hot"] = m.get("hot", (m["main"] as Color).lightened(0.3))
+	return m

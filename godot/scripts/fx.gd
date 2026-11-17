@@ -25,6 +25,8 @@ var twinkle_i := 0
 # ---- профили атак ----
 const ARC_SHADER := preload("res://assets/shaders/vfx_arc.gdshader")
 const RING_SHADER := preload("res://assets/shaders/vfx_ring.gdshader")
+const TELL_SHADER := preload("res://assets/shaders/vfx_tell.gdshader")
+var tell_mesh: QuadMesh
 const ARCS := 16                # дуг одновременно
 const RINGS := 16               # колец одновременно
 const PER_FRAME := 2            # полных профилей за кадр (по остальным целям — только базовое попадание)
@@ -1025,3 +1027,53 @@ func duo_finale(pos: Vector3, style_a: String, style_b: String, d: Vector3, big 
 			debris(String(m["debris"]) if String(m["debris"]) != "metal" else "stone", pos, d, 14)
 		if bool(m["air"]):
 			streaks(pos, Vector3.UP, 18, VfxProfiles.col(m, "main"))
+
+# ---------- враги: предупреждение по форме удара и попадание по герою ----------
+## Узел предупреждения на земле под врагом (один на врага, живёт с ним). Форму задаёт tell_shape.
+func tell_node(parent: Node3D) -> MeshInstance3D:
+	if tell_mesh == null:
+		tell_mesh = QuadMesh.new()
+		tell_mesh.size = Vector2(1, 1)
+		var tm := ShaderMaterial.new()
+		tm.shader = TELL_SHADER
+		tell_mesh.material = tm
+	var mi := MeshInstance3D.new()
+	mi.mesh = tell_mesh
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visible = false
+	parent.add_child(mi)
+	mi.top_level = true
+	return mi
+
+## Форма: радиус (м), половина угла (рад; ≥ π — круг), полоса (ширина, м; 0 — сектор), узор, цвет
+func tell_shape(mi: MeshInstance3D, at: Vector3, face: float, radius: float, half: float, lane: float, pattern: int, col: Color) -> void:
+	var size: float = radius * 2.0
+	mi.global_transform = Transform3D(Basis(Vector3.UP, face + PI) * Basis(Vector3(1, 0, 0), -PI / 2) * Basis.from_scale(Vector3(size, size, 1.0)), Vector3(at.x, at.y + 0.06, at.z))
+	mi.set_instance_shader_parameter("half_ang", half)
+	mi.set_instance_shader_parameter("lane", lane / radius if lane > 0.0 else 0.0)
+	mi.set_instance_shader_parameter("pattern", float(pattern))
+	mi.set_instance_shader_parameter("tint", Color(col.r, col.g, col.b, 0.85))
+	mi.set_instance_shader_parameter("progress", 0.0)
+	mi.set_instance_shader_parameter("fade", 1.0)
+	mi.visible = true
+
+## Враг попал по герою: рисунок типа врага (или цвет босса)
+func enemy_hit(e, pos: Vector3, d: Vector3) -> void:
+	if e == null or not is_instance_valid(e):
+		return
+	var m: Dictionary = VfxProfiles.enemy_motif(e)
+	play({"prims": m["hit"]}, pos, d, m, false, e.global_position.y)
+
+## Босс перешёл в новую фазу: кольца его цвета по земле и вверх
+func boss_phase(e) -> void:
+	var m: Dictionary = VfxProfiles.enemy_motif(e)
+	var g: Vector3 = e.global_position
+	_shock_at(Vector3(g.x, g.y + 0.08, g.z), {"s": 9.0, "waves": 3, "thick": 0.08, "bill": 0, "dur": 0.7}, m["main"])
+	_shock_at(g + Vector3(0, float(e.height) * 0.6, 0), {"s": 4.0, "rays": 10, "thick": 0.12, "dur": 0.5}, m["edge"])
+
+## Босс «ОТКРЫТ»: треснувший щит вокруг — окно для ударов
+func boss_open(e) -> void:
+	var m: Dictionary = VfxProfiles.enemy_motif(e)
+	var at: Vector3 = e.global_position + Vector3(0, float(e.height) * 0.6, 0)
+	_shock_at(at, {"s": 3.2, "segs": 7, "rays": 7, "thick": 0.2, "dur": 0.55}, m["hot"])
+	debris("glass", at, Vector3.UP, 16)
