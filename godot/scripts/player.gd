@@ -332,6 +332,8 @@ func _physics_process(dt: float) -> void:
 			return
 	if pressed("assist"):
 		game.tag.try_assist()
+	if pressed("overdrive"):
+		game.hype.try_start()
 	var spd := 5.6 * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0)
 	# ТЯГА-812: в этом стиле «свободное» состояние героя ведёт пылесос
 	if style.id == "tyaga812" and state == "move" and switch_to == "":
@@ -417,6 +419,9 @@ func _physics_process(dt: float) -> void:
 			skate.tick(dt, dir)
 		"exec":
 			execution.tick(dt)
+		"overdrive":
+			velocity.x = 0.0          # постановку ведёт hype.gd
+			velocity.z = 0.0
 		"attack":
 			combat.tick_attack(dt, dir)
 		"charge":

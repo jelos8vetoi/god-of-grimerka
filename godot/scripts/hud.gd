@@ -77,6 +77,8 @@ var slots: Array = []          # [{icon, key, name, time, pips, fill}]
 var shown_hero := ""
 var shown_style := ""
 var tab_tag: Control
+var hype_fill: ColorRect       # Team Hype — общая шкала под карточками стилей
+var hype_text: Label
 var mate_fill: ColorRect       # здоровье напарника — тонкая полоса под его портретом
 var mate_grey: ColorRect
 const BAR_W := 330.0
@@ -372,6 +374,17 @@ func _build_cards() -> void:
 	ln.position = Vector2(CARD_X + 222, 596)
 	ln.size = Vector2(CARD * 3 + CARD_GAP * 2 - 222, 2)
 	stage.add_child(ln)
+	# Team Hype: общая шкала команды
+	var hb := ColorRect.new()
+	hb.color = Color(0.2, 0.2, 0.21, 0.9)
+	hb.position = Vector2(CARD_X, CARD_Y + CARD + 38)
+	hb.size = Vector2(CARD * 3 + CARD_GAP * 2, 10)
+	stage.add_child(hb)
+	hype_fill = ColorRect.new()
+	hype_fill.color = WHITE
+	hype_fill.size = Vector2(0, 10)
+	hb.add_child(hype_fill)
+	hype_text = _text(stage, "HYPE", 17, GREY, Vector2(CARD_X + CARD * 3 + CARD_GAP * 2 + 10, CARD_Y + CARD + 30), serif)
 	for i in 3:
 		var root := Control.new()
 		root.position = Vector2(CARD_X + i * (CARD + CARD_GAP), CARD_Y)
@@ -659,6 +672,15 @@ func _process(dt: float) -> void:
 	_place_portraits(dt)
 	_tick_previews(dt, p)
 	_tick_slots(p)
+	var hy = game.hype
+	if hy != null:
+		var full: bool = hy.full() or hy.active()
+		hype_fill.size.x = (CARD * 3 + CARD_GAP * 2) * clampf(hy.value / TeamHype.MAX, 0.0, 1.0)
+		hype_fill.color = Color(1.0, 0.86, 0.5).lerp(Color(0.9, 0.2, 0.15), 0.5 + 0.5 * sin(game.clock * 8.0)) if full else WHITE
+		var want_t := "[G] OVERDRIVE" if full else "HYPE"
+		if hype_text.text != want_t:
+			hype_text.text = want_t
+		hype_text.add_theme_color_override("font_color", Color(1.0, 0.86, 0.5) if full else GREY)
 	var tg = game.tag
 	if tg != null:
 		var o: String = tg.mate()

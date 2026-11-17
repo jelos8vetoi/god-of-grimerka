@@ -92,7 +92,7 @@ func _physics_process(dt: float) -> void:
 	var d := target - global_position
 	d.y = 0
 	var spd := 8.5 if far > 4.5 or dodge_cd > 1.9 else 4.6      # отскок от замаха — рывком
-	var acting := anim.state == "action" and anim.hold > 0.0   # брейк или приём: стоит на месте, тело ведёт root motion
+	var acting := anim.state == "action" and anim.hold > 0.0 and dodge_cd < 2.0   # брейк или приём: стоит на месте, тело ведёт root motion
 	if acting:
 		velocity.x = 0.0
 		velocity.z = 0.0
@@ -141,6 +141,7 @@ func _team_ai(dt: float) -> void:
 				wait = 1.0
 				foe = null
 				dodge_cd = 2.5
+				say_t = 0.0                # отскок важнее недоигранного удара или реплики
 				game.fx.dust(global_position + Vector3(0, 0.1, 0), 4, game.fx.DUST, 0.5)
 				events.append(["dodge", 0])
 				break
