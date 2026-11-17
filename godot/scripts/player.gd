@@ -58,6 +58,7 @@ var hero := "pahan"          # кем управляет игрок: pahan / mad
 var heroes := {}             # имя → {rig, anim, feet, trail, styles, style}
 var m_weapons := {}          # оружие madk1d по стилям: id → {att, weapon, bone, grip}
 var skate: Skate             # скейтборд: езда и трюки (skate.gd)
+var guitar: Guitar           # электрогитара: ритм, дисторшн, волны и звук (guitar.gd)
 var FINISH: Array = []      # тяжёлые удары стиля по числу лёгких перед ними (для съёмки трейлера)
 var scrape_p: AudioStreamPlayer
 var scr_cd := 0.0
@@ -135,6 +136,9 @@ func _ready() -> void:
 	skate = Skate.new()
 	body.add_child(skate)
 	skate.setup(self, game)
+	guitar = Guitar.new()
+	add_child(guitar)
+	guitar.setup(self, game)
 	combat.attack_hit.connect(_on_attack_hit)
 	bottles = Bottles.new()
 	add_child(bottles)
@@ -281,6 +285,9 @@ func _physics_process(dt: float) -> void:
 	var dir := input_dir()
 	# нажатия ударов помнит буфер ядра боя: сработают, когда откроется окно
 	combat.tick(dt)
+	guitar.tick(dt)
+	if pressed("attack") or pressed("heavy") or pressed("throw"):
+		guitar.on_press()                  # гитара: нажатие в такт усиливает удар
 	if pressed("attack"):
 		combat.press("light")
 		switch_buf = switch_to != ""
@@ -544,16 +551,32 @@ func show_weapon(on: bool) -> void:
 	if hero == "madk1d" and m_weapons.has(style.id):
 		(m_weapons[style.id]["att"] as Node3D).visible = on
 
-## множитель урона от состояния героя (заряды трюков и т. п.) — его спрашивает ядро боя
+## множитель урона от состояния героя (заряды трюков, ритм, дисторшн) — его спрашивает ядро боя
 func damage_bonus(_a: AttackData) -> float:
 	if hero == "madk1d" and style.id == "skateboard":
 		return skate.bonus()
+	if guitar.active():
+		return guitar.bonus()
 	return 1.0
 
+## ядро боя: хватает ли герою ресурса на атаку
+func can_use(a: AttackData) -> bool:
+	return guitar.can_use(a) if guitar.active() else true
+
+## ядро боя: можно ли продолжить цепочку раньше окна комбо (RIFF CANCEL гитары тратит деление ритма)
+func early_cancel(_a: AttackData, act: String) -> bool:
+	return guitar.active() and act == "throw" and guitar.spend_riff()
+
+## ядро боя: момент удара — звук и волна способности
+func on_attack_moment(a: AttackData, _idx: int) -> void:
+	if guitar.active():
+		guitar.moment(a)
+
 ## попадание ударом ядра: заряды трюков потрачены
-func _on_attack_hit(_a: AttackData, _n: int) -> void:
+func _on_attack_hit(a: AttackData, n: int) -> void:
 	if hero == "madk1d" and style.id == "skateboard":
 		skate.charges = 0
+	guitar.on_hit(a, n)
 
 ## ядро боя: момент броска — снаряд вылетает из руки
 func launch_projectile(a: AttackData, charged: float) -> void:
@@ -570,6 +593,8 @@ func aim_preview(a: AttackData, power: float) -> void:
 ## строка HUD: стиль и запас
 func style_hud() -> String:
 	var n := own_styles.find(style.id) + 1
+	if style.id == "guitar":
+		return "[%d] %s  %s" % [n, style.title, guitar.hud()]
 	if style.id == "skateboard":
 		return "[%d] %s  трюки %s%s  %s" % [n, style.title, "◆".repeat(skate.charges), "◇".repeat(3 - skate.charges), "на доске" if skate.on else "[Ctrl] на доску"]
 	if style.id == "tyaga812":
@@ -594,6 +619,9 @@ func start_finisher(n: int, chained := false) -> void:
 
 ## Heat-действие: рядом враг и есть 40 СВЭГа — цепочка добивания стиля с замедлением и наездом камеры
 func try_heat() -> void:
+	if guitar.active():
+		guitar.distort()               # у гитары E — DISTORTION
+		return
 	if swag < 40.0:
 		game.popup(global_position + Vector3(0, 2.2, 0), "нужно 40 СВЭГа", Color(0.7, 0.75, 0.85))
 		return

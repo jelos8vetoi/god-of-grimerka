@@ -114,6 +114,26 @@ func as_madk(kinds: Array, dist := 2.2) -> Array:
 	P.skate.events = []
 	return list
 
+## сцена за madk1d с гитарой; такт сдвинут так, чтобы нажатия шли мимо ритма (если не сказано иначе)
+func as_guitar(kinds: Array, dist := 2.2) -> Array:
+	var list: Array = await as_madk(kinds, dist)
+	await to_style("style2")
+	await frames(10)
+	log_started = []
+	log_hits = []
+	P.guitar.events = []
+	P.guitar.played = []
+	P.guitar.bars = 0
+	return list
+
+## нажать действие точно в такт (on = true) или между тактами
+func beat_tap(a: String, on: bool) -> void:
+	await get_tree().physics_frame
+	P.guitar.clock = 20.0 if on else 20.25
+	P.auto_input = {a: "press"}
+	await get_tree().physics_frame
+	P.auto_input = {}
+
 func stage(kinds: Array, dist := 2.2) -> Array:
 	game.ch = 0
 	game._load_chapter(false)
@@ -135,6 +155,12 @@ func stage(kinds: Array, dist := 2.2) -> Array:
 	P.skate.off()
 	P.skate.charges = 0
 	P.skate.events = []
+	P.guitar.bars = 0
+	P.guitar.distortion = 0.0
+	P.guitar.on_beat = false
+	P.guitar.events = []
+	P.guitar.played = []
+	P.heroes["madk1d"]["style"] = "skateboard"
 	if P.hero != "pahan":
 		P.set_hero("pahan")
 		game.buddy.set_look("madk1d")
@@ -1506,6 +1532,208 @@ func _run() -> void:
 	cam_at = Vector3(0, 0.9, -1.2)
 	await stage([])
 	ok(P.hero == "pahan" and game.buddy.look == "madk1d", "после проверок снова Пахан")
+
+
+	# ================= madk1d: стиль «Электрогитара» =================
+	var gt := Styles.by_id("guitar")
+	ok(gt.ready and gt.problems().is_empty() and Styles.of("madk1d").filter(func(x): return x.ready).size() == 2, "стиль guitar готов: атак %d; у madk1d два готовых стиля" % gt.attacks.size())
+	es = await as_guitar([])
+	ok(P.style.id == "guitar" and P.m_weapons["guitar"]["att"].visible and not P.m_weapons["skateboard"]["att"].visible and game.style_label.text.begins_with("[2] Электрогитара"), "[2] у madk1d: гитара в руке, доска убрана; HUD: %s" % game.style_label.text)
+	await shot("40_guitar_idle.png")
+	var snd_ok := true
+	for n in ["chord", "airriff", "feedback", "distortion", "riff", "final"]:
+		if not P.guitar.sounds.has(n) or (P.guitar.sounds[n] as AudioStreamWAV).data.size() < 2000:
+			snd_ok = false
+	var lens := {}
+	for n in ["chord", "airriff", "feedback", "distortion", "riff", "final"]:
+		lens[(P.guitar.sounds[n] as AudioStreamWAV).data.size()] = true
+	ok(snd_ok and lens.size() == 6, "у каждой способности свой синтезированный звук (шесть разных)")
+	# ---------- удары и связки ----------
+	for kind in ["bot", "clipper", "hater"]:
+		es = await as_guitar([kind])
+		var hp_g: float = es[0].hp
+		await beat_tap("attack", false)
+		await until_free()
+		ok(abs((hp_g - es[0].hp) - 16.0) < 0.01, "%s: удар корпусом гитары — %.0f урона" % [kind, hp_g - es[0].hp])
+	es = await as_guitar(["bot"])
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	await chain(["attack", "attack", "attack"])
+	await until_free(300)
+	var g1: Array = log_started.duplicate()
+	es = await as_guitar(["bot"])
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	await chain(["attack", "attack", "heavy"])
+	await frames(14)
+	await shot("41_guitar_spin.png")
+	await until_free(400)
+	ok(g1 == ["gt_body", "gt_neck", "gt_turn"] and log_started == ["gt_body", "gt_neck", "gt_spin"], "корпус → гриф → с разворота: %s; ЛКМ, ЛКМ, ПКМ — Guitar Spin: %s" % [str(g1), str(log_started)])
+	# ---------- POWER CHORD: волна на дистанции ----------
+	for kind in ["bot", "clipper", "hater"]:
+		es = await as_guitar([kind], 6.5)
+		var hp_c2: float = es[0].hp
+		var pos_c: Vector3 = es[0].global_position
+		await beat_tap("throw", false)
+		await frames(16)
+		if kind == "bot":
+			await shot("42_power_chord.png")
+		await until_free()
+		ok(abs((hp_c2 - es[0].hp) - 22.0) < 0.01 and es[0].global_position.distance_to(pos_c) > 1.0 and P.guitar.played.has("chord"), "%s на 6,5 м: POWER CHORD — %.0f урона, отброшен, звук аккорда сыграл" % [kind, hp_c2 - es[0].hp])
+	es = await as_guitar(["bot"])
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	await chain(["attack", "throw"])
+	await until_free(300)
+	ok(log_started == ["gt_body", "gt_chord"], "удар гитарой → POWER CHORD: %s" % str(log_started))
+	await beat_tap("throw", false)
+	await frames(4)
+	ok(not (log_started.count("gt_chord") > 1), "POWER CHORD на перезарядке второй раз подряд не играет")
+	await until_free()
+	# ---------- подброс → AIR RIFF → ещё → в пол ----------
+	es = await as_guitar(["bot", "clipper"])
+	for e in es:
+		e.hp = 9999.0
+		e.max_hp = 9999.0
+	es[1].global_position = P.global_position + Vector3(3.0, 0, -5.0)       # клиппер стоит на земле в стороне
+	var hp_ground: float = es[1].hp
+	P.face = PI
+	await chain(["attack", "heavy", "throw", "throw"])
+	await frames(8)
+	await shot("43_air_riff.png")
+	var still_air: bool = es[0].state == "air"
+	await until_free(300)
+	ok(log_started == ["gt_body", "gt_launch", "gt_airriff1", "gt_airriff2"] and still_air and es[1].hp == hp_ground and P.guitar.played.count("airriff") == 2, "подброс → AIR RIFF ×2: %s — подброшенный всё ещё в воздухе, стоящего на земле волна не задела" % str(log_started))
+	# ---------- FEEDBACK после уклонения → подброс ----------
+	es = await as_guitar(["bot", "clipper", "hater"], 2.4)
+	es[0].global_position = P.global_position + Vector3(2.4, 0, 0)
+	es[2].global_position = P.global_position + Vector3(0, 0, 2.6)
+	for e in es:
+		e.hp = 9999.0
+		e.max_hp = 9999.0
+	var hp_f := [es[0].hp, es[1].hp, es[2].hp]
+	P.combat.open("dodge", 0.6)
+	await chain(["heavy", "attack"])
+	await frames(6)
+	var fb_all := true
+	for i in 3:
+		if hp_f[i] - es[i].hp < 10.0 - 0.01:
+			fb_all = false
+	await until_free(300)
+	ok(log_started == ["gt_feedback", "gt_launch"] and fb_all and P.guitar.played.has("feedback"), "после уклонения ПКМ — FEEDBACK: волна вокруг задела всех троих; дальше ЛКМ — подброс (%s)" % str(log_started))
+	es = await as_guitar(["bot"])
+	es[0].hp = 9999.0
+	P.combat.open("dodge", 0.6)
+	await beat_tap("attack", false)
+	await frames(3)
+	ok(log_started == ["gt_counter"], "после уклонения ЛКМ — ответный удар гитарой (%s)" % str(log_started))
+	await until_free()
+	# ---------- ритм ----------
+	es = await as_guitar(["bot"])
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	var h_r: float = es[0].hp
+	await beat_tap("attack", false)
+	await until_free()
+	var off_dmg: float = h_r - es[0].hp
+	var bars_off: int = P.guitar.bars
+	await frames(14)
+	h_r = es[0].hp
+	es[0].global_position = P.global_position + Vector3(0, 0, -2.2)
+	await beat_tap("attack", true)
+	await until_free()
+	var on_dmg: float = h_r - es[0].hp
+	ok(abs(off_dmg - 16.0) < 0.01 and bars_off == 0 and abs(on_dmg - 19.2) < 0.01 and P.guitar.bars == 1, "ритм: мимо такта — %.0f урона и ничего не теряется; в такт — %.1f (+20 %%) и деление шкалы (%d)" % [off_dmg, on_dmg, P.guitar.bars])
+	# ---------- RIFF CANCEL ----------
+	es = await as_guitar(["bot"])
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	P.guitar.bars = 2
+	await beat_tap("attack", false)
+	while P.combat.cur != null and P.combat.hit_i == 0:
+		await get_tree().physics_frame
+	await frames(1)
+	var k_cancel: float = P.combat.k()
+	var win_from: float = P.combat.cur.combo_from
+	await beat_tap("throw", false)
+	await frames(3)
+	ok(log_started == ["gt_body", "gt_chord"] and k_cancel < win_from and P.guitar.bars == 1 and P.guitar.played.has("riff"), "RIFF CANCEL: аккорд пошёл на %.2f клипа при окне комбо с %.2f, потрачено деление ритма (осталось %d)" % [k_cancel, win_from, P.guitar.bars])
+	await until_free()
+	es = await as_guitar(["bot"])
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	await beat_tap("attack", false)
+	while P.combat.cur != null and P.combat.hit_i == 0:
+		await get_tree().physics_frame
+	await frames(3)
+	await beat_tap("throw", false)
+	await frames(2)
+	ok(log_started == ["gt_body"], "без делений ритма RIFF CANCEL не срабатывает — аккорд ждёт окна комбо (%s)" % str(log_started))
+	await until_free(300)
+	# ---------- DISTORTION ----------
+	es = await as_guitar(["bot"])
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	P.swag = 30.0
+	await tap("heat")
+	await frames(2)
+	var no_dist: bool = P.guitar.distortion <= 0.0
+	P.swag = 60.0
+	await tap("heat")
+	await frames(2)
+	var sw_after: float = P.swag
+	await frames(30)
+	var h_d: float = es[0].hp
+	es[0].global_position = P.global_position + Vector3(0, 0, -2.2)
+	await beat_tap("attack", false)
+	await frames(16)
+	await shot("44_distortion.png")
+	await until_free()
+	ok(no_dist and P.guitar.distortion > 5.0 and abs(sw_after - 20.0) < 0.01 and abs((h_d - es[0].hp) - 20.8) < 0.01 and P.guitar.played.has("distortion"), "DISTORTION: при 30 СВЭГа не включается, при 60 — включается на 8 с (осталось %.1f), удар %.1f (16 × 1,3)" % [P.guitar.distortion, h_d - es[0].hp])
+	# ---------- FINAL TRACK ----------
+	es = await as_guitar(["bot", "clipper", "hater"], 2.2)
+	for e in es:
+		e.hp = 9999.0
+		e.max_hp = 9999.0
+	await chain(["attack", "attack", "heavy", "heavy"])
+	await until_free(400)
+	var no_final: bool = not log_started.has("gt_final")
+	es = await as_guitar(["bot", "clipper", "hater"], 2.2)
+	es[0].global_position = P.global_position + Vector3(2.0, 0, -1.5)
+	es[2].global_position = P.global_position + Vector3(-2.0, 0, -1.5)
+	for e in es:
+		e.hp = 9999.0
+		e.max_hp = 9999.0
+	P.guitar.bars = 4
+	P.guitar.bars_t = 0.0
+	await chain(["attack", "attack", "heavy", "heavy"])
+	var fin_started: bool = log_started.has("gt_final")
+	var hp_fin := [es[0].hp, es[1].hp, es[2].hp]
+	while P.combat.cur != null and P.combat.hit_i == 0:
+		await get_tree().physics_frame
+	await frames(4)
+	await shot("45_final_track.png")
+	var fin_all := true
+	for i in 3:
+		if hp_fin[i] - es[i].hp < 60.0 - 0.01:
+			fin_all = false
+	await until_free(400)
+	ok(no_final and fin_started and fin_all and P.guitar.bars == 0 and P.guitar.played.has("final"), "FINAL TRACK: без полной шкалы ритма недоступен; с четырьмя делениями после Guitar Spin бьёт всех вокруг по 60+ и тратит шкалу")
+	# ---------- с разгона ----------
+	es = await as_guitar(["bot"], 9.0)
+	es[0].hp = 9999.0
+	P.global_position = Vector3(0, 0.05, 9.0)
+	es[0].global_position = Vector3(0, 0.05, 2.0)
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	await frames(36)
+	log_started = []
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "heavy": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {}
+	await frames(3)
+	ok(log_started == ["gt_jump"], "на бегу с Ctrl ПКМ — удар гитарой с прыжка (%s)" % str(log_started))
+	await until_free(300)
+	await stage([])
 
 	print("COMBAT итог: ошибок %d" % fails)
 	get_tree().quit()
