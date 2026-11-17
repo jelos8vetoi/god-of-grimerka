@@ -35,6 +35,10 @@ var spin_t := -1.0
 var spin_done := false
 var air_cd := 0.0
 var puff := 0.0
+var clip_t := 0.0             # идёт короткий клип (посадка, приземление): езду пока не включаем
+var braking := false
+var push_cd := 0.0            # до следующего толчка ногой
+var lean := 0.0
 var events: Array = []        # для проверок: ["trick", имя], ["bail", 0], ["land", n]…
 
 func setup(player, g) -> void:
@@ -46,13 +50,102 @@ func setup(player, g) -> void:
 	spinner = Node3D.new()
 	board.add_child(spinner)
 	var m: Node3D = (load(MODEL) as PackedScene).instantiate()
-	m.rotation.y = PI * 0.5                     # длинная ось — вперёд
-	m.scale = Vector3.ONE * (LEN / 97.9)
+	_stand_on_wheels(m)
 	spinner.add_child(m)
 	board.visible = false
 
 func fwd() -> Vector3:
 	return Vector3(sin(heading), 0, cos(heading))
+
+## Поставить модель доски на колёса. Длинная ось модели — x, а вокруг неё модель в файле повёрнута на произвольный
+## угол: нормаль деки ищем по треугольникам с весом по площади (поперёк неё площадь разбросана уже всего).
+## У этой модели подвески с колёсами торчат с ОБЕИХ сторон деки (так её сгенерировали). Низ — сторона с рисунком
+## (в осях модели она смотрит в +z); лишние колёса со стороны шкурки, где стоят ноги, из сетки убираем.
+## Сам файл модели не меняется; доска в руке и за спиной остаётся как была.
+var deck_n := Vector3.UP      # нормаль деки в осях модели (от колёс к шкурке) — нужна костям доски
+func _stand_on_wheels(m: Node3D) -> void:
+	var k: float = LEN / 97.9
+	var mi := WeaponBones._mesh(m)
+	if mi == null or mi.mesh == null:
+		m.rotation.y = PI * 0.5
+		m.scale = Vector3.ONE * k
+		return
+	var cen := PackedVector3Array()      # центры треугольников
+	var area := PackedFloat32Array()
+	for si in mi.mesh.get_surface_count():
+		var arr: Array = mi.mesh.surface_get_arrays(si)
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		for t in range(0, idx.size() - 2, 3):
+			var p0 := vs[idx[t]]
+			var p1 := vs[idx[t + 1]]
+			var p2 := vs[idx[t + 2]]
+			cen.append((p0 + p1 + p2) / 3.0)
+			area.append((p1 - p0).cross(p2 - p0).length() * 0.5)
+	var wsum := 0.0
+	var my := 0.0
+	var mz := 0.0
+	for i in cen.size():
+		wsum += area[i]
+		my += cen[i].y * area[i]
+		mz += cen[i].z * area[i]
+	my /= max(0.0001, wsum)
+	mz /= max(0.0001, wsum)
+	var cyy := 0.0
+	var czz := 0.0
+	var cyz := 0.0
+	for i in cen.size():
+		cyy += (cen[i].y - my) * (cen[i].y - my) * area[i]
+		czz += (cen[i].z - mz) * (cen[i].z - mz) * area[i]
+		cyz += (cen[i].y - my) * (cen[i].z - mz) * area[i]
+	var wide: float = 0.5 * atan2(2.0 * cyz, cyy - czz)      # куда в плоскости y-z доска шире всего
+	var n := Vector3(0, -sin(wide), cos(wide))               # поперёк этого направления — нормаль деки
+	if n.z > 0.0:
+		n = -n                                                # шкурка — в сторону −z, рисунок и рабочие колёса — в +z
+	deck_n = n
+	# где по толщине сама дека: слой с наибольшей площадью
+	var bins := {}
+	for i in cen.size():
+		var bkey: int = roundi(cen[i].dot(n))
+		bins[bkey] = float(bins.get(bkey, 0.0)) + area[i]
+	var deck_d := 0.0
+	var best := -1.0
+	for bkey in bins:
+		if float(bins[bkey]) > best:
+			best = bins[bkey]
+			deck_d = float(bkey)
+	# убрать лишние подвески со стороны шкурки: всё выше деки в средней части (нос и хвост загнуты вверх — их не трогаем)
+	var out := ArrayMesh.new()
+	var lo := 1e9
+	var hi := -1e9
+	for si in mi.mesh.get_surface_count():
+		var arr2: Array = mi.mesh.surface_get_arrays(si)
+		var vs2: PackedVector3Array = arr2[Mesh.ARRAY_VERTEX]
+		var idx2: PackedInt32Array = arr2[Mesh.ARRAY_INDEX]
+		var keep := PackedInt32Array()
+		for t in range(0, idx2.size() - 2, 3):
+			var c: Vector3 = (vs2[idx2[t]] + vs2[idx2[t + 1]] + vs2[idx2[t + 2]]) / 3.0
+			if c.dot(n) > deck_d + 2.5 and abs(c.x) < 40.0:
+				continue
+			keep.append(idx2[t])
+			keep.append(idx2[t + 1])
+			keep.append(idx2[t + 2])
+			for j in 3:
+				var d: float = vs2[idx2[t + j]].dot(n)
+				lo = min(lo, d)
+				hi = max(hi, d)
+		arr2[Mesh.ARRAY_INDEX] = keep
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr2)
+		out.surface_set_material(si, mi.mesh.surface_get_material(si))
+	mi.mesh = out
+	# оси модели → оси доски: длинная ось вдоль хода, нормаль деки вверх
+	var from := Basis(Vector3.RIGHT, n, Vector3.RIGHT.cross(n))
+	var to := Basis(Vector3(0, 0, -1), Vector3.UP, Vector3(0, 0, -1).cross(Vector3.UP))
+	m.basis = (to * from.inverse()).scaled(Vector3.ONE * k)
+	m.position = Vector3(0, -lo * k, 0)      # колёса на земле: самая нижняя точка модели — на высоте 0
+	deck_h = (deck_d - lo) * k               # высота шкурки над землёй
+
+var deck_h := 0.11            # высота шкурки над землёй, м
 
 ## встать на доску (из бега)
 func mount() -> void:
@@ -68,9 +161,12 @@ func mount() -> void:
 	bail_t = 0.0
 	board.visible = true
 	p.show_weapon(false)
-	p.rig.position.y = -0.9 + float(StyleSkateboard.RIDE["deck"])     # стопы на деке
+	p.rig.position.y = -0.9 + deck_h + 0.012     # стопы на шкурке: высота деки — из самой модели
 	p.rig.rotation.y = STANCE
-	p.rig.play("SkateRide", 0.1)
+	p.rig.play_for("SkateMount", 0.3, 0.06)      # шаг-подскок на доску
+	clip_t = 0.3
+	push_cd = 0.32
+	braking = false
 	p.state = "skate"
 	game.main.sfx("sfx_roll", -8.0, 1.5)
 	events.append(["mount", 0])
@@ -100,6 +196,7 @@ func tick(dt: float, dir: Vector3) -> void:
 	var R: Dictionary = StyleSkateboard.RIDE
 	var grounded: bool = p.is_on_floor()
 	air_cd = max(0.0, air_cd - dt)
+	clip_t = max(0.0, clip_t - dt)
 	if bail_t > 0.0:
 		# упал: лежит, доска откатилась
 		bail_t -= dt
@@ -122,6 +219,8 @@ func tick(dt: float, dir: Vector3) -> void:
 			charges = 0
 		else:
 			game.feedback("land", p.global_position)
+			p.rig.play_for("SkateLand", 0.3, 0.04)      # присел, гася удар
+			clip_t = 0.3
 		diving = false
 		if charges > 0:
 			p.combat.open("dodge", 0.9)          # после трюков — окно ответного удара
@@ -131,9 +230,15 @@ func tick(dt: float, dir: Vector3) -> void:
 	# ---- руление и скорость ----
 	var want := dir.length() > 0.2
 	sliding = p.held("roll") and grounded and speed > 3.0
-	if want and (grounded or true):
+	var h0 := heading
+	# назад на ходу — торможение хвостом: нос не разворачивается, пока доска не встанет
+	braking = want and grounded and not sliding and speed > 1.5 and fwd().dot(dir.normalized()) < -0.6
+	if want and not braking:
 		heading = rotate_toward(heading, atan2(dir.x, dir.z), float(R["steer_slide"] if sliding else R["steer"]) * (1.0 if grounded else 0.4) * dt)
-	if sliding:
+	var turn: float = angle_difference(h0, heading) / max(dt, 0.0001)
+	if braking:
+		speed = move_toward(speed, 0.0, 16.0 * dt)
+	elif sliding:
 		speed = move_toward(speed, 0.0, float(R["slide_drag"]) * dt)
 	elif want and grounded:
 		speed = move_toward(speed, float(R["vmax"]), float(R["accel"]) * dt)
@@ -235,9 +340,22 @@ func tick(dt: float, dir: Vector3) -> void:
 	board.rotation.y = lerp_angle(board.rotation.y, PI * 0.5 if sliding else 0.0, 1.0 - exp(-14.0 * dt))
 	# в воздухе доска идёт за поджатыми ногами, а не остаётся внизу
 	board.position.y = lerpf(board.position.y, AIR_LIFT if air and not diving else 0.0, 1.0 - exp(-16.0 * dt))
-	p.body.rotation.z = lerpf(p.body.rotation.z, 0.0, 1.0 - exp(-8.0 * dt))
-	if grounded and not air and spin_t < 0.0:
-		p.rig.play("SkateSlide" if sliding else "SkateRide", 0.12)
+	# карвинг: в повороте герой с доской наклоняется внутрь дуги
+	lean = lerpf(lean, clampf(-turn * 0.07 * clampf(speed / 8.0, 0.0, 1.0), -0.32, 0.32) if grounded else 0.0, 1.0 - exp(-8.0 * dt))
+	p.body.rotation.z = lean
+	if grounded and not air and spin_t < 0.0 and clip_t <= 0.0:
+		p.rig.play("SkateSlide" if sliding else ("SkateBrake" if braking else "SkateRide"), 0.12)
+	# толчки: пока едет по своей воле, раз в пару секунд задняя нога отталкивается от земли
+	if grounded and not air and spin_t < 0.0 and want and not sliding and not braking:
+		push_cd -= dt
+		if push_cd <= 0.0 and clip_t <= 0.0:
+			push_cd = 2.3
+			p.rig.play_for("SkatePush", 0.6, 0.08)
+			clip_t = 0.6
+			game.fx.dust(p.global_position - fwd() * 0.3 + Vector3(0, 0.05, 0), 2, game.fx.DUST, 0.4)
+			events.append(["push", 0])
+	elif clip_t > 0.0 and p.rig.cur == "SkatePush" and (sliding or braking or air):
+		clip_t = 0.0      # занос, тормоз или прыжок обрывают толчок
 	puff -= dt
 	if grounded and puff <= 0.0 and (sliding or speed > 4.0):
 		puff = 0.05 if sliding else 0.14

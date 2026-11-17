@@ -14,6 +14,8 @@ var P
 var R: Rig
 var started := false
 var frame_n := 0
+var log_ids: Array = []
+var hooked := false
 
 func _ready() -> void:
 	cam = Camera3D.new()
@@ -83,6 +85,9 @@ func stage(style_key: String, style_id: String) -> void:
 	await frames(2)
 	game.tag.reset()
 	R = P.heroes["madk1d"]["rig"]
+	if not hooked:
+		hooked = true
+		P.combat.attack_started.connect(func(a: AttackData) -> void: log_ids.append(a.id))
 	P.global_position = Vector3(0, 0.05, 4.0)
 	P.face = PI
 	game.cam_yaw = 0.0
@@ -107,6 +112,32 @@ func stage(style_key: String, style_id: String) -> void:
 	P.face = PI
 	P.fight_t = 0.0
 	await frames(6)
+
+## нажимать по очереди: каждое следующее — когда откроется окно связки
+func chain(actions: Array) -> void:
+	log_ids = []
+	await tap(actions[0])
+	var w0 := 0
+	while log_ids.is_empty() and w0 < 60:      # первый удар должен начаться
+		await get_tree().physics_frame
+		w0 += 1
+	for i in range(1, actions.size()):
+		var n := 0
+		while not P.combat.in_combo_window() and P.state == "attack" and n < 200:
+			await get_tree().physics_frame
+			n += 1
+		var had: int = log_ids.size()
+		await tap(actions[i])
+		n = 0
+		while log_ids.size() == had and n < 60:      # ждём, пока нажатие превратится в удар
+			await get_tree().physics_frame
+			n += 1
+
+func until_free() -> void:
+	var n := 0
+	while P.state != "move" and n < 300:
+		await get_tree().physics_frame
+		n += 1
 
 func foe(at: Vector3):
 	var e = game._make_enemy("bot", "", P.global_position + at)
@@ -205,7 +236,17 @@ func _run() -> void:
 	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}      # Ctrl на бегу — доска под ноги
 	await frames(40)
 	var hidden: bool = P.skate.on and not board().is_visible_in_tree()
+	# доска под ногами стоит на колёсах: нормаль деки смотрит вверх, длинная ось — по ходу, колёса на земле
+	var bm: Node3D = P.skate.spinner.get_child(0)
+	var up_w: Vector3 = (bm.global_transform.basis * P.skate.deck_n).normalized()
+	var long_w: Vector3 = (bm.global_transform.basis * Vector3.RIGHT).normalized()
+	var mi2 := WeaponBones._mesh(bm)
+	var ab2: AABB = mi2.mesh.get_aabb() if mi2 != null else AABB()
+	print("MADK доска: нормаль ", P.skate.deck_n, " размер модели ", ab2.size, " начало ", ab2.position, " нормаль в мире ", up_w, " длинная ось в мире ", long_w, " ход ", P.skate.fwd(), " высота модели ", bm.global_position.y - P.global_position.y)
+	ok(up_w.y > 0.9 and abs(long_w.dot(P.skate.fwd())) > 0.9, "доска под ногами стоит на колёсах: нормаль деки вверх (%.2f), длинная ось по ходу (%.2f)" % [up_w.y, abs(long_w.dot(P.skate.fwd()))])
 	await close("c05_board_ride.png", PI * 0.5)
+	await close("c05_board_ride_front.png", 0.35, 2.2)
+	print("MADK доска: высота шкурки %.3f м, стопы: левая %.3f, правая %.3f над землёй" % [P.skate.deck_h, bone_w("lfoot").y - P.global_position.y, bone_w("rfoot").y - P.global_position.y])
 	P.auto_input = {}
 	var nn := 0
 	while P.skate.on and nn < 300:
@@ -269,6 +310,85 @@ func _run() -> void:
 	await close("c09_guitar_chord.png", 0.6)
 	await frames(40)
 	ok(chord_clip == "GtStrum" and e.hp < hp1, "POWER CHORD: клип «%s», волна попала (урон %.0f)" % [chord_clip, hp1 - e.hp])
+	# ================= 8. скейт: пять лёгких, трюковые удары, воздух, езда =================
+	await stage("style1", "skateboard")
+	var s1 = foe(Vector3(0, 0, -2.0))
+	s1.stun(9.0)
+	await frames(4)
+	var clips_seen: Array = []
+	log_ids = []
+	await tap("attack")
+	for i in 4:
+		n = 0
+		while not P.combat.in_combo_window() and P.state == "attack" and n < 200:
+			await get_tree().physics_frame
+			n += 1
+		clips_seen.append(P.rig.cur)
+		s1.global_position = P.global_position + Vector3(0, 0, -2.0)
+		s1.stun(9.0)
+		await tap("attack")
+		await frames(2)
+		if i == 2:
+			await frames(10)
+			await close("c10_board_spin.png", 0.7)
+	clips_seen.append(P.rig.cur)
+	await until_free()
+	ok(log_ids == ["sk_swing1", "sk_swing2", "sk_kick", "sk_spin", "sk_slam"] and clips_seen == ["SkTail", "SkNose", "SkKickPush", "SkBoardSpin", "SkSlam"], "ЛКМ ×5: %s — у каждого свой клип %s" % [str(log_ids), str(clips_seen)])
+	# трюковой удар: F — KICKFLIP, попадание даёт заряд трюка
+	await stage("style1", "skateboard")
+	s1 = foe(Vector3(0, 0, -2.0))
+	s1.stun(9.0)
+	P.skate.charges = 0
+	P.skate.events = []
+	await frames(4)
+	log_ids = []
+	await tap("throw")
+	await frames(22)
+	await close("c11_kickflip.png", 0.8)
+	await until_free()
+	ok(log_ids == ["sk_kickflip"] and P.skate.charges == 1 and P.skate.events.any(func(x): return x[0] == "trick") and s1.hp < 9999.0, "[F] — KICKFLIP: попал (урон %.0f), заряд трюка +1 (%d)" % [9999.0 - s1.hp, P.skate.charges])
+	# связка: хвостом → носом → SHOVE-IT
+	s1.global_position = P.global_position + Vector3(0, 0, -2.0)
+	s1.stun(9.0)
+	await chain(["attack", "attack", "throw"])
+	await until_free()
+	ok(log_ids == ["sk_swing1", "sk_swing2", "sk_shove"], "хвостом → носом → [F] SHOVE-IT: %s" % str(log_ids))
+	# в прыжке
+	await stage("style1", "skateboard")
+	s1 = foe(Vector3(0, 0, -2.0))
+	s1.stun(9.0)
+	await frames(4)
+	log_ids = []
+	await tap("jump")
+	await frames(10)
+	await tap("attack")
+	await frames(6)
+	await close("c12_air_strike.png", 0.8)
+	await frames(30)
+	await until_free()
+	ok(log_ids.size() > 0 and log_ids[0] == "sk_airstrike", "удар в прыжке: %s" % str(log_ids))
+	# езда: толчок на разгоне, торможение хвостом
+	await stage("style1", "skateboard")
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	await frames(8)
+	var mount_clip: String = P.rig.cur
+	await frames(16)
+	var push_clip: String = P.rig.cur
+	await close("c13_skate_push.png", PI * 0.5)
+	await frames(70)
+	var cruise_clip: String = P.rig.cur
+	var v_top: float = P.skate.speed
+	var h_b: float = P.skate.heading
+	P.auto_input = {"move": Vector2(0, -1), "sprint": "hold"}
+	await frames(10)
+	var brake_clip: String = P.rig.cur
+	await close("c14_skate_brake.png", PI * 0.5)
+	var v_mid: float = P.skate.speed
+	var turned: float = abs(angle_difference(h_b, P.skate.heading))
+	P.auto_input = {}
+	await frames(60)
+	ok(mount_clip == "SkateMount" and push_clip == "SkatePush" and cruise_clip == "SkateRide" and v_top > 9.0, "посадка «%s», разгон «%s», на скорости «%s» (%.1f м/с)" % [mount_clip, push_clip, cruise_clip, v_top])
+	ok(brake_clip == "SkateBrake" and v_mid < v_top - 2.0 and turned < 0.2, "назад на ходу — торможение хвостом «%s»: %.1f → %.1f м/с, нос не развернулся (%.2f рад)" % [brake_clip, v_top, v_mid, turned])
 	# ================= 7. кости оружия: гнётся в махе и от попадания, потом успокаивается =================
 	for row in [["madk1d", "style2", "guitar"], ["madk1d", "style1", "skateboard"], ["pahan", "style1", "vozduh"]]:
 		if row[0] == "pahan":

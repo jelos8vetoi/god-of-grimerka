@@ -174,6 +174,7 @@ func _ready() -> void:
 	feel["board_ride"] = WeaponFeel.on(skate.spinner.get_child(0), "board_ride")
 	var rb := WeaponBones.on(skate.spinner.get_child(0), "x", -48.9, 48.9, "board_ride")      # дека под ногами прогибается
 	if rb != null:
+		rb.normal = skate.deck_n
 		wbones["board_ride"] = rb
 	guitar = Guitar.new()
 	add_child(guitar)
@@ -768,6 +769,10 @@ func _on_attack_hit(a: AttackData, n: int) -> void:
 		var wf: WeaponFeel = feel.get("board_ride" if skate.on else style.id)
 		if wf != null:
 			wf.hit(float(a.power))      # удар отдаётся в самом оружии
+		if a.extra.has("trick") and n == 1 and hero == "madk1d":
+			# трюковой удар на ногах попал: заряд трюка, как за трюк на доске
+			skate.charges = mini(int(StyleSkateboard.RIDE["max_charges"]), skate.charges + int(a.extra["trick"]))
+			skate.events.append(["trick", a.id])
 		var wb: WeaponBones = wbones.get("board_ride" if skate.on else style.id)
 		if wb != null:
 			if skate.on:

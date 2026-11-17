@@ -1417,7 +1417,7 @@ func _run() -> void:
 	es[0].max_hp = 9999.0
 	await chain(["attack", "attack", "heavy"])
 	await until_free(300)
-	ok(ch1 == ["sk_swing1", "sk_swing2", "sk_spin"] and ch2 == ["sk_swing1", "sk_launch"] and launched and log_started == ["sk_swing1", "sk_swing2", "sk_sweep"], "цепочки: %s; подброс %s (враг в воздухе); подсечка %s" % [str(ch1), str(ch2), str(log_started)])
+	ok(ch1 == ["sk_swing1", "sk_swing2", "sk_kick"] and ch2 == ["sk_swing1", "sk_launch"] and launched and log_started == ["sk_swing1", "sk_swing2", "sk_sweep"], "цепочки: %s; подброс %s (враг в воздухе); подсечка %s" % [str(ch1), str(ch2), str(log_started)])
 	ok(sb.attack("sk_swing1").duration < vz.attack("vz_light1").duration * 0.65 and sb.attack("sk_swing1").damage < vz.attack("vz_light1").damage, "madk1d быстрее и легче Пахана: удар %.2f с и %.0f урона против %.2f с и %.0f" % [sb.attack("sk_swing1").duration, sb.attack("sk_swing1").damage, vz.attack("vz_light1").duration, vz.attack("vz_light1").damage])
 	# ---------- на доску, разгон, сход ----------
 	cam_off = Vector3(4.2, 1.8, 0.4)
@@ -1425,7 +1425,7 @@ func _run() -> void:
 	es = await as_madk([])
 	P.global_position = Vector3(0, 0.05, 10.0)
 	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
-	await frames(50)
+	await frames(80)      # посадка и первый толчок ногой закончились — обычная езда
 	var on_board: bool = P.state == "skate" and P.skate.board.visible and not P.m_weapons["skateboard"]["att"].visible
 	var feet_y: float = bone_pos("rfoot").y - P.global_position.y
 	await shot("32_skate_ride.png")

@@ -30,6 +30,7 @@ var sag_v := 0.0
 var started := false
 var bend := 0.0              # для проверок: текущий изгиб, рад
 var peak := 0.0              # для проверок: наибольший изгиб, рад
+var normal := Vector3.UP     # нормаль плоскости оружия (у доски — нормаль деки): прогиб идёт вдоль неё
 
 static func _mesh(n: Node) -> MeshInstance3D:
 	if n is MeshInstance3D:
@@ -133,7 +134,7 @@ func _process(dt: float) -> void:
 	peak = max(peak, bend)
 	var from_k: float = float(cfg["from"]) * float(N)
 	var x := Transform3D.IDENTITY
-	var side: Vector3 = axis.cross(Vector3.UP if abs(axis.y) < 0.9 else Vector3.RIGHT).normalized()
+	var side: Vector3 = axis.cross(normal if abs(axis.dot(normal)) < 0.9 else Vector3.RIGHT).normalized()
 	var mid: float = float(N) * 0.5
 	for i in N + 1:
 		if i > 0:
