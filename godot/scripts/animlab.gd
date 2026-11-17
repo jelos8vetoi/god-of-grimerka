@@ -26,6 +26,7 @@ const TH := 270
 
 const SHAKE_MAX := 0.25      # рывок положения — не больше четверти шага за кадр: выше — герой дрожит
 var shake_log: Array = []
+var tyaga_amp := [0.0, 0.0, 0.0]
 var shake_f := -1
 var jump_top := [0.0, 0.0, 0.0]
 var jump_air_hit := false
@@ -269,7 +270,11 @@ func _build() -> void:
 			ok(float(jump_top[0]) > 1.0 and float(jump_top[1]) > 1.0 and float(jump_top[2]) > 1.0 and jump_air_hit and P.is_on_floor(), "madk1d: прыжок с места %.2f м, на бегу %.2f м, с ударом %.2f м; удар в воздухе %s, приземлился %s" % [jump_top[0], jump_top[1], jump_top[2], jump_air_hit, P.is_on_floor()])
 		_side(P, 6.2, 1.5)})
 	# 12. Пахан с ТЯГА-812: шаг с пылесосом в руках, затем езда верхом с поворотом — замер тряски
-	scenes.append({"n": "12_pahan_tyaga", "len": 330, "shake": {"шаг с пылесосом": [80, 150], "езда": [215, 320]}, "setup": func(): _stage(), "tick": func(i):
+	scenes.append({"n": "12_pahan_tyaga", "len": 330, "shake": {"шаг с пылесосом": [80, 150], "езда": [215, 320]}, "setup": func():
+		_stage()
+		if P.hero != "pahan":        # прошлые сцены могли оставить героем madk1d
+			game.swap_heroes()
+		tyaga_amp = [0.0, 0.0, 0.0], "tick": func(i):
 		P.inv = 1.0
 		_park_buddy(P.global_position + Vector3(-6.0, 0, 3.0))
 		var inp := {}
@@ -283,6 +288,16 @@ func _build() -> void:
 			inp["move"] = Vector2(0.5 if i > 260 else 0.0, 1)
 			inp["sprint"] = "hold"
 		P.auto_input = inp
+		# корпус пылесоса: стоит на холостом — еле дрожит; на ходу — переваливается; верхом — тоже; и нигде не улетает
+		var amp: float = P.tyaga.rock_amp
+		if i >= 40 and i < 68:
+			tyaga_amp[0] = max(float(tyaga_amp[0]), amp)
+		elif i >= 90 and i < 150:
+			tyaga_amp[1] = max(float(tyaga_amp[1]), amp)
+		elif i >= 230:
+			tyaga_amp[2] = max(float(tyaga_amp[2]), amp)
+		if i == 328:
+			ok(float(tyaga_amp[0]) > 0.0005 and float(tyaga_amp[1]) > float(tyaga_amp[0]) * 2.0 and float(tyaga_amp[2]) > 0.004 and float(tyaga_amp[1]) < 0.06 and float(tyaga_amp[2]) < 0.08, "корпус пылесоса живой: на холостом дрожит на %.1f мм, на ходу качается на %.1f мм, верхом — %.1f мм; не больше 8 см" % [float(tyaga_amp[0]) * 1000.0, float(tyaga_amp[1]) * 1000.0, float(tyaga_amp[2]) * 1000.0])
 		_side(P, 6.0, 1.4)})
 	# 13. madk1d на скейте: разгон, езда, поворот — замер тряски
 	scenes.append({"n": "13_madk_skate", "len": 230, "shake": {"езда на скейте": [70, 220]}, "setup": func():
