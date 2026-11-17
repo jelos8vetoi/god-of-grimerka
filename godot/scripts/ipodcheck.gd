@@ -959,6 +959,9 @@ func _run_polish() -> void:
 		key(k, false)
 	await head_shot("polish_run.png", 0.95, 420)
 	var sway_stop := 0.0
+	for i in 4:                      # сохранение снимка подвешивает кадр — провод догоняет его за один шаг: это не дрожь
+		await get_tree().process_frame
+	prev_off = pod.buds.dyn[1]["off"]
 	for i in 30:
 		await get_tree().process_frame
 		var o2: Vector3 = pod.buds.dyn[1]["off"]
@@ -1037,6 +1040,23 @@ func _run_polish() -> void:
 	ok(pod.buds.im.get_surface_count() <= 1, "геометрия провода пересобирается, а не копится (%d поверхн.)" % pod.buds.im.get_surface_count())
 
 # ---------------- меню паузы и режим наушников (--pause) ----------------
+## Короткий тестовый звук (8 с, тон 330 Гц) — чтобы проверке паузы было что импортировать и куда переключать трек
+func _write_test_wav(path: String) -> void:
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var rate := 22050
+	var n := rate * 8
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	for i in n:
+		var t := float(i) / rate
+		var env: float = clampf(t * 8.0, 0.0, 1.0) * clampf((8.0 - t) * 8.0, 0.0, 1.0)
+		data.encode_s16(i * 2, int(sin(t * TAU * 330.0) * env * 9000.0))
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.mix_rate = rate
+	w.data = data
+	w.save_to_wav(path)
+
 func bus_db(b: String) -> float:
 	return AudioServer.get_bus_volume_db(AudioServer.get_bus_index(b))
 
@@ -1051,11 +1071,16 @@ func _run_pause() -> void:
 		await tap(KEY_ENTER, 0.04)
 		n += 1
 	await wait(1.2)
+	# второй трек нужен для «Следующий» на странице «Музыка»: с одним встроенным переключать некуда.
+	# test.wav в папке проверки клали руками; нет его — пишем свой короткий звук
+	if not FileAccess.file_exists(out.path_join("test.wav")):
+		_write_test_wav(out.path_join("test.wav"))
 	for f in ["test.wav"]:
 		if FileAccess.file_exists(out.path_join(f)):
 			ipod._import_files(PackedStringArray([out.path_join(f)]))
+	ok(ipod.tracks.size() >= 2, "для проверки паузы в плеере не меньше двух треков (%d)" % ipod.tracks.size())
 	await wait(0.3)
-	ipod.repeat_mode = 2          # тестовый трек короткий: по кругу, чтобы музыка не кончилась посреди проверки
+	ipod.repeat_mode = ipod.RepeatMode.ONE      # тестовый трек короткий: один и тот же по кругу (ALL уводил на следующий — трек «сам переключался»)
 	ipod._select_track(0)
 	ipod.player.stop()
 	ipod.player.stream_paused = false
