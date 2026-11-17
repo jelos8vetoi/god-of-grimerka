@@ -65,6 +65,11 @@ var glint := false          # предупреждающая вспышка пе
 var stars: Node3D           # звёздочки над оглушённым
 var poise := 60.0           # равновесие: удары снимают его (HitInfo.stagger); кончилось — враг сбит (оглушён), даже в замахе
 var poise_max := 60.0
+var poise_base := -1.0       # равновесие до сломов: частые сломы его повышают (нет бесконечного оглушения)
+var break_n := 0
+var st_bar: Sprite3D         # полоска равновесия под полоской здоровья: видна, пока его снимают
+var st_img: Image
+var st_k := -1.0
 var poise_t := 9.0          # сколько секунд назад по равновесию били: через 2 с оно восстанавливается
 var slow_t := 0.0           # замедление (облит водой и т. п.), с
 ## Реакции на удары (этап 09): масса делит отбрасывание и снятое равновесие, броня гасит лёгкие удары,
@@ -149,6 +154,14 @@ func _ready() -> void:
 		hp_bar.no_depth_test = true
 		hp_bar.visible = false
 		add_child(hp_bar)
+		st_img = Image.create(64, 4, false, Image.FORMAT_RGBA8)
+		st_bar = Sprite3D.new()
+		st_bar.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		st_bar.pixel_size = 0.012
+		st_bar.position.y = height + 0.25
+		st_bar.no_depth_test = true
+		st_bar.visible = false
+		add_child(st_bar)
 	game.main.sfx("sfx_spawn", -10.0)
 	game.fx.dust(global_position + Vector3(0, 0.15, 0), 8, game.fx.DUST, 0.9)
 	game.fx.portal(global_position, 2.8 * height / 1.7, Color(1.0, 0.25, 0.2, 0.75), 1.0)
@@ -208,6 +221,19 @@ func _physics_process(dt: float) -> void:
 	poise_t += dt
 	if poise_t > 2.0:
 		poise = min(poise_max, poise + poise_max * 0.5 * dt)
+	if poise_t > 5.0 and break_n > 0 and boss_id == "":
+		break_n = 0                  # давно не сбивали: сопротивление спадает
+		poise_max = poise_base
+		poise = min(poise, poise_max)
+	if st_bar != null:
+		var show: bool = poise_t < 2.6 and poise < poise_max - 0.5 and state != "dead"
+		var k: float = clampf(poise / max(1.0, poise_max), 0.0, 1.0)
+		if show and abs(k - st_k) > 0.02:
+			st_k = k
+			st_img.fill(Color(0, 0, 0, 0.6))
+			st_img.fill_rect(Rect2i(1, 1, int(62 * k), 2), Color(1.0, 0.85, 0.3) if break_n == 0 else Color(1.0, 0.55, 0.25))
+			st_bar.texture = ImageTexture.create_from_image(st_img)
+		st_bar.visible = show
 	slow_t = max(0.0, slow_t - dt)
 	weak_t = max(0.0, weak_t - dt)
 	var p = game.player
@@ -825,7 +851,13 @@ func stagger(v: float) -> bool:
 	poise_t = 0.0
 	if poise > 0.0:
 		return false
+	if poise_base < 0.0:
+		poise_base = poise_max
+	if boss_id == "":
+		break_n += 1
+		poise_max = poise_base * (1.0 + 0.4 * break_n)      # каждый слом подряд — сбить труднее
 	poise = poise_max
+	st_k = -1.0
 	game.popup(global_position + Vector3(0, height + 0.5, 0), "СБИТ", Color(1.0, 0.75, 0.3))
 	game.fx.twinkle(global_position + Vector3(0, height * 0.9, 0), 6, Color(1.0, 0.85, 0.4), 0.8)
 	if boss_id != "":

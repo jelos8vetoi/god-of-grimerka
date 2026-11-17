@@ -27,7 +27,7 @@ const BOSS_CAP := 0.12
 const BOSS_CAP_OPEN := 0.18
 ## сколько даёт каждый источник
 const GAIN := {"attack": 1.6, "air": 2.0, "dodge": 6.0, "parry": 8.0, "swap": 7.0, "tag": 9.0, "assist": 6.0, "freeze": 5.0,
-	"perfect_freeze": 9.0, "trick": 5.0, "beat": 1.5, "execution": 10.0, "team_finisher": 6.0}
+	"perfect_freeze": 9.0, "trick": 5.0, "beat": 1.5, "execution": 10.0, "team_finisher": 6.0, "duo": 8.0, "duo_break": 4.0}
 ## приём стиля в постановке: клип героя, чем кончается и подпись
 const MOVES := {
 	"vozduh": {"title": "ГУЛ БАЛОНА", "clip": "Smash", "t": 0.6, "fx": "slam"},
@@ -139,6 +139,12 @@ func _poll() -> void:
 		seen["tag"] = int(seen["tag"]) + 1
 		if ev4[0] in ["cross", "air"]:
 			gain("assist")
+		elif ev4[0] == "duo_end":
+			gain("duo")
+		elif ev4[0] == "duo_break":
+			gain("duo_break")
+		elif ev4[0] == "duo_finisher":
+			gain("team_finisher")
 		elif ev4[0] == "finisher":
 			gain("team_finisher")
 	# журналы чистят проверки — не отстать от них
