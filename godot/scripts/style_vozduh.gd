@@ -80,8 +80,15 @@ static func build() -> StyleData:
 		"knockback": 1.0, "launch": 7.5, "heavy": true, "power": 2, "slam": 0.6, "combo_from": 0.8, "trail_boost": 1.5}))
 	s.add(AttackData.make({"id": "vz_heat_swing", "kind": "heat", "clip": "FullSwing", "duration": 0.85, "hits": [0.34], "damage": 90.0, "stagger": 80.0, "reach": 3.4, "arc": 3.0,
 		"knockback": 20.0, "launch": 7.0, "heavy": true, "power": 2, "step": [0.14, 0.4, 6.0], "trail_boost": 1.5}))
+	# ---- в прыжке (этап 0: свои начала цепочки; собственные клипы — этап 1) ----
+	s.add(AttackData.make({"id": "vz_air_light", "kind": "light", "title": "С ЛЁТА", "clip": "Light1", "duration": 0.6, "hits": [0.52], "damage": 24.0, "stagger": 14.0, "reach": 2.7, "arc": 2.6,
+		"knockback": 3.0, "launch": 4.0, "from": 0.2, "combo_from": 0.66, "extra": {"hop": 4.0}}))
+	s.add(AttackData.make({"id": "vz_air_slam", "kind": "slam", "title": "СВЕРХУ", "clip": "AirAttack", "duration": 0.7, "hits": [0.6], "damage": 40.0, "stagger": 40.0, "reach": 3.0, "arc": 2.4,
+		"knockback": 4.0, "launch": -18.0, "heavy": true, "power": 1, "slam": 0.64, "trail_boost": 1.25, "feedback": "vz_slam", "extra": {"hop": 2.5}}))
 	s.links = {
 		"": {"light": "vz_light1", "heavy": "vz_overhead", "throw": "vz_bottle"},
+		"air": {"light": "vz_air_light", "heavy": "vz_air_slam"},
+		"vz_air_light": {"light": "vz_air_slam", "heavy": "vz_air_slam"},
 		"vz_light1": {"light": "vz_light2", "heavy": "vz_nail", "throw": "vz_bottle"},
 		"vz_light2": {"light": "vz_upper", "heavy": "vz_fullswing", "throw": "vz_bottle"},
 		"vz_upper": {"light": "vz_slam", "heavy": "vz_spin", "throw": "vz_bottle"},      # подбросил → бутылка по цели в воздухе

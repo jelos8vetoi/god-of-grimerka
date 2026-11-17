@@ -47,7 +47,7 @@ func add(a: AttackData) -> void:
 func problems() -> Array:
 	var out := []
 	for f in links:
-		if f != "" and not attacks.has(f):
+		if f != "" and f != "air" and not attacks.has(f):      # "" — начало с земли, "air" — начало в прыжке
 			out.append("граф: нет атаки %s" % f)
 		for inp in links[f]:
 			if not attacks.has(links[f][inp]):

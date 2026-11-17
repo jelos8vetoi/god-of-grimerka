@@ -39,7 +39,8 @@ var flash_mat: StandardMaterial3D
 const ROLES := {
 	"idle": ["Idle"], "combat_idle": ["CombatIdle", "Idle"], "walk": ["Walk", "Run"], "run": ["Run"], "sprint": ["Sprint", "Run"],
 	"dodge": ["Dodge", "Tuck"], "roll": ["Tuck", "Dodge"], "perfect_dodge": ["PerfectDodge", "Dodge"],
-	"block": ["Block"], "parry": ["Parry", "Block"],
+	"block": ["Block"], "parry": ["Parry", "Block"], "block_hit": ["BlockHit", "Block"], "block_heavy": ["BlockHeavy", "BlockHit", "Block"],
+	"dodge_l": ["DodgeL", "Dodge", "Tuck"], "dodge_r": ["DodgeR", "Dodge", "Tuck"], "dodge_b": ["DodgeB", "Dodge", "Tuck"], "idle_var": ["IdleVar"],
 	"light": ["Light1", "Light"], "heavy": ["Heavy"], "launcher": ["Launcher", "Upper"], "air_attack": ["AirAttack", "Heavy"], "landing": ["Landing"],
 	"stagger": ["Stagger", "Hit"], "hit": ["Hit"], "knockback": ["Knockback", "Stagger", "Hit"], "knockdown": ["Knockdown", "Death"], "recovery": ["Recovery", "GetUp"],
 	"finisher": ["Finisher", "Smash", "Heavy"], "equip": ["Equip"], "unequip": ["Unequip"], "tag_in": ["TagIn"], "tag_out": ["TagOut"], "death": ["Death"],
