@@ -87,6 +87,33 @@ func tg_point(pt: Vector3) -> Vector3:
 func bone_pos(key: String) -> Vector3:
 	return (P.rig.skel.global_transform * P.rig.skel.get_bone_global_pose(P.rig.bone[key])).origin
 
+## событие скейтборда
+func sk_event(name: String, max_frames := 240) -> bool:
+	var n := 0
+	while n < max_frames:
+		for ev in P.skate.events:
+			if ev[0] == name:
+				return true
+		await get_tree().physics_frame
+		n += 1
+	return false
+
+## сцена за madk1d: смена героя и ожидание
+func as_madk(kinds: Array, dist := 2.2) -> Array:
+	var list: Array = await stage(kinds, dist)
+	var at: Vector3 = P.global_position
+	game.swap_heroes()
+	P.global_position = at
+	P.face = PI
+	game.buddy.global_position = Vector3(-7, 0.05, 9)
+	game.buddy.target = game.buddy.global_position
+	game.buddy.wait = 999.0
+	await frames(36)
+	log_started = []
+	log_hits = []
+	P.skate.events = []
+	return list
+
 func stage(kinds: Array, dist := 2.2) -> Array:
 	game.ch = 0
 	game._load_chapter(false)
@@ -105,6 +132,12 @@ func stage(kinds: Array, dist := 2.2) -> Array:
 	P.face = PI
 	P.velocity = Vector3.ZERO
 	P.combat.interrupt()
+	P.skate.off()
+	P.skate.charges = 0
+	P.skate.events = []
+	if P.hero != "pahan":
+		P.set_hero("pahan")
+		game.buddy.set_look("madk1d")
 	if P.style.id != "vozduh" or P.switch_to != "":
 		P.switch_to = "vozduh"
 		P._finish_switch()
@@ -1248,6 +1281,231 @@ func _run() -> void:
 	cam_off = Vector3(4.6, 2.2, 1.6)
 	cam_at = Vector3(0, 0.9, -1.2)
 	await stage([])
+
+
+	# ================= madk1d: смена героя и стиль «Скейтборд» =================
+	var sb := Styles.by_id("skateboard")
+	ok(sb.ready and sb.problems().is_empty(), "стиль skateboard готов: атак %d, трюков %d" % [sb.attacks.size(), StyleSkateboard.TRICKS.size()])
+	# ---------- смена героя ----------
+	es = await stage([])
+	var p_at: Vector3 = P.global_position
+	var b_at: Vector3 = game.buddy.global_position
+	await tap("tag")
+	await frames(2)
+	var swapped: bool = P.global_position.distance_to(b_at) < 1.0 and game.buddy.global_position.distance_to(P.global_position) < 9.0
+	await frames(40)
+	ok(P.hero == "madk1d" and game.buddy.look == "pahan" and swapped, "Tab: игрок управляет madk1d с места, где тот стоял; Пахан стал напарником и остался рядом")
+	ok(P.style.id == "skateboard" and P.rig == P.heroes["madk1d"]["rig"] and P.rig.visible and not P.heroes["pahan"]["rig"].visible and P.m_weapons["skateboard"]["att"].visible, "у madk1d стиль «Скейтборд», доска в руке; риг Пахана у игрока скрыт")
+	ok(game.hero_label.text == "MADK1D" and game.style_label.text.begins_with("[1] Скейтборд"), "HUD: %s · %s" % [game.hero_label.text, game.style_label.text])
+	await shot("30_madk_hero.png")
+	await tap("tag")
+	await frames(40)
+	ok(P.hero == "pahan" and game.buddy.look == "madk1d" and P.style.id == "vozduh" and not P.rig.holstered, "Tab ещё раз: снова Пахан с балоном, madk1d — напарник")
+	# ---------- удары доской на ногах ----------
+	for kind in ["bot", "clipper", "hater"]:
+		es = await as_madk([kind])
+		var hp_k: float = es[0].hp
+		await tap("attack")
+		await until_free()
+		ok(abs((hp_k - es[0].hp) - 14.0) < 0.01, "%s: удар доской — %.0f урона" % [kind, hp_k - es[0].hp])
+	es = await as_madk(["bot"])
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	await chain(["attack", "attack", "attack"])
+	await frames(6)
+	await shot("31_board_spin_strike.png")
+	await until_free(300)
+	var ch1: Array = log_started.duplicate()
+	es = await as_madk(["bot"])
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	await chain(["attack", "heavy"])
+	await frames(24)
+	var launched: bool = es[0].state == "air"
+	await until_free(300)
+	var ch2: Array = log_started.duplicate()
+	es = await as_madk(["bot"])
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	await chain(["attack", "attack", "heavy"])
+	await until_free(300)
+	ok(ch1 == ["sk_swing1", "sk_swing2", "sk_spin"] and ch2 == ["sk_swing1", "sk_launch"] and launched and log_started == ["sk_swing1", "sk_swing2", "sk_sweep"], "цепочки: %s; подброс %s (враг в воздухе); подсечка %s" % [str(ch1), str(ch2), str(log_started)])
+	ok(sb.attack("sk_swing1").duration < vz.attack("vz_light1").duration * 0.65 and sb.attack("sk_swing1").damage < vz.attack("vz_light1").damage, "madk1d быстрее и легче Пахана: удар %.2f с и %.0f урона против %.2f с и %.0f" % [sb.attack("sk_swing1").duration, sb.attack("sk_swing1").damage, vz.attack("vz_light1").duration, vz.attack("vz_light1").damage])
+	# ---------- на доску, разгон, сход ----------
+	cam_off = Vector3(4.2, 1.8, 0.4)
+	cam_at = Vector3(0, 0.7, 0.0)
+	es = await as_madk([])
+	P.global_position = Vector3(0, 0.05, 10.0)
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	await frames(50)
+	var on_board: bool = P.state == "skate" and P.skate.board.visible and not P.m_weapons["skateboard"]["att"].visible
+	var feet_y: float = bone_pos("rfoot").y - P.global_position.y
+	await shot("32_skate_ride.png")
+	ok(on_board and P.skate.speed > 9.0, "Ctrl на бегу: madk1d на доске (доска под ногами, в руке её нет), скорость %.1f м/с" % P.skate.speed)
+	ok(feet_y > 0.08 and feet_y < 0.3, "стопы стоят на деке (голеностоп на %.2f м над землёй)" % feet_y)
+	P.auto_input = {"move": Vector2(0, 1)}
+	await frames(6)
+	ok(P.state == "move" and not P.skate.board.visible and P.m_weapons["skateboard"]["att"].visible, "отпустил Ctrl: сошёл, доска снова в руке")
+	# ---------- олли и трюки ----------
+	var tricks := {"kickflip": Vector2(0, 1), "heelflip": Vector2(-1, 0), "shoveit": Vector2(1, 0)}
+	for tname in tricks:
+		es = await as_madk([])
+		P.global_position = Vector3(0, 0.05, 10.0)
+		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+		await frames(40)
+		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "press"}
+		await get_tree().physics_frame
+		P.auto_input = {"move": tricks[tname], "sprint": "hold"}
+		await frames(5)
+		P.auto_input = {"move": tricks[tname] if tname != "kickflip" else Vector2.ZERO, "sprint": "hold", "throw": "press"}
+		await get_tree().physics_frame
+		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+		if tname == "kickflip":
+			await frames(8)
+			await shot("33_kickflip.png")
+		var landed_ok: bool = await sk_event("land", 90)
+		var got := ""
+		var bailed := false
+		for ev in P.skate.events:
+			if ev[0] == "trick":
+				got = ev[1]
+			if ev[0] == "bail":
+				bailed = true
+		ok(got == tname and landed_ok and not bailed and P.skate.charges == 1, "%s: трюк докручен, приземление чистое, заряд %d" % [tname, P.skate.charges])
+	# 360 flip дольше и даёт два заряда; поздний трюк — падение
+	es = await as_madk([])
+	P.global_position = Vector3(0, 0.05, 10.0)
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	await frames(40)
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {"move": Vector2(0, -1), "sprint": "hold", "throw": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	await sk_event("land", 90)
+	ok(P.skate.charges == 2, "360 flip сразу после олли: успел, два заряда (%d)" % P.skate.charges)
+	es = await as_madk([])
+	P.global_position = Vector3(0, 0.05, 10.0)
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	await frames(40)
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	await frames(22)                                  # трюк начат слишком поздно
+	P.auto_input = {"move": Vector2(0, -1), "sprint": "hold", "throw": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {}
+	var fell: bool = await sk_event("bail", 90)
+	await frames(6)
+	await shot("34_bail.png")
+	var down_state: String = P.state
+	await frames(70)
+	ok(fell and P.skate.charges == 0 and down_state == "skate" and P.state == "move", "поздний 360 flip: упал, заряды сгорели, 0,85 с без управления, потом встал")
+	# ---------- трюк → удар в воздухе; пикирование → удар с приземления ----------
+	for kind in ["bot", "clipper", "hater"]:
+		es = await as_madk([kind], 9.0)
+		P.global_position = Vector3(0, 0.05, 10.0)
+		es[0].global_position = Vector3(0, 0.05, 3.2)
+		es[0].hp = 9999.0
+		es[0].max_hp = 9999.0
+		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+		while P.global_position.z > 7.4:
+			await get_tree().physics_frame
+		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "press"}
+		await get_tree().physics_frame
+		P.auto_input = {"sprint": "hold", "throw": "press"}
+		await get_tree().physics_frame
+		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+		await sk_event("trick", 60)
+		var hp_air: float = es[0].hp
+		var vy0: float = P.velocity.y
+		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "attack": "press"}
+		await get_tree().physics_frame
+		P.auto_input = {"sprint": "hold"}
+		await frames(2)
+		if kind == "bot":
+			await shot("35_air_attack.png")
+		var dmg_air: float = hp_air - es[0].hp
+		ok(abs(dmg_air - 20.0) < 0.01 and P.velocity.y > vy0, "%s: kickflip → удар в воздухе с зарядом: %.0f урона (16 × 1,25), героя подвесило" % [kind, dmg_air])
+		await sk_event("land", 90)
+	es = await as_madk(["bot", "clipper"], 9.0)
+	P.global_position = Vector3(0, 0.05, 10.0)
+	es[0].global_position = Vector3(1.0, 0.05, 4.4)
+	es[1].global_position = Vector3(-1.0, 0.05, 4.4)
+	var hp_l := [es[0].hp, es[1].hp]
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	while P.global_position.z > 7.6:
+		await get_tree().physics_frame
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	await frames(12)
+	P.auto_input = {"sprint": "hold", "heavy": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {"sprint": "hold"}
+	await sk_event("land", 90)
+	await frames(3)
+	await shot("36_landing_attack.png")
+	ok(abs((hp_l[0] - es[0].hp) - 22.0) < 0.01 and abs((hp_l[1] - es[1].hp) - 22.0) < 0.01, "прыжок → ПКМ: пикирование и удар с приземления — оба врага получили по 22")
+	# ---------- слайд → подсечка, удар с разгона, Board Spin ----------
+	es = await as_madk(["bot"], 9.0)
+	P.global_position = Vector3(0, 0.05, 10.0)
+	es[0].global_position = Vector3(0.5, 0.05, 4.0)
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	while P.global_position.z > 6.6:
+		await get_tree().physics_frame
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "block": "hold"}
+	var slid: bool = await sk_event("slide_hit", 90)
+	await shot("37_slide.png")
+	await get_tree().physics_frame          # снова в такт физике: иначе нажатие не успеет обработаться
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "block": "hold", "attack": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {}
+	await frames(3)
+	ok(slid and log_started.has("sk_sweep"), "слайд сбил врага, ЛКМ из слайда — подсечка (%s; состояние %s, на доске %s, скорость %.1f)" % [str(log_started), P.state, P.skate.on, P.skate.speed])
+	await until_free(300)
+	es = await as_madk(["bot"], 9.0)
+	P.global_position = Vector3(0, 0.05, 10.0)
+	es[0].global_position = Vector3(0, 0.05, 4.0)
+	es[0].hp = 9999.0
+	es[0].max_hp = 9999.0
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	while P.global_position.z > 7.0:
+		await get_tree().physics_frame
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "attack": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {}
+	await frames(3)
+	ok(log_started == ["sk_dash"] and P.state == "attack" and not P.skate.on, "ЛКМ на доске: сход в удар с разгона (%s)" % str(log_started))
+	await until_free(300)
+	es = await as_madk(["bot", "clipper"], 9.0)
+	P.global_position = Vector3(0, 0.05, 10.0)
+	es[0].global_position = Vector3(1.2, 0.05, 5.0)
+	es[1].global_position = Vector3(-1.2, 0.05, 5.0)
+	var hp_s2 := [es[0].hp, es[1].hp]
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	while P.global_position.z > 5.6:
+		await get_tree().physics_frame
+	P.auto_input = {"sprint": "hold", "heavy": "press"}
+	await get_tree().physics_frame
+	P.auto_input = {"sprint": "hold"}
+	var spun2: bool = await sk_event("trick", 60)
+	ok(spun2 and hp_s2[0] - es[0].hp >= 18.0 - 0.01 and hp_s2[1] - es[1].hp >= 18.0 - 0.01, "ПКМ на доске — Board Spin: оборот на месте бьёт вокруг (по %.0f и %.0f)" % [hp_s2[0] - es[0].hp, hp_s2[1] - es[1].hp])
+	# удар по герою сбивает с доски
+	P.inv = 0.0
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
+	await frames(20)
+	P.take_damage(5.0, P.global_position + Vector3(0, 0, -2))
+	await frames(3)
+	ok(not P.skate.on and not P.skate.board.visible, "удар по герою сбивает с доски")
+	P.auto_input = {}
+	P.inv = 9999.0
+	cam_off = Vector3(4.6, 2.2, 1.6)
+	cam_at = Vector3(0, 0.9, -1.2)
+	await stage([])
+	ok(P.hero == "pahan" and game.buddy.look == "madk1d", "после проверок снова Пахан")
 
 	print("COMBAT итог: ошибок %d" % fails)
 	get_tree().quit()

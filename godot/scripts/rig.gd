@@ -318,6 +318,10 @@ func _make_fists() -> void:
 				if b >= 0:
 					c += hr.inverse() * (G3[1][b] - hp)
 					cnt += 1
+		# у моделей без нормальных пальцев ось костяшек вырождается — берём поперёк кисти
+		if k.length() < 0.001 or fv.length() < 0.001 or abs(k.normalized().dot(fv.normalized())) > 0.99:
+			fv = (hr.inverse() * (G3[1][m1] - hp)).normalized()
+			k = fv.cross(Vector3.UP if abs(fv.y) < 0.9 else Vector3.RIGHT).normalized()
 		hand["r" if side == "Right" else "l"] = {"k": k.normalized(), "f": fv, "grip": c / max(1, cnt)}
 
 # ---------- позы ----------
@@ -729,7 +733,10 @@ func attach(weapon_path: String, side: String, opt: Dictionary) -> Node3D:
 	var L: float = abs(to_v - from_v)
 	var inner := Node3D.new()
 	inner.add_child(w)
-	if axis == "z":
+	if axis == "x":
+		inner.rotation.z = PI / 2 if to_v > from_v else -PI / 2
+		w.position.x = -from_v
+	elif axis == "z":
 		inner.rotation.x = -PI / 2 if to_v > from_v else PI / 2
 		w.position.z = -from_v
 	else:

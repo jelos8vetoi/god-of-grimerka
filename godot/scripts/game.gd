@@ -121,6 +121,7 @@ var auto_len := 45.0
 var shots_done := {}
 var fps_samples: Array = []
 var director = null
+var hero_label: Label         # имя героя, которым сейчас управляет игрок
 var style_label: Label        # текущий боевой стиль и запас (бутылки)
 var ipod
 var bot_acc := 0.0
@@ -770,6 +771,32 @@ func punch(k: float, pos: Vector3) -> void:
 func impact(tier: int, pos: Vector3, mul := 1.0) -> void:
 	feedback(["hit_light", "hit_heavy", "hit_super"][clampi(tier, 0, 2)], pos, Vector3.ZERO, mul)
 
+## Смена героя (Tab): игрок берёт под управление напарника, прежний герой становится напарником.
+## Герои меняются местами — управление переходит к тому, кто стоял рядом.
+func swap_heroes() -> bool:
+	if paused_story() or over or player.state == "dead":
+		return false
+	var a: Vector3 = player.global_position
+	var b: Vector3 = buddy.global_position
+	var fa: float = player.face
+	var fb: float = buddy.face
+	var next := "madk1d" if player.hero == "pahan" else "pahan"
+	buddy.set_look(player.hero)
+	player.set_hero(next)
+	player.global_position = b
+	player.face = fb
+	player.velocity = Vector3.ZERO
+	buddy.global_position = a
+	buddy.face = fa
+	buddy.target = a
+	buddy.wait = 1.2
+	buddy.velocity = Vector3.ZERO
+	feedback("tag", b, Vector3.ZERO, 1.0, Color(0.36, 0.82, 1.0) if next == "madk1d" else Color(1.0, 0.8, 0.42))
+	fx.ground_ring(a, 0.4, 2.0, Color(1, 1, 1, 0.4), 0.3)
+	player.anim.action("tag_in", 0.45, 0.25)
+	banner("MADK1D" if next == "madk1d" else "ПАХАН", "в бою", Color(0.36, 0.82, 1.0) if next == "madk1d" else Color(1.0, 0.8, 0.42))
+	return true
+
 ## Отклик боя по имени события: таблица каналов — в feedback.gd.
 func feedback(name: String, pos: Vector3, dir := Vector3.ZERO, mul := 1.0, col := Color(1.0, 0.82, 0.45)) -> void:
 	Feedback.fire(self, name, pos, dir, mul, col)
@@ -1215,6 +1242,7 @@ func _build_hud() -> void:
 	hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(hud_root)
 	var name_l := _lbl("ПАХАН", 26)
+	hero_label = name_l
 	name_l.position = Vector2(40, vs.y - 150)
 	hud_root.add_child(name_l)
 	var bars := Control.new()
@@ -1469,6 +1497,7 @@ func _update_hud(dt: float) -> void:
 	swag_label.text = "ПЕРЕГРУЗ!" if player.rage > 0.0 else ("СВЭГ ПОЛОН — [R]" if full else ("СВЭГ · [E] Heat" if player.swag >= 40.0 else "СВЭГ"))
 	q_label.text = "[Q] madk1d: ад-либ готов" if buddy.cd <= 0.0 else "[Q] madk1d: %.0f с" % buddy.cd
 	style_label.text = player.style_hud()
+	hero_label.text = "ПАХАН" if player.hero == "pahan" else "MADK1D"
 	var alive := enemies.filter(func(e): return is_instance_valid(e) and e.state != "dead").size()
 	var obj := ""
 	if mode == "fight":

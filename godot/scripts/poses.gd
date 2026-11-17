@@ -137,7 +137,7 @@ static func madk1d() -> Dictionary:
 	for i in 9:
 		var o := {"head": {"x": 0.2}, "neck": {"x": 0.08}, "spine": {"x": 0.05}, "rfa": {"x": -0.5}, "lfa": {"x": -0.5}, "rup": {"x": -0.07}, "lup": {"x": -0.07}, "rleg": {"x": 0.14}, "lleg": {"x": 0.14}} if i % 2 == 1 else {"head": {"x": -0.05}, "spine": {"y": 0.06 if i % 4 != 0 else -0.06}, "rfa": {"x": -0.38}, "lfa": {"x": -0.38}}
 		idle.append([i / 8.0, mk(o)])
-	return {
+	var A: Dictionary = {
 		"Idle": {"d": 2.4, "loop": true, "k": idle},
 		"Run": {"d": 0.52, "loop": true, "smooth": true, "ground": true, "k": run_keys(Callable(Poses, "mk"))},
 		"Cheer": {"d": 1.3, "k": [[0.0, mk({})], [0.14, mk({"spine": {"x": -0.22}, "rarm": {"x": 0.5}, "larm": {"x": 0.5}, "rfa": {"x": -1.2}, "lfa": {"x": -1.2}, "rleg": {"x": 0.3}, "lleg": {"x": 0.3}, "rup": {"x": -0.15}, "lup": {"x": -0.15}})],
@@ -146,6 +146,8 @@ static func madk1d() -> Dictionary:
 			[0.66, mk({"spine": {"x": 0.28}, "head": {"x": -0.25}, "rarm": {"x": -2.1}, "larm": {"x": -2.1}, "rfa": {"x": -0.15}, "lfa": {"x": -0.15}})],
 			[0.85, mk({"spine": {"x": 0.1}, "rarm": {"x": -1.2}, "larm": {"x": -1.2}, "rfa": {"x": -0.8}, "lfa": {"x": -0.8}})], [1.0, mk({})]]},
 	}.merged(MadkClips.combat()).merged(MadkMoves.all())
+	MadkWeaponClips.add_to(A)
+	return A
 
 ## Поза «лежит на спине» — общая для падения и подъёма.
 static func _down(base: Callable) -> Dictionary:
