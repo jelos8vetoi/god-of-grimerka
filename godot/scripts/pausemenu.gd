@@ -535,12 +535,26 @@ func _open_page(i: int) -> void:
 			var acts: Array = [["ВЕРНУТЬСЯ В ИГРУ", close]]
 			for r in Opts.rows(get_window(), game.main.audio, game.ipod):
 				acts.append([r[0]] if r.size() == 1 else [r[0], null, r[1]])
+			acts.append(["#ОБУЧЕНИЕ"])
+			acts.append([func(): return "БОЕВЫЕ ПОДСКАЗКИ (%d)" % game.tutorial.seen_list().size(), func(): _tutorial_list()])
 			acts.append(["#УПРАВЛЕНИЕ"])
-			acts.append(["#WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — добивание · E — Heat · Пробел — прыжок · Shift — уклонение · C — блок · Tab — смена героя · T — помощь напарника · G — Team Overdrive · Q — ад-либ · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"])
+			acts.append(["#WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — тяжёлый удар (держать — заряд) · 1/2/3 — стиль · F — приём стиля · E — Heat и добивание · Пробел — прыжок · Shift — уклонение · C — блок · Tab — смена героя · T — дуэт-атака · G — Team Overdrive · Q — ад-либ · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"])
 			acts.append(["#ИГРА"])
 			acts.append(["В ГЛАВНОЕ МЕНЮ", func(): _confirm_menu()])
 			acts.append(["НАЗАД", _close_card])
 			_rows(acts)
+
+## Список увиденных карточек боевого обучения: пункт открывает карточку поверх паузы (закрытие паузу не снимает)
+func _tutorial_list() -> void:
+	var top := _card("ПОДСКАЗКИ")
+	var ids: Array = game.tutorial.seen_list()
+	_line(top, func(): return "Карточки, которые уже показывались в бою. Новые появятся по ходу боя." if not ids.is_empty() else "Пока ни одной: подсказки появятся в первом бою.", 17, SILVER)
+	var acts: Array = []
+	for id in ids:
+		var cid: String = String(id)
+		acts.append([game.tutorial.title_of(cid), func(): game.tutorial.show_card(cid, true)])
+	acts.append(["НАЗАД", func(): _open_page(5)])
+	_rows(acts)
 
 ## Подтверждение выхода в главное меню: прогресс сохранён на начало текущего шага.
 func _confirm_menu() -> void:
