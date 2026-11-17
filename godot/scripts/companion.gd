@@ -23,6 +23,19 @@ var dodge_cd := 0.0
 var stuck_t := 0.0
 var ko := false              # выбыл: лежит, пока не вернётся (tagteam.revive)
 var events: Array = []       # для проверок: ["hit", тип врага], ["dodge", 0]
+# дуэт-атака (duo.gd): напарник рывком к цели и бьёт своим выбранным стилем
+var duo_on := false
+var duo_from := Vector3.ZERO
+var duo_to := Vector3.ZERO
+var duo_at := Vector3.ZERO
+var duo_t := 0.0
+var duo_len := 0.2
+var duo_air := false
+var duo_act_t := 0.0
+var duo_style := ""
+var duo_e = null             # цель дуэта: напарник ведёт её, пока бежит и бьёт
+var duo_off := Vector3.ZERO  # где встать относительно цели
+var gear := {}               # оружие напарника по стилям: id стиля → узел (видно только в дуэте)
 const CLIPS := {"madk1d": {"hit": ["RoundKick", 0.45], "heavy": ["SpinKick", 0.5], "air": ["AirKick", 0.34]}, "pahan": {"hit": ["Light1", 0.6], "heavy": ["FullSwing", 0.7], "air": ["Upper", 0.6]}}
 
 func _ready() -> void:
@@ -47,6 +60,17 @@ func _ready() -> void:
 	feet.exclude = [get_rid()]
 	rig.skel.add_child(feet)
 	looks["madk1d"] = {"rig": rig, "anim": anim, "feet": feet}
+	# оружие madk1d-напарника: доска и гитара в руках — достаются на дуэт-атаку
+	for sid in ["skateboard", "guitar"]:
+		var sd: StyleData = Styles.by_id(sid)
+		if sd.ready and not sd.weapon.is_empty():
+			var att: Node3D = rig.attach(sd.weapon["path"], sd.weapon["side"], sd.weapon["opt"])
+			if sid == "skateboard":
+				var bm := WeaponBones._mesh(rig.weapon.get_child(0).get_child(0).get_child(0))
+				if bm != null:
+					Skate.fix_mesh(bm)      # у модели доски лишние колёса со стороны шкурки
+			att.visible = false
+			gear[sid] = att
 	track = AudioStreamPlayer.new()
 	track.stream = load("res://assets/audio/adlib_dynasty.wav")
 	track.volume_db = -2.0
@@ -67,6 +91,9 @@ func _physics_process(dt: float) -> void:
 		velocity = Vector3(0, velocity.y - 20.0 * dt, 0)
 		move_and_slide()
 		body.rotation.y = face
+		return
+	if duo_on:
+		_duo_tick(dt, p)
 		return
 	dodge_cd = max(0.0, dodge_cd - dt)
 	_team_ai(dt)
@@ -224,7 +251,15 @@ func set_look(id: String) -> void:
 		var defs := Poses.pahan_armed()
 		r.setup("res://assets/models/pahan.glb", 1.85, defs, true, -1.0)
 		var sv: StyleData = Styles.by_id("vozduh")
-		r.attach(sv.weapon["path"], sv.weapon["side"], sv.weapon["opt"])
+		gear["vozduh"] = r.attach(sv.weapon["path"], sv.weapon["side"], sv.weapon["opt"])
+		# пылесос Пахана-напарника: стоит у ног на время дуэт-атаки
+		var tg: Node3D = (load(Tyaga.MODEL) as PackedScene).instantiate()
+		tg.rotation.y = PI * 0.5
+		tg.scale = Vector3.ONE * TyagaClips.K
+		tg.position = TyagaClips.V_HOLD
+		tg.visible = false
+		body.add_child(tg)
+		gear["tyaga812"] = tg
 		var f := FootIK.new()
 		f.setup(r)
 		f.exclude = [get_rid()]
@@ -238,6 +273,107 @@ func set_look(id: String) -> void:
 	rig.visible = true
 	rig.play("Idle", 0.0)
 	say_t = 0.0
+
+# ---------------- дуэт-атака ----------------
+## начать: рывок в точку spot (короткий, по земле; к цели в воздухе — прыжком), лицом к цели at
+func duo_start(style_id: String, spot: Vector3, en, in_air: bool) -> void:
+	var at: Vector3 = en.global_position
+	duo_on = true
+	duo_e = en
+	duo_off = Vector3(spot.x - at.x, 0, spot.z - at.z)
+	duo_style = style_id
+	duo_from = global_position
+	duo_to = spot
+	duo_at = at
+	duo_air = in_air
+	duo_t = 0.0
+	duo_act_t = 0.0
+	duo_len = clampf(duo_from.distance_to(spot) / 16.0, 0.12, 0.4)
+	foe = null
+	say_t = 0.0
+	_face_to(at)
+	for k in gear:
+		var on: bool = k == style_id
+		if gear[k] is Node3D:
+			(gear[k] as Node3D).visible = on if k != "vozduh" else (on or look == "pahan" and style_id not in ["bottles", "tyaga812"])
+	rig.play("Sprint" if not in_air else "Jump", 0.06)
+	game.fx.dust(global_position + Vector3(0, 0.1, 0), 5, game.fx.DUST, 0.6)
+
+func duo_ready() -> bool:
+	return duo_on and duo_t >= duo_len
+
+func duo_acting() -> bool:
+	return duo_act_t > 0.0
+
+func duo_act(clip: String, len: float) -> void:
+	if not duo_on:
+		return
+	_face_to(duo_at if game.player == null else duo_at)
+	rig.play_for(clip, len, 0.05)
+	duo_act_t = len
+
+## отпустить: напарник снова свой (обычное поведение), оружие убирается
+func duo_release() -> void:
+	if not duo_on:
+		return
+	duo_on = false
+	duo_act_t = 0.0
+	duo_e = null
+	for k in gear:
+		if k != "vozduh" and gear[k] is Node3D:
+			(gear[k] as Node3D).visible = false
+	if gear.has("vozduh"):
+		(gear["vozduh"] as Node3D).visible = true
+	wait = 0.8
+	target = global_position
+	foe = null
+
+func _face_to(at: Vector3) -> void:
+	var d: Vector3 = at - global_position
+	d.y = 0
+	if d.length() > 0.05:
+		face = atan2(d.x, d.z)
+
+func _duo_tick(dt: float, p) -> void:
+	# цель движется (идёт к герою, отлетает) — напарник её ведёт
+	if duo_e != null and is_instance_valid(duo_e) and duo_e.alive():
+		duo_at = duo_e.global_position
+		duo_to = Vector3(duo_at.x + duo_off.x, global_position.y, duo_at.z + duo_off.z)
+		_face_to(duo_at)
+	if duo_t < duo_len:
+		duo_t += dt
+		var left: float = max(duo_len - duo_t, dt)
+		var v: Vector3 = (duo_to - global_position) / left
+		v.y = 0
+		v = v.limit_length(18.0)
+		velocity.x = v.x
+		velocity.z = v.z
+		if duo_air:
+			velocity.y = max(velocity.y, 0.0) if duo_t > dt else 7.5      # прыжок к цели в воздухе
+		else:
+			velocity.y -= 20.0 * dt
+		if duo_t >= duo_len:
+			velocity.x = 0.0
+			velocity.z = 0.0
+	else:
+		# бьёт: держится вплотную к цели (если её отнесло — шагает следом)
+		var gap: Vector3 = duo_to - global_position
+		gap.y = 0
+		if gap.length() > 0.35:
+			var sv: Vector3 = gap.normalized() * min(gap.length() / dt, 7.0)
+			velocity.x = sv.x
+			velocity.z = sv.z
+		else:
+			velocity.x = move_toward(velocity.x, 0.0, 30.0 * dt)
+			velocity.z = move_toward(velocity.z, 0.0, 30.0 * dt)
+		# в воздухе бьёт, зависнув на миг, потом падает
+		velocity.y = 0.0 if duo_air and duo_act_t > 0.0 else velocity.y - 20.0 * dt
+	if duo_act_t > 0.0:
+		duo_act_t -= dt
+	move_and_slide()
+	body.rotation.y = face
+	feet.weight = 0.0
+	var _unused = p
 
 ## Root motion и вращение клипа (рывок, прыжковая атака, вертушка, мельница): смещение за кадр — в скорость тела.
 ## true, если клип сам ведёт и высоту (воздушные приёмы) — тогда гравитацию в этот кадр не применяем.

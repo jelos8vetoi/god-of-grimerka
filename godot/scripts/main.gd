@@ -40,6 +40,7 @@ var basecheck := ""       # --basecheck=<папка>: основа боевых 
 var bottlecheck := ""     # --bottlecheck=<папка>: стиль «Водяра» (scripts/bottlecheck.gd)
 var tyagacheck := ""      # --tyagacheck=<папка>: стиль «ТЯГА-812» (scripts/tyagacheck.gd)
 var madkcheck := ""       # --madkcheck=<папка>: оружие madk1d — доска за спиной, гитара в двух руках (scripts/madkcheck.gd)
+var duocheck := ""        # --duocheck=<папка>: дуэт-атака на [T] (scripts/duocheck.gd)
 var combatcheck := ""     # --combatcheck=<папка>: ядро боя в игре (scripts/combatcheck.gd)
 var animlab := ""          # --animlab=<папка>: анимации в игре — сцены, листы кадров, замеры стоп (scripts/animlab.gd)
 var start_ch := -1
@@ -97,6 +98,8 @@ func _ready() -> void:
 			tyagacheck = arg.substr(13)
 		elif arg.begins_with("--madkcheck="):
 			madkcheck = arg.substr(12)
+		elif arg.begins_with("--duocheck="):
+			duocheck = arg.substr(11)
 		elif arg.begins_with("--combatcheck="):
 			combatcheck = arg.substr(14)
 		elif arg.begins_with("--animlab="):
@@ -262,7 +265,7 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck
+	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
@@ -362,6 +365,12 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 		mkc.out = madkcheck
 		game.director = mkc
 		game.add_child(mkc)
+	if duocheck != "":
+		var dc = preload("res://scripts/duocheck.gd").new()
+		dc.game = game
+		dc.out = duocheck
+		game.director = dc
+		game.add_child(dc)
 	if combatcheck != "":
 		var cc = preload("res://scripts/combatcheck.gd").new()
 		cc.game = game

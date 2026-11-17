@@ -475,6 +475,8 @@ func _physics_process(dt: float) -> void:
 			skate.tick(dt, dir)
 		"exec":
 			execution.tick(dt)
+		"duo":
+			game.tag.duo.lead_step(dt)      # прыжок к цели в дуэт-атаке (duo.gd)
 		"overdrive":
 			velocity.x = 0.0          # постановку ведёт hype.gd
 			velocity.z = 0.0

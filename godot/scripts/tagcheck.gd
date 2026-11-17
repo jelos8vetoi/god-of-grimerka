@@ -93,6 +93,19 @@ func foe(kind := "bot", dist := 2.2, hp := 9999.0):
 	e.hp = hp
 	return e
 
+## провести дуэт-атаку [T] до конца; вернуть, как близко напарник был к цели
+func duo_run(e) -> float:
+	await tap("assist")
+	var near := 9.0
+	var n := 0
+	while T.duo.active() and n < 300:
+		await get_tree().physics_frame
+		n += 1
+		if is_instance_valid(e):
+			near = min(near, B.global_position.distance_to(e.global_position))
+	await frames(4)
+	return near
+
 func last() -> String:
 	return String(T.events[T.events.size() - 1][0]) if T.events.size() > 0 else ""
 
@@ -236,22 +249,27 @@ func _run() -> void:
 	e = foe()
 	await frames(4)
 	h0 = e.hp
-	await tap("assist")
-	await frames(4)
+	var near_b: float = await duo_run(e)
 	await shot("05_cross_attack.png")
-	ok(last() == "cross" and P.hero == "pahan" and h0 - e.hp >= 16.0 and B.global_position.distance_to(e.global_position) < 2.5, "T — CROSS ATTACK: напарник у цели, урон %.0f, герой не сменился" % (h0 - e.hp))
+	ok(T.events.any(func(x): return x[0] == "duo") and P.hero == "pahan" and h0 - e.hp >= 16.0 and near_b < 2.5, "T — CROSS ATTACK: напарник у цели, урон %.0f, герой не сменился" % (h0 - e.hp))
 	await tap("assist")
 	await frames(2)
-	ok(last() == "assist_blocked", "помощь напарника на перезарядке")
+	ok(last() == "assist_blocked" and T.assist_cd > 0.0, "помощь напарника на перезарядке")
 	await stage()
 	e = foe()
 	await frames(4)
 	e.take_hit(1.0, Vector3(0, 0, -1), 1.0, true, 8.0)
 	await frames(10)
 	await tap("assist")
-	await frames(6)
+	await frames(10)
+	var air_duo: bool = T.duo.events.any(func(x): return x[0] == "start" and x.size() > 3 and String(x[3]) == "air")
+	var still_air: bool = e.state == "air"
 	await shot("06_air_partner.png")
-	ok(last() == "air" and e.state == "air", "T по цели в воздухе — AIR PARTNER COMBO: враг остаётся в воздухе")
+	n = 0
+	while T.duo.active() and n < 300:
+		await get_tree().physics_frame
+		n += 1
+	ok(air_duo and still_air, "T по цели в воздухе — воздушная дуэт-атака: враг остаётся в воздухе (%s)" % e.state)
 	# ================= 5. поведение напарника =================
 	await stage()
 	T.auto_assist = true
@@ -351,11 +369,19 @@ func _run() -> void:
 	boss.cool = 999.0
 	boss.stagger(boss.poise + 1.0)
 	await frames(2)
-	var w0: float = boss.weak_t
 	var bh: float = boss.hp
 	await tap("assist")
-	await frames(3)
-	ok(boss.weak_t > w0 and bh - boss.hp > 30.0 and boss.alive(), "босс «ОТКРЫТ»: помощь напарника бьёт сильнее (%.0f) и продлевает окно (TEAM BREAK)" % (bh - boss.hp))
+	n = 0
+	while not T.duo.opened and T.duo.active() and n < 120:
+		await get_tree().physics_frame
+		n += 1
+	await frames(2)
+	var ext: bool = boss.has_meta("team_ext")
+	n = 0
+	while T.duo.active() and n < 300:
+		await get_tree().physics_frame
+		n += 1
+	ok(ext and bh - boss.hp > 30.0 and boss.alive(), "босс «ОТКРЫТ»: помощь напарника бьёт сильнее (%.0f) и продлевает окно (TEAM BREAK)" % (bh - boss.hp))
 	# ================= 8. сохранение =================
 	await stage()
 	await tap("style3")

@@ -38,6 +38,7 @@ var down := {"pahan": false, "madk1d": false}
 var revive_t := {"pahan": 0.0, "madk1d": 0.0}
 var tag_cd := 0.0
 var assist_cd := 0.0
+var duo: Duo                 # дуэт-атака на [T] (duo.gd)
 var boost_t := 0.0
 var auto_assist := true      # напарник сам вступает в бой
 var auto_t := 3.0
@@ -53,12 +54,17 @@ func setup(g) -> void:
 	# герои друг с другом не сталкиваются: при смене напарник встаёт туда, где только что стоял игрок,
 	# и раньше его выталкивало вверх и в сторону
 	auto_assist = game.main.testing() == ""      # в проверках напарник сам не дерётся, пока проверка не включит его
+	duo = Duo.new()
+	add_child(duo)
+	duo.setup(self)
 	b.add_collision_exception_with(p)
 	p.add_collision_exception_with(b)
 	reset()
 	p.execution.team_hook = _team_finish
 
 func reset() -> void:
+	if duo != null:
+		duo.reset()
 	for h in hp:
 		hp[h] = p.max_hp
 		grey[h] = 0.0
@@ -138,6 +144,8 @@ func tag_block() -> String:
 		return "cooldown"
 	if p.switch_to != "":
 		return "switch"
+	if duo != null and duo.active():
+		return "duo"           # идёт дуэт-атака: сменить героя нельзя, пока не кончится
 	if p.state == "hurt" and rescue_cd <= 0.0:
 		return ""               # RESCUE TAG: напарник вытаскивает из-под ударов
 	if not p.state in ["move", "block", "attack", "tyaga", "skate"]:
@@ -337,7 +345,11 @@ func assist_block() -> String:
 		return p.state
 	return ""
 
+## [T]: дуэт-атака (duo.gd). Старая простая помощь (CROSS ATTACK, AIR PARTNER COMBO) — try_assist_simple.
 func try_assist() -> bool:
+	return duo.try_start()
+
+func try_assist_simple() -> bool:
 	if assist_block() != "":
 		events.append(["assist_blocked", assist_block()])
 		return false

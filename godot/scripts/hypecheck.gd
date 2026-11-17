@@ -156,8 +156,14 @@ func _run() -> void:
 	await to_style("style1")
 	e.global_position = P.global_position + Vector3(sin(P.face), 0, cos(P.face)) * 2.2
 	await tap("assist")
-	await frames(6)
-	var got_assist: bool = H.log_gain.any(func(x): return x[0] == "assist")
+	var na := 0
+	while (game.tag.duo.active() or na < 6) and na < 240:      # дуэт-атака идёт ~1 с
+		await get_tree().physics_frame
+		na += 1
+	var got_assist: bool = H.log_gain.any(func(x): return x[0] in ["assist", "duo", "duo_break"])
+	while P.state != "move" and na < 400:      # последний удар дуэта доигрывает
+		await get_tree().physics_frame
+		na += 1
 	game.feedback("perfect_dodge", P.global_position)
 	game.feedback("parry", P.global_position)
 	e.hp = 20.0
