@@ -134,6 +134,55 @@ func beat_tap(a: String, on: bool) -> void:
 	await get_tree().physics_frame
 	P.auto_input = {}
 
+## сцена за madk1d в стиле Breaker
+func as_breaker(kinds: Array, dist := 2.2) -> Array:
+	var list: Array = await as_madk(kinds, dist)
+	await to_style("style3")
+	await frames(10)
+	log_started = []
+	log_hits = []
+	P.breaker.events = []
+	P.breaker.flow = 0
+	P.breaker.last_id = ""
+	for e in list:
+		e.hp = 9999.0
+		e.max_hp = 9999.0
+	return list
+
+## дождаться открытия окна комбо и нажать (late — на сколько кадров позже)
+func window_tap(a: String, late := 0) -> void:
+	var n := 0
+	while not P.combat.in_combo_window() and P.state == "attack" and n < 240:
+		await get_tree().physics_frame
+		n += 1
+	await frames(late)
+	P.auto_input = {a: "press"}
+	await get_tree().physics_frame
+	P.auto_input = {}
+	await frames(2)
+
+## нажать за 0,2 с до открытия окна комбо (сработает через буфер ввода) и дождаться следующей атаки
+func early_tap(a: String) -> void:
+	var n := 0
+	var c: AttackData = P.combat.cur
+	while c != null and P.combat.cur == c and (c.combo_from - P.combat.k()) * c.duration > 0.2 and n < 240:
+		await get_tree().physics_frame
+		n += 1
+	P.auto_input = {a: "press"}
+	await get_tree().physics_frame
+	P.auto_input = {}
+	n = 0
+	while P.combat.cur == c and n < 60:
+		await get_tree().physics_frame
+		n += 1
+	await frames(2)
+
+func br_event(name: String) -> bool:
+	for ev in P.breaker.events:
+		if ev[0] == name:
+			return true
+	return false
+
 func stage(kinds: Array, dist := 2.2) -> Array:
 	game.ch = 0
 	game._load_chapter(false)
@@ -160,6 +209,12 @@ func stage(kinds: Array, dist := 2.2) -> Array:
 	P.guitar.on_beat = false
 	P.guitar.events = []
 	P.guitar.played = []
+	P.breaker.flow = 0
+	P.breaker.cashed = 0
+	P.breaker.perfect = false
+	P.breaker.boost = 1.0
+	P.breaker.last_id = ""
+	P.breaker.events = []
 	P.heroes["madk1d"]["style"] = "skateboard"
 	if P.hero != "pahan":
 		P.set_hero("pahan")
@@ -1536,7 +1591,7 @@ func _run() -> void:
 
 	# ================= madk1d: стиль «Электрогитара» =================
 	var gt := Styles.by_id("guitar")
-	ok(gt.ready and gt.problems().is_empty() and Styles.of("madk1d").filter(func(x): return x.ready).size() == 2, "стиль guitar готов: атак %d; у madk1d два готовых стиля" % gt.attacks.size())
+	ok(gt.ready and gt.problems().is_empty() and Styles.of("madk1d").filter(func(x): return x.ready).size() == 3, "стиль guitar готов: атак %d; у madk1d готовы все три стиля" % gt.attacks.size())
 	es = await as_guitar([])
 	ok(P.style.id == "guitar" and P.m_weapons["guitar"]["att"].visible and not P.m_weapons["skateboard"]["att"].visible and game.style_label.text.begins_with("[2] Электрогитара"), "[2] у madk1d: гитара в руке, доска убрана; HUD: %s" % game.style_label.text)
 	await shot("40_guitar_idle.png")
@@ -1733,6 +1788,168 @@ func _run() -> void:
 	await frames(3)
 	ok(log_started == ["gt_jump"], "на бегу с Ctrl ПКМ — удар гитарой с прыжка (%s)" % str(log_started))
 	await until_free(300)
+	await stage([])
+
+
+	# ================= madk1d: стиль Breaker =================
+	var bk := Styles.by_id("breaker")
+	var ready6 := 0
+	for id in Styles.ORDER:
+		if Styles.by_id(id).ready:
+			ready6 += 1
+	ok(bk.ready and bk.problems().is_empty() and ready6 == 6, "стиль breaker готов: атак %d; готовы все шесть стилей" % bk.attacks.size())
+	es = await as_breaker([])
+	ok(P.style.id == "breaker" and not P.m_weapons["guitar"]["att"].visible and not P.m_weapons["skateboard"]["att"].visible and P.rig.weapon_points().is_empty() and game.style_label.text.begins_with("[3] Breaker"), "[3] у madk1d: без оружия; HUD: %s" % game.style_label.text)
+	# ---------- удары ногами и поток ----------
+	for kind in ["bot", "clipper", "hater"]:
+		es = await as_breaker([kind])
+		var h_b: float = es[0].hp
+		await tap("attack")
+		await until_free()
+		ok(abs((h_b - es[0].hp) - 10.6) < 0.01, "%s: toprock-удар ногой — %.1f урона (10 и первое деление потока)" % [kind, h_b - es[0].hp])
+	es = await as_breaker(["bot"])
+	await chain(["attack", "attack", "attack", "attack"])
+	await frames(8)
+	await shot("50_breaker_sweep.png")
+	await until_free(300)
+	ok(log_started == ["br_toprock", "br_round", "br_sixstep", "br_sweep"] and P.breaker.flow == 4, "toprock → удар с разворота → six-step → подсечка: %s, поток %d" % [str(log_started), P.breaker.flow])
+	await frames(110)
+	ok(P.breaker.flow == 0, "постоял 1,8 с — поток сгорел (%d)" % P.breaker.flow)
+	es = await as_breaker(["bot"])
+	for i in 3:
+		await tap("attack")
+		await until_free()
+		await frames(10)
+	ok(P.breaker.flow == 1, "один и тот же удар трижды потока не добавляет (%d)" % P.breaker.flow)
+	# ---------- мельница → подброс → воздух ----------
+	es = await as_breaker(["bot"])
+	await chain(["attack", "heavy"])
+	await frames(14)
+	await shot("51_breaker_windmill.png")
+	await window_tap("heavy")
+	await frames(16)
+	var up_air: bool = es[0].state == "air"
+	await window_tap("attack")
+	var max_y := 0.0
+	for i in 5:
+		await get_tree().physics_frame
+		max_y = max(max_y, P.global_position.y)
+	await shot("52_breaker_air.png")
+	await window_tap("attack")
+	for i in 10:
+		await get_tree().physics_frame
+		max_y = max(max_y, P.global_position.y)
+	await window_tap("heavy")
+	await until_free(300)
+	ok(log_started == ["br_toprock", "br_windmill", "br_kickup", "br_air1", "br_air2", "br_airdive"] and up_air and max_y > 0.8, "мельница → подброс → два удара в воздухе → вниз: %s; враг подброшен, герой поднялся на %.1f м" % [str(log_started), max_y])
+	# ---------- вращение на голове → флэр по площади ----------
+	es = await as_breaker(["bot", "clipper", "hater"], 2.0)
+	es[0].global_position = P.global_position + Vector3(2.0, 0, 0.5)
+	es[2].global_position = P.global_position + Vector3(-1.2, 0, 1.8)
+	var h3 := [es[0].hp, es[1].hp, es[2].hp]
+	await chain(["attack", "attack", "heavy"])
+	await frames(34)
+	await shot("53_breaker_headspin.png")
+	await window_tap("heavy")
+	await until_free(400)
+	var all_hit := true
+	for i in 3:
+		if h3[i] - es[i].hp < 22.0:
+			all_hit = false
+	ok(log_started == ["br_toprock", "br_round", "br_headspin", "br_flare"] and all_hit, "вращение на голове → флэр: %s; все трое вокруг получили больше 22" % str(log_started))
+	es = await as_breaker(["bot"])
+	var h_h: float = es[0].hp
+	await tap("heavy")
+	var hop_y := 0.0
+	for i in 40:
+		await get_tree().physics_frame
+		hop_y = max(hop_y, P.global_position.y)
+	await until_free(300)
+	ok(log_started == ["br_heli"] and hop_y > 0.5 and h_h - es[0].hp > 20.0, "ПКМ с места — вертолёт: прыжок на %.1f м, серия ударов ногами на %.0f урона" % [hop_y, h_h - es[0].hp])
+	# ---------- Freeze ----------
+	es = await as_breaker(["bot"])
+	await chain(["attack", "attack"])
+	await early_tap("throw")                           # нажато за 0,2 с до открытия окна (через буфер) — обычный Freeze
+	await frames(14)
+	await shot("54_freeze.png")
+	var plain: bool = br_event("freeze") and not br_event("perfect") and P.rig.cur == "FreezePose" and P.breaker.flow == 0 and P.breaker.cashed == 2
+	P.inv = 0.0
+	var hp_fr: float = P.hp
+	P.take_damage(10.0, es[0].global_position, es[0])
+	var hurt_in_freeze: float = hp_fr - P.hp
+	P.inv = 9999.0
+	P.hp = P.max_hp
+	ok(plain and abs(hurt_in_freeze - 13.0) < 0.01, "Freeze: застыл в позе, поток (2) забран; неуязвимости нет — удар во время позы снял %.0f (10 × 1,3)" % hurt_in_freeze)
+	await until_free(300)
+	es = await as_breaker(["bot"])
+	await chain(["attack", "attack"])
+	await early_tap("throw")
+	var h_cn: float = es[0].hp
+	es[0].global_position = P.global_position + Vector3(0, 0, -2.0)
+	await window_tap("attack")
+	await until_free(300)
+	ok(log_started == ["br_toprock", "br_round", "br_freeze", "br_counter"] and abs((h_cn - es[0].hp) - 24.0 * 1.2 * 1.06) < 0.05, "Freeze → ЛКМ: ответный удар %.1f (24, усиление ×1,2 после Freeze)" % (h_cn - es[0].hp))
+	# ---------- Perfect Freeze и финал ----------
+	es = await as_breaker(["bot", "clipper"], 2.0)
+	es[1].global_position = P.global_position + Vector3(1.8, 0, -1.2)
+	for e in es:
+		e.stun_t = 0.0
+		e.state = "chase"
+	var sw_p: float = P.swag
+	await chain(["attack", "attack"])
+	await window_tap("throw", 0)                       # ровно в момент открытия окна
+	var perf: bool = br_event("perfect")
+	var stunned := 0
+	for e in es:
+		if e.state == "stun":
+			stunned += 1
+	await window_tap("throw")
+	await frames(3)
+	ok(perf and stunned == 2 and P.swag - sw_p >= 16.0 and not log_started.has("br_finisher"), "Perfect Freeze (F в момент открытия окна): оба врага рядом оглушены, СВЭГ +%.0f; при потоке 2 финал недоступен" % (P.swag - sw_p))
+	await until_free(300)
+	es = await as_breaker(["bot", "clipper", "hater"], 2.0)
+	es[0].global_position = P.global_position + Vector3(2.0, 0, -0.6)
+	es[2].global_position = P.global_position + Vector3(-2.0, 0, -0.6)
+	await chain(["attack", "attack", "attack", "attack", "heavy"])
+	var flow_before: int = P.breaker.flow
+	await window_tap("throw", 0)
+	var perf2: bool = br_event("perfect")
+	var hf := [es[0].hp, es[1].hp, es[2].hp]
+	for e in es:
+		e.global_position = P.global_position + (e.global_position - P.global_position).normalized() * 2.0
+		e.global_position.y = P.global_position.y
+	await window_tap("throw")
+	await frames(24)
+	await shot("55_breaker_finisher.png")
+	await until_free(400)
+	var fin_n := 0
+	for i in 3:
+		if hf[i] - es[i].hp > 30.0:
+			fin_n += 1
+	ok(flow_before == 5 and perf2 and log_started.has("br_finisher") and fin_n >= 2, "пять разных движений → Perfect Freeze → F: BREAKER FINISHER (%s), по площади задето %d" % [str(log_started.slice(log_started.size() - 2)), fin_n])
+	# ---------- риск: во вращении бьют больнее, поток сгорает ----------
+	es = await as_breaker(["bot"])
+	await chain(["attack", "heavy"])
+	await frames(10)
+	P.inv = 0.0
+	var hp_w: float = P.hp
+	var fl: int = P.breaker.flow
+	P.take_damage(10.0, es[0].global_position, es[0])
+	var lost_spin: float = hp_w - P.hp
+	P.inv = 9999.0
+	P.hp = P.max_hp
+	await frames(40)
+	es = await as_breaker(["bot"])
+	await tap("attack")
+	await frames(4)
+	P.inv = 0.0
+	hp_w = P.hp
+	P.take_damage(10.0, es[0].global_position, es[0])
+	var lost_plain: float = hp_w - P.hp
+	P.inv = 9999.0
+	P.hp = P.max_hp
+	ok(abs(lost_spin - 13.0) < 0.01 and abs(lost_plain - 10.0) < 0.01 and fl == 2 and P.breaker.flow == 0, "риск: удар по герою в мельнице — %.0f урона и поток сгорает, в обычном ударе — %.0f" % [lost_spin, lost_plain])
+	await frames(40)
 	await stage([])
 
 	print("COMBAT итог: ошибок %d" % fails)
