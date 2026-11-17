@@ -127,6 +127,8 @@ var style_label: Label        # текущий боевой стиль и зап
 var hype: TeamHype            # общая шкала команды и Team Overdrive (hype.gd)
 var tag_saved: Dictionary = {}      # состояние команды из сохранения: применяется после загрузки главы
 var tag: TagTeam              # Tag Team: здоровье обоих героев, командные приёмы, выбывание (tagteam.gd)
+var read: PlayerRead         # что враги знают о поведении игрока (player_read.gd)
+var squad_t := 0.0
 var tutorial: Tutorial       # боевое обучение: карточки механик по ходу боя (tutorial.gd)
 var combat_hud: CombatHud     # боевой HUD: портреты, полосы, карточки стилей, способности (hud.gd)
 var ipod
@@ -160,6 +162,9 @@ func _ready() -> void:
 	hype = TeamHype.new()
 	add_child(hype)
 	hype.setup(self)
+	read = PlayerRead.new()
+	add_child(read)
+	read.setup(self)
 	tutorial = Tutorial.new()
 	add_child(tutorial)
 	tutorial.setup(self)
@@ -412,6 +417,10 @@ func paused_story() -> bool:
 # ---------------- бой ----------------
 func _update_fight(dt: float) -> void:
 	enemies = enemies.filter(func(e): return is_instance_valid(e))
+	squad_t -= dt
+	if squad_t <= 0.0:
+		squad_t = 0.2
+		EnemyAI.squad(self)            # роли в группе 5 раз в секунду, не каждый кадр
 	var alive := enemies.filter(func(e): return e.state != "dead").size()
 	if mode == "fight":
 		if spawn_cd > 0.0:
@@ -458,6 +467,9 @@ func _make_enemy(kind: String, boss_id: String, pos: Vector3):
 	e.kind = kind
 	e.boss_id = boss_id
 	e.game = self
+	# место — до add_child: в _ready враг рисует портал появления и пыль у себя под ногами,
+	# а без этого они оказывались в центре арены (красный круг, из которого никто не выходит)
+	e.position = pos
 	add_child(e)
 	e.global_position = pos
 	e.face = atan2(player.global_position.x - pos.x, player.global_position.z - pos.z)
@@ -479,7 +491,7 @@ func spawn_enemy(kind: String, pos: Vector3) -> void:
 func melee_attackers() -> int:
 	var n := 0
 	for e in enemies:
-		if is_instance_valid(e) and e.boss_id == "" and (e.state == "wind" or (e.state == "recover" and e.t < 0.25)) and not e.cfg.has("ranged"):
+		if is_instance_valid(e) and e.boss_id == "" and (e.state == "wind" or e.state == "charge" or (e.state == "recover" and e.t < 0.25)) and not e.cfg.has("ranged") and not e.cfg.has("summoner"):
 			n += 1
 	return n
 
@@ -547,10 +559,13 @@ func _retry() -> void:
 	_run_step()
 
 # ---------------- снаряды и зоны удара ----------------
-func spawn_bolt(pos: Vector3, vel: Vector3, dmg: float, owner_e, homing := false, col := Color(0.4, 1.0, 0.55)) -> void:
+## extra: "turn" — сила наведения (по умолчанию 1,6), "slow" — замедляет героя на столько секунд
+func spawn_bolt(pos: Vector3, vel: Vector3, dmg: float, owner_e, homing := false, col := Color(0.4, 1.0, 0.55), extra := {}) -> void:
+	if bolts.size() >= 60:
+		return                       # предел снарядов в арене
 	var n: Node3D = fx.bolt(col, homing)
 	n.global_position = pos
-	bolts.append({"n": n, "v": vel, "dmg": dmg, "life": 3.0 if homing else 2.4, "from": owner_e, "homing": homing, "col": col})
+	bolts.append({"n": n, "v": vel, "dmg": dmg, "life": 3.0 if homing else 2.4, "from": owner_e, "homing": homing, "col": col, "turn": float(extra.get("turn", 1.6)) if float(extra.get("turn", 0.0)) > 0.0 else 1.6, "slow": float(extra.get("slow", 0.0))})
 
 func _update_bolts(dt: float) -> void:
 	var pp: Vector3 = player.global_position + Vector3(0, 1.0, 0)
@@ -559,10 +574,13 @@ func _update_bolts(dt: float) -> void:
 		var n: Node3D = b["n"]
 		if b["homing"]:
 			var want: Vector3 = (pp - n.global_position).normalized() * (b["v"] as Vector3).length()
-			b["v"] = (b["v"] as Vector3).lerp(want, 1.0 - exp(-1.6 * dt))
+			b["v"] = (b["v"] as Vector3).lerp(want, 1.0 - exp(-float(b["turn"]) * dt))
 		n.global_position += b["v"] * dt
 		if n.global_position.distance_to(pp) < 0.7:
+			var was_inv: bool = player.inv > 0.0
 			player.take_damage(b["dmg"], n.global_position, b["from"] if is_instance_valid(b["from"]) else null)
+			if float(b["slow"]) > 0.0 and not was_inv:
+				player.slow_t = max(player.slow_t, float(b["slow"]))
 			b["life"] = 0.0
 		if b["life"] <= 0.0 or not in_arena(n.global_position, -1.0):
 			fx.bolt_pop(n.global_position, b["col"])

@@ -26,6 +26,7 @@ var aura_light: OmniLight3D
 var hp := 100.0
 var max_hp := 100.0
 var swag := 0.0
+var slow_t := 0.0             # замедлен (снаряд HATER, яд): бег медленнее
 var rage := 0.0
 var state := "move"
 var t := 0.0
@@ -425,7 +426,8 @@ func _physics_process(dt: float) -> void:
 		game.tag.try_assist()
 	if pressed("overdrive"):
 		game.hype.try_start()
-	var spd := 5.6 * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0)
+	slow_t = max(0.0, slow_t - dt)
+	var spd := 5.6 * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0) * (0.6 if slow_t > 0.0 else 1.0)
 	# ТЯГА-812: в этом стиле «свободное» состояние героя ведёт пылесос
 	if style.id == "tyaga812" and state == "move" and switch_to == "":
 		state = "tyaga"
@@ -972,6 +974,8 @@ func try_heat() -> void:
 
 func start_roll(dir: Vector3) -> void:
 	state = "roll"
+	if game.read != null:
+		game.read.call_deferred("on_roll", roll_kind)      # сторону уклонения запоминают враги (player_read.gd)
 	t = 0.0
 	roll_dir = dir.normalized() if dir.length() > 0.1 else Vector3(sin(face), 0, cos(face))
 	# в бою герой не отворачивается от врага: вбок и назад — шаг-уклонение, вперёд — кувырок
