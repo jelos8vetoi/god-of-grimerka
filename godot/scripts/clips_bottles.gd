@@ -17,7 +17,7 @@ static func bare(def: Dictionary) -> Dictionary:
 	return d
 
 static func add_to(A: Dictionary) -> void:
-	for nm in ["CombatIdle", "Walk", "Sprint", "StartRun", "StopRun", "TurnL", "TurnR", "Hit", "HitBack", "HitL", "HitR", "Stagger", "Knockback", "Landing", "Jump", "Fall", "Block"]:
+	for nm in ["CombatIdle", "Walk", "Sprint", "StartRun", "StopRun", "TurnL", "TurnR", "Hit", "HitBack", "HitL", "HitR", "Stagger", "Knockback", "Landing", "Jump", "Fall", "Block", "DodgeL", "DodgeR", "DodgeB", "BlockHit", "BlockHeavy"]:
 		if A.has(nm) and not A.has(nm + "Bare"):
 			A[nm + "Bare"] = bare(A[nm])
 	var st := {"rup": {"x": -0.2}, "rleg": {"x": 0.3}, "lup": {"x": -0.32}, "lleg": {"x": 0.38}}

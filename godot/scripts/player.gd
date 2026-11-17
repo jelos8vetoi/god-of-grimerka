@@ -63,6 +63,9 @@ var breaker: Breaker         # Breaker Style: поток, Freeze, риск (brea
 var execution: Execution     # контекстные добивания (execution.gd)
 var feel := {}               # «живое» оружие: стиль → WeaponFeel (weaponfeel.gd); "board_ride" — доска под ногами
 var flow: WeaponFlow         # смена стиля в бою: отмена удара, Perfect Swap, входы стилей (weaponflow.gd)
+var roll_kind := "f"         # куда уклонение относительно героя: f — кувырок вперёд, l / r — вбок, b — назад
+var idle_var_t := 0.0        # сколько герой стоит без дела: по таймеру — вариация покоя
+var idle_var_next := 9.0
 var switch_info: Dictionary = {}      # какой переход идёт: клип и моменты смены оружия (SwapClips.INFO)
 var switch_len := 0.42       # длительность идущей смены стиля (Perfect Swap — короче)
 var FINISH: Array = []      # тяжёлые удары стиля по числу лёгких перед ними (для съёмки трейлера)
@@ -158,6 +161,9 @@ func _ready() -> void:
 	add_child(execution)
 	execution.setup(self, game)
 	combat.attack_started.connect(func(a: AttackData) -> void: breaker.on_start(a))
+	combat.attack_started.connect(func(a: AttackData) -> void:
+		if a.extra.has("hop") and not breaker.active() and not is_on_floor():
+			velocity.y = max(velocity.y, float(a.extra["hop"])))      # удар в прыжке чуть подвешивает героя
 	combat.attack_hit.connect(_on_attack_hit)
 	bottles = Bottles.new()
 	add_child(bottles)
@@ -383,6 +389,16 @@ func _physics_process(dt: float) -> void:
 					return
 				if held("sprint") and dir.length() > 0.5 and anim.state == "move":
 					combat.open("sprint", 0.12)   # на бегу с рывком: удар с разгона
+				# вариация покоя: стоит без дела, врагов нет — раз в 9–15 с осматривает оружие
+				if dir.length() < 0.1 and anim_hold <= 0.0 and is_on_floor() and not enemies_near(14.0) and is_nan(turn_to) and style.id == "vozduh" and not pod.want:
+					idle_var_t += dt
+					if idle_var_t > idle_var_next:
+						idle_var_t = 0.0
+						idle_var_next = randf_range(9.0, 15.0)
+						if rig.play_role_for("idle_var", 2.6, 0.2) != "":
+							anim_hold = 2.6
+				elif dir.length() >= 0.1 or enemies_near(14.0):
+					idle_var_t = 0.0
 				if anim_hold <= 0.0 or dir.length() > 0.1:
 					var hs := Vector2(velocity.x, velocity.z).length() if dir.length() > 0.1 else 0.0
 					anim.tick(dt, hs, turn, is_on_floor(), velocity.y, enemies_near(), held("sprint") or rage > 0.0)
@@ -437,7 +453,7 @@ func _physics_process(dt: float) -> void:
 			velocity.x = roll_dir.x * 8.8 * (1.0 - k * 0.5)
 			velocity.z = roll_dir.z * 8.8 * (1.0 - k * 0.5)
 			var e: float = clamp((k - 0.08) / 0.8, 0.0, 1.0)
-			spin.rotation.x = e * e * (3.0 - 2.0 * e) * TAU
+			spin.rotation.x = e * e * (3.0 - 2.0 * e) * TAU if roll_kind == "f" else 0.0      # кувырок — только вперёд
 			if k >= 1.0:
 				spin.rotation.x = 0.0
 				state = "move"
@@ -733,10 +749,35 @@ func start_roll(dir: Vector3) -> void:
 	state = "roll"
 	t = 0.0
 	roll_dir = dir.normalized() if dir.length() > 0.1 else Vector3(sin(face), 0, cos(face))
-	face = atan2(roll_dir.x, roll_dir.z)
+	# в бою герой не отворачивается от врага: вбок и назад — шаг-уклонение, вперёд — кувырок
+	roll_kind = "f"
+	# сторона считается от ближайшего врага, а не от взгляда: на бегу герой и так смотрит туда, куда бежит
+	var near = null
+	var nd := 8.0
+	for e in game.enemies:
+		if is_instance_valid(e) and e.alive():
+			var dd: float = e.global_position.distance_to(global_position)
+			if dd < nd:
+				nd = dd
+				near = e
+	if dir.length() > 0.1 and near != null:
+		var fw: Vector3 = near.global_position - global_position
+		fw.y = 0
+		fw = fw.normalized() if fw.length() > 0.05 else Vector3(sin(face), 0, cos(face))
+		var lf := Vector3(fw.z, 0, -fw.x)
+		if roll_dir.dot(fw) < -0.5:
+			roll_kind = "b"
+		elif abs(roll_dir.dot(lf)) > 0.6:
+			roll_kind = "l" if roll_dir.dot(lf) > 0.0 else "r"
+		if roll_kind != "f":
+			face = atan2(fw.x, fw.z)          # лицом к врагу
 	inv = 0.38
 	perfect = false
-	rig.play_role("roll", 0.08)
+	if roll_kind == "f":
+		face = atan2(roll_dir.x, roll_dir.z)
+		rig.play_role("roll", 0.08)
+	else:
+		rig.play_role_for("dodge_" + roll_kind, 0.5, 0.06)
 	game.fx.dust(global_position + Vector3(0, 0.15, 0), 6, game.fx.DUST, 0.7)
 	game.main.sfx("sfx_roll", -6.0)
 
@@ -779,6 +820,8 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 			game.bark("parry", 5.0)
 			swag = min(100.0, swag + 20.0)
 			return
+		rig.play_role_for("block_heavy" if dmg >= 18.0 else "block_hit", 0.42 if dmg >= 18.0 else 0.26, 0.03)      # удар пришёл в блок
+		anim_hold = 0.4 if dmg >= 18.0 else 0.24
 		dmg *= 0.2
 		combat.open("block", 0.5)          # принял на блок — можно толкнуть в ответ
 		swag = min(100.0, swag + 3.0)

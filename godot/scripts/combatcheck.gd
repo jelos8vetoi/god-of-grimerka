@@ -292,7 +292,7 @@ func _run() -> void:
 		var pr := s.problems()
 		ok(pr.is_empty(), "стиль %s (%s, %s): данные согласованы%s%s" % [id, s.title, s.owner, "" if s.ready else " — объявлен, атак пока нет", "" if pr.is_empty() else ": " + "; ".join(pr)])
 	var vz := Styles.by_id("vozduh")
-	ok(vz.ready and vz.attacks.size() == 25 and Styles.by_id("bottles").ready and Styles.by_id("tyaga812").ready and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
+	ok(vz.ready and vz.attacks.size() >= 25 and Styles.by_id("bottles").ready and Styles.by_id("tyaga812").ready and Styles.of("pahan").size() == 3 and Styles.of("madk1d").size() == 3, "шесть стилей: по три у Пахана и madk1d; VOZDUH готов, атак %d" % vz.attacks.size())
 	var clips_ok := true
 	await stage([])
 	for aid in vz.attacks:

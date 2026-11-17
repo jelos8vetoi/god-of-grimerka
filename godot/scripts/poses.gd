@@ -148,6 +148,7 @@ static func madk1d() -> Dictionary:
 	}.merged(MadkClips.combat()).merged(MadkMoves.all())
 	MadkWeaponClips.add_to(A)
 	BreakerClips.add_to(A)
+	FoundationClips.add_to(A)
 	SwapClips.add_madk(A)
 	return A
 

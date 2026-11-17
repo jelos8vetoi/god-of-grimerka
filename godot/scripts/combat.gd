@@ -145,7 +145,10 @@ func try_start() -> bool:
 	if a == null:
 		if act == "light" and clock < chain_block:
 			return false                               # пауза после оборванной цепочки: нельзя спамить первым ударом
-		a = style.next("", act)
+		# в прыжке у стиля может быть своё начало цепочки (ключ графа "air"); нет — как с земли
+		a = style.next("air", act) if not p.is_on_floor() and style.links.has("air") else null
+		if a == null:
+			a = style.next("", act)
 	if not ready_at(a):
 		return false
 	clear_buffer()
