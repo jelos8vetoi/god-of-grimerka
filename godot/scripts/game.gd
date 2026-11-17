@@ -123,6 +123,7 @@ var fps_samples: Array = []
 var director = null
 var hero_label: Label         # имя героя, которым сейчас управляет игрок
 var style_label: Label        # текущий боевой стиль и запас (бутылки)
+var combat_hud: CombatHud     # боевой HUD: портреты, полосы, карточки стилей, способности (hud.gd)
 var ipod
 var bot_acc := 0.0
 var bot_pf := -1
@@ -819,13 +820,13 @@ func _process(dt: float) -> void:
 		Engine.time_scale *= director.slow
 	if director:
 		director.frame(rdt)
-	var target: Vector3 = player.global_position + Vector3(0, 1.55, 0)
+	var target: Vector3 = player.vis_pos() + Vector3(0, 1.55, 0)      # плавное положение: без дрожи между шагами физики
 	var want_len := 4.6
 	var yaw := cam_yaw
 	var pitch := cam_pitch
 	if mode == "dlg" and not director:
 		# диалог: камера спереди-сбоку, на героев
-		target = (player.global_position + buddy.global_position) * 0.5 + Vector3(0, 1.25, 0)
+		target = (player.vis_pos() + buddy.global_position) * 0.5 + Vector3(0, 1.25, 0)
 		yaw = dlg_face - 0.5   # камера перед героями, чуть сбоку: видно оба лица
 		pitch = -0.08
 		want_len = 4.0
@@ -1276,6 +1277,11 @@ func _build_hud() -> void:
 	style_label = _lbl("", 15, Color(0.85, 0.88, 0.95))
 	style_label.position = Vector2(0, 80)
 	bars.add_child(style_label)
+	name_l.visible = false
+	bars.visible = false
+	combat_hud = CombatHud.new()
+	hud_root.add_child(combat_hud)
+	combat_hud.setup(self)
 	top_label = _lbl("", 18, Color(1, 0.9, 0.7))
 	top_label.position = Vector2(40, 22)
 	hud_root.add_child(top_label)
