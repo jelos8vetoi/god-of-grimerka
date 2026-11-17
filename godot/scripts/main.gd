@@ -306,6 +306,7 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 		chk.hand_only = ipodhand
 		chk.buds_only = ipodbuds
 		chk.pause_only = ipodpause
+		chk.as_madk = OS.get_cmdline_user_args().has("--madk")
 		add_child(chk)
 	if smoke != "":
 		game.auto_kill = 1.6

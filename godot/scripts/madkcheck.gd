@@ -169,6 +169,20 @@ func _run() -> void:
 	var behind: float = (board().global_position - bone_w("spine2")).dot(back_dir)
 	ok(P.style.id == "skateboard" and on_back and not P.board_out and P.rig.cur != "ArmedIdle", "скейт в покое: доска за спиной (на %.2f м позади позвоночника), руки свободны, стойка «%s»" % [behind, P.rig.cur])
 	ok(behind > 0.08, "доска не утоплена в спину: %.2f м от позвоночника" % behind)
+	# доска лежит плашмя к спине: шкурка к спине (нормаль деки — вперёд по телу), вбок за плечи не торчит
+	var fwd_b := Vector3(sin(P.face), 0, cos(P.face))
+	var dn: Vector3 = (P.board_mi.global_transform.basis * P.board_n).normalized()
+	# по настоящим вершинам (габарит меша у доски с костями нарочно раздут под изгиб)
+	var side_b := fwd_b.cross(Vector3.UP).normalized()
+	var wide := 0.0
+	var depth := 0.0
+	var vsb: PackedVector3Array = P.board_mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	for vi in range(0, vsb.size(), 9):
+		var rel: Vector3 = P.board_mi.global_transform * vsb[vi] - bone_w("spine2")
+		wide = max(wide, abs(rel.dot(side_b)))
+		depth = max(depth, -rel.dot(fwd_b))
+	var sh_w: float = abs((bone_w("larm") - bone_w("rarm")).dot(side_b)) * 0.5
+	ok(dn.dot(fwd_b) > 0.85 and wide < sh_w + 0.2 and depth < 0.35, "доска за спиной плашмя: дека к спине (%.2f), вбок не дальше плеч (%.2f м при плечах %.2f), от спины до края %.2f м" % [dn.dot(fwd_b), wide, sh_w, depth])
 	await close("c01_board_back.png", PI - 0.5)
 	await close("c01_board_side.png", PI * 0.5)
 	await close("c01_board_front.png", 0.4)
@@ -531,6 +545,46 @@ func _run() -> void:
 	await until_free()
 	ok(log_ids.size() >= 1 and log_ids[0] == "gt_airstrike" and g1.hp < 9999.0, "гитара в прыжке: %s, попал (урон %.0f)" % [str(log_ids), 9999.0 - g1.hp])
 	ok(P.rig.has_clip("GtIdleVar") and P.style.roles.get("idle_var", "") == "GtIdleVar", "гитара: вариация покоя — проверка строя")
+	# ================= 11. iPod: гитара уходит за спину, руки свободны =================
+	await stage("style2", "guitar")
+	await frames(30)
+	var gwd: Dictionary = P.m_weapons["guitar"]
+	P.pod_force = true
+	var nk := 0
+	while P.pod.u < 1.0 and nk < 200:
+		await get_tree().physics_frame
+		nk += 1
+	await frames(10)
+	var on_back_g: bool = (gwd["weapon"] as Node3D).get_parent() == gwd["back_att"]
+	var u_open: float = P.pod.u
+	var gm4 := WeaponBones._mesh(gwd["weapon"])
+	var g_behind: float = ((gm4.global_transform * gm4.mesh.get_aabb().get_center()) - bone_w("spine2")).dot(-Vector3(sin(P.face), 0, cos(P.face)))      # корпус гитары, а не точка хвата
+	await close("c40_ipod_guitar_back.png", PI - 0.5)
+	await close("c40_ipod_guitar_front.png", 0.5)
+	await close("c40_ipod_guitar_side.png", -PI * 0.5)
+	P.pod_force = false
+	nk = 0
+	while P.pod.busy() and nk < 720:      # первое открытие ещё и надевает наушники (~3,6 с), закрытие их дожидается
+		await get_tree().physics_frame
+		nk += 1
+	await frames(10)
+	ok(on_back_g and u_open >= 1.0 and g_behind > 0.05 and (gwd["weapon"] as Node3D).get_parent() == gwd["hand_att"] and P.rig.cur == "GtIdle", "с iPod гитара за спиной (%.2f м позади), руки свободны; убрал iPod — гитара снова в руках («%s»)" % [g_behind, P.rig.cur])
+	# доска: с iPod остаётся за спиной
+	await stage("style1", "skateboard")
+	await frames(30)
+	P.pod_force = true
+	nk = 0
+	while P.pod.u < 1.0 and nk < 200:
+		await get_tree().physics_frame
+		nk += 1
+	await frames(10)
+	await close("c41_ipod_board.png", 0.6)
+	ok(not P.board_out and P.pod.u >= 1.0, "с iPod доска за спиной, iPod в руке")
+	P.pod_force = false
+	nk = 0
+	while P.pod.busy() and nk < 720:      # первое открытие ещё и надевает наушники (~3,6 с), закрытие их дожидается
+		await get_tree().physics_frame
+		nk += 1
 	# ================= 7. кости оружия: гнётся в махе и от попадания, потом успокаивается =================
 	for row in [["madk1d", "style2", "guitar"], ["madk1d", "style1", "skateboard"], ["pahan", "style1", "vozduh"]]:
 		if row[0] == "pahan":

@@ -9,6 +9,7 @@ var fails := 0
 var pause_only := false    # --pause: меню паузы и режим наушников
 var buds_only := false     # --buds: наушники EarPods
 var hand_only := false
+var as_madk := false       # --madk: всё то же, но за madk1d (его тело и свой iPod)
 var view_seq := 1
 var strip: Array = []      # кадры раскадровки для общего листа          # с какой из четырёх сторон снимать раскадровку     # --hand: только рука, карман, взгляд и связь с интерфейсом
 var ipod
@@ -95,6 +96,15 @@ func _run() -> void:
 	audio = game.main.audio
 	var vs := get_viewport().get_visible_rect().size
 	await wait(1.5)
+	if as_madk:
+		var nd := 0
+		while game.mode == "dlg" and nd < 200:
+			await tap(KEY_ENTER, 0.04)
+			nd += 1
+		game.tag.tag_cd = 0.0
+		game.swap_heroes()
+		await wait(1.2)
+		ok(pl.hero == "madk1d" and pl.pod == pl.heroes["madk1d"]["pod"] and pl.pod != pl.heroes["pahan"]["pod"], "за madk1d — свой iPod на его скелете")
 	if hand_only:
 		await _run_hand()
 		return
@@ -936,7 +946,7 @@ func _run_polish() -> void:
 	await wait(0.5)
 	var sway_run := 0.0
 	var sway_step := 0.0
-	var prev_off := Vector3.ZERO
+	var prev_off: Vector3 = pod.buds.dyn[1]["off"]      # от текущего положения: от нуля первый же кадр выглядел бы скачком
 	for k in [KEY_W, KEY_S, KEY_A, KEY_D]:   # пробежки в разные стороны: подъезд тесный, в одну сторону можно сразу упереться в стену
 		key(k)
 		var tk := Time.get_ticks_msec()
@@ -954,19 +964,19 @@ func _run_polish() -> void:
 		var o2: Vector3 = pod.buds.dyn[1]["off"]
 		sway_step = max(sway_step, o2.distance_to(prev_off) / clampf(get_process_delta_time(), 0.004, 0.05) * 0.0083)
 		prev_off = o2
-	await wait(1.6)
+	await wait(2.0)
 	sway_stop = pod.buds.sway()
 	ok(sway_run > 0.004, "на бегу провод раскачивается (до %.3f)" % sway_run)
 	ok(sway_stop < 0.004, "после остановки успокаивается (%.4f)" % sway_stop)
 	ok(sway_step < 0.012, "без дрожи: наибольший шаг смещения за кадр (при 120 к/с) %.4f" % sway_step)
 	# ---- бой с наушниками: перекат, блок, удар ----
-	await tap(KEY_SPACE)
+	await tap(KEY_SHIFT)      # перекат — Shift (пробел — прыжок)
 	ok(pl.state == "roll" and pod.buds_in(), "перекат с наушниками")
 	await wait(1.0)
-	key(KEY_SHIFT)
+	key(KEY_C)                # блок — C
 	await wait(0.4)
 	ok(pl.state == "block", "блок с наушниками (состояние «%s»)" % pl.state)
-	key(KEY_SHIFT, false)
+	key(KEY_C, false)
 	await wait(0.4)
 	# ---- смена размера окна и потеря фокуса посреди надевания ----
 	pod.remove_buds()
@@ -997,6 +1007,7 @@ func _run_polish() -> void:
 	# ---- настоящая гибель во время просмотра и возрождение ----
 	await tap(KEY_UP)
 	await wait(1.4)
+	game.tag.down[game.tag.mate()] = true      # напарник выбыл: иначе Tag Team сменит героя и гибели не будет
 	pl.inv = 0.0
 	pl.take_damage(pl.hp + 50.0, pl.global_position + Vector3(1, 0, 0))
 	await wait(0.2)
@@ -1005,6 +1016,7 @@ func _run_polish() -> void:
 	await wait(2.6)
 	# в обычной игре здесь окно «Пахан упал» и кнопка «Ещё раз» — жмём её
 	game._retry()
+	game.tag.down[game.tag.mate()] = false
 	await wait(0.6)
 	ok(pl.state == "move" and not game.over, "возрождение")
 	var nn := 0

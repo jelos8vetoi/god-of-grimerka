@@ -1,5 +1,5 @@
 ## Гибель Пахана как сцена: падение → камера медленно уходит вверх и смотрит на тело сверху → мир теряет цвет →
-## появляется «ПАХАН УМЕР» → две кнопки «ЕЩЁ РАЗ» и «В МЕНЮ».
+## появляется «ПАХАН УМЕР» или «MADK1D УМЕР» — по тому, кто погиб, → две кнопки «ЕЩЁ РАЗ» и «В МЕНЮ».
 ## Узел создаётся на каждую гибель (game.on_player_dead), живёт в HUD и записан в game.panel: «Ещё раз» и выход в меню
 ## освобождают его обычным game._close_panel(), а _exit_tree возвращает камеру и цвет. Времена — в константах T_*.
 ## Камеру ведёт сам (game отдаёт её через owns_camera/camera), чёрно-белый — множитель game.death_mono в общем шейдере кадра.
@@ -92,13 +92,14 @@ func _ready() -> void:
 		g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		title.add_child(g)
 	var name_l := Label.new()
-	name_l.text = "ПАХАН УМЕР"
+	var who := "MADK1D УМЕР" if game != null and game.player != null and String(game.player.hero) == "madk1d" else "ПАХАН УМЕР"
+	name_l.text = who
 	name_l.add_theme_font_override("font", serif)
 	name_l.add_theme_font_size_override("font_size", 132)
 	name_l.add_theme_color_override("font_color", WHITE)
 	name_l.material = worn
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var w: float = serif.get_string_size("ПАХАН УМЕР", HORIZONTAL_ALIGNMENT_LEFT, -1, 132).x
+	var w: float = serif.get_string_size(who, HORIZONTAL_ALIGNMENT_LEFT, -1, 132).x
 	name_l.scale = Vector2(1.28, 1.0)           # растянутое начертание, как на афише
 	name_l.position = Vector2((STAGE.x - w * 1.28) * 0.5, 96)
 	name_l.name = "Title"

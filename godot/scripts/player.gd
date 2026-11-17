@@ -39,8 +39,9 @@ var auto_input := {}
 var dmg_mul := 1.0   # множитель урона: прокачка (game.gd) и автотест
 var trail: Trail
 var charge_light: OmniLight3D
-var pod: PodHand            # физический iPod: карман, левая рука, взгляд на экран (scripts/pod.gd)
+var pod: PodHand            # физический iPod героя под управлением: карман, левая рука, взгляд на экран (scripts/pod.gd); у каждого героя свой — heroes[id]["pod"]
 var pod_force := false      # проверка позы без интерфейса (--ipodcheck … --hand)
+var pod_turn_back := false   # iPod убран, а поворот обратно ещё не доигран (у madk1d рука освобождается раньше, чем у Пахана)
 var pod_synced := false     # наушники уже взяты из сохранения iPod
 var pod_face := 0.0         # куда герой повёрнут, пока смотрит в iPod
 var pod_face0 := 0.0        # и куда вернуться
@@ -63,6 +64,10 @@ var fight_t := 0.0           # сколько ещё секунд считает
 var reach: ArmReach          # правая рука madk1d за спину и обратно поверх любой анимации
 const BOARD_SWAP := 0.36
 var wbones := {}             # кости оружия (weaponbones.gd): id стиля или "board_ride" → WeaponBones
+const GUITAR_BACK_FLIP := PI   # модель гитары сдвинута от своей оси по толщине на ~0,14 м: без разворота корпус уходил внутрь тела
+var board_n := Vector3.UP     # нормаль деки доски madk1d в осях её меша (от колёс к шкурке)
+var board_mi: MeshInstance3D
+var madk_pod: PodHand        # iPod madk1d (до сборки heroes)
 var m_weapons := {}          # оружие madk1d по стилям: id → {att, weapon, bone, grip}
 var skate: Skate             # скейтборд: езда и трюки (skate.gd)
 var guitar: Guitar           # электрогитара: ритм, дисторшн, волны и звук (guitar.gd)
@@ -124,7 +129,7 @@ func _ready() -> void:
 	pod = PodHand.new()
 	pod.setup(rig)
 	rig.skel.add_child(pod)
-	heroes["pahan"] = {"rig": rig, "anim": anim, "feet": feet, "trail": trail, "styles": own_styles, "style": "vozduh"}
+	heroes["pahan"] = {"rig": rig, "anim": anim, "feet": feet, "trail": trail, "styles": own_styles, "style": "vozduh", "pod": pod}
 	# madk1d как второй герой игрока: свой риг, оружие стилей, состояния анимации и стопы
 	var mr := Rig.new()
 	spin.add_child(mr)
@@ -144,7 +149,7 @@ func _ready() -> void:
 		var bw: Dictionary = m_weapons["skateboard"]
 		mr.weapon = bw["weapon"]
 		mr.weapon_bone = bw["bone"]
-		mr.setup_holster("spine2", MadkWeaponClips.BOARD_BACK_DIR, MadkWeaponClips.BOARD_BACK_OFF, MadkWeaponClips.BOARD_BACK_ROLL)
+		mr.setup_holster("spine2", MadkWeaponClips.BOARD_BACK_DIR, MadkWeaponClips.BOARD_BACK_OFF, _board_back_roll(mr, bw["weapon"]))
 		bw["back_att"] = mr.back_att
 		bw["back_xf"] = mr.back_xf
 		bw["hand_att"] = mr.hand_att
@@ -154,6 +159,46 @@ func _ready() -> void:
 		reach = ArmReach.new()
 		reach.setup(mr)
 		mr.skel.add_child(reach)
+	# iPod и наушники madk1d: тот же слой, что у Пахана, точки позы пересчитаны под его тело (PodHand.MADK1D).
+	# Оружие он не отпускает к ноге, как Пахан балон, — убирает за спину (_madk_pod_gear).
+	var mpod := PodHand.new()
+	mpod.setup(mr, PodHand.MADK1D)
+	mpod.manage_weapon = false
+	mr.skel.add_child(mpod)
+	madk_pod = mpod
+	if m_weapons.has("guitar"):
+		# гитара за спиной на время iPod: она в левой руке, а iPod достаёт как раз левая.
+		# Ось модели гитары идёт от головки грифа к корпусу: «вниз-вправо» — гриф над левым плечом, корпус у правого
+		# бедра (крест-накрест с доской). Вешается тем же Rig.setup_holster, что и доска, — одна формула на обе вещи.
+		var gw: Dictionary = m_weapons["guitar"]
+		var gnode: Node3D = gw["weapon"]
+		gw["hand_att"] = gnode.get_parent()
+		gw["hand_xf"] = gnode.transform
+		var groll := 0.0
+		var gmi := WeaponBones._mesh(gnode)
+		if gmi != null:
+			var gab: AABB = gmi.mesh.get_aabb()
+			var thin := 0
+			for ax in 3:
+				if gab.size[ax] < gab.size[thin]:
+					thin = ax
+			var gn := Vector3.ZERO
+			gn[thin] = 1.0                      # гитара плоская: тонкая ось — нормаль корпуса
+			groll = _back_roll(mr, gnode, gmi, gn, MadkWeaponClips.GUITAR_BACK_DIR) + GUITAR_BACK_FLIP
+		var keep := [mr.weapon, mr.weapon_bone, mr.back_att, mr.back_xf, mr.hand_att, mr.hand_xf, mr.weapon_hand_bone]
+		mr.weapon = gnode
+		mr.weapon_bone = gw["bone"]
+		mr.back_att = null
+		mr.setup_holster("spine2", MadkWeaponClips.GUITAR_BACK_DIR, MadkWeaponClips.GUITAR_BACK_OFF, groll)
+		gw["back_att"] = mr.back_att
+		gw["back_xf"] = mr.back_xf
+		mr.weapon = keep[0]
+		mr.weapon_bone = keep[1]
+		mr.back_att = keep[2]
+		mr.back_xf = keep[3]
+		mr.hand_att = keep[4]
+		mr.hand_xf = keep[5]
+		mr.weapon_hand_bone = keep[6]
 	var mt := Trail.new()
 	mr.add_child(mt)
 	mt.setup(mr, Color(0.36, 0.82, 1.0), 0.2)
@@ -167,7 +212,7 @@ func _ready() -> void:
 	for sid in ["skateboard", "guitar", "breaker"]:
 		if Styles.by_id(sid).ready:
 			mstyles.append(sid)
-	heroes["madk1d"] = {"rig": mr, "anim": AnimState.new(mr, mdefs, MadkMoves.PROFILE), "feet": mf, "trail": mt, "styles": mstyles, "style": mstyles[0] if not mstyles.is_empty() else ""}
+	heroes["madk1d"] = {"rig": mr, "anim": AnimState.new(mr, mdefs, MadkMoves.PROFILE), "feet": mf, "trail": mt, "styles": mstyles, "style": mstyles[0] if not mstyles.is_empty() else "", "pod": madk_pod}
 	skate = Skate.new()
 	body.add_child(skate)
 	skate.setup(self, game)
@@ -636,6 +681,11 @@ func set_hero(id: String) -> void:
 	rig = h["rig"]
 	anim = h["anim"]
 	feet = h["feet"]
+	if h.has("pod") and h["pod"] != pod:
+		pod.snap()                # iPod ушедшего героя — сразу в карман (наушники остаются как были)
+		pod.want = false
+		pod = h["pod"]
+		pod_synced = false        # у вошедшего — те же наушники, что хранит ipod.gd
 	trail = h["trail"]
 	own_styles = h["styles"]
 	rig.visible = true
@@ -657,10 +707,44 @@ func _weapon_bones(r: Rig, sd: StyleData) -> void:
 	if sd.id == "skateboard":
 		var bmi := WeaponBones._mesh(m)
 		if bmi != null:
-			Skate.fix_mesh(bmi)      # у модели доски колёса с обеих сторон деки: лишние убираем и у доски в руке
+			board_n = Skate.fix_mesh(bmi)[0]      # у модели доски колёса с обеих сторон деки: лишние убираем и у доски в руке
+			board_mi = bmi
 	var wb := WeaponBones.on(m, String(opt.get("axis", "y")), float(opt.get("from", 0.0)), float(opt.get("to", 1.0)), sd.id)
 	if wb != null:
 		wbones[sd.id] = wb
+
+## Поворот доски за спиной вокруг её длинной оси: перебрать и взять тот, при котором шкурка смотрит в спину
+## (нормаль деки — вперёд по телу), колёса — наружу. Считается по той же формуле, что Rig.setup_holster.
+func _board_back_roll(r: Rig, w: Node3D) -> float:
+	if board_mi == null:
+		return 0.0
+	return _back_roll(r, w, board_mi, board_n, MadkWeaponClips.BOARD_BACK_DIR)
+
+## То же для любого плоского предмета: поворот, при котором нормаль n_mesh (оси меша) смотрит вперёд по телу.
+func _back_roll(r: Rig, w: Node3D, mi: MeshInstance3D, n_mesh: Vector3, d: Array) -> float:
+	# нормаль в осях крепления оружия: от меша вверх по цепочке узлов до него
+	var m := Basis()
+	var n: Node = mi
+	while n != null and n != w:
+		if n is Node3D:
+			m = (n as Node3D).transform.basis * m
+		n = n.get_parent()
+	var nn: Vector3 = (m * n_mesh).normalized()
+	var b: int = r.bone["spine2"]
+	var gq: Quaternion = r._globals(r.rest_rot)[0][b]
+	var up := (gq.inverse() * r.dir_sk(Vector3(d[0], d[1], d[2]))).normalized()
+	var fwd: Vector3 = r.dir_sk(Vector3(0, 0, 1)).normalized()
+	var best := 0.0
+	var bs := -9.0
+	for i in 144:
+		var roll := TAU * float(i) / 144.0
+		var q := Quaternion(Vector3.UP, up) * Quaternion(Vector3.UP, roll)
+		var ns: Vector3 = gq * (Basis(q) * nn)
+		var sc: float = ns.normalized().dot(fwd)
+		if sc > bs:
+			bs = sc
+			best = roll
+	return best
 
 ## оружие madk1d по стилю: в кулаке видно только оно
 func equip_madk(sid: String) -> void:
@@ -684,6 +768,28 @@ func show_weapon(on: bool) -> void:
 		if on and style.id == "skateboard":
 			board_place(fight_t > 0.0 or enemies_near(9.0))      # сошёл с доски: в бою она в руке, иначе за спину
 			board_t = -1.0
+
+## madk1d с iPod: обе руки свободны — доска за спиной, гитара тоже за спину (она в левой руке, а iPod достаёт левая).
+var guitar_back := false
+func _madk_pod_gear(on: bool) -> void:
+	if on and board_out:
+		board_place(false)
+		board_t = -1.0
+	if not m_weapons.has("guitar") or not (m_weapons["guitar"] as Dictionary).has("back_att"):
+		return
+	var back: bool = on and style.id == "guitar"
+	if back == guitar_back:
+		return
+	guitar_back = back
+	var gw: Dictionary = m_weapons["guitar"]
+	var w: Node3D = gw["weapon"]
+	var to: Node3D = gw["back_att"] if back else gw["hand_att"]
+	if w.get_parent() != to:
+		w.reparent(to, false)
+	w.transform = gw["back_xf"] if back else gw["hand_xf"]
+	var r: Rig = heroes["madk1d"]["rig"]
+	r.weapon_bone = -1 if back else int(gw["bone"])
+	r.style_map = {} if back else style.roles      # гитара за спиной — обычная стойка, руки свободны
 
 ## Доска madk1d: в руке (out) или за спиной. За спиной она не оружие: след и точки удара молчат, стойка — без оружия.
 func board_place(out: bool) -> void:
@@ -716,7 +822,7 @@ func _board_tick(dt: float) -> void:
 		board_t = -1.0
 		reach.w = move_toward(reach.w, 0.0, dt * 8.0)
 		return
-	var want: bool = fight_t > 0.0
+	var want: bool = fight_t > 0.0 and not pod.busy()      # с iPod в руках доска за спиной
 	if board_t < 0.0 and want != board_out and state == "move":
 		board_t = 0.0
 		board_to = want
@@ -1032,7 +1138,7 @@ func _process(dt: float) -> void:
 	# iPod: пока интерфейс открыт, герой держит устройство перед собой. Он встаёт вполоборота к камере,
 	# лицом к правому краю кадра — туда, где интерфейс, — иначе iPod у груди закрыт спиной. После — поворачивается обратно.
 	var ip = game.ipod
-	var pod_open: bool = hero == "pahan" and (pod_force or (ip != null and (ip.opened or ip.device.visible) and state == "move"))
+	var pod_open: bool = (pod_force or (ip != null and (ip.opened or ip.device.visible) and state == "move"))
 	if pod_open and not pod.want:
 		if not pod.busy():
 			pod_face0 = face
@@ -1048,9 +1154,19 @@ func _process(dt: float) -> void:
 		elif (pod.buds_in() or pod.buds_state() == "STORED") and pod.buds_in() != bool(ip.earbuds_in):
 			ip.earbuds_in = pod.buds_in()
 			ip._save_settings()
+	if hero == "madk1d":
+		_madk_pod_gear(pod.want or pod.busy())
 	if pod.busy():
 		face = lerp_angle(face, pod_face if pod.want or pod.u >= 1.0 else pod_face0, 1.0 - exp(-5.0 * dt))
 		body.rotation.y = face
+		pod_turn_back = true
+	elif pod_turn_back:
+		# iPod уже в кармане, а поворот обратно не доигран: доводим, пока игрок сам не повёл героя
+		if state == "move" and input_dir().length() < 0.1 and abs(angle_difference(face, pod_face0)) > 0.01:
+			face = lerp_angle(face, pod_face0, 1.0 - exp(-8.0 * dt))
+			body.rotation.y = face
+		else:
+			pod_turn_back = false
 	# бутылка в кулаке: есть запас, не идёт смена стиля, рука не занята iPod, бутылка ещё не брошена
 	bottles.update_props(hero == "pahan" and style.id == "bottles" and switch_to == "" and state != "dead" and not pod.busy())      # две бутылки в руках; брошенная возвращается из кармана
 	# стопы: прилегание к земле всегда, кроме переката, гибели и полёта; фиксация опоры — только в перемещении
