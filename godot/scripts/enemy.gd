@@ -771,6 +771,8 @@ func take_hit_info(h: HitInfo) -> void:
 	no_flinch = r == "none"
 	take_hit(dmg, h.dir, h.knockback / (m if h.knockback >= 6.0 else max(m, 1.0)), h.heavy, launch)      # слабый толчок лёгких врагов не разбрасывает: серия ударов должна попадать
 	no_flinch = false
+	if game != null and game.fx != null:
+		game.fx.attack_vfx(h, self)       # рисунок попадания этой атаки (vfx_profiles.gd) — только по настоящему попаданию
 	if not alive():
 		return
 	react = r

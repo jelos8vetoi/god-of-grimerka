@@ -434,6 +434,7 @@ func _ending() -> void:
 			game.main.sfx("sfx_boom", -4.0, 1.2)
 		_:
 			game.fx.dust(e.global_position + Vector3(0, 0.1, 0), 12, game.fx.DUST, 1.1)
+	game.fx.duo_finale(at, String(p.style.id), String(mate_style), d, 1.0)      # подпись пары: цвета и мотивы обоих стилей
 	game.feedback("hit_super", at, d, 1.0, col)
 	game.shake(0.35)
 	game.popup(e.global_position + Vector3(0, e.height + 1.3, 0), String(pr["title"]), col)

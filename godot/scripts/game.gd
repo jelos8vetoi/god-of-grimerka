@@ -772,11 +772,11 @@ func _unhandled_input(e: InputEvent) -> void:
 			popup(buddy.global_position + Vector3(0, 2.1, 0), "перезарядка", Color(0.6, 0.7, 0.8))
 
 func shake(a: float) -> void:
-	trauma = min(1.0, trauma + a)
+	trauma = min(1.0, trauma + a * float(Opts.v("shake")))      # настройка «тряска камеры» (0…100 %)
 
 ## не добавляет, а держит тряску не ниже заданной (заряд, гул)
 func rumble(a: float) -> void:
-	trauma = max(trauma, a)
+	trauma = max(trauma, a * float(Opts.v("shake")))
 
 ## Отклик экрана на сильный удар: цветной разлёт по краям, размытие от центра, волна от точки удара, толчок обзора.
 func punch(k: float, pos: Vector3) -> void:
@@ -788,7 +788,7 @@ func punch(k: float, pos: Vector3) -> void:
 		ripple_c = c.unproject_position(pos) / get_viewport().get_visible_rect().size
 		pp["ripple_a"] = k
 		pp["ripple_t"] = 0.0
-	if k >= 0.9 and clock - last_flash > 0.4:   # вспышка экрана не чаще двух-трёх раз в секунду
+	if k >= 0.9 and clock - last_flash > 0.4 and not bool(Opts.v("less_flash")):   # вспышка экрана не чаще двух-трёх раз в секунду
 		last_flash = clock
 		pp["flash"] = 0.13
 

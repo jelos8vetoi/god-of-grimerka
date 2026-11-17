@@ -1,3 +1,6 @@
+## Профили атак (vfx_profiles.gd): у каждой атаки свой рисунок попадания — дуга-след (шейдер vfx_arc), ударное кольцо
+## (vfx_ring), осколки, щепки, струи воздуха; всё из пулов, параметры — на экземпляр (один материал на все дуги и кольца).
+## Запуск — только настоящим попаданием (enemy.take_hit_info → attack_vfx); лимит — два полных профиля за кадр.
 ## Эффекты боя: вспышки попаданий, искры, пыль, ударные кольца, трещины и гарь на земле, обломки, вспышки света.
 ## Текстуры — Kenney Particle Pack (CC0), лежат в assets/fx. Частицы берутся из заранее созданных наборов по кругу,
 ## поэтому удар ничего не создаёт на лету, кроме пары плоских спрайтов.
@@ -19,6 +22,28 @@ var light_i := 0
 var decals: Array = []
 var twinkle_pool: Array = []
 var twinkle_i := 0
+# ---- профили атак ----
+const ARC_SHADER := preload("res://assets/shaders/vfx_arc.gdshader")
+const RING_SHADER := preload("res://assets/shaders/vfx_ring.gdshader")
+const ARCS := 16                # дуг одновременно
+const RINGS := 16               # колец одновременно
+const PER_FRAME := 2            # полных профилей за кадр (по остальным целям — только базовое попадание)
+var arc_pool: Array = []
+var arc_i := 0
+var ring_pool: Array = []
+var ring_i := 0
+var debris_pool := {}           # вид → [GPUParticles3D…]
+var debris_i := {}
+var streak_pool: Array = []
+var streak_i := 0
+var live: Array = []            # [узел, время, длительность] — дуги и кольца, которые сейчас идут
+var frame_id := -1
+var frame_n := 0
+var flash_k: float:             # «меньше вспышек» (настройки): вспышки мельче и тусклее, лучей у колец нет
+	get:
+		return 0.0 if bool(Opts.v("less_flash")) else 1.0
+var stats := {"profiles": 0, "skipped": 0, "prims": 0}
+var only := ""                  # для замера в --vfxcheck: играть только этот вид примитива
 
 func _ready() -> void:
 	for n in ["star_08", "star_04", "flare_01", "magic_05", "magic_03", "circle_02", "circle_05", "scorch_01", "scorch_02", "spark_05", "spark_06", "smoke_04", "smoke_07", "trace_01", "light_01", "twirl_02", "dirt_02",
@@ -33,6 +58,40 @@ func _ready() -> void:
 		chunk_pool.append(_make_chunks())
 	for i in 4:
 		twinkle_pool.append(_make_twinkle())
+	var am := ShaderMaterial.new()
+	am.shader = ARC_SHADER
+	var arc_mesh := PlaneMesh.new()
+	arc_mesh.size = Vector2(1, 1)
+	arc_mesh.subdivide_width = 30
+	arc_mesh.material = am
+	for i in ARCS:
+		var mi := MeshInstance3D.new()
+		mi.mesh = arc_mesh
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.custom_aabb = AABB(Vector3(-1.1, -0.3, -1.1), Vector3(2.2, 0.6, 2.2))
+		mi.visible = false
+		add_child(mi)
+		arc_pool.append(mi)
+	var rm := ShaderMaterial.new()
+	rm.shader = RING_SHADER
+	var ring_mesh := QuadMesh.new()
+	ring_mesh.size = Vector2(1, 1)
+	ring_mesh.material = rm
+	for i in RINGS:
+		var mi := MeshInstance3D.new()
+		mi.mesh = ring_mesh
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.custom_aabb = AABB(Vector3(-0.8, -0.8, -0.8), Vector3(1.6, 1.6, 1.6))
+		mi.visible = false
+		add_child(mi)
+		ring_pool.append(mi)
+	for kind in ["glass", "wood", "stone"]:
+		debris_pool[kind] = []
+		debris_i[kind] = 0
+		for i in 3:
+			debris_pool[kind].append(_make_debris(kind))
+	for i in 6:
+		streak_pool.append(_make_streaks())
 	for i in 3:
 		var l := OmniLight3D.new()
 		l.omni_range = 6.0
@@ -168,6 +227,98 @@ func _make_chunks() -> GPUParticles3D:
 	add_child(p)
 	return p
 
+## Осколки стекла, щепки доски, куски бетона: свои форма, материал и вес
+func _make_debris(kind: String) -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.amount = 26
+	p.lifetime = 0.8 if kind != "stone" else 1.0
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.emitting = false
+	p.visibility_aabb = AABB(Vector3(-8, -3, -8), Vector3(16, 10, 16))
+	var pm := ParticleProcessMaterial.new()
+	pm.direction = Vector3.UP
+	pm.spread = 55.0
+	pm.initial_velocity_min = 3.0
+	pm.initial_velocity_max = 8.0 if kind == "glass" else 6.5
+	pm.gravity = Vector3(0, -18.0 if kind != "glass" else -14.0, 0)
+	pm.angular_velocity_min = -720.0
+	pm.angular_velocity_max = 720.0
+	pm.scale_min = 0.5
+	pm.scale_max = 1.3
+	pm.scale_curve = _fade_curve(false)
+	pm.particle_flag_rotate_y = true
+	p.process_material = pm
+	var m := StandardMaterial3D.new()
+	var mesh: Mesh
+	match kind:
+		"glass":
+			var pr := PrismMesh.new()
+			pr.size = Vector3(0.07, 0.16, 0.02)
+			mesh = pr
+			m.albedo_color = Color(0.75, 0.95, 1.0, 0.75)
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.metallic_specular = 1.0
+			m.roughness = 0.05
+			m.emission_enabled = true
+			m.emission = Color(0.4, 0.75, 1.0)
+			m.emission_energy_multiplier = 0.9
+		"wood":
+			var b := BoxMesh.new()
+			b.size = Vector3(0.035, 0.035, 0.22)
+			mesh = b
+			m.albedo_color = Color(0.62, 0.42, 0.24)
+			m.roughness = 0.85
+		_:
+			var b2 := BoxMesh.new()
+			b2.size = Vector3(0.12, 0.09, 0.14)
+			mesh = b2
+			m.albedo_color = Color(0.3, 0.29, 0.3)
+			m.roughness = 0.95
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.material = m
+	p.draw_pass_1 = mesh
+	add_child(p)
+	return p
+
+## Струи воздуха: длинные тонкие полосы по направлению потока (ТЯГА, подбросы, рывки)
+func _make_streaks() -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.amount = 24
+	p.lifetime = 0.32
+	p.one_shot = true
+	p.explosiveness = 0.9
+	p.emitting = false
+	p.transform_align = GPUParticles3D.TRANSFORM_ALIGN_Z_BILLBOARD_Y_TO_VELOCITY
+	p.visibility_aabb = AABB(Vector3(-8, -4, -8), Vector3(16, 12, 16))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = 0.45
+	pm.direction = Vector3.FORWARD
+	pm.spread = 14.0
+	pm.initial_velocity_min = 9.0
+	pm.initial_velocity_max = 16.0
+	pm.gravity = Vector3.ZERO
+	pm.damping_min = 12.0
+	pm.damping_max = 20.0
+	pm.scale_min = 0.6
+	pm.scale_max = 1.2
+	pm.scale_curve = _fade_curve(false)
+	p.process_material = pm
+	var q := QuadMesh.new()
+	q.size = Vector2(0.05, 0.9)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.albedo_texture = tex["trace_01"]
+	m.vertex_color_use_as_albedo = true
+	q.material = m
+	p.draw_pass_1 = q
+	add_child(p)
+	return p
+
 # ---------- кирпичики ----------
 func sparks(pos: Vector3, dir: Vector3, count: int, col: Color, speed := 1.0, spread := 42.0) -> void:
 	var p: GPUParticles3D = spark_pool[spark_i]
@@ -248,6 +399,8 @@ func _sprite(t: String, pos: Vector3, col: Color, add := true, billboard := true
 
 ## вспышка-звезда в точке удара: мгновенно раздувается и гаснет
 func flash(pos: Vector3, size: float, col: Color, t := "star_08", sec := 0.16) -> void:
+	size *= lerpf(0.6, 1.0, flash_k)
+	col.a *= lerpf(0.5, 1.0, flash_k)
 	var mi := _sprite(t, pos, col, true, true, true)
 	mi.scale = Vector3.ONE * size * 0.35
 	var tw := mi.create_tween()
@@ -369,6 +522,13 @@ func scrape(pos: Vector3, dir: Vector3) -> void:
 
 ## Первый показ: прогоняем все виды частиц у ног героя, чтобы в бою ничего не подгружалось
 func prewarm(pos: Vector3) -> void:
+	# дуга, кольцо, осколки, щепки, камни, струи — шейдеры и частицы собираются до первого боя
+	_arc_at(pos + Vector3(0, 0.6, 0), Vector3.FORWARD, {"len": 120, "tilt": 0, "r": 0.6, "w": 0.3, "dur": 0.1}, Color(1, 1, 1, 0.05), Color(1, 1, 1, 0.05))
+	_shock_at(pos + Vector3(0, 0.6, 0), {"s": 0.5, "dur": 0.1}, Color(1, 1, 1, 0.05))
+	_shock_at(pos, {"s": 0.5, "dur": 0.1, "bill": 0}, Color(1, 1, 1, 0.05))
+	for kind in debris_pool:
+		debris(kind, pos + Vector3(0, -0.6, 0), Vector3.UP, 1)
+	streaks(pos + Vector3(0, -0.6, 0), Vector3.UP, 1, Color(1, 1, 1, 0.05))
 	sparks(pos + Vector3(0, 0.3, 0), Vector3.UP, 6, Color(1, 0.8, 0.4, 0.4))
 	dust(pos + Vector3(0, 0.15, 0), 8, DUST, 0.8)
 	chunks(pos + Vector3(0, -0.6, 0), 3)
@@ -682,3 +842,186 @@ func stamp(pos: Vector3, r: float, col: Color) -> void:
 	tw.tween_callback(mi.queue_free)
 	pillar(Vector3(pos.x, 0.0, pos.z), 3.5, col)
 	ground_ring(Vector3(pos.x, 0.0, pos.z), 0.8, r * 3.2, col, 0.4)
+
+# ---------- профили атак ----------
+func _process(dt: float) -> void:
+	if live.is_empty():
+		return
+	var i := live.size() - 1
+	while i >= 0:
+		var it: Array = live[i]
+		var mi: MeshInstance3D = it[0]
+		it[1] = float(it[1]) + dt
+		var k: float = float(it[1]) / float(it[2])
+		if k >= 1.0 or not is_instance_valid(mi):
+			if is_instance_valid(mi):
+				mi.visible = false
+			live.remove_at(i)
+		else:
+			mi.set_instance_shader_parameter("progress", k)
+		i -= 1
+
+func _start(mi: MeshInstance3D, dur: float) -> void:
+	for it in live:
+		if it[0] == mi:
+			live.erase(it)
+			break
+	mi.set_instance_shader_parameter("progress", 0.0)
+	mi.visible = true
+	live.append([mi, 0.0, maxf(0.05, dur)])
+
+## Дуга-след через точку попадания: плоскость взмаха — поворот вокруг направления удара на tilt градусов
+func _arc_at(pos: Vector3, d: Vector3, pr: Dictionary, col: Color, edge_col: Color) -> void:
+	var mi: MeshInstance3D = arc_pool[arc_i]
+	arc_i = (arc_i + 1) % arc_pool.size()
+	var r: float = float(pr.get("r", 1.4))
+	var dh := Vector3(d.x, 0, d.z)
+	dh = dh.normalized() if dh.length() > 0.05 else Vector3.FORWARD
+	var b := Basis.looking_at(dh, Vector3.UP) * Basis(Vector3(0, 0, 1), deg_to_rad(float(pr.get("tilt", 0.0))))
+	var flip: float = float(pr.get("flip", 1.0))
+	b = b * Basis.from_scale(Vector3(r * flip, r, r))
+	mi.global_transform = Transform3D(b, pos - (b * Vector3(0, 0, -1)).normalized() * r)
+	mi.set_instance_shader_parameter("span", deg_to_rad(float(pr.get("len", 140.0))))
+	mi.set_instance_shader_parameter("tint", col)
+	mi.set_instance_shader_parameter("core", edge_col)
+	mi.set_instance_shader_parameter("width", float(pr.get("w", 0.45)))
+	mi.set_instance_shader_parameter("edge", float(pr.get("edge", 0.6)))
+	mi.set_instance_shader_parameter("grain", float(pr.get("grain", 0.0)))
+	mi.set_instance_shader_parameter("bands", float(pr.get("bands", 0.0)))
+	mi.set_instance_shader_parameter("seed", randf())
+	_start(mi, float(pr.get("dur", 0.2)))
+
+## Ударное кольцо: лицом к камере (bill 1) или лёжа на земле (bill 0)
+func _shock_at(pos: Vector3, pr: Dictionary, col: Color) -> void:
+	var mi: MeshInstance3D = ring_pool[ring_i]
+	ring_i = (ring_i + 1) % ring_pool.size()
+	var bill: float = float(pr.get("bill", 1))
+	var s: float = float(pr.get("s", 2.0)) * (0.75 if bill > 0.5 else 1.0)
+	var b := Basis().scaled(Vector3.ONE * s)
+	if bill < 0.5:
+		b = Basis(Vector3(1, 0, 0), -PI / 2).scaled(Vector3.ONE * s)
+	mi.global_transform = Transform3D(b, pos)
+	# кольцо лицом к камере — полупрозрачное и тонкое: врага и его замах за ним видно
+	col.a *= lerpf(0.7, 1.0, flash_k) * (0.62 if bill > 0.5 else 0.85)
+	mi.set_instance_shader_parameter("tint", col)
+	mi.set_instance_shader_parameter("thick", float(pr.get("thick", 0.16)) * (0.75 if bill > 0.5 else 1.0))
+	mi.set_instance_shader_parameter("rays", float(pr.get("rays", 0)) * (1.0 if flash_k > 0.5 else 0.0))
+	mi.set_instance_shader_parameter("waves", float(pr.get("waves", 0)))
+	mi.set_instance_shader_parameter("segs", float(pr.get("segs", 0)))
+	mi.set_instance_shader_parameter("bill", bill)
+	mi.set_instance_shader_parameter("seed", randf())
+	_start(mi, float(pr.get("dur", 0.26 + 0.03 * s)))
+
+func debris(kind: String, pos: Vector3, d: Vector3, count: int) -> void:
+	if not debris_pool.has(kind):
+		return
+	var arr: Array = debris_pool[kind]
+	var p: GPUParticles3D = arr[int(debris_i[kind])]
+	debris_i[kind] = (int(debris_i[kind]) + 1) % arr.size()
+	var pm := p.process_material as ParticleProcessMaterial
+	pm.direction = (d + Vector3(0, 0.8, 0)).normalized()
+	p.amount_ratio = clampf(count / 26.0, 0.04, 1.0)
+	p.global_position = pos
+	p.restart()
+	p.emitting = true
+
+func streaks(pos: Vector3, d: Vector3, count: int, col: Color) -> void:
+	var p: GPUParticles3D = streak_pool[streak_i]
+	streak_i = (streak_i + 1) % streak_pool.size()
+	var pm := p.process_material as ParticleProcessMaterial
+	pm.direction = d.normalized() if d.length() > 0.01 else Vector3.UP
+	pm.color = col
+	p.amount_ratio = clampf(count / 24.0, 0.04, 1.0)
+	p.global_position = pos
+	p.restart()
+	p.emitting = true
+
+## Попадание атаки героя: профиль по AttackData.id (зовёт enemy.take_hit_info — то есть только настоящее попадание)
+func attack_vfx(h: HitInfo, e) -> void:
+	var f := Engine.get_process_frames()
+	if f != frame_id:
+		frame_id = f
+		frame_n = 0
+	frame_n += 1
+	if frame_n > PER_FRAME:
+		stats["skipped"] = int(stats["skipped"]) + 1
+		return
+	var sid: String = h.style_id
+	var a: AttackData = null
+	if sid != "":
+		a = Styles.by_id(sid).attack(h.attack_id)
+	var prof: Dictionary
+	var m: Dictionary
+	if a != null:
+		prof = VfxProfiles.of(a, sid)
+		m = VfxProfiles.motif(sid)
+	else:
+		# командный приём (Tag Team, дуэт): палитра стиля того, кто бьёт
+		var src_style: String = String(h.source.style.id) if h.source != null and "style" in h.source and h.source.style != null else ""
+		m = VfxProfiles.motif(src_style)
+		prof = {"id": h.attack_id, "prims": [{"p": "arc", "len": 160 + 40 * h.power, "tilt": 35, "r": 1.6, "w": 0.6, "col": "hot"},
+			{"p": "shock", "s": 2.0 + 0.8 * h.power, "rays": 8, "col": "edge"}]}
+	var hot: bool = h.source != null and "rage" in h.source and float(h.source.rage) > 0.0
+	var gy: float = e.global_position.y if e != null and is_instance_valid(e) else h.pos.y - 1.0
+	play(prof, h.pos, h.dir, m, hot, gy)
+	stats["profiles"] = int(stats["profiles"]) + 1
+
+## Проиграть профиль в точке: prims — из VfxProfiles; gy — уровень земли под целью
+func play(prof: Dictionary, pos: Vector3, d: Vector3, m: Dictionary, hot := false, gy := 0.0) -> void:
+	for pr in prof["prims"]:
+		var ck: String = String(pr.get("col", "main"))
+		var c: Color = VfxProfiles.col(m, "hot" if hot and ck == "main" else ck)
+		stats["prims"] = int(stats["prims"]) + 1
+		if only != "" and String(pr["p"]) != only:
+			continue
+		match String(pr["p"]):
+			"arc":
+				var at := pos
+				if bool(pr.get("low", false)):
+					at.y = gy + 0.35
+				_arc_at(at, d, pr, Color(c.r, c.g, c.b, 0.95), VfxProfiles.col(m, "edge"))
+			"shock":
+				var at2 := pos if float(pr.get("bill", 1)) > 0.5 else Vector3(pos.x, gy + 0.08, pos.z)
+				_shock_at(at2, pr, c)
+			"debris":
+				debris(String(pr.get("kind", "stone")), pos, d, int(pr.get("n", 10)))
+			"streaks":
+				var sd: Vector3 = Vector3.UP if bool(pr.get("up", false)) else Vector3(d.x, 0.15, d.z)
+				streaks(pos, sd, int(pr.get("n", 12)), Color(c.r, c.g, c.b, 0.8))
+			"spark":
+				sparks(pos, d + Vector3(0, 0.5, 0), int(pr.get("n", 10)), c, 1.0, 55.0)
+			# вспышка, вихрь и трещина создают свои узлы (не из пула) — не чаще, чем глаз успевает их различить
+			"flash":
+				if _gap("flash", 90):
+					flash(pos, float(pr.get("s", 1.6)), c, String(pr.get("tex", "star_08")), 0.18)
+			"twirl":
+				if _gap("twirl", 120):
+					twirl(Vector3(pos.x, gy, pos.z), float(pr.get("s", 2.0)), Color(c.r, c.g, c.b, 0.7), 0.4)
+			"crack":
+				if _gap("crack", 350):
+					scorch(Vector3(pos.x, gy, pos.z), float(pr.get("s", 1.0)) * 1.5, VfxProfiles.col(m, "hot"))
+
+var _last := {}
+
+## прошло ли ms миллисекунд с прошлого такого примитива (и отметить)
+func _gap(kind: String, ms: int) -> bool:
+	var now := Time.get_ticks_msec()
+	if now - int(_last.get(kind, -100000)) < ms:
+		stats["throttled"] = int(stats.get("throttled", 0)) + 1
+		return false
+	_last[kind] = now
+	return true
+
+## Финал пары (дуэт-атака, Team Overdrive): две дуги крест-накрест в цветах обоих стилей и кольцо с мотивами обоих
+func duo_finale(pos: Vector3, style_a: String, style_b: String, d: Vector3, big := 1.0) -> void:
+	var ma := VfxProfiles.motif(style_a)
+	var mb := VfxProfiles.motif(style_b)
+	_arc_at(pos, d, {"len": 200, "tilt": 45, "r": 1.6 * big, "w": float(ma["width"]) + 0.2, "edge": float(ma["edge_k"]), "grain": float(ma["grain"]), "bands": float(ma["bands"]), "dur": 0.3}, VfxProfiles.col(ma, "main"), VfxProfiles.col(ma, "edge"))
+	_arc_at(pos, d, {"len": 200, "tilt": -45, "flip": -1.0, "r": 1.6 * big, "w": float(mb["width"]) + 0.2, "edge": float(mb["edge_k"]), "grain": float(mb["grain"]), "bands": float(mb["bands"]), "dur": 0.3}, VfxProfiles.col(mb, "main"), VfxProfiles.col(mb, "edge"))
+	_shock_at(pos, {"s": 3.2 * big, "rays": int(ma["rays"]) + 4, "waves": int(mb["waves"]), "segs": int(mb["segs"]), "thick": 0.22, "dur": 0.38}, VfxProfiles.col(ma, "hot"))
+	_shock_at(pos, {"s": 4.0 * big, "waves": int(ma["waves"]) + 1, "thick": 0.1, "dur": 0.45}, VfxProfiles.col(mb, "main"))
+	for m in [ma, mb]:
+		if String(m["debris"]) != "":
+			debris(String(m["debris"]) if String(m["debris"]) != "metal" else "stone", pos, d, 14)
+		if bool(m["air"]):
+			streaks(pos, Vector3.UP, 18, VfxProfiles.col(m, "main"))

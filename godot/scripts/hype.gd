@@ -323,6 +323,7 @@ func _beat(i: int) -> void:
 				d = d.normalized() if d.length() > 0.1 else Vector3(sin(p.face), 0, cos(p.face))
 				_hit(e, 40.0, 70.0, d, 9.0, 6.0, 2)
 			game.fx.slam(center, 1.8, gold)
+			game.fx.duo_finale(center + Vector3(0, 1.2, 0), String(p.style.id), String(p.heroes[game.tag.mate()]["style"]), Vector3(sin(p.face), 0, cos(p.face)), 1.7)
 			game.fx.ground_ring(center, 0.5, 9.0, Color(1.0, 0.86, 0.5, 0.8), 0.5)
 			game.fx.lightning(center, 5.0, Color(0.5, 0.85, 1.0))
 			game.hitstop(0.12)

@@ -41,6 +41,7 @@ var bottlecheck := ""     # --bottlecheck=<папка>: стиль «Водяр�
 var tyagacheck := ""      # --tyagacheck=<папка>: стиль «ТЯГА-812» (scripts/tyagacheck.gd)
 var madkcheck := ""       # --madkcheck=<папка>: оружие madk1d — доска за спиной, гитара в двух руках (scripts/madkcheck.gd)
 var duocheck := ""        # --duocheck=<папка>: дуэт-атака на [T] (scripts/duocheck.gd)
+var vfxcheck := ""        # --vfxcheck=<папка>: эффекты боя по профилям атак (scripts/vfxcheck.gd)
 var tutorialcheck := ""   # --tutorialcheck=<папка>: боевое обучение (scripts/tutorialcheck.gd)
 var combatcheck := ""     # --combatcheck=<папка>: ядро боя в игре (scripts/combatcheck.gd)
 var animlab := ""          # --animlab=<папка>: анимации в игре — сцены, листы кадров, замеры стоп (scripts/animlab.gd)
@@ -116,6 +117,8 @@ func _ready() -> void:
 			launcher = arg.substr(11)
 		elif arg.begins_with("--transcheck="):
 			transcheck = arg.substr(13)
+		elif arg.begins_with("--vfxcheck="):
+			vfxcheck = arg.substr(11)
 		elif arg.begins_with("--tutorialcheck="):
 			tutorialcheck = arg.substr(16)
 		elif arg.begins_with("--deathcheck="):
@@ -268,7 +271,7 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck
+	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck + vfxcheck
 
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 func tutorial_on() -> bool:
@@ -369,6 +372,12 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 		tgc.out = tyagacheck
 		game.director = tgc
 		game.add_child(tgc)
+	if vfxcheck != "":
+		var vxc = preload("res://scripts/vfxcheck.gd").new()
+		vxc.game = game
+		vxc.out = vfxcheck
+		game.director = vxc
+		game.add_child(vxc)
 	if tutorialcheck != "":
 		var tuc = preload("res://scripts/tutorialcheck.gd").new()
 		tuc.game = game
