@@ -61,6 +61,8 @@ var skate: Skate             # скейтборд: езда и трюки (skate
 var guitar: Guitar           # электрогитара: ритм, дисторшн, волны и звук (guitar.gd)
 var breaker: Breaker         # Breaker Style: поток, Freeze, риск (breaker.gd)
 var execution: Execution     # контекстные добивания (execution.gd)
+var flow: WeaponFlow         # смена стиля в бою: отмена удара, Perfect Swap, входы стилей (weaponflow.gd)
+var switch_len := 0.42       # длительность идущей смены стиля (Perfect Swap — короче)
 var FINISH: Array = []      # тяжёлые удары стиля по числу лёгких перед ними (для съёмки трейлера)
 var scrape_p: AudioStreamPlayer
 var scr_cd := 0.0
@@ -144,6 +146,9 @@ func _ready() -> void:
 	breaker = Breaker.new()
 	add_child(breaker)
 	breaker.setup(self, game)
+	flow = WeaponFlow.new()
+	add_child(flow)
+	flow.setup(self, game)
 	execution = Execution.new()
 	add_child(execution)
 	execution.setup(self, game)
@@ -388,7 +393,7 @@ func _physics_process(dt: float) -> void:
 			velocity.x = move_toward(velocity.x, 0.0, 30.0 * dt)
 			velocity.z = move_toward(velocity.z, 0.0, 30.0 * dt)
 			switch_t += dt
-			var sk := switch_t / SWITCH_T
+			var sk := switch_t / switch_len
 			if hero == "madk1d":
 				spin_off = -TAU * smoothstep(0.1, 0.6, sk)
 				if sk >= 0.55:
@@ -483,9 +488,10 @@ func _on_clip_event(_clip: String, ev: String) -> void:
 func set_style(id: String) -> bool:
 	if id == style.id or switch_to != "" or not Styles.by_id(id).ready or game.paused_story():
 		return false
-	var free := state == "move" or (state == "attack" and combat.cur != null and combat.hit_i > 0) or (state == "tyaga" and tyaga.mode == "hold")
+	var free: bool = state == "move" or flow.can_cancel() or (state == "tyaga" and tyaga.mode == "hold")
 	if not free:
 		return false
+	switch_len = flow.begin(style.id, id)      # до interrupt: Perfect Swap судится по идущему удару
 	combat.interrupt()
 	spin_off = 0.0
 	switch_to = id
@@ -494,17 +500,17 @@ func set_style(id: String) -> bool:
 	state = "switch"
 	bottles.show_prop(false)
 	if hero == "madk1d":
-		rig.play_for("StyleSwitch", SWITCH_T, 0.06)      # оборот на месте, оружие меняется на середине
+		rig.play_for("StyleSwitch", switch_len, 0.06)      # оборот на месте, оружие меняется на середине
 		game.feedback("equip", global_position + Vector3(0, 1.2, 0))
 		return true
 	if style.id == "tyaga812":
 		tyaga.leave()                 # пылесос откатывается
 	if id == "vozduh":
-		rig.play_for("Equip", SWITCH_T, 0.08)
+		rig.play_for("Equip", switch_len, 0.08)
 	elif style.id == "vozduh":
-		rig.play_for("Unequip", SWITCH_T, 0.08)
+		rig.play_for("Unequip", switch_len, 0.08)
 	elif id == "bottles":
-		rig.play_for("BottleDraw", SWITCH_T, 0.08)
+		rig.play_for("BottleDraw", switch_len, 0.08)
 	else:
 		rig.play("TyagaHold", 0.3)
 	if id == "tyaga812":
@@ -528,9 +534,14 @@ func _finish_switch() -> void:
 	if switch_buf:
 		combat.buf_time = combat.clock      # удар, нажатый во время смены, срабатывает сразу
 	switch_buf = false
+	var done: bool = state == "switch"
 	if state == "switch":
 		state = "move"
 	game.popup(global_position + Vector3(0, 2.3, 0), style.title, style.color)
+	if done:
+		flow.finish(style.id)
+	else:
+		flow.abort()                 # смену оборвали (ударили, сменили героя): оружие на месте, награды нет
 
 ## Сменить героя под управлением игрока. Риг, состояния анимации, стопы, след и набор стилей — свои у каждого.
 func set_hero(id: String) -> void:
@@ -583,7 +594,10 @@ func show_weapon(on: bool) -> void:
 		(m_weapons[style.id]["att"] as Node3D).visible = on
 
 ## множитель урона от состояния героя (заряды трюков, ритм, дисторшн) — его спрашивает ядро боя
-func damage_bonus(_a: AttackData) -> float:
+func damage_bonus(a: AttackData) -> float:
+	return _style_bonus(a) * flow.bonus()
+
+func _style_bonus(_a: AttackData) -> float:
 	if hero == "madk1d" and style.id == "skateboard":
 		return skate.bonus()
 	if guitar.active():
@@ -614,6 +628,7 @@ func _on_attack_hit(a: AttackData, n: int) -> void:
 		skate.charges = 0
 	guitar.on_hit(a, n)
 	breaker.on_hit(a)
+	flow.on_hit()
 
 ## ядро боя: момент броска — снаряд вылетает из руки
 func launch_projectile(a: AttackData, charged: float) -> void:
