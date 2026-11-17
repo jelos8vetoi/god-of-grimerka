@@ -24,6 +24,9 @@ var trace := false
 const TW := 480
 const TH := 270
 
+const SHAKE_MAX := 0.25      # рывок положения — не больше четверти шага за кадр: выше — герой дрожит
+var shake_log: Array = []
+var shake_f := -1
 var jump_top := [0.0, 0.0, 0.0]
 var jump_air_hit := false
 
@@ -33,6 +36,7 @@ func _ready() -> void:
 	cam.far = 200.0
 	game.add_child(cam)
 	DirAccess.make_dir_recursive_absolute(out)
+	RenderingServer.frame_pre_draw.connect(_pre_draw)
 	_build()
 	# --only=01,09 — только эти сцены
 	for a in OS.get_cmdline_user_args():
@@ -97,7 +101,7 @@ func _side(who: Node3D, dist := 5.2, h := 1.3, side := 1.0) -> void:
 
 func _build() -> void:
 	# 1. перемещение Пахана: стоит → бег → остановка → шаг → остановка → рывок → остановка → разворот на месте
-	scenes.append({"n": "01_pahan_move", "len": 330, "measure": "P", "setup": func(): _stage(), "tick": func(i):
+	scenes.append({"n": "01_pahan_move", "len": 330, "measure": "P", "shake": {"бег": [30, 60]}, "setup": func(): _stage(), "tick": func(i):
 		P.inv = 1.0
 		_park_buddy(P.global_position + Vector3(-3.5, 0, 0))
 		var inp := {}
@@ -264,6 +268,79 @@ func _build() -> void:
 		if i == 148:
 			ok(float(jump_top[0]) > 1.0 and float(jump_top[1]) > 1.0 and float(jump_top[2]) > 1.0 and jump_air_hit and P.is_on_floor(), "madk1d: прыжок с места %.2f м, на бегу %.2f м, с ударом %.2f м; удар в воздухе %s, приземлился %s" % [jump_top[0], jump_top[1], jump_top[2], jump_air_hit, P.is_on_floor()])
 		_side(P, 6.2, 1.5)})
+	# 12. Пахан с ТЯГА-812: шаг с пылесосом в руках, затем езда верхом с поворотом — замер тряски
+	scenes.append({"n": "12_pahan_tyaga", "len": 330, "shake": {"шаг с пылесосом": [80, 150], "езда": [215, 320]}, "setup": func(): _stage(), "tick": func(i):
+		P.inv = 1.0
+		_park_buddy(P.global_position + Vector3(-6.0, 0, 3.0))
+		var inp := {}
+		if i == 3:
+			inp["style3"] = "press"
+		if i >= 70 and i < 150:
+			inp["move"] = Vector2(0, 1)
+		if i == 165:
+			inp["heat"] = "press"
+		if i >= 195:
+			inp["move"] = Vector2(0.5 if i > 260 else 0.0, 1)
+			inp["sprint"] = "hold"
+		P.auto_input = inp
+		_side(P, 6.0, 1.4)})
+	# 13. madk1d на скейте: разгон, езда, поворот — замер тряски
+	scenes.append({"n": "13_madk_skate", "len": 230, "shake": {"езда на скейте": [70, 220]}, "setup": func():
+		_stage()
+		if P.hero != "madk1d":
+			game.swap_heroes(), "tick": func(i):
+		P.inv = 1.0
+		_park_buddy(P.global_position + Vector3(-6.0, 0, 3.0))
+		var inp := {}
+		if i >= 15:
+			inp["move"] = Vector2(0.5 if i > 140 else 0.0, 1)
+			inp["sprint"] = "hold"
+		P.auto_input = inp
+		_side(P, 6.0, 1.4)})
+
+## замер — перед самой отрисовкой кадра, когда всё уже подвинуто: это то, что видит игрок
+func _pre_draw() -> void:
+	if shake_f >= 0 and P != null and is_instance_valid(P):
+		_shake_sample(shake_f)
+
+func _shake_sample(i: int) -> void:
+	var r: Rig = P.rig
+	var gx: Transform3D = r.skel.global_transform
+	# где герой в мире на этом кадре: голова и таз
+	var head: Vector3 = (gx * r.skel.get_bone_global_pose(int(r.bone["head"]))).origin
+	var hips: Vector3 = (gx * r.skel.get_bone_global_pose(int(r.bone["hips"]))).origin
+	shake_log.append([i, head, hips, P.body.rotation, P.vis_pos(), game.get_process_delta_time()])
+
+func _shake_report(s: Dictionary) -> void:
+	# Плавное движение: положение таза от кадра к кадру меняется ровно. Дрожь — когда рывок (вторая разность)
+	# сравним с самим шагом за кадр: так было, пока тело двигалось шагами физики, а кадры шли со своей частотой.
+	for seg in s["shake"]:
+		var a: int = s["shake"][seg][0]
+		var b: int = s["shake"][seg][1]
+		var jerk: Array = []
+		var step: Array = []
+		var turn: Array = []
+		for j in range(1, shake_log.size() - 1):
+			if int(shake_log[j][0]) <= a or int(shake_log[j][0]) >= b:
+				continue
+			var h0: Vector3 = shake_log[j - 1][2]
+			var h1: Vector3 = shake_log[j][2]
+			var h2: Vector3 = shake_log[j + 1][2]
+			jerk.append((h2 - h1 * 2.0 + h0).length())
+			step.append((h2 - h1).length())
+			turn.append(((shake_log[j + 1][3] as Vector3) - (shake_log[j][3] as Vector3) * 2.0 + (shake_log[j - 1][3] as Vector3)).length())
+		if jerk.is_empty():
+			continue
+		jerk.sort()
+		step.sort()
+		turn.sort()
+		var mj: float = jerk[jerk.size() / 2]
+		var ms: float = max(0.0001, float(step[step.size() / 2]))
+		print("ANIMLAB тряска %s — %s: шаг за кадр %.1f мм, рывок %.2f мм (%.0f%% шага), рывок поворота %.4f рад" % [s["n"], seg, ms * 1000.0, mj * 1000.0, mj / ms * 100.0, float(turn[turn.size() / 2])])
+		# с --fixed-fps число шагов физики на кадр скачет само по себе — плавность оценивается только с ключом --smooth (и без --fixed-fps)
+		if not OS.get_cmdline_user_args().has("--smooth"):
+			continue
+		ok(mj / ms < SHAKE_MAX, "%s — %s: герой движется плавно (рывок %.0f%% шага за кадр, предел %.0f%%)" % [s["n"], seg, mj / ms * 100.0, SHAKE_MAX * 100.0])
 
 func frame(_dt: float) -> void:
 	if si < 0:
@@ -285,6 +362,7 @@ func frame(_dt: float) -> void:
 		_next()
 		return
 	(s["tick"] as Callable).call(f)
+	shake_f = f if s.has("shake") else -1
 	if trace and f % 3 == 0 and s.has("measure"):
 		var w: Node3D = P if s["measure"] == "P" else B
 		print("TRACE %d %s %s ss=%.2f v=%.2f floor=%s slip=%.3f locks=%s/%s" % [f, w.anim.state, w.rig.cur, w.rig.player.speed_scale, Vector2(w.velocity.x, w.velocity.z).length(), w.is_on_floor(), w.feet.slip, w.feet.feet["r"]["locked"], w.feet.feet["l"]["locked"]])
@@ -294,6 +372,7 @@ func _next() -> void:
 	si += 1
 	f = 0
 	thumbs.clear()
+	shake_log.clear()
 	measure_on = false
 	if si >= scenes.size():
 		print("ANIMLAB ok" if fails == 0 else "ANIMLAB ОШИБОК: %d" % fails)
@@ -319,6 +398,8 @@ func _finish(s: Dictionary) -> void:
 	sheet.save_png(out.path_join("lab_%s.png" % s["n"]))
 	if s.has("measure"):
 		_measure_report(s["n"])
+	if s.has("shake"):
+		_shake_report(s)
 	print("ANIMLAB сцена %s: кадров %d" % [s["n"], thumbs.size()])
 
 # ---------------- замер стоп ----------------

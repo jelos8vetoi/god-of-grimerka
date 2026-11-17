@@ -777,7 +777,45 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		rig.play_for("Death", 1.2, 0.1)
 		game.on_player_dead()
 
+## Плавное положение героя между шагами физики. Тело двигается 60 раз в секунду, а кадры рисуются чаще или реже:
+## без сглаживания на скорости (скейт, пылесос, бег) герой дрожит относительно камеры. Камера и видимое тело
+## берут положение отсюда; столкновения и бой по-прежнему считаются по настоящему положению.
+var _vis_prev := Vector3.ZERO
+var _vis_cur := Vector3.ZERO
+var _rot_prev := Vector3.ZERO
+var _rot_cur := Vector3.ZERO
+var _vis_ready := false
+var _vis_track: Node = null
+
+## Запоминает положение после каждого шага физики. Стоит дочерним узлом: его шаг идёт сразу после шага героя.
+class VisTracker extends Node:
+	var who
+	func _physics_process(_dt: float) -> void:
+		who._vis_step()
+
+func _vis_step() -> void:
+	var jumped: bool = not _vis_ready or global_position.distance_to(_vis_cur) > 1.5      # перенос в другое место — без проезда
+	_vis_prev = global_position if jumped else _vis_cur
+	_vis_cur = global_position
+	_rot_prev = body.rotation if jumped else _rot_cur
+	_rot_cur = body.rotation
+	_vis_ready = true
+
+func vis_pos() -> Vector3:
+	if not _vis_ready:
+		return global_position
+	return _vis_prev.lerp(_vis_cur, clampf(Engine.get_physics_interpolation_fraction(), 0.0, 1.0))
+
 func _process(dt: float) -> void:
+	if _vis_track == null:
+		_vis_track = VisTracker.new()
+		_vis_track.who = self
+		add_child(_vis_track)
+		return
+	body.position = vis_pos() - global_position
+	var vf := clampf(Engine.get_physics_interpolation_fraction(), 0.0, 1.0)
+	if _vis_ready:
+		body.rotation = Vector3(lerp_angle(_rot_prev.x, _rot_cur.x, vf), lerp_angle(_rot_prev.y, _rot_cur.y, vf), lerp_angle(_rot_prev.z, _rot_cur.z, vf))
 	# iPod: пока интерфейс открыт, герой держит устройство перед собой. Он встаёт вполоборота к камере,
 	# лицом к правому краю кадра — туда, где интерфейс, — иначе iPod у груди закрыт спиной. После — поворачивается обратно.
 	var ip = game.ipod
