@@ -255,6 +255,17 @@ func input_dir() -> Vector3:
 	var right := Vector3(cos(yaw), 0, -sin(yaw))
 	return fwd * v.y + right * v.x
 
+## прыжок с места и на бегу: в воздухе герой управляется и может бить и бросать
+const JUMP_V := {"pahan": 7.2, "madk1d": 8.4}
+
+func start_jump() -> void:
+	velocity.y = float(JUMP_V.get(hero, 7.5))
+	anim_hold = 0.0
+	turn_to = NAN
+	anim.jump()
+	game.fx.dust(global_position + Vector3(0, 0.1, 0), 4, game.fx.DUST, 0.5)
+	game.feedback("step", global_position, Vector3.UP, 1.0, Color.WHITE)
+
 func aim_dir() -> Vector3:
 	var yaw: float = game.cam_yaw
 	return Vector3(-sin(yaw), 0, -cos(yaw))
@@ -356,8 +367,10 @@ func _physics_process(dt: float) -> void:
 				if anim_hold <= 0.0 or dir.length() > 0.1:
 					var hs := Vector2(velocity.x, velocity.z).length() if dir.length() > 0.1 else 0.0
 					anim.tick(dt, hs, turn, is_on_floor(), velocity.y, enemies_near(), held("sprint") or rage > 0.0)
-			if pressed("roll"):
+			if pressed("roll") and is_on_floor():
 				start_roll(dir)
+			elif pressed("jump") and is_on_floor() and state == "move":
+				start_jump()
 			elif combat.try_start():
 				pass
 			elif pressed("heat"):

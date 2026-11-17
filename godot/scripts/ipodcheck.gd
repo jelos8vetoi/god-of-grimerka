@@ -179,7 +179,7 @@ func _run() -> void:
 	var was_paused: bool = ipod.player.stream_paused
 	await tap(KEY_SPACE)
 	await wait(0.2)
-	ok(pl.state != "roll" and ipod.player.stream_paused != was_paused, "Пробел — пауза трека, а не перекат")
+	ok(pl.is_on_floor() and ipod.player.stream_paused != was_paused, "Пробел — пауза трека, а не прыжок")
 	var pos_paused: float = ipod.player.get_playback_position()
 	await tap(KEY_SPACE)
 	await wait(0.2)
@@ -320,7 +320,7 @@ func _run() -> void:
 	ok(pl.state == "attack", "после iPod ЛКМ бьёт балоном (состояние «%s»)" % pl.state)
 	await wait(1.4)
 	await tap(KEY_SPACE)
-	ok(pl.state == "roll", "после iPod Пробел — перекат (состояние «%s»)" % pl.state)
+	ok(pl.velocity.y > 0.5 or not pl.is_on_floor(), "после iPod Пробел — прыжок (состояние «%s»)" % pl.anim.state)
 	await wait(1.0)
 	await shot("ipod_6_closed.png")
 

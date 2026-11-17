@@ -733,7 +733,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		cam_yaw -= e.relative.x * 0.0028 * sens
 		cam_pitch = clamp(cam_pitch - e.relative.y * 0.0022 * sens * (-1.0 if bool(Opts.v("invert_y")) else 1.0), -1.1, 0.35)
 	if mode == "dlg":
-		if e.is_action_pressed("attack") or e.is_action_pressed("roll") or (e is InputEventKey and e.pressed and e.physical_keycode == KEY_ENTER):
+		if e.is_action_pressed("attack") or e.is_action_pressed("jump") or (e is InputEventKey and e.pressed and e.physical_keycode == KEY_ENTER):
 			_dlg_advance()
 		elif e is InputEventKey and e.pressed and e.physical_keycode == KEY_TAB:
 			_dlg_finish()

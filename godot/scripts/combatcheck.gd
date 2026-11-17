@@ -1223,7 +1223,7 @@ func _run() -> void:
 	await frames(30)
 	var steered: float = abs(angle_difference(h_before, P.tyaga.heading))
 	var lean_seen: float = abs(P.body.rotation.z)
-	P.auto_input = {"move": Vector2(0, -1), "block": "hold"}
+	P.auto_input = {"move": Vector2(0, -1), "roll": "hold"}
 	var slip := 0.0
 	for i in 26:
 		await get_tree().physics_frame
@@ -1242,14 +1242,14 @@ func _run() -> void:
 	P.auto_input = {"move": Vector2(0, 1)}
 	await frames(60)
 	var h_f: float = P.tyaga.heading
-	P.auto_input = {"move": Vector2(0, -1), "block": "hold"}
+	P.auto_input = {"move": Vector2(0, -1), "roll": "hold"}
 	var flipped: bool = await tg_event("flip", 60)
 	await frames(30)
 	ok(flipped and abs(abs(angle_difference(h_f, P.tyaga.heading)) - PI) < 0.5, "занос + назад: разворот (нос повернулся на %.2f рад)" % abs(angle_difference(h_f, P.tyaga.heading)))
 	# прыжок
 	P.auto_input = {"move": Vector2(0, -1)}
 	await frames(30)
-	P.auto_input = {"move": Vector2(0, -1), "roll": "press"}
+	P.auto_input = {"move": Vector2(0, -1), "jump": "press"}
 	await get_tree().physics_frame
 	P.auto_input = {"move": Vector2(0, -1)}
 	var top_y := 0.0
@@ -1434,7 +1434,7 @@ func _run() -> void:
 		P.global_position = Vector3(0, 0.05, 10.0)
 		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
 		await frames(40)
-		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "press"}
+		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "jump": "press"}
 		await get_tree().physics_frame
 		P.auto_input = {"move": tricks[tname], "sprint": "hold"}
 		await frames(5)
@@ -1458,7 +1458,7 @@ func _run() -> void:
 	P.global_position = Vector3(0, 0.05, 10.0)
 	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
 	await frames(40)
-	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "press"}
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "jump": "press"}
 	await get_tree().physics_frame
 	P.auto_input = {"move": Vector2(0, -1), "sprint": "hold", "throw": "press"}
 	await get_tree().physics_frame
@@ -1469,7 +1469,7 @@ func _run() -> void:
 	P.global_position = Vector3(0, 0.05, 10.0)
 	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
 	await frames(40)
-	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "press"}
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "jump": "press"}
 	await get_tree().physics_frame
 	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
 	await frames(22)                                  # трюк начат слишком поздно
@@ -1492,7 +1492,7 @@ func _run() -> void:
 		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
 		while P.global_position.z > 7.4:
 			await get_tree().physics_frame
-		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "press"}
+		P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "jump": "press"}
 		await get_tree().physics_frame
 		P.auto_input = {"sprint": "hold", "throw": "press"}
 		await get_tree().physics_frame
@@ -1517,7 +1517,7 @@ func _run() -> void:
 	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
 	while P.global_position.z > 7.6:
 		await get_tree().physics_frame
-	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "press"}
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "jump": "press"}
 	await get_tree().physics_frame
 	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
 	await frames(12)
@@ -1537,11 +1537,11 @@ func _run() -> void:
 	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold"}
 	while P.global_position.z > 6.6:
 		await get_tree().physics_frame
-	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "block": "hold"}
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "hold"}
 	var slid: bool = await sk_event("slide_hit", 90)
 	await shot("37_slide.png")
 	await get_tree().physics_frame          # снова в такт физике: иначе нажатие не успеет обработаться
-	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "block": "hold", "attack": "press"}
+	P.auto_input = {"move": Vector2(0, 1), "sprint": "hold", "roll": "hold", "attack": "press"}
 	await get_tree().physics_frame
 	P.auto_input = {}
 	await frames(3)
