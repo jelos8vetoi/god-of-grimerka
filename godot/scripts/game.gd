@@ -44,6 +44,7 @@ var cam_attributes: CameraAttributesPractical
 var trauma := 0.0            # тряска камеры: копится от ударов, гаснет сама
 var shake_t := 0.0
 var fov_kick := 0.0
+var air_lift := 0.0          # камера приподнимается за подброшенным врагом рядом с героем
 var charge_zoom := 0.0       # 0..1 — заряд полного замаха: камера поджимается
 var zoom_s := 0.0
 var fx
@@ -858,6 +859,15 @@ func _process(dt: float) -> void:
 		pitch = lerpf(pitch, -0.42, ok_k)
 	# iPod only adds a cinematic 13% dolly to the distance chosen by the normal
 	# camera state. SpringArm3D still owns the final collision-safe camera position.
+	# подброс: камера ведёт взгляд выше и чуть отъезжает, чтобы враг в воздухе оставался в кадре
+	var top := 0.0
+	if mode != "dlg":
+		for en in enemies:
+			if is_instance_valid(en) and en.alive() and en.state == "air" and en.global_position.distance_to(player.global_position) < 6.0:
+				top = max(top, en.global_position.y - player.global_position.y)
+	air_lift = lerpf(air_lift, clampf(top * 0.45, 0.0, 1.4), 1.0 - exp(-5.0 * rdt))
+	target.y += air_lift
+	want_len += air_lift * 0.9
 	want_len *= 1.0 - 0.13 * ipod_focus
 	if not director or not director.owns_camera():
 		pivot.global_position = pivot.global_position.lerp(target, 1.0 - exp(-14.0 * rdt)) if pivot.global_position != Vector3.ZERO else target
