@@ -559,7 +559,7 @@ func on_down() -> bool:
 	p.inv = 1.5
 	tag_cd = 1.0
 	b.ko_down()
-	game.banner("%s ВЫБЫЛ" % ("ПАХАН" if me == "pahan" else "MADK1D"), "вернётся через %d с" % int(REVIVE), Color(1.0, 0.45, 0.35))
+	game.banner("%s ВЫБЫЛ" % ("ПАХАН" if me == "pahan" else "MADK1D"), "", Color(1.0, 0.45, 0.35))      # без отсчёта: «вернётся через N с» убрано по просьбе владельца
 	game.slowmo(0.4)
 	events.append(["down", me])
 	return true

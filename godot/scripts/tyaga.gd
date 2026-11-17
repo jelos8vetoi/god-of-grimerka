@@ -49,6 +49,7 @@ var air := false
 var lean := 0.0
 var puff := 0.0
 var hum: AudioStreamPlayer
+var hum_frame := -9          # кадр, когда гул в последний раз получил уровень от пылесоса (_hum)
 var events: Array = []        # что произошло (для проверок): ["shot", n], ["ram", враг]…
 var msg_t := -9.0
 var hold_t := 0.0             # сколько держат ПКМ (короткое нажатие с пойманным врагом — бросок)
@@ -240,8 +241,6 @@ func enter() -> void:
 	v = TyagaClips.V_AWAY
 	unit.visible = true
 	unit.position = v
-	if not hum.playing and game.main.testing() == "":
-		hum.play()
 
 ## стиль меняется: пылесос откатывается и исчезает
 func leave() -> void:
@@ -275,6 +274,10 @@ func _clear_ride() -> void:
 ## с колеса на колесо и подпрыгивает, при выстреле воздухом — отдача назад, при прыжке вытягивается, при
 ## приземлении и таране приседает. Всё — небольшие смещения узла rock: руки героя держат трубу в прежней точке.
 func _process(dt: float) -> void:
+	if hum != null and hum.playing and Engine.get_physics_frames() - hum_frame > 3:
+		hum.volume_db = move_toward(hum.volume_db, -80.0, 160.0 * dt)
+		if hum.volume_db <= -79.0:
+			hum.stop()
 	if unit == null or not unit.visible:
 		return
 	rock_t += dt
@@ -464,7 +467,7 @@ func tick(dt: float, dir: Vector3) -> void:
 		lock = max(0.0, lock - dt)
 		spin_cd = max(0.0, spin_cd - dt)
 	unit.position = v
-	_hum(1.0 if mode == "suck" else (0.75 if mode == "ride" and speed > 1.0 else (0.9 if mode == "charge" else 0.25)))
+	_hum(1.0 if mode == "suck" else (0.75 if mode == "ride" and speed > 1.0 else (0.9 if mode == "charge" else (0.6 if mode in ["blast", "act"] else 0.0))))
 
 func _say(text: String) -> void:
 	if game.clock - msg_t > 1.5:
@@ -1188,10 +1191,17 @@ func _act_hit() -> void:
 
 # ---------------- звук мотора ----------------
 func _hum(level: float) -> void:
-	if not hum.playing:
-		return
+	hum_frame = Engine.get_physics_frames()
 	if mode == "off":
 		level = 0.0
+	if not hum.playing:
+		if level <= 0.0 or game.main.testing() != "":
+			return
+		hum.volume_db = -60.0
+		hum.play()                   # гул заводится, только когда пылесос работает
+	elif level <= 0.0 and hum.volume_db <= -70.0:
+		hum.stop()                   # затих совсем — плеер останавливается, а не крутится беззвучно
+		return
 	hum.volume_db = lerpf(hum.volume_db, lerpf(-34.0, -13.0, level) if level > 0.0 else -80.0, 0.12)
 	var pitch := 0.8 + 0.5 * level + (clampf(speed / 14.0, 0.0, 1.0) * 0.5 if mode == "ride" else 0.0) - (0.25 if lock > 0.0 else 0.0)
 	hum.pitch_scale = lerpf(hum.pitch_scale, pitch, 0.15)

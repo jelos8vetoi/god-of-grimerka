@@ -12,7 +12,9 @@ const KINDS := {
 	"mod": {"model": "bot", "height": 1.85, "hp": 120.0, "speed": 3.0, "range": 1.9, "wind": 0.5, "dmg": 13.0, "clip": "Punch", "cool": 1.6, "shield": true, "tint": Color("7fa8ff"), "xp": 32},
 	"farmer": {"model": "hater", "height": 1.75, "hp": 130.0, "speed": 2.6, "range": 12.0, "keep": 9.0, "wind": 1.0, "dmg": 0.0, "clip": "Cast", "cool": 4.5, "summoner": true, "tint": Color("ffd23b"), "xp": 40},
 	# двойник призрака: выглядит как босс, рассыпается с одного удара
-	"clone": {"model": "pahan", "height": 2.1, "hp": 1.0, "speed": 4.2, "range": 2.4, "wind": 0.55, "dmg": 12.0, "clip": "Light1", "cool": 1.3, "tint": Color("ff8080"), "alpha": 0.85, "emit": 0.12, "xp": 0},
+	"clone": {"model": "pahan", "height": 2.1, "hp": 1.0, "speed": 4.2, "range": 2.4, "wind": 0.55, "dmg": 12.0, "clip": "Light1", "cool": 1.3, "tint": Color("ff8080"), "alpha": 0.45, "emit": 0.3, "xp": 0},
+	# копия призрака (EnemyAI «КОПИИ»): почти прозрачная, без полоски здоровья в цвете, рассыпается с одного удара
+	"phantom": {"model": "hater", "height": 1.75, "hp": 1.0, "speed": 3.2, "range": 2.0, "wind": 0.6, "dmg": 6.0, "clip": "Cast", "cool": 1.8, "tint": Color("dcd6ff"), "alpha": 0.3, "emit": 0.5, "xp": 0, "noweapon": true},
 }
 const BOSS_LOOK := {
 	"courier": {"model": "drey", "scale": 1.3, "own": true}, "golem": {"model": "bot", "scale": 1.9}, "hype": {"model": "hater", "scale": 1.35},
@@ -96,6 +98,29 @@ var weak_t := 0.0           # босс «открыт»: окно после с�
 var executed := false       # убит добиванием
 var exec_mark: Label3D
 var slow_k := 1.0           # множитель скорости на время замедления
+# ---- ИИ (enemy_ai.gd, boss_moves.gd) ----
+var role := "attack"        # роль в группе: attack, flank, hold, guard, ranged (EnemyAI.squad)
+var flank_side := 1.0
+var guard_of = null         # кого прикрывает MOD
+var amove: Dictionary = {}  # текущий приём моба (EnemyAI.MOVES); пусто — старый удар типа
+var move_cd := {}           # приём → когда снова можно (по age)
+var rec_len := -1.0         # отдых после приёма, с (-1 — как раньше)
+var buff_t := 0.0           # усилен фермером / боссом: быстрее, урон ×1,25
+var ward_t := 0.0           # защита (ритуал, стойка): урон по нему ×0,4
+var hide_t := 0.0           # исчез перед атакой (призрак)
+var riposte_t := 0.0        # MOD принял удар на щит — окно ответа
+var spawned: Array = []     # кого призвал (предел — EnemyAI.TUNE.summon_cap / BossMoves._call)
+var summoned_by = null
+var charge_dmg := -1.0      # рывок: урон, ширина задевания, длительность, скорость (-1 — как у story-рывка)
+var charge_r := -1.0
+var charge_len := 0.8
+var charge_v := 13.0
+var counter_at := 0.0       # босс: когда снова можно приём против поведения игрока
+var combo_left := 0         # босс: сколько приёмов подряд ещё (растёт с фазой)
+var moves_used := {}        # для проверок: какие приёмы делал
+var tell_until := -1.0      # метка в приёме босса (полоса рывка) видна до этого age
+var tell_sec := 0.5
+var born_at := Vector3.INF   # где враг был в _ready (там рисуется портал появления) — для проверки
 
 func _ready() -> void:
 	if boss_id != "":
@@ -166,6 +191,7 @@ func _ready() -> void:
 		st_bar.no_depth_test = true
 		st_bar.visible = false
 		add_child(st_bar)
+	born_at = global_position
 	game.main.sfx("sfx_spawn", -10.0)
 	game.fx.dust(global_position + Vector3(0, 0.15, 0), 8, game.fx.DUST, 0.9)
 	game.fx.portal(global_position, 2.8 * height / 1.7, Color(1.0, 0.25, 0.2, 0.75), 1.0)
@@ -174,7 +200,8 @@ func _ready() -> void:
 		game.fx.portal(global_position, 4.5 * height / 1.7, Color(boss["c"]), 1.4, "magic_02")
 
 func _setup_boss() -> void:
-	boss = game.story["BOSS"][boss_id]
+	boss = (game.story["BOSS"][boss_id] as Dictionary).duplicate()
+	boss["phases"] = BossMoves.phases_for(boss_id, boss["phases"])     # фазы из story.json + новые приёмы (boss_moves.gd)
 	var look: Dictionary = BOSS_LOOK.get(boss_id, {"model": "bot", "scale": 1.5})
 	cfg = {"model": look["model"], "height": 1.75 * float(look["scale"]), "speed": float(boss["spd"]) / 40.0, "range": 2.4 * float(look["scale"]), "wind": 0.6,
 		"dmg": float(boss["dmg"]), "clip": "Slash" if look["model"] == "clipper" else ("Cast" if look["model"] == "hater" else "Punch"), "cool": float(boss.get("gap", 1.5)),
@@ -243,6 +270,12 @@ func _physics_process(dt: float) -> void:
 		st_bar.visible = show
 	slow_t = max(0.0, slow_t - dt)
 	weak_t = max(0.0, weak_t - dt)
+	buff_t = max(0.0, buff_t - dt)
+	ward_t = max(0.0, ward_t - dt)
+	riposte_t = max(0.0, riposte_t - dt)
+	if hide_t > 0.0:
+		hide_t -= dt
+		rig.visible = hide_t <= 0.0
 	var p = game.player
 	var to: Vector3 = p.global_position - global_position
 	to.y = 0
@@ -291,6 +324,8 @@ func _physics_process(dt: float) -> void:
 					mv = -dir
 			elif dist > float(cfg["range"]) * 0.85:
 				mv = dir
+			if boss_id == "" and EnemyAI.MOVES.has(kind):
+				mv = EnemyAI.steer(self, dist, dir)        # роль в группе: фланг, ожидание, прикрытие, дистанция стрелка
 			for o in game.enemies:
 				if o != self and is_instance_valid(o) and o.state != "dead":
 					var d: Vector3 = global_position - o.global_position
@@ -300,17 +335,26 @@ func _physics_process(dt: float) -> void:
 						mv += d.normalized() * (sep - d.length()) * 1.5
 			if p.state == "dead":
 				mv = Vector3.ZERO
-			var wet: float = slow_k if slow_t > 0.0 else 1.0       # облит водой: идёт медленнее
+			var wet: float = (slow_k if slow_t > 0.0 else 1.0) * (1.25 if buff_t > 0.0 else 1.0)       # облит водой — медленнее, усилен — быстрее
 			velocity.x += mv.x * float(cfg["speed"]) * wet
 			velocity.z += mv.z * float(cfg["speed"]) * wet
 			if mv.length() > 0.2:
 				rig.play("Run", 0.2, float(cfg["speed"]) / 3.5)
 			else:
 				rig.play("Idle", 0.3)
-			if cool <= 0.0 and p.state != "dead":
+			if riposte_t > 0.0 and dist < 2.8 and p.state != "dead" and EnemyAI.MOVES.has(kind) and EnemyAI.MOVES[kind].has("riposte") and game.melee_attackers() < int(EnemyAI.TUNE["tokens"]):
+				riposte_t = 0.0
+				_start_move(EnemyAI.move_of(self, "riposte"))     # MOD: ответ сразу после удара в щит
+			elif cool <= 0.0 and p.state != "dead" and boss_id == "" and EnemyAI.MOVES.has(kind):
+				var pick: Dictionary = EnemyAI.pick(self, dist) if EnemyAI.may_attack(self, dist) else {}
+				if pick.is_empty():
+					cool = randf_range(0.2, 0.45)
+				else:
+					_start_move(pick)
+			elif cool <= 0.0 and p.state != "dead":
 				if boss_id != "":
 					_boss_pick(dist)
-				elif cfg.has("tele") and dist > 3.0:
+				elif cfg.has("tele") and dist > 7.0:
 					_teleport_near(p.global_position, 1.8)
 					cool = 0.4
 				elif dist < float(cfg["range"]) or cfg.has("summoner"):
@@ -332,22 +376,31 @@ func _physics_process(dt: float) -> void:
 			if k >= 1.0:
 				ring.visible = false
 				_tell_end()
+				var nxt: Dictionary = {}
 				if boss_id != "":
 					_boss_strike(dist, dir)
+				elif not amove.is_empty():
+					nxt = EnemyAI.strike(self, amove, dist, dir)
+					rec_len = float(amove.get("rec", -1.0))
 				else:
 					_strike(dist, dir)
-				if state == "wind":
-					state = "recover"
-				t = 0.0
+				if not nxt.is_empty() and state == "wind" and alive():
+					_start_move(nxt)            # связка: следующий приём со своим (коротким) замахом и меткой
+				else:
+					if state == "wind":
+						state = "recover"
+					t = 0.0
 		"charge":
-			velocity.x += charge_dir.x * 13.0
-			velocity.z += charge_dir.z * 13.0
+			velocity.x += charge_dir.x * charge_v
+			velocity.z += charge_dir.z * charge_v
+			face = atan2(charge_dir.x, charge_dir.z)
 			rig.play("Run", 0.1, 2.5)
-			if dist < float(cfg["range"]) * 0.7 and p.inv <= 0.0:
-				p.take_damage(float(cfg["dmg"]) * 1.2, global_position, self)
+			var cr: float = charge_r if charge_r > 0.0 else float(cfg["range"]) * 0.7
+			if dist < cr and p.inv <= 0.0:
+				p.take_damage(charge_dmg if charge_dmg >= 0.0 else float(cfg["dmg"]) * 1.2, global_position, self)
 				state = "recover"
 				t = 0.0
-			if t > 0.8 or not game.in_arena(global_position + charge_dir, 0.5):
+			if t > charge_len or not game.in_arena(global_position + charge_dir, 0.5):
 				state = "recover"
 				t = 0.0
 		"special":
@@ -362,9 +415,23 @@ func _physics_process(dt: float) -> void:
 		"recover":
 			if cfg.has("lunge") and t < 0.15:
 				velocity += Vector3(sin(face), 0, cos(face)) * float(cfg["lunge"])
-			if t > float(cfg["wind"]) * (0.6 if boss_id != "" else 1.0):
+			var rl: float = rec_len if rec_len >= 0.0 else float(cfg["wind"]) * (0.6 if boss_id != "" else 1.0)
+			if t > rl:
 				state = "chase"
-				cool = float(cfg["cool"]) * randf_range(0.8, 1.25)
+				rec_len = -1.0
+				amove = {}
+				charge_dmg = -1.0
+				charge_r = -1.0
+				charge_len = 0.8
+				charge_v = 13.0
+				cool = float(cfg["cool"]) * randf_range(0.8, 1.25) * float(EnemyAI.TUNE["cool"])
+				if boss_id != "":
+					cool *= 1.0 - 0.12 * phase          # с фазой решает быстрее
+					if combo_left > 0:
+						combo_left -= 1
+						cool = 0.25                     # связка: следующий приём почти сразу (после отдыха)
+				elif hp < max_hp * float(EnemyAI.TUNE["low_hp"]) and kind in ["bot", "clipper", "ghost"]:
+					cool *= 0.7                         # мало здоровья — злее
 		"hurt":
 			if t > hurt_len:
 				state = "chase"
@@ -447,6 +514,16 @@ func _wind(clip: String, w: float) -> void:
 	cfg["wind"] = w
 	rig.play_for(clip, w * 2.0, 0.08)
 
+## Приём моба: замах с меткой той же формы, что удар (EnemyAI.tell_of); два удара разных врагов не совпадают по времени
+func _start_move(m: Dictionary) -> void:
+	amove = m
+	move_cd[String(m["id"])] = age + float(m.get("cd", 0.0))
+	var w: float = float(m.get("wind", cfg["wind"]))
+	if String(m["act"]) in ["melee", "lunge", "slam", "charge"]:
+		w = EnemyAI.stagger_wind(self, w)
+	var clip: String = "Cast" if String(m["act"]) in ["shoot", "zone", "summon", "buff", "ritual", "clones", "blink", "repel"] and cfg["model"] == "hater" else String(cfg["clip"])
+	_wind(clip, w)
+
 func _teleport_near(pos: Vector3, r: float) -> void:
 	var c: Color = cfg.get("tint", Color(0.7, 0.6, 1.0))
 	game.fx.poof(global_position, height / 1.7, c)
@@ -496,6 +573,15 @@ func _tell_start() -> bool:
 	var r := 0.0
 	var half := 1.1
 	var lane := 0.0
+	if boss_id == "" and not amove.is_empty():
+		var sh: Array = EnemyAI.tell_of(self, amove)
+		if sh.is_empty():
+			return false
+		tell_r = float(sh[0])
+		tell_half = float(sh[1])
+		tell_lane = float(sh[2])
+		game.fx.tell_shape(tell, global_position, face, tell_r, tell_half, tell_lane, int(m["pattern"]), m["main"])
+		return true
 	if boss_id != "":
 		match move:
 			"slam":
@@ -545,10 +631,21 @@ func _boss_pick(dist: float) -> void:
 		special_cd = randf_range(10.0, 13.0) - phase * 1.5
 		_special()
 		return
+	var counter := BossMoves.adapt(self)
+	if counter != "":
+		move = counter
+		BossMoves.start(self, counter)
+		return
 	var phases: Array = boss["phases"]
 	var moves: Array = phases[min(phase, phases.size() - 1)]
 	move = moves[move_n % moves.size()]
 	move_n += 1
+	if phase >= 1 and combo_left == 0 and randf() < 0.35 + 0.2 * phase:
+		combo_left = phase                    # с фазой — связки длиннее
+	if BossMoves.is_new(move):
+		BossMoves.start(self, move)
+		return
+	moves_used[move] = int(moves_used.get(move, 0)) + 1
 	match move:
 		"charge":
 			_wind(String(cfg["clip"]), 0.55)
@@ -649,7 +746,14 @@ func stun(sec: float) -> void:
 
 func _process(_dt: float) -> void:
 	if tell != null and tell.visible and state != "wind":
-		tell.visible = false        # замах сорван (удар, оглушение, смерть) — метки нет
+		if age < tell_until and alive():
+			tell.set_instance_shader_parameter("progress", 1.0 - (tell_until - age) / maxf(0.05, tell_sec))   # полоса рывка босса
+		else:
+			tell.visible = false        # замах сорван (удар, оглушение, смерть) — метки нет
+	if buff_t > 0.0 and Engine.get_process_frames() % 20 == 0:
+		game.fx.twinkle(global_position + Vector3(0, height * 0.8, 0), 2, Color(1.0, 0.85, 0.3), 0.4)
+	if ward_t > 0.0 and Engine.get_process_frames() % 12 == 0:
+		game.fx.ring(global_position + Vector3(0, height * 0.55, 0), height * 1.1, Color(1.0, 0.85, 0.35, 0.35), 0.2)
 	if slow_t > 0.0 and alive() and Engine.get_process_frames() % 14 == 0:
 		game.fx.sparks(global_position + Vector3(0, height * 0.75, 0), Vector3.DOWN, 2, Color(0.55, 0.82, 1.0), 0.25, 60.0)   # капает вода
 	var c: float = game.clock
@@ -731,6 +835,11 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 			game.popup(global_position + Vector3(0, height + 0.2, 0), "ЩИТ", Color(0.5, 0.75, 1))
 			game.fx.shield(global_position + Vector3(0, height * 0.6, 0) - dir * radius, -dir, Color(0.5, 0.75, 1.0), 1.5 * height / 1.7)
 			game.main.sfx("sfx_block", -4.0)
+	if cfg.get("shield", false) and not heavy and Vector3(sin(face), 0, cos(face)).dot(-dir) > 0.3:
+		riposte_t = 0.8                  # MOD принял удар на щит — сейчас ответит
+	if ward_t > 0.0:
+		dmg *= 0.4
+		game.fx.shield(global_position + Vector3(0, height * 0.6, 0) - dir * radius, -dir, Color(1.0, 0.85, 0.35), 1.4 * height / 1.7)
 	if boss_id != "" and shielded():
 		dmg *= 0.15
 		launch = 0.0
