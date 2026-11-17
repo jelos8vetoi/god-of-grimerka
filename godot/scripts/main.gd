@@ -6,7 +6,7 @@ const ACTIONS := {
 	"jump": [KEY_SPACE], "roll": [KEY_SHIFT], "block": [KEY_C], "sprint": [KEY_CTRL], "adlib": [KEY_Q], "rage": [KEY_R], "heat": [KEY_E],
 	"ipod": [KEY_UP],
 	"throw": [KEY_F],
-	"tag": [KEY_TAB],
+	"tag": [KEY_TAB], "assist": [KEY_T],
 	"style1": [KEY_1], "style2": [KEY_2], "style3": [KEY_3],
 	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11],
 }
@@ -33,6 +33,7 @@ var smoke := ""
 var trailer := ""
 var hudcheck := ""        # --hudcheck=<папка>: боевой HUD в игре (scripts/hudcheck.gd)
 var execcheck := ""       # --execcheck=<папка>: реакции врагов и добивания (scripts/execcheck.gd)
+var tagcheck := ""        # --tagcheck=<папка>: Tag Team (scripts/tagcheck.gd)
 var combatcheck := ""     # --combatcheck=<папка>: ядро боя в игре (scripts/combatcheck.gd)
 var animlab := ""          # --animlab=<папка>: анимации в игре — сцены, листы кадров, замеры стоп (scripts/animlab.gd)
 var start_ch := -1
@@ -76,6 +77,8 @@ func _ready() -> void:
 			hudcheck = arg.substr(11)
 		elif arg.begins_with("--execcheck="):
 			execcheck = arg.substr(12)
+		elif arg.begins_with("--tagcheck="):
+			tagcheck = arg.substr(11)
 		elif arg.begins_with("--combatcheck="):
 			combatcheck = arg.substr(14)
 		elif arg.begins_with("--animlab="):
@@ -241,7 +244,7 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck
+	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
@@ -299,6 +302,12 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 		ec.out = execcheck
 		game.director = ec
 		game.add_child(ec)
+	if tagcheck != "":
+		var tc = preload("res://scripts/tagcheck.gd").new()
+		tc.game = game
+		tc.out = tagcheck
+		game.director = tc
+		game.add_child(tc)
 	if combatcheck != "":
 		var cc = preload("res://scripts/combatcheck.gd").new()
 		cc.game = game

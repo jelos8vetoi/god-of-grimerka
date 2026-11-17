@@ -1379,6 +1379,7 @@ func _run() -> void:
 	ok(P.style.id == "skateboard" and P.rig == P.heroes["madk1d"]["rig"] and P.rig.visible and not P.heroes["pahan"]["rig"].visible and P.m_weapons["skateboard"]["att"].visible, "у madk1d стиль «Скейтборд», доска в руке; риг Пахана у игрока скрыт")
 	ok(game.hero_label.text == "MADK1D" and game.style_label.text.begins_with("[1] Скейтборд"), "HUD: %s · %s" % [game.hero_label.text, game.style_label.text])
 	await shot("30_madk_hero.png")
+	game.tag.tag_cd = 0.0          # между сменами героя теперь пауза — проверка её не ждёт
 	await tap("tag")
 	await frames(40)
 	ok(P.hero == "pahan" and game.buddy.look == "madk1d" and P.style.id == "vozduh" and not P.rig.holstered, "Tab ещё раз: снова Пахан с балоном, madk1d — напарник")

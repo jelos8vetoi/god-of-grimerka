@@ -123,6 +123,8 @@ var fps_samples: Array = []
 var director = null
 var hero_label: Label         # имя героя, которым сейчас управляет игрок
 var style_label: Label        # текущий боевой стиль и запас (бутылки)
+var tag_saved: Dictionary = {}      # состояние команды из сохранения: применяется после загрузки главы
+var tag: TagTeam              # Tag Team: здоровье обоих героев, командные приёмы, выбывание (tagteam.gd)
 var combat_hud: CombatHud     # боевой HUD: портреты, полосы, карточки стилей, способности (hud.gd)
 var ipod
 var bot_acc := 0.0
@@ -149,6 +151,9 @@ func _ready() -> void:
 	buddy = preload("res://scripts/companion.gd").new()
 	buddy.game = self
 	add_child(buddy)
+	tag = TagTeam.new()
+	add_child(tag)
+	tag.setup(self)
 	# анимации врагов собираем заранее, при запуске: иначе первый враг каждого вида даёт рывок посреди боя
 	for it in [["bot", Poses.bot()], ["clipper", Poses.clipper()], ["hater", Poses.hater()]]:
 		if not Rig._lib_cache.has(it[0]):
@@ -176,6 +181,7 @@ func begin(from_save: bool, chapter := -1) -> void:
 			xp = int(d.get("xp", 0))
 			for k in up:
 				up[k] = int(d.get("up", {}).get(k, 0))
+			tag_saved = d.get("tag", {})
 	if chapter >= 0:
 		ch = chapter
 		step = -1
@@ -250,11 +256,16 @@ func _save() -> void:
 		return
 	var f := FileAccess.open(SAVE, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"ch": ch, "step": step, "xp": xp, "up": up}))
+		f.store_string(JSON.stringify({"ch": ch, "step": step, "xp": xp, "up": up, "tag": tag.save_data()}))
 
 func _apply_upgrades() -> void:
 	player.max_hp = 100.0 + 20.0 * up["hp"]
 	player.hp = player.max_hp
+	if tag != null:
+		tag.reset()
+		if not tag_saved.is_empty():
+			tag.load_data(tag_saved)
+			tag_saved = {}
 	player.dmg_mul = 1.0 + 0.12 * up["dmg"]
 	buddy.cd_max = 10.0 - 1.5 * up["q"]
 
@@ -511,6 +522,7 @@ func _retry() -> void:
 	_close_panel()
 	over = false
 	player.hp = player.max_hp
+	tag.reset()
 	player.state = "move"
 	player.swag = 0.0
 	player.rage = 0.0

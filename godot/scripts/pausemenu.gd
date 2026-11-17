@@ -536,7 +536,7 @@ func _open_page(i: int) -> void:
 			for r in Opts.rows(get_window(), game.main.audio, game.ipod):
 				acts.append([r[0]] if r.size() == 1 else [r[0], null, r[1]])
 			acts.append(["#УПРАВЛЕНИЕ"])
-			acts.append(["#WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — добивание · E — Heat · Пробел — прыжок · Shift — уклонение · C — блок · Q — ад-либ · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"])
+			acts.append(["#WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — добивание · E — Heat · Пробел — прыжок · Shift — уклонение · C — блок · Tab — смена героя · T — помощь напарника · Q — ад-либ · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"])
 			acts.append(["#ИГРА"])
 			acts.append(["В ГЛАВНОЕ МЕНЮ", func(): _confirm_menu()])
 			acts.append(["НАЗАД", _close_card])

@@ -1,0 +1,395 @@
+## Tag Team (этап 10): Пахан и madk1d — одна команда. Игрок ведёт одного, второй — напарник под управлением игры.
+##   [Tab] — смена героя. У каждого своё здоровье; стиль, запасы и перезарядки каждого сохраняются.
+##   Смена по обстановке (командные приёмы, вошедший герой появляется у цели):
+##     в ударе после лёгкого попадания      — TAG ATTACK;
+##     в ударе-подбросе или цель в воздухе  — TAG LAUNCHER (цель и герой взлетают — дальше удары в воздухе);
+##     в тяжёлом ударе после попадания      — DOUBLE IMPACT (бьют оба);
+##     в окне после парирования / уклонения — TAG COUNTER.
+##   [T] — помощь напарника, не меняя героя: цель в воздухе — AIR PARTNER COMBO, иначе CROSS ATTACK.
+##   Добивание рядом с напарником — TEAM FINISHER (execution.team_hook).
+## Ограничения: смена не работает, пока героя бьют (состояние hurt), в добивании и в смене стиля; пауза между
+## сменами 2 с, после командного приёма 5 с. Половина полученного урона («серое» здоровье) восстанавливается,
+## только пока герой отдыхает напарником. Героя с нулём здоровья уносит на REVIVE секунд; выбыли оба — поражение.
+## Напарник сам бьёт врагов рядом с игроком (слабо и не насмерть), отходит от замахов и не лезет под камеру.
+class_name TagTeam
+extends Node
+
+signal tagged(hero: String, move: String)
+
+const TAG_CD := 2.0
+const TEAM_CD := 5.0
+const ASSIST_CD := 6.0
+const REVIVE := 18.0
+const GREY := 0.5            # какая доля урона восстановима
+const REGEN := 3.0           # здоровья в секунду у отдыхающего
+const BOOST := 1.3           # урон вошедшего героя после командного приёма
+const TITLES := {"attack": "TAG ATTACK", "launcher": "TAG LAUNCHER", "double": "DOUBLE IMPACT", "counter": "TAG COUNTER", "cross": "CROSS ATTACK", "air": "AIR PARTNER COMBO", "finisher": "TEAM FINISHER"}
+
+var game
+var p
+var b
+var hp := {"pahan": 100.0, "madk1d": 100.0}
+var grey := {"pahan": 0.0, "madk1d": 0.0}
+var down := {"pahan": false, "madk1d": false}
+var revive_t := {"pahan": 0.0, "madk1d": 0.0}
+var tag_cd := 0.0
+var assist_cd := 0.0
+var boost_t := 0.0
+var auto_assist := true      # напарник сам вступает в бой
+var auto_t := 3.0
+var cur_hero := ""
+var last_hp := 100.0
+var last_max := 100.0
+var events: Array = []       # для проверок: [что, герой]
+
+func setup(g) -> void:
+	game = g
+	p = g.player
+	b = g.buddy
+	# герои друг с другом не сталкиваются: при смене напарник встаёт туда, где только что стоял игрок,
+	# и раньше его выталкивало вверх и в сторону
+	auto_assist = game.main.testing() == ""      # в проверках напарник сам не дерётся, пока проверка не включит его
+	b.add_collision_exception_with(p)
+	p.add_collision_exception_with(b)
+	reset()
+	p.execution.team_hook = _team_finish
+
+func reset() -> void:
+	for h in hp:
+		hp[h] = p.max_hp
+		grey[h] = 0.0
+		down[h] = false
+		revive_t[h] = 0.0
+	cur_hero = p.hero
+	last_hp = p.hp
+	last_max = p.max_hp
+	tag_cd = 0.0
+	assist_cd = 0.0
+	boost_t = 0.0
+	if b.ko:
+		b.revive()
+
+func mate() -> String:
+	return "madk1d" if p.hero == "pahan" else "pahan"
+
+func bonus() -> float:
+	return BOOST if boost_t > 0.0 else 1.0
+
+func _physics_process(dt: float) -> void:
+	if game == null or p == null:
+		return
+	# героя сменили (Tab или проверка напрямую): у вошедшего своё здоровье
+	if p.hero != cur_hero:
+		cur_hero = p.hero
+		p.hp = max(1.0, float(hp[cur_hero]))
+		last_hp = p.hp
+	if p.max_hp != last_max:
+		hp[mate()] = clampf(float(hp[mate()]) + (p.max_hp - last_max), 1.0, p.max_hp)
+		last_max = p.max_hp
+	if p.hp < last_hp:
+		grey[cur_hero] = float(grey[cur_hero]) + (last_hp - p.hp) * GREY
+	last_hp = p.hp
+	hp[cur_hero] = p.hp
+	if game.paused_story() or game.over:
+		return
+	tag_cd = max(0.0, tag_cd - dt)
+	assist_cd = max(0.0, assist_cd - dt)
+	boost_t = max(0.0, boost_t - dt)
+	var o := mate()
+	if down[o]:
+		revive_t[o] = float(revive_t[o]) - dt
+		if float(revive_t[o]) <= 0.0:
+			down[o] = false
+			hp[o] = p.max_hp * 0.3
+			grey[o] = 0.0
+			b.revive()
+			game.popup(b.global_position + Vector3(0, 2.2, 0), "%s СНОВА В БОЮ" % ("MADK1D" if o == "madk1d" else "ПАХАН"), Color(0.6, 1.0, 0.7))
+			events.append(["revive", o])
+	elif float(grey[o]) > 0.0:
+		var r: float = min(float(grey[o]), REGEN * dt)
+		grey[o] = float(grey[o]) - r
+		hp[o] = min(p.max_hp, float(hp[o]) + r)
+	_ai(dt)
+
+# ---------------- смена героя ----------------
+## Почему сейчас нельзя сменить героя ("" — можно)
+func tag_block() -> String:
+	if game.paused_story() or game.over:
+		return "story"
+	if down[mate()]:
+		return "down"
+	if tag_cd > 0.0:
+		return "cooldown"
+	if p.switch_to != "":
+		return "switch"
+	if not p.state in ["move", "block", "attack", "tyaga", "skate"]:
+		return p.state          # hurt, roll, exec, rage, dead, charge…
+	return ""
+
+## Цель команды: ближайший враг перед героем
+func target():
+	var best = null
+	var bs := -1e9
+	var fw := Vector3(sin(p.face), 0, cos(p.face))
+	for e in game.enemies:
+		if not is_instance_valid(e) or not e.alive():
+			continue
+		var d: Vector3 = e.global_position - p.global_position
+		d.y = 0
+		var dist := d.length()
+		if dist > 5.5:
+			continue
+		var sc: float = -dist + (d / max(dist, 0.001)).dot(fw) * 1.5
+		if sc > bs:
+			bs = sc
+			best = e
+	return best
+
+## Какой командный приём даст смена прямо сейчас ("" — обычная смена)
+func context(e) -> String:
+	if e == null:
+		return ""
+	var w: Dictionary = p.combat.windows
+	var now: float = p.combat.clock
+	if now <= float(w.get("parry", -9.0)) or now <= float(w.get("perfect", -9.0)) or now <= float(w.get("dodge", -9.0)):
+		return "counter"
+	var a: AttackData = p.combat.cur
+	if p.state == "attack" and a != null and p.combat.hit_i > 0:
+		if a.kind == "launcher" or a.launch > 0.0 or e.state == "air":
+			return "launcher"
+		if a.heavy or a.power >= 1:
+			return "double"
+		return "attack"
+	return ""
+
+func try_tag() -> bool:
+	var why := tag_block()
+	if why != "":
+		if why in ["hurt", "cooldown", "down"] and game.clock - _msg_t > 0.8:
+			_msg_t = game.clock
+			game.popup(p.global_position + Vector3(0, 2.3, 0), {"hurt": "не сейчас", "cooldown": "рано", "down": "напарник выбыл"}[why], Color(0.75, 0.78, 0.85))
+		events.append(["blocked", why])
+		return false
+	var e = target()
+	var ctx := context(e)
+	var old_pos: Vector3 = p.global_position
+	if not game.swap_heroes():
+		return false
+	tag_cd = TAG_CD
+	if ctx != "" and e != null and is_instance_valid(e) and e.alive():
+		_team_move(ctx, e, old_pos)
+	events.append([ctx if ctx != "" else "tag", p.hero])
+	tagged.emit(p.hero, ctx)
+	return true
+var _msg_t := -9.0
+
+## Вошедший герой появляется у цели и бьёт; что именно — по обстановке
+func _team_move(ctx: String, e, old_pos: Vector3) -> void:
+	tag_cd = TEAM_CD
+	boost_t = 2.5
+	# встать с другой стороны цели от ушедшего героя
+	var side: Vector3 = e.global_position - old_pos
+	side.y = 0
+	side = side.normalized() if side.length() > 0.2 else Vector3(sin(p.face), 0, cos(p.face))
+	var at: Vector3 = e.global_position + side * 1.5
+	if not game.in_arena(at, 0.6):
+		at = e.global_position + side.cross(Vector3.UP) * 1.5
+	at.y = e.global_position.y if e.state != "air" else 0.05
+	game.fx.sparks(p.global_position + Vector3(0, 1.0, 0), Vector3.UP, 8, Color(1, 1, 1, 0.8), 0.6, 60.0)
+	p.global_position = at
+	p.velocity = Vector3.ZERO
+	var dir: Vector3 = (e.global_position - at)
+	dir.y = 0
+	dir = dir.normalized()
+	p.face = atan2(dir.x, dir.z)
+	game.cam_yaw = lerp_angle(game.cam_yaw, atan2(-dir.x, -dir.z), 0.35)
+	var col: Color = p.style.color_hot
+	game.popup(e.global_position + Vector3(0, e.height + 0.8, 0), TITLES[ctx], col)
+	game.fx.ground_ring(at + Vector3(0, 0.05, 0), 0.3, 2.6, Color(col.r, col.g, col.b, 0.6), 0.3)
+	var k := 1.5 if e.boss_id != "" and e.weak_t > 0.0 else 1.0
+	match ctx:
+		"attack":
+			strike(e, 18.0 * k, 25.0, dir, 5.0, 0.0, false, 1)
+		"launcher":
+			strike(e, 14.0 * k, 20.0, dir, 1.0, 8.5, true, 1)
+			p.velocity.y = 7.5          # герой взлетает вместе с целью
+		"double":
+			b.strike_anim("heavy", e.global_position)
+			strike(e, 34.0 * k, 60.0, dir, 10.0, 0.0, true, 2)
+			game.fx.slam(e.global_position, 1.3, col)
+			game.shake(0.35)
+		"counter":
+			strike(e, 24.0 * k, 45.0, dir, 9.0, 0.0, true, 1)
+			p.combat.open("parry", 0.8)      # ответ продолжается: окно контратаки у вошедшего героя
+	_boss_window(e)
+
+## Удар команды: тот же путь, что и у обычных ударов (HitInfo → реакция врага)
+func strike(e, dmg: float, stagger: float, dir: Vector3, knock: float, launch: float, heavy: bool, power: int, lethal := true) -> void:
+	if not is_instance_valid(e) or not e.alive():
+		return
+	var h := HitInfo.new()
+	h.damage = dmg if lethal or e.boss_id != "" else min(dmg, max(0.0, e.hp - 1.0))
+	h.stagger = stagger
+	h.dir = dir
+	h.knockback = knock
+	h.launch = launch
+	h.heavy = heavy
+	h.power = power
+	h.attack_id = "team"
+	h.source = p
+	h.pos = e.global_position + Vector3(0, e.height * 0.6, 0)
+	e.take_hit_info(h)
+	game.feedback(["hit_light", "hit_heavy", "hit_super"][clampi(power, 0, 2)], h.pos, dir, 0.9, p.style.color_hot)
+
+## Босс «ОТКРЫТ»: командный приём продлевает окно — но только один раз за окно
+func _boss_window(e) -> void:
+	if not is_instance_valid(e) or e.boss_id == "" or e.weak_t <= 0.0 or e.has_meta("team_ext"):
+		return
+	e.set_meta("team_ext", true)
+	e.weak_t += 0.6
+	e.stun_t += 0.6
+	game.popup(e.global_position + Vector3(0, e.height + 1.3, 0), "TEAM BREAK", Color(1.0, 0.55, 0.3))
+	get_tree().create_timer(2.5).timeout.connect(func():
+		if is_instance_valid(e):
+			e.remove_meta("team_ext"))
+
+# ---------------- помощь напарника ----------------
+func assist_block() -> String:
+	if game.paused_story() or game.over:
+		return "story"
+	if down[mate()]:
+		return "down"
+	if assist_cd > 0.0:
+		return "cooldown"
+	if p.state in ["dead", "hurt"]:
+		return p.state
+	return ""
+
+func try_assist() -> bool:
+	if assist_block() != "":
+		events.append(["assist_blocked", assist_block()])
+		return false
+	var e = target()
+	if e == null:
+		return false
+	assist_cd = ASSIST_CD
+	var col := Color(0.36, 0.82, 1.0) if mate() == "madk1d" else Color(1.0, 0.8, 0.42)
+	var from_p: Vector3 = e.global_position - p.global_position
+	from_p.y = 0
+	from_p = from_p.normalized() if from_p.length() > 0.1 else Vector3(sin(p.face), 0, cos(p.face))
+	var k := 1.5 if e.boss_id != "" and e.weak_t > 0.0 else 1.0
+	if e.state == "air":
+		# напарник взлетает к цели и держит её в воздухе
+		b.blink(e.global_position + from_p * 1.2 + Vector3(0, -0.4, 0), -from_p)
+		b.velocity.y = 6.0
+		b.strike_anim("air", e.global_position)
+		strike(e, 14.0, 12.0, -from_p * 0.2, 0.5, 5.5, false, 1)
+		game.popup(e.global_position + Vector3(0, e.height + 0.8, 0), TITLES["air"], col)
+		events.append(["air", mate()])
+	else:
+		# напарник пролетает сквозь цель с другой стороны
+		b.blink(e.global_position + from_p * 1.4, -from_p)
+		b.strike_anim("heavy", e.global_position)
+		strike(e, 16.0 * k, 30.0, from_p.cross(Vector3.UP), 2.0, 0.0, true, 1)
+		game.fx.sparks(e.global_position + Vector3(0, 1.0, 0), -from_p, 10, col, 1.2, 30.0)
+		game.popup(e.global_position + Vector3(0, e.height + 0.8, 0), TITLES["cross"], col)
+		events.append(["cross", mate()])
+	_boss_window(e)
+	return true
+
+## Командное добивание: напарник рядом и готов — бьёт вместе с последним ударом добивания
+func _team_finish(e, dir: Vector3) -> void:
+	if down[mate()] or assist_cd > 0.0 or b.global_position.distance_to(p.global_position) > 9.0 or not is_instance_valid(e):
+		return
+	assist_cd = ASSIST_CD * 0.5
+	b.blink(e.global_position + dir * 1.4, -dir)
+	b.strike_anim("heavy", e.global_position)
+	game.fx.slam(e.global_position, 1.2, Color(1.0, 0.9, 0.6))
+	game.popup(e.global_position + Vector3(0, e.height + 1.3, 0), TITLES["finisher"], Color(1.0, 0.9, 0.6))
+	p.swag = min(100.0, p.swag + 10.0)
+	events.append(["finisher", mate()])
+
+# ---------------- поведение напарника ----------------
+func _ai(dt: float) -> void:
+	if not auto_assist or down[mate()] or b.ko:
+		return
+	auto_t -= dt
+	if auto_t > 0.0 or b.foe != null:
+		return
+	auto_t = randf_range(3.2, 4.8)
+	# бьёт не ту цель, которую бьёт игрок, если есть другая; только рядом с игроком
+	var mine = target()
+	var pick = null
+	var bd := 7.0
+	for e in game.enemies:
+		if not is_instance_valid(e) or not e.alive() or e.state == "spawn":
+			continue
+		var d: float = e.global_position.distance_to(p.global_position)
+		if d < bd and (e != mine or pick == null):
+			if e != mine:
+				bd = d
+			pick = e
+	if pick != null:
+		b.engage(pick)
+
+# ---------------- герой выбыл ----------------
+## Здоровье активного героя кончилось. true — его сменил напарник, бой продолжается; false — выбыли оба.
+func on_down() -> bool:
+	var o := mate()
+	var me: String = p.hero
+	if down[o] or game.over:
+		return false
+	down[me] = true
+	revive_t[me] = REVIVE
+	hp[me] = 0.0
+	grey[me] = 0.0
+	p.hp = 1.0
+	p.state = "move"
+	p.combat.interrupt()
+	if not game.swap_heroes():
+		down[me] = false
+		return false
+	cur_hero = p.hero
+	p.hp = max(1.0, float(hp[cur_hero]))
+	last_hp = p.hp
+	p.inv = 1.5
+	tag_cd = 1.0
+	b.ko_down()
+	game.banner("%s ВЫБЫЛ" % ("ПАХАН" if me == "pahan" else "MADK1D"), "вернётся через %d с" % int(REVIVE), Color(1.0, 0.45, 0.35))
+	game.slowmo(0.4)
+	events.append(["down", me])
+	return true
+
+# ---------------- сохранение ----------------
+func save_data() -> Dictionary:
+	var styles := {}
+	for h in p.heroes:
+		styles[h] = p.style.id if h == p.hero else String(p.heroes[h]["style"])
+	return {"hero": p.hero, "styles": styles, "hp": hp.duplicate(), "auto": auto_assist}
+
+func load_data(d: Dictionary) -> void:
+	if d.is_empty():
+		return
+	auto_assist = bool(d.get("auto", true))
+	var styles: Dictionary = d.get("styles", {})
+	for h in styles:
+		if p.heroes.has(h) and Styles.ORDER.has(String(styles[h])) and (p.heroes[h]["styles"] as Array).has(String(styles[h])):
+			p.heroes[h]["style"] = String(styles[h])
+	var want := String(d.get("hero", "pahan"))
+	if want != p.hero and p.heroes.has(want):
+		game.swap_heroes()
+	var cur: String = String(p.heroes[p.hero]["style"])
+	if p.style.id != cur:
+		p.style = Styles.by_id(cur)
+		p.combat.set_style(p.style)
+		p.rig.style_map = p.style.roles
+		if p.hero == "madk1d":
+			p.equip_madk(cur)
+		else:
+			p.rig.set_holstered(cur != "vozduh")
+	var saved: Dictionary = d.get("hp", {})
+	for h in hp:
+		hp[h] = clampf(float(saved.get(h, p.max_hp)), 1.0, p.max_hp)
+	cur_hero = p.hero
+	p.hp = float(hp[cur_hero])
+	last_hp = p.hp
