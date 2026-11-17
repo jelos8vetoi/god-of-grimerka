@@ -145,6 +145,7 @@ static func armed() -> Dictionary:
 	A["Hit"]["k"][2].append("io")
 	combat(A, idle_ik, side)
 	PahanMoves.add_to(A, idle_ik, side)
+	BalonClips.add_to(A, idle_ik, side)
 	FoundationClips.add_to(A)
 	FoundationClips.add_pahan(A)
 	BottleClips.add_to(A)

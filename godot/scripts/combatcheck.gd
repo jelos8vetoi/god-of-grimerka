@@ -331,12 +331,12 @@ func _run() -> void:
 	es = await stage(["bot"])
 	es[0].hp = 99999.0
 	es[0].max_hp = 99999.0
-	await chain(["attack", "attack", "attack", "attack"])
-	await until_free()
-	ok(log_started == ["vz_light1", "vz_light2", "vz_upper", "vz_slam"], "цепочка лёгких: %s" % str(log_started))
+	await chain(["attack", "attack", "attack", "attack", "attack"])
+	await until_free(400)
+	ok(log_started == ["vz_light1", "vz_light2", "vz_check", "vz_ohsmash", "vz_crush"], "цепочка из пяти лёгких: %s" % str(log_started))
 
 	# ---------- 4. ветки: тяжёлый после 0, 1, 2, 3 лёгких ----------
-	var branch := {0: "vz_overhead", 1: "vz_nail", 2: "vz_fullswing", 3: "vz_spin"}
+	var branch := {0: "vz_overhead", 1: "vz_upper", 2: "vz_fullswing", 3: "vz_sweep", 4: "vz_spin"}
 	for n in branch:
 		es = await stage(["bot"])
 		es[0].hp = 99999.0
@@ -517,18 +517,20 @@ func _run() -> void:
 		es = await stage([kind])
 		es[0].hp = 99999.0
 		es[0].max_hp = 99999.0
-		await chain(["attack", "attack", "attack"])
+		await chain(["attack", "heavy"])
 		var n3 := 0
 		while es[0].state != "air" and n3 < 60:
 			await get_tree().physics_frame
 			n3 += 1
 		var flew: bool = es[0].state == "air"
 		var hp_a: float = es[0].hp
-		var n4 := 0
-		while not P.combat.in_combo_window() and P.state == "attack" and n4 < 200:
-			await get_tree().physics_frame
-			n4 += 1
-		await tap("attack")
+		for act in ["attack", "heavy"]:          # вдогонку в воздух, затем добивание с неба
+			var n4 := 0
+			while not P.combat.in_combo_window() and P.state == "attack" and n4 < 200:
+				await get_tree().physics_frame
+				n4 += 1
+			await tap(act)
+			await frames(3)
 		var spiked := false
 		for i in 50:
 			await get_tree().physics_frame
@@ -540,7 +542,7 @@ func _run() -> void:
 		ok(flew and spiked and es[0].hp < hp_a, "%s: подброшен (%s), в воздухе вбит в землю (%s), урон %.0f" % [kind, flew, spiked, hp_a - es[0].hp])
 
 	# ---------- 14. удар после уклонения ----------
-	for pair in [["attack", "vz_roll_swing", "attack", "vz_light2"], ["heavy", "vz_roll_launch", "attack", "vz_slam"]]:
+	for pair in [["attack", "vz_roll_swing", "attack", "vz_light2"], ["heavy", "vz_roll_launch", "attack", "vz_air_follow"]]:
 		es = await stage(["bot"])
 		es[0].hp = 99999.0
 		es[0].max_hp = 99999.0
@@ -599,9 +601,9 @@ func _run() -> void:
 	es[0].state = "chase"
 	es[0].poise = es[0].poise_max
 	fb.clear()
-	await chain(["attack", "heavy"])
+	await chain(["attack", "attack", "heavy"])
 	await until_free(400)
-	ok(es[0].poise < es[0].poise_max - 40.0 or es[0].state == "stun", "лёгкий + ГВОЗДЬ снимают больше 40 равновесия из 60 (осталось %.0f, состояние %s)" % [es[0].poise, es[0].state])
+	ok(es[0].poise < es[0].poise_max - 40.0 or es[0].state in ["stun", "air", "down", "getup"], "два лёгких + ПОЛНЫЙ ЗАМАХ снимают больше 40 равновесия из 60 (осталось %.0f, состояние %s)" % [es[0].poise, es[0].state])
 	var stops := {}
 	for n in ["hit_light", "vz_launcher", "vz_heavy", "vz_slam", "vz_finisher", "vz_quake"]:
 		stops[n] = float(Feedback.EVENTS[n]["stop"])
@@ -978,12 +980,12 @@ func _run() -> void:
 	es = await stage(["bot"], 2.2)
 	es[0].hp = 9999.0
 	es[0].max_hp = 9999.0
-	await chain(["attack", "attack", "attack", "throw"])
+	await chain(["attack", "heavy", "throw"])
 	var un := 0
 	while P.bottles.hits_log.is_empty() and un < 120:
 		await get_tree().physics_frame
 		un += 1
-	ok(log_started == ["vz_light1", "vz_light2", "vz_upper", "vz_bottle"] and not P.bottles.hits_log.is_empty() and P.bottles.hits_log[0].get("air", false), "подброс балоном → [F]: бутылка догоняет врага в воздухе (%s)" % str(log_started))
+	ok(log_started == ["vz_light1", "vz_upper", "vz_bottle"] and not P.bottles.hits_log.is_empty() and P.bottles.hits_log[0].get("air", false), "подброс балоном → [F]: бутылка догоняет врага в воздухе (%s)" % str(log_started))
 	await until_free(400)
 	P.combat.ammo["bottles"] = 0.0
 	log_started = []

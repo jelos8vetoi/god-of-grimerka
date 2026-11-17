@@ -162,7 +162,7 @@ func _ready() -> void:
 	execution.setup(self, game)
 	combat.attack_started.connect(func(a: AttackData) -> void: breaker.on_start(a))
 	combat.attack_started.connect(func(a: AttackData) -> void:
-		if a.extra.has("hop") and not breaker.active() and not is_on_floor():
+		if a.extra.has("hop") and not breaker.active():
 			velocity.y = max(velocity.y, float(a.extra["hop"])))      # удар в прыжке чуть подвешивает героя
 	combat.attack_hit.connect(_on_attack_hit)
 	bottles = Bottles.new()
