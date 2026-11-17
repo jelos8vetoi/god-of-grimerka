@@ -111,4 +111,5 @@ static func add_to(A: Dictionary) -> void:
 		[0.6, Poses.mk({"hips": {"x": -1.45}, "rarm": {"z": -0.9}, "larm": {"z": 0.9}, "drop": 0.78})], [1.0, Poses._down(Callable(Poses, "mk"))]]}
 	A["Rage"] = A["Cheer"]
 	A["Charge"] = A["MStrumHold"]
+	SkateSet.add_to(A)        # скейт: пять лёгких, трюковые удары, воздух, езда
 	GuitarClips.add_to(A)      # гитара в двух руках: стойка, шаг, бег, удары, игра
