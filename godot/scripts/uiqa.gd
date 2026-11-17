@@ -335,6 +335,7 @@ func _run() -> void:
 	game.step = step0
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	game.player.inv = 0.0
+	game.tag.down[game.tag.mate()] = true    # напарник выбыл: иначе Tag Team передаст бой ему и поражения не будет
 	game.player.take_damage(game.player.hp + 50.0, game.player.global_position + Vector3(1, 0, 0))
 	await wait(3.0)
 	ok(game.panel != null and game.over, "поражение: окно «Пахан упал»")
@@ -343,6 +344,7 @@ func _run() -> void:
 	await wait(0.3)
 	ok(not get_tree().paused, "Esc на экране поражения паузу не открывает")
 	game._retry()
+	game.tag.down[game.tag.mate()] = false
 	await wait(0.6)
 	n2 = 0
 	while game.mode == "dlg" and n2 < 200:

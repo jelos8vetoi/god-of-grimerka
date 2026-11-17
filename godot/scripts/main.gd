@@ -41,6 +41,7 @@ var bottlecheck := ""     # --bottlecheck=<папка>: стиль «Водяр�
 var tyagacheck := ""      # --tyagacheck=<папка>: стиль «ТЯГА-812» (scripts/tyagacheck.gd)
 var madkcheck := ""       # --madkcheck=<папка>: оружие madk1d — доска за спиной, гитара в двух руках (scripts/madkcheck.gd)
 var duocheck := ""        # --duocheck=<папка>: дуэт-атака на [T] (scripts/duocheck.gd)
+var tutorialcheck := ""   # --tutorialcheck=<папка>: боевое обучение (scripts/tutorialcheck.gd)
 var combatcheck := ""     # --combatcheck=<папка>: ядро боя в игре (scripts/combatcheck.gd)
 var animlab := ""          # --animlab=<папка>: анимации в игре — сцены, листы кадров, замеры стоп (scripts/animlab.gd)
 var start_ch := -1
@@ -115,6 +116,8 @@ func _ready() -> void:
 			launcher = arg.substr(11)
 		elif arg.begins_with("--transcheck="):
 			transcheck = arg.substr(13)
+		elif arg.begins_with("--tutorialcheck="):
+			tutorialcheck = arg.substr(16)
 		elif arg.begins_with("--deathcheck="):
 			deathcheck = arg.substr(13)
 		elif arg.begins_with("--uiqa="):
@@ -265,7 +268,13 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck
+	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck
+
+## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
+func tutorial_on() -> bool:
+	if tutorialcheck != "":
+		return true
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and not voicecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
@@ -360,6 +369,12 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 		tgc.out = tyagacheck
 		game.director = tgc
 		game.add_child(tgc)
+	if tutorialcheck != "":
+		var tuc = preload("res://scripts/tutorialcheck.gd").new()
+		tuc.game = game
+		tuc.out = tutorialcheck
+		game.director = tuc
+		game.add_child(tuc)
 	if madkcheck != "":
 		var mkc = preload("res://scripts/madkcheck.gd").new()
 		mkc.game = game

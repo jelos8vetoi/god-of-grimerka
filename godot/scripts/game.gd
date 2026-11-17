@@ -127,6 +127,7 @@ var style_label: Label        # текущий боевой стиль и зап
 var hype: TeamHype            # общая шкала команды и Team Overdrive (hype.gd)
 var tag_saved: Dictionary = {}      # состояние команды из сохранения: применяется после загрузки главы
 var tag: TagTeam              # Tag Team: здоровье обоих героев, командные приёмы, выбывание (tagteam.gd)
+var tutorial: Tutorial       # боевое обучение: карточки механик по ходу боя (tutorial.gd)
 var combat_hud: CombatHud     # боевой HUD: портреты, полосы, карточки стилей, способности (hud.gd)
 var ipod
 var bot_acc := 0.0
@@ -159,6 +160,9 @@ func _ready() -> void:
 	hype = TeamHype.new()
 	add_child(hype)
 	hype.setup(self)
+	tutorial = Tutorial.new()
+	add_child(tutorial)
+	tutorial.setup(self)
 	# анимации врагов собираем заранее, при запуске: иначе первый враг каждого вида даёт рывок посреди боя
 	for it in [["bot", Poses.bot()], ["clipper", Poses.clipper()], ["hater", Poses.hater()]]:
 		if not Rig._lib_cache.has(it[0]):
@@ -188,6 +192,7 @@ func begin(from_save: bool, chapter := -1) -> void:
 				up[k] = int(d.get("up", {}).get(k, 0))
 			tag_saved = d.get("tag", {})
 			hype.value = clampf(float(d.get("hype", 0.0)), 0.0, TeamHype.MAX)
+			tutorial.load_data(d.get("tut", []))     # старые сохранения без ключа — обучение с начала
 	if chapter >= 0:
 		ch = chapter
 		step = -1
@@ -262,7 +267,7 @@ func _save() -> void:
 		return
 	var f := FileAccess.open(SAVE, FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"ch": ch, "step": step, "xp": xp, "up": up, "tag": tag.save_data(), "hype": hype.value}))
+		f.store_string(JSON.stringify({"ch": ch, "step": step, "xp": xp, "up": up, "tag": tag.save_data(), "hype": hype.value, "tut": tutorial.save_data()}))
 
 func _apply_upgrades() -> void:
 	player.max_hp = 100.0 + 20.0 * up["hp"]
