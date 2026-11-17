@@ -61,6 +61,7 @@ var skate: Skate             # скейтборд: езда и трюки (skate
 var guitar: Guitar           # электрогитара: ритм, дисторшн, волны и звук (guitar.gd)
 var breaker: Breaker         # Breaker Style: поток, Freeze, риск (breaker.gd)
 var execution: Execution     # контекстные добивания (execution.gd)
+var feel := {}               # «живое» оружие: стиль → WeaponFeel (weaponfeel.gd); "board_ride" — доска под ногами
 var flow: WeaponFlow         # смена стиля в бою: отмена удара, Perfect Swap, входы стилей (weaponflow.gd)
 var switch_info: Dictionary = {}      # какой переход идёт: клип и моменты смены оружия (SwapClips.INFO)
 var switch_len := 0.42       # длительность идущей смены стиля (Perfect Swap — короче)
@@ -93,6 +94,7 @@ func _ready() -> void:
 	# Балон VOZDUH: горлышко в кулаке, корпус выходит со стороны мизинца
 	style = Styles.by_id("vozduh")
 	rig.attach(style.weapon["path"], style.weapon["side"], style.weapon["opt"])
+	feel["vozduh"] = WeaponFeel.on(rig.weapon.get_child(0), "vozduh")
 	combat = Combat.new(self, game, style)
 	FINISH = [style.next("", "heavy"), style.next("vz_light1", "heavy"), style.next("vz_light2", "heavy"), style.next("vz_upper", "heavy")]
 	trail = Trail.new()
@@ -123,6 +125,7 @@ func _ready() -> void:
 		if sd.ready and not sd.weapon.is_empty():
 			var att: Node3D = mr.attach(sd.weapon["path"], sd.weapon["side"], sd.weapon["opt"])
 			m_weapons[sid] = {"att": att, "weapon": mr.weapon, "bone": mr.weapon_bone, "grip": mr.weapon_grip}
+			feel[sid] = WeaponFeel.on(mr.weapon.get_child(0), sid)
 			att.visible = false
 	var mt := Trail.new()
 	mr.add_child(mt)
@@ -141,6 +144,7 @@ func _ready() -> void:
 	skate = Skate.new()
 	body.add_child(skate)
 	skate.setup(self, game)
+	feel["board_ride"] = WeaponFeel.on(skate.spinner.get_child(0), "board_ride")
 	guitar = Guitar.new()
 	add_child(guitar)
 	guitar.setup(self, game)
@@ -158,6 +162,7 @@ func _ready() -> void:
 	bottles = Bottles.new()
 	add_child(bottles)
 	bottles.setup(self, game)
+	feel["bottles"] = WeaponFeel.on(bottles.prop, "bottles")
 	tyaga = Tyaga.new()
 	body.add_child(tyaga)
 	tyaga.setup(self, game)
@@ -463,6 +468,10 @@ func _physics_process(dt: float) -> void:
 		var kk := combat.k()
 		tr = kk >= float(hh[0]) - 0.16 and kk <= float(hh[hh.size() - 1]) + 0.14
 	trail.enabled = tr
+	if tr and feel.has(style.id):
+		(feel[style.id] as WeaponFeel).swing(1.0)
+	if feel.has("board_ride"):
+		(feel["board_ride"] as WeaponFeel).drive = clampf(skate.speed / 10.0, 0.0, 1.0) if skate.on else 0.0
 	if state != "charge":
 		game.charge_zoom = 0.0
 	var glow := 2.0 if rage > 0.0 else (1.0 if swag >= 100.0 else 0.0)
@@ -639,6 +648,10 @@ func _on_attack_hit(a: AttackData, n: int) -> void:
 	guitar.on_hit(a, n)
 	breaker.on_hit(a)
 	flow.on_hit()
+	if n > 0:
+		var wf: WeaponFeel = feel.get("board_ride" if skate.on else style.id)
+		if wf != null:
+			wf.hit(float(a.power))      # удар отдаётся в самом оружии
 
 ## ядро боя: момент броска — снаряд вылетает из руки
 func launch_projectile(a: AttackData, charged: float) -> void:

@@ -15,6 +15,7 @@ var P
 var F: WeaponFlow
 var started := false
 var frame_n := 0
+var own_cam := false          # съёмка листов переходов: своя камера сбоку
 
 func _ready() -> void:
 	cam = Camera3D.new()
@@ -22,13 +23,18 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 
 func owns_camera() -> bool:
-	return false
+	return own_cam
 
 func hide_hud() -> bool:
-	return false
+	return own_cam
 
 func frame(_dt: float) -> void:
 	frame_n += 1
+	if own_cam and P != null and is_instance_valid(P):
+		cam.global_position = P.global_position + Vector3(2.5, 1.15, -1.5)
+		cam.look_at(P.global_position + Vector3(0, 0.82, 0))
+		cam.fov = 38.0
+		cam.make_current()
 	if not started and frame_n > 3:
 		started = true
 		_run()
@@ -143,7 +149,51 @@ func strike_until(action: String, when: String) -> void:
 	if when == "hit":
 		await frames(3)
 
+## -- --flowcheck=<папка> --sheets: листы переходов в игре, с настоящим оружием в руках (восемь кадров на переход)
+func _sheets() -> void:
+	const TW := 480
+	const TH := 400
+	for hero in ["pahan", "madk1d"]:
+		for a in SETS[hero]:
+			for b in SETS[hero]:
+				if a == b:
+					continue
+				await stage(hero)
+				await put(a)
+				await frames(30)
+				P.global_position = Vector3(0, 0.05, 4.0)
+				P.face = PI
+				own_cam = true
+				await frames(6)
+				slow = 0.12
+				await tap(key_of(b))
+				var thumbs: Array = []
+				for i in 8:
+					var n := 0
+					while P.switch_to != "" and P.switch_t / P.switch_len < (i + 0.5) / 8.0 and n < 600:
+						await get_tree().physics_frame
+						n += 1
+					await RenderingServer.frame_post_draw
+					var img: Image = get_viewport().get_texture().get_image()
+					var side_px: int = mini(img.get_height(), img.get_width())
+					img = img.get_region(Rect2i((img.get_width() - side_px * TW / TH) / 2, 0, side_px * TW / TH, side_px))
+					img.resize(TW, TH)
+					img.convert(Image.FORMAT_RGBA8)
+					thumbs.append(img)
+				slow = 1.0
+				await wait_switch()
+				var sheet := Image.create(TW * 4, TH * 2, false, Image.FORMAT_RGBA8)
+				for i in thumbs.size():
+					sheet.blit_rect(thumbs[i], Rect2i(0, 0, TW, TH), Vector2i((i % 4) * TW, (i / 4) * TH))
+				sheet.save_png(out.path_join("swap_%s_to_%s.png" % [a, b]))
+				print("FLOW лист: %s → %s" % [a, b])
+				own_cam = false
+	get_tree().quit()
+
 func _run() -> void:
+	if OS.get_cmdline_user_args().has("--sheets"):
+		await _sheets()
+		return
 	# ================= 1. все переходы каждого героя =================
 	var shot_n := 0
 	for hero in ["pahan", "madk1d"]:
@@ -303,5 +353,26 @@ func _run() -> void:
 		await frames(60)
 		var id: String = P.style.id
 		ok(P.switch_to == "" and P.state in ["move", "tyaga"] and weapons() == ("" if id == "breaker" else id), "%s: 24 быстрых нажатия смены стиля — не застрял, в руках «%s» (стиль %s)" % [hero, weapons(), id])
+	# ================= 5. оружие откликается на удар =================
+	for row in [["pahan", "vozduh"], ["madk1d", "skateboard"], ["madk1d", "guitar"]]:
+		await stage(row[0])
+		await put(row[1])
+		e = foe()
+		await frames(4)
+		var wf: WeaponFeel = P.feel[row[1]]
+		wf.peak = 0.0
+		await frames(30)
+		var idle_peak: float = wf.peak
+		wf.peak = 0.0
+		await strike_until("attack", "hit")
+		await frames(4)
+		var rang: float = wf.ring
+		n = 0
+		while P.state == "attack" and n < 200:
+			await get_tree().physics_frame
+			n += 1
+		var hit_peak: float = wf.peak      # наибольшее отклонение за весь удар
+		await frames(200)          # гитара гудит дольше всех — струны
+		ok(idle_peak > 0.001 and idle_peak < 0.05 and rang > 0.1 and hit_peak > idle_peak * 2.0 and hit_peak < 0.3 and wf.ring == 0.0 and wf.offset() < 0.05, "%s: в покое оружие чуть покачивается (%.3f рад), от попадания вздрагивает (%.3f рад) и успокаивается (%.3f рад)" % [row[1], idle_peak, hit_peak, wf.offset()])
 	print("FLOWCHECK ok" if fails == 0 else "FLOWCHECK ОШИБОК: %d" % fails)
 	get_tree().quit()

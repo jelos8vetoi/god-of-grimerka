@@ -16,6 +16,12 @@ var p
 var game
 var style: StyleData
 var unit: Node3D              # модель; её положение относительно героя — v
+var rock: Node3D              # «живой» корпус: дрожь мотора, покачивание на ходу, отдача, приседание (между unit и моделью)
+var rock_t := 0.0
+var kick := 0.0               # отдача от выстрела воздухом: гаснет сама
+var squash := 0.0             # приседание корпуса: >0 — сплющен (приземление, удар), <0 — вытянут (прыжок)
+var rock_seen := 0            # сколько событий пылесоса уже отыграно
+var rock_amp := 0.0           # для проверок: насколько корпус сейчас отклонён от покоя, м
 var v := TyagaClips.V_AWAY
 var mode := "off"             # off, in, hold, suck, charge, blast, mount, ride, dismount, out
 var mt := 0.0
@@ -49,10 +55,12 @@ func setup(player, g) -> void:
 	style = Styles.by_id("tyaga812")
 	unit = Node3D.new()
 	add_child(unit)
+	rock = Node3D.new()
+	unit.add_child(rock)
 	var m: Node3D = (load(MODEL) as PackedScene).instantiate()
 	m.rotation.y = PI * 0.5                    # щётка вперёд
 	m.scale = Vector3.ONE * TyagaClips.K
-	unit.add_child(m)
+	rock.add_child(m)
 	unit.visible = false
 	hum = AudioStreamPlayer.new()
 	hum.stream = _synth_hum()
@@ -114,6 +122,65 @@ func _clear_ride() -> void:
 	lean = 0.0
 	caught = {}
 	pulling = []
+
+## Корпус пылесоса живёт: мотор мелко трясёт его (сильнее при работе и перегреве), на ходу он переваливается
+## с колеса на колесо и подпрыгивает, при выстреле воздухом — отдача назад, при прыжке вытягивается, при
+## приземлении и таране приседает. Всё — небольшие смещения узла rock: руки героя держат трубу в прежней точке.
+func _process(dt: float) -> void:
+	if unit == null or not unit.visible:
+		return
+	rock_t += dt
+	# события пылесоса → отдача и приседание
+	if rock_seen > events.size():
+		rock_seen = 0
+	while rock_seen < events.size():
+		var ev: Array = events[rock_seen]
+		rock_seen += 1
+		match String(ev[0]):
+			"shot", "throw", "bolt":
+				kick = 1.0
+			"burst":
+				kick = 1.6
+			"land", "bump", "ram", "bowl", "flip":
+				squash = 1.0
+			"jump":
+				squash = -0.8
+			"overheat":
+				squash = 0.6
+	kick = move_toward(kick, 0.0, dt * 5.0)
+	squash = lerpf(squash, 0.0, 1.0 - exp(-9.0 * dt))
+	# мощность мотора: на холостом еле заметна, при работе и перегреве — сильная
+	var power := 0.0
+	match mode:
+		"hold", "in":
+			power = 0.25
+		"suck":
+			power = 1.0
+		"charge":
+			power = 0.6 + 0.6 * clampf(charge_t / 1.0, 0.0, 1.0)
+		"blast":
+			power = 0.8
+		"ride", "mount", "dismount":
+			power = 0.35 + 0.5 * clampf(speed / 12.0, 0.0, 1.0)
+	if lock > 0.0:
+		power = 1.3
+	var hs: float = Vector2(p.velocity.x, p.velocity.z).length()
+	var roll_k: float = clampf(hs / 6.0, 0.0, 1.0)
+	var step: float = rock_t * (7.0 + hs * 1.2)
+	# дрожь мотора — три несовпадающие частоты, без случайного шума
+	var jx: float = sin(rock_t * 61.0) * 0.004 * power
+	var jz: float = sin(rock_t * 53.0 + 1.3) * 0.003 * power
+	var jy: float = abs(sin(rock_t * 47.0 + 0.7)) * 0.004 * power
+	# на ходу: с колеса на колесо и вверх-вниз
+	var roll: float = sin(step) * 0.05 * roll_k + sin(rock_t * 71.0) * 0.006 * power
+	var bob: float = abs(sin(step)) * 0.014 * roll_k
+	# работа: при втягивании нос клюёт вперёд, при выстреле корпус отбрасывает назад и задирает
+	var pitch: float = (0.07 if mode == "suck" else 0.0) + sin(rock_t * 9.0) * 0.012 * power - 0.2 * kick
+	rock.position = Vector3(jx, jy + bob, jz - 0.1 * kick)
+	rock.rotation = Vector3(pitch, 0.0, roll)
+	var breathe: float = 1.0 + sin(rock_t * 9.0) * 0.012 * power
+	rock.scale = Vector3(breathe * (1.0 + 0.1 * squash), breathe * (1.0 - 0.16 * squash), breathe * (1.0 + 0.1 * squash))
+	rock_amp = rock.position.length() + abs(roll) * 0.3 + abs(pitch) * 0.3
 
 ## героя ударили: с пылесоса сбивает, заряд и притягивание обрываются
 func on_hurt() -> void:
