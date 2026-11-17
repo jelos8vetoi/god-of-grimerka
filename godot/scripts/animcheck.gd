@@ -254,6 +254,18 @@ func _holster(r: Rig) -> void:
 func _equip_state(r: Rig, clip: String, u: float) -> void:
 	if clip.ends_with("Bare") or clip.begins_with("Bottle") or clip.begins_with("Tyaga") or clip.begins_with("Ride"):   # в этих стилях балон за спиной
 		r.set_holstered(true)
+	elif clip.begins_with("Swap"):
+		# переходы между стилями: балон в руке до «stow» или после «grab», в остальных он за спиной
+		var inf := {}
+		for k in SwapClips.INFO:
+			if SwapClips.INFO[k]["clip"] == clip:
+				inf = SwapClips.INFO[k]
+		if inf.has("stow"):
+			r.set_holstered(u >= float(inf["stow"]))
+		elif inf.has("grab"):
+			r.set_holstered(u < float(inf["grab"]))
+		else:
+			r.set_holstered(true)
 	elif clip == "Equip":
 		r.set_holstered(u < 0.36)
 	elif clip == "Unequip":

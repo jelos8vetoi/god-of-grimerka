@@ -8,7 +8,7 @@
 ##                   уклонения); СВЭГ +8; сигнал perfect — для Team Hype (этап 12).
 ##   Без бесконечных комбо: между Perfect Swap пауза PERFECT_CD; возврат в тот же стиль, из которого только что
 ##                   пришёл (A → B → A за STALE_T секунд), Perfect не даёт; усиление тратится одним попаданием.
-## У каждого стиля свой вход (FLOW): клип, эффект и звук появления оружия. Выход — клип уходящего стиля в player.set_style.
+## У каждой пары стилей своя анимация перехода (clips_swap.gd, SwapClips.INFO); здесь — эффект и звук появления оружия (FLOW).
 class_name WeaponFlow
 extends Node
 
@@ -26,9 +26,9 @@ const FLOW := {
 	"vozduh": {"title": "Балон", "intro": "", "fx": "thud"},
 	"bottles": {"title": "Водяра", "intro": "", "fx": "splash"},
 	"tyaga812": {"title": "ТЯГА-812", "intro": "", "fx": "wind"},
-	"skateboard": {"title": "Скейт", "intro": "MSwing1", "t": 0.28, "fx": "sparks"},
-	"guitar": {"title": "Гитара", "intro": "MStrum", "t": 0.3, "fx": "chord"},
-	"breaker": {"title": "Breaker", "intro": "Toprock", "t": 0.3, "fx": "step"},
+	"skateboard": {"title": "Скейт", "intro": "", "fx": "sparks"},
+	"guitar": {"title": "Гитара", "intro": "", "fx": "chord"},
+	"breaker": {"title": "Breaker", "intro": "", "fx": "step"},
 }
 
 var p

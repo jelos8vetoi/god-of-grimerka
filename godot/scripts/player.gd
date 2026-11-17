@@ -62,6 +62,7 @@ var guitar: Guitar           # электрогитара: ритм, дисто�
 var breaker: Breaker         # Breaker Style: поток, Freeze, риск (breaker.gd)
 var execution: Execution     # контекстные добивания (execution.gd)
 var flow: WeaponFlow         # смена стиля в бою: отмена удара, Perfect Swap, входы стилей (weaponflow.gd)
+var switch_info: Dictionary = {}      # какой переход идёт: клип и моменты смены оружия (SwapClips.INFO)
 var switch_len := 0.42       # длительность идущей смены стиля (Perfect Swap — короче)
 var FINISH: Array = []      # тяжёлые удары стиля по числу лёгких перед ними (для съёмки трейлера)
 var scrape_p: AudioStreamPlayer
@@ -397,8 +398,8 @@ func _physics_process(dt: float) -> void:
 			switch_t += dt
 			var sk := switch_t / switch_len
 			if hero == "madk1d":
-				spin_off = -TAU * smoothstep(0.1, 0.6, sk)
-				if sk >= 0.55:
+				spin_off = -TAU * float(switch_info.get("spin", 1.0)) * smoothstep(0.1, 0.6, sk)
+				if sk >= float(switch_info.get("at", 0.55)):
 					equip_madk(switch_to)
 				if sk >= 1.0:
 					spin_off = 0.0
@@ -407,9 +408,9 @@ func _physics_process(dt: float) -> void:
 				move_and_slide()
 				body.rotation.y = face + spin_off
 				return
-			if switch_to == "vozduh" and sk >= 0.36:
+			if switch_to == "vozduh" and sk >= float(switch_info.get("grab", 0.36)):
 				rig.set_holstered(false)
-			elif style.id == "vozduh" and sk >= 0.64:
+			elif style.id == "vozduh" and sk >= float(switch_info.get("stow", 0.64)):
 				rig.set_holstered(true)
 			if sk >= 1.0:
 				_finish_switch()
@@ -504,13 +505,17 @@ func set_style(id: String) -> bool:
 	switch_buf = false
 	state = "switch"
 	bottles.show_prop(false)
+	switch_info = SwapClips.info(style.id, id)      # у каждой пары стилей свой переход
+	var sw_clip := String(switch_info.get("clip", ""))
 	if hero == "madk1d":
-		rig.play_for("StyleSwitch", switch_len, 0.06)      # оборот на месте, оружие меняется на середине
+		rig.play_for(sw_clip if sw_clip != "" else "StyleSwitch", switch_len, 0.06)
 		game.feedback("equip", global_position + Vector3(0, 1.2, 0))
 		return true
 	if style.id == "tyaga812":
 		tyaga.leave()                 # пылесос откатывается
-	if id == "vozduh":
+	if sw_clip != "":
+		rig.play_for(sw_clip, switch_len, 0.06)
+	elif id == "vozduh":
 		rig.play_for("Equip", switch_len, 0.08)
 	elif style.id == "vozduh":
 		rig.play_for("Unequip", switch_len, 0.08)
