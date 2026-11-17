@@ -793,7 +793,7 @@ func impact(tier: int, pos: Vector3, mul := 1.0) -> void:
 
 ## Смена героя (Tab): игрок берёт под управление напарника, прежний герой становится напарником.
 ## Герои меняются местами — управление переходит к тому, кто стоял рядом.
-func swap_heroes() -> bool:
+func swap_heroes(quiet := false) -> bool:
 	if paused_story() or over or player.state == "dead":
 		return false
 	var a: Vector3 = player.global_position
@@ -814,7 +814,8 @@ func swap_heroes() -> bool:
 	feedback("tag", b, Vector3.ZERO, 1.0, Color(0.36, 0.82, 1.0) if next == "madk1d" else Color(1.0, 0.8, 0.42))
 	fx.ground_ring(a, 0.4, 2.0, Color(1, 1, 1, 0.4), 0.3)
 	player.anim.action("tag_in", 0.45, 0.25)
-	banner("MADK1D" if next == "madk1d" else "ПАХАН", "в бою", Color(0.36, 0.82, 1.0) if next == "madk1d" else Color(1.0, 0.8, 0.42))
+	if not quiet:      # AIR TAG передаёт быстро и часто: без надписи на весь экран
+		banner("MADK1D" if next == "madk1d" else "ПАХАН", "в бою", Color(0.36, 0.82, 1.0) if next == "madk1d" else Color(1.0, 0.8, 0.42))
 	return true
 
 ## Отклик боя по имени события: таблица каналов — в feedback.gd.

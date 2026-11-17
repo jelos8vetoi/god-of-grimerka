@@ -155,6 +155,52 @@ func run_duo(e, shot_name := "") -> void:
 			await close(shot_name, e)
 	await frames(30)
 
+## подбросить врага (для сцен, где подброс стилем не главное)
+func launch(e, v := 9.0) -> void:
+	var hl := HitInfo.new()
+	hl.damage = 1.0
+	hl.launch = v
+	hl.dir = Vector3(0, 0, -1)
+	e.take_hit_info(hl)
+
+## ЛКМ, затем в окне связки ПКМ — подброс стилем
+func style_launch(e) -> bool:
+	await tap("attack")
+	var n := 0
+	while not P.combat.in_combo_window() and P.state == "attack" and n < 120:
+		await get_tree().physics_frame
+		n += 1
+	await tap("heavy")
+	n = 0
+	while e.state != "air" and n < 90:
+		await get_tree().physics_frame
+		n += 1
+	return e.state == "air"
+
+## Tab по подсказке AIR TAG; вернуть [подсказка была, где она была относительно цели]
+var air_gap := 99.0
+func air_tag_run(e, shot_name := "") -> Array:
+	var n := 0
+	while not T.hint.visible and n < 40:
+		await get_tree().physics_frame
+		n += 1
+	var seen: bool = T.hint.visible
+	var kind: String = T.hint_kind
+	var off: float = T.hint.global_position.distance_to(e.global_position) if is_instance_valid(e) else 99.0
+	await tap("tag")
+	n = 0
+	air_gap = 99.0
+	var shot_done := shot_name == ""
+	while D.active() and n < 240:
+		await get_tree().physics_frame
+		n += 1
+		if D.phase == "follow" and is_instance_valid(e):
+			air_gap = min(air_gap, P.global_position.distance_to(e.global_position))
+		if not shot_done and D.phase == "follow" and D.t > 0.05:
+			shot_done = true
+			await close(shot_name, e)
+	return [seen, kind, off]
+
 func _run() -> void:
 	AudioServer.set_bus_mute(0, true)
 	# ================= 1. девять пар в обе стороны =================
@@ -269,5 +315,107 @@ func _run() -> void:
 	ok(blocked == "duo" and has_ev("abort") and not D.active() and not B.duo_on and P.state != "duo", "во время дуэта Tab заблокирован («%s»); смена героя напрямую — дуэт оборван безопасно (%s), никто не завис" % [blocked, str(ev("abort"))])
 	if is_instance_valid(ew):
 		ew.queue_free()
+	# ================= 9. AIR TAG =================
+	# Пахан подбрасывает балоном — madk1d продолжает каждым из трёх стилей
+	for ms in ["skateboard", "guitar", "breaker"]:
+		await stage("pahan", "vozduh", ms)
+		var ea = foe(2.0)
+		ea.stun(9.0)
+		await frames(4)
+		var up: bool = await style_launch(ea)
+		var hp0: float = ea.hp
+		var r: Array = await air_tag_run(ea, "c_airtag_pahan_%s.png" % ms)
+		var reach_gap: float = air_gap
+		await frames(10)
+		ok(up and r[0] and r[1] == "AIR TAG" and r[2] < 2.6 and P.hero == "madk1d" and P.style.id == ms and has_ev("air_tag") and has_ev("relay_end") and hp0 - ea.hp > 5.0 and reach_gap < 2.0,
+			"Пахан подбросил балоном (%s) → подсказка «%s» у врага (%.1f м) → Tab: madk1d (%s) прыгнул к цели (подлетел на %.1f м) и ударил в воздухе, урон %.0f" % [str(up), r[1], r[2], P.style.id, reach_gap, hp0 - ea.hp])
+	# madk1d подбрасывает доской — Пахан продолжает бутылками
+	await stage("madk1d", "skateboard", "bottles")
+	var esk = foe(2.0)
+	esk.stun(9.0)
+	await frames(4)
+	var up2: bool = await style_launch(esk)
+	var hsk: float = esk.hp
+	var r2: Array = await air_tag_run(esk, "c_airtag_madk_bottles.png")
+	await frames(30)
+	ok(up2 and r2[0] and P.hero == "pahan" and P.style.id == "bottles" and has_ev("relay_end") and hsk - esk.hp > 3.0, "madk1d подбросил доской (%s) → Tab: Пахан бросил бутылку в воздухе, урон %.0f" % [str(up2), hsk - esk.hp])
+	# madk1d (брейк) подбросил — Пахан продолжает пылесосом
+	await stage("madk1d", "breaker", "tyaga812")
+	var ec = foe(2.5)
+	await frames(4)
+	launch(ec)
+	await frames(6)
+	var hc: float = ec.hp
+	var r3: Array = await air_tag_run(ec, "c_airtag_madk_tyaga.png")
+	await frames(20)
+	ok(r3[0] and P.hero == "pahan" and P.style.id == "tyaga812" and hc - ec.hp > 5.0, "madk1d подбросил → Tab: Пахан с пылесосом выбросом вверх, урон %.0f" % (hc - ec.hp))
+	# цепочка: туда-обратно-туда, и враг всё равно приземляется
+	await stage("pahan", "vozduh", "breaker")
+	var ed2 = foe(2.0)
+	ed2.stun(9.0)
+	await frames(4)
+	await style_launch(ed2)
+	var heroes_seq: Array = [P.hero]
+	for i in 3:
+		await air_tag_run(ed2)
+		heroes_seq.append(P.hero)
+		await frames(6)
+	var tags: int = T.events.filter(func(x): return x[0] == "air_tag").size()
+	var land_n := 0
+	while ed2.state == "air" and land_n < 360:
+		await get_tree().physics_frame
+		land_n += 1
+	ok(heroes_seq.size() >= 3 and heroes_seq[1] != heroes_seq[0] and heroes_seq[2] == heroes_seq[0] and tags >= 2 and ed2.state != "air", "цепочка передач: %s, передач за полёт %d; враг приземлился через %.1f с — вечного жонглирования нет" % [str(heroes_seq), tags, land_n / 60.0])
+	# предел передач за полёт
+	await stage("pahan", "vozduh", "guitar")
+	var el = foe(2.5)
+	await frames(4)
+	launch(el, 12.0)
+	await frames(4)
+	el.air_tags = T.AIR_TAGS_MAX
+	await frames(3)
+	var no_hint: bool = not T.hint.visible and T.air_target() == null
+	T.events = []
+	await tap("tag")
+	await frames(4)
+	ok(no_hint and T.events.size() > 0 and String(T.events[T.events.size() - 1][0]) != "air_tag", "после %d передач за полёт подсказки нет, Tab — обычная смена (%s)" % [T.AIR_TAGS_MAX, str(T.events.back() if T.events.size() > 0 else [])])
+	# два врага в воздухе — AIR RELAY
+	await stage("madk1d", "guitar", "vozduh")
+	var m1 = foe(2.5)
+	var m2 = game._make_enemy("bot", "", P.global_position + Vector3(2.0, 0, -3.0))
+	m2.state = "chase"
+	m2.cool = 999.0
+	m2.max_hp = 9999.0
+	m2.hp = 9999.0
+	await frames(4)
+	launch(m1)
+	launch(m2)
+	await frames(6)
+	var kind2: String = T.hint_kind
+	await close("c_air_relay_hint.png", m1)
+	var r4: Array = await air_tag_run(m1)
+	ok(kind2 == "AIR RELAY" and P.hero == "pahan" and has_ev("air_tag"), "два врага в воздухе — подсказка «%s», Tab передаёт одного из них" % kind2)
+	# обычная смена без врагов в воздухе
+	await stage("pahan", "bottles", "skateboard")
+	var en2 = foe(4.0)
+	await frames(4)
+	T.events = []
+	await tap("tag")
+	await frames(4)
+	ok(not T.hint.visible and P.hero == "madk1d" and T.events.size() > 0 and String(T.events[0][0]) == "tag", "без врага в воздухе Tab — обычная смена (%s), подсказки нет" % str(T.events))
+	# босс не летает — AIR TAG по нему не бывает
+	await stage("pahan", "vozduh", "breaker")
+	var bid2: String = String((game.story["BOSS"] as Dictionary).keys()[0])
+	var bb = game._make_enemy("bot", bid2, P.global_position + Vector3(0, 0, -3.0))
+	await frames(90)
+	bb.cool = 999.0
+	launch(bb, 12.0)
+	await frames(6)
+	ok(bb.state != "air" and T.air_target() == null and not T.hint.visible, "босса не подбросить — AIR TAG по нему нет")
+	if is_instance_valid(bb):
+		bb.queue_free()
+	if is_instance_valid(en2):
+		en2.queue_free()
+	var _r = r4
 	print("DUOCHECK ok" if fails == 0 else "DUOCHECK ОШИБОК: %d" % fails)
 	get_tree().quit()
