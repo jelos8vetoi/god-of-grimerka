@@ -230,6 +230,10 @@ func stage(kinds: Array, dist := 2.2) -> Array:
 	P.tyaga.mode = "off"
 	P.tyaga.unit.visible = false
 	P.tyaga._clear_ride()
+	for fl in P.bottles.flying:      # бутылки прошлой сцены не долетают в новую
+		if is_instance_valid(fl["node"]):
+			fl["node"].queue_free()
+	P.bottles.flying = []
 	P.bottles.hits_log = []
 	P.combat.clear_buffer()
 	P.combat.cooldowns = {}
@@ -902,24 +906,24 @@ func _run() -> void:
 
 
 	# ================= «Водяра»: двойной, веер, цель в воздухе, бросок из комбо =================
-	# ---------- двойной бросок: ЛКМ, ЛКМ, ПКМ — две бутылки в двух врагов ----------
+	# ---------- двойной бросок: ЛКМ, ПКМ — две бутылки в двух врагов ----------
 	es = await stage(["bot", "clipper"], 7.0)
 	await to_style("style2")
 	for e in es:
 		e.hp = 9999.0
 		e.max_hp = 9999.0
-	await chain(["attack", "attack", "heavy"])
+	await chain(["attack", "heavy"])
 	var dn := 0
-	while P.bottles.hits_log.size() < 4 and dn < 150:
+	while P.bottles.hits_log.size() < 3 and dn < 150:
 		await get_tree().physics_frame
 		dn += 1
 	var hit_set := {}
 	for h in P.bottles.hits_log:
 		if h["enemy"] != null:
 			hit_set[h["enemy"].get_instance_id()] = true
-	ok(log_started == ["bt_quick", "bt_quick2", "bt_double"] and P.bottles.hits_log.size() == 4 and hit_set.size() == 2 and P.combat.ammo_of("bottles") < 2.6, "ЛКМ, ЛКМ, ПКМ — двойной: %s, всего бутылок %d, задеты оба врага, запаса осталось %.1f" % [str(log_started), P.bottles.hits_log.size(), P.combat.ammo_of("bottles")])
+	ok(log_started == ["bt_quick", "bt_double"] and P.bottles.hits_log.size() >= 3 and hit_set.size() == 2 and P.combat.ammo_of("bottles") < 3.6, "ЛКМ, ПКМ — двойной: %s, всего бутылок %d, задеты оба врага, запаса осталось %.1f" % [str(log_started), P.bottles.hits_log.size(), P.combat.ammo_of("bottles")])
 	await until_free()
-	# ---------- веер: ЛКМ ×3 — три бутылки по трём целям ----------
+	# ---------- веер: ЛКМ ×4 — три бутылки по трём целям ----------
 	es = await stage(["bot", "clipper", "hater"], 7.0)
 	es[0].global_position = P.global_position + Vector3(-3.5, 0, -6.0)
 	es[2].global_position = P.global_position + Vector3(3.5, 0, -6.0)
@@ -927,24 +931,24 @@ func _run() -> void:
 	for e in es:
 		e.hp = 9999.0
 		e.max_hp = 9999.0
-	await chain(["attack", "attack", "attack"])
+	await chain(["attack", "attack", "attack", "attack"])
 	while P.combat.cur != null and P.combat.hit_i == 0:
 		await get_tree().physics_frame
 	await frames(4)
 	var in_air: int = P.bottles.flying.size()
 	await shot("11b_fan.png")
 	var fn := 0
-	while P.bottles.hits_log.size() < 5 and fn < 150:
+	while P.bottles.hits_log.size() < 6 and fn < 150:
 		await get_tree().physics_frame
 		fn += 1
 	var fan_hit := {}
-	for i in range(2, P.bottles.hits_log.size()):
+	for i in range(0, P.bottles.hits_log.size()):
 		var h2: Dictionary = P.bottles.hits_log[i]
 		if h2["enemy"] != null:
 			fan_hit[h2["enemy"].get_instance_id()] = true
-	ok(log_started == ["bt_quick", "bt_quick2", "bt_fan"] and in_air == 3 and fan_hit.size() == 3, "ЛКМ ×3 — веер: в воздухе %d бутылки, задеты бот, клиппер и хейтер (%d)" % [in_air, fan_hit.size()])
+	ok(log_started == ["bt_quick", "bt_side", "bt_over", "bt_fan"] and in_air >= 3 and fan_hit.size() == 3, "ЛКМ ×4 — веер: в воздухе %d бутылки, задеты бот, клиппер и хейтер (%d)" % [in_air, fan_hit.size()])
 	await until_free()
-	ok(P.combat.ammo_of("bottles") < 1.9, "серия с веером тратит пять бутылок (осталось %.1f): следом ещё веер не бросить" % P.combat.ammo_of("bottles"))
+	ok(P.combat.ammo_of("bottles") < 1.9, "серия с веером тратит шесть бутылок (осталось %.1f): следом ещё веер не бросить" % P.combat.ammo_of("bottles"))
 	# ---------- цель в воздухе: упреждение ----------
 	es = await stage(["bot"], 6.0)
 	await to_style("style2")

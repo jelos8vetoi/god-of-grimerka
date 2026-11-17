@@ -147,6 +147,8 @@ func try_start() -> bool:
 			return false                               # пауза после оборванной цепочки: нельзя спамить первым ударом
 		# в прыжке у стиля может быть своё начало цепочки (ключ графа "air"); нет — как с земли
 		a = style.next("air", act) if not p.is_on_floor() and style.links.has("air") else null
+		if a == null and style.close_range > 0.0 and style.links.has("close") and p.enemies_near(style.close_range):
+			a = style.next("close", act)      # вплотную к врагу у стиля своё начало (водяра: удары бутылкой вместо бросков)
 		if a == null:
 			a = style.next("", act)
 	if not ready_at(a):

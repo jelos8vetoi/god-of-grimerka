@@ -37,6 +37,7 @@ var tagcheck := ""        # --tagcheck=<папка>: Tag Team (scripts/tagcheck.
 var flowcheck := ""       # --flowcheck=<папка>: смена стилей в бою (scripts/flowcheck.gd)
 var hypecheck := ""       # --hypecheck=<папка>: Team Hype и Overdrive (scripts/hypecheck.gd)
 var basecheck := ""       # --basecheck=<папка>: основа боевых анимаций (scripts/basecheck.gd)
+var bottlecheck := ""     # --bottlecheck=<папка>: стиль «Водяра» (scripts/bottlecheck.gd)
 var combatcheck := ""     # --combatcheck=<папка>: ядро боя в игре (scripts/combatcheck.gd)
 var animlab := ""          # --animlab=<папка>: анимации в игре — сцены, листы кадров, замеры стоп (scripts/animlab.gd)
 var start_ch := -1
@@ -88,6 +89,8 @@ func _ready() -> void:
 			hypecheck = arg.substr(12)
 		elif arg.begins_with("--basecheck="):
 			basecheck = arg.substr(12)
+		elif arg.begins_with("--bottlecheck="):
+			bottlecheck = arg.substr(14)
 		elif arg.begins_with("--combatcheck="):
 			combatcheck = arg.substr(14)
 		elif arg.begins_with("--animlab="):
@@ -253,7 +256,7 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck
+	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
@@ -335,6 +338,12 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 		bc.out = basecheck
 		game.director = bc
 		game.add_child(bc)
+	if bottlecheck != "":
+		var btc = preload("res://scripts/bottlecheck.gd").new()
+		btc.game = game
+		btc.out = bottlecheck
+		game.director = btc
+		game.add_child(btc)
 	if combatcheck != "":
 		var cc = preload("res://scripts/combatcheck.gd").new()
 		cc.game = game

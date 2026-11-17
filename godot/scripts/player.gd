@@ -169,6 +169,7 @@ func _ready() -> void:
 	add_child(bottles)
 	bottles.setup(self, game)
 	feel["bottles"] = WeaponFeel.on(bottles.prop, "bottles")
+	feel["bottles_l"] = WeaponFeel.on(bottles.prop_l, "bottles")
 	tyaga = Tyaga.new()
 	body.add_child(tyaga)
 	tyaga.setup(self, game)
@@ -390,7 +391,7 @@ func _physics_process(dt: float) -> void:
 				if held("sprint") and dir.length() > 0.5 and anim.state == "move":
 					combat.open("sprint", 0.12)   # на бегу с рывком: удар с разгона
 				# вариация покоя: стоит без дела, врагов нет — раз в 9–15 с осматривает оружие
-				if dir.length() < 0.1 and anim_hold <= 0.0 and is_on_floor() and not enemies_near(14.0) and is_nan(turn_to) and style.id == "vozduh" and not pod.want:
+				if dir.length() < 0.1 and anim_hold <= 0.0 and is_on_floor() and not enemies_near(14.0) and is_nan(turn_to) and (style.id == "vozduh" or style.roles.has("idle_var")) and not pod.want:
 					idle_var_t += dt
 					if idle_var_t > idle_var_next:
 						idle_var_t = 0.0
@@ -668,6 +669,8 @@ func _on_attack_hit(a: AttackData, n: int) -> void:
 		var wf: WeaponFeel = feel.get("board_ride" if skate.on else style.id)
 		if wf != null:
 			wf.hit(float(a.power))      # удар отдаётся в самом оружии
+		if style.id == "bottles" and a.projectile == "":
+			(feel["bottles_l"] as WeaponFeel).hit(float(a.power))
 
 ## ядро боя: момент броска — снаряд вылетает из руки
 func launch_projectile(a: AttackData, charged: float) -> void:
@@ -933,7 +936,7 @@ func _process(dt: float) -> void:
 		face = lerp_angle(face, pod_face if pod.want or pod.u >= 1.0 else pod_face0, 1.0 - exp(-5.0 * dt))
 		body.rotation.y = face
 	# бутылка в кулаке: есть запас, не идёт смена стиля, рука не занята iPod, бутылка ещё не брошена
-	bottles.show_prop(hero == "pahan" and style.id == "bottles" and switch_to == "" and state != "dead" and not pod.busy() and combat.ammo_of("bottles") >= 1.0 and not (state == "attack" and combat.hit_i > 0))
+	bottles.update_props(hero == "pahan" and style.id == "bottles" and switch_to == "" and state != "dead" and not pod.busy())      # две бутылки в руках; брошенная возвращается из кармана
 	# стопы: прилегание к земле всегда, кроме переката, гибели и полёта; фиксация опоры — только в перемещении
 	feet.weight = move_toward(feet.weight, 0.0 if state in ["roll", "dead"] or not is_on_floor() or tyaga.riding() or skate.on else 1.0, dt * 8.0)
 	feet.lock = 1.0 if state in ["move", "block"] and anim.state != "fall" else 0.0

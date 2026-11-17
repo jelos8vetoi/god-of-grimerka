@@ -16,9 +16,15 @@ var game
 var scene: PackedScene
 var prop: Node3D                # бутылка в кулаке
 var prop_att: BoneAttachment3D
+var prop_l: Node3D              # вторая бутылка — в левом кулаке
+var prop_l_att: BoneAttachment3D
+var hid_r := false             # правая бутылка брошена: появится, когда рука дойдёт до кармана
+var hid_l := false
+var rico_log: Array = []       # для проверок: [откуда-враг, куда-враг]
 var flying: Array = []          # [{node, vel, a: AttackData, power, life, spin}]
 var dots: Array = []            # точки траектории при прицеливании
 var splash_snd: AudioStreamWAV
+var throw_hand := "r"          # какой рукой идёт текущая бутылка серии
 var hits_log: Array = []        # для проверок: [{kind, enemy, pos}]
 
 func setup(player, g) -> void:
@@ -44,6 +50,22 @@ func setup(player, g) -> void:
 	prop.position.y = SIZE * 0.88
 	hold.add_child(prop)
 	prop_att.visible = false
+	# вторая бутылка в левом кулаке — так же: горлышко в кулаке
+	prop_l_att = BoneAttachment3D.new()
+	prop_l_att.bone_name = r.skel.get_bone_name(r.bone["lhand"])
+	r.skel.add_child(prop_l_att)
+	var hl: Dictionary = r.hand["l"]
+	var Yl: Vector3 = (hl["k"] as Vector3) * r.weapon_sign
+	var Zl: Vector3 = hl["f"]
+	Zl = (Zl - Yl * Zl.dot(Yl)).normalized()
+	var hold_l := Node3D.new()
+	hold_l.transform = Transform3D(Basis(Yl.cross(Zl), Yl, Zl).orthonormalized().scaled(Vector3.ONE / sk_scale), hl["grip"])
+	prop_l_att.add_child(hold_l)
+	prop_l = _make()
+	prop_l.rotation.x = PI
+	prop_l.position.y = SIZE * 0.88
+	hold_l.add_child(prop_l)
+	prop_l_att.visible = false
 	splash_snd = _synth_splash()
 	for i in 14:
 		var d := MeshInstance3D.new()
@@ -69,6 +91,21 @@ func _make() -> Node3D:
 
 func show_prop(on: bool) -> void:
 	prop_att.visible = on
+	if not on:
+		prop_l_att.visible = false
+
+## Каждый кадр: какие бутылки видны в руках. on — стиль выбран и руки свободны; запас решает, сколько их:
+## одна — в правой, две и больше — в обеих. Брошенная бутылка появляется снова, когда рука в конце клипа
+## доходит до кармана (extra.draw атаки), а не сразу.
+func update_props(on: bool) -> void:
+	var c = p.combat
+	var a: AttackData = c.cur
+	if a == null or a.projectile == "" or c.k() >= float(a.extra.get("draw", 0.84)):
+		hid_r = false
+		hid_l = false
+	var have: float = c.ammo_of("bottles")
+	prop_att.visible = on and have >= 1.0 and not hid_r
+	prop_l_att.visible = on and have >= 2.0 and not hid_l
 
 func hand_pos() -> Vector3:
 	return prop_att.global_position
@@ -94,7 +131,7 @@ func targets_for(a: AttackData) -> Array:
 
 ## Откуда вылетает бутылка: правая рука (стиль «Водяра») или левая (бросок из комбо балоном).
 func throw_from(a: AttackData) -> Vector3:
-	if String(a.extra.get("hand", "r")) == "l":
+	if String(a.extra.get("hand", "r")) == "l" or throw_hand == "l":
 		var r: Rig = p.rig
 		return (r.skel.global_transform * r.skel.get_bone_global_pose(r.bone["lhand"])).origin
 	return hand_pos() if prop_att.is_inside_tree() else p.global_position + Vector3(0, 1.3, 0)
@@ -119,7 +156,7 @@ func aim(a: AttackData, power: float, target = null, yaw := 0.0) -> Array:
 		at += lead.limit_length(4.0)
 		at.y = max(at.y, target.global_position.y - 2.0)
 	var d2 := at - from
-	var tm: float = max(0.22, d2.length() / speed)
+	var tm: float = max(0.22, d2.length() / speed) * (1.0 + 0.6 * float(a.extra.get("arc_up", 0.0)))      # навес: летит дольше и выше
 	return [from, d2 / tm + Vector3(0, 0.5 * GRAVITY * tm, 0), target]
 
 ## бросок: бутылки вылетают из руки. extra.count — сколько (двойной, веер): каждая в свою цель,
@@ -128,7 +165,9 @@ func throw(a: AttackData, power: float) -> void:
 	var n: int = a.extra.get("count", 1)
 	var list := targets_for(a)
 	var fan: float = a.extra.get("fan", 0.14)
+	var both: bool = a.extra.get("both", false)
 	for i in n:
+		throw_hand = "l" if both and i % 2 == 1 else "r"      # двумя руками — по очереди
 		var am: Array
 		if i < list.size():
 			am = aim(a, power, list[i])
@@ -145,8 +184,14 @@ func throw(a: AttackData, power: float) -> void:
 		var node := _make()
 		add_child(node)
 		node.global_position = am[0]
-		flying.append({"node": node, "vel": am[1], "a": a, "power": power, "life": 3.0, "spin": Vector3(randf_range(6, 11), randf_range(-3, 3), randf_range(-4, 4))})
-	show_prop(false)
+		flying.append({"node": node, "vel": am[1], "a": a, "power": power, "life": 3.0, "spin": Vector3(randf_range(6, 11), randf_range(-3, 3), randf_range(-4, 4)), "rico": int(a.extra.get("ricochet", 0)), "mul": 1.0})
+		if throw_hand == "l":
+			hid_l = true
+		else:
+			hid_r = true
+	throw_hand = "r"
+	if String(a.extra.get("hand", "r")) == "l":
+		hid_r = false                 # бросок левой из комбо балоном: правая занята балоном
 	game.main.sfx("sfx_swing", -6.0, 1.3 if power < 0.3 else 1.0)
 
 ## траектория при прицеливании (удержание тяжёлого)
@@ -174,13 +219,18 @@ func _physics_process(dt: float) -> void:
 		var n: Node3D = f["node"]
 		var from := n.global_position
 		f["vel"] = (f["vel"] as Vector3) + Vector3(0, -GRAVITY * dt, 0)
+		var home = f.get("home")      # отскок рикошета доводится до цели: она успевает сдвинуться
+		if home != null and is_instance_valid(home) and home.alive():
+			var aim: Vector3 = home.global_position + Vector3(0, float(home.height) * 0.6, 0) - from
+			if aim.length() > 0.05:
+				f["vel"] = aim.normalized() * 20.0
 		var to := from + (f["vel"] as Vector3) * dt
 		f["life"] = float(f["life"]) - dt
 		var hit_e = null
 		var hit_at := to
 		# хёртбокс врага — капсула (радиус, высота): ближайшая точка пути бутылки за кадр
 		for e in game.enemies:
-			if not is_instance_valid(e) or not e.alive():
+			if not is_instance_valid(e) or not e.alive() or (f.get("seen", []) as Array).has(e):      # рикошет не бьёт тех, кого уже задел
 				continue
 			var mid: Vector3 = e.global_position + Vector3(0, float(e.height) * 0.5, 0)
 			var c: Vector3 = Geometry3D.get_closest_point_to_segment(mid, from, to)
@@ -192,7 +242,11 @@ func _physics_process(dt: float) -> void:
 		var world := false
 		if hit_e == null:
 			var q := PhysicsRayQueryParameters3D.create(from, to, 1)
-			q.exclude = [p.get_rid()]
+			var skip: Array[RID] = [p.get_rid()]
+			for se in (f.get("seen", []) as Array):      # отскок стартует у тела врага: его самого луч не видит
+				if is_instance_valid(se) and se is CollisionObject3D:
+					skip.append(se.get_rid())
+			q.exclude = skip
 			var r: Dictionary = space.intersect_ray(q)
 			if not r.is_empty():
 				world = true
@@ -224,7 +278,14 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 	var slow_s: float = a.extra.get("slow", 0.0)
 	if enemy != null:
 		var h := HitInfo.new()
-		h.damage = p.combat.damage_for(a, enemy)
+		h.damage = p.combat.damage_for(a, enemy) * float(f.get("mul", 1.0))
+		# LAST DROP: усиленный бросок по оглушённому, согнувшемуся или лежащему — кратный урон и подброс
+		var ld: float = a.extra.get("last_drop", 0.0)
+		if ld > 0.0 and (enemy.state in ["stun", "down", "getup"] or enemy.react_state() in ["HEAVY_STAGGER", "EXECUTION_READY"]):
+			h.damage *= ld
+			h.launch = 5.0
+			game.popup(enemy.global_position + Vector3(0, float(enemy.height) + 0.7, 0), "LAST DROP", Color(0.75, 0.92, 1.0))
+			hits_log[hits_log.size() - 1]["last_drop"] = true
 		h.stagger = a.stagger
 		h.dir = flat
 		h.knockback = a.knockback
@@ -245,6 +306,27 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 		p.swag = min(100.0, p.swag + 3.0)
 		game.feedback(a.feedback if a.feedback != "" else "bt_hit", at, flat, 1.0, WATER)
 		p.combat.attack_hit.emit(a, 1)
+		# РИКОШЕТ: бутылка не разбивается, а отскакивает к ближайшему другому врагу; каждый отскок слабее
+		if int(f.get("rico", 0)) > 0:
+			var next = null
+			var nd := 7.5
+			for e in game.enemies:
+				if is_instance_valid(e) and e.alive() and e != enemy and not (f.get("seen", []) as Array).has(e):
+					var dd: float = e.global_position.distance_to(enemy.global_position)
+					if dd < nd:
+						nd = dd
+						next = e
+			if next != null:
+				var node := _make()
+				add_child(node)
+				node.global_position = at + Vector3(0, 0.15, 0)
+				var to: Vector3 = next.global_position + Vector3(0, float(next.height) * 0.6, 0) - node.global_position
+				var tm: float = max(0.18, to.length() / 20.0)
+				var seen: Array = (f.get("seen", []) as Array).duplicate()
+				seen.append(enemy)
+				flying.append({"node": node, "vel": to / tm + Vector3(0, 0.5 * GRAVITY * tm, 0), "a": a, "power": power, "life": 2.0, "spin": Vector3(14, 3, 5), "rico": int(f["rico"]) - 1, "mul": float(f.get("mul", 1.0)) * 0.75, "seen": seen, "home": next})
+				rico_log.append([enemy, next])
+				game.main.sfx("sfx_parry", -10.0, 1.8)
 	else:
 		# мимо: лужа на земле или всплеск на стене
 		fx.ground_ring(Vector3(at.x, at.y + 0.03, at.z), 0.2, 1.4 + power, Color(WATER.r, WATER.g, WATER.b, 0.5), 0.35)
