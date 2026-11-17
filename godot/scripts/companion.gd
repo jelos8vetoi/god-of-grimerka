@@ -17,6 +17,13 @@ var idle_t := 0.0           # сколько стоит без дела: вре�
 var show_cd := 9.0
 var look := "madk1d"         # кого показывает напарник: когда игрок управляет madk1d, рядом идёт Пахан
 var looks := {}              # имя → {rig, anim, feet}
+var foe = null               # враг, к которому напарник идёт ударить сам (tagteam._ai)
+var foe_t := 0.0
+var dodge_cd := 0.0
+var stuck_t := 0.0
+var ko := false              # выбыл: лежит, пока не вернётся (tagteam.revive)
+var events: Array = []       # для проверок: ["hit", тип врага], ["dodge", 0]
+const CLIPS := {"madk1d": {"hit": ["RoundKick", 0.45], "heavy": ["SpinKick", 0.5], "air": ["AirKick", 0.34]}, "pahan": {"hit": ["Light1", 0.6], "heavy": ["FullSwing", 0.7], "air": ["Upper", 0.6]}}
 
 func _ready() -> void:
 	var col := CollisionShape3D.new()
@@ -56,14 +63,21 @@ func _physics_process(dt: float) -> void:
 		move_and_slide()
 		body.rotation.y = face
 		return
+	if ko:
+		velocity = Vector3(0, velocity.y - 20.0 * dt, 0)
+		move_and_slide()
+		body.rotation.y = face
+		return
+	dodge_cd = max(0.0, dodge_cd - dt)
+	_team_ai(dt)
 	wait -= dt
 	var far := global_position.distance_to(pp)
 	if far > 14.0:
 		global_position = pp + Vector3(sin(p.face + 1.4), 0, cos(p.face + 1.4)) * 1.8
 		target = Vector3.ZERO
 		far = 1.8
-	var bad := target == Vector3.ZERO or target.distance_to(pp) > 4.6
-	if wait <= 0.0 or bad or far > 5.5:
+	var bad := target == Vector3.ZERO or (target.distance_to(pp) > 4.6 and foe == null)
+	if foe == null and (wait <= 0.0 or bad or far > 5.5):
 		var aim: Vector3 = p.aim_dir()
 		var base := atan2(aim.x, aim.z)
 		for i in 12:
@@ -77,7 +91,7 @@ func _physics_process(dt: float) -> void:
 	var turn := 0.0
 	var d := target - global_position
 	d.y = 0
-	var spd := 8.5 if far > 4.5 else 4.6
+	var spd := 8.5 if far > 4.5 or dodge_cd > 1.9 else 4.6      # отскок от замаха — рывком
 	var acting := anim.state == "action" and anim.hold > 0.0   # брейк или приём: стоит на месте, тело ведёт root motion
 	if acting:
 		velocity.x = 0.0
@@ -108,6 +122,96 @@ func _physics_process(dt: float) -> void:
 	body.rotation.y = face
 	feet.weight = 1.0 if is_on_floor() else 0.0
 	feet.lock = 0.0 if anim.state == "action" else 1.0
+
+## Свои действия напарника в бою: подойти к выбранному врагу и ударить (слабо и не насмерть), отойти от замаха.
+func _team_ai(dt: float) -> void:
+	# уклонение: рядом враг замахнулся или несётся — отскочить в сторону от него
+	if dodge_cd <= 0.0:
+		for e in game.enemies:
+			if not is_instance_valid(e) or not e.alive():
+				continue
+			if e.state in ["wind", "charge", "special"] and e.global_position.distance_to(global_position) < 2.6:
+				var away: Vector3 = global_position - e.global_position
+				away.y = 0
+				away = away.normalized() if away.length() > 0.05 else Vector3(sin(face), 0, cos(face))
+				var to_spot := global_position + away * 3.2
+				if not game.in_arena(to_spot, 0.8):
+					to_spot = global_position + away.cross(Vector3.UP) * 3.2
+				target = to_spot
+				wait = 1.0
+				foe = null
+				dodge_cd = 2.5
+				game.fx.dust(global_position + Vector3(0, 0.1, 0), 4, game.fx.DUST, 0.5)
+				events.append(["dodge", 0])
+				break
+	if foe == null:
+		return
+	foe_t -= dt
+	if not is_instance_valid(foe) or not foe.alive() or foe_t <= 0.0 or foe.global_position.distance_to(game.player.global_position) > 9.0:
+		foe = null
+		return
+	var d: Vector3 = foe.global_position - global_position
+	d.y = 0
+	if d.length() > 1.7:
+		target = foe.global_position - d.normalized() * 1.3
+		wait = 0.5
+		# упёрся в другого врага по дороге — короткий рывок к цели, а не топтание на месте
+		stuck_t = stuck_t + dt if get_real_velocity().length() < 0.6 else 0.0
+		if stuck_t > 0.35 and game.in_arena(target, 0.5):
+			stuck_t = 0.0
+			game.fx.dust(global_position + Vector3(0, 0.1, 0), 4, game.fx.DUST, 0.5)
+			global_position = Vector3(target.x, global_position.y, target.z)
+		return
+	stuck_t = 0.0
+	# дошёл: один удар. Напарник не добивает — последний удар за игроком
+	face = atan2(d.x, d.z)
+	strike_anim("hit", foe.global_position)
+	game.tag.strike(foe, 7.0, 12.0, d.normalized(), 2.0, 0.0, false, 0, false)
+	events.append(["hit", foe.kind])
+	foe = null
+	wait = 0.8
+
+## напарник сам идёт бить врага
+func engage(e) -> void:
+	foe = e
+	foe_t = 3.0
+
+## анимация удара напарника: hit, heavy или air
+func strike_anim(kind: String, at: Vector3) -> void:
+	var d: Vector3 = at - global_position
+	d.y = 0
+	if d.length() > 0.05:
+		face = atan2(d.x, d.z)
+	var c: Array = (CLIPS[look] as Dictionary)[kind]
+	anim.action(String(c[0]), float(c[1]))
+	say_t = 0.0
+	wait = max(wait, float(c[1]) + 0.2)
+
+## мгновенно оказаться в точке (командный приём): со вспышкой на старом и новом месте
+func blink(pos: Vector3, look_dir: Vector3) -> void:
+	game.fx.sparks(global_position + Vector3(0, 1.0, 0), Vector3.UP, 6, Color(1, 1, 1, 0.8), 0.5, 60.0)
+	if not game.in_arena(pos, 0.5):
+		pos = global_position.lerp(pos, 0.8)
+	global_position = pos
+	velocity = Vector3.ZERO
+	target = pos
+	wait = 1.0
+	foe = null
+	if look_dir.length() > 0.05:
+		face = atan2(look_dir.x, look_dir.z)
+	game.fx.ground_ring(Vector3(pos.x, 0.06, pos.z), 0.3, 2.0, Color(1, 1, 1, 0.5), 0.25)
+
+## выбыл: падает и лежит
+func ko_down() -> void:
+	ko = true
+	foe = null
+	say_t = 0.0
+	rig.play_for("Death", 9999.0, 0.1)
+
+func revive() -> void:
+	ko = false
+	anim.action("KipUp" if look == "madk1d" else "recovery", 0.8)
+	game.fx.twinkle(global_position + Vector3(0, 1.0, 0), 12, Color(0.6, 1.0, 0.7), 1.0)
 
 ## Показать другого героя (смена героя игроком). Пахан-напарник собирается при первом обращении.
 func set_look(id: String) -> void:

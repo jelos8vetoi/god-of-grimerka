@@ -77,6 +77,8 @@ var slots: Array = []          # [{icon, key, name, time, pips, fill}]
 var shown_hero := ""
 var shown_style := ""
 var tab_tag: Control
+var mate_fill: ColorRect       # здоровье напарника — тонкая полоса под его портретом
+var mate_grey: ColorRect
 const BAR_W := 330.0
 
 func setup(g) -> void:
@@ -282,6 +284,21 @@ func _build_portraits() -> void:
 	tab_tag.add_child(tp)
 	_text(tab_tag, "TAB", 30, INK, Vector2(16, 0), serif)
 	_text(tab_tag, "⇄", 30, INK, Vector2(30, 30), tech)
+	# здоровье напарника: белым — сколько есть, серым — сколько ещё восстановится
+	var mb := ColorRect.new()
+	mb.color = Color(0.2, 0.2, 0.21, 0.9)
+	mb.position = Vector2(176, 886)
+	mb.size = Vector2(116, 8)
+	mb.z_index = 3
+	stage.add_child(mb)
+	mate_grey = ColorRect.new()
+	mate_grey.color = Color(0.5, 0.5, 0.52)
+	mate_grey.size = Vector2(0, 8)
+	mb.add_child(mate_grey)
+	mate_fill = ColorRect.new()
+	mate_fill.color = WHITE
+	mate_fill.size = Vector2(116, 8)
+	mb.add_child(mate_fill)
 
 func _place_portraits(dt: float, snap := false) -> void:
 	for hero in portraits:
@@ -642,6 +659,14 @@ func _process(dt: float) -> void:
 	_place_portraits(dt)
 	_tick_previews(dt, p)
 	_tick_slots(p)
+	var tg = game.tag
+	if tg != null:
+		var o: String = tg.mate()
+		var k_hp: float = clampf(float(tg.hp[o]) / p.max_hp, 0.0, 1.0)
+		mate_fill.size.x = 116.0 * k_hp
+		mate_fill.color = Color(0.85, 0.2, 0.16) if tg.down[o] else WHITE
+		mate_grey.size.x = 116.0 * clampf((float(tg.hp[o]) + float(tg.grey[o])) / p.max_hp, 0.0, 1.0)
+		tab_tag.modulate.a = 1.0 if tg.tag_block() == "" else 0.45
 	hp_fill.size.x = BAR_W * clampf(p.hp / p.max_hp, 0.0, 1.0)
 	hp_text.text = "%d / %d" % [int(ceil(p.hp)), int(p.max_hp)]
 	var raging: bool = p.rage > 0.0

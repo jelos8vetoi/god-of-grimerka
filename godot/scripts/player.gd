@@ -322,9 +322,11 @@ func _physics_process(dt: float) -> void:
 	for i in own_styles.size():
 		if pressed("style%d" % (i + 1)):
 			set_style(own_styles[i])
-	if pressed("tag") and switch_to == "" and (state == "move" or (state == "tyaga" and tyaga.mode == "hold")):
-		game.swap_heroes()
-		return
+	if pressed("tag"):
+		if game.tag.try_tag():      # смена героя и командные приёмы — tagteam.gd
+			return
+	if pressed("assist"):
+		game.tag.try_assist()
 	var spd := 5.6 * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0)
 	# ТЯГА-812: в этом стиле «свободное» состояние героя ведёт пылесос
 	if style.id == "tyaga812" and state == "move" and switch_to == "":
@@ -586,9 +588,10 @@ func damage_bonus(_a: AttackData) -> float:
 		return skate.bonus()
 	if guitar.active():
 		return guitar.bonus()
+	var team: float = game.tag.bonus() if game.tag != null else 1.0
 	if breaker.active():
-		return breaker.bonus()
-	return 1.0
+		return breaker.bonus() * team
+	return team
 
 ## ядро боя: хватает ли герою ресурса на атаку
 func can_use(a: AttackData) -> bool:
@@ -779,6 +782,8 @@ func take_damage(dmg: float, from: Vector3, attacker = null) -> void:
 		game.bark("worry", 22.0)
 	inv = 0.55
 	if hp <= 0.0:
+		if game.tag != null and game.tag.on_down():      # героя сменил напарник — бой продолжается
+			return
 		hp = 0.0
 		state = "dead"
 		pod.snap()
