@@ -36,6 +36,7 @@ var boxes: Array = []              # точки коробок предмето�
 var pads: Array = []               # [{pos, tan, s}]
 var ramps: Array = []              # [{s0, s1, h}]
 var obstacle_pts: Array = []       # [центр, радиус] — для ботов
+var fill_counts := {}              # сколько чего поставлено заполнением (для проверки)
 var mats := {}
 var body: StaticBody3D
 
@@ -58,6 +59,7 @@ func build(track_id: String) -> void:
 	_gates()
 	_boxes()
 	_decor()
+	_fill()
 
 # ---------------- кривые ----------------
 static func _cr(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, t: float) -> Vector3:
@@ -587,10 +589,13 @@ func _obstacles() -> void:
 			"barrels":
 				for k in 3:
 					var p := c + right * (k - 1) * 1.0 + T[i] * (k % 2) * 0.8
-					_cyl(p, 0.42, 1.1, mats["rust"] if k != 1 else mats["green"], true)
+					_cyl(p, 0.42, 1.1, mats["rust"] if k != 1 else mats["green"], true, not RaceProps.has("barrel"))
+					RaceProps.spawn("barrel", self, p, float(k) * 1.7)
 			"tires":
 				for k in 3:
-					for h in 2:
+					if RaceProps.has("tire_stack"):
+						RaceProps.spawn("tire_stack", self, c + right * (k - 1) * 1.15, float(k) * 2.1, 0.9)
+					for h in (0 if RaceProps.has("tire_stack") else 2):
 						var tm := MeshInstance3D.new()
 						var tor := TorusMesh.new()
 						tor.inner_radius = 0.25
@@ -608,6 +613,8 @@ func _obstacles() -> void:
 					body.add_child(cs)
 			"cones":
 				for k in 4:
+					if RaceProps.spawn("traffic_cone", self, c + right * (k - 1.5) * 1.6, float(k)) != null:
+						continue
 					var cm := MeshInstance3D.new()
 					var cyl := CylinderMesh.new()
 					cyl.top_radius = 0.03
@@ -618,16 +625,17 @@ func _obstacles() -> void:
 					cm.position = c + right * (k - 1.5) * 1.6 + Vector3(0, 0.3, 0)
 					add_child(cm)
 
-func _cyl(p: Vector3, r: float, h: float, mat: Material, collide: bool) -> void:
-	var mi := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = r
-	cm.bottom_radius = r
-	cm.height = h
-	mi.mesh = cm
-	mi.material_override = mat
-	mi.position = p + Vector3(0, h * 0.5, 0)
-	add_child(mi)
+func _cyl(p: Vector3, r: float, h: float, mat: Material, collide: bool, vis := true) -> void:
+	if vis:
+		var mi := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = r
+		cm.bottom_radius = r
+		cm.height = h
+		mi.mesh = cm
+		mi.material_override = mat
+		mi.position = p + Vector3(0, h * 0.5, 0)
+		add_child(mi)
 	if collide:
 		var cs := CollisionShape3D.new()
 		var sh := CylinderShape3D.new()
@@ -730,52 +738,102 @@ func _decor() -> void:
 	var gk := 0
 	var i := 0
 	var n := P.size()
+	var bridges := 0
 	while i < n:
 		var kind := _zone_of(i)
 		var right: Vector3 = T[i].cross(Vector3.UP)
 		var yaw := atan2(T[i].x, T[i].z)
+		# трубопровод над дорогой в промзоне — дважды за круг
+		if kind == "industrial" and i % 48 == 16 and bridges < 2 and RaceProps.has("pipe_bridge"):
+			bridges += 1
+			var span := W[i] + SHOULDER * 2.0 + 2.0
+			RaceProps.spawn("pipe_bridge", self, P[i], yaw, span / 16.0)
 		for side in [-1.0, 1.0]:
 			var edge: Vector3 = P[i] + right * side * (W[i] * 0.5 + SHOULDER + 1.4)
 			var out: Vector3 = right * side
+			var face := atan2(-out.x, -out.z)            # лицом к дороге
 			if not _free(edge + out * 2.5, 0.8) or not _free(edge + out * 5.0, 0.8):
 				continue
 			match kind:
 				"garages":
-					var g := _box(edge + out * 2.6 + Vector3(0, 1.4, 0), Vector3(5.0, 2.8, 3.6), yaw, mats["garage"] if (i / 4) % 2 == 0 else mats["garage2"], true)
-					var door := _box(edge + out * 0.78 + Vector3(0, 1.1, 0), Vector3(0.06, 2.0, 3.0), yaw + PI * 0.5, mats["rust"], false)
-					door.rotation.y = yaw
-					if g != null and rng.randf() < 0.45 and graf.size() > 0:
-						_graffiti(edge + out * 0.74 + Vector3(0, 1.4, 0), yaw + (PI * 0.5 if side > 0 else -PI * 0.5), String(graf[gk % graf.size()]), rng)
+					var gp: Vector3 = edge + out * 2.6
+					_box(gp + Vector3(0, 1.4, 0), Vector3(5.0, 2.8, 3.6), yaw, mats["garage"] if (i / 4) % 2 == 0 else mats["garage2"], true, not RaceProps.has("garage"))
+					if RaceProps.has("garage"):
+						RaceProps.spawn("garage", self, gp, face, rng.randf_range(0.95, 1.08))
+					else:
+						var door := _box(edge + out * 0.78 + Vector3(0, 1.1, 0), Vector3(0.06, 2.0, 3.0), yaw, mats["rust"], false)
+						door.rotation.y = yaw
+					if rng.randf() < 0.45 and graf.size() > 0:
+						_graffiti(edge + out * 0.62 + Vector3(0, 2.4, 0), yaw + (PI * 0.5 if side > 0 else -PI * 0.5), String(graf[gk % graf.size()]), rng)
 						gk += 1
 				"industrial":
-					if (i / 8) % 2 == 0:
+					if (i / 8) % 4 == (0 if side > 0 else 2):
 						var tank_p: Vector3 = edge + out * 6.0
 						if _free(tank_p, 2.5):
-							_cyl(tank_p, 2.2, 6.5, mats["metal"], true)
-					else:
+							_cyl(tank_p, 2.2, 6.5, mats["metal"], true, not RaceProps.has("water_tank"))
+							RaceProps.spawn("water_tank", self, tank_p, face + rng.randf() * TAU)
+					elif (i / 8) % 4 == 1 and RaceProps.has("factory_hall") and _free(edge + out * 14.0, 9.0):
+						var fp: Vector3 = edge + out * 14.0
+						_box(fp + Vector3(0, 5.0, 0), Vector3(14.0, 10.0, 20.0), yaw, null, true, false)
+						RaceProps.spawn("factory_hall", self, fp, face)
+					elif not RaceProps.has("pipe_bridge"):
 						var pp := _box(edge + out * 3.0 + Vector3(0, 3.6, 0), Vector3(0.7, 0.7, 8.0), yaw, mats["pipe"], false)
 						pp.rotation.y = yaw
 						_box(edge + out * 3.0 + Vector3(0, 1.8, 0), Vector3(0.3, 3.6, 0.3), yaw, mats["metal"], false)
 				"dump":
 					if rng.randf() < 0.6:
-						_box(edge + out * 2.0 + Vector3(0, 0.7, 0), Vector3(1.8, 1.4, 1.2), yaw + rng.randf_range(-0.3, 0.3), mats["green"], false)
-					if rng.randf() < 0.4:
-						_box(edge + out * 4.0 + Vector3(0, 0.4, 0), Vector3(2.5, 0.8, 2.0), rng.randf() * TAU, mats["black"], false)
+						var dp: Vector3 = edge + out * 2.0
+						if RaceProps.spawn("dumpster", self, dp, face + rng.randf_range(-0.3, 0.3)) == null:
+							_box(dp + Vector3(0, 0.7, 0), Vector3(1.8, 1.4, 1.2), yaw + rng.randf_range(-0.3, 0.3), mats["green"], false)
+					if rng.randf() < 0.5:
+						var tp: Vector3 = edge + out * 4.2
+						if RaceProps.spawn("trash_pile", self, tp, rng.randf() * TAU, rng.randf_range(0.8, 1.2)) == null:
+							_box(tp + Vector3(0, 0.4, 0), Vector3(2.5, 0.8, 2.0), rng.randf() * TAU, mats["black"], false)
+					elif rng.randf() < 0.3:
+						RaceProps.spawn("old_car", self, edge + out * 3.5, face + PI * 0.5 + rng.randf_range(-0.4, 0.4))
 				"fence":
-					var f := _box(edge + out * 0.6 + Vector3(0, 1.1, 0), Vector3(0.08, 2.2, 8.0), yaw, mats["wood"], false)
-					f.rotation.y = yaw
+					var fp2: Vector3 = edge + out * 0.6
+					if RaceProps.has("fence_section"):
+						# секции забора вдоль дороги: две на шаг 8 м
+						for q in 2:
+							RaceProps.spawn("fence_section", self, fp2 + T[i] * (q - 0.5) * 4.0, yaw + PI * 0.5, 4.0 / 6.0 * 1.02)
+					else:
+						var f := _box(fp2 + Vector3(0, 1.1, 0), Vector3(0.08, 2.2, 8.0), yaw, mats["wood"], false)
+						f.rotation.y = yaw
 					if rng.randf() < 0.3 and graf.size() > 0:
-						_graffiti(edge + out * 0.5 + Vector3(0, 1.3, 0), yaw + (PI * 0.5 if side > 0 else -PI * 0.5), String(graf[gk % graf.size()]), rng)
+						_graffiti(edge + out * 0.4 + Vector3(0, 1.3, 0), yaw + (PI * 0.5 if side > 0 else -PI * 0.5), String(graf[gk % graf.size()]), rng)
 						gk += 1
+					if rng.randf() < 0.15:
+						RaceProps.spawn("old_car", self, edge + out * 4.0, face + PI * 0.5 + rng.randf_range(-0.3, 0.3))
 				_:
 					if (i / 6) % 3 == 0:
-						_lamp(edge + out * 0.8, yaw)
-			# дома вдали: хрущёвки с окнами
-			if (i / 24) % 2 == 0 and i % 24 == 0:
+						if RaceProps.spawn("street_lamp", self, edge + out * 0.8, face) == null:
+							_lamp(edge + out * 0.8, yaw)
+					elif (i / 8) % 5 == 2 and _free(edge + out * 3.0, 1.5):
+						RaceProps.spawn("bus_stop" if side > 0 else "kiosk", self, edge + out * 3.0, face)
+			# дома вдали — без моделей коробками (с моделями дома ставит _fill)
+			if (i / 24) % 2 == 0 and i % 24 == 0 and not RaceProps.has("khrushchevka"):
 				var hp: Vector3 = P[i] + right * side * (W[i] * 0.5 + 26.0)
 				if _free(hp, 17.0):
 					_house(hp, yaw, rng)
 		i += 8
+	# рекламные щиты у стартовой прямой
+	for k in 2:
+		var bj := at_s(start_s + 40.0 + k * 45.0)
+		var rgt: Vector3 = T[bj].cross(Vector3.UP)
+		var sd := -1.0 if k == 0 else 1.0
+		var bp: Vector3 = P[bj] + rgt * sd * (W[bj] * 0.5 + SHOULDER + 5.0)
+		if _free(bp, 3.0) and RaceProps.spawn("billboard", self, bp, atan2(-rgt.x * sd, -rgt.z * sd)) != null:
+			var bl := Label3D.new()
+			bl.text = ["ТЯГА-812\nТЯНЕТ ВСЁ", "ГРИМЕРКА\nНА СВЯЗИ"][k]
+			bl.font_size = 160
+			bl.pixel_size = 0.012
+			bl.modulate = Color(0.95, 0.15, 0.15) if k == 0 else Color(0.05, 0.05, 0.06)
+			bl.outline_size = 0
+			bl.position = bp + Vector3(0, 4.0, 0) - rgt * sd * 0.6
+			bl.rotation.y = atan2(-rgt.x * sd, -rgt.z * sd)
+			bl.double_sided = false
+			add_child(bl)
 	# лужи на обочинах
 	for k in 10:
 		var j := rng.randi_range(0, n - 1)
@@ -788,15 +846,6 @@ func _decor() -> void:
 		pu.position = P[j] + right2 * (W[j] * 0.5 + SHOULDER * 0.5) * (1.0 if k % 2 == 0 else -1.0) + Vector3(0, 0.02, 0)
 		pu.rotation.y = rng.randf() * TAU
 		add_child(pu)
-	# лестница-трамплин у гаражей и надпись трассы у старта
-	var sl := Label3D.new()
-	sl.text = "ПЫЛЬНЫЙ ЗАЕЗД"
-	sl.font_size = 220
-	sl.pixel_size = 0.02
-	sl.modulate = Color(0.95, 0.2, 0.2)
-	sl.outline_size = 30
-	sl.position = Vector3(30, 9, -30)
-	add_child(sl)
 
 func _graffiti(p: Vector3, yaw: float, text: String, rng: RandomNumberGenerator) -> void:
 	var l := Label3D.new()
@@ -825,3 +874,141 @@ func _house(p: Vector3, yaw: float, rng: RandomNumberGenerator) -> void:
 			var right := Vector3(sin(yaw), 0, cos(yaw))
 			var q := _box(p + right * (-w * 0.5 + 1.5 + k * 3.0) + Vector3(0, 2.0 + fl * 2.7, 0), Vector3(10.1, 1.1, 1.2), yaw, mats["window"] if rng.randf() < 0.35 else mats["window_off"], false)
 			q.position.y = 2.0 + fl * 2.7
+
+# ---------------- заполнение: локация без пустоты ----------------
+## расстояние от точки до края ближайшей дороги (главной или срезки), м
+func _edge_dist(p: Vector3) -> float:
+	var d := INF
+	for i in range(0, P.size(), 3):                  # каждая третья точка: ошибка до 1,5 м, а строится втрое быстрее
+		d = minf(d, Vector2(p.x - P[i].x, p.z - P[i].z).length() - W[i] * 0.5 - SHOULDER)
+	for i in range(0, SP.size(), 3):
+		d = minf(d, Vector2(p.x - SP[i].x, p.z - SP[i].z).length() - short_w * 0.5 - SHOULDER)
+	return d
+
+## Слоями вокруг дороги и внутри кольца: у дороги — деревья, кусты, скамейки, столбы; дальше — дворы
+## (площадки, беседки, машины, будки, теплотрасса, гаражи рядами); ещё дальше — дома, кран, фабрики;
+## по краю — холмы. Повторяющееся — MultiMesh (RaceProps.batch), крупное — по одному.
+func _fill() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(id) + 77
+	var mn := Vector2(INF, INF)
+	var mx := Vector2(-INF, -INF)
+	for p in P:
+		mn = mn.min(Vector2(p.x, p.z))
+		mx = mx.max(Vector2(p.x, p.z))
+	mn -= Vector2(90, 90)
+	mx += Vector2(90, 90)
+	var loop := PackedVector2Array()
+	for k in range(0, P.size(), 4):
+		loop.append(Vector2(P[k].x, P[k].z))
+	var batches := {}            # id → [[место, поворот, k]]
+	var big: Array = []          # [центр, радиус] — крупное не налезает друг на друга
+	var free_big := func(c: Vector3, r: float) -> bool:
+		for b in big:
+			if Vector2(c.x - (b[0] as Vector3).x, c.z - (b[0] as Vector3).z).length() < r + float(b[1]):
+				return false
+		return true
+	var add := func(pid: String, c: Vector3, yaw: float, k := 1.0) -> void:
+		if not batches.has(pid):
+			batches[pid] = []
+		(batches[pid] as Array).append([c, yaw, k])
+	var cranes := 0
+	var step := 7.0
+	var x := mn.x
+	while x < mx.x:
+		var z := mn.y
+		while z < mx.y:
+			var c := Vector3(x + rng.randf_range(-2.5, 2.5), 0.0, z + rng.randf_range(-2.5, 2.5))
+			z += step
+			var d := _edge_dist(c)
+			if d < 2.5:
+				continue
+			var inner := Geometry2D.is_point_in_polygon(Vector2(c.x, c.z), loop)
+			var face := rng.randf() * TAU
+			var r := rng.randf()
+			if d < 9.0:
+				# у дороги: деревья, кусты, скамейки, столбы
+				if r < 0.28:
+					add.call("birch_tree" if rng.randf() < 0.6 else "bare_tree", c, face, rng.randf_range(0.8, 1.25))
+				elif r < 0.45:
+					add.call("bush", c, face, rng.randf_range(0.8, 1.3))
+				elif r < 0.5:
+					add.call("bench", c, face)
+				elif r < 0.54:
+					add.call("power_pole", c, face)
+			elif d < 30.0:
+				# дворы
+				if r < 0.16:
+					add.call("birch_tree" if rng.randf() < 0.55 else "bare_tree", c, face, rng.randf_range(0.8, 1.3))
+				elif r < 0.26:
+					add.call("bush", c, face, rng.randf_range(0.8, 1.4))
+				elif r < 0.29 and free_big.call(c, 6.0):
+					big.append([c, 6.0])
+					RaceProps.spawn("playground", self, c, face)
+				elif r < 0.32 and free_big.call(c, 4.0):
+					big.append([c, 4.0])
+					RaceProps.spawn("gazebo", self, c, face)
+				elif r < 0.36:
+					add.call("old_car" if rng.randf() < 0.6 else "old_van", c, face)
+				elif r < 0.38 and free_big.call(c, 3.5):
+					big.append([c, 3.5])
+					RaceProps.spawn("transformer_booth", self, c, face)
+				elif r < 0.395 and free_big.call(c, 7.0):
+					big.append([c, 7.0])
+					add.call("heating_pipe", c, face)
+					for q in [1, 2]:                     # теплотрасса продолжается вдоль своей оси
+						add.call("heating_pipe", c + Vector3(sin(face), 0, cos(face)) * 9.6 * q, face)
+				elif r < 0.44 and free_big.call(c, 9.0):
+					# ряд гаражей
+					big.append([c, 9.0])
+					for g in 3:
+						add.call("garage", c + Vector3(sin(face + PI * 0.5), 0, cos(face + PI * 0.5)) * (g - 1) * 3.7, face)
+				elif r < 0.5:
+					add.call("dumpster" if rng.randf() < 0.5 else "trash_pile", c, face)
+			elif not inner or d < 70.0:
+				# дома, кран, фабрики — дальний план
+				if r < 0.14 and free_big.call(c, 17.0):
+					big.append([c, 17.0])
+					add.call("khrushchevka" if rng.randf() < 0.55 else "panel_tower", c, _face_road(c), rng.randf_range(0.9, 1.15))
+				elif r < 0.17 and cranes < 3 and free_big.call(c, 10.0):
+					cranes += 1
+					big.append([c, 10.0])
+					RaceProps.spawn("tower_crane", self, c, face)
+				elif r < 0.2 and free_big.call(c, 12.0):
+					big.append([c, 12.0])
+					add.call("factory_hall", c, _face_road(c))
+				elif r < 0.42:
+					add.call("birch_tree" if rng.randf() < 0.5 else "bare_tree", c, face, rng.randf_range(0.9, 1.4))
+			elif r < 0.12:
+				add.call("bare_tree", c, face, rng.randf_range(1.0, 1.4))
+		x += step
+	var counts := {}
+	for pid in batches:
+		var far: bool = pid in ["khrushchevka", "panel_tower", "factory_hall"]
+		var small: bool = pid in ["bush", "bench", "trash_pile", "dumpster", "power_pole"]
+		counts[pid] = RaceProps.batch(pid, self, batches[pid], 0.0 if far else (140.0 if small else 220.0), not small)
+	fill_counts = counts
+	# холмы по краю: силуэт не обрывается в пустоту
+	var hill_mat := _mat(Color(0.22, 0.25, 0.19), 1.0)
+	for k in 26:
+		var a := TAU * float(k) / 26.0 + rng.randf_range(-0.1, 0.1)
+		var cen := Vector3((mn.x + mx.x) * 0.5, 0, (mn.y + mx.y) * 0.5)
+		var rad := maxf(mx.x - mn.x, mx.y - mn.y) * 0.62 + rng.randf_range(0, 40)
+		var h := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = rng.randf_range(30.0, 60.0)
+		sm.height = sm.radius * 2.0
+		sm.radial_segments = 10
+		sm.rings = 6
+		h.mesh = sm
+		h.material_override = hill_mat
+		h.scale = Vector3(1.0, rng.randf_range(0.25, 0.45), 1.0)
+		h.position = cen + Vector3(cos(a), 0, sin(a)) * rad + Vector3(0, -sm.radius * 0.12, 0)
+		h.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(h)
+
+## повернуть лицом к ближайшей дороге
+func _face_road(c: Vector3) -> float:
+	var i := nearest_main(c)
+	var to := P[i] - c
+	return atan2(to.x, to.z)

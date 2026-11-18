@@ -107,6 +107,9 @@ func _spawn_boxes() -> void:
 		var n := Node3D.new()
 		n.position = p
 		add_child(n)
+		if RaceProps.spawn("item_box", n, Vector3(0, -0.5, 0), 0.0, 0.95, false) != null:
+			boxes.append({"pos": p, "node": n, "t": 0.0})
+			continue
 		var mi := MeshInstance3D.new()
 		var bm := BoxMesh.new()
 		bm.size = Vector3(0.9, 0.9, 0.9)

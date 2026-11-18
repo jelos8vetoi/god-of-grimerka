@@ -8,6 +8,7 @@
 | Kenney Particle Pack | `godot/assets/fx` | CC0 (общественное достояние) |
 | Шрифт Russo One | `godot/assets/fonts/RussoOne-Regular.ttf` | SIL Open Font License 1.1 |
 | Модели персонажей и оружия | `godot/assets/models` | сгенерированы в Tripo AI владельцем проекта |
+| Модели окружения гонок | `godot/assets/racing` | сгенерированы в Tripo AI по аккаунту владельца проекта (`tools/tripo-gen.cjs`) |
 | Голоса | `godot/assets/voice` | Fish Audio, по ключу владельца проекта |
 | Музыка и треки | `godot/assets/audio`, `godot/assets/music` | права у владельца проекта; музыка локаций синтезируется `tools/godot-music.cjs` |
 
