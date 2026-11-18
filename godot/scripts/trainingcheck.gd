@@ -117,14 +117,48 @@ func _run() -> void:
 	T.go_zone("A")
 	await wait(0.4)
 	var a = T.targets["A"]
-	ok(a.train_still and a.train_guard, "манекен зоны A стоит и не умирает")
+	ok(a.train_still and a.train_immortal, "манекен зоны A стоит и не умирает")
 	var a_pos: Vector3 = a.global_position
 	await wait(1.5)
 	ok(a.global_position.distance_to(T.ZONES["A"]) < 1.0, "манекен не уходит со своей зоны (%.2f м)" % a.global_position.distance_to(T.ZONES["A"]))
 	for i in 3:
 		a.take_hit(99999.0, Vector3(0, 0, -1), 2.0, true, 0.0)
 		await wait(0.15)
-	ok(a.alive() and a.hp > 0.0 and a.hp <= a.max_hp * 0.06, "манекен держит любой урон (%.0f из %.0f)" % [a.hp, a.max_hp])
+	ok(a.alive() and a.hp > 0.0, "манекен переживает любой урон (%.0f из %.0f)" % [a.hp, a.max_hp])
+	# настоящее добивание на [E]: манекен готов к добиванию, герой рядом и лицом к нему
+	await wait(1.5)
+	for attempt in 3:
+		a.global_position = a.train_home
+		P.global_position = a.global_position + Vector3(0, 0, 1.4)
+		P.face = PI
+		P.state = "move"
+		a.hp = a.max_hp * 0.1
+		a.state = "stun"
+		a.stun_t = 2.0
+		await get_tree().physics_frame
+		P.auto_input = {"heat": "press"}
+		await get_tree().physics_frame
+		P.auto_input = {}
+		if await until(func(): return P.state == "exec", 0.5):
+			break
+	var execd: bool = await until(func(): return P.execution.events.size() > 0 and String(P.execution.events.back()[0]) == "done", 4.0)
+	await wait(1.5)
+	ok(execd, "добивание [E] по манекену прошло")
+	ok(a.alive() and is_instance_valid(a) and T.targets["A"] == a and a.hp > a.max_hp * 0.9, "после добивания манекен встал с полным здоровьем (%.0f)" % a.hp)
+	# в режиме упражнений обучение держит и отпускает свою цель — бессмертие арены от этого не пропадает
+	T.set_exercises(true)
+	await until(func(): return g.tutorial.drill_id != "", 10.0)
+	g.tutorial.finish_drill("skipped")
+	await wait(0.3)
+	a.take_hit(99999.0, Vector3(0, 0, -1), 2.0, true, 0.0)
+	await wait(0.2)
+	ok(a.alive(), "манекен бессмертен и после упражнения обучения")
+	T.set_exercises(false)
+	for z in ["B", "C"]:
+		var tz = T.targets[z]
+		tz.take_hit(99999.0, Vector3(0, 0, -1), 2.0, true, 0.0)
+		await wait(0.1)
+		ok(is_instance_valid(tz) and tz.alive(), "цель зоны %s не умирает" % z)
 	# цифры урона: выключатель
 	var pops := func() -> int:
 		var n := 0

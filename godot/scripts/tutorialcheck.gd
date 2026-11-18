@@ -400,6 +400,10 @@ func practice_block() -> void:
 	ok(not again and TU.done("light") and TU.done("heavy"), "сделанное и пропущенное не повторяются")
 	# уклонение от настоящего замаха
 	TU.seen["combo"] = "completed"
+	if not is_instance_valid(e) or not e.alive():
+		e = game._make_enemy("bot", "", P.global_position + Vector3(0, 0, -2.0))     # прежнюю цель могли добить после упражнения
+		await real(1.4)
+	e.global_position = P.global_position + Vector3(0, 0, -2.0)
 	TU.start_drill("dodge")
 	await frames(3)
 	ok(TU.guard_e != null and TU.guard_e.train_attack, "упражнение защиты: цель замахивается регулярно")
@@ -453,6 +457,88 @@ func practice_block() -> void:
 		if TU.steps_of("style_" + String(sid)).is_empty():
 			all6 = false
 	ok(all6 and TU._resolve_drill("style_cur") == "style_" + String(P.style.id), "у всех шести стилей есть упражнения; текущий стиль определяется (%s)" % TU._resolve_drill("style_cur"))
+	# ---- защита цели: только в упражнениях на попадание и не дольше GUARD_MAX ----
+	for en in game.enemies:
+		if is_instance_valid(en):
+			en.queue_free()
+	await frames(5)
+	var g1 = game._make_enemy("bot", "", P.global_position + Vector3(0, 0, -2.0))
+	await real(1.4)                  # враг выходит из портала около секунды
+	TU.start_drill("rage")
+	await frames(5)
+	ok(TU.guard_e == null and not g1.train_guard, "упражнение без ударов («ПЕРЕГРУЗ») врага не держит — он умирает как обычно")
+	TU.finish_drill("skipped")
+	TU.start_drill("heavy")
+	await frames(5)
+	ok(g1.train_guard, "упражнение на удары держит цель")
+	TU.guard_t = TU.GUARD_MAX
+	await frames(3)
+	ok(not g1.train_guard and TU.guard_e == null, "через %d с защита снимается сама — волна не застревает" % int(TU.GUARD_MAX))
+	TU.finish_drill("skipped")
+	g1.queue_free()
+	await frames(5)
+	# ---- «БОСС ОТКРЫТ» в настоящем бою: тяжёлыми сбить равновесие → «ОТКРЫТ» → удар; босса не держим ----
+	for k in ["light", "style_" + String(P.style.id), "finisher", "air"]:
+		TU.seen[k] = "completed"
+	var bid: String = String(game.chapter()["steps"].filter(func(x): return String(x["t"]) == "boss")[0]["id"])
+	var boss = game._make_enemy("", bid, P.global_position + Vector3(0, 0, -2.2))
+	game.boss_e = boss
+	game.mode = "boss"
+	await real(1.3)
+	boss.max_hp = 100000.0              # проверяем путь «открыть», а не «убить»: здоровья с запасом
+	boss.hp = boss.max_hp
+	TU.since = 99.0
+	var started: bool = false
+	for i in 300:
+		await frames(1)
+		if TU.drill_id == "boss_open":
+			started = true
+			break
+	ok(started, "с боссом начинается задание «БОСС ОТКРЫТ» (%s)" % TU.drill_id)
+	await real(0.3)
+	await shot("t14_boss_open.png")
+	var guarded := false
+	var opened := false
+	var t_b := Time.get_ticks_msec()
+	var combo_i := 0
+	while TU.drill_id == "boss_open" and Time.get_ticks_msec() - t_b < 90000:
+		guarded = guarded or boss.train_guard
+		P.inv = 1.0
+		P.hp = P.max_hp
+		var to: Vector3 = boss.global_position - P.global_position
+		to.y = 0
+		if to.length() > 2.6 or to.length() < 1.2:
+			P.global_position = boss.global_position - (to.normalized() if to.length() > 0.1 else Vector3(0, 0, -1)) * 1.9
+			to = boss.global_position - P.global_position
+		P.face = atan2(to.x, to.z)
+		# как живой игрок: серия лёгких с тяжёлым в конце, нажатия попадают в буфер связки — без пауз
+		combo_i += 1
+		P.auto_input = {"heavy": "press"} if combo_i % 4 == 0 or TU.drill_step == 1 else {"attack": "press"}
+		await frames(1)
+		P.auto_input = {}
+		await frames(9)
+		opened = opened or float(boss.weak_t) > 0.0
+	print("TUT босс: шаг %d, открыт был %s, лог %s" % [TU.drill_step, opened, str(TU.ev_log.slice(-6))])
+	ok(opened and TU.state_of("boss_open") == "completed", "настоящими ударами босс открыт и задание выполнено (%s)" % TU.state_of("boss_open"))
+	ok(not guarded and not boss.train_guard, "босс ни разу не был «учебной целью» — его можно убить")
+	boss.take_hit(9999999.0, Vector3(0, 0, -1), 0.0, true, 0.0)
+	await frames(5)
+	ok(not boss.alive(), "после задания босс умирает")
+	# босса убили раньше, чем открыли: задание снимается, а не висит
+	TU.seen.erase("boss_open")
+	var boss2 = game._make_enemy("", bid, P.global_position + Vector3(0, 0, -2.5))
+	game.boss_e = boss2
+	game.mode = "boss"
+	TU.since = 99.0
+	await real(1.5)
+	for i in 200:
+		if TU.drill_id == "boss_open":
+			break
+		await frames(1)
+	boss2.take_hit(9999999.0, Vector3(0, 0, -1), 0.0, true, 0.0)
+	await real(0.3)
+	ok(TU.drill_id != "boss_open" and TU.state_of("boss_open") == "introduced", "босс убит до «ОТКРЫТ» — задание снято и будет у следующего босса (%s)" % TU.state_of("boss_open"))
+	game.mode = "fight"
 	# обычный враг кампании умирает как раньше
 	TU.on = false                    # карточки и упражнения больше не нужны: проверяем только врага
 	TU.force = 0

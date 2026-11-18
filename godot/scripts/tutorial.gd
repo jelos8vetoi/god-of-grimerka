@@ -288,6 +288,14 @@ func _persist() -> void:
 const DEF_STATES := ["introduced", "completed", "skipped"]
 const GAP_DRILL := 4.0          # секунд боя между упражнениями
 const DEFENSE := ["dodge", "block"]
+## Учебную цель держим (не даём умереть) только в упражнениях, где надо попадать по ней, и не дольше GUARD_MAX секунд:
+## в остальных (смена героя, ПЕРЕГРУЗ, Overdrive…) враги умирают как обычно — иначе волна «застревает».
+## Боссов не держим никогда: задание «БОСС ОТКРЫТ» держало босса на 5 % здоровья, и убить его было нельзя.
+const GUARD_DRILLS := ["light", "heavy", "combo", "charge", "throw", "air", "dodge", "block",
+	"style_vozduh", "style_bottles", "style_tyaga812", "style_skateboard", "style_guitar", "style_breaker"]
+const GUARD_MAX := 25.0
+var guard_t := 0.0             # сколько секунд текущее упражнение держит цель
+var boss_was_open := false
 var practice := true            # практика включена (настройка «ПРАКТИКА В ОБУЧЕНИИ»)
 var force := -1                 # проверки: 1 — практика, 0 — карточки, -1 — по настройке
 var drill_id := ""
@@ -382,6 +390,11 @@ func _grew(key: String, arr: Array, kinds: Array) -> bool:
 
 func _poll_events() -> void:
 	var p = game.player
+	var b = game.boss_e
+	var open_now: bool = b != null and is_instance_valid(b) and b.alive() and float(b.weak_t) > 0.0
+	if open_now and not boss_was_open:
+		emit("boss_opened")
+	boss_was_open = open_now
 	if _grew("duo", game.tag.duo.events, ["end"]):
 		emit("duo")
 	if _grew("flow", p.flow.events, ["perfect"]):
@@ -443,6 +456,8 @@ func _practice_tick(dt: float) -> void:
 	var show: bool = drill_id != "" and fighting() and not game.paused_story() and not game.intro_busy() and not game.over
 	if drill != null:
 		drill.visible = show or bool(drill.call("busy"))
+	if drill_id == "boss_open" and not (game.boss_e != null and is_instance_valid(game.boss_e) and game.boss_e.alive()):
+		abort_drill()               # босса убили раньше, чем открыли: задание снимается тихо и будет у следующего босса
 	if drill_id != "":
 		_keep_guard()
 		return
@@ -494,6 +509,8 @@ func _drill_cond(key: String) -> bool:
 	return _cond(key)
 
 func start_drill(id: String) -> void:
+	_release_guard()
+	guard_t = 0.0
 	drill_id = id
 	drill_step = 0
 	drill_n = 0
@@ -511,6 +528,17 @@ func start_drill(id: String) -> void:
 	_keep_guard()
 	game.main.sfx("sfx_ui", -8.0, 0.8)
 
+## Снять упражнение без отметки (остаётся «показано», предложится снова, когда обстановка позволит)
+func abort_drill() -> void:
+	if drill_id == "":
+		return
+	ev_log.append("drill_aborted:" + drill_id)
+	drill_id = ""
+	since = 0.0
+	_release_guard()
+	if drill != null:
+		drill.visible = false
+
 func finish_drill(state: String) -> void:
 	if drill_id == "":
 		return
@@ -526,8 +554,12 @@ func finish_drill(state: String) -> void:
 
 ## Учебная цель: захваченная (lockon) или ближайшая; не умирает до конца упражнения
 func _keep_guard() -> void:
-	var want_boss: bool = drill_id == "boss_open"
-	if guard_e != null and (not is_instance_valid(guard_e) or not guard_e.alive()):
+	if not (drill_id in GUARD_DRILLS) or guard_t >= GUARD_MAX:
+		_release_guard()
+		return
+	guard_t += get_process_delta_time()
+	var want_boss := false
+	if guard_e != null and (not is_instance_valid(guard_e) or not guard_e.alive() or guard_e.boss_id != ""):
 		guard_e = null
 	if guard_e == null:
 		var best = null
@@ -543,8 +575,10 @@ func _keep_guard() -> void:
 						best = en
 		guard_e = best
 	if guard_e != null:
-		guard_e.train_guard = drill_id != "finisher"        # добивание должно убить — цель не держим
+		guard_e.train_guard = true
 		guard_e.train_attack = drill_id in DEFENSE
+		if guard_t >= GUARD_MAX - 0.05:
+			_release_guard()
 
 func _release_guard() -> void:
 	if guard_e != null and is_instance_valid(guard_e):

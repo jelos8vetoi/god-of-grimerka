@@ -188,7 +188,7 @@ func _ready() -> void:
 	ipod = preload("res://scripts/ipod.gd").new()
 	ipod.game = self
 	# в проверках и прогонах бота библиотеку игрока на диске не читаем и не перезаписываем
-	ipod.persistence_enabled = main.testing() == "" and main.ipodcheck == ""
+	ipod.persistence_enabled = main.user_play()      # проверки (и меню-уровня: uiqa, арена, звук) настройки iPod игрока не пишут
 	add_child(ipod)
 	if main.testing() == "":
 		MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)

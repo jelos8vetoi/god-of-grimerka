@@ -20,6 +20,7 @@ var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка 
 var transcheck := ""        # --transcheck=<папка>: проверка переходов из меню в игру и паузы (scripts/transcheck.gd)
 var deathcheck := ""        # --deathcheck=<папка>: проверка сцены гибели (scripts/deathcheck.gd)
 var uiqa := ""              # --uiqa=<папка>: сквозная проверка всего интерфейса (scripts/uiqa.gd)
+var soundcheck := ""        # --soundcheck=<папка>: звук как у игрока — меню, кампания, арена (scripts/soundcheck.gd)
 var trainingcheck := ""     # --trainingcheck=<папка>: тренировочная арена из меню (scripts/trainingcheck.gd)
 var onechapter := false     # --onechapter: и в проверках только доступные игроку главы (проверка концовки первой главы)
 var launcher := ""          # --launcher=<путь>: игру запустил лаунчер, обновление — через него
@@ -142,6 +143,8 @@ func _ready() -> void:
 			deathcheck = arg.substr(13)
 		elif arg.begins_with("--uiqa="):
 			uiqa = arg.substr(7)
+		elif arg.begins_with("--soundcheck="):
+			soundcheck = arg.substr(13)
 		elif arg.begins_with("--trainingcheck="):
 			trainingcheck = arg.substr(16)
 		elif arg == "--onechapter":
@@ -201,6 +204,11 @@ func _ready() -> void:
 			q.main = self
 			q.out = uiqa
 			add_child(q)
+		if soundcheck != "":
+			var snd = preload("res://scripts/soundcheck.gd").new()
+			snd.main = self
+			snd.out = soundcheck
+			add_child(snd)
 		if trainingcheck != "":
 			var trc = preload("res://scripts/trainingcheck.gd").new()
 			trc.main = self
@@ -301,6 +309,10 @@ func testing() -> String:
 	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck + vfxcheck + aicheck + damagecheck + movementcheck + lockcheck
 
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
+## Играет человек, а не проверка: только тогда игра пишет его настройки iPod и прочее «на выходе»
+func user_play() -> bool:
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and not voicecheck
+
 func tutorial_on() -> bool:
 	if tutorialcheck != "":
 		return true
