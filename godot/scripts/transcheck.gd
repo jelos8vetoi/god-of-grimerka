@@ -173,7 +173,7 @@ func _run() -> void:
 	ok(g.player.state == "attack", "удар идёт перед паузой")
 	await pause_case("attack")
 	await wait(1.2)
-	await key(KEY_SPACE)
+	await key(KEY_SHIFT)            # перекат — Shift (пробел с этапа движения — прыжок)
 	await wait(0.12)
 	ok(g.player.state == "roll", "перекат идёт перед паузой")
 	await pause_case("roll")
