@@ -128,6 +128,7 @@ var hype: TeamHype            # общая шкала команды и Team Ove
 var tag_saved: Dictionary = {}      # состояние команды из сохранения: применяется после загрузки главы
 var tag: TagTeam              # Tag Team: здоровье обоих героев, командные приёмы, выбывание (tagteam.gd)
 var dmg_log = null           # --damagecheck: [атака, цель, урон, кадр физики] каждого попадания по врагу; null — не пишем
+var lock: LockOn            # захват цели (lockon.gd)
 var read: PlayerRead         # что враги знают о поведении игрока (player_read.gd)
 var squad_t := 0.0
 var tutorial: Tutorial       # боевое обучение: карточки механик по ходу боя (tutorial.gd)
@@ -163,6 +164,9 @@ func _ready() -> void:
 	hype = TeamHype.new()
 	add_child(hype)
 	hype.setup(self)
+	lock = LockOn.new()
+	add_child(lock)
+	lock.setup(self)
 	read = PlayerRead.new()
 	add_child(read)
 	read.setup(self)
@@ -786,6 +790,13 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if e.is_action_pressed("pause") and panel == null and not get_tree().paused:
 		set_paused(true)      # закрывает паузу само меню: пока игра стоит, этот узел ввода не получает
+	if lock != null and lock.usable():
+		if e.is_action_pressed("lock"):
+			lock.toggle()
+		elif e.is_action_pressed("lock_next"):
+			lock.cycle(1)
+		elif e.is_action_pressed("lock_prev"):
+			lock.cycle(-1)
 	if e.is_action_pressed("adlib") and not get_tree().paused and not paused_story():
 		if not buddy.adlib():
 			popup(buddy.global_position + Vector3(0, 2.1, 0), "перезарядка", Color(0.6, 0.7, 0.8))
@@ -864,6 +875,8 @@ func _process(dt: float) -> void:
 		Engine.time_scale *= director.slow
 	if director:
 		director.frame(rdt)
+	if lock != null:
+		lock.camera_tick(rdt)          # захват цели мягко ведёт cam_yaw / cam_pitch (если камерой никто другой не владеет)
 	var target: Vector3 = player.vis_pos() + Vector3(0, 1.55, 0)      # плавное положение: без дрожи между шагами физики
 	var want_len := 4.6
 	var yaw := cam_yaw

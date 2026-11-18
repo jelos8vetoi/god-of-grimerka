@@ -226,6 +226,10 @@ func begin_heat(ctx := "") -> void:
 # ---------------- цель ----------------
 ## Куда бить: к ближайшему врагу в секторе перед собой (по движению или по камере), иначе — просто вперёд
 func target_face(reach: float, want: Vector3) -> float:
+	if game.lock != null:
+		var lf: float = game.lock.face_to(p.global_position, reach + 2.5)
+		if not is_nan(lf):
+			return lf                        # захваченная цель в досягаемости — бьём её
 	var a: Vector3 = want.normalized() if want.length() > 0.3 else p.aim_dir()
 	var best := Vector3.ZERO
 	var bs := -1.0

@@ -538,7 +538,7 @@ func _open_page(i: int) -> void:
 			acts.append(["#ОБУЧЕНИЕ"])
 			acts.append([func(): return "БОЕВЫЕ ПОДСКАЗКИ (%d)" % game.tutorial.seen_list().size(), func(): _tutorial_list()])
 			acts.append(["#УПРАВЛЕНИЕ"])
-			acts.append(["#WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — тяжёлый удар (держать — заряд) · 1/2/3 — стиль · F — приём стиля · E — Heat и добивание · Пробел — прыжок · Shift — уклонение · C — блок · Tab — смена героя · T — дуэт-атака · G — Team Overdrive · Q — ад-либ · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"])
+			acts.append(["#WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — тяжёлый удар (держать — заряд) · 1/2/3 — стиль · F — приём стиля · E — Heat и добивание · Пробел — прыжок · Shift — уклонение · C — блок · Tab — смена героя · T — дуэт-атака · СКМ — захват цели, колесо — сменить цель · G — Team Overdrive · Q — ад-либ · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"])
 			acts.append(["#ИГРА"])
 			acts.append(["В ГЛАВНОЕ МЕНЮ", func(): _confirm_menu()])
 			acts.append(["НАЗАД", _close_card])
