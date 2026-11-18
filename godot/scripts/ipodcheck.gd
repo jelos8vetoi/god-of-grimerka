@@ -1,5 +1,6 @@
 ## Автопроверка iPod: `-- --ipodcheck=<папка>`. Жмёт настоящие клавиши и кнопки мыши, снимает кадры в папку
 ## и печатает строки «IPOD ok / IPOD ОШИБКА». Если в папке лежат test.mp3 и test.wav — проверяет ещё и импорт.
+## Форматы импорта (M4A AAC/ALAC, M4B, AIFF, FLAC, WAV, отказы DRM/WMA/Opus) — всегда, на своих файлах (formats_block).
 ## Звук на время проверки заглушён на общей шине: уровни меряются по шинам, слушать ничего не нужно.
 extends Node
 
@@ -275,7 +276,8 @@ func _run() -> void:
 	else:
 		var before: int = ipod.tracks.size()
 		ipod._import_files(files)
-		await wait(0.6)
+		await import_done()
+		await wait(0.3)
 		ok(ipod.tracks.size() == before + files.size(), "импортировано файлов: %d" % (ipod.tracks.size() - before))
 		var tr: Dictionary = ipod.tracks[before]
 		ok(String(tr["title"]) == "Тест Балон" and String(tr["artist"]) == "madk1d", "теги MP3 прочитаны: «%s» — %s" % [tr["title"], tr["artist"]])
@@ -305,13 +307,15 @@ func _run() -> void:
 		ipod._select_track(0)
 		await wait(0.4)
 
+	await formats_block()
+
 	# ---- закрытие: всё возвращается ----
 	await tap(KEY_UP)
 	await wait(0.2)
 	ok(not ipod.opened and ipod.captures_gameplay_input(), "пока iPod уезжает, удары ещё заблокированы")
 	await wait(2.2)
 	ok(not ipod.captures_gameplay_input() and not ipod.device.visible, "↑ закрывает iPod")
-	ok(Input.mouse_mode == mouse0, "режим мыши вернулся")
+	ok(MouseMode.want == mouse0, "режим мыши вернулся")
 	ok(game.ipod_focus < 0.01 and not game.cam_attributes.dof_blur_far_enabled, "расфокус снят")
 	ok(absf(game.spring.spring_length - len0) < 0.12, "камера вернулась: %.2f (было %.2f)" % [game.spring.spring_length, len0])
 	ok(game.hud_root.modulate.a > 0.99, "HUD снова яркий")
@@ -339,7 +343,7 @@ func _run() -> void:
 		await tap(KEY_UP, 0.03)
 	await wait(2.4)
 	ok(not ipod.opened and not ipod.captures_gameplay_input() and not ipod.device.visible, "шесть быстрых нажатий ↑: iPod закрыт, ввод свободен")
-	ok(Input.mouse_mode == mouse0 and game.ipod_focus < 0.01 and absf(game.spring.spring_length - len0) < 0.12, "после быстрых нажатий камера и мышь на месте")
+	ok(MouseMode.want == mouse0 and game.ipod_focus < 0.01 and absf(game.spring.spring_length - len0) < 0.12, "после быстрых нажатий камера и мышь на месте")
 	for i in 5:
 		await tap(KEY_UP, 0.03)
 	await wait(2.2)
@@ -358,7 +362,7 @@ func _run() -> void:
 	ok(not ipod.opened, "в паузе iPod не открывается")
 	game.set_paused(false)
 	await wait(1.0)
-	ok(absf(ipod.mix_volume - ipod.volume) < 0.05 and Input.mouse_mode == mouse0, "после паузы громкость и мышь вернулись")
+	ok(absf(ipod.mix_volume - ipod.volume) < 0.05 and MouseMode.want == mouse0, "после паузы громкость и мышь вернулись")
 
 	# ---- сохранение и восстановление (только если своей библиотеки ещё нет — чужое не трогаем) ----
 	if FileAccess.file_exists(ipod.SETTINGS_PATH):
@@ -1060,6 +1064,15 @@ func _write_test_wav(path: String) -> void:
 func bus_db(b: String) -> float:
 	return AudioServer.get_bus_volume_db(AudioServer.get_bus_index(b))
 
+## Импорт идёт в своём потоке: ждём конца (не дольше sec)
+func import_done(sec := 30.0) -> void:
+	var t0 := Time.get_ticks_msec()
+	await get_tree().process_frame
+	while ipod.importing() and Time.get_ticks_msec() - t0 < int(sec * 1000.0):
+		await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+
 func full_shot(name: String) -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(out.path_join(name))
@@ -1078,6 +1091,7 @@ func _run_pause() -> void:
 	for f in ["test.wav"]:
 		if FileAccess.file_exists(out.path_join(f)):
 			ipod._import_files(PackedStringArray([out.path_join(f)]))
+			await import_done()
 	ok(ipod.tracks.size() >= 2, "для проверки паузы в плеере не меньше двух треков (%d)" % ipod.tracks.size())
 	await wait(0.3)
 	ipod.repeat_mode = ipod.RepeatMode.ONE      # тестовый трек короткий: один и тот же по кругу (ALL уводил на следующий — трек «сам переключался»)
@@ -1226,3 +1240,248 @@ func _run_pause() -> void:
 			ipod._remove_current()
 	print("IPOD итог: ошибок %d" % fails)
 	get_tree().quit()
+
+# ---------------- форматы импорта (audio_import.gd) ----------------
+## Собирает свои тестовые файлы (M4A AAC и ALAC, FLAC — тем же декодером Windows; M4A с тегами и обложкой,
+## M4B, AIFF — здесь же), «защищённые» и чужие форматы, и импортирует всё разом: что взято, что отказано и почему,
+## теги, обложка, звук, оригиналы не тронуты, имена не совпадают, игра не замирает, лишние файлы убраны.
+func formats_block() -> void:
+	var dir := out.path_join("форматы тест")          # кириллица и пробел в пути — нарочно
+	DirAccess.make_dir_recursive_absolute(dir)
+	var imp: AudioImport = ipod.importer
+	var base := dir.path_join("исходник.wav")
+	_write_test_wav(base)
+	var made := {}
+	for it in [["Трек AAC.m4a", "m4a"], ["Трек ALAC.m4a", "alac"], ["Трек FLAC.flac", "flac"]]:
+		_rm(dir.path_join(it[0]))
+		made[it[1]] = imp.encode_for_test(base, dir.path_join(it[0]), it[1])
+	ok(bool(made["m4a"]) and bool(made["alac"]), "тестовые M4A (AAC) и M4A (ALAC) собраны декодером Windows")
+	print("IPOD FLAC-кодировщик Windows: %s" % ("есть" if made["flac"] else "нет — FLAC не проверялся"))
+	var aac := dir.path_join("Трек AAC.m4a")
+	ok(_m4a_with_tags(aac, dir.path_join("С тегами.m4a"), "Тест Балон", "madk1d", "Облако", _png()), "M4A с тегами iTunes и обложкой собран")
+	_copy_file(aac, dir.path_join("Книга.m4b"))
+	_write_aiff(dir.path_join("Звук AIFF.aiff"), "AIFF тест", "Пахан")
+	ok(_drm(aac, dir.path_join("Защищённый.m4a")), "M4A с меткой защиты (drms) собран")
+	_copy_file(aac, dir.path_join("Купленный.m4p"))
+	_bytes(dir.path_join("Старый.wma"), PackedByteArray([0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11, 0xA6, 0xD9, 0x00, 0xAA, 0x00, 0x62, 0xCE, 0x6C, 1, 2, 3, 4]))
+	var opus := "OggS".to_ascii_buffer()
+	opus.append_array(PackedByteArray([0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 19]))
+	opus.append_array("OpusHead".to_ascii_buffer())
+	opus.append_array(PackedByteArray([1, 2, 0x38, 1, 0x80, 0xBB, 0, 0, 0, 0, 0]))
+	_bytes(dir.path_join("Голос.ogg"), opus)
+	var junk := "это просто текст, а не музыка".to_utf8_buffer()
+	junk.resize(200)
+	_bytes(dir.path_join("Не музыка.mp3"), junk)
+	_bytes(dir.path_join("Пустой.m4a"), PackedByteArray())
+	var names := ["Трек AAC.m4a", "Трек ALAC.m4a", "С тегами.m4a", "Книга.m4b", "Звук AIFF.aiff", "исходник.wav",
+		"Защищённый.m4a", "Купленный.m4p", "Старый.wma", "Голос.ogg", "Не музыка.mp3", "Пустой.m4a"]
+	if made["flac"]:
+		names.append("Трек FLAC.flac")
+	var md5 := {}
+	var list := PackedStringArray()
+	for n in names:
+		list.append(dir.path_join(n))
+		md5[n] = FileAccess.get_md5(dir.path_join(n))
+	var before: int = ipod.tracks.size()
+	var files0: int = DirAccess.get_files_at(ipod.USER_MUSIC_DIR).size()
+	imp.results = []
+	# импорт в своём потоке: кадры идут, долгих замираний нет
+	var frames := 0
+	var worst := 0.0
+	var tp := Time.get_ticks_usec()
+	ipod._import_files(list)
+	var t0 := Time.get_ticks_msec()
+	while ipod.importing() and Time.get_ticks_msec() - t0 < 90000:
+		await get_tree().process_frame
+		frames += 1
+		var tn := Time.get_ticks_usec()
+		worst = maxf(worst, (tn - tp) / 1000.0)
+		tp = tn
+	await import_done()
+	var secs := (Time.get_ticks_msec() - t0) / 1000.0
+	ok(frames > 20 and worst < 500.0, "импорт не замораживает игру: %.1f с, кадров %d, самый долгий кадр %.0f мс" % [secs, frames, worst])
+	var res := {}
+	for r in imp.results:
+		res[String(r[0])] = r
+		print("IPOD формат: %s → %s (%s, %s)" % [r[0], r[1], r[2], r[3]])
+	var want_ok := ["Трек AAC.m4a", "Трек ALAC.m4a", "С тегами.m4a", "Книга.m4b", "Звук AIFF.aiff", "исходник.wav"]
+	if made["flac"]:
+		want_ok.append("Трек FLAC.flac")
+	for n in want_ok:
+		ok(res.has(n) and String(res[n][1]) == "ok", "%s — взят (%s)" % [n, String(res[n][3]) if res.has(n) else "нет в журнале"])
+	ok(res.has("Трек AAC.m4a") and String(res["Трек AAC.m4a"][3]).begins_with("AAC") and res.has("Трек ALAC.m4a") and String(res["Трек ALAC.m4a"][3]).begins_with("ALAC"), "кодек внутри M4A определён: AAC и ALAC")
+	ok(res.has("Книга.m4b") and String(res["Книга.m4b"][3]).contains("M4B"), "M4B распознан как аудиокнига")
+	for it in [["Защищённый.m4a", "DRM"], ["Купленный.m4p", "M4P"], ["Старый.wma", "WMA"], ["Голос.ogg", "Opus"], ["Не музыка.mp3", "не MP3"], ["Пустой.m4a", "пуст"]]:
+		ok(res.has(it[0]) and String(res[it[0]][1]).contains(it[1]), "%s — отказ с причиной: «%s»" % [it[0], String(res[it[0]][1]) if res.has(it[0]) else "—"])
+	ok(ipod.tracks.size() == before + want_ok.size(), "в iPod добавлено %d из %d подходящих" % [ipod.tracks.size() - before, want_ok.size()])
+	ok(not ipod.import_errors.is_empty(), "отказы видны игроку (сообщения: %d)" % ipod.import_errors.size())
+	# теги и обложка
+	var tagged = null
+	var aiff = null
+	for i in range(before, ipod.tracks.size()):
+		if String(ipod.tracks[i]["title"]) == "Тест Балон":
+			tagged = ipod.tracks[i]
+		if String(ipod.tracks[i]["title"]) == "AIFF тест":
+			aiff = ipod.tracks[i]
+	ok(tagged != null and String(tagged["artist"]) == "madk1d" and String(tagged["album"]) == "Облако", "теги M4A прочитаны: название, исполнитель, альбом")
+	ok(tagged != null and String(tagged["cover"]) != "" and ipod._cover_for_track(tagged) != null, "обложка из M4A извлечена")
+	ok(aiff != null and String(aiff["artist"]) == "Пахан", "теги AIFF прочитаны (NAME, AUTH)")
+	# каждый взятый трек играет
+	var played := 0
+	for i in range(before, ipod.tracks.size()):
+		ipod._select_track(i)
+		await wait(0.45)
+		if ipod.player.playing and ipod.player.stream != null and ipod.player.stream.get_length() > 1.0 and peak("IPod") > -60.0:
+			played += 1
+		else:
+			print("IPOD не играет: %s (%s)" % [ipod.tracks[i]["title"], ipod.tracks[i]["path"]])
+	ok(played == ipod.tracks.size() - before, "все взятые треки играют (%d из %d)" % [played, ipod.tracks.size() - before])
+	await shot("ipod_6_formats.png")
+	# оригиналы не тронуты
+	var same := true
+	for n in names:
+		same = same and FileAccess.get_md5(dir.path_join(n)) == md5[n]
+	ok(same, "исходные файлы не изменены")
+	# то же имя ещё раз — новая копия, старая цела
+	var first_path := ""
+	for i in range(before, ipod.tracks.size()):
+		if String(ipod.tracks[i].get("format", "")).begins_with("AAC") and String(ipod.tracks[i]["title"]) == "Трек AAC":
+			first_path = String(ipod.tracks[i]["path"])
+	var n1: int = ipod.tracks.size()
+	ipod._import_files(PackedStringArray([aac]))
+	await import_done()
+	ok(ipod.tracks.size() == n1 + 1 and String(ipod.tracks[n1]["path"]) != first_path and FileAccess.file_exists(first_path), "тот же файл повторно — отдельная копия, прежняя не перезаписана")
+	# уборка: удаляем только своё
+	while ipod.tracks.size() > before:
+		ipod.track_index = ipod.tracks.size() - 1
+		ipod._remove_current()
+	ok(DirAccess.get_files_at(ipod.USER_MUSIC_DIR).size() == files0, "после удаления тестовых треков в папке iPod — как было (%d)" % files0)
+	ok(DirAccess.get_files_at(AudioImport.TMP).is_empty(), "временные файлы декодера убраны")
+	ipod._select_track(0)
+	await wait(0.3)
+
+func _rm(p: String) -> void:
+	if FileAccess.file_exists(p):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+
+func _bytes(p: String, b: PackedByteArray) -> void:
+	var f := FileAccess.open(p, FileAccess.WRITE)
+	f.store_buffer(b)
+	f.close()
+
+func _copy_file(a: String, b: String) -> void:
+	_bytes(b, FileAccess.get_file_as_bytes(a))
+
+func _png() -> PackedByteArray:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.9, 0.15, 0.1))
+	return img.save_png_to_buffer()
+
+func _be32(v: int) -> PackedByteArray:
+	return PackedByteArray([(v >> 24) & 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF])
+
+func _atom(name: PackedByteArray, body: PackedByteArray) -> PackedByteArray:
+	var b := _be32(body.size() + 8)
+	b.append_array(name)
+	b.append_array(body)
+	return b
+
+func _data_atom(kind: int, payload: PackedByteArray) -> PackedByteArray:
+	var body := _be32(kind)
+	body.append_array(_be32(0))
+	body.append_array(payload)
+	return _atom("data".to_ascii_buffer(), body)
+
+## M4A с тегами iTunes: в конец moov (декодер Windows кладёт его последним) — udta/meta/ilst с ©nam, ©ART, ©alb, covr
+func _m4a_with_tags(src: String, dst: String, title: String, artist: String, album: String, png: PackedByteArray) -> bool:
+	var b := FileAccess.get_file_as_bytes(src)
+	var pos := 0
+	var moov := -1
+	var moov_sz := 0
+	while pos + 8 <= b.size():
+		var sz: int = (b[pos] << 24) | (b[pos + 1] << 16) | (b[pos + 2] << 8) | b[pos + 3]
+		if sz < 8:
+			return false
+		if b.slice(pos + 4, pos + 8).get_string_from_ascii() == "moov":
+			moov = pos
+			moov_sz = sz
+		pos += sz
+	if moov < 0 or moov + moov_sz != b.size():
+		return false
+	var ilst := PackedByteArray()
+	for it in [["nam", title], ["ART", artist], ["alb", album]]:
+		var nm := PackedByteArray([0xA9])
+		nm.append_array(String(it[0]).to_ascii_buffer())
+		ilst.append_array(_atom(nm, _data_atom(1, String(it[1]).to_utf8_buffer())))
+	ilst.append_array(_atom("covr".to_ascii_buffer(), _data_atom(14, png)))
+	var hdlr := PackedByteArray([0, 0, 0, 0, 0, 0, 0, 0])
+	hdlr.append_array("mdirappl".to_ascii_buffer())
+	hdlr.append_array(PackedByteArray([0, 0, 0, 0, 0, 0, 0, 0, 0]))
+	var meta := PackedByteArray([0, 0, 0, 0])
+	meta.append_array(_atom("hdlr".to_ascii_buffer(), hdlr))
+	meta.append_array(_atom("ilst".to_ascii_buffer(), ilst))
+	var udta := _atom("udta".to_ascii_buffer(), _atom("meta".to_ascii_buffer(), meta))
+	var nsz := moov_sz + udta.size()
+	var head := _be32(nsz)
+	for i in 4:
+		b[moov + i] = head[i]
+	b.append_array(udta)
+	_bytes(dst, b)
+	return true
+
+## «Защищённый» M4A: в описании дорожки кодек mp4a заменён на drms (так помечены покупки iTunes)
+func _drm(src: String, dst: String) -> bool:
+	var b := FileAccess.get_file_as_bytes(src)
+	var key := "mp4a".to_ascii_buffer()
+	for i in range(b.size() - 4, 0, -1):
+		if b[i] == key[0] and b[i + 1] == key[1] and b[i + 2] == key[2] and b[i + 3] == key[3]:
+			var d := "drms".to_ascii_buffer()
+			for k in 4:
+				b[i + k] = d[k]
+			_bytes(dst, b)
+			return true
+	return false
+
+## AIFF 16 бит, моно, 22 050 Гц, порядок байтов старшим первым; NAME и AUTH — теги
+func _write_aiff(path: String, title: String, author: String) -> void:
+	var rate := 22050
+	var n := rate * 6
+	var snd := PackedByteArray()
+	snd.resize(n * 2)
+	for i in n:
+		var t := float(i) / rate
+		var env: float = clampf(t * 8.0, 0.0, 1.0) * clampf((6.0 - t) * 8.0, 0.0, 1.0)
+		var v := int(sin(t * TAU * 440.0) * env * 9000.0) & 0xFFFF
+		snd[i * 2] = (v >> 8) & 0xFF
+		snd[i * 2 + 1] = v & 0xFF
+	var comm := PackedByteArray([0, 1])
+	comm.append_array(_be32(n))
+	comm.append_array(PackedByteArray([0, 16]))
+	# частота — 80-битное число с плавающей точкой: 22050 = 1.xxx × 2^14
+	var e := 0
+	while (1 << (e + 1)) <= rate:
+		e += 1
+	var ex := 16383 + e
+	var mant: int = rate << (31 - e)
+	comm.append_array(PackedByteArray([(ex >> 8) & 0xFF, ex & 0xFF]))
+	comm.append_array(_be32(mant))
+	comm.append_array(_be32(0))
+	var body := "AIFF".to_ascii_buffer()
+	body.append_array(_chunk("COMM".to_ascii_buffer(), comm))
+	for it in [["NAME", title], ["AUTH", author]]:
+		var tb := String(it[1]).to_utf8_buffer()
+		if tb.size() % 2 == 1:
+			tb.append(0)
+		body.append_array(_chunk(String(it[0]).to_ascii_buffer(), tb))
+	var ss := _be32(0)
+	ss.append_array(_be32(0))
+	ss.append_array(snd)
+	body.append_array(_chunk("SSND".to_ascii_buffer(), ss))
+	_bytes(path, _chunk("FORM".to_ascii_buffer(), body))
+
+## Кусок AIFF: размер без заголовка (у MP4 — с заголовком)
+func _chunk(name: PackedByteArray, body: PackedByteArray) -> PackedByteArray:
+	var b := name.duplicate()          # AIFF: сначала имя куска, потом размер (у MP4 — наоборот)
+	b.append_array(_be32(body.size()))
+	b.append_array(body)
+	return b
