@@ -41,6 +41,7 @@ var bottlecheck := ""     # --bottlecheck=<папка>: стиль «Водяр�
 var tyagacheck := ""      # --tyagacheck=<папка>: стиль «ТЯГА-812» (scripts/tyagacheck.gd)
 var madkcheck := ""       # --madkcheck=<папка>: оружие madk1d — доска за спиной, гитара в двух руках (scripts/madkcheck.gd)
 var duocheck := ""        # --duocheck=<папка>: дуэт-атака на [T] (scripts/duocheck.gd)
+var lockcheck := ""       # --lockcheck=<папка>: захват цели (scripts/lockcheck.gd)
 var movementcheck := ""   # --movementcheck=<папка>: рывок в воздухе и движение (scripts/movementcheck.gd)
 var damagecheck := ""     # --damagecheck=<папка>: баланс урона (scripts/damagecheck.gd)
 var aicheck := ""         # --aicheck=<папка>: ИИ врагов и боссов (scripts/aicheck.gd)
@@ -60,11 +61,15 @@ func _ready() -> void:
 			var e := InputEventKey.new()
 			e.physical_keycode = k
 			InputMap.action_add_event(a, e)
-	for a in [["attack", MOUSE_BUTTON_LEFT], ["heavy", MOUSE_BUTTON_RIGHT]]:
+	# захват цели (lockon.gd): СКМ — взять / отпустить, колесо — следующая / предыдущая цель
+	for a in [["attack", MOUSE_BUTTON_LEFT], ["heavy", MOUSE_BUTTON_RIGHT], ["lock", MOUSE_BUTTON_MIDDLE], ["lock_next", MOUSE_BUTTON_WHEEL_DOWN], ["lock_prev", MOUSE_BUTTON_WHEEL_UP]]:
 		InputMap.add_action(a[0])
 		var m := InputEventMouseButton.new()
 		m.button_index = a[1]
 		InputMap.action_add_event(a[0], m)
+	var js := InputEventJoypadButton.new()
+	js.button_index = JOY_BUTTON_RIGHT_STICK            # геймпад: нажатие правого стика — захват
+	InputMap.action_add_event("lock", js)
 	font = load("res://assets/fonts/RussoOne-Regular.ttf")
 	Opts.apply(get_window())
 	# отдельная шина для голосов: их громкость не зависит от музыки и эффектов, и её можно измерить в --voicecheck
@@ -120,6 +125,8 @@ func _ready() -> void:
 			launcher = arg.substr(11)
 		elif arg.begins_with("--transcheck="):
 			transcheck = arg.substr(13)
+		elif arg.begins_with("--lockcheck="):
+			lockcheck = arg.substr(12)
 		elif arg.begins_with("--movementcheck="):
 			movementcheck = arg.substr(16)
 		elif arg.begins_with("--damagecheck="):
@@ -283,7 +290,7 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck + vfxcheck + aicheck + damagecheck + movementcheck
+	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck + vfxcheck + aicheck + damagecheck + movementcheck + lockcheck
 
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 func tutorial_on() -> bool:
@@ -384,6 +391,12 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 		tgc.out = tyagacheck
 		game.director = tgc
 		game.add_child(tgc)
+	if lockcheck != "":
+		var lkc = preload("res://scripts/lockcheck.gd").new()
+		lkc.game = game
+		lkc.out = lockcheck
+		game.director = lkc
+		game.add_child(lkc)
 	if movementcheck != "":
 		var mvc = preload("res://scripts/movementcheck.gd").new()
 		mvc.game = game

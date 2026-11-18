@@ -62,6 +62,8 @@ static func key_name(action: String) -> String:
 				MOUSE_BUTTON_LEFT: return "ЛКМ"
 				MOUSE_BUTTON_RIGHT: return "ПКМ"
 				MOUSE_BUTTON_MIDDLE: return "СКМ"
+				MOUSE_BUTTON_WHEEL_UP: return "КОЛЕСО ↑"
+				MOUSE_BUTTON_WHEEL_DOWN: return "КОЛЕСО ↓"
 				_: return "МЫШЬ %d" % (e as InputEventMouseButton).button_index
 		if e is InputEventKey:
 			var k := e as InputEventKey

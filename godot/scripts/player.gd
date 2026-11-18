@@ -593,6 +593,10 @@ func _physics_process(dt: float) -> void:
 			velocity.z = dir.z * spd + carry.z
 			carry = carry.lerp(Vector3.ZERO, 1.0 - exp(-(9.0 if is_on_floor() else 1.4) * dt))
 			if state == "move":
+				# захват цели: стоя — лицом к цели (на бегу — по ходу: своих анимаций бокового шага нет)
+				var lf: float = game.lock.face_to(global_position, 14.0) if game.lock != null else NAN
+				if dir.length() <= 0.1 and not is_nan(lf) and anim_hold <= 0.0:
+					face = lerp_angle(face, lf, 1.0 - exp(-10.0 * dt))
 				if dir.length() > 0.1:
 					# тяжёлый: на старте разворачивается медленнее, чем на бегу
 					face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-(6.0 if anim.state == "start" else 12.0) * dt))
