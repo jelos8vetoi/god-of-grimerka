@@ -22,6 +22,7 @@ var deathcheck := ""        # --deathcheck=<папка>: проверка сце
 var uiqa := ""              # --uiqa=<папка>: сквозная проверка всего интерфейса (scripts/uiqa.gd)
 var soundcheck := ""        # --soundcheck=<папка>: звук как у игрока — меню, кампания, арена (scripts/soundcheck.gd)
 var trainingcheck := ""     # --trainingcheck=<папка>: тренировочная арена из меню (scripts/trainingcheck.gd)
+var modecheck := ""         # --modecheck=<папка>: главное меню и экран выбора режима (scripts/modecheck.gd)
 var onechapter := false     # --onechapter: и в проверках только доступные игроку главы (проверка концовки первой главы)
 var launcher := ""          # --launcher=<путь>: игру запустил лаунчер, обновление — через него
 var ipodpause := false      # вместе с --ipodcheck: меню паузы и режим наушников (--pause)
@@ -69,6 +70,12 @@ func _ready() -> void:
 		var m := InputEventMouseButton.new()
 		m.button_index = a[1]
 		InputMap.action_add_event(a[0], m)
+	# геймпад в меню: в Godot 4.7 у ui_accept / ui_cancel нет кнопок геймпада — A выбирает, B — назад
+	for ui in [["ui_accept", JOY_BUTTON_A], ["ui_cancel", JOY_BUTTON_B]]:
+		if not InputMap.action_get_events(ui[0]).any(func(ev): return ev is InputEventJoypadButton):
+			var jb := InputEventJoypadButton.new()
+			jb.button_index = ui[1]
+			InputMap.action_add_event(ui[0], jb)
 	var js := InputEventJoypadButton.new()
 	js.button_index = JOY_BUTTON_RIGHT_STICK            # геймпад: нажатие правого стика — захват
 	InputMap.action_add_event("lock", js)
@@ -147,6 +154,8 @@ func _ready() -> void:
 			soundcheck = arg.substr(13)
 		elif arg.begins_with("--trainingcheck="):
 			trainingcheck = arg.substr(16)
+		elif arg.begins_with("--modecheck="):
+			modecheck = arg.substr(12)
 		elif arg == "--onechapter":
 			onechapter = true
 		elif arg == "--pause":
@@ -214,6 +223,11 @@ func _ready() -> void:
 			trc.main = self
 			trc.out = trainingcheck
 			add_child(trc)
+		if modecheck != "":
+			var mdc = preload("res://scripts/modecheck.gd").new()
+			mdc.main = self
+			mdc.out = modecheck
+			add_child(mdc)
 
 func sfx(name: String, vol := 0.0, pitch := 1.0) -> void:
 	if not sfx_cache.has(name):
@@ -311,42 +325,52 @@ func testing() -> String:
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 ## Играет человек, а не проверка: только тогда игра пишет его настройки iPod и прочее «на выходе»
 func user_play() -> bool:
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and not voicecheck
 
 func tutorial_on() -> bool:
 	if tutorialcheck != "":
 		return true
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and not voicecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
 var intro_fx: IntroFX
-func cinematic_start(from_save: bool, chapter := -1, line := "") -> void:
+var starting := false       # запуск из меню уже идёт: второй вызов ничего не делает
+## Шторка прошлого перехода ещё открывается (вышли в меню сразу после запуска) — новый запуск ждёт её, а не теряется
+func _intro_ready() -> bool:
 	if intro_fx == null:
 		intro_fx = IntroFX.new()
 		add_child(intro_fx)
-	if intro_fx.busy or game != null:
+	if starting or game != null:
+		return false
+	starting = true
+	while intro_fx.busy:
+		await get_tree().process_frame
+	return true
+
+func cinematic_start(from_save: bool, chapter := -1, line := "") -> void:
+	if not await _intro_ready():
 		return
 	await intro_fx.cover("WELCOME BACK" if from_save else "ENTERING THE CLOUD", line)
 	if from_save:
 		var d = JSON.parse_string(FileAccess.get_file_as_string("user://grimerka_save.json")) if FileAccess.file_exists("user://grimerka_save.json") else null
 		if not (d is Dictionary):
+			starting = false
 			await intro_fx.fail("Сохранение не читается — начни новую игру.", show_menu)
 			return
 	start_game(from_save, chapter, true)
+	starting = false
 	for i in 3:
 		await get_tree().process_frame
 	intro_fx.reveal()
 
 ## Тренировочная арена из меню: та же шторка, что у NEW GAME, но без сюжета и без сюжетного сохранения
 func cinematic_training(hero: String, style: String) -> void:
-	if intro_fx == null:
-		intro_fx = IntroFX.new()
-		add_child(intro_fx)
-	if intro_fx.busy or game != null:
+	if not await _intro_ready():
 		return
 	await intro_fx.cover("TRAINING ARENA", "Тренировка · без сюжета и сохранения")
 	await start_training(hero, style)
+	starting = false
 	for i in 3:
 		await get_tree().process_frame
 	intro_fx.reveal()

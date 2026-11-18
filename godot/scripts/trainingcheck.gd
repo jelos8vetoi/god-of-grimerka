@@ -56,14 +56,17 @@ func _run() -> void:
 	var names: Array = []
 	for it in mm.ITEMS:
 		names.append(String(it[0]))
-	ok(names == ["CONTINUE", "NEW GAME", "LOAD GAME", "TRAINING ARENA", "SETTINGS", "EXTRAS", "EXIT"], "в меню есть TRAINING ARENA, старые пункты на месте (%s)" % ", ".join(names))
+	ok(names == ["CONTINUE", "PLAY", "SETTINGS", "EXTRAS", "EXIT"], "в главном меню PLAY (выбор режима), остальные пункты на месте (%s)" % ", ".join(names))
 	var had_save: bool = mm.has_save
 	ok(mm._enabled(0) == had_save, "CONTINUE доступен так же, как раньше (сохранение есть: %s)" % had_save)
 	await shot("m_menu")
-	mm._select(3, false)
+	mm._select(1, false)
+	await key(KEY_ENTER)
+	await wait(0.4)
+	mm.modes.select(1, false)
 	await key(KEY_ENTER)
 	await wait(0.3)
-	ok(mm.panel != null and mm.panel_rows.size() == 4, "TRAINING ARENA открывает экран выбора (%d пунктов)" % mm.panel_rows.size())
+	ok(mm.panel != null and mm.panel_rows.size() == 4, "PLAY → TRAINING ARENA открывает экран выбора (%d пунктов)" % mm.panel_rows.size())
 	ok(mm.panel_sel == 2, "по умолчанию выбран «НАЧАТЬ ТРЕНИРОВКУ»")
 	var h0: String = mm.train_hero
 	mm._panel_select(0, false)
@@ -80,9 +83,8 @@ func _run() -> void:
 	await shot("m_training")
 	await key(KEY_ESCAPE)
 	await wait(0.2)
-	ok(mm.panel == null and main.game == null, "Esc закрывает экран, игра не запустилась")
+	ok(mm.panel == null and mm.modes.visible and main.game == null, "Esc закрывает экран — назад к выбору режима, игра не запустилась")
 	# ================= запуск =================
-	mm._select(3, false)
 	await key(KEY_ENTER)
 	await wait(0.2)
 	mm.train_hero = "pahan"

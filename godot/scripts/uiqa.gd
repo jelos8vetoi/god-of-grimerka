@@ -107,9 +107,28 @@ func _run() -> void:
 	await key(KEY_UP)
 	ok(mm.sel == s0, "меню: стрелки работают")
 	moves += 4
-	for it in [[1, "new"], [2, "load"], [3, "training"], [4, "settings"], [5, "extras"]]:
-		if int(it[0]) == 1 and not has_save:
-			continue
+	# PLAY → экран выбора режима: у каждого режима свой экран, Esc — назад
+	mm._select(1, false)
+	await key(KEY_ENTER)
+	await wait(0.5)
+	ok(mm.modes.visible, "меню: PLAY открывает экран выбора режима")
+	await shot("menu_modes")
+	for k in ModeSelect.MODES.size():
+		mm.modes.select(k, false)
+		await wait(0.4)
+		await key(KEY_ENTER)
+		await wait(0.3)
+		ok(mm.panel != null, "режим «%s»: Enter открывает экран" % ModeSelect.MODES[k]["title"])
+		await shot("menu_mode_" + String(ModeSelect.MODES[k]["id"]))
+		buttons += mm.panel_rows.size()
+		await key(KEY_ESCAPE)
+		await wait(0.2)
+		ok(mm.panel == null and mm.modes.visible and main.game == null, "режим «%s»: Esc — назад к режимам" % ModeSelect.MODES[k]["title"])
+		moves += 3
+	await key(KEY_ESCAPE)
+	await wait(0.3)
+	ok(not mm.modes.visible, "экран режимов: Esc — назад на главный список")
+	for it in [[2, "settings"], [3, "extras"]]:
 		mm._select(int(it[0]), false)
 		await key(KEY_ENTER)
 		await wait(0.3)
@@ -126,15 +145,23 @@ func _run() -> void:
 		moves += 3
 	# подтверждение новой игры: Enter по умолчанию — «Отмена», сохранение цело
 	if has_save:
-		mm._select(1, false)
+		mm.open_modes(0)
+		await wait(0.3)
+		await key(KEY_ENTER)
+		await wait(0.2)
+		mm._panel_select(1, false)            # STORY MODE: CONTINUE, NEW GAME, LOAD GAME, НАЗАД
 		await key(KEY_ENTER)
 		await wait(0.2)
 		await key(KEY_ENTER)
 		await wait(0.2)
-		ok(mm.panel == null and main.game == null and FileAccess.get_file_as_string(KEEP[0]) == kept[KEEP[0]], "новая игра: «Отмена» по умолчанию, сохранение не тронуто")
+		ok(mm.panel != null and String(mm.panel_rows[0]["text"]) == "CONTINUE" and main.game == null and FileAccess.get_file_as_string(KEEP[0]) == kept[KEEP[0]], "новая игра: «Отмена» по умолчанию — назад к сюжету, сохранение не тронуто")
+		await key(KEY_ESCAPE)
+		await wait(0.2)
+		await key(KEY_ESCAPE)
+		await wait(0.3)
 		moves += 2
 	# настройки: каждая строка меняется и возвращается
-	mm._select(4, false)
+	mm._select(2, false)
 	await key(KEY_ENTER)
 	await wait(0.3)
 	var changed := 0
@@ -182,16 +209,27 @@ func _run() -> void:
 	await key(KEY_ESCAPE)
 	await wait(0.2)
 	# мышь: наведение выбирает, клик открывает
-	var row: Control = mm.rows[2]["root"]
+	var row: Control = mm.rows[1]["root"]
 	await click(centre(row))
+	await wait(0.4)
+	ok(mm.sel == 1 and mm.modes.visible, "меню: клик мышью по PLAY открывает выбор режима")
+	await click(centre(mm.modes.cards[0]["root"]))
 	await wait(0.3)
-	ok(mm.sel == 2 and mm.panel != null, "меню: клик мышью по LOAD GAME открывает экран")
+	ok(mm.panel != null, "мышь: клик по STORY MODE открывает экран сюжета")
+	await key(KEY_ESCAPE)
+	await wait(0.2)
+	await key(KEY_ESCAPE)
+	await wait(0.3)
+	ok(not mm.modes.visible, "Esc, Esc — назад на главный список")
 	buttons += 6
 	await key(KEY_ESCAPE)
 	await wait(0.2)
 	# ================= игра =================
 	mm._select(0 if has_save else 1, false)
-	await key(KEY_ENTER)
+	if has_save:
+		await key(KEY_ENTER)
+	else:
+		mm.launch(false, 0)
 	await wait(2.5)
 	var game = main.game
 	# запуск из меню идёт через кинематографичный переход: ждём, пока камера займёт место и откроется ввод

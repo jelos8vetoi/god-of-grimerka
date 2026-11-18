@@ -126,6 +126,7 @@ func _texts(a: float) -> void:
 ## Закрыть экран шторкой и показать надпись. Возвращается, когда экран полностью чёрный.
 func cover(head: String, line: String) -> void:
 	busy = true
+	rect.mouse_filter = Control.MOUSE_FILTER_STOP
 	rect.visible = true
 	holder.visible = true
 	title.text = head
@@ -143,6 +144,7 @@ func cover(head: String, line: String) -> void:
 
 ## Открыть мир: надпись гаснет, шторка уходит, кадр из чёрно-белого становится цветным.
 func reveal() -> void:
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE     # шторка уходит: мир уже виден, мышь не держим
 	var tw := create_tween().set_parallel(true)
 	tw.tween_method(_texts, 1.0, 0.0, 0.3)
 	tw.tween_property(self, "open_v", 1.0, T_OPEN).set_delay(0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)

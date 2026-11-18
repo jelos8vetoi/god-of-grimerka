@@ -15,17 +15,17 @@ const WHITE := Color(0.95, 0.96, 0.97)
 const SILVER := Color(0.72, 0.74, 0.77)
 const GREY := Color(0.46, 0.48, 0.51)
 const INK := Color(0.03, 0.03, 0.035)
+## Пункты: [надпись, описание внизу, (подпись под надписью)]. NEW GAME, LOAD GAME и TRAINING ARENA живут на экране
+## выбора режима (PLAY → mode_select.gd): STORY MODE и TRAINING ARENA.
 const ITEMS := [
 	["CONTINUE", "Продолжить игру с последнего сохранения."],
-	["NEW GAME", "Начать новое прохождение GOD OF GRIMERKA."],
-	["LOAD GAME", "Посмотреть доступное сохранение."],
-	["TRAINING ARENA", "Тренировка: все шесть стилей, цели, приёмы боссов — без сюжета, опыта и сохранения."],
+	["PLAY", "Выбор режима: сюжет, тренировочная арена, гонки на пылесосах.", "ВЫБОР РЕЖИМА · сюжет · арена · гонки"],
 	["SETTINGS", "Настройки изображения, звука и управления."],
 	["EXTRAS", "Дополнительная информация об игре."],
 	["EXIT", "Выйти из GOD OF GRIMERKA."],
 ]
 const MIRROR := 660.0        # насколько ниже героев лежит их отражение (подобрано под уровень ступней в кадре)
-const SIZES := [84, 52, 48, 45, 43, 41, 38]
+const SIZES := [84, 64, 46, 43, 40]
 
 const BG_SHADER := """
 shader_type canvas_item;
@@ -154,6 +154,9 @@ var chars_home := Vector2.ZERO
 var update_cb := Callable()
 var update_tag: Label
 var t := 0.0
+var modes: ModeSelect          # экран «ВЫБОР РЕЖИМА» (PLAY)
+var main_only: Array = []      # что видно только на главном списке: логотип, список, герои, подсказки — гаснет на экране режимов
+var panel_back := Callable()   # Esc на открытом экране: куда вернуться (пусто — просто закрыть)
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -190,19 +193,36 @@ func _ready() -> void:
 	_build_logo()
 	_build_corners()
 	_build_list()
+	modes = ModeSelect.new()
+	modes.setup(self)
+	stage.add_child(modes)
 	get_viewport().size_changed.connect(_fit)
 	_fit()
 	_select(0 if has_save else 1, false)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--menu-render="):
 			_render_heroes(arg.substr(14))
-	# для проверки по снимкам: -- --menu=new|load|settings|extras сразу открывает экран
+	# для проверки по снимкам: -- --menu=continue|modes|story|new|load|training|race|settings|extras сразу открывает экран
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--menu="):
-			var i := ["continue", "new", "load", "training", "settings", "extras"].find(arg.substr(7))
-			if i >= 0:
-				_select(i, false)
-				_activate()
+			var w := arg.substr(7)
+			match w:
+				"continue":
+					_select(0, false)
+					_activate()
+				"modes":
+					open_modes(0)
+				"story", "new", "load", "training", "race":
+					open_modes({"training": 1, "race": 2}.get(w, 0))
+					if w == "new" or w == "load":
+						_open_story()
+						_panel_select(panel_rows.size() - 3 if w == "new" else panel_rows.size() - 2, false)
+						_panel_activate()
+					else:
+						open_mode(w)
+				"settings", "extras":
+					_select(2 if w == "settings" else 3, false)
+					_activate()
 	main._check_update(func(cb: Callable):
 		update_cb = cb
 		if is_instance_valid(update_tag):
@@ -317,6 +337,7 @@ func _build_characters() -> void:
 	clip.clip_contents = true
 	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(clip)
+	main_only.append(clip)
 	var sky := Control.new()
 	sky.size = Vector2(STAGE.x, 600)
 	sky.clip_contents = true
@@ -367,6 +388,7 @@ func _build_logo() -> void:
 	logo.rotation = deg_to_rad(-3.5)
 	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(logo)
+	main_only.append(logo)
 	_text(logo, "G", 330, WHITE, Vector2(0, -78), serif, true)
 	_text(logo, "OD OF", 90, WHITE, Vector2(252, 22), serif, true)
 	_text(logo, "RIMERKA", 124, WHITE, Vector2(232, 100), serif, true)
@@ -383,13 +405,14 @@ func _build_logo() -> void:
 
 func _build_corners() -> void:
 	# слева сверху: сезон, глава, техническая строка
-	_text(stage, "01", 34, WHITE, Vector2(32, 34), serif)
-	_text(stage, "/ SEASON 01\n/ CHAPTER %02d\n/ SYS_%s" % [chapter_no(), String(build.get("sha", "dev"))], 13, SILVER, Vector2(86, 36))
+	main_only.append(_text(stage, "01", 34, WHITE, Vector2(32, 34), serif))
+	main_only.append(_text(stage, "/ SEASON 01\n/ CHAPTER %02d\n/ SYS_%s" % [chapter_no(), String(build.get("sha", "dev"))], 13, SILVER, Vector2(86, 36)))
 	var dia := Polygon2D.new()
 	dia.polygon = PackedVector2Array([Vector2(0, -6), Vector2(6, 0), Vector2(0, 6), Vector2(-6, 0)])
 	dia.color = WHITE
 	dia.position = Vector2(20, 60)
 	stage.add_child(dia)
+	main_only.append(dia)
 	# справа сверху: профиль — без выдуманного уровня, только настоящая глава
 	var r := _text(stage, "PLAYER", 12, GREY, Vector2(1380, 30))
 	r.size = Vector2(190, 16)
@@ -416,8 +439,11 @@ func _build_corners() -> void:
 	dia2.position = Vector2(36, 831)
 	dia2.scale = Vector2(0.6, 0.6)
 	stage.add_child(dia2)
-	_text(stage, "INFORMATION", 14, WHITE, Vector2(48, 822))
+	main_only.append(bar)
+	main_only.append(dia2)
+	main_only.append(_text(stage, "INFORMATION", 14, WHITE, Vector2(48, 822)))
 	info = _text(stage, "", 15, SILVER, Vector2(48, 846))
+	main_only.append(info)
 	# справа: подсказки управления
 	_hint(Vector2(1395, 668), "CONFIRM", "Enter")
 	_hint(Vector2(1395, 704), "BACK", "Esc")
@@ -429,13 +455,14 @@ func _build_corners() -> void:
 	update_tag.size = Vector2(470, 22)
 	update_tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	update_tag.visible = false
+	main_only.append(update_tag)
 	update_tag.mouse_filter = Control.MOUSE_FILTER_STOP
 	update_tag.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	update_tag.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and update_cb.is_valid():
 			update_cb.call())
 
-func _key(pos: Vector2, s: String, w: float) -> void:
+func _key(pos: Vector2, s: String, w: float) -> ColorRect:
 	var k := ColorRect.new()
 	k.color = Color(0.86, 0.87, 0.89)
 	k.position = pos
@@ -446,12 +473,14 @@ func _key(pos: Vector2, s: String, w: float) -> void:
 	l.size = k.size
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return k
 
 func _hint(pos: Vector2, s: String, key_name: String) -> void:
 	var l := _text(stage, s, 17, WHITE, pos, serif)
 	l.size = Vector2(110, 24)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_key(pos + Vector2(122, 1), key_name, 46)
+	main_only.append(l)
+	main_only.append(_key(pos + Vector2(122, 1), key_name, 46))
 
 # ---------------- список пунктов ----------------
 func _torn(w: float, h: float, seed_v: int) -> PackedVector2Array:
@@ -482,6 +511,7 @@ func _build_list() -> void:
 	list.rotation = deg_to_rad(-9.0)
 	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(list)
+	main_only.append(list)
 	band = Polygon2D.new()
 	band.color = WHITE
 	band.material = worn
@@ -506,13 +536,15 @@ func _build_list() -> void:
 		if i == 0:
 			var st := "Сохранения пока нет" if not has_save else "Глава %d · %s · шаг %d · опыт %d" % [chapter_no(), chapter_name(chapter_no() - 1), int(save.get("step", 0)) + 1, int(save.get("xp", 0))]
 			sub = _text(root, st, 15, INK, Vector2(40, size * 1.1))
+		elif ITEMS[i].size() > 2:
+			sub = _text(root, String(ITEMS[i][2]), 15, INK, Vector2(40, size * 1.06))
 		rows.append({"root": root, "label": lab, "mark": mark, "sub": sub, "w": w, "h": size})
-		root.mouse_entered.connect(func(): if panel == null: _select(i))
+		root.mouse_entered.connect(func(): if panel == null and not modes.visible: _select(i))
 		root.gui_input.connect(func(e: InputEvent):
-			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and panel == null:
+			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and panel == null and not modes.visible:
 				_select(i)
 				_activate())
-		y += size * (1.42 if i == 0 else 1.16)
+		y += size * (1.42 if sub != null else 1.16)
 
 func _enabled(i: int) -> bool:
 	return i != 0 or has_save
@@ -524,7 +556,7 @@ func _select(i: int, sound := true) -> void:
 	info.text = ITEMS[i][1] if _enabled(i) else "Сохранения пока нет — начни новую игру."
 	var r: Dictionary = rows[i]
 	var root: Control = r["root"]
-	var h: float = float(r["h"]) * (1.5 if i == 0 else 1.14)
+	var h: float = float(r["h"]) * (1.5 if r["sub"] != null else 1.14)
 	band.polygon = _torn(float(r["w"]) + 150.0, h, 7 + i)
 	band.position = Vector2(-60.0, root.position.y + float(r["h"]) * 0.04)
 	band.scale = Vector2(0.9, 1.0)
@@ -533,7 +565,7 @@ func _select(i: int, sound := true) -> void:
 	for k in rows.size():
 		var on := k == i
 		var e := _enabled(k)
-		var col := INK if on else (WHITE if k == 1 else SILVER)
+		var col := INK if on else (WHITE if k <= 1 else SILVER)
 		if not e:
 			col = Color(0.3, 0.31, 0.33) if on else Color(0.32, 0.33, 0.35)
 		(rows[k]["label"] as Label).add_theme_color_override("font_color", col)
@@ -563,15 +595,23 @@ func _launch_fx() -> void:
 	launching = true
 	main.sfx("sfx_ui", -2.0, 0.72)
 	var tw := create_tween().set_parallel(true)
-	band.modulate = Color(1.6, 1.6, 1.6)
-	tw.tween_property(band, "modulate", Color.WHITE, 0.3)
-	tw.tween_property(band, "scale", Vector2(1.22, 1.12), 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var b: Polygon2D = band
+	if modes.visible:
+		b = modes.cards[modes.sel]["band"]      # запуск с экрана режимов: вспыхивает карточка режима
+	b.modulate = Color(1.6, 1.6, 1.6)
+	tw.tween_property(b, "modulate", Color.WHITE, 0.3)
+	tw.tween_property(b, "scale", Vector2(1.22, 1.12), 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	for k in rows.size():
 		if k != sel:
 			tw.tween_property(rows[k]["root"], "modulate:a", 0.0, 0.25).set_delay(0.04 * k)
 	for c in stage.get_children():
-		if c != list and c is CanvasItem:
+		if c != list and c != modes and c is CanvasItem:
 			tw.tween_property(c, "modulate:a", 0.0, 0.45).set_delay(0.1)
+	if modes.visible:
+		for k in modes.cards.size():
+			if k != modes.sel:
+				tw.tween_property(modes.cards[k]["root"], "modulate:a", 0.0, 0.25).set_delay(0.04 * k)
+		tw.tween_property(modes, "modulate:a", 0.0, 0.45).set_delay(0.12)
 	tw.tween_property(info, "modulate:a", 0.0, 0.3)
 	await get_tree().create_timer(0.32).timeout
 
@@ -583,22 +623,82 @@ func _activate() -> void:
 		"CONTINUE":
 			if has_save:
 				launch(true)
-		"NEW GAME":
-			if has_save:
-				_open("NEW GAME", ["Сохранение будет перезаписано:", "Глава %d · %s" % [chapter_no(), chapter_name(chapter_no() - 1)], "Начать заново с первой главы?"],
-					[["НАЧАТЬ ЗАНОВО", func(): launch(false, 0)], ["ОТМЕНА", _close]], 1)
-			else:
-				launch(false, 0)
-		"LOAD GAME":
-			_open_load()
-		"TRAINING ARENA":
-			_open_training()
+		"PLAY":
+			open_modes()
 		"SETTINGS":
 			_open_settings()
 		"EXTRAS":
 			_open_extras()
 		"EXIT":
 			get_tree().quit()
+
+# ---------------- выбор режима ----------------
+## PLAY: главный список, логотип и герои уходят, выезжает экран режимов
+func open_modes(start := -1) -> void:
+	_close()
+	for n in main_only:
+		var c := n as CanvasItem
+		c.create_tween().tween_property(c, "modulate:a", 0.0, 0.18)
+	modes.open(start)
+
+## назад на главный список
+func close_modes() -> void:
+	_close()
+	modes.close()
+	for n in main_only:
+		var c := n as CanvasItem
+		c.create_tween().tween_property(c, "modulate:a", 1.0, 0.25)
+	_select(sel, false)
+	main.sfx("sfx_ui", -8.0, 0.8)
+
+## что делает выбранный режим
+func open_mode(id: String) -> void:
+	match id:
+		"story":
+			_open_story()
+		"training":
+			_open_training()
+		"race":
+			open_race()
+
+## Гонки на пылесосах подключены к меню (race_menu.gd). Пока нет — экран режима честно говорит, что их ещё нет.
+func race_ready() -> bool:
+	return false
+
+func race_status() -> String:
+	return "Режим ещё в разработке и выйдет отдельным обновлением."
+
+func open_race() -> void:
+	_open("VACUUM RACING", ["Гонки на пылесосах ТЯГА-812 ещё не готовы.", race_status(),
+		"Когда режим выйдет, здесь появятся одиночная гонка против соперников и заезд на время."],
+		[["НАЗАД", _close]])
+
+## STORY MODE: продолжить, начать заново, загрузить — те же функции, что были в главном списке
+func _open_story() -> void:
+	var lines: Array = []
+	var acts: Array = []
+	if has_save:
+		lines.append("Сохранение: глава %d · %s · шаг %d · опыт %d" % [chapter_no(), chapter_name(chapter_no() - 1), int(save.get("step", 0)) + 1, int(save.get("xp", 0))])
+		acts.append(["CONTINUE", func(): launch(true)])
+	else:
+		lines.append("Сохранения пока нет — начни новую игру. Игра сохраняется сама после каждого шага главы.")
+	acts.append(["NEW GAME", _story_new])
+	acts.append(["LOAD GAME", _open_load])
+	acts.append(["НАЗАД", _close])
+	_open("STORY MODE", lines, acts)
+
+func _story_new() -> void:
+	if has_save:
+		_open("NEW GAME", ["Сохранение будет перезаписано:", "Глава %d · %s" % [chapter_no(), chapter_name(chapter_no() - 1)], "Начать заново с первой главы?"],
+			[["НАЧАТЬ ЗАНОВО", func(): launch(false, 0)], ["ОТМЕНА", _back_story]], 1)
+		panel_back = _back_story
+	else:
+		launch(false, 0)
+
+## назад из NEW GAME / LOAD GAME — на экран сюжета, а не на экран режимов
+func _back_story() -> void:
+	_open_story()
+	_panel_select(1 if has_save else 0, false)
 
 # ---------------- экраны ----------------
 ## Экран поверх меню: тёмная рваная карточка. lines — строки текста; actions — список элементов:
@@ -608,6 +708,7 @@ func _activate() -> void:
 ## Длинные списки прокручиваются, выбранный пункт всегда виден.
 func _open(title: String, lines: Array, actions: Array, start := 0) -> VBoxContainer:
 	_close()
+	panel_back = Callable()
 	panel = Control.new()
 	panel.size = STAGE
 	stage.add_child(panel)
@@ -716,10 +817,13 @@ func _close() -> void:
 		panel = null
 		panel_rows = []
 		info.text = ITEMS[sel][1] if _enabled(sel) else "Сохранения пока нет — начни новую игру."
+		if modes != null and modes.visible:
+			info.text = modes.desc_text.text
 
 func _open_load() -> void:
 	if not has_save:
-		_open("LOAD GAME", ["Сохранений пока нет.", "Игра сохраняется сама — в одну ячейку — после каждого пройденного шага главы."], [["НАЗАД", _close]])
+		_open("LOAD GAME", ["Сохранений пока нет.", "Игра сохраняется сама — в одну ячейку — после каждого пройденного шага главы."], [["НАЗАД", _back_story]])
+		panel_back = _back_story
 		return
 	var up: Dictionary = save.get("up", {})
 	_open("LOAD GAME", [
@@ -727,7 +831,8 @@ func _open_load() -> void:
 		"Глава %d · %s" % [chapter_no(), chapter_name(chapter_no() - 1)],
 		"Шаг главы: %d   ·   Прослушивания: %d" % [int(save.get("step", 0)) + 1, int(save.get("xp", 0))],
 		"Улучшения — здоровье: %d · сила: %d · ад-либ madk1d: %d" % [int(up.get("hp", 0)), int(up.get("dmg", 0)), int(up.get("q", 0))],
-	], [["ЗАГРУЗИТЬ", func(): launch(true)], ["НАЗАД", _close]])
+	], [["ЗАГРУЗИТЬ", func(): launch(true)], ["НАЗАД", _back_story]])
+	panel_back = _back_story
 
 ## Тренировочная арена: выбор героя и стиля (по умолчанию — прошлый выбор из файла арены), зоны — описанием
 var train_hero := ""
@@ -781,9 +886,29 @@ func _open_extras() -> void:
 func _unhandled_input(e: InputEvent) -> void:
 	if launching:
 		return
-	if not (e is InputEventKey) or not e.pressed or e.echo:
+	var k := 0
+	if e is InputEventKey:
+		if not e.pressed or e.echo:
+			return
+		k = e.physical_keycode
+	elif e is InputEventJoypadButton or e is InputEventJoypadMotion:
+		# геймпад: встроенные действия ui_* (крестовина, левый стик, A — выбрать, B — назад)
+		if e.is_action_pressed("ui_up"):
+			k = KEY_UP
+		elif e.is_action_pressed("ui_down"):
+			k = KEY_DOWN
+		elif e.is_action_pressed("ui_left"):
+			k = KEY_LEFT
+		elif e.is_action_pressed("ui_right"):
+			k = KEY_RIGHT
+		elif e.is_action_pressed("ui_accept"):
+			k = KEY_ENTER
+		elif e.is_action_pressed("ui_cancel"):
+			k = KEY_ESCAPE
+		else:
+			return
+	else:
 		return
-	var k: int = e.physical_keycode
 	var up := k == KEY_W or k == KEY_UP
 	var down := k == KEY_S or k == KEY_DOWN
 	var ok := k == KEY_ENTER or k == KEY_KP_ENTER or k == KEY_SPACE
@@ -798,7 +923,21 @@ func _unhandled_input(e: InputEvent) -> void:
 			_panel_activate(-1)
 		elif k == KEY_ESCAPE or k == KEY_BACKSPACE:
 			main.sfx("sfx_ui", -8.0, 0.8)
-			_close()
+			if panel_back.is_valid():
+				panel_back.call()
+			else:
+				_close()
+		get_viewport().set_input_as_handled()
+		return
+	if modes.visible:
+		if up or k == KEY_A or k == KEY_LEFT:
+			modes.select(modes.sel - 1)
+		elif down or k == KEY_D or k == KEY_RIGHT:
+			modes.select(modes.sel + 1)
+		elif ok:
+			modes.activate()
+		elif k == KEY_ESCAPE or k == KEY_BACKSPACE:
+			close_modes()
 		get_viewport().set_input_as_handled()
 		return
 	if up:
@@ -813,7 +952,7 @@ func _unhandled_input(e: InputEvent) -> void:
 
 func _process(dt: float) -> void:
 	t += dt
-	if chars == null:
+	if chars == null or modes.visible:
 		return
 	# лёгкий параллакс: герои и их отражение чуть уходят от курсора, задние портреты — в другую сторону
 	var vs := get_viewport_rect().size
