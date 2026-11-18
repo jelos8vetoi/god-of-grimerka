@@ -287,10 +287,15 @@ func _hit(e, dmg: float, stagger: float, dir: Vector3, knock: float, launch: flo
 	if not is_instance_valid(e) or not e.alive():
 		return
 	if e.boss_id != "":
-		dmg = min(dmg, float(boss_left.get(e, 0.0)))
-		boss_left[e] = float(boss_left.get(e, 0.0)) - dmg
+		# лимит — по реально снятому здоровью: «ОТКРЫТ» (×1,3 в enemy.take_hit_info) его не обходит
+		var k: float = 1.3 if e.weak_t > 0.0 else 1.0
+		dmg = min(dmg, float(boss_left.get(e, 0.0)) / k)
 		if dmg <= 0.0:
 			return
+		var before: float = e.hp
+		game.tag.strike(e, dmg, stagger, dir, knock, launch, power >= 1, power)
+		boss_left[e] = float(boss_left.get(e, 0.0)) - maxf(0.0, before - e.hp)
+		return
 	game.tag.strike(e, dmg, stagger, dir, knock, launch, power >= 1, power)
 
 func _beat(i: int) -> void:

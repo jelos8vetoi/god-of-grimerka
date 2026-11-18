@@ -255,7 +255,7 @@ func _open_hit(o: Dictionary) -> void:
 	if String(o["kind"]) == "throw":
 		return                       # бьют сами бутылки, когда долетят (_bottles_tick)
 	var launch := 4.5 if air else 0.0
-	tag.strike(e, 10.0, 0.0, d, 1.5, launch, true, 1, false)
+	tag.strike(e, 10.0 * Balance.DUO_OPEN, 0.0, d, 1.5, launch, true, 1, false)      # открытие напарника — balance.gd
 	_stab(float(o["stab"]))
 	tag._boss_window(e)      # босс «ОТКРЫТ»: дуэт продлевает окно (TEAM BREAK), один раз за окно
 	match String(o["kind"]):
@@ -408,7 +408,7 @@ func _ending() -> void:
 	d = d.normalized() if d.length() > 0.05 else Vector3(sin(p.face), 0, cos(p.face))
 	# напарник бьёт в тот же миг: оба по одной цели с двух сторон
 	b.duo_act(String(OPEN[mate_style]["air" if air else "clip"]), 0.45)
-	var k: float = 0.6 if e.boss_id != "" else 1.0
+	var k: float = (0.6 if e.boss_id != "" else 1.0) * Balance.DUO_END      # концовка пары — balance.gd
 	match String(pr["end"]):
 		"knock":
 			tag.strike(e, 18.0 * k, 30.0, d, 14.0, 0.0, true, 2)

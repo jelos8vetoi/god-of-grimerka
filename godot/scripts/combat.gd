@@ -451,7 +451,7 @@ func targets(a: AttackData, idx: int, sweep_only := false) -> Array:
 
 ## Урон атаки по цели: база × ПЕРЕГРУЗ × множители. Одна точка для будущих баффов, навыков и мастерства стиля.
 func damage_for(a: AttackData, _target = null) -> float:
-	return a.damage * (1.6 if p.rage > 0.0 else 1.0) * float(p.dmg_mul) * float(p.damage_bonus(a))
+	return a.damage * (Balance.RAGE_MUL if p.rage > 0.0 else 1.0) * float(p.dmg_mul) * float(p.damage_bonus(a))
 
 func _resolve_hits(idx: int, first: bool, sweep_only := false) -> void:
 	var a := cur

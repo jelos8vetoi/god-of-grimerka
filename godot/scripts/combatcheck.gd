@@ -40,6 +40,10 @@ func frame(_dt: float) -> void:
 		started = true
 		_run()
 
+## Урон атаки по данным стиля (после баланса balance.gd), а не числом в проверке
+func ad(sid: String, aid: String) -> float:
+	return Styles.by_id(sid).attack(aid).damage
+
 func ok(c: bool, msg: String) -> void:
 	print(("COMBAT ok: " if c else "COMBAT ОШИБКА: ") + msg)
 	if not c:
@@ -595,7 +599,7 @@ func _run() -> void:
 	P.auto_input = {}
 	await until_free(400)
 	var hold_dmg: float = h0 - es[0].hp
-	ok(abs(tap_dmg - 60.0) < 0.01 and in_charge and hold_dmg > tap_dmg * 1.25, "удар сверху: нажатие — %.0f урона, удержание секунду (замах над головой) — %.0f" % [tap_dmg, hold_dmg])
+	ok(abs(tap_dmg - ad("vozduh", "vz_overhead")) < 0.01 and in_charge and hold_dmg > tap_dmg * 1.25, "удар сверху: нажатие — %.0f урона, удержание секунду (замах над головой) — %.0f" % [tap_dmg, hold_dmg])
 
 	# ---------- 16. вес: равновесие и разный стоп-кадр ----------
 	es = await stage(["bot"])
@@ -1078,7 +1082,7 @@ func _run() -> void:
 		if kind == "bot":
 			await shot("15_tyaga_shot.png")
 		await frames(30)
-		ok(abs((hp_v - es[0].hp) - 14.0) < 0.01 and es[0].global_position.distance_to(pos_v) > 2.0, "%s: воздушный выстрел — урон %.0f, отброшен на %.1f м" % [kind, hp_v - es[0].hp, es[0].global_position.distance_to(pos_v)])
+		ok(abs((hp_v - es[0].hp) - ad("tyaga812", "tg_shot")) < 0.01 and es[0].global_position.distance_to(pos_v) > 2.0, "%s: воздушный выстрел — урон %.0f, отброшен на %.1f м" % [kind, hp_v - es[0].hp, es[0].global_position.distance_to(pos_v)])
 	es = await stage(["bot", "clipper", "hater"], 2.0)
 	es[0].global_position = P.global_position + Vector3(2.0, 0, -0.8)
 	es[2].global_position = P.global_position + Vector3(-1.6, 0, -1.6)
@@ -1096,7 +1100,7 @@ func _run() -> void:
 	await frames(20)
 	var all3 := true
 	for i in 3:
-		if abs((hps[i] - es[i].hp) - 30.0) > 0.01:
+		if abs((hps[i] - es[i].hp) - ad("tyaga812", "tg_burst")) > 0.01:
 			all3 = false
 	ok(charging and all3 and P.tyaga.heat > 40.0, "выброс по области: заряд удержанием, все трое вокруг сопла получили по 30, нагрев %.0f" % P.tyaga.heat)
 	# притянул → выброс: пойманный получает в полтора раза больше
@@ -1144,7 +1148,7 @@ func _run() -> void:
 	var bowled: bool = await tg_event("bowl", 90)
 	await frames(20)
 	ok(threw and z_before - es[0].global_position.z > 3.0, "короткое ПКМ с пойманным у сопла: бросок, враг улетел на %.1f м" % (z_before - es[0].global_position.z))
-	ok(bowled and abs((hp_far - es[1].hp) - 16.0) < 0.01, "брошенный сбил второго врага: тот получил %.0f" % (hp_far - es[1].hp))
+	ok(bowled and abs((hp_far - es[1].hp) - ad("tyaga812", "tg_bowl")) < 0.01, "брошенный сбил второго врага: тот получил %.0f" % (hp_far - es[1].hp))
 	# ---------- всасывание ослабленного ----------
 	for kind in ["bot", "clipper", "hater"]:
 		es = await stage([kind], 4.0)
@@ -1616,7 +1620,7 @@ func _run() -> void:
 		var hp_g: float = es[0].hp
 		await beat_tap("attack", false)
 		await until_free()
-		ok(abs((hp_g - es[0].hp) - 16.0) < 0.01, "%s: удар корпусом гитары — %.0f урона" % [kind, hp_g - es[0].hp])
+		ok(abs((hp_g - es[0].hp) - ad("guitar", "gt_body")) < 0.01, "%s: удар корпусом гитары — %.0f урона" % [kind, hp_g - es[0].hp])
 	es = await as_guitar(["bot"])
 	es[0].hp = 9999.0
 	es[0].max_hp = 9999.0
@@ -1641,7 +1645,7 @@ func _run() -> void:
 		if kind == "bot":
 			await shot("42_power_chord.png")
 		await until_free()
-		ok(abs((hp_c2 - es[0].hp) - 22.0) < 0.01 and es[0].global_position.distance_to(pos_c) > 1.0 and P.guitar.played.has("chord"), "%s на 6,5 м: POWER CHORD — %.0f урона, отброшен, звук аккорда сыграл" % [kind, hp_c2 - es[0].hp])
+		ok(abs((hp_c2 - es[0].hp) - ad("guitar", "gt_chord")) < 0.01 and es[0].global_position.distance_to(pos_c) > 1.0 and P.guitar.played.has("chord"), "%s на 6,5 м: POWER CHORD — %.0f урона, отброшен, звук аккорда сыграл" % [kind, hp_c2 - es[0].hp])
 	es = await as_guitar(["bot"])
 	es[0].hp = 9999.0
 	es[0].max_hp = 9999.0
@@ -1679,7 +1683,7 @@ func _run() -> void:
 	await frames(6)
 	var fb_all := true
 	for i in 3:
-		if hp_f[i] - es[i].hp < 10.0 - 0.01:
+		if hp_f[i] - es[i].hp < ad("guitar", "gt_feedback") - 0.01:
 			fb_all = false
 	await until_free(300)
 	ok(log_started == ["gt_feedback", "gt_launch"] and fb_all and P.guitar.played.has("feedback"), "после уклонения ПКМ — FEEDBACK: волна вокруг задела всех троих; дальше ЛКМ — подброс (%s)" % str(log_started))
@@ -1705,7 +1709,7 @@ func _run() -> void:
 	await beat_tap("attack", true)
 	await until_free()
 	var on_dmg: float = h_r - es[0].hp
-	ok(abs(off_dmg - 16.0) < 0.01 and bars_off == 0 and abs(on_dmg - 19.2) < 0.01 and P.guitar.bars == 1, "ритм: мимо такта — %.0f урона и ничего не теряется; в такт — %.1f (+20 %%) и деление шкалы (%d)" % [off_dmg, on_dmg, P.guitar.bars])
+	ok(abs(off_dmg - ad("guitar", "gt_body")) < 0.01 and bars_off == 0 and abs(on_dmg - ad("guitar", "gt_body") * 1.2) < 0.01 and P.guitar.bars == 1, "ритм: мимо такта — %.0f урона и ничего не теряется; в такт — %.1f (+20 %%) и деление шкалы (%d)" % [off_dmg, on_dmg, P.guitar.bars])
 	# ---------- RIFF CANCEL ----------
 	es = await as_guitar(["bot"])
 	es[0].hp = 9999.0
@@ -1751,7 +1755,7 @@ func _run() -> void:
 	await frames(16)
 	await shot("44_distortion.png")
 	await until_free()
-	ok(no_dist and P.guitar.distortion > 5.0 and abs(sw_after - 20.0) < 0.01 and abs((h_d - es[0].hp) - 20.8) < 0.01 and P.guitar.played.has("distortion"), "DISTORTION: при 30 СВЭГа не включается, при 60 — включается на 8 с (осталось %.1f), удар %.1f (16 × 1,3)" % [P.guitar.distortion, h_d - es[0].hp])
+	ok(no_dist and P.guitar.distortion > 5.0 and abs(sw_after - 20.0) < 0.01 and abs((h_d - es[0].hp) - ad("guitar", "gt_body") * 1.3) < 0.01 and P.guitar.played.has("distortion"), "DISTORTION: при 30 СВЭГа не включается, при 60 — включается на 8 с (осталось %.1f), удар %.1f (16 × 1,3)" % [P.guitar.distortion, h_d - es[0].hp])
 	# ---------- FINAL TRACK ----------
 	es = await as_guitar(["bot", "clipper", "hater"], 2.2)
 	for e in es:
@@ -1777,7 +1781,7 @@ func _run() -> void:
 	await shot("45_final_track.png")
 	var fin_all := true
 	for i in 3:
-		if hp_fin[i] - es[i].hp < 60.0 - 0.01:
+		if hp_fin[i] - es[i].hp < ad("guitar", "gt_final") - 0.01:
 			fin_all = false
 	await until_free(400)
 	ok(no_final and fin_started and fin_all and P.guitar.bars == 0 and P.guitar.played.has("final"), "FINAL TRACK: без полной шкалы ритма недоступен; с четырьмя делениями после Guitar Spin бьёт всех вокруг по 60+ и тратит шкалу")

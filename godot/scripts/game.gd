@@ -127,6 +127,7 @@ var style_label: Label        # текущий боевой стиль и зап
 var hype: TeamHype            # общая шкала команды и Team Overdrive (hype.gd)
 var tag_saved: Dictionary = {}      # состояние команды из сохранения: применяется после загрузки главы
 var tag: TagTeam              # Tag Team: здоровье обоих героев, командные приёмы, выбывание (tagteam.gd)
+var dmg_log = null           # --damagecheck: [атака, цель, урон, кадр физики] каждого попадания по врагу; null — не пишем
 var read: PlayerRead         # что враги знают о поведении игрока (player_read.gd)
 var squad_t := 0.0
 var tutorial: Tutorial       # боевое обучение: карточки механик по ходу боя (tutorial.gd)

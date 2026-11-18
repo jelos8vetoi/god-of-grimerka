@@ -120,6 +120,7 @@ var combo_left := 0         # босс: сколько приёмов подря
 var moves_used := {}        # для проверок: какие приёмы делал
 var tell_until := -1.0      # метка в приёме босса (полоса рывка) видна до этого age
 var tell_sec := 0.5
+var hit_id := ""             # атака, которая сейчас бьёт (take_hit_info) — для записи урона в проверке
 var born_at := Vector3.INF   # где враг был в _ready (там рисуется портал появления) — для проверки
 
 func _ready() -> void:
@@ -127,7 +128,7 @@ func _ready() -> void:
 		_setup_boss()
 	else:
 		cfg = KINDS[kind].duplicate()
-		max_hp = cfg["hp"] * float(game.diff_hp)
+		max_hp = float(Balance.MOB_HP.get(kind, cfg["hp"])) * float(game.diff_hp)      # баланс здоровья типа — balance.gd
 	hp = max_hp
 	height = cfg["height"]
 	cool = randf_range(0.6, 1.6)
@@ -212,7 +213,7 @@ func _setup_boss() -> void:
 	cfg["own"] = look.get("own", false)   # своя модель босса: не перекрашиваем
 	if look["model"] == "pahan":
 		cfg["clip"] = "Light1"
-	max_hp = float(boss["hp"]) * 0.75 * float(game.diff_hp)
+	max_hp = float(boss["hp"]) * Balance.BOSS_HP * float(game.diff_hp)       # было 0,75 — фазы проскакивали (balance.gd)
 	poise_max = 200.0      # босса сбить труднее: нужна серия тяжёлых
 	poise = poise_max
 
@@ -845,6 +846,8 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		launch = 0.0
 		game.fx.shield(global_position + Vector3(0, height * 0.6, 0) - dir * radius, -dir, Color(1.0, 0.82, 0.3), 1.6 * height / 1.7)
 	hp -= dmg
+	if game.dmg_log is Array:
+		game.dmg_log.append([hit_id if hit_id != "" else "other", get_instance_id(), dmg, Engine.get_physics_frames()])
 	kb = dir * knock * (0.25 if boss_id != "" else 1.0)
 	_react(dir, heavy)
 	game.popup(global_position + Vector3(0, height + 0.2, 0), str(int(dmg)), Color(1, 0.9, 0.4) if heavy else Color.WHITE)
@@ -942,7 +945,9 @@ func take_hit_info(h: HitInfo) -> void:
 	var launch: float = h.launch if (bool(rc("launch", true)) or h.launch < 0.0) else 0.0
 	var dmg: float = h.damage * (1.3 if weak_t > 0.0 else 1.0)
 	no_flinch = r == "none"
-	take_hit(dmg, h.dir, h.knockback / (m if h.knockback >= 6.0 else max(m, 1.0)), h.heavy, launch)      # слабый толчок лёгких врагов не разбрасывает: серия ударов должна попадать
+	hit_id = h.attack_id
+	take_hit(dmg, h.dir, h.knockback / (m if h.knockback >= 6.0 else max(m, 1.0)), h.heavy, launch)
+	hit_id = ""      # слабый толчок лёгких врагов не разбрасывает: серия ударов должна попадать
 	no_flinch = false
 	if game != null and game.fx != null:
 		game.fx.attack_vfx(h, self)       # рисунок попадания этой атаки (vfx_profiles.gd) — только по настоящему попаданию
