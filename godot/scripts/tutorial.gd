@@ -79,7 +79,7 @@ func _process(dt: float) -> void:
 
 ## Идёт бой: враги рядом, сюжет не остановлен
 func fighting() -> bool:
-	if not game.mode in ["fight", "boss"]:
+	if not game.mode in ["fight", "boss", "training"]:
 		return false
 	for en in game.enemies:
 		if is_instance_valid(en) and en.alive() and en.global_position.distance_to(game.player.global_position) < 24.0:

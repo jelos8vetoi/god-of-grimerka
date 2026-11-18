@@ -559,7 +559,7 @@ func _tutorial_list() -> void:
 ## Подтверждение выхода в главное меню: прогресс сохранён на начало текущего шага.
 func _confirm_menu() -> void:
 	var top := _card("В МЕНЮ?")
-	_line(top, func(): return "Игра сохранена на начало текущего шага главы — «Continue» вернёт сюда.", 18, SILVER)
+	_line(top, func(): return "Тренировка не сохраняется — сюжетное сохранение не тронуто." if game.training != null else "Игра сохранена на начало текущего шага главы — «Continue» вернёт сюда.", 18, SILVER)
 	_rows([["ОСТАТЬСЯ", func(): _open_page(5)], ["ВЫЙТИ В ГЛАВНОЕ МЕНЮ", func(): game._to_menu()]])
 
 static func _time(s: float) -> String:

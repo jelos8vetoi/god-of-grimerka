@@ -248,7 +248,7 @@ func _process(dt: float) -> void:
 			boss_seen = ""
 			_set_state("victory")
 		play_set("loc_" + key)
-		var fighting: bool = game.mode == "fight" and game.enemies.any(func(e): return is_instance_valid(e) and e.state != "dead")
+		var fighting: bool = (game.mode == "fight" or game.mode == "training") and game.enemies.any(func(e): return is_instance_valid(e) and e.state != "dead")
 		_want([1.0, 1.0 if fighting else 0.0])
 		if not sting.playing:
 			_set_state("dialogue" if game.mode == "dlg" else ("combat" if fighting else "explore"))

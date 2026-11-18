@@ -100,14 +100,14 @@ func _run() -> void:
 	var has_save: bool = mm.has_save
 	var s0: int = mm.sel
 	await key(KEY_S)
-	ok(mm.sel == (s0 + 1) % 6, "меню: S — вниз")
+	ok(mm.sel == (s0 + 1) % mm.ITEMS.size(), "меню: S — вниз")
 	await key(KEY_W)
 	ok(mm.sel == s0, "меню: W — вверх")
 	await key(KEY_DOWN)
 	await key(KEY_UP)
 	ok(mm.sel == s0, "меню: стрелки работают")
 	moves += 4
-	for it in [[1, "new"], [2, "load"], [3, "settings"], [4, "extras"]]:
+	for it in [[1, "new"], [2, "load"], [3, "training"], [4, "settings"], [5, "extras"]]:
 		if int(it[0]) == 1 and not has_save:
 			continue
 		mm._select(int(it[0]), false)
@@ -134,7 +134,7 @@ func _run() -> void:
 		ok(mm.panel == null and main.game == null and FileAccess.get_file_as_string(KEEP[0]) == kept[KEEP[0]], "новая игра: «Отмена» по умолчанию, сохранение не тронуто")
 		moves += 2
 	# настройки: каждая строка меняется и возвращается
-	mm._select(3, false)
+	mm._select(4, false)
 	await key(KEY_ENTER)
 	await wait(0.3)
 	var changed := 0

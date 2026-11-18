@@ -122,6 +122,9 @@ var tell_until := -1.0      # метка в приёме босса (полос�
 var tell_sec := 0.5
 var train_guard := false      # учебная цель обучения: не умирает, пока упражнение не сделано (tutorial.gd)
 var train_attack := false     # учебная цель для упражнений защиты: замахивается чаще
+var train_home := Vector3.ZERO      # тренировочная арена: место цели
+var train_still := false     # цель арены стоит на своём месте (бить может, ходить — нет)
+var train_leash := 0.0       # босс арены не уходит от своей зоны дальше этого
 var hit_id := ""             # атака, которая сейчас бьёт (take_hit_info) — для записи урона в проверке
 var born_at := Vector3.INF   # где враг был в _ready (там рисуется портал появления) — для проверки
 
@@ -338,6 +341,13 @@ func _physics_process(dt: float) -> void:
 					var sep: float = radius + o.radius + 0.4
 					if d.length() < sep and d.length() > 0.01:
 						mv += d.normalized() * (sep - d.length()) * 1.5
+			if train_still or train_leash > 0.0:
+				var hm: Vector3 = train_home - global_position
+				hm.y = 0.0
+				if train_still:
+					mv = hm.normalized() if hm.length() > 0.4 else Vector3.ZERO
+				elif hm.length() > train_leash:
+					mv = hm.normalized()
 			if p.state == "dead":
 				mv = Vector3.ZERO
 			var wet: float = (slow_k if slow_t > 0.0 else 1.0) * (1.25 if buff_t > 0.0 else 1.0)       # облит водой — медленнее, усилен — быстрее
@@ -857,7 +867,8 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		game.dmg_log.append([hit_id if hit_id != "" else "other", get_instance_id(), dmg, Engine.get_physics_frames()])
 	kb = dir * knock * (0.25 if boss_id != "" else 1.0)
 	_react(dir, heavy)
-	game.popup(global_position + Vector3(0, height + 0.2, 0), str(int(shown)), Color(1, 0.9, 0.4) if heavy else Color.WHITE)
+	if game.show_dmg:
+		game.popup(global_position + Vector3(0, height + 0.2, 0), str(int(shown)), Color(1, 0.9, 0.4) if heavy else Color.WHITE)
 	if boss_id != "":
 		var phases: Array = boss["phases"]
 		var np: int = clamp(int(floor((1.0 - hp / max_hp) * phases.size())), 0, phases.size() - 1)
