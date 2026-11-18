@@ -120,6 +120,8 @@ var combo_left := 0         # босс: сколько приёмов подря
 var moves_used := {}        # для проверок: какие приёмы делал
 var tell_until := -1.0      # метка в приёме босса (полоса рывка) видна до этого age
 var tell_sec := 0.5
+var train_guard := false      # учебная цель обучения: не умирает, пока упражнение не сделано (tutorial.gd)
+var train_attack := false     # учебная цель для упражнений защиты: замахивается чаще
 var hit_id := ""             # атака, которая сейчас бьёт (take_hit_info) — для записи урона в проверке
 var born_at := Vector3.INF   # где враг был в _ready (там рисуется портал появления) — для проверки
 
@@ -313,6 +315,8 @@ func _physics_process(dt: float) -> void:
 				t = 0.0
 		"chase":
 			cool -= dt
+			if train_attack and cool > 1.3:
+				cool = 1.3                  # учебная цель упражнений защиты: замах — регулярно
 			if boss_id != "":
 				special_cd -= dt
 			face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-8.0 * dt))
@@ -845,12 +849,15 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		dmg *= 0.15
 		launch = 0.0
 		game.fx.shield(global_position + Vector3(0, height * 0.6, 0) - dir * radius, -dir, Color(1.0, 0.82, 0.3), 1.6 * height / 1.7)
+	var shown := dmg                  # цифра над целью — урон удара, даже если учебная цель его не «приняла»
+	if train_guard and not executed:
+		dmg = minf(dmg, maxf(0.0, hp - maxf(1.0, max_hp * 0.05)))      # учебная цель: здоровье не ниже 5 %
 	hp -= dmg
 	if game.dmg_log is Array:
 		game.dmg_log.append([hit_id if hit_id != "" else "other", get_instance_id(), dmg, Engine.get_physics_frames()])
 	kb = dir * knock * (0.25 if boss_id != "" else 1.0)
 	_react(dir, heavy)
-	game.popup(global_position + Vector3(0, height + 0.2, 0), str(int(dmg)), Color(1, 0.9, 0.4) if heavy else Color.WHITE)
+	game.popup(global_position + Vector3(0, height + 0.2, 0), str(int(shown)), Color(1, 0.9, 0.4) if heavy else Color.WHITE)
 	if boss_id != "":
 		var phases: Array = boss["phases"]
 		var np: int = clamp(int(floor((1.0 - hp / max_hp) * phases.size())), 0, phases.size() - 1)

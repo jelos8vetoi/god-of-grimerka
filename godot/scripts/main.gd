@@ -8,7 +8,7 @@ const ACTIONS := {
 	"throw": [KEY_F],
 	"tag": [KEY_TAB], "assist": [KEY_T], "overdrive": [KEY_G],
 	"style1": [KEY_1], "style2": [KEY_2], "style3": [KEY_3],
-	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11],
+	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11], "tut_skip": [KEY_BACKSPACE],
 }
 
 var game: Node
