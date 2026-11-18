@@ -8,7 +8,7 @@ const ACTIONS := {
 	"throw": [KEY_F],
 	"tag": [KEY_TAB], "assist": [KEY_T], "overdrive": [KEY_G],
 	"style1": [KEY_1], "style2": [KEY_2], "style3": [KEY_3],
-	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11], "tut_skip": [KEY_BACKSPACE],
+	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11], "tut_skip": [KEY_BACKSPACE], "train_panel": [KEY_F1],
 }
 
 var game: Node
@@ -20,6 +20,7 @@ var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка 
 var transcheck := ""        # --transcheck=<папка>: проверка переходов из меню в игру и паузы (scripts/transcheck.gd)
 var deathcheck := ""        # --deathcheck=<папка>: проверка сцены гибели (scripts/deathcheck.gd)
 var uiqa := ""              # --uiqa=<папка>: сквозная проверка всего интерфейса (scripts/uiqa.gd)
+var trainingcheck := ""     # --trainingcheck=<папка>: тренировочная арена из меню (scripts/trainingcheck.gd)
 var onechapter := false     # --onechapter: и в проверках только доступные игроку главы (проверка концовки первой главы)
 var launcher := ""          # --launcher=<путь>: игру запустил лаунчер, обновление — через него
 var ipodpause := false      # вместе с --ipodcheck: меню паузы и режим наушников (--pause)
@@ -141,6 +142,8 @@ func _ready() -> void:
 			deathcheck = arg.substr(13)
 		elif arg.begins_with("--uiqa="):
 			uiqa = arg.substr(7)
+		elif arg.begins_with("--trainingcheck="):
+			trainingcheck = arg.substr(16)
 		elif arg == "--onechapter":
 			onechapter = true
 		elif arg == "--pause":
@@ -198,6 +201,11 @@ func _ready() -> void:
 			q.main = self
 			q.out = uiqa
 			add_child(q)
+		if trainingcheck != "":
+			var trc = preload("res://scripts/trainingcheck.gd").new()
+			trc.main = self
+			trc.out = trainingcheck
+			add_child(trc)
 
 func sfx(name: String, vol := 0.0, pitch := 1.0) -> void:
 	if not sfx_cache.has(name):
@@ -296,7 +304,7 @@ func testing() -> String:
 func tutorial_on() -> bool:
 	if tutorialcheck != "":
 		return true
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and not voicecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
@@ -317,6 +325,38 @@ func cinematic_start(from_save: bool, chapter := -1, line := "") -> void:
 	for i in 3:
 		await get_tree().process_frame
 	intro_fx.reveal()
+
+## Тренировочная арена из меню: та же шторка, что у NEW GAME, но без сюжета и без сюжетного сохранения
+func cinematic_training(hero: String, style: String) -> void:
+	if intro_fx == null:
+		intro_fx = IntroFX.new()
+		add_child(intro_fx)
+	if intro_fx.busy or game != null:
+		return
+	await intro_fx.cover("TRAINING ARENA", "Тренировка · без сюжета и сохранения")
+	await start_training(hero, style)
+	for i in 3:
+		await get_tree().process_frame
+	intro_fx.reveal()
+
+func start_training(hero: String, style: String) -> void:
+	if menu:
+		menu.queue_free()
+		menu = null
+	if game:
+		game.queue_free()
+	music.volume_db = -16.0
+	if not music.playing:
+		music.play()
+	game = preload("res://scripts/game.gd").new()
+	game.main = self
+	add_child(game)
+	var arena := Training.new()
+	game.training = arena
+	game.add_child(arena)
+	arena.setup(game)
+	game._apply_upgrades()
+	await arena.begin(hero, style)
 
 func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 	if menu:

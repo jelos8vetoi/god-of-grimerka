@@ -129,6 +129,8 @@ var tag_saved: Dictionary = {}      # состояние команды из с�
 var tag: TagTeam              # Tag Team: здоровье обоих героев, командные приёмы, выбывание (tagteam.gd)
 var dmg_log = null           # --damagecheck: [атака, цель, урон, кадр физики] каждого попадания по врагу; null — не пишем
 var lock: LockOn            # захват цели (lockon.gd)
+var training: Training = null     # тренировочная арена (training.gd); null — обычная игра
+var show_dmg := true          # цифры урона над врагами (в арене — переключатель панели)
 var read: PlayerRead         # что враги знают о поведении игрока (player_read.gd)
 var squad_t := 0.0
 var tutorial: Tutorial       # боевое обучение: карточки механик по ходу боя (tutorial.gd)
@@ -273,7 +275,7 @@ func _intro_camera(rdt: float) -> void:
 		intro_done.emit()
 
 func _save() -> void:
-	if main.testing() != "":
+	if main.testing() != "" or training != null:      # арена сюжетное сохранение не трогает
 		return
 	var f := FileAccess.open(SAVE, FileAccess.WRITE)
 	if f:
@@ -451,7 +453,7 @@ func _update_fight(dt: float) -> void:
 						toast("Волна %d / %d" % [wave_i + 1, waves.size()])
 					main.sfx("sfx_wave", -8.0)
 					wave_wait = 1.6
-	elif mode == "boss":
+	elif mode == "boss" or training != null:
 		if boss_e and is_instance_valid(boss_e):
 			boss_fill.size.x = 596.0 * clamp(boss_e.hp / boss_e.max_hp, 0.0, 1.0)
 			if auto_kill > 0.0 and boss_e.alive() and boss_e.age > 5.0:
@@ -507,6 +509,9 @@ func in_arena(p: Vector3, margin: float) -> bool:
 
 func on_kill(e) -> void:
 	kills += 1
+	if training != null:
+		training.on_kill(e)          # арена: без опыта, без сюжета
+		return
 	if e.fly:
 		bark("cheer", 16.0, 0.25)
 	xp += int(e.cfg.get("xp", 10))
@@ -532,6 +537,9 @@ func on_kill(e) -> void:
 			slowmo(0.6)
 
 func on_player_dead() -> void:
+	if training != null:
+		training.on_dead()           # арена: гибель — не поражение
+		return
 	bark("dead", 3.0)
 	over = true
 	slowmo(1.2)
@@ -1584,8 +1592,11 @@ func _update_hud(dt: float) -> void:
 		obj = "   ·   выйди из подъезда во двор"
 	top_label.text = "ГЛАВА %d · %s%s" % [ch + 1, String(chapter()["name"]), obj]
 	xp_label.text = "▶ %d" % xp
+	xp_label.visible = training == null
+	if training != null:
+		top_label.text = training.hud_line()
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second()
-	boss_box.visible = mode == "boss" and boss_e != null and is_instance_valid(boss_e) and boss_e.state != "dead"
+	boss_box.visible = (mode == "boss" or training != null) and boss_e != null and is_instance_valid(boss_e) and boss_e.state != "dead"
 	flash.color.a = max(0.0, flash.color.a - dt * 1.5)
 	banner_t -= dt
 	var a: float = clamp(banner_t / 0.5, 0.0, 1.0)

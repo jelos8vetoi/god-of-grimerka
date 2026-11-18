@@ -19,12 +19,13 @@ const ITEMS := [
 	["CONTINUE", "Продолжить игру с последнего сохранения."],
 	["NEW GAME", "Начать новое прохождение GOD OF GRIMERKA."],
 	["LOAD GAME", "Посмотреть доступное сохранение."],
+	["TRAINING ARENA", "Тренировка: все шесть стилей, цели, приёмы боссов — без сюжета, опыта и сохранения."],
 	["SETTINGS", "Настройки изображения, звука и управления."],
 	["EXTRAS", "Дополнительная информация об игре."],
 	["EXIT", "Выйти из GOD OF GRIMERKA."],
 ]
 const MIRROR := 660.0        # насколько ниже героев лежит их отражение (подобрано под уровень ступней в кадре)
-const SIZES := [90, 56, 52, 47, 43, 40]
+const SIZES := [84, 52, 48, 45, 43, 41, 38]
 
 const BG_SHADER := """
 shader_type canvas_item;
@@ -198,7 +199,7 @@ func _ready() -> void:
 	# для проверки по снимкам: -- --menu=new|load|settings|extras сразу открывает экран
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--menu="):
-			var i := ["continue", "new", "load", "settings", "extras"].find(arg.substr(7))
+			var i := ["continue", "new", "load", "training", "settings", "extras"].find(arg.substr(7))
 			if i >= 0:
 				_select(i, false)
 				_activate()
@@ -546,9 +547,21 @@ func _select(i: int, sound := true) -> void:
 func launch(from_save: bool, chapter := -1) -> void:
 	if launching:
 		return
+	var line := ("Глава %d · %s" % [chapter_no(), chapter_name(chapter_no() - 1)]) if from_save else "Глава 1 · %s" % chapter_name(0)
+	await _launch_fx()
+	main.cinematic_start(from_save, chapter, line)
+
+## Тренировочная арена: тот же уход меню, затем main.cinematic_training
+func launch_training() -> void:
+	if launching:
+		return
+	_close()
+	await _launch_fx()
+	main.cinematic_training(train_hero, train_style)
+
+func _launch_fx() -> void:
 	launching = true
 	main.sfx("sfx_ui", -2.0, 0.72)
-	var line := ("Глава %d · %s" % [chapter_no(), chapter_name(chapter_no() - 1)]) if from_save else "Глава 1 · %s" % chapter_name(0)
 	var tw := create_tween().set_parallel(true)
 	band.modulate = Color(1.6, 1.6, 1.6)
 	tw.tween_property(band, "modulate", Color.WHITE, 0.3)
@@ -561,29 +574,30 @@ func launch(from_save: bool, chapter := -1) -> void:
 			tw.tween_property(c, "modulate:a", 0.0, 0.45).set_delay(0.1)
 	tw.tween_property(info, "modulate:a", 0.0, 0.3)
 	await get_tree().create_timer(0.32).timeout
-	main.cinematic_start(from_save, chapter, line)
 
 func _activate() -> void:
 	if launching:
 		return
 	main.sfx("sfx_ui")
-	match sel:
-		0:
+	match String(ITEMS[sel][0]):
+		"CONTINUE":
 			if has_save:
 				launch(true)
-		1:
+		"NEW GAME":
 			if has_save:
 				_open("NEW GAME", ["Сохранение будет перезаписано:", "Глава %d · %s" % [chapter_no(), chapter_name(chapter_no() - 1)], "Начать заново с первой главы?"],
 					[["НАЧАТЬ ЗАНОВО", func(): launch(false, 0)], ["ОТМЕНА", _close]], 1)
 			else:
 				launch(false, 0)
-		2:
+		"LOAD GAME":
 			_open_load()
-		3:
+		"TRAINING ARENA":
+			_open_training()
+		"SETTINGS":
 			_open_settings()
-		4:
+		"EXTRAS":
 			_open_extras()
-		5:
+		"EXIT":
 			get_tree().quit()
 
 # ---------------- экраны ----------------
@@ -714,6 +728,32 @@ func _open_load() -> void:
 		"Шаг главы: %d   ·   Прослушивания: %d" % [int(save.get("step", 0)) + 1, int(save.get("xp", 0))],
 		"Улучшения — здоровье: %d · сила: %d · ад-либ madk1d: %d" % [int(up.get("hp", 0)), int(up.get("dmg", 0)), int(up.get("q", 0))],
 	], [["ЗАГРУЗИТЬ", func(): launch(true)], ["НАЗАД", _close]])
+
+## Тренировочная арена: выбор героя и стиля (по умолчанию — прошлый выбор из файла арены), зоны — описанием
+var train_hero := ""
+var train_style := ""
+func _open_training() -> void:
+	if train_hero == "":
+		var d := Training.prefs()
+		train_hero = String(d["hero"])
+		train_style = String(d["style"])
+	_open("TRAINING ARENA", [
+		"Отдельный режим: сюжет не идёт, опыт не начисляется, сохранение игры не меняется.",
+		"Зоны: A — манекен · B — замахи (уклонение, блок, парирование) · C — воздух · D — босс с настоящими приёмами · E — свободный бой.",
+		"В арене F1 — панель: герой, стиль, зона, враги, здоровье, перезарядки, цифры урона, упражнения. Выход — пауза → В ГЛАВНОЕ МЕНЮ.",
+	], [
+		[func(): return "ГЕРОЙ: " + ("ПАХАН" if train_hero == "pahan" else "MADK1D"), null, _train_hero_step],
+		[func(): return "СТИЛЬ: " + String(Styles.by_id(train_style).title).to_upper(), null, _train_style_step],
+		["НАЧАТЬ ТРЕНИРОВКУ", func(): launch_training()],
+		["НАЗАД", _close]], 2)
+
+func _train_hero_step(_d: int) -> void:
+	train_hero = "madk1d" if train_hero == "pahan" else "pahan"
+	train_style = String(Training.HERO_STYLES[train_hero][0])
+
+func _train_style_step(d: int) -> void:
+	var list: Array = Training.HERO_STYLES[train_hero]
+	train_style = String(list[posmod(list.find(train_style) + d, list.size())])
 
 func _open_settings() -> void:
 	var acts: Array = []
