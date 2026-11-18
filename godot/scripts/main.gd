@@ -150,6 +150,9 @@ func _ready() -> void:
 	audio = preload("res://scripts/audio.gd").new()
 	audio.main = self
 	add_child(audio)
+	# автопроверки и прогоны (любые ключи, кроме запуска лаунчером) — тихо: окно без фокуса в углу, мышь не захватывается
+	if Array(OS.get_cmdline_user_args()).any(func(x): return not String(x).begins_with("--launcher")):
+		MouseMode.make_quiet(get_window())
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--posesheet="):
 			var ps = preload("res://scripts/posesheet.gd").new()
@@ -205,7 +208,7 @@ func show_menu() -> void:
 	if game:
 		game.queue_free()
 		game = null
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 	music.volume_db = -6.0
 	if not music.playing:
 		music.play()

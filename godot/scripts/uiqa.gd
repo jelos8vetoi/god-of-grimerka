@@ -333,7 +333,7 @@ func _run() -> void:
 	game._close_panel()
 	game.mode = mode0
 	game.step = step0
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
 	game.player.inv = 0.0
 	game.tag.down[game.tag.mate()] = true    # напарник выбыл: иначе Tag Team передаст бой ему и поражения не будет
 	game.player.take_damage(game.player.hp + 50.0, game.player.global_position + Vector3(1, 0, 0))

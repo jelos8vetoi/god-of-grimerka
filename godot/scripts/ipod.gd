@@ -338,8 +338,8 @@ func open() -> void:
 	input_captured = true
 	release_guard = false
 	if not continuing_context:
-		previous_mouse_mode = Input.mouse_mode
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		previous_mouse_mode = MouseMode.want
+	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 	var was_visible := device.visible
 	device.visible = true
 	device.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -388,9 +388,9 @@ func close(fast := false) -> void:
 
 func _restore_mouse() -> void:
 	if get_tree().paused or game.panel != null:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 	else:
-		Input.mouse_mode = previous_mouse_mode
+		MouseMode.set_to(previous_mouse_mode)
 
 
 func captures_gameplay_input() -> bool:
@@ -419,7 +419,7 @@ func _notification(what: int) -> void:
 		_reset_screen_motion()
 	elif what == NOTIFICATION_APPLICATION_FOCUS_IN and opened:
 		# Some desktop window managers change the cursor mode while focus is away.
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 
 
 func _kill_visual_tweens() -> void:

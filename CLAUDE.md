@@ -101,6 +101,7 @@ $G --path godot --fixed-fps 30 --resolution 1280x720 -- --trailer=<папка>  
 $G --headless --path godot --export-release Windows "../dist/godot/GOD OF GRIMERKA.exe"
 ```
 
+- Проверки идут **тихо** и не мешают человеку за компьютером: любой ключ запуска (кроме `--launcher`) включает `MouseMode.make_quiet` (`mouse_mode.gd`) — окно без фокуса в правом нижнем углу, курсор не захватывается. Захват мыши в коде — только через `MouseMode.set_to(...)`, а не `Input.mouse_mode = …` (проверки сверяют `MouseMode.want`).
 - Godot завершается с кодом 0 даже при `SCRIPT ERROR` — **читать вывод**, искать `SCRIPT ERROR` и `ERROR:`.
 - После правок боя или стилей запускать **все** проверки систем (`--flowcheck`, `--tagcheck`, `--execcheck`, `--hypecheck`, `--basecheck`, `--bottlecheck`, `--tyagacheck`, `--madkcheck`, `--duocheck`, `--hudcheck`), а не только проверку своего этапа: они держатся на графах стилей и ломаются от чужих правок. Проверки без `--fixed-fps` не запускать одновременно с `--combatcheck` — плывут тайминги.
 - Скриншоты и листы поз смотреть глазами: «скрипт без ошибок» не значит «выглядит правильно».

@@ -201,7 +201,7 @@ func _process(dt: float) -> void:
 		accent_done = true
 		game.main.audio.death_accent()
 	if stage_name == "menu" and Input.mouse_mode != Input.MOUSE_MODE_VISIBLE and game.main.testing() == "":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 	var rdt := dt / maxf(Engine.time_scale, 0.001)
 	for i in btns.size():
 		var b: Dictionary = btns[i]

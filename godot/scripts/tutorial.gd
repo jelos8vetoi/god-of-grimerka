@@ -192,7 +192,7 @@ func show_card(id: String, replay := false) -> bool:
 	card.name = "TutorialCard"
 	card.closed.connect(_on_closed)
 	game.hud.add_child(card)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 	game.main.sfx("sfx_ui", -6.0, 0.7)
 	return true
 
@@ -205,7 +205,7 @@ func _on_closed() -> void:
 		game.get_tree().paused = false
 		game.player.combat.clear_buffer()        # нажатия, сделанные, пока карточка была открыта, в бой не уходят
 		if game.main.testing() == "" and game.panel == null:
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+			MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
 
 ## Увиденные карточки по порядку — для списка в паузе
 func seen_list() -> Array:

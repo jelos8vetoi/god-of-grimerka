@@ -149,7 +149,7 @@ func _run() -> void:
 	await wait(0.25)
 	ok(pl.global_position.distance_to(p0) > 0.3, "до iPod: W двигает Пахана (%.2f м)" % pl.global_position.distance_to(p0))
 	var len0: float = game.spring.spring_length
-	var mouse0 := Input.mouse_mode
+	var mouse0 := MouseMode.want
 
 	# ---- открытие ----
 	await tap(KEY_UP)
@@ -1188,7 +1188,7 @@ func _run_pause() -> void:
 	ok(not get_tree().paused and not pm.is_open and not pm.cam_taken, "Esc: меню закрыто, камера отдана игре")
 	ok(ipod.track_index == idx1, "после закрытия трек сам не переключился")
 	ok(pl.global_position.distance_to(pos0) < 0.01, "игровой Пахан не сдвинулся (%.3f м)" % pl.global_position.distance_to(pos0))
-	ok(Input.mouse_mode == Input.MOUSE_MODE_CAPTURED, "мышь снова захвачена игрой")
+	ok(MouseMode.want == Input.MOUSE_MODE_CAPTURED, "мышь снова захвачена игрой")
 	ok(ipod.is_listening() and audio.headphone > 0.99, "после паузы музыка играет, режим наушников держится")
 
 	# ---- диалог с музыкой в наушниках и без ----
