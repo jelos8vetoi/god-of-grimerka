@@ -41,6 +41,7 @@ var bottlecheck := ""     # --bottlecheck=<папка>: стиль «Водяр�
 var tyagacheck := ""      # --tyagacheck=<папка>: стиль «ТЯГА-812» (scripts/tyagacheck.gd)
 var madkcheck := ""       # --madkcheck=<папка>: оружие madk1d — доска за спиной, гитара в двух руках (scripts/madkcheck.gd)
 var duocheck := ""        # --duocheck=<папка>: дуэт-атака на [T] (scripts/duocheck.gd)
+var movementcheck := ""   # --movementcheck=<папка>: рывок в воздухе и движение (scripts/movementcheck.gd)
 var damagecheck := ""     # --damagecheck=<папка>: баланс урона (scripts/damagecheck.gd)
 var aicheck := ""         # --aicheck=<папка>: ИИ врагов и боссов (scripts/aicheck.gd)
 var vfxcheck := ""        # --vfxcheck=<папка>: эффекты боя по профилям атак (scripts/vfxcheck.gd)
@@ -119,6 +120,8 @@ func _ready() -> void:
 			launcher = arg.substr(11)
 		elif arg.begins_with("--transcheck="):
 			transcheck = arg.substr(13)
+		elif arg.begins_with("--movementcheck="):
+			movementcheck = arg.substr(16)
 		elif arg.begins_with("--damagecheck="):
 			damagecheck = arg.substr(14)
 		elif arg.begins_with("--aicheck="):
@@ -280,7 +283,7 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck + vfxcheck + aicheck + damagecheck
+	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck + vfxcheck + aicheck + damagecheck + movementcheck
 
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 func tutorial_on() -> bool:
@@ -381,6 +384,12 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 		tgc.out = tyagacheck
 		game.director = tgc
 		game.add_child(tgc)
+	if movementcheck != "":
+		var mvc = preload("res://scripts/movementcheck.gd").new()
+		mvc.game = game
+		mvc.out = movementcheck
+		game.director = mvc
+		game.add_child(mvc)
 	if damagecheck != "":
 		var dmc = preload("res://scripts/damagecheck.gd").new()
 		dmc.game = game
