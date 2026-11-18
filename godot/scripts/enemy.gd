@@ -123,6 +123,7 @@ var tell_sec := 0.5
 var train_guard := false      # учебная цель обучения: не умирает, пока упражнение не сделано (tutorial.gd)
 var train_attack := false     # учебная цель для упражнений защиты: замахивается чаще
 var train_home := Vector3.ZERO      # тренировочная арена: место цели
+var train_immortal := false   # цель арены: урон и добивания настоящие, но вместо смерти встаёт с полным здоровьем
 var train_still := false     # цель арены стоит на своём месте (бить может, ходить — нет)
 var train_leash := 0.0       # босс арены не уходит от своей зоны дальше этого
 var hit_id := ""             # атака, которая сейчас бьёт (take_hit_info) — для записи урона в проверке
@@ -863,6 +864,10 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 	if train_guard and not executed:
 		dmg = minf(dmg, maxf(0.0, hp - maxf(1.0, max_hp * 0.05)))      # учебная цель: здоровье не ниже 5 %
 	hp -= dmg
+	if train_immortal and hp <= 0.0:
+		hp = max_hp                    # манекен арены «убит» (ударом или добиванием) — встаёт заново
+		executed = false
+		game.popup(global_position + Vector3(0, height + 0.9, 0), "ЗАНОВО", Color(0.6, 1.0, 0.7))
 	if game.dmg_log is Array:
 		game.dmg_log.append([hit_id if hit_id != "" else "other", get_instance_id(), dmg, Engine.get_physics_frames()])
 	kb = dir * knock * (0.25 if boss_id != "" else 1.0)
@@ -1051,6 +1056,9 @@ func hold(sec: float) -> void:
 
 ## Снять равновесие. Кончилось — враг сбит: обычный оглушён на секунду (замах прерывается), босс вздрагивает и теряет замах.
 func stagger(v: float) -> bool:
+	if v > 0.0 and alive() and state == "special":
+		poise_t = 0.0             # во время особого приёма равновесие не снимается, но и не восстанавливается под ударами
+		return false
 	if v <= 0.0 or not alive() or state in ["stun", "air", "down", "getup", "spawn", "special"]:
 		return false
 	poise -= v

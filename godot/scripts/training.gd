@@ -158,7 +158,7 @@ func _spawn_target(z: String) -> void:
 	e.cool = 999.0
 	e.train_home = ZONES[z]
 	e.train_still = true
-	e.train_guard = immortal
+	e.train_immortal = immortal
 	e.train_attack = z == "B"
 	if z == "A" or z == "C":
 		e.max_hp = 600.0
@@ -172,7 +172,7 @@ func spawn_boss() -> void:
 	var b = game._make_enemy("", bid, ZONES["D"])
 	b.train_home = ZONES["D"]
 	b.train_leash = 6.5              # босс держится своей зоны, к другим целям не уходит
-	b.train_guard = immortal
+	b.train_immortal = immortal
 	game.boss_e = b
 	var bd: Dictionary = game.story["BOSS"][bid]
 	game.boss_name.text = "%s — %s" % [bd["n"], bd["sub"]]
@@ -260,7 +260,7 @@ func set_immortal(v: bool) -> void:
 	immortal = v
 	for z in targets:
 		if is_instance_valid(targets[z]):
-			targets[z].train_guard = v
+			targets[z].train_immortal = v
 	save()
 
 func set_exercises(v: bool) -> void:

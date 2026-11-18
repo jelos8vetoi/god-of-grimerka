@@ -43,9 +43,12 @@ var log_t := 0.0
 var labels := {}
 var ipod_focus_target := 0.0  # 0 — обычный микс, 1 — iPod открыт
 var ipod_focus := 0.0
-## Режим наушников: пока Пахан слушает iPod во вставленных EarPods, музыка локации, эффекты и окружение уходят в тишину;
-## голоса (Voice) и сам iPod (своя шина) не трогаются. Это временный множитель поверх громкости игрока — в настройки не пишется.
-const HP_SILENCE_DB := -60.0
+## Режим наушников: пока Пахан слушает iPod во вставленных EarPods, музыка локации уступает треку iPod (уходит в тишину),
+## а эффекты и окружение становятся заметно тише, но слышны (бой не должен «пропадать» — раньше глушились в ноль,
+## и это выглядело как сломанный звук); голоса (Voice) и сам iPod (своя шина) не трогаются.
+## Это временный множитель поверх громкости игрока — в настройки не пишется.
+const HP_SILENCE_DB := -60.0        # музыка локации
+const HP_MUFFLE_DB := -16.0         # эффекты и окружение
 const HP_IN := 0.3           # секунд на приглушение
 const HP_OUT := 0.45         # и на возврат
 var headphone := 0.0         # 0 — обычный микс, 1 — слышны только iPod и голоса
@@ -284,9 +287,10 @@ func _mix(dt: float, ducking: float) -> void:
 	duck = lerpf(duck, ducking, 1.0 - exp(-3.0 * dt))
 	headphone_on = listening()
 	headphone = move_toward(headphone, 1.0 if headphone_on else 0.0, dt / (HP_IN if headphone_on else HP_OUT))
-	var hp_db := HP_SILENCE_DB * headphone * headphone * (3.0 - 2.0 * headphone)
+	var hk := headphone * headphone * (3.0 - 2.0 * headphone)
+	var hp_db := HP_SILENCE_DB * hk
 	for b in ["SFX", "Ambient"]:
-		AudioServer.set_bus_volume_db(AudioServer.get_bus_index(b), linear_to_db(max(0.0001, float(vol[b]))) + hp_db)
+		AudioServer.set_bus_volume_db(AudioServer.get_bus_index(b), linear_to_db(max(0.0001, float(vol[b]))) + HP_MUFFLE_DB * hk)
 	ipod_focus = lerpf(ipod_focus, ipod_focus_target, 1.0 - exp(-3.2 * dt))
 	var focus_volume := lerpf(1.0, 0.68, ipod_focus)
 	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(max(0.0001, float(vol["Music"]) * focus_volume)) + duck + hp_db)
