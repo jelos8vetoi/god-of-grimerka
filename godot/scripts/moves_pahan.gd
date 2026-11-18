@@ -61,3 +61,14 @@ static func add_to(A: Dictionary, idle_ik: Dictionary, side: Dictionary) -> void
 	var oh := Poses.W([-0.03, 0.68, 0.16], [0.0, 0.95, -0.3], T2)
 	A["OverheadCharge"] = {"d": 0.5, "loop": true, "ground": true, "ease": "io", "k": [[0.0, Poses.ph(Poses.add(sq_half, Poses.tw(0.0, 0.0, -0.25))), oh],
 		[0.5, Poses.ph(Poses.add(sq_half, Poses.tw(0.0, 0.03, -0.27))), Poses.W([-0.03, 0.675, 0.165], [0.02, 0.95, -0.32], T2)], [1.0, Poses.ph(Poses.add(sq_half, Poses.tw(0.0, 0.0, -0.25))), oh]]}
+	# рывок в воздухе: тяжёлый бросок тела вперёд, ноги подобраны, балон отведён назад и тянет руку
+	var dash_w := Poses.W([-0.22, 0.32, -0.26], [-0.3, 0.12, -0.95])      # балон отведён назад и чуть вверх — не ниже ступней
+	A["AirDash"] = {"d": 1.0, "k": [[0.0, Poses.ph({"spine": {"x": 0.2}, "rup": {"x": -0.6}, "rleg": {"x": 0.9}, "lup": {"x": -0.4}, "lleg": {"x": 0.7}}), dash_w],
+		[0.25, Poses.ph({"spine": {"x": 0.55}, "head": {"x": -0.2}, "rup": {"x": -1.1}, "rleg": {"x": 1.5}, "lup": {"x": -0.9}, "lleg": {"x": 1.3}, "larm": {"x": 0.9, "z": 0.3}, "lift": 0.1}), dash_w, "out"],
+		[0.8, Poses.ph({"spine": {"x": 0.4}, "rup": {"x": -0.8}, "rleg": {"x": 1.1}, "lup": {"x": -0.5}, "lleg": {"x": 0.8}, "larm": {"x": 0.5, "z": 0.6}}), Poses.W([-0.21, 0.32, -0.2], [-0.4, -0.05, -0.9]), "io"],
+		[1.0, fall_a, Poses.W([-0.2, 0.34, -0.1], [-0.55, -0.2, -0.8]), "io"]]}
+	# скольжение: присел низко, передняя нога вытянута, корпус откинут, балон волочится сбоку
+	var slide_w := Poses.W([-0.27, 0.31, 0.06], [-0.9, -0.08, 0.42])      # балон над полом: тело опущено (drop), конец не должен уйти в землю
+	var slide_p := Poses.ph({"spine": {"x": -0.3}, "head": {"x": 0.25}, "lup": {"x": -1.25}, "lleg": {"x": 0.15}, "rup": {"x": 0.25}, "rleg": {"x": 1.55}, "larm": {"z": 0.9, "x": -0.3}, "drop": 0.42})
+	A["Slide"] = {"d": 1.0, "k": [[0.0, Poses.ph(Poses.add(sq_half, {"spine": {"x": 0.2}})), slide_w], [0.2, slide_p, slide_w, "out"],
+		[0.8, slide_p, slide_w], [1.0, Poses.ph(Poses.add(sq_half, {"spine": {"x": 0.1}})), idle_ik, "io"]]}
