@@ -844,18 +844,22 @@ func _board_tick(dt: float) -> void:
 		reach.w = move_toward(reach.w, 0.0, dt * 8.0)
 
 ## множитель урона от состояния героя (заряды трюков, ритм, дисторшн) — его спрашивает ядро боя
+## Усиления момента складываются (а не перемножаются) и вместе не выше Balance.MOMENT_CAP:
+## ресурс стиля (заряды скейта, ритм и дисторшн гитары, поток и Freeze Breaker) + Perfect Swap + Tag-бонус.
+## Раньше они перемножались, а у скейта и гитары Tag-бонус не учитывался вовсе (docs/DAMAGE_BALANCE.md).
 func damage_bonus(a: AttackData) -> float:
-	return _style_bonus(a) * flow.bonus()
+	var team: float = game.tag.bonus() if game.tag != null else 1.0
+	var add: float = (_style_bonus(a) - 1.0) + (flow.bonus() - 1.0) + (team - 1.0)
+	return clampf(1.0 + add, 0.1, Balance.MOMENT_CAP)
 
 func _style_bonus(_a: AttackData) -> float:
 	if hero == "madk1d" and style.id == "skateboard":
 		return skate.bonus()
 	if guitar.active():
 		return guitar.bonus()
-	var team: float = game.tag.bonus() if game.tag != null else 1.0
 	if breaker.active():
-		return breaker.bonus() * team
-	return team
+		return breaker.bonus()
+	return 1.0
 
 ## ядро боя: хватает ли герою ресурса на атаку
 func can_use(a: AttackData) -> bool:

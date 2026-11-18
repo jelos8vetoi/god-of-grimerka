@@ -89,4 +89,4 @@ const RIDE := {
 	"mount": 0.42, "dismount": 0.38, "walk": 4.2,
 	"vrev": 4.0, "kick": 3.2,          # задний ход и толчок ногой с места
 }
-const HEAT := {"max": 100.0, "cool": 22.0, "lock": 2.5}
+const HEAT := {"max": 100.0, "cool": 30.0, "lock": 2.5}      # остывание 22 → 30 (баланс: темп пылесоса упирался в нагрев — docs/DAMAGE_BALANCE.md)

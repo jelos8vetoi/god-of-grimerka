@@ -17,6 +17,7 @@ static var _cache := {}
 static func by_id(id: String) -> StyleData:
 	if not _cache.has(id):
 		_cache[id] = _make(id)
+		Balance.scale_style(_cache[id])      # баланс урона стиля (balance.gd) — один раз при сборке
 	return _cache[id]
 
 static func _make(id: String) -> StyleData:
