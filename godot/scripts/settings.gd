@@ -5,7 +5,7 @@
 class_name Opts
 
 const PATH := "user://grimerka_display.json"
-const DEFAULT := {"fullscreen": false, "vsync": true, "fps": 0, "window": 0, "fov": 62.0, "sens": 1.0, "invert_y": false, "master": 1.0, "shake": 1.0, "less_flash": false}
+const DEFAULT := {"fullscreen": false, "vsync": true, "fps": 0, "window": 0, "fov": 62.0, "sens": 1.0, "invert_y": false, "master": 1.0, "shake": 1.0, "less_flash": false, "practice": true}
 const FPS := [0, 30, 60, 120, 144]
 const WINDOWS := [[1280, 720], [1600, 900], [1920, 1080], [2560, 1440]]
 static var data := {}
@@ -79,6 +79,8 @@ static func rows(w: Window, audio, ipod) -> Array:
 	r.append(["#ЭФФЕКТЫ"])
 	r.append([func(): return "ТРЯСКА КАМЕРЫ: " + _pct(float(v("shake"))), func(d: int): put("shake", clampf(snappedf(float(v("shake")) + 0.25 * d, 0.25), 0.0, 1.0))])
 	r.append([func(): return "МЕНЬШЕ ВСПЫШЕК: " + ("ВКЛ" if bool(v("less_flash")) else "ВЫКЛ"), func(_d: int): put("less_flash", not bool(v("less_flash")))])
+	r.append(["#ОБУЧЕНИЕ"])
+	r.append([func(): return "ПРАКТИКА В ОБУЧЕНИИ: " + ("ВКЛ" if bool(v("practice")) else "ВЫКЛ"), func(_d: int): put("practice", not bool(v("practice")))])
 	r.append(["#ЗВУК"])
 	r.append([func(): return "ОБЩАЯ ГРОМКОСТЬ: " + _pct(float(v("master"))), func(d: int): put("master", clampf(snappedf(float(v("master")) + 0.05 * d, 0.05), 0.0, 1.0), w)])
 	for b in [["Music", "МУЗЫКА ИГРЫ"], ["SFX", "ЭФФЕКТЫ"], ["Ambient", "ОКРУЖЕНИЕ"], ["Voice", "ГОЛОСА"]]:
