@@ -122,8 +122,10 @@ func begin(h: String, s: String) -> void:
 	game.tutorial.persist = false
 	game.show_dmg = show_dmg
 	game.fx.prewarm(game.player.global_position)
+	var want_hero := hero
+	var want_style := style              # выбор из меню: за кадр ожидания _physics_process сверяет style с героем и затёр бы его
 	await game.get_tree().process_frame
-	await use(hero, style)
+	await use(want_hero, want_style)
 	spawn_zone_targets()
 	game.banner("ТРЕНИРОВОЧНАЯ АРЕНА", "F1 — панель тренировки", Color(1.0, 0.85, 0.55), 3.5)
 
@@ -137,9 +139,16 @@ func use(h: String, s: String) -> void:
 		for i in 40:
 			await game.get_tree().physics_frame
 	hero = p.hero
-	if p.style.id != s and (p.own_styles as Array).has(s):
-		p.set_style(s)
-		for i in 90:
+	# сразу после постройки зала герой ещё не готов сменить стиль (и первая смена может сорваться) —
+	# пробуем, пока выбранный в меню стиль правда не окажется в руках (до трёх попыток)
+	for attempt in 3:
+		if p.style.id == s or not (p.own_styles as Array).has(s):
+			break
+		for i in 240:
+			if p.set_style(s):
+				break
+			await game.get_tree().physics_frame
+		for i in 120:
 			if p.switch_to == "" and p.state != "switch":
 				break
 			await game.get_tree().physics_frame

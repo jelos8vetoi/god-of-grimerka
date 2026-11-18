@@ -221,6 +221,9 @@ func _set_state(s: String) -> void:
 func _process(dt: float) -> void:
 	var game = main.game
 	var quiet: bool = main.testing() != "" and not main.audiolog
+	if main.race != null and is_instance_valid(main.race) and not quiet:
+		_race(dt, main.race)
+		return
 	if game == null or not is_instance_valid(game) or quiet:
 		# меню: играет заглавный трек, наборы молчат
 		play_set("")
@@ -278,6 +281,18 @@ func _process(dt: float) -> void:
 			print("MUSIC набор=%s состояние=%s слои=%s приглушение=%.1f дБ наушники=%.2f шины: Music %.1f SFX %.1f Ambient %.1f Voice %.1f дБ · пик музыки=%.1f дБ пик окружения=%.1f дБ" % [cur, state, str(want), duck, headphone,
 				AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Music")), AudioServer.get_bus_volume_db(AudioServer.get_bus_index("SFX")), AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Ambient")), AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Voice")),
 				AudioServer.get_bus_peak_volume_left_db(AudioServer.get_bus_index("Music"), 0), AudioServer.get_bus_peak_volume_left_db(AudioServer.get_bus_index("Ambient"), 0)])
+
+## гонка на пылесосах: свой набор (loc_race: драйв и ударные), заглавный трек меню уходит, на паузе тише
+func _race(dt: float, race) -> void:
+	if main.music.playing:
+		main.music.volume_db = move_toward(main.music.volume_db, -60.0, dt * 22.0)
+		if main.music.volume_db <= -59.0:
+			main.music.stop()
+	play_set("loc_race" if ResourceLoader.exists(DIR + "loc_race_base.wav") else "loc_snow")
+	_want([1.0, 1.0 if race.go or race.state == "countdown" else 0.0])
+	_set_state("race" if race.state != "results" else "victory")
+	_bed("")
+	_mix(dt, -6.0 if race.paused else (-3.0 if race.state == "results" else 0.0))
 
 func _want(v: Array) -> void:
 	for i in want.size():

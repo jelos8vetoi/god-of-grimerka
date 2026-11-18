@@ -1,0 +1,827 @@
+## Трасса гонки: строится кодом из данных RaceData.TRACKS — дорога (сглаженная замкнутая кривая через опорные
+## точки), обочины, стены по краям (4 м в высоту — через них не перепрыгнуть), срезка с канавой и мостиком,
+## трамплин, ускорители, препятствия, коробки предметов (их держит race.gd), контрольные точки и оформление
+## участков: двор, промзона, гаражи, мусорка, заборы. Здесь же — где на трассе гонщик: project() даёт пройденный
+## путь s (на срезке — пересчитанный в путь главной дороги), смещение поперёк и половину ширины.
+class_name RaceTrack
+extends Node3D
+
+const STEP := 1.0                  # шаг точек кривой, м
+const SHOULDER := 1.6              # обочина за краем дороги, м
+const WALL_H := 4.0                # высота стен (видимые — ниже: барьеры, гаражи, заборы)
+const KILL_Y := -3.0               # ниже — упал: возврат на последнюю контрольную точку
+
+var data: Dictionary = {}
+var id := ""
+# главная дорога
+var P := PackedVector3Array()      # точки центра
+var W := PackedFloat32Array()      # ширина в точке
+var S := PackedFloat32Array()      # путь от начала кривой
+var T := PackedVector3Array()      # касательные
+var L := 0.0                       # длина круга
+# срезка
+var SP := PackedVector3Array()
+var SS := PackedFloat32Array()
+var ST := PackedVector3Array()
+var SL := 0.0
+var short_w := 6.0
+var short_from := 0.0              # путь главной дороги у развилки и у слияния
+var short_to := 0.0
+var ditch := Vector2(-1, -1)       # канава на срезке: путь срезки от и до
+var plank := 3.0
+# разметка
+var start_s := 0.0                 # финишная черта
+var gates: Array = []              # [{s, pos, tan}]; gates[0] — финиш
+var boxes: Array = []              # точки коробок предметов
+var pads: Array = []               # [{pos, tan, s}]
+var ramps: Array = []              # [{s0, s1, h}]
+var obstacle_pts: Array = []       # [центр, радиус] — для ботов
+var mats := {}
+var body: StaticBody3D
+
+func build(track_id: String) -> void:
+	id = track_id
+	data = RaceData.track(track_id)
+	_mats()
+	_main_curve()
+	_short_curve()
+	body = StaticBody3D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	add_child(body)
+	_env()
+	_road()
+	_walls()
+	_ramps()
+	_pads()
+	_obstacles()
+	_gates()
+	_boxes()
+	_decor()
+
+# ---------------- кривые ----------------
+static func _cr(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, t: float) -> Vector3:
+	var t2 := t * t
+	var t3 := t2 * t
+	return 0.5 * ((2.0 * p1) + (-p0 + p2) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
+
+## точки кривой через опорные, примерно через STEP метров; ширина — тоже по кривой
+static func _sample(pts: Array, closed: bool) -> Array:
+	var cp: Array = []
+	for q in pts:
+		cp.append(Vector3(float(q[0]), float(q[2]) if q.size() > 2 else 0.0, float(q[1])))   # y здесь — ширина
+	var n := cp.size()
+	var out_p := PackedVector3Array()
+	var out_w := PackedFloat32Array()
+	var segs := n if closed else n - 1
+	for i in segs:
+		var p0: Vector3 = cp[(i - 1 + n) % n] if closed or i > 0 else cp[0]
+		var p1: Vector3 = cp[i]
+		var p2: Vector3 = cp[(i + 1) % n]
+		var p3: Vector3 = cp[(i + 2) % n] if closed or i + 2 < n else cp[n - 1]
+		var a := Vector3(p1.x, 0, p1.z)
+		var b := Vector3(p2.x, 0, p2.z)
+		var k: int = maxi(2, int(ceil(a.distance_to(b) / STEP)))
+		for j in k:
+			var c := _cr(p0, p1, p2, p3, float(j) / float(k))
+			out_p.append(Vector3(c.x, 0.0, c.z))
+			out_w.append(c.y)
+	if not closed:
+		var e: Vector3 = cp[n - 1]
+		out_p.append(Vector3(e.x, 0, e.z))
+		out_w.append(e.y)
+	return [out_p, out_w]
+
+func _main_curve() -> void:
+	var r := _sample(data["pts"], true)
+	P = r[0]
+	W = r[1]
+	var n := P.size()
+	S.resize(n)
+	T.resize(n)
+	var acc := 0.0
+	for i in n:
+		S[i] = acc
+		acc += P[i].distance_to(P[(i + 1) % n])
+		T[i] = (P[(i + 1) % n] - P[(i - 1 + n) % n]).normalized()
+	L = acc
+	start_s = S[nearest_main(_v(data["start"]))]
+
+func _short_curve() -> void:
+	if not data.has("shortcut"):
+		return
+	var sc: Dictionary = data["shortcut"]
+	short_w = float(sc["width"])
+	var pts: Array = []
+	for q in sc["pts"]:
+		pts.append([q[0], q[1], short_w])
+	var r := _sample(pts, false)
+	SP = r[0]
+	var n := SP.size()
+	SS.resize(n)
+	ST.resize(n)
+	var acc := 0.0
+	for i in n:
+		SS[i] = acc
+		if i + 1 < n:
+			acc += SP[i].distance_to(SP[i + 1])
+		ST[i] = (SP[mini(i + 1, n - 1)] - SP[maxi(i - 1, 0)]).normalized()
+	SL = acc
+	short_from = S[nearest_main(SP[0])]
+	short_to = S[nearest_main(SP[n - 1])]
+	var dt: Array = sc.get("ditch", [])
+	if dt.size() == 2:
+		ditch = Vector2(float(dt[0]) * SL, float(dt[1]) * SL)
+	plank = float(sc.get("plank", 3.0))
+
+static func _v(q: Array) -> Vector3:
+	return Vector3(float(q[0]), 0, float(q[1]))
+
+## ближайшая точка главной дороги (полный перебор — для постройки и возврата на трассу)
+func nearest_main(p: Vector3) -> int:
+	var best := 0
+	var bd := INF
+	for i in P.size():
+		var d := Vector2(P[i].x - p.x, P[i].z - p.z).length_squared()
+		if d < bd:
+			bd = d
+			best = i
+	return best
+
+func nearest_short(p: Vector3) -> int:
+	var best := 0
+	var bd := INF
+	for i in SP.size():
+		var d := Vector2(SP[i].x - p.x, SP[i].z - p.z).length_squared()
+		if d < bd:
+			bd = d
+			best = i
+	return best
+
+static func _local(pts: PackedVector3Array, p: Vector3, hint: int, win: int, closed: bool) -> int:
+	var n := pts.size()
+	var best := hint
+	var bd := INF
+	for k in range(-win, win + 1):
+		var i := hint + k
+		if closed:
+			i = posmod(i, n)
+		elif i < 0 or i >= n:
+			continue
+		var d := Vector2(pts[i].x - p.x, pts[i].z - p.z).length_squared()
+		if d < bd:
+			bd = d
+			best = i
+	return best
+
+## Где гонщик: h — его память о прошлом месте {i, si, short}. Возвращает путь s по главной дороге (на срезке —
+## пересчитанный), смещение lat (+ вправо), половину ширины half, касательную tan, на срезке ли short.
+func project(p: Vector3, h: Dictionary) -> Dictionary:
+	var i := _local(P, p, int(h.get("i", nearest_main(p))), 18, true)
+	var right_m: Vector3 = T[i].cross(Vector3.UP)
+	var lat_m := (p - P[i]).dot(right_m)
+	var half_m: float = W[i] * 0.5
+	var r := {"i": i, "s": S[i], "lat": lat_m, "half": half_m, "tan": T[i], "short": false, "si": int(h.get("si", 0)), "w": W[i]}
+	if SP.size() > 1:
+		var near_short: bool = bool(h.get("short", false)) or Vector2(p.x - SP[0].x, p.z - SP[0].z).length() < 25.0 or Vector2(p.x - SP[SP.size() - 1].x, p.z - SP[SP.size() - 1].z).length() < 25.0 or abs(lat_m) > half_m + SHOULDER + 1.0
+		if near_short:
+			var si := _local(SP, p, int(h.get("si", nearest_short(p))), 18, false)
+			if not bool(h.get("short", false)) and abs(lat_m) > half_m + SHOULDER + 1.0:
+				si = nearest_short(p)
+			var right_s: Vector3 = ST[si].cross(Vector3.UP)
+			var lat_s := (p - SP[si]).dot(right_s)
+			var d_s := Vector2(p.x - SP[si].x, p.z - SP[si].z).length()
+			var d_m := Vector2(p.x - P[i].x, p.z - P[i].z).length()
+			if d_s < d_m and abs(lat_s) < short_w * 0.5 + SHOULDER + 1.5:
+				var span := fposmod(short_to - short_from, L)
+				r = {"i": i, "s": fposmod(short_from + SS[si] / max(SL, 1.0) * span, L), "lat": lat_s, "half": short_w * 0.5, "tan": ST[si], "short": true, "si": si, "w": short_w, "ss": SS[si]}
+			r["si"] = si
+	return r
+
+## точка, касательная и ширина главной дороги на пути s
+func at_s(s: float) -> int:
+	s = fposmod(s, L)
+	var lo := 0
+	var hi := S.size() - 1
+	while lo < hi:
+		var m := (lo + hi + 1) >> 1
+		if S[m] <= s:
+			lo = m
+		else:
+			hi = m - 1
+	return lo
+
+func point(s: float) -> Vector3:
+	return P[at_s(s)]
+
+func tangent(s: float) -> Vector3:
+	return T[at_s(s)]
+
+func width(s: float) -> float:
+	return W[at_s(s)]
+
+## на сколько радиан поворачивает дорога на участке [s, s + ahead] — для ботов
+func turn_ahead(s: float, ahead: float) -> float:
+	var a := T[at_s(s)]
+	var b := T[at_s(s + ahead)]
+	return abs(atan2(a.cross(b).y, a.dot(b)))
+
+## точка срезки на её пути
+func short_point(ss: float) -> int:
+	ss = clampf(ss, 0.0, SL)
+	var lo := 0
+	var hi := SS.size() - 1
+	while lo < hi:
+		var m := (lo + hi + 1) >> 1
+		if SS[m] <= ss:
+			lo = m
+		else:
+			hi = m - 1
+	return lo
+
+## путь от финиша: 0..L
+func from_start(s: float) -> float:
+	return fposmod(s - start_s, L)
+
+## есть ли здесь пол (канава на срезке — нет, кроме мостика)
+func in_ditch(pr: Dictionary) -> bool:
+	return bool(pr["short"]) and float(pr.get("ss", -1.0)) > ditch.x and float(pr.get("ss", -1.0)) < ditch.y
+
+# ---------------- материалы и окружение ----------------
+func _mat(col: Color, rough := 0.9, emit := 0.0) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.roughness = rough
+	if emit > 0.0:
+		m.emission_enabled = true
+		m.emission = col
+		m.emission_energy_multiplier = emit
+	return m
+
+func _mats() -> void:
+	var asphalt := _mat(Color(0.13, 0.13, 0.145), 0.85)
+	var noise := FastNoiseLite.new()
+	noise.frequency = 0.08
+	var nt := NoiseTexture2D.new()
+	nt.noise = noise
+	nt.width = 256
+	nt.height = 256
+	nt.seamless = true
+	asphalt.albedo_texture = nt
+	asphalt.uv1_scale = Vector3(0.25, 0.25, 1)
+	mats["road"] = asphalt
+	mats["short"] = _mat(Color(0.3, 0.25, 0.19), 1.0)
+	mats["shoulder"] = _mat(Color(0.32, 0.27, 0.2), 1.0)
+	mats["ground"] = _mat(Color(0.2, 0.23, 0.17), 1.0)
+	mats["line"] = _mat(Color(0.92, 0.92, 0.88), 0.6)
+	mats["curb_r"] = _mat(Color(0.78, 0.12, 0.12), 0.7)
+	mats["curb_w"] = _mat(Color(0.92, 0.92, 0.9), 0.7)
+	mats["barrier"] = _mat(Color(0.62, 0.62, 0.6), 0.9)
+	mats["garage"] = _mat(Color(0.42, 0.36, 0.3), 0.9)
+	mats["garage2"] = _mat(Color(0.33, 0.38, 0.42), 0.9)
+	mats["rust"] = _mat(Color(0.5, 0.28, 0.16), 0.8)
+	mats["green"] = _mat(Color(0.16, 0.36, 0.22), 0.8)
+	mats["metal"] = _mat(Color(0.5, 0.52, 0.55), 0.45)
+	mats["pipe"] = _mat(Color(0.62, 0.45, 0.2), 0.6)
+	mats["wood"] = _mat(Color(0.45, 0.3, 0.17), 1.0)
+	mats["water"] = _mat(Color(0.08, 0.12, 0.13), 0.05)
+	var dm := _mat(Color(0.1, 0.22, 0.28), 0.03)
+	dm.metallic = 0.4
+	mats["ditch"] = dm
+	mats["panel"] = _mat(Color(0.55, 0.53, 0.5), 0.95)
+	mats["panel2"] = _mat(Color(0.45, 0.5, 0.56), 0.95)
+	mats["panel3"] = _mat(Color(0.62, 0.5, 0.48), 0.95)
+	mats["window"] = _mat(Color(1.0, 0.78, 0.45), 0.5, 1.6)
+	mats["window_off"] = _mat(Color(0.1, 0.11, 0.13), 0.4)
+	mats["pad"] = _mat(Color(1.0, 0.82, 0.2), 0.4, 2.2)
+	mats["red"] = _mat(Color(0.85, 0.1, 0.12), 0.6, 0.4)
+	mats["white"] = _mat(Color(0.95, 0.95, 0.95), 0.7)
+	mats["black"] = _mat(Color(0.05, 0.05, 0.06), 0.8)
+	mats["cone"] = _mat(Color(1.0, 0.45, 0.1), 0.6)
+	mats["lamp"] = _mat(Color(1.0, 0.85, 0.6), 0.4, 3.0)
+
+func _env() -> void:
+	var env := Environment.new()
+	var sky := Sky.new()
+	var sm := ProceduralSkyMaterial.new()
+	sm.sky_top_color = Color(0.2, 0.28, 0.48)
+	sm.sky_horizon_color = Color(0.98, 0.62, 0.4)
+	sm.ground_bottom_color = Color(0.12, 0.12, 0.14)
+	sm.ground_horizon_color = Color(0.55, 0.5, 0.52)
+	sky.sky_material = sm
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.9
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 1.05
+	env.glow_enabled = true
+	env.glow_intensity = 0.5
+	env.glow_hdr_threshold = 1.0
+	env.fog_enabled = true
+	env.fog_light_color = Color(0.52, 0.55, 0.64)
+	env.fog_density = 0.0032
+	var we := WorldEnvironment.new()
+	we.environment = env
+	add_child(we)
+	var sun := DirectionalLight3D.new()
+	sun.light_color = Color(1.0, 0.8, 0.62)
+	sun.light_energy = 1.25
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 70.0
+	sun.rotation = Vector3(deg_to_rad(-38), deg_to_rad(-60), 0)
+	add_child(sun)
+	# земля вокруг (только вид: ездить по ней нельзя — стены)
+	var g := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(700, 700)
+	g.mesh = pm
+	g.position = Vector3(40, -0.06, 60)
+	g.material_override = mats["ground"]
+	add_child(g)
+
+# ---------------- дорога ----------------
+## лента вдоль кривой: от lat_a до lat_b (смещение поперёк), skip — какие участки не строить
+func _ribbon(pts: PackedVector3Array, tans: PackedVector3Array, widths, closed: bool, a_k: float, a_add: float, b_k: float, b_add: float, y: float, mat: Material, collide: bool, skip := Callable()) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var faces := PackedVector3Array()
+	var n := pts.size()
+	var segs := n if closed else n - 1
+	var dist := 0.0
+	for i in segs:
+		var j := (i + 1) % n
+		if skip.is_valid() and skip.call(i):
+			dist += pts[i].distance_to(pts[j])
+			continue
+		var wi: float = widths[i] if widths is PackedFloat32Array else float(widths)
+		var wj: float = widths[j] if widths is PackedFloat32Array else float(widths)
+		var ri: Vector3 = tans[i].cross(Vector3.UP)
+		var rj: Vector3 = tans[j].cross(Vector3.UP)
+		var a0: Vector3 = pts[i] + ri * (wi * 0.5 * a_k + a_add) + Vector3(0, y, 0)
+		var b0: Vector3 = pts[i] + ri * (wi * 0.5 * b_k + b_add) + Vector3(0, y, 0)
+		var a1: Vector3 = pts[j] + rj * (wj * 0.5 * a_k + a_add) + Vector3(0, y, 0)
+		var b1: Vector3 = pts[j] + rj * (wj * 0.5 * b_k + b_add) + Vector3(0, y, 0)
+		var d1 := dist + pts[i].distance_to(pts[j])
+		st.set_normal(Vector3.UP)
+		for v in [[a0, Vector2(0, dist)], [b0, Vector2(1, dist)], [b1, Vector2(1, d1)], [a0, Vector2(0, dist)], [b1, Vector2(1, d1)], [a1, Vector2(0, d1)]]:
+			st.set_uv(v[1] * Vector2(wi, 1.0) * 0.25)
+			st.add_vertex(v[0])
+		faces.append_array(PackedVector3Array([a0, b1, b0, a0, a1, b1]))
+		dist = d1
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	add_child(mi)
+	if collide and faces.size() > 0:
+		var cs := CollisionShape3D.new()
+		var sh := ConcavePolygonShape3D.new()
+		sh.set_faces(faces)
+		sh.backface_collision = true
+		cs.shape = sh
+		body.add_child(cs)
+
+func _road() -> void:
+	# главная дорога, обочины, бордюры, разметка
+	_ribbon(P, T, W, true, -1.0, 0.0, 1.0, 0.0, 0.0, mats["road"], true)
+	_ribbon(P, T, W, true, -1.0, -SHOULDER, -1.0, 0.0, -0.01, mats["shoulder"], true)
+	_ribbon(P, T, W, true, 1.0, 0.0, 1.0, SHOULDER, -0.01, mats["shoulder"], true)
+	for side in [-1.0, 1.0]:
+		_ribbon(P, T, W, true, side, -0.45 if side > 0 else 0.0, side, 0.0 if side > 0 else 0.45, 0.012, mats["curb_r"], false, func(i): return (i / 3) % 2 == 0)
+		_ribbon(P, T, W, true, side, -0.45 if side > 0 else 0.0, side, 0.0 if side > 0 else 0.45, 0.012, mats["curb_w"], false, func(i): return (i / 3) % 2 == 1)
+	_ribbon(P, T, W, true, 0.0, -0.12, 0.0, 0.12, 0.01, mats["line"], false, func(i): return (i / 3) % 2 == 0)
+	# финишная черта — шашки
+	var fi := at_s(start_s)
+	for k in 14:
+		for row in 2:
+			var q := MeshInstance3D.new()
+			var pm := PlaneMesh.new()
+			pm.size = Vector2(W[fi] / 14.0, 0.9)
+			q.mesh = pm
+			q.material_override = mats["white"] if (k + row) % 2 == 0 else mats["black"]
+			var right: Vector3 = T[fi].cross(Vector3.UP)
+			q.position = P[fi] + right * (-W[fi] * 0.5 + (k + 0.5) * W[fi] / 14.0) + T[fi] * (row - 0.5) * 0.9 + Vector3(0, 0.02, 0)
+			q.rotation.y = atan2(T[fi].x, T[fi].z)
+			add_child(q)
+	if SP.size() > 1:
+		var skip_ditch := func(i): return SS[i] > ditch.x and SS[i] < ditch.y
+		_ribbon(SP, ST, short_w, false, -1.0, 0.0, 1.0, 0.0, 0.015, mats["short"], true, skip_ditch)
+		_ribbon(SP, ST, short_w, false, -1.0, -SHOULDER, -1.0, 0.0, 0.005, mats["shoulder"], true, skip_ditch)
+		_ribbon(SP, ST, short_w, false, 1.0, 0.0, 1.0, SHOULDER, 0.005, mats["shoulder"], true, skip_ditch)
+		# канава: вода внизу, мостик поперёк
+		var i0 := short_point(ditch.x)
+		var i1 := short_point(ditch.y)
+		var mid: Vector3 = (SP[i0] + SP[i1]) * 0.5
+		var ln := SP[i0].distance_to(SP[i1])
+		var yaw := atan2(ST[(i0 + i1) / 2].x, ST[(i0 + i1) / 2].z)
+		# вода в канаве — у самой поверхности: её видно, а дна под ней нет — кто не попал на мостик, тонет
+		var water := _box(mid + Vector3(0, -0.07, 0), Vector3(short_w + SHOULDER * 2.0 + 1.0, 0.04, ln + 0.5), yaw, mats["ditch"], false)
+		water.name = "Ditch"
+		_box(mid + Vector3(0, -0.12, 0), Vector3(plank, 0.24, ln + 1.2), yaw, mats["wood"], true)
+		for sd in [-1.0, 1.0]:
+			var right2: Vector3 = ST[(i0 + i1) / 2].cross(Vector3.UP)
+			_box(mid + right2 * sd * (short_w * 0.5 + SHOULDER) + Vector3(0, -0.8, 0), Vector3(0.4, 1.6, ln + 0.6), yaw, mats["black"], false)
+		var sign := Label3D.new()
+		sign.text = "ОСТОРОЖНО: КАНАВА"
+		sign.font_size = 44
+		sign.pixel_size = 0.008
+		sign.modulate = Color(1.0, 0.85, 0.2)
+		sign.outline_size = 14
+		var si := short_point(ditch.x - 10.0)
+		sign.position = SP[si] + ST[si].cross(Vector3.UP) * (short_w * 0.5 + SHOULDER + 0.6) + Vector3(0, 1.8, 0)
+		sign.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+		add_child(sign)
+
+## стена или блок: видимый ящик и (по желанию) столкновение
+func _box(pos: Vector3, size: Vector3, yaw: float, mat: Material, collide: bool, vis := true) -> MeshInstance3D:
+	var mi: MeshInstance3D = null
+	if vis:
+		mi = MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = size
+		mi.mesh = bm
+		mi.material_override = mat
+		mi.position = pos
+		mi.rotation.y = yaw
+		add_child(mi)
+	if collide:
+		var cs := CollisionShape3D.new()
+		var sh := BoxShape3D.new()
+		sh.size = size
+		cs.shape = sh
+		cs.position = pos
+		cs.rotation.y = yaw
+		body.add_child(cs)
+	return mi
+
+# ---------------- стены ----------------
+## внутри ли точка другой дороги (там стену не ставим — развилка и слияние срезки)
+func _inside_other(p: Vector3, other_short: bool) -> bool:
+	if other_short:
+		if SP.size() < 2:
+			return false
+		var si := nearest_short(p)
+		var lat := absf((p - SP[si]).dot(ST[si].cross(Vector3.UP)))
+		var along := (p - SP[si]).dot(ST[si])
+		return lat < short_w * 0.5 + SHOULDER + 0.8 and absf(along) < 2.5
+	var i := nearest_main(p)
+	return absf((p - P[i]).dot(T[i].cross(Vector3.UP))) < W[i] * 0.5 + SHOULDER + 0.8
+
+func _walls() -> void:
+	var mm_pts: Array = []             # [позиция, поворот] видимых бетонных блоков
+	_wall_line(P, T, W, true, false, mm_pts)
+	if SP.size() > 1:
+		_wall_line(SP, ST, PackedFloat32Array([short_w]), false, true, mm_pts)
+	# бетонные блоки — одним MultiMesh
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.55, 0.9, 2.05)
+	mm.mesh = bm
+	mm.instance_count = mm_pts.size()
+	for k in mm_pts.size():
+		var b := Basis(Vector3.UP, float(mm_pts[k][1]))
+		mm.set_instance_transform(k, Transform3D(b, mm_pts[k][0] + Vector3(0, 0.45, 0)))
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = mats["barrier"]
+	add_child(mmi)
+
+func _wall_line(pts: PackedVector3Array, tans: PackedVector3Array, widths: PackedFloat32Array, closed: bool, is_short: bool, mm_pts: Array) -> void:
+	var n := pts.size()
+	var stride := 2
+	var i := 0
+	while i < (n if closed else n - 1):
+		var j := mini(i + stride, n - 1) if not closed else (i + stride) % n
+		var wi: float = widths[i] if widths.size() > 1 else widths[0]
+		for side in [-1.0, 1.0]:
+			var ri: Vector3 = tans[i].cross(Vector3.UP)
+			var rj: Vector3 = tans[j].cross(Vector3.UP)
+			var wj: float = widths[j] if widths.size() > 1 else widths[0]
+			var a: Vector3 = pts[i] + ri * side * (wi * 0.5 + SHOULDER + 0.3)
+			var b: Vector3 = pts[j] + rj * side * (wj * 0.5 + SHOULDER + 0.3)
+			var mid := (a + b) * 0.5
+			if _inside_other(mid, not is_short):
+				continue
+			if is_short and (i < 3 or i > n - 5):
+				continue                       # концы срезки открыты в главную дорогу
+			var ln := a.distance_to(b) + 0.15
+			var yaw := atan2(b.x - a.x, b.z - a.z)
+			_box(mid + Vector3(0, WALL_H * 0.5, 0), Vector3(0.6, WALL_H, ln), yaw, null, true, false)
+			mm_pts.append([mid, yaw])
+		i += stride
+
+# ---------------- трамплины, ускорители, препятствия ----------------
+func _ramps() -> void:
+	for r in data.get("ramps", []):
+		var c := nearest_main(_v(r["at"]))
+		var s0: float = S[c] - float(r["len"]) * 0.5
+		var s1: float = s0 + float(r["len"])
+		var h: float = float(r["h"])
+		var i0 := at_s(s0)
+		var i1 := at_s(s1)
+		var w: float = W[c] + SHOULDER * 2.0
+		var t0: Vector3 = T[i0]
+		var right: Vector3 = T[c].cross(Vector3.UP)
+		var p0: Vector3 = P[i0]
+		var p1: Vector3 = P[i1]
+		var pts := PackedVector3Array([
+			p0 - right * w * 0.5, p0 + right * w * 0.5,
+			p1 - right * w * 0.5, p1 + right * w * 0.5,
+			p1 - right * w * 0.5 + Vector3(0, h, 0), p1 + right * w * 0.5 + Vector3(0, h, 0),
+		])
+		var cs := CollisionShape3D.new()
+		var sh := ConvexPolygonShape3D.new()
+		sh.points = pts
+		cs.shape = sh
+		body.add_child(cs)
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for tri in [[0, 4, 1], [1, 4, 5], [2, 3, 4], [3, 5, 4], [0, 2, 4], [1, 5, 3]]:
+			for k in tri:
+				st.add_vertex(pts[k])
+		st.generate_normals()
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		mi.material_override = mats["wood"]
+		add_child(mi)
+		# полосы на трамплине
+		for k in 5:
+			var u := (k + 0.5) / 5.0
+			var q := _box(p0.lerp(p1, u) + Vector3(0, h * u + 0.03, 0), Vector3(w * 0.9, 0.05, 0.35), atan2(t0.x, t0.z), mats["curb_r"] if k % 2 == 0 else mats["white"], false)
+			q.rotation.x = -atan2(h, float(r["len"]))
+		ramps.append({"s0": s0, "s1": s1, "h": h})
+		var lab := Label3D.new()
+		lab.text = "ТРАМПЛИН"
+		lab.font_size = 110
+		lab.pixel_size = 0.01
+		lab.modulate = Color(1, 0.9, 0.3)
+		lab.outline_size = 20
+		lab.position = P[at_s(s0 - 10.0)] + Vector3(0, 3.2, 0)
+		lab.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+		add_child(lab)
+
+func _pads() -> void:
+	for q in data.get("pads", []):
+		var i := nearest_main(_v(q))
+		var yaw := atan2(T[i].x, T[i].z)
+		for k in 3:
+			var ch := MeshInstance3D.new()
+			var pm := PrismMesh.new()
+			pm.size = Vector3(2.2, 1.1, 0.06)
+			ch.mesh = pm
+			ch.material_override = mats["pad"]
+			ch.position = P[i] + T[i] * (k - 1) * 1.3 + Vector3(0, 0.03, 0)
+			ch.rotation = Vector3(-PI * 0.5, yaw, 0)
+			add_child(ch)
+		pads.append({"pos": P[i], "tan": T[i], "s": S[i]})
+
+func _obstacles() -> void:
+	for o in data.get("obstacles", []):
+		var i := nearest_main(_v(o[0]))
+		var right: Vector3 = T[i].cross(Vector3.UP)
+		var c: Vector3 = P[i] + right * float(o[1]) * W[i] * 0.5
+		if String(o[2]) != "cones":
+			obstacle_pts.append([c, 1.9])
+		match String(o[2]):
+			"barrels":
+				for k in 3:
+					var p := c + right * (k - 1) * 1.0 + T[i] * (k % 2) * 0.8
+					_cyl(p, 0.42, 1.1, mats["rust"] if k != 1 else mats["green"], true)
+			"tires":
+				for k in 3:
+					for h in 2:
+						var tm := MeshInstance3D.new()
+						var tor := TorusMesh.new()
+						tor.inner_radius = 0.25
+						tor.outer_radius = 0.55
+						tm.mesh = tor
+						tm.material_override = mats["black"]
+						tm.position = c + right * (k - 1) * 1.15 + Vector3(0, 0.15 + h * 0.3, 0)
+						add_child(tm)
+					var cs := CollisionShape3D.new()
+					var sh := CylinderShape3D.new()
+					sh.radius = 0.55
+					sh.height = 0.6
+					cs.shape = sh
+					cs.position = c + right * (k - 1) * 1.15 + Vector3(0, 0.3, 0)
+					body.add_child(cs)
+			"cones":
+				for k in 4:
+					var cm := MeshInstance3D.new()
+					var cyl := CylinderMesh.new()
+					cyl.top_radius = 0.03
+					cyl.bottom_radius = 0.22
+					cyl.height = 0.6
+					cm.mesh = cyl
+					cm.material_override = mats["cone"]
+					cm.position = c + right * (k - 1.5) * 1.6 + Vector3(0, 0.3, 0)
+					add_child(cm)
+
+func _cyl(p: Vector3, r: float, h: float, mat: Material, collide: bool) -> void:
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = r
+	cm.bottom_radius = r
+	cm.height = h
+	mi.mesh = cm
+	mi.material_override = mat
+	mi.position = p + Vector3(0, h * 0.5, 0)
+	add_child(mi)
+	if collide:
+		var cs := CollisionShape3D.new()
+		var sh := CylinderShape3D.new()
+		sh.radius = r
+		sh.height = h
+		cs.shape = sh
+		cs.position = p + Vector3(0, h * 0.5, 0)
+		body.add_child(cs)
+
+# ---------------- контрольные точки, коробки ----------------
+func _gates() -> void:
+	var n: int = int(data.get("gates", 10))
+	var cands: Array = []
+	for k in n * 3:
+		var s := fposmod(start_s + L * float(k) / float(n * 3), L)
+		cands.append(s)
+	# контрольные точки не ставим на участке, который срезка обходит: обе дороги должны засчитываться одинаково
+	var span := fposmod(short_to - short_from, L) if SP.size() > 1 else 0.0
+	gates = []
+	for k in n:
+		var want := fposmod(start_s + L * float(k) / float(n), L)
+		var s := want
+		if span > 0.0:
+			var rel := fposmod(s - short_from, L)
+			if rel > -4.0 and rel < span + 4.0:
+				s = fposmod(short_from - 6.0, L) if rel < span * 0.5 else fposmod(short_to + 6.0, L)
+		if k == 0:
+			s = start_s
+		var i := at_s(s)
+		gates.append({"s": S[i], "pos": P[i], "tan": T[i], "w": W[i]})
+	gates.sort_custom(func(a, b): return from_start(a["s"]) < from_start(b["s"]))
+	# арка над финишем
+	var g0: Dictionary = gates[0]
+	var right: Vector3 = (g0["tan"] as Vector3).cross(Vector3.UP)
+	var yaw := atan2(g0["tan"].x, g0["tan"].z)
+	for sd in [-1.0, 1.0]:
+		_box(g0["pos"] + right * sd * (float(g0["w"]) * 0.5 + SHOULDER + 0.6) + Vector3(0, 3.0, 0), Vector3(0.5, 6.0, 0.5), yaw, mats["metal"], true)
+	_box(g0["pos"] + Vector3(0, 6.0, 0), Vector3(float(g0["w"]) + SHOULDER * 2.0 + 1.8, 1.3, 0.4), yaw, mats["red"], false)
+	var ban := Label3D.new()
+	ban.text = String(data["name"])
+	ban.font_size = 120
+	ban.pixel_size = 0.009
+	ban.outline_size = 16
+	ban.double_sided = false
+	ban.position = g0["pos"] + Vector3(0, 6.0, 0) - (g0["tan"] as Vector3) * 0.25
+	ban.rotation.y = yaw + PI
+	add_child(ban)
+	var ban2: Label3D = ban.duplicate()
+	ban2.position = g0["pos"] + Vector3(0, 6.0, 0) + (g0["tan"] as Vector3) * 0.25
+	ban2.rotation.y = yaw
+	add_child(ban2)
+
+func _boxes() -> void:
+	boxes = []
+	for q in data.get("items", []):
+		var i := nearest_main(_v(q))
+		var right: Vector3 = T[i].cross(Vector3.UP)
+		for k in 5:
+			boxes.append(P[i] + right * (k - 2) * (W[i] * 0.18) + Vector3(0, 0.9, 0))
+
+## стартовые места: два ряда за финишной чертой
+func grid(k: int) -> Transform3D:
+	var s := start_s - 5.0 - float(k / 2) * 5.0
+	var i := at_s(s)
+	var right: Vector3 = T[i].cross(Vector3.UP)
+	var p: Vector3 = P[i] + right * (-2.4 if k % 2 == 0 else 2.4) + T[i] * (0.0 if k % 2 == 0 else -2.0)
+	return Transform3D(Basis(Vector3.UP, atan2(T[i].x, T[i].z)), p + Vector3(0, 0.05, 0))
+
+## куда вернуть упавшего: на контрольную точку, по центру, носом по трассе
+func respawn(gate_k: int) -> Transform3D:
+	var g: Dictionary = gates[posmod(gate_k, gates.size())]
+	var t: Vector3 = g["tan"]
+	return Transform3D(Basis(Vector3.UP, atan2(t.x, t.z)), (g["pos"] as Vector3) + Vector3(0, 0.3, 0))
+
+# ---------------- оформление ----------------
+func _zone_of(i: int) -> String:
+	for z in data.get("zones", []):
+		var a := S[nearest_main(_v(z["from"]))]
+		var b := S[nearest_main(_v(z["to"]))]
+		var span := fposmod(b - a, L)
+		if fposmod(S[i] - a, L) <= span:
+			return String(z["kind"])
+	return "yard"
+
+## место свободно от дорог: дальше margin от края главной дороги (любого её участка) и срезки
+func _free(p: Vector3, margin: float) -> bool:
+	var i := nearest_main(p)
+	if Vector2(p.x - P[i].x, p.z - P[i].z).length() < W[i] * 0.5 + SHOULDER + margin:
+		return false
+	if SP.size() > 1:
+		var si := nearest_short(p)
+		if Vector2(p.x - SP[si].x, p.z - SP[si].z).length() < short_w * 0.5 + SHOULDER + margin:
+			return false
+	return true
+
+func _decor() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(id)
+	var graf: Array = data.get("graffiti", [])
+	var gk := 0
+	var i := 0
+	var n := P.size()
+	while i < n:
+		var kind := _zone_of(i)
+		var right: Vector3 = T[i].cross(Vector3.UP)
+		var yaw := atan2(T[i].x, T[i].z)
+		for side in [-1.0, 1.0]:
+			var edge: Vector3 = P[i] + right * side * (W[i] * 0.5 + SHOULDER + 1.4)
+			var out: Vector3 = right * side
+			if not _free(edge + out * 2.5, 0.8) or not _free(edge + out * 5.0, 0.8):
+				continue
+			match kind:
+				"garages":
+					var g := _box(edge + out * 2.6 + Vector3(0, 1.4, 0), Vector3(5.0, 2.8, 3.6), yaw, mats["garage"] if (i / 4) % 2 == 0 else mats["garage2"], true)
+					var door := _box(edge + out * 0.78 + Vector3(0, 1.1, 0), Vector3(0.06, 2.0, 3.0), yaw + PI * 0.5, mats["rust"], false)
+					door.rotation.y = yaw
+					if g != null and rng.randf() < 0.45 and graf.size() > 0:
+						_graffiti(edge + out * 0.74 + Vector3(0, 1.4, 0), yaw + (PI * 0.5 if side > 0 else -PI * 0.5), String(graf[gk % graf.size()]), rng)
+						gk += 1
+				"industrial":
+					if (i / 8) % 2 == 0:
+						var tank_p: Vector3 = edge + out * 6.0
+						if _free(tank_p, 2.5):
+							_cyl(tank_p, 2.2, 6.5, mats["metal"], true)
+					else:
+						var pp := _box(edge + out * 3.0 + Vector3(0, 3.6, 0), Vector3(0.7, 0.7, 8.0), yaw, mats["pipe"], false)
+						pp.rotation.y = yaw
+						_box(edge + out * 3.0 + Vector3(0, 1.8, 0), Vector3(0.3, 3.6, 0.3), yaw, mats["metal"], false)
+				"dump":
+					if rng.randf() < 0.6:
+						_box(edge + out * 2.0 + Vector3(0, 0.7, 0), Vector3(1.8, 1.4, 1.2), yaw + rng.randf_range(-0.3, 0.3), mats["green"], false)
+					if rng.randf() < 0.4:
+						_box(edge + out * 4.0 + Vector3(0, 0.4, 0), Vector3(2.5, 0.8, 2.0), rng.randf() * TAU, mats["black"], false)
+				"fence":
+					var f := _box(edge + out * 0.6 + Vector3(0, 1.1, 0), Vector3(0.08, 2.2, 8.0), yaw, mats["wood"], false)
+					f.rotation.y = yaw
+					if rng.randf() < 0.3 and graf.size() > 0:
+						_graffiti(edge + out * 0.5 + Vector3(0, 1.3, 0), yaw + (PI * 0.5 if side > 0 else -PI * 0.5), String(graf[gk % graf.size()]), rng)
+						gk += 1
+				_:
+					if (i / 6) % 3 == 0:
+						_lamp(edge + out * 0.8, yaw)
+			# дома вдали: хрущёвки с окнами
+			if (i / 24) % 2 == 0 and i % 24 == 0:
+				var hp: Vector3 = P[i] + right * side * (W[i] * 0.5 + 26.0)
+				if _free(hp, 17.0):
+					_house(hp, yaw, rng)
+		i += 8
+	# лужи на обочинах
+	for k in 10:
+		var j := rng.randi_range(0, n - 1)
+		var right2: Vector3 = T[j].cross(Vector3.UP)
+		var pu := MeshInstance3D.new()
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(rng.randf_range(1.5, 3.0), rng.randf_range(2.0, 4.0))
+		pu.mesh = pm
+		pu.material_override = mats["water"]
+		pu.position = P[j] + right2 * (W[j] * 0.5 + SHOULDER * 0.5) * (1.0 if k % 2 == 0 else -1.0) + Vector3(0, 0.02, 0)
+		pu.rotation.y = rng.randf() * TAU
+		add_child(pu)
+	# лестница-трамплин у гаражей и надпись трассы у старта
+	var sl := Label3D.new()
+	sl.text = "ПЫЛЬНЫЙ ЗАЕЗД"
+	sl.font_size = 220
+	sl.pixel_size = 0.02
+	sl.modulate = Color(0.95, 0.2, 0.2)
+	sl.outline_size = 30
+	sl.position = Vector3(30, 9, -30)
+	add_child(sl)
+
+func _graffiti(p: Vector3, yaw: float, text: String, rng: RandomNumberGenerator) -> void:
+	var l := Label3D.new()
+	l.text = text
+	l.font_size = 90
+	l.pixel_size = 0.01
+	l.outline_size = 14
+	l.modulate = [Color(1, 0.3, 0.3), Color(0.4, 0.9, 1.0), Color(1.0, 0.85, 0.2), Color(0.9, 0.9, 0.9), Color(0.6, 1.0, 0.5)][rng.randi() % 5]
+	l.position = p
+	l.rotation = Vector3(0, yaw, rng.randf_range(-0.12, 0.12))
+	l.double_sided = false
+	add_child(l)
+
+func _lamp(p: Vector3, yaw: float) -> void:
+	_box(p + Vector3(0, 2.5, 0), Vector3(0.18, 5.0, 0.18), yaw, mats["metal"], false)
+	_box(p + Vector3(0, 5.0, 0), Vector3(0.5, 0.2, 0.9), yaw, mats["lamp"], false)
+
+func _house(p: Vector3, yaw: float, rng: RandomNumberGenerator) -> void:
+	var w := rng.randf_range(18.0, 30.0)
+	var h := rng.randf_range(12.0, 16.0)
+	_box(p + Vector3(0, h * 0.5, 0), Vector3(10.0, h, w), yaw, [mats["panel"], mats["panel2"], mats["panel3"]][rng.randi() % 3], true)
+	for fl in 5:
+		for k in int(w / 3.0):
+			if rng.randf() < 0.5:
+				continue
+			var right := Vector3(sin(yaw), 0, cos(yaw))
+			var q := _box(p + right * (-w * 0.5 + 1.5 + k * 3.0) + Vector3(0, 2.0 + fl * 2.7, 0), Vector3(10.1, 1.1, 1.2), yaw, mats["window"] if rng.randf() < 0.35 else mats["window_off"], false)
+			q.position.y = 2.0 + fl * 2.7
