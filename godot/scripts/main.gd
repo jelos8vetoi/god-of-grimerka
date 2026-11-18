@@ -192,6 +192,11 @@ func _ready() -> void:
 			ps.seq = Array(v.slice(2))
 			add_child(ps)
 			return
+		if arg.begins_with("--propsheet="):
+			var pr = preload("res://scripts/propsheet.gd").new()
+			pr.out = arg.substr(12)
+			add_child(pr)
+			return
 		if arg.begins_with("--animcheck="):
 			var ac = preload("res://scripts/animcheck.gd").new()
 			ac.out = arg.substr(12)
