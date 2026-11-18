@@ -157,6 +157,7 @@ var t := 0.0
 var modes: ModeSelect          # экран «ВЫБОР РЕЖИМА» (PLAY)
 var main_only: Array = []      # что видно только на главном списке: логотип, список, герои, подсказки — гаснет на экране режимов
 var panel_back := Callable()   # Esc на открытом экране: куда вернуться (пусто — просто закрыть)
+var capture := Callable()      # ждём нажатия клавиши (переназначение гоночных клавиш): получит событие
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -661,17 +662,29 @@ func open_mode(id: String) -> void:
 		"race":
 			open_race()
 
-## Гонки на пылесосах подключены к меню (race_menu.gd). Пока нет — экран режима честно говорит, что их ещё нет.
+## Гонки на пылесосах: меню гонок — race_menu.gd (RaceMenu), гонка — race.gd через main.cinematic_race
 func race_ready() -> bool:
-	return false
+	return true
 
 func race_status() -> String:
-	return "Режим ещё в разработке и выйдет отдельным обновлением."
+	return ""
 
-func open_race() -> void:
-	_open("VACUUM RACING", ["Гонки на пылесосах ТЯГА-812 ещё не готовы.", race_status(),
-		"Когда режим выйдет, здесь появятся одиночная гонка против соперников и заезд на время."],
-		[["НАЗАД", _close]])
+func open_race(start := 2) -> void:
+	RaceMenu.open(self, start)
+
+## Сетевая гонка: пока не подключена — честный экран статуса, без кнопок-пустышек
+func open_online() -> void:
+	_open("ONLINE RACE", ["Сетевая гонка с друзьями ещё в разработке и выйдет отдельным обновлением.",
+		"Сейчас можно сыграть SINGLE RACE против пяти соперников или TIME TRIAL на рекорд."], [["НАЗАД", func(): open_race(4)]])
+	panel_back = func(): open_race(4)
+
+## Гонка: тот же уход меню, что у других режимов, затем main.cinematic_race
+func launch_race(cfg: Dictionary) -> void:
+	if launching:
+		return
+	_close()
+	await _launch_fx()
+	main.cinematic_race(cfg)
 
 ## STORY MODE: продолжить, начать заново, загрузить — те же функции, что были в главном списке
 func _open_story() -> void:
@@ -885,6 +898,12 @@ func _open_extras() -> void:
 # ---------------- ввод и жизнь ----------------
 func _unhandled_input(e: InputEvent) -> void:
 	if launching:
+		return
+	if capture.is_valid() and e is InputEventKey and e.pressed and not e.echo:
+		var c := capture
+		capture = Callable()
+		c.call(e)
+		get_viewport().set_input_as_handled()
 		return
 	var k := 0
 	if e is InputEventKey:

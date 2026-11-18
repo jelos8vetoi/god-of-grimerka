@@ -11,7 +11,7 @@ GOD OF GRIMERKA — уже не только сюжетный экшен: в и�
 ├── PLAY              — «ВЫБОР РЕЖИМА» (mode_select.gd)
 │   ├── 01 STORY MODE      → CONTINUE · NEW GAME · LOAD GAME · НАЗАД
 │   ├── 02 TRAINING ARENA  → прежний экран выбора героя и стиля (menu._open_training)
-│   └── 03 VACUUM RACING   → меню гонок (menu.open_race)
+│   └── 03 VACUUM RACING   → меню гонок (menu.open_race → RaceMenu, docs/VACUUM_RACING.md)
 ├── SETTINGS
 ├── EXTRAS
 └── EXIT
@@ -33,7 +33,7 @@ GOD OF GRIMERKA — уже не только сюжетный экшен: в и�
 | Композиции режимов | `ModeSelect._build_art`, `_scene_training`, `_scene_race` |
 | Гонщик на пылесосе (вид) | `race_visual.gd` (`RaceVisual`) — тот же вид, что будет у участников гонки |
 | Возврат по Esc на экранах | `menu.panel_back` (NEW GAME и LOAD GAME возвращают на экран сюжета) |
-| Готов ли гоночный режим | `menu.race_ready()`; пока `false` — карточка «СКОРО» и экран со статусом и одной кнопкой «НАЗАД» |
+| Гоночный режим | `menu.race_ready()` → `true`: карточка «ДОСТУПНО», меню гонок — `race_menu.gd`; ONLINE RACE — `menu.open_online()` |
 
 Новый режим — строка в `ModeSelect.MODES`, композиция в `_build_art` и ветка в `menu.open_mode`.
 
@@ -72,6 +72,6 @@ $G --path godot --resolution 1280x720 -- --modecheck=<папка>
 
 `modecheck.gd` идёт как игрок: главный список (клавиши и крестовина), CONTINUE, PLAY, все три режима (клавиши,
 наведение и клик мышью, A и B геймпада), STORY MODE (подтверждение NEW GAME с «ОТМЕНОЙ» по умолчанию, LOAD GAME,
-настоящий запуск LOAD GAME и NEW GAME с возвратом сохранения), запуск арены, статус гонок, назад по Esc и по
+настоящий запуск LOAD GAME и NEW GAME с возвратом сохранения), запуск арены, вход в меню гонок, назад по Esc и по
 «◀ НАЗАД», SETTINGS, EXTRAS, окна 1920×1080, 1024×768, 2560×1080, 1152×648 (карточки и описание в кадре),
 сохранение байт в байт как до проверки и последним — EXIT. Итог — «MODECHECK ok». Снимки — в папке.

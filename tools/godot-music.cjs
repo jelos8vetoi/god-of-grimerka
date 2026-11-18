@@ -162,6 +162,7 @@ const LOCS = {
   server: { bpm: 128, root: N.G - 12, scale: 'minor', prog: [0, 0, 3, 5], seed: 87, pad: 'dark', lead: 'pluck', drums: 'four', bass: 'acid', arp: 1, dens: .4, rev: .25, lo: 1 },        // ботоферма: механичное техно
   chart: { bpm: 150, root: N.C, scale: 'major', prog: [0, 4, 5, 3], seed: 98, pad: 'saw', lead: 'saw', drums: 'stomp', bass: 'off', dens: .55, rev: .4, lo: 1 },                       // чарты: победный стадионный бит
   core: { bpm: 100, root: N.E - 12, scale: 'phryg', prog: [0, 1, 0, 5], seed: 109, pad: 'choir', lead: 'bell', drums: 'ticks', bass: 'sub', dens: .3, rev: .55, size: 1.8, lo: 1 },       // ядро: холодный минимал, хор
+  race: { bpm: 168, root: N.A - 12, scale: 'minor', prog: [0, 5, 3, 4], seed: 131, pad: 'saw', lead: 'pluck', drums: 'hyper', bass: '808', arp: 2, dens: .6, rev: .25, dly: .2, lo: 1 }, // гонки на пылесосах: быстрый драйв, тот же лад, что в Томске
 };
 const BOSSES = {
   courier: { bpm: 142, root: N.A - 12, scale: 'harm', prog: [0, 0, 5, 4], seed: 201, pad: 'dark', lead: 'bell', drums: 'drill', bass: '808', dens: .5, rev: .3, lo: 1 },                 // Лил Дрей: сухой дрилл

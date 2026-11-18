@@ -23,6 +23,8 @@ var uiqa := ""              # --uiqa=<папка>: сквозная провер
 var soundcheck := ""        # --soundcheck=<папка>: звук как у игрока — меню, кампания, арена (scripts/soundcheck.gd)
 var trainingcheck := ""     # --trainingcheck=<папка>: тренировочная арена из меню (scripts/trainingcheck.gd)
 var modecheck := ""         # --modecheck=<папка>: главное меню и экран выбора режима (scripts/modecheck.gd)
+var racecheck := ""         # --racecheck=<папка>: гонки на пылесосах из меню (scripts/racecheck.gd)
+var race: Node              # идущая гонка (race.gd) или null
 var onechapter := false     # --onechapter: и в проверках только доступные игроку главы (проверка концовки первой главы)
 var launcher := ""          # --launcher=<путь>: игру запустил лаунчер, обновление — через него
 var ipodpause := false      # вместе с --ipodcheck: меню паузы и режим наушников (--pause)
@@ -79,6 +81,7 @@ func _ready() -> void:
 	var js := InputEventJoypadButton.new()
 	js.button_index = JOY_BUTTON_RIGHT_STICK            # геймпад: нажатие правого стика — захват
 	InputMap.action_add_event("lock", js)
+	RaceSave.setup_actions()           # гоночные действия race_* — свои, кампанию не трогают
 	font = load("res://assets/fonts/RussoOne-Regular.ttf")
 	Opts.apply(get_window())
 	# отдельная шина для голосов: их громкость не зависит от музыки и эффектов, и её можно измерить в --voicecheck
@@ -156,6 +159,8 @@ func _ready() -> void:
 			trainingcheck = arg.substr(16)
 		elif arg.begins_with("--modecheck="):
 			modecheck = arg.substr(12)
+		elif arg.begins_with("--racecheck="):
+			racecheck = arg.substr(12)
 		elif arg == "--onechapter":
 			onechapter = true
 		elif arg == "--pause":
@@ -228,6 +233,11 @@ func _ready() -> void:
 			mdc.main = self
 			mdc.out = modecheck
 			add_child(mdc)
+		if racecheck != "":
+			var rcc = preload("res://scripts/racecheck.gd").new()
+			rcc.main = self
+			rcc.out = racecheck
+			add_child(rcc)
 
 func sfx(name: String, vol := 0.0, pitch := 1.0) -> void:
 	if not sfx_cache.has(name):
@@ -248,6 +258,9 @@ func show_menu() -> void:
 	if game:
 		game.queue_free()
 		game = null
+	if race:
+		race.queue_free()
+		race = null
 	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 	music.volume_db = -6.0
 	if not music.playing:
@@ -325,12 +338,12 @@ func testing() -> String:
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 ## Играет человек, а не проверка: только тогда игра пишет его настройки iPod и прочее «на выходе»
 func user_play() -> bool:
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and racecheck == "" and not voicecheck
 
 func tutorial_on() -> bool:
 	if tutorialcheck != "":
 		return true
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and racecheck == "" and not voicecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
@@ -374,6 +387,41 @@ func cinematic_training(hero: String, style: String) -> void:
 	for i in 3:
 		await get_tree().process_frame
 	intro_fx.reveal()
+
+## Гонка на пылесосах из меню: та же шторка; сюжет, опыт и сохранение кампании не участвуют
+func cinematic_race(cfg: Dictionary) -> void:
+	if not await _intro_ready():
+		return
+	var mode := String(cfg.get("mode", "single"))
+	await intro_fx.cover("VACUUM RACING", String(RaceData.track(String(cfg.get("track", "")))["name"]) + " · " + {"single": "одиночная гонка", "time": "заезд на время", "online": "сетевая гонка"}.get(mode, ""))
+	start_race(cfg)
+	starting = false
+	for i in 3:
+		await get_tree().process_frame
+	intro_fx.reveal()
+
+func start_race(cfg: Dictionary) -> void:
+	if menu:
+		menu.queue_free()
+		menu = null
+	if game:
+		game.queue_free()
+		game = null
+	if race:
+		race.queue_free()
+		race = null
+	MouseMode.set_to(Input.MOUSE_MODE_HIDDEN)
+	var r := Race.new()
+	race = r
+	add_child(r)
+	r.setup(self, cfg)
+
+## конец гонки: в главное меню или сразу в меню гонок
+func end_race(to_race_menu: bool) -> void:
+	show_menu()
+	if to_race_menu and menu != null:
+		menu.open_modes(2)
+		menu.open_race()
 
 func start_training(hero: String, style: String) -> void:
 	if menu:
