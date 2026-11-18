@@ -185,7 +185,7 @@ func _ready() -> void:
 	ipod.persistence_enabled = main.testing() == "" and main.ipodcheck == ""
 	add_child(ipod)
 	if main.testing() == "":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
 
 func begin(from_save: bool, chapter := -1) -> void:
 	if from_save and FileAccess.file_exists(SAVE):
@@ -556,7 +556,7 @@ func _retry() -> void:
 	_clear_fight()
 	boss_box.visible = false
 	if main.testing() == "":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
 	_run_step()
 
 # ---------------- снаряды и зоны удара ----------------
@@ -1445,7 +1445,7 @@ func _make_panel(title: String, sub: String, buttons: Array) -> Control:
 func _show_panel(title: String, sub: String, buttons: Array) -> void:
 	_close_panel()
 	panel = _make_panel(title, sub, buttons)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 
 func _close_panel() -> void:
 	if panel:
@@ -1461,7 +1461,7 @@ func set_paused(v: bool) -> void:
 	else:
 		pause_panel.shut()
 		get_tree().paused = false
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if v or panel != null or (ipod != null and ipod.captures_gameplay_input()) else Input.MOUSE_MODE_CAPTURED
+	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE if v or panel != null or (ipod != null and ipod.captures_gameplay_input()) else Input.MOUSE_MODE_CAPTURED)
 
 func _to_menu() -> void:
 	get_tree().paused = false
@@ -1524,7 +1524,7 @@ func _open_shop() -> void:
 func _close_shop() -> void:
 	_close_panel()
 	if main.testing() == "":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
 	mode = "idle"
 	next_step()
 
@@ -1538,7 +1538,7 @@ func _open_choice() -> void:
 func _ending(key: String) -> void:
 	_close_panel()
 	if main.testing() == "":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
 	start_dialog(story[key], func(): _credits("GOD OF GRIMERKA", "спасибо, что дослушал до конца"))
 
 func _credits(title: String, sub: String) -> void:
