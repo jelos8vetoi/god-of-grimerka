@@ -1,88 +1,81 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>trailer modes</title>
-<!-- Трейлер режимов GOD OF GRIMERKA: кадры из --trailermodes, голоса Пахана и madk1d из игры (godot/assets/voice),
+<!-- Трейлер режимов GOD OF GRIMERKA: кадры из --trailermodes, голоса Пахана и madk1d — Fish Audio (fish-modes.cjs),
      музыка — стемы игры (godot/assets/music), звуки ночей — sfx_*.wav. Сервер: tools/trailer/serve-modes.cjs.
      record() — записать MP4 (MediaRecorder) и сохранить на сервер; drawAt(t) — один кадр для проверки. -->
 <style>@font-face{font-family:"Russo One";src:url(RussoOne-Regular.ttf)}html,body{margin:0;background:#000}canvas{display:block}</style></head>
 <body><canvas id="v" width="1280" height="720"></canvas>
 <script>
-const W = 1280, H = 720, FPS = 30, LEN = 51.5;
+const W = 1280, H = 720, FPS = 30, LEN = 45.5;
 // планы: p — префикс кадров, from — с какого кадра, sp — скорость (1 — как снято), scare — скример (вспышка, тряска)
 const SHOTS = [
   { t0: 0.0, t1: 3.0, p: 'F1_', from: 0, sp: 0.6 },
-  { t0: 4.2, t1: 6.2, p: 'C1_', from: 20 },
-  { t0: 6.2, t1: 7.8, p: 'C2_', from: 10 },
-  { t0: 7.8, t1: 9.4, p: 'C3_', from: 30 },
-  { t0: 9.4, t1: 11.4, p: 'C4_', from: 25 },
-  { t0: 11.4, t1: 13.8, p: 'R1_', from: 10, sp: 1 },
-  { t0: 13.8, t1: 16.8, p: 'R2_', from: 20 },
-  { t0: 16.8, t1: 19.0, p: 'R3_', from: 20 },
-  { t0: 19.0, t1: 21.5, p: 'M1_', from: 0 },
-  { t0: 21.5, t1: 24.3, p: 'M2_', from: 0 },
-  { t0: 24.3, t1: 27.0, p: 'M3_', from: 5 },
-  { t0: 28.0, t1: 30.0, p: 'F2_', from: 0 },
-  { t0: 30.0, t1: 32.4, p: 'F3_', from: 0, sp: 0.8 },
-  { t0: 32.4, t1: 35.0, p: 'F4_', from: 0, sp: 0.7 },
-  { t0: 36.6, t1: 37.5, p: 'S1_', from: 16, scare: 1 },
-  { t0: 37.5, t1: 38.3, p: 'S2_', from: 18, scare: 1 },
-  { t0: 38.3, t1: 39.2, p: 'S3_', from: 18, scare: 1 },
-  { t0: 39.2, t1: 40.0, p: 'S4_', from: 14, scare: 1 },
-  { t0: 40.0, t1: 40.8, p: 'S5_', from: 16, scare: 1 },
-  { t0: 41.6, t1: 43.4, p: 'S6_', from: 10, scare: 1, sp: 0.9 },
+  { t0: 4.2, t1: 6.6, p: 'R1_', from: 10 },
+  { t0: 6.6, t1: 9.6, p: 'R2_', from: 20 },
+  { t0: 9.6, t1: 11.8, p: 'R3_', from: 20 },
+  { t0: 11.8, t1: 14.4, p: 'M1_', from: 0, sp: 0.9 },
+  { t0: 14.4, t1: 17.6, p: 'M2_', from: 0, sp: 0.9 },
+  { t0: 17.6, t1: 21.0, p: 'M3_', from: 3, sp: 0.85 },
+  { t0: 22.0, t1: 24.0, p: 'F2_', from: 0 },
+  { t0: 24.0, t1: 26.6, p: 'F3_', from: 0, sp: 0.75 },
+  { t0: 26.6, t1: 29.6, p: 'F4_', from: 0, sp: 0.65 },
+  { t0: 30.6, t1: 31.5, p: 'S1_', from: 16, scare: 1 },
+  { t0: 31.5, t1: 32.3, p: 'S2_', from: 18, scare: 1 },
+  { t0: 32.3, t1: 33.2, p: 'S3_', from: 18, scare: 1 },
+  { t0: 33.2, t1: 34.0, p: 'S4_', from: 14, scare: 1 },
+  { t0: 34.0, t1: 34.8, p: 'S5_', from: 16, scare: 1 },
+  { t0: 35.6, t1: 37.4, p: 'S6_', from: 10, scare: 1, sp: 0.9 },
 ];
 // титры: slam — удар по центру, lower — внизу слева (заголовок + строка), logo — финал
 const TEXT = [
   [0.4, 2.9, 'lower', 'GOD OF GRIMERKA', 'охранная система «ОБЛАКО» · запись 00:00'],
   [3.05, 4.15, 'slam', 'НОВЫЕ РЕЖИМЫ'],
-  [4.3, 11.3, 'lower', 'САМЫЕ ЖЁСТКИЕ КОМБО', 'TEAM OVERDRIVE · ДУЭТ-АТАКИ · ПЕРЕГРУЗ'],
-  [11.5, 13.7, 'slam', 'VACUUM RACING'],
-  [13.9, 18.9, 'lower', 'ГОНКИ НА ПЫЛЕСОСАХ ТЯГА-812', 'погода · случайные ситуации · онлайн до 8 друзей'],
-  [19.1, 21.4, 'slam', 'ПАХАН НАБРАЛ МИКРОЗАЙМОВ'],
-  [21.6, 26.9, 'lower', 'НЕДЕЛЯ В ДОЛГАХ', 'проценты · мелкий шрифт · коллекторы · пять концовок'],
-  [28.1, 29.9, 'slam', '5 НОЧЕЙ С ПАХАНОМ'],
-  [30.1, 34.9, 'lower', 'ТЫ ПРОСТО ХОТЕЛ СПОКОЙНО ОТРАБОТАТЬ СМЕНУ', 'камеры · двери · энергия · до шести утра'],
-  [44.3, 51.5, 'logo', 'GOD OF GRIMERKA', 'STORY · TRAINING · VACUUM RACING · MICROLOANS · FIVE NIGHTS'],
+  [4.3, 6.5, 'slam', 'VACUUM RACING'],
+  [6.7, 11.7, 'lower', 'ГОНКИ НА ПЫЛЕСОСАХ ТЯГА-812', 'погода · случайные ситуации · онлайн до 8 друзей'],
+  [11.9, 14.3, 'slam', 'ПАХАН НАБРАЛ МИКРОЗАЙМОВ'],
+  [14.5, 20.9, 'lower', 'НЕДЕЛЯ В ДОЛГАХ', 'проценты · мелкий шрифт · коллекторы · пять концовок'],
+  [22.1, 23.9, 'slam', '5 НОЧЕЙ С ПАХАНОМ'],
+  [24.1, 29.5, 'lower', 'ТЫ ПРОСТО ХОТЕЛ СПОКОЙНО ОТРАБОТАТЬ СМЕНУ', 'камеры · двери · энергия · до шести утра'],
+  [38.2, 45.5, 'logo', 'GOD OF GRIMERKA', 'VACUUM RACING · ONLINE RACE · MICROLOANS · FIVE NIGHTS'],
 ];
-// голоса — настоящие реплики игры: V — Пахан, M/MV — madk1d
+// голоса Пахана и madk1d для трейлера — Fish Audio (tools/trailer/fish-modes.cjs, реплики — vo-modes.json)
 const VO = [
-  ['V_c45dfdb02b', 0.7],   // Добро пожаловать в мой мир.
-  ['V_d628b1efe1', 4.5],   // Ну всё. Перегруз.
-  ['M_981484e65a', 9.6],   // секси свэг!
-  ['MV_ad87ef0eea', 11.55],// ПОЕХАЛИ!
-  ['V_8512f1dcbb', 15.0],  // Прилёт воздухом.
-  ['V_0f469a8b1a', 19.4],  // Это не твой долг.
-  ['M_5ad4326f6d', 21.0],  // а чей??
-  ['M_d1e7cfae85', 23.4],  // пахан можно вопрос
-  ['V_c116220193', 25.2],  // Нет.
-  ['M_616a48af26', 28.6],  // кто там
-  ['M_a683f89543', 31.0],  // они... шевелятся
-  ['V_73a1248c7f', 33.6],  // Марк. За спину.
-  ['V_458d56c730', 44.7],  // Я просто пройду.
-  ['M_a62d959e34', 48.4],  // пахан, красиво
+  ['vo01', 0.5],   // Облако обновилось.
+  ['vo02', 2.0],   // пахан... там новые режимы
+  ['vo05', 4.35],  // ПОЕХАЛИ! на пылесосах!
+  ['vo06', 7.2],   // Тяга восемьсот двенадцать. Держись в повороте.
+  ['vo07', 12.0],  // Это не твой долг.
+  ['vo08', 13.4],  // а чей??
+  ['vo09', 14.6],  // Семь дней. Четыре конторы. Один Пахан.
+  ['vo10', 18.4],  // пахан, коллекторы звонят
+  ['vo11', 20.25], // Не бери.
+  ['vo12', 22.2],  // пахан... а кто сидит на камерах?
+  ['vo13', 25.0],  // Я. До шести утра.
+  ['vo14', 26.8],  // они... шевелятся
+  ['vo15', 28.85], // Закрой дверь.
+  ['vo16', 38.6],  // Я просто пройду. Через всё.
+  ['vo17', 42.4],  // пахан, красиво
 ];
 // музыка: [файл, начало в трейлере, длительность, громкость, нарастание, затухание, смещение в файле]
 const MUSIC = [
   ['frames/sfx_hum.wav', 0, 4.2, .9, .3, .4, 0],
   ['music/boss_algo_intro.wav', 3.0, 1.4, .9, .01, .3, 0],
-  ['music/boss_algo_p1.wav', 4.2, 7.3, .75, .05, .25, 0],
-  ['music/boss_algo_p2.wav', 4.2, 7.3, .7, .05, .25, 0],
-  ['music/boss_algo_p3.wav', 6.2, 5.3, .7, .3, .25, 0],
-  ['music/loc_race_base.wav', 11.4, 7.7, .85, .02, .3, 0],
-  ['music/loc_race_drive.wav', 11.4, 7.7, .85, .02, .3, 0],
-  ['music/loc_hall_base.wav', 19.0, 8.0, .7, .2, .6, 3],
-  ['frames/sfx_hum.wav', 27.6, 9.0, 1.0, 1.0, .1, 0],
-  ['frames/sfx_music_box_air.wav', 32.0, 4.6, .9, .8, .05, 0],
-  ['music/boss_algo_win.wav', 44.2, 7.3, .9, .02, 1.5, 0],
+  ['music/loc_race_base.wav', 4.2, 7.6, .85, .02, .3, 0],
+  ['music/loc_race_drive.wav', 4.2, 7.6, .85, .02, .3, 0],
+  ['music/loc_hall_base.wav', 11.8, 9.4, .7, .2, .6, 3],
+  ['frames/sfx_hum.wav', 21.6, 9.0, 1.0, 1.0, .1, 0],
+  ['frames/sfx_music_box_air.wav', 25.8, 4.6, .9, .8, .05, 0],
+  ['music/boss_algo_win.wav', 38.1, 7.4, .9, .02, 1.5, 0],
 ];
 // эффекты: [файл, когда, громкость]
 const SFX = [
   ['frames/sfx_static.wav', 0.0, .35], ['frames/sfx_cam', 2.95, .8], ['frames/sfx_door_down', 4.15, .9],
-  ['frames/sfx_cam', 11.35, .7], ['frames/sfx_power_down', 26.9, .8], ['frames/sfx_vent_bang', 31.4, .9],
-  ['frames/sfx_heart', 34.6, .9], ['frames/sfx_scream_balon', 36.62, 1], ['frames/sfx_scream_clipper', 37.52, 1],
-  ['frames/sfx_scream_ghost', 38.32, 1], ['frames/sfx_scream_madk1d', 39.22, 1], ['frames/sfx_scream_bot', 40.02, 1],
-  ['frames/sfx_whisper', 40.8, .8], ['frames/sfx_scream_pahan', 42.25, 1.1], ['frames/sfx_static', 43.4, .7],
+  ['frames/sfx_cam', 11.75, .7], ['frames/sfx_power_down', 21.0, .8], ['frames/sfx_vent_bang', 26.0, .9],
+  ['frames/sfx_heart', 29.8, .9], ['frames/sfx_scream_balon', 30.62, 1], ['frames/sfx_scream_clipper', 31.52, 1],
+  ['frames/sfx_scream_ghost', 32.32, 1], ['frames/sfx_scream_madk1d', 33.22, 1], ['frames/sfx_scream_bot', 34.02, 1],
+  ['frames/sfx_whisper', 34.8, .8], ['frames/sfx_scream_pahan', 36.25, 1.1], ['frames/sfx_static', 37.4, .7],
 ];
-const HITS = [3.05, 4.2, 6.2, 7.8, 9.4, 11.4, 13.8, 16.8, 19.0, 28.0, 36.6, 37.5, 38.3, 39.2, 40.0, 42.25, 44.3];
+const HITS = [3.05, 4.2, 6.6, 9.6, 11.8, 14.4, 17.6, 22.0, 30.6, 31.5, 32.3, 33.2, 34.0, 36.25, 38.2];
 const c = document.getElementById('v'), x = c.getContext('2d');
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v, ease = k => 1 - Math.pow(1 - clamp(k, 0, 1), 3);
 const blobs = {}, bmp = {}, pend = {};
@@ -199,7 +192,7 @@ async function record() {
     src.buffer = b; g.gain.value = vol; src.connect(g); g.connect(master); src.start(T0 + at);
   }
   for (const [n, at] of VO) {
-    const b = await dec('voice/' + n + '.mp3'), src = ac.createBufferSource(); src.buffer = b; src.connect(vin); src.start(T0 + at);
+    const b = await dec('frames/' + n + '.wav'), src = ac.createBufferSource(); src.buffer = b; src.connect(vin); src.start(T0 + at);
     mus.gain.setTargetAtTime(.45, T0 + at - .05, .05); mus.gain.setTargetAtTime(1, T0 + at + b.duration + .1, .25);
   }
   const vtrack = c.captureStream(0).getVideoTracks()[0];
