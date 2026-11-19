@@ -1,0 +1,306 @@
+{
+  "_": "Модели переделки игрового процесса (предметы и пылесосы гонок, живой мир, «Микрозаймы», «5 ночей») для Tripo AI: node tools/tripo-gen.cjs --config=tools/tripo-gameplay.json [--dry] [имя…]. Каталог с пояснениями — godot/docs/TRIPO_PROMPTS_GAMEPLAY.md. У каждой модели своя папка в godot/assets (поле dir); полный промпт (prompt + стиль) не длиннее 1000 символов.",
+  "out": "racing",
+  "model": "v3.1-20260211",
+  "texture_quality": "standard",
+  "faces": 6000,
+  "cost_each": 30,
+  "reserve": 40,
+  "concurrency": 2,
+  "style": "Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright red accents. Single object, centered, no ground, no background, game-ready.",
+  "styles": {
+    "prop": "Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright red accents. Single object, centered, no ground, no background, game-ready.",
+    "item": "Stylized low-poly 3D pickup item for an arcade kart racer, gritty post-soviet garage style: toy-like chunky proportions, instantly readable silhouette from far away, clean low-poly faces, hand-painted textures, saturated colour with worn edges. Single object, centered, no ground, no background, game-ready.",
+    "char": "Stylized low-poly 3D game character, chibi proportions (big head, short limbs), bold silhouette, hand-painted textures, muted post-soviet colours with one red accent. Full body, A-pose, arms away from the torso, legs apart, fingers simplified, clean topology at shoulders, elbows, hips and knees for rigging with a humanoid skeleton. Single character, centered, no ground, no background.",
+    "vehicle": "Stylized low-poly 3D rideable vehicle for an arcade racer, gritty post-soviet garage style: chunky exaggerated proportions, bold readable silhouette, hand-painted textures, worn paint, scratches. Wheels as separate round parts not fused to the body, a flat seat on top for a small rider, front clearly different from back. Single object, centered, no ground, no background, game-ready."
+  },
+  "negative": "photorealistic, photo scan, blurry, noisy mesh, readable text, letters, logos, brand names, watermark, multiple separate objects, floor plane, background scenery",
+  "models": [
+    {
+      "id": "item_turbo_balloon",
+      "dir": "racing",
+      "size": [
+        0.5,
+        0.9,
+        0.5
+      ],
+      "style": "item",
+      "prompt": "A small red compressed-gas cylinder used as a rocket booster: domed top with a round hand-wheel valve, a yellow warning band around the middle, a short black nozzle at the bottom with a bright orange flame cone coming out. Standing upright."
+    },
+    {
+      "id": "item_dust_bomb",
+      "dir": "racing",
+      "size": [
+        0.7,
+        0.8,
+        0.7
+      ],
+      "style": "item",
+      "prompt": "A fat overstuffed vacuum-cleaner dust bag used as a bomb: round bulging brown burlap sack, neck tied tight with a red rope, a short black fuse sticking up with a glowing spark at its tip, one sewn square patch on the side, a few grey dust puffs leaking from the seams."
+    },
+    {
+      "id": "item_super_suck",
+      "dir": "racing",
+      "size": [
+        0.7,
+        0.6,
+        0.9
+      ],
+      "style": "item",
+      "prompt": "A huge vacuum-cleaner nozzle used as a tractor beam: wide blue trumpet-shaped mouth with a steel rim and a dark hollow inside, a short black ribbed corrugated hose behind it, a pistol grip handle underneath, a thin glowing cyan ring in front of the mouth."
+    },
+    {
+      "id": "item_soap",
+      "dir": "racing",
+      "size": [
+        0.45,
+        0.85,
+        0.45
+      ],
+      "style": "item",
+      "prompt": "A squeezable dish-soap bottle: translucent green plastic body with soft shoulders, red flip cap with a white nozzle tip, a blank cream label with one red stripe, three shiny soap bubbles floating next to the cap."
+    },
+    {
+      "id": "item_filter",
+      "dir": "racing",
+      "size": [
+        0.85,
+        0.85,
+        0.2
+      ],
+      "style": "item",
+      "prompt": "A hexagonal vacuum-cleaner HEPA filter used as a shield: thick green plastic hexagon frame, cream pleated paper filter inside with visible folds, six small steel clips on the corners, a thin glowing green outline. Flat disc standing upright facing the viewer."
+    },
+    {
+      "id": "item_air_blast",
+      "dir": "racing",
+      "size": [
+        0.6,
+        0.6,
+        0.9
+      ],
+      "style": "item",
+      "prompt": "A hand-held air horn: a red plastic trumpet bell with a white rim mounted on top of a small white compressed-air can with a blue stripe and a red push button, three thin white ring-shaped sound waves in front of the bell."
+    },
+    {
+      "id": "item_missile",
+      "dir": "racing",
+      "size": [
+        0.5,
+        0.5,
+        1.0
+      ],
+      "style": "item",
+      "prompt": "A homemade junk rocket: body made of a rusty steel pipe with three bolted hose clamps, a dented red cone nose, four crooked sheet-metal fins of different sizes at the back, a strip of grey duct tape on top, a black exhaust nozzle with an orange flame."
+    },
+    {
+      "id": "item_overclock",
+      "dir": "racing",
+      "size": [
+        0.9,
+        0.7,
+        0.6
+      ],
+      "style": "item",
+      "prompt": "A small electric vacuum-cleaner motor used as a power-up: dark steel cylinder body with five round cooling fins, exposed copper coil winding at one end, a short steel shaft with a small cog, a terminal box on top with one red and one blue screw terminal, a glowing cyan lightning bolt symbol floating beside it."
+    },
+    {
+      "id": "vac_madk1d",
+      "dir": "racing",
+      "size": [
+        1.0,
+        0.7,
+        1.6
+      ],
+      "style": "vehicle",
+      "prompt": "A low sleek canister vacuum cleaner turned into a drift racing kart: light blue shell shaped like a wedge, wide slick rear wheels and small front wheels, a skateboard deck bolted on top as the seat, a curved chrome hose with a floor brush as the steering column, sticker-bombed sides."
+    },
+    {
+      "id": "vac_clipper",
+      "dir": "racing",
+      "size": [
+        1.1,
+        0.8,
+        1.6
+      ],
+      "style": "vehicle",
+      "prompt": "A heavy industrial wet-and-dry shop vacuum turned into a ramming kart: tall red steel drum body on four fat rubber wheels, a welded steel bull bar with two spikes on the front, a metal tractor seat on top, a thick black hose coiled on the side, dents and scraped paint."
+    },
+    {
+      "id": "vac_hater",
+      "dir": "racing",
+      "size": [
+        0.9,
+        0.8,
+        1.5
+      ],
+      "style": "vehicle",
+      "prompt": "A purple upright stick vacuum cleaner converted into a three-wheeled scooter kart: tall thin body leaning forward, clear dust bin full of grey junk, two small wheels behind and one in front, a plastic stool seat, a rack on the back holding a spray can, a bottle and a bag."
+    },
+    {
+      "id": "vac_bot",
+      "dir": "racing",
+      "size": [
+        1.2,
+        0.6,
+        1.2
+      ],
+      "style": "vehicle",
+      "prompt": "A big round robot vacuum cleaner used as a hover kart: flat green disc body with a raised bumper ring, a small dome sensor on top, two side brushes sticking out in front, a simple square cushion seat in the middle, four tiny wheels underneath, a strip of status lights along the front edge."
+    },
+    {
+      "id": "vac_drey",
+      "dir": "racing",
+      "size": [
+        1.0,
+        0.8,
+        1.7
+      ],
+      "style": "vehicle",
+      "prompt": "A soviet cylinder vacuum cleaner on a go-kart frame built for off-road shortcuts: long yellow torpedo-shaped metal body with chrome end caps, knobby tractor tyres, a raised welded tube frame, a bicycle saddle on top, a headlight on the nose, mud splashes on the sides."
+    },
+    {
+      "id": "race_trick_ring",
+      "dir": "racing",
+      "size": [
+        3.4,
+        3.4,
+        0.4
+      ],
+      "style": "prop",
+      "prompt": "A large stunt hoop for jumping through: a ring welded from old truck tyres and steel pipe, painted in red and white stripes, a row of round light bulbs around the front face, two short steel mounting brackets at the bottom. Standing upright, the hole fully open."
+    },
+    {
+      "id": "race_grandstand",
+      "dir": "racing",
+      "size": [
+        8.0,
+        3.2,
+        3.0
+      ],
+      "style": "prop",
+      "prompt": "A small homemade spectator grandstand: three stepped rows of wooden plank benches on a rusty welded steel frame, a corrugated metal roof on thin posts, a string of triangular flags along the front, an empty banner board on the back rail."
+    },
+    {
+      "id": "npc_spectator",
+      "dir": "racing",
+      "size": [
+        0.6,
+        1.5,
+        0.4
+      ],
+      "style": "char",
+      "prompt": "A cheerful courtyard spectator: a teenager in a puffy winter jacket, tracksuit trousers and a knitted hat with a pom-pom, holding nothing, mouth open in a shout."
+    },
+    {
+      "id": "race_start_lights",
+      "dir": "racing",
+      "size": [
+        5.0,
+        1.2,
+        0.6
+      ],
+      "style": "prop",
+      "prompt": "A racing start light gantry: a horizontal steel truss beam with five big round lamps in black housings in a row, cables hanging between them, two loudspeaker horns on the ends, weathered paint."
+    },
+    {
+      "id": "ml_phone",
+      "dir": "minigames",
+      "size": [
+        0.08,
+        0.012,
+        0.16
+      ],
+      "style": "prop",
+      "prompt": "An old cheap smartphone lying flat: black plastic body with rounded corners, a cracked glass screen with a spider-web crack in one corner, a thick scratched bumper case, a single camera lens on the back."
+    },
+    {
+      "id": "ml_cash_stack",
+      "dir": "minigames",
+      "size": [
+        0.16,
+        0.05,
+        0.08
+      ],
+      "style": "prop",
+      "prompt": "A small stack of worn paper banknotes held together with a rubber band: slightly fanned edges, a few bent corners, greenish-grey colour, blank faces without any numbers or portraits."
+    },
+    {
+      "id": "ml_job_trash_set",
+      "dir": "minigames",
+      "size": [
+        0.5,
+        0.25,
+        0.5
+      ],
+      "style": "prop",
+      "prompt": "A small pile of stairwell rubbish: crumpled paper cups, cigarette-pack shaped boxes, sunflower seed husks, a squashed drink can, torn flyers and grey dust clumps, loosely heaped together."
+    },
+    {
+      "id": "ml_job_parcel_box",
+      "dir": "minigames",
+      "size": [
+        0.4,
+        0.3,
+        0.3
+      ],
+      "style": "prop",
+      "prompt": "A cardboard delivery parcel: a slightly crushed brown box wrapped with clear tape, a red FRAGILE-style sticker shape without text, a blank white shipping label, one dented corner."
+    },
+    {
+      "id": "ml_job_car_dirty",
+      "dir": "minigames",
+      "size": [
+        1.7,
+        1.4,
+        4.0
+      ],
+      "style": "vehicle",
+      "prompt": "A boxy old soviet-style family sedan covered in dried mud: square headlights, chrome bumpers, thin pillars, steel wheels with small hubcaps, splashes of brown dirt along the sills, wheel arches and rear, dusty windows."
+    },
+    {
+      "id": "ml_job_shelf_rack",
+      "dir": "minigames",
+      "size": [
+        1.8,
+        2.0,
+        0.5
+      ],
+      "style": "prop",
+      "prompt": "A warehouse storage rack: four steel uprights with punched holes, four plywood shelves, empty, a few scuffs and paint chips, one small blank cardboard tag hanging from each shelf edge."
+    },
+    {
+      "id": "npc_neighbor",
+      "dir": "minigames",
+      "size": [
+        0.6,
+        1.5,
+        0.4
+      ],
+      "style": "char",
+      "prompt": "A grumpy stairwell neighbour: an older woman in a flowery housecoat, wool cardigan, thick socks and slippers, a headscarf, round glasses, arms slightly out."
+    },
+    {
+      "id": "npc_customer",
+      "dir": "minigames",
+      "size": [
+        0.6,
+        1.5,
+        0.4
+      ],
+      "style": "char",
+      "prompt": "An impatient customer: a young man in an oversized hoodie, baggy jeans and white sneakers, a cap worn backwards, a small shoulder bag."
+    },
+    {
+      "id": "fn_door_panel",
+      "dir": "minigames",
+      "size": [
+        0.3,
+        0.7,
+        0.1
+      ],
+      "style": "prop",
+      "prompt": "A wall-mounted industrial control box: grey steel housing with rounded corners, one big red mushroom push button on top and one big white round button below, two small indicator lamps, a thick cable conduit going down, chipped paint."
+    }
+  ]
+}

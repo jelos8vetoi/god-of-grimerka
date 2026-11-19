@@ -52,6 +52,7 @@ var net_menu := false            # сетевая гонка: открыт эк�
 var net_fix := {"hard": 0, "soft": 0.0}   # клиент: сколько раз хост поправил своего гонщика (для проверки)
 var local_hist: Array = []       # клиент: где был свой гонщик [наше время, положение] — для сверки со снимками хоста
 const PHYSICAL := ["drift_start", "drift_lvl", "drift_boost", "drift_cut", "jump", "ramp", "land", "wall", "trick", "trick_land", "trick_fail", "combo", "draft"]
+var crowd: RaceCrowd             # зрители у трассы (только вид)
 var missiles: Array = []         # [{s, lat, y, owner, target, life, node}] — ЖЕЛЕЗЯКИ в полёте
 var weather: RaceWeather       # погода и случайные ситуации (race_weather.gd)
 var cam_snap := false
@@ -72,6 +73,10 @@ func setup(m, c: Dictionary) -> void:
 	add_child(fx)
 	_spawn_riders()
 	_spawn_boxes()
+	if DisplayServer.get_name() != "headless":
+		crowd = RaceCrowd.new()
+		add_child(crowd)
+		crowd.setup(self)
 	weather = RaceWeather.new()
 	add_child(weather)
 	# в заезде на время случайных ситуаций нет никогда — рекорд должен быть честным, что бы ни пришло в cfg
@@ -208,6 +213,7 @@ func _physics_process(dt: float) -> void:
 	_boxes_tick(dt)
 	_hazards_tick(dt)
 	_missiles_tick(dt)
+	_rings_tick()
 	_tethers_tick(dt)
 	_pads_tick()
 	weather.tick(dt)
@@ -278,6 +284,27 @@ func _bumps() -> void:
 						rb.speed *= 0.9
 					ra.ev("bump", rb.slot)
 					rb.ev("bump", ra.slot)
+
+## кольца для трюков: пролетел сквозь в воздухе — заряд турбо, комбо и короткое ускорение (раз за прыжок на кольцо)
+var ring_cd := {}
+func _rings_tick() -> void:
+	if track.rings.is_empty() or not go:
+		return
+	var P := RaceData.PHYS
+	for k in track.rings.size():
+		var rg: Dictionary = track.rings[k]
+		for r in riders:
+			if r.disconnected or r.air_t < 0.05:
+				continue
+			var d: Vector3 = r.global_position + Vector3(0, 0.6, 0) - (rg["pos"] as Vector3)
+			var along := d.dot(rg["tan"] as Vector3)
+			var key := "%d_%d" % [k, r.slot]
+			if absf(along) < 0.9 and (d - (rg["tan"] as Vector3) * along).length() < float(P["ring_r"]) - 0.15 and t - float(ring_cd.get(key, -9.0)) > 2.0:
+				ring_cd[key] = t
+				var mul: float = r.combo_add(150)
+				r.gain_turbo(float(P["ring_turbo"]) * mul)
+				r.boost_t = maxf(r.boost_t, float(P["ring_boost"]))
+				r.ev("ring", k)
 
 ## воздушный мешок: держишься точно за соперником — через draft_time секунд тянет вперёд и копит турбо
 func _drafts(dt: float) -> void:
@@ -820,6 +847,13 @@ func _show_event(r: RaceRider, k: String, v) -> void:
 					_sfx("sfx_rage", -8.0, 1.6)
 					if main != null and main.audio != null and main.audio.has_method("race_final"):
 						main.audio.race_final()
+		"ring":
+			fx.ring(track.rings[int(v)]["pos"] as Vector3, 2.2, Color(1.0, 0.85, 0.3), 0.3)
+			fx.sparks(p + Vector3(0, 0.6, 0), r.fwd(), 14, Color(1.0, 0.9, 0.5), 0.9, 70.0)
+			if me:
+				hud.trick_text("В КОЛЬЦО!")
+				_sfx("sfx_parry", -6.0, 1.5)
+				_sfx("sfx_charge", -8.0, 1.8)
 		"trick":
 			fx.ring(p + Vector3(0, 0.6, 0), 1.0, Color(1.0, 0.9, 0.4), 0.2)
 			if me:
@@ -847,6 +881,8 @@ func _show_event(r: RaceRider, k: String, v) -> void:
 		"finish":
 			fx.flash(p + Vector3(0, 1.2, 0), 2.0, Color(1, 1, 1), "star_08", 0.3)
 			if me:
+				if crowd != null:
+					crowd.cheer_all()
 				hud.flash_text("ФИНИШ! %d МЕСТО" % r.rank if String(cfg.get("mode", "single")) != "time" else "ФИНИШ!")
 				_sfx("sfx_boom", -4.0, 1.1)
 		"pad":

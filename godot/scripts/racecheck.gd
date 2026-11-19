@@ -537,6 +537,8 @@ func _run() -> void:
 		await get_tree().physics_frame
 		tr_t += DT
 	ok(had(L, "trick", e0) and had(L, "trick_land", e0) and L.boost_t > 0.2 and L.turbo > 20.0 and L.combo >= 1, "трюк с трамплина: докрутил — ускорение %.2f с, заряд %.0f, комбо ×%d" % [L.boost_t, L.turbo, L.combo])
+	ok(race.track.rings.size() >= 2 and had(L, "ring", e0), "кольцо над трамплином: пролетел сквозь — засчитано (колец на трассе %d)" % race.track.rings.size())
+	ok(race.crowd != null and race.crowd.people.size() >= 6, "зрители у трассы: %d (у старта и трамплинов)" % (race.crowd.people.size() if race.crowd != null else 0))
 	# трюк слишком поздно: не докрутил — шлёпнулся, скорость упала
 	put(L, float(rmp["s0"]) - 26.0, 0.0, 0.0, 21.0)
 	e0 = L.events.size()

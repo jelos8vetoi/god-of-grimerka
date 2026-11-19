@@ -36,6 +36,7 @@ var gates: Array = []              # [{s, pos, tan}]; gates[0] — финиш
 var boxes: Array = []              # точки коробок предметов
 var pads: Array = []               # [{pos, tan, s}]
 var ramps: Array = []              # [{s0, s1, h}]
+var rings: Array = []              # кольца для трюков: [{pos, tan, node}]
 var obstacle_pts: Array = []       # [центр, радиус] — для ботов
 var fill_counts := {}              # сколько чего поставлено заполнением (для проверки)
 var mats := {}
@@ -55,6 +56,7 @@ func build(track_id: String) -> void:
 	_road()
 	_walls()
 	_ramps()
+	_rings()
 	_pads()
 	_obstacles()
 	_gates()
@@ -564,6 +566,37 @@ func _ramps() -> void:
 		lab.position = P[at_s(s0 - 10.0)] + Vector3(0, 3.2, 0)
 		lab.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 		add_child(lab)
+
+## кольца над полётом с трамплина. Модель — race_trick_ring.glb, если есть; иначе кольцо собирается из деталей:
+## полосатый обод, лампочки по кругу, две стойки до земли.
+func _rings() -> void:
+	var R: float = float(RaceData.PHYS["ring_r"])
+	for q in data.get("rings", []):
+		if int(q[0]) >= ramps.size():
+			continue
+		var rp: Dictionary = ramps[int(q[0])]
+		var i := at_s(float(rp["s1"]) + float(q[1]))
+		var right: Vector3 = T[i].cross(Vector3.UP)
+		var c: Vector3 = P[i] + right * float(q[3]) + Vector3(0, float(q[2]), 0)
+		var n := Node3D.new()
+		n.position = c
+		n.rotation.y = atan2(T[i].x, T[i].z)
+		add_child(n)
+		var file := "res://assets/racing/race_trick_ring.glb"
+		if ResourceLoader.exists(file):
+			var g: Node3D = (load(file) as PackedScene).instantiate()
+			g.scale = Vector3.ONE * (R * 2.0 / 3.4)
+			n.add_child(g)
+		else:
+			for k in 12:
+				var a0 := TAU * k / 12.0
+				var seg := RaceItems.cyl(n, 0.16, 0.16, R * TAU / 12.0 + 0.05, RaceItems.mat("ring_r" if k % 2 == 0 else "ring_w", Color(0.9, 0.12, 0.1) if k % 2 == 0 else Color(0.95, 0.95, 0.92), 0.5, 0.2, 0.25), Vector3(cos(a0) * R, sin(a0) * R, 0), Vector3(0, 0, a0))
+				seg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+				RaceItems.ball(n, 0.09, RaceItems.mat("ring_bulb", Color(1.0, 0.9, 0.5), 0.3, 0.0, 2.0), Vector3(cos(a0 + 0.26) * (R + 0.02), sin(a0 + 0.26) * (R + 0.02), 0.17))
+			for sx in [-1.0, 1.0]:
+				var hgt: float = maxf(0.3, float(q[2]) - R * 0.7)
+				RaceItems.cyl(n, 0.08, 0.1, hgt, mats["metal"] if mats.has("metal") else RaceItems.mat("steel", Color(0.62, 0.64, 0.68), 0.35, 0.8), Vector3(sx * R * 0.72, -R * 0.7 - hgt * 0.5, 0))
+		rings.append({"pos": c, "tan": T[i], "node": n})
 
 func _pads() -> void:
 	for q in data.get("pads", []):

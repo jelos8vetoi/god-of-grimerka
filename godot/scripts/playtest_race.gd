@@ -118,6 +118,8 @@ func _run() -> void:
 	RaceSave.data["level"] = level
 	say("уровень соперников: %s · круг трассы и число кругов берутся из меню как у игрока" % level)
 	if items_only:
+		RaceSave.data["weather"] = "clear"
+		RaceSave.data["happen"] = false
 		await _items()
 		print("PLAYTEST-RACE done")
 		get_tree().quit()
@@ -210,7 +212,34 @@ func _items() -> void:
 	race.use_item(me)
 	await wait(0.12)
 	await shot("item_missile_fly")
-	say("предметы: лист моделей, %d снимков «в руках», ловушки и ракета" % RaceData.ITEM_IDS.size())
+	# кольца у трамплинов и зрители у старта — отдельной камерой
+	var cam3 := Camera3D.new()
+	cam3.fov = 55.0
+	cam3.far = 500.0
+	race.add_child(cam3)
+	cam3.current = true
+	for k in race.track.rings.size():
+		var rg: Dictionary = race.track.rings[k]
+		cam3.global_position = (rg["pos"] as Vector3) - (rg["tan"] as Vector3) * 13.0 + Vector3(2.5, 1.2, 0)
+		cam3.look_at(rg["pos"] as Vector3, Vector3.UP)
+		await wait(0.25)
+		await shot("ring_%d" % k)
+	if race.crowd != null and not race.crowd.people.is_empty():
+		for r in race.riders:
+			r.set_meta("auto", RaceInput.new())
+		var who: Dictionary = race.crowd.people[0]
+		var tr2: RaceTrack = race.track
+		var mid: Vector3 = tr2.P[tr2.at_s(tr2.start_s)]
+		cam3.global_position = mid + Vector3(-9, 2.2, 0.0)
+		cam3.look_at(mid + Vector3(8, 0.8, 0), Vector3.UP)
+		race.crowd.cheer_all()
+		await wait(1.2)
+		await shot("crowd_start")
+		cam3.global_position = (who["pos"] as Vector3) + Vector3(2.5, 1.4, -3.5)
+		cam3.look_at((who["pos"] as Vector3) + Vector3(0, 0.9, 0), Vector3.UP)
+		await wait(0.4)
+		await shot("crowd_close")
+	say("предметы: лист моделей, %d снимков «в руках», ловушки и ракета; колец %d, зрителей %d" % [RaceData.ITEM_IDS.size(), race.track.rings.size(), race.crowd.people.size() if race.crowd != null else 0])
 
 ## сколько проедет и какую скорость наберёт: держим клавиши, пишем скорость
 func _probe(title: String, keys: Array, sec: float, every := 0.5) -> void:
@@ -291,7 +320,7 @@ func _physics_process(dt: float) -> void:
 	var straight := turn < 0.16 and a < 0.1
 	hold(KEY_CTRL, straight and me.turbo > (8.0 if me.turbo_on else 55.0))
 	# трюк: в воздухе после трамплина — пробел
-	hold(KEY_SPACE, me.ramp_air and me.air_t > 0.12 and me.trick_t <= 0.0 and me.trick_n < 1)
+	hold(KEY_SPACE, me.ramp_air and me.air_t > 0.12 and me.velocity.y > 1.0 and me.trick_t <= 0.0 and me.trick_n < 1)
 	# предмет — через секунду после получения
 	if me.item != "":
 		item_t += dt

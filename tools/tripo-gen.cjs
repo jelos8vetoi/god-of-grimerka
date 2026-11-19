@@ -11,6 +11,8 @@ const ROOT = path.join(__dirname, '..');
 const CFG_ARG = process.argv.find(a => a.startsWith('--config='));
 const CFG = JSON.parse(fs.readFileSync(CFG_ARG ? path.resolve(ROOT, CFG_ARG.slice(9)) : path.join(__dirname, 'tripo-models.json'), 'utf8'));
 const OUT = path.join(ROOT, 'godot', 'assets', CFG.out || 'racing');
+// у модели может быть своя папка внутри godot/assets (поле "dir") — иначе общая папка списка
+const dirOf = m => m.dir ? path.join(ROOT, 'godot', 'assets', m.dir) : OUT;
 const API = 'https://api.tripo3d.ai';            // баланс — /v2/openapi/user/balance
 const V3 = 'https://openapi.tripo3d.ai/v3';      // генерация и задачи
 
@@ -76,7 +78,7 @@ async function make(m) {
     if (d.status === 'success') {
       const url = d.output && (d.output.pbr_model_url || d.output.model_url || d.output.model);
       if (!url) throw new Error('нет ссылки на модель: ' + JSON.stringify(d.output).slice(0, 300));
-      const file = path.join(OUT, m.id + '.glb');
+      const file = path.join(dirOf(m), m.id + '.glb');
       await download(url, file);
       if (d.output.rendered_image_url) { try { await download(d.output.rendered_image_url, path.join(OUT, 'preview', m.id + '.webp')); } catch (e) {} }
       return { id: m.id, task: id, credits: d.credits_consumed, bytes: fs.statSync(file).size };
@@ -91,7 +93,7 @@ async function make(m) {
   const args = process.argv.slice(2), dry = args.includes('--dry'), only = args.filter(a => !a.startsWith('--'));
   const manPath = path.join(OUT, 'manifest.json');
   const man = fs.existsSync(manPath) ? JSON.parse(fs.readFileSync(manPath, 'utf8')) : { style: CFG.style, models: {} };
-  const todo = CFG.models.filter(m => (!only.length || only.includes(m.id)) && !fs.existsSync(path.join(OUT, m.id + '.glb')));
+  const todo = CFG.models.filter(m => (!only.length || only.includes(m.id)) && !fs.existsSync(path.join(dirOf(m), m.id + '.glb')));
   const cost = todo.length * CFG.cost_each;
   const bal = await balance();
   console.log(`Tripo: остаток ${bal} кредитов; к генерации ${todo.length} моделей ≈ ${cost} кредитов (по ${CFG.cost_each}); запас ${CFG.reserve}`);
