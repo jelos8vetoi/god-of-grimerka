@@ -681,7 +681,7 @@ static func mug(r: Node3D, label := "ПАХАН") -> void:
 	h.position = Vector3(0.045, 0.05, 0)
 	h.rotation = Vector3(PI / 2, 0, 0)
 	r.add_child(h)
-	text(r, label, Vector3(0, 0.055, 0.041), 22, Color(0.7, 0.05, 0.05))
+	text(r, label, Vector3(0, 0.055, 0.041), 9, Color(0.7, 0.05, 0.05))
 
 ## стаканчик лапши и коробка пиццы
 static func food(r: Node3D) -> void:
@@ -758,3 +758,91 @@ static func desk_lamp(r: Node3D) -> Dictionary:
 	var bulb := glow(Color(1.0, 0.85, 0.6), 3.0)
 	ball(r, Vector3(0, 0.32, 0.2), 0.03, bulb)
 	return {"bulb": bulb}
+
+# ============ «МИКРОЗАЙМЫ»: техника подработок и вещи из хлама ============
+## игровая приставка со снятой крышкой: плата, вентилятор, шлейфы, винты (ремонт)
+static func console_open(r: Node3D) -> Dictionary:
+	box(r, Vector3(0, 0.02, 0), Vector3(0.32, 0.04, 0.22), mat("plastic_black"))
+	var board := box(r, Vector3(0, 0.045, 0), Vector3(0.28, 0.008, 0.19), mat("green_paint"))
+	for k in 6:
+		box(r, Vector3(-0.1 + (k % 3) * 0.08, 0.055, -0.05 + (k / 3) * 0.08), Vector3(0.04, 0.012, 0.03), mat("black"))
+	cyl(r, Vector3(0.09, 0.06, 0.05), 0.04, 0.04, 0.02, mat("plastic"), Vector3.ZERO, 12)
+	var screws: Array = []
+	for p in [Vector3(-0.14, 0.05, -0.09), Vector3(0.14, 0.05, -0.09), Vector3(-0.14, 0.05, 0.09), Vector3(0.14, 0.05, 0.09)]:
+		screws.append(cyl(r, p, 0.008, 0.008, 0.01, mat("steel"), Vector3.ZERO, 8))
+	tube(r, PackedVector3Array([Vector3(-0.1, 0.05, 0.08), Vector3(-0.05, 0.07, 0.1), Vector3(0.0, 0.05, 0.07)]), 0.004, mat("red"))
+	return {"board": board, "screws": screws}
+
+## микшерный пульт: ручки, фейдеры, индикаторы уровня; возвращает {faders, knobs, meters}
+static func mixer(r: Node3D, ch := 6) -> Dictionary:
+	box(r, Vector3(0, 0.03, 0), Vector3(0.6, 0.06, 0.45), mat("plastic_black"))
+	box(r, Vector3(0, 0.07, -0.18), Vector3(0.6, 0.06, 0.08), mat("plastic_black"), Vector3(-0.4, 0, 0))
+	var faders: Array = []
+	var knobs: Array = []
+	var meters: Array = []
+	for c in ch:
+		var x := -0.24 + c * (0.48 / float(maxi(1, ch - 1)))
+		box(r, Vector3(x, 0.061, 0.1), Vector3(0.012, 0.002, 0.16), mat("black"))
+		faders.append(box(r, Vector3(x, 0.07, 0.1), Vector3(0.03, 0.02, 0.025), mat("red") if c == ch - 1 else mat("plastic")))
+		for k in 3:
+			knobs.append(cyl(r, Vector3(x, 0.07, -0.02 - k * 0.045), 0.012, 0.014, 0.02, mat("plastic"), Vector3.ZERO, 10))
+		var m := glow(Color(0.25, 1.0, 0.35), 1.8)
+		box(r, Vector3(x, 0.1, -0.2), Vector3(0.018, 0.04, 0.005), m, Vector3(-0.4, 0, 0))
+		meters.append(m)
+	return {"faders": faders, "knobs": knobs, "meters": meters}
+
+## вещь из хлама по номеру MLData.JUNK: у каждой свой узнаваемый силуэт
+static func junk_item(r: Node3D, idx: int) -> void:
+	match idx:
+		0:  # кассетный плеер
+			box(r, Vector3(0, 0.04, 0), Vector3(0.14, 0.08, 0.03), mat("plastic"))
+			box(r, Vector3(0, 0.05, 0.016), Vector3(0.1, 0.05, 0.002), mat("glass"))
+			for k in 2:
+				cyl(r, Vector3(-0.025 + k * 0.05, 0.05, 0.017), 0.012, 0.012, 0.002, mat("black"), Vector3(PI / 2, 0, 0), 8)
+		1:  # сломанный чайник
+			cyl(r, Vector3(0, 0.1, 0), 0.08, 0.1, 0.2, mat("steel"))
+			cyl(r, Vector3(0.1, 0.12, 0), 0.015, 0.02, 0.1, mat("steel"), Vector3(0, 0, -0.9))
+			box(r, Vector3(-0.1, 0.13, 0), Vector3(0.03, 0.12, 0.03), mat("black"))
+			ball(r, Vector3(0, 0.02, 0.05), 0.03, mat("black"), Vector3(1, 0.3, 1))      # нагар
+		2:  # коробка проводов
+			carton(r, Vector3(0.3, 0.18, 0.24), "ПРОВОДА")
+			for k in 4:
+				cable(r, Vector3(-0.1 + k * 0.06, 0.18, -0.05), Vector3(-0.05 + k * 0.05, 0.25, 0.08), -0.06, 0.008, [mat("red"), mat("black"), mat("blue_paint"), _yellow()][k])
+		3:  # кроссовки «найк»
+			for sx in [-0.06, 0.06]:
+				box(r, Vector3(sx, 0.03, 0), Vector3(0.09, 0.06, 0.26), mat("cream"))
+				box(r, Vector3(sx, 0.008, 0), Vector3(0.095, 0.016, 0.27), mat("rubber"))
+				box(r, Vector3(sx + 0.046 * signf(sx), 0.035, 0.02), Vector3(0.002, 0.02, 0.08), mat("red"))
+		4:  # видеокарта в пыли
+			box(r, Vector3(0, 0.02, 0), Vector3(0.26, 0.035, 0.11), mat("plastic_black"))
+			box(r, Vector3(0, 0.004, 0), Vector3(0.26, 0.008, 0.11), mat("green_paint"))
+			for k in 2:
+				cyl(r, Vector3(-0.06 + k * 0.12, 0.04, 0), 0.04, 0.04, 0.008, mat("plastic"), Vector3.ZERO, 12)
+			box(r, Vector3(0.135, 0.03, 0), Vector3(0.01, 0.05, 0.11), mat("steel"))
+		5:  # стопка журналов
+			for k in 6:
+				box(r, Vector3(0, 0.005 + k * 0.01, 0), Vector3(0.21, 0.008, 0.28), [mat("red"), mat("cream"), mat("blue_paint")][k % 3], Vector3(0, 0.08 * k - 0.2, 0))
+		6:  # пульт
+			box(r, Vector3(0, 0.012, 0), Vector3(0.05, 0.024, 0.18), mat("plastic_black"))
+			for k in 6:
+				box(r, Vector3(-0.012 + (k % 2) * 0.024, 0.026, -0.05 + (k / 2) * 0.04), Vector3(0.014, 0.004, 0.014), mat("plastic"))
+			box(r, Vector3(0, 0.026, -0.075), Vector3(0.012, 0.004, 0.012), mat("red"))
+		7:  # гитарная педаль
+			box(r, Vector3(0, 0.03, 0), Vector3(0.08, 0.06, 0.13), mat("red"))
+			cyl(r, Vector3(0, 0.065, 0.03), 0.012, 0.012, 0.015, mat("steel"), Vector3.ZERO, 10)
+			for k in 3:
+				cyl(r, Vector3(-0.025 + k * 0.025, 0.064, -0.035), 0.008, 0.008, 0.012, mat("black"), Vector3.ZERO, 8)
+			ball(r, Vector3(0, 0.062, -0.01), 0.005, glow(Color(1, 0.1, 0.1), 3.0))
+		8:  # пакет с пакетами
+			ball(r, Vector3(0, 0.1, 0), 0.12, mat("plastic"), Vector3(1, 0.8, 0.8))
+			ball(r, Vector3(0.05, 0.18, 0.02), 0.05, mat("plastic"))
+		9:  # старый ноутбук (закрыт)
+			box(r, Vector3(0, 0.015, 0), Vector3(0.34, 0.03, 0.24), mat("plastic"))
+			box(r, Vector3(0.08, 0.031, 0.04), Vector3(0.08, 0.002, 0.06), mat("red"))
+		10:  # набор отвёрток
+			box(r, Vector3(0, 0.015, 0), Vector3(0.2, 0.03, 0.1), mat("red"))
+			for k in 6:
+				cyl(r, Vector3(-0.075 + k * 0.03, 0.04, 0), 0.008, 0.008, 0.08, [mat("black"), _yellow(), mat("blue_paint")][k % 3], Vector3(PI / 2, 0, 0), 8)
+		_:  # ковёр со стены — рулон
+			cyl(r, Vector3(0, 0.07, 0), 0.07, 0.07, 0.6, mat("fabric_red"), Vector3(0, 0, PI / 2), 12)
+			cyl(r, Vector3(0.301, 0.07, 0), 0.07, 0.07, 0.002, mat("cream"), Vector3(0, 0, PI / 2), 12)

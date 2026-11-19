@@ -32,13 +32,16 @@ var ending := ""
 var seed_v := 1
 var rng := RandomNumberGenerator.new()
 var next_id := 1
+var career: MLCareer             # долгий слой прогрессии (ml_career.gd); null — симуляции недели без карьеры
+var week_closed := false
 
 # ---------------- новая игра ----------------
 func new_game(s: int) -> void:
 	seed_v = s
 	rng.seed = s
 	day = 1
-	money = MLData.START_MONEY
+	week_closed = false
+	money = career.start_money(MLData.START_MONEY) if career != null else MLData.START_MONEY
 	stress = 20
 	rep = 40
 	loans = []
@@ -53,9 +56,10 @@ func new_game(s: int) -> void:
 	next_id = 1
 	for k in stats:
 		stats[k] = 0
+	var k := career.week_debt_k() if career != null else 1.0       # каждая следующая неделя — долги больше
 	for L in MLData.START_LOANS:
 		var lid := String(L["lender"])
-		_add_loan(lid, int(L["principal"]), int(L["due"]), "", true)
+		_add_loan(lid, int(round(float(L["principal"]) * k / 500.0)) * 500, int(L["due"]), "", true)
 	stats["taken"] = 0
 	_start_day()
 
@@ -75,7 +79,31 @@ func say(text: String, kind := "info") -> void:
 
 # ---------------- день ----------------
 func actions_max() -> int:
-	return MLData.ACTIONS + (1 if upgrades.has("slot") else 0) - (1 if stress >= 80 else 0)
+	return MLData.ACTIONS + (1 if upgrades.has("slot") else 0) - (1 if stress >= 80 else 0) + (int(career.v("actions")) if career != null else 0)
+
+## множитель карьеры по ключу (без карьеры — 0)
+func cv(key: String) -> float:
+	return career.v(key) if career != null else 0.0
+
+## опыт карьеры и новые вехи: уровни и награды — уведомлениями
+func xp(n: int, why := "") -> void:
+	if career == null:
+		return
+	var ups := career.add_xp(n)
+	if ups > 0:
+		say("НОВЫЙ УРОВЕНЬ ПАХАНА: %d · очков навыков: %d" % [int(career.d["level"]), int(career.d["points"])], "level")
+	for m in career.check_milestones():
+		money += int(m["money"])
+		say("ВЕХА: %s%s" % [m["name"], (" · +%d ₽" % int(m["money"])) if int(m["money"]) > 0 else ""], "milestone")
+
+## неделя кончилась: копилка и следующая неделя карьеры (один раз)
+func _end_week() -> void:
+	if career == null or week_closed or ending == "":
+		return
+	week_closed = true
+	var put := career.end_week(money, ending)
+	if put > 0:
+		say("В копилку на следующую неделю: %d ₽" % put, "money")
 
 func _start_day() -> void:
 	phase = "morning"
@@ -106,12 +134,12 @@ func _night() -> void:
 		if L["status"] == "closed":
 			continue
 		var C: Dictionary = MLData.CLAUSES.get(String(L["clause"]), ["", {}])[1]
-		var rate: float = float(L["rate"]) + (float(C.get("rate_jump", 0.0)) if day - int(L["taken"]) >= 2 else 0.0)
+		var rate: float = (float(L["rate"]) + (float(C.get("rate_jump", 0.0)) if day - int(L["taken"]) >= 2 else 0.0)) * maxf(0.4, 1.0 + cv("rate"))
 		var add: float = float(L["balance"]) * rate
 		L["balance"] = float(L["balance"]) + add
 		stats["interest"] = int(stats["interest"]) + int(add)
 		if day >= int(L["due"]):
-			var fine: float = float(L["balance"]) * float(L["fine"]) * float(C.get("fine_x", 1.0))
+			var fine: float = float(L["balance"]) * float(L["fine"]) * float(C.get("fine_x", 1.0)) * maxf(0.3, 1.0 + cv("fine"))
 			if lender_flags.get(L["lender"], {}).has("waive"):
 				fine *= 0.5
 			L["balance"] = float(L["balance"]) + fine
@@ -132,12 +160,25 @@ func _night() -> void:
 	if flags.has("friend_loan") and day >= MLData.DAYS:
 		pass
 	stress = clampi(stress - 15, 0, 100)            # сон
-	if total_overdue() > MLData.COLLAPSE_DEBT:
+	# бизнесы: вечерняя выручка минус зарплаты и расходы, износ оборудования
+	if career != null:
+		var r := career.biz_day(total_overdue() == 0)
+		if int(r["inc"]) > 0 or int(r["cost"]) > 0:
+			money += int(r["net"])
+			stats["earned"] = int(stats["earned"]) + maxi(0, int(r["net"]))
+			career.bump("earned", maxi(0, int(r["net"])))
+			say("БИЗНЕС ЗА ДЕНЬ: %+d ₽ (выручка %d, расходы %d)" % [int(r["net"]), int(r["inc"]), int(r["cost"])], "money" if int(r["net"]) >= 0 else "bad")
+			xp(4 * career.biz_count())
+		if cv("rep_day") > 0.0:
+			rep = clampi(rep + int(cv("rep_day")), 0, 100)
+	if total_overdue() > MLData.COLLAPSE_DEBT * (career.week_debt_k() if career != null else 1.0):
 		ending = "pit"
+		_end_week()
 		changed.emit()
 		return
 	if day >= MLData.DAYS:
 		ending = compute_ending()
+		_end_week()
 		changed.emit()
 		return
 	day += 1
@@ -258,6 +299,9 @@ func _close(L: Dictionary) -> void:
 		stats["talk_closed"] = int(stats["talk_closed"]) + 1
 	stress = clampi(stress - 10, 0, 100)
 	say("ДОЛГ %s ЗАКРЫТ" % MLData.LENDERS[L["lender"]]["name"], "money")
+	if career != null:
+		career.bump("closed")
+		xp(35)
 
 func min_payment(L: Dictionary) -> int:
 	return int(ceil(float(L["balance"]) * 0.15))
@@ -281,8 +325,8 @@ func pay_min(id: int) -> bool:
 func extend_info(L: Dictionary) -> Dictionary:
 	var D: Dictionary = MLData.LENDERS[L["lender"]]
 	var C: Dictionary = MLData.CLAUSES.get(String(L["clause"]), ["", {}])[1]
-	var fee := int(ceil(float(L["balance"]) * float(D["extend"][1])))
-	var r := {"ok": true, "why": "", "fee": fee, "days": int(D["extend"][0])}
+	var fee := int(ceil(float(L["balance"]) * float(D["extend"][1]) * maxf(0.3, 1.0 + cv("fee"))))
+	var r := {"ok": true, "why": "", "fee": fee, "days": int(D["extend"][0]) + int(cv("extend"))}
 	if C.has("no_extend"):
 		r["ok"] = false
 		r["why"] = "в договоре: продление не предусмотрено"
@@ -357,13 +401,13 @@ func _make_offers() -> void:
 	offers = []
 	for lid in MLData.LENDER_ORDER:
 		var D: Dictionary = MLData.LENDERS[lid]
-		if rep < int(D["rep_need"]):
+		if rep < int(D["rep_need"]) + int(cv("rep_need")):
 			continue
 		var amount := int(lerpf(float(D["min"]), float(D["max"]), clampf(float(rep) / 80.0, 0.0, 1.0)) / 500.0) * 500
 		var clause := ""
 		if rng.randf() < 0.55:
 			clause = String(MLData.CLAUSES.keys()[rng.randi() % MLData.CLAUSES.size()])
-		offers.append({"id": next_id, "lender": lid, "amount": amount, "rate": float(D["rate"]), "term": int(D["term"]), "clause": clause, "known": upgrades.has("scanner") or clause == ""})
+		offers.append({"id": next_id, "lender": lid, "amount": amount, "rate": float(D["rate"]), "term": int(D["term"]), "clause": clause, "known": upgrades.has("scanner") or clause == "" or cv("read") > 0.0})
 		next_id += 1
 
 func offer(id: int) -> Dictionary:
@@ -422,20 +466,28 @@ func job_open(jid: String) -> bool:
 	return true
 
 ## оплата подработки по результату мини-игры (score 0..1)
-func job_done(jid: String, score: float) -> int:
+func job_done(jid: String, score: float, tier := 1) -> int:
 	if actions <= 0:
 		return 0
 	actions -= 1
 	var J: Dictionary = MLData.JOBS[jid]
 	score = clampf(score, 0.0, 1.0)
-	var pay_v := int(lerpf(float(J["min"]), float(J["base"]), score) * (1.25 if upgrades.has("contacts") else 1.0) / 50.0) * 50
+	var mult := (career.pay_mult(jid) if career != null else 1.0) * (1.0 + (cv("perfect") if score >= 0.95 else 0.0)) * (1.0 + 0.25 * float(clampi(tier, 1, 5) - 1))
+	var pay_v := int(lerpf(float(J["min"]), float(J["base"]), score) * (1.25 if upgrades.has("contacts") else 1.0) * mult / 50.0) * 50
 	money += pay_v
 	stats["earned"] = int(stats["earned"]) + pay_v
 	stats["jobs"] = int(stats["jobs"]) + 1
-	stress = clampi(stress + int(float(J["stress"]) * (0.5 if upgrades.has("scooter") else 1.0)) - (6 if score > 0.75 else 0), 0, 100)
+	stress = clampi(stress + int(float(J["stress"]) * (0.5 if upgrades.has("scooter") else 1.0) * maxf(0.3, 1.0 + cv("jstress"))) - (6 if score > 0.75 else 0), 0, 100)
 	if score > 0.7:
 		rep = clampi(rep + 2, 0, 100)
 	say("%s: +%d ₽" % [J["name"], pay_v], "money")
+	if career != null:
+		career.bump("jobs")
+		career.bump("earned", pay_v)
+		if score >= 0.95:
+			career.bump("perfect")
+		career.trust_add({"repair": "mechanic", "deliv": "courier", "sound": "dj", "podezd": "owner", "junk": "owner"}.get(jid, ""), 4.0)
+		xp(career.job_xp(score))
 	changed.emit()
 	return pay_v
 
@@ -454,10 +506,15 @@ func junk_done(picks: Array) -> int:
 				got += int(it[4])
 			"keep":
 				inventory.append(int(p[0]))
+	got = int(float(got) * (career.pay_mult("junk") if career != null else 1.0))
 	money += got
 	stats["earned"] = int(stats["earned"]) + got
 	stats["jobs"] = int(stats["jobs"]) + 1
 	stress = clampi(stress + 4, 0, 100)
+	if career != null:
+		career.bump("jobs")
+		career.bump("earned", got)
+		xp(20 + picks.size() * 4)
 	say("Разбор хлама: +%d ₽, в запасе вещей %d" % [got, inventory.size()], "money")
 	changed.emit()
 	return got
@@ -550,7 +607,7 @@ func _pick_event() -> void:
 			if E.has("warn"):
 				# неприятное — с предупреждением: случится завтра (с новым телефоном — послезавтра)
 				warned[eid] = day + (2 if upgrades.has("phone") else 1)
-				say("⚠ " + String(E["warn"]), "warn")
+				say(String(E["warn"]), "warn")
 			else:
 				event_today = eid
 
@@ -631,6 +688,7 @@ func negotiation_result(id: int, trust: float, pressure: float, promise: int, us
 		stress = clampi(stress - 8, 0, 100)
 		stats["talks_won"] = int(stats["talks_won"]) + 1
 		r = {"won": true, "text": "Договорились: срок +2 дня, списали %d ₽, штрафы вдвое меньше" % int(fine_cut)}
+		xp(30)
 	elif score >= 10.0:
 		L["due"] = maxi(int(L["due"]), day) + 1
 		L["negotiated"] = true
@@ -690,6 +748,7 @@ func can_finish() -> bool:
 
 func finish() -> void:
 	ending = compute_ending()
+	_end_week()
 	changed.emit()
 
 # ---------------- сохранение ----------------

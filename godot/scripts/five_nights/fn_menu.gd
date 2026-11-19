@@ -1,6 +1,6 @@
 ## Меню «5 НОЧЕЙ С ПАХАНОМ» — старый терминал охранной системы. Фон — живая камера главного зала (на сцене
 ## стоят БАЛОН и остальные, иногда смотрят в камеру), шум, помехи, мигание, красные надписи. Разделы:
-## NEW GAME, CONTINUE, NIGHT SELECT, CUSTOM NIGHT, EXTRAS, SETTINGS, BACK TO MENU. Клавиши: W/S или стрелки —
+## НОВАЯ ИГРА, ПРОДОЛЖИТЬ, ВЫБОР НОЧИ, СВОЯ НОЧЬ, АРХИВ, НАСТРОЙКИ, В МЕНЮ РЕЖИМОВ. Клавиши: W/S или стрелки —
 ## выбор, Enter — открыть, A/D — значение, Esc — назад; мышь — наведение и клик. Закрытые ночи не запускаются.
 class_name FNMenu
 extends Control
@@ -10,14 +10,18 @@ const TXT := Color(0.78, 0.86, 0.76)
 const DIMC := Color(0.42, 0.46, 0.42)
 
 var root
-var mono: SystemFont
+var mono: Font
 var big: Font
 var bg: TextureRect
 var title: Label
 var subtitle: Label
+var list_p: PanelContainer
+var scroll: ScrollContainer
 var box: VBoxContainer
+var info_p: PanelContainer
 var info: Label
-var foot: Label
+var foot: HBoxContainer
+var ver: Label
 var rows: Array = []               # [{text: Callable|String, act: Callable, step: Callable, ok: bool}]
 var sel := 0
 var screen := "main"
@@ -25,12 +29,17 @@ var t := 0.0
 var glitch_t := 0.0
 var custom_preset := 0
 
+const LEFT := 56.0
+const TOP := 132.0
+const LIST_W := 560.0
+
+## Вёрстка — MGUI: заголовок, слева список на тёмной панели (чтобы текст не спорил с картинкой камеры), справа —
+## панель пояснения выбранного пункта, внизу — плашки клавиш. Характер терминала: моноширинный текст, «>» у выбранного.
 func setup(r) -> void:
 	root = r
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	mono = SystemFont.new()
-	mono.font_names = PackedStringArray(["Consolas", "Lucida Console", "Courier New", "monospace"])
-	big = load("res://assets/fonts/RussoOne-Regular.ttf")
+	mono = MGUI.font("mono")
+	big = MGUI.font("caps")
 	bg = TextureRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -42,56 +51,84 @@ func setup(r) -> void:
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
-	title = _l("5 НОЧЕЙ С ПАХАНОМ", 64, RED, big)
-	title.position = Vector2(70, 50)
-	subtitle = _l("«ТЫ ПРОСТО ХОТЕЛ СПОКОЙНО ОТРАБОТАТЬ СМЕНУ»", 20, TXT, mono)
-	subtitle.position = Vector2(74, 130)
+	title = MGUI.label("5 НОЧЕЙ С ПАХАНОМ", "caps_h", RED)
+	title.position = Vector2(LEFT, 40)
+	add_child(title)
+	subtitle = MGUI.label("«ты просто хотел спокойно отработать смену»", "mono", TXT)
+	subtitle.position = Vector2(LEFT + 2, 90)
+	add_child(subtitle)
+	list_p = MGUI.panel(false, null, MGUI.S3)
+	list_p.position = Vector2(LEFT, TOP)
+	list_p.custom_minimum_size = Vector2(LIST_W, 0)
+	list_p.mouse_filter = Control.MOUSE_FILTER_PASS
+	add_child(list_p)
+	scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.theme = MGUI.theme()
+	list_p.add_child(scroll)
 	box = VBoxContainer.new()
-	box.position = Vector2(74, 200)
-	box.add_theme_constant_override("separation", 4)
-	add_child(box)
-	info = _l("", 17, TXT, mono)
-	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	foot = _l("ОХРАННАЯ СИСТЕМА «ОБЛАКО» v0.9 · W/S — выбор · ENTER — открыть · A/D — значение · ESC — назад", 14, DIMC, mono)
+	box.add_theme_constant_override("separation", 2)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(box)
+	info_p = MGUI.panel(true, RED, MGUI.S4)
+	add_child(info_p)
+	info = MGUI.label("", "mono", TXT, 300.0)
+	info.add_theme_font_size_override("font_size", 15)
+	info_p.add_child(info)
+	foot = MGUI.hints([["W/S", "выбор"], ["Enter", "открыть"], ["A/D", "значение"], ["Esc", "назад"]])
+	add_child(foot)
+	ver = MGUI.label("ОХРАННАЯ СИСТЕМА «ОБЛАКО» v0.9", "mono_s", DIMC)
+	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	add_child(ver)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 	open_main()
 
-func _l(text: String, size: int, col: Color, font: Font) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_override("font", font)
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", col)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(l)
-	return l
-
 func _layout() -> void:
 	var s := get_viewport().get_visible_rect().size
-	info.position = Vector2(s.x * 0.52, 210)
-	info.size = Vector2(s.x * 0.42, s.y - 300)
-	foot.position = Vector2(74, s.y - 40)
+	var iw := clampf(s.x - LEFT * 2.0 - LIST_W - MGUI.S4, 300.0, 560.0)
+	info_p.position = Vector2(LEFT + LIST_W + MGUI.S4, TOP)
+	info_p.custom_minimum_size = Vector2(iw, 0)
+	info.custom_minimum_size.x = iw - 2.0 * MGUI.S4 - 4.0
+	info_p.reset_size()
+	foot.position = Vector2(LEFT, s.y - 46)
+	ver.position = Vector2(s.x - LEFT - 360, s.y - 42)
+	ver.size = Vector2(360, 18)
+	_fit_list()
+
+## высота списка: по содержимому, но не ниже подсказок внизу (дальше — прокрутка)
+func _fit_list() -> void:
+	if scroll == null:
+		return
+	var s := get_viewport().get_visible_rect().size
+	scroll.custom_minimum_size.y = minf(box.get_combined_minimum_size().y, s.y - TOP - 2.0 * MGUI.S3 - 62.0)
+	list_p.reset_size()
 
 # ---------------- экраны ----------------
 func _show(nm: String, list: Array, start := 0) -> void:
 	screen = nm
 	rows = list
 	for c in box.get_children():
+		box.remove_child(c)
 		c.queue_free()
 	for i in rows.size():
 		var b := Button.new()
 		b.flat = true
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.focus_mode = Control.FOCUS_NONE
+		b.clip_text = true
+		b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		b.set_meta("audit_clip", true)             # длинное название — с многоточием, целиком показано в пояснении справа
 		b.add_theme_font_override("font", mono)
-		b.add_theme_font_size_override("font_size", 24)
-		b.custom_minimum_size = Vector2(560, 36)
+		b.add_theme_font_size_override("font_size", MGUI.BODY + 2)
+		b.custom_minimum_size = Vector2(LIST_W - 2.0 * MGUI.S3 - 10.0, 30)
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var k := i
 		b.mouse_entered.connect(func(): select(k, false))
 		b.pressed.connect(func(): _click(k))
 		box.add_child(b)
 	sel = clampi(start, 0, rows.size() - 1)
+	_fit_list()
 	_paint()
 
 func _paint() -> void:
@@ -108,9 +145,21 @@ func _paint() -> void:
 		var col := (RED if on else TXT) if ok else DIMC
 		for st in ["font_color", "font_hover_color", "font_pressed_color"]:
 			b.add_theme_color_override(st, col)
+		if on:
+			_see.call_deferred(b)
 	var r2: Dictionary = rows[sel] if sel < rows.size() else {}
 	var inf = r2.get("info", "")
-	info.text = String(inf.call()) if inf is Callable else String(inf)
+	var it: String = String(inf.call()) if inf is Callable else String(inf)
+	var sb: Button = box.get_child(sel) as Button if sel < box.get_child_count() else null
+	if sb != null and mono.get_string_size(sb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, MGUI.BODY + 2).x > sb.custom_minimum_size.x - 8.0:
+		it = sb.text.substr(2) + ("\n\n" + it if it != "" else "")
+	info.text = MGUI.nb(it)
+	info_p.visible = info.text != ""
+	info_p.reset_size()
+
+func _see(b) -> void:
+	if is_instance_valid(b) and scroll.is_ancestor_of(b):
+		scroll.ensure_control_visible(b)
 
 func _click(k: int) -> void:
 	select(k, false)
@@ -154,13 +203,13 @@ func open_main() -> void:
 	var cur := int(FNSave.v("current"))
 	var any := (FNSave.v("beaten") as Array).size() > 0 or cur > 0
 	_show("main", [
-		{"text": "NEW GAME", "act": func(): root.start_night(0), "info": "Первая ночь с начала. Прогресс ночей сохранится — открытые ночи не закроются."},
-		{"text": func(): return "CONTINUE — НОЧЬ %d" % (cur + 1), "act": func(): root.start_night(cur), "ok": any, "info": "Продолжить с той ночи, на которой остановился."},
-		{"text": "NIGHT SELECT", "act": open_nights, "info": "Пройденные ночи можно переиграть. Закрытые — нет."},
-		{"text": "CUSTOM NIGHT", "act": open_custom, "ok": bool(FNSave.v("custom")), "info": func(): return "Свои уровни каждому врагу, 0–20." if bool(FNSave.v("custom")) else "Откроется после шестой ночи."},
-		{"text": "EXTRAS", "act": open_extras, "info": "Записи, досье, концовки, статистика."},
-		{"text": "SETTINGS", "act": open_settings, "info": "Громкость и сила экранных эффектов."},
-		{"text": "BACK TO MENU", "act": func(): root.quit_to_menu(), "info": "Вернуться к выбору режима GOD OF GRIMERKA."},
+		{"text": "НОВАЯ ИГРА", "act": func(): root.start_night(0), "info": "Первая ночь с начала. Прогресс ночей сохранится — открытые ночи не закроются."},
+		{"text": func(): return "ПРОДОЛЖИТЬ — НОЧЬ %d" % (cur + 1), "act": func(): root.start_night(cur), "ok": any, "info": "Продолжить с той ночи, на которой остановился."},
+		{"text": "ВЫБОР НОЧИ", "act": open_nights, "info": "Пройденные ночи можно переиграть. Закрытые — нет."},
+		{"text": "СВОЯ НОЧЬ", "act": open_custom, "ok": bool(FNSave.v("custom")), "info": func(): return "Свои уровни каждому врагу, 0–20." if bool(FNSave.v("custom")) else "Откроется после шестой ночи."},
+		{"text": "АРХИВ", "act": open_extras, "info": "Записи, досье, концовки, статистика."},
+		{"text": "НАСТРОЙКИ", "act": open_settings, "info": "Громкость и сила экранных эффектов."},
+		{"text": "В МЕНЮ РЕЖИМОВ", "act": func(): root.quit_to_menu(), "info": "Вернуться к выбору режима GOD OF GRIMERKA."},
 	], 1 if any else 0)
 
 func open_nights() -> void:
@@ -186,7 +235,7 @@ func open_custom() -> void:
 			"step": func(d: int): lv[e] = clampi(int(lv[e]) + d, 0, 20),
 			"info": String(FNData.ENEMIES[e]["about"]) + "\n\n" + String(FNData.ENEMIES[e]["counter"])})
 	list.append({"text": func(): return "НАБОР: " + String(_preset_names()[custom_preset % _preset_names().size()]), "step": func(d: int): _preset_step(d, lv),
-		"info": "A/D — перебрать готовые и свои наборы."})
+		"info": "Готовые и свои наборы уровней — клавишами A и D."})
 	list.append({"text": "СОХРАНИТЬ НАБОР", "act": func(): _save_preset(lv), "info": "Запомнить текущие уровни как свой набор."})
 	list.append({"text": "НАЧАТЬ", "act": func(): _custom_start(lv), "info": func(): return "Сумма уровней: %d / 120" % _sum(lv)})
 	list.append({"text": "НАЗАД", "act": func(): _custom_back(lv)})
@@ -276,14 +325,14 @@ func open_stats() -> void:
 func open_settings() -> void:
 	var a = root.main.audio if root.main != null else null
 	var list: Array = []
-	list.append({"text": func(): return "ОБЩАЯ ГРОМКОСТЬ: %d%%" % roundi(float(Opts.v("master")) * 100.0), "step": func(d: int): Opts.put("master", clampf(snappedf(float(Opts.v("master")) + 0.05 * d, 0.05), 0.0, 1.0))})
+	list.append({"text": func(): return "ОБЩАЯ ГРОМКОСТЬ: %d %%" % roundi(float(Opts.v("master")) * 100.0), "step": func(d: int): Opts.put("master", clampf(snappedf(float(Opts.v("master")) + 0.05 * d, 0.05), 0.0, 1.0))})
 	if a != null:
 		for b in [["Music", "МУЗЫКА"], ["Ambient", "ОКРУЖЕНИЕ"], ["SFX", "ЭФФЕКТЫ"], ["Voice", "ГОЛОСА"]]:
 			var bus: String = b[0]
 			var nm: String = b[1]
-			list.append({"text": func(): return "%s: %d%%" % [nm, roundi(float(a.vol[bus]) * 100.0)], "step": func(d: int): a.set_volume(bus, clampf(snappedf(float(a.vol[bus]) + 0.05 * d, 0.05), 0.0, 1.0))})
-	list.append({"text": func(): return "ЭКРАННЫЕ ЭФФЕКТЫ: %d%%" % roundi(float(FNSave.v("settings")["fx"]) * 100.0), "step": func(d: int): _fx_step(d),
-		"info": "Шум, полосы, искажения и полутон. 0% — чистая картинка (для чувствительных к вспышкам)."})
+			list.append({"text": func(): return "%s: %d %%" % [nm, roundi(float(a.vol[bus]) * 100.0)], "step": func(d: int): a.set_volume(bus, clampf(snappedf(float(a.vol[bus]) + 0.05 * d, 0.05), 0.0, 1.0))})
+	list.append({"text": func(): return "ЭКРАННЫЕ ЭФФЕКТЫ: %d %%" % roundi(float(FNSave.v("settings")["fx"]) * 100.0), "step": func(d: int): _fx_step(d),
+		"info": "Шум, полосы, искажения и полутон. 0 % — чистая картинка (для чувствительных к вспышкам)."})
 	list.append({"text": "НАЗАД", "act": open_main})
 	_show("settings", list)
 
@@ -319,6 +368,6 @@ func _process(dt: float) -> void:
 	if glitch_t < -randf_range(4.0, 11.0):
 		glitch_t = randf_range(0.06, 0.18)
 	var g := glitch_t > 0.0
-	title.position.x = 70 + (randf_range(-8, 8) if g else 0.0)
+	title.position.x = LEFT + (randf_range(-6, 6) if g else 0.0)
 	title.modulate.a = 0.6 if g and randf() < 0.5 else 1.0
 	subtitle.modulate.a = 0.85 + 0.15 * sin(t * 3.0)

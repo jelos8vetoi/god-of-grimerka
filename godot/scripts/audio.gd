@@ -74,6 +74,28 @@ func _ready() -> void:
 				var lim := AudioEffectHardLimiter.new()
 				lim.ceiling_db = -1.0
 				AudioServer.add_bus_effect(si, lim)
+	# «Phone» — голос из телефонной трубки (звонки в «5 ночей»): узкая полоса и лёгкий хрип, дальше — в Voice
+	# (ползунок «Голоса» действует на него как на остальную озвучку)
+	if AudioServer.get_bus_index("Phone") < 0:
+		AudioServer.add_bus()
+		var pi := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(pi, "Phone")
+		AudioServer.set_bus_send(pi, "Voice")
+		var hp := AudioEffectHighPassFilter.new()
+		hp.cutoff_hz = 420.0
+		AudioServer.add_bus_effect(pi, hp)
+		var lp := AudioEffectLowPassFilter.new()
+		lp.cutoff_hz = 3100.0
+		AudioServer.add_bus_effect(pi, lp)
+		var ds := AudioEffectDistortion.new()
+		ds.mode = AudioEffectDistortion.MODE_OVERDRIVE
+		ds.drive = 0.22
+		ds.pre_gain = 3.0
+		ds.post_gain = -2.0
+		AudioServer.add_bus_effect(pi, ds)
+		var plim := AudioEffectHardLimiter.new()
+		plim.ceiling_db = -2.0
+		AudioServer.add_bus_effect(pi, plim)
 	# ограничители: эффекты (скример поверх двери и шагов) и общий выход не хрипят
 	var sfx_lim := AudioEffectHardLimiter.new()
 	sfx_lim.ceiling_db = -1.0

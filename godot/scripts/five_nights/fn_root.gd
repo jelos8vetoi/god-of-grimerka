@@ -54,6 +54,7 @@ var whisper: AudioStreamPlayer      # GHOST: шёпот растёт с одер
 var air_tune: AudioStreamPlayer3D   # «последний шанс»
 var pool3: Array = []
 var pool2: Array = []
+var call_voice: AudioStreamPlayer   # голос начальника в трубке (assets/voice/FN_*.mp3, шина Phone → Voice)
 
 func _ready() -> void:
 	if main == null:
@@ -159,6 +160,10 @@ func _audio() -> void:
 		p2.bus = "SFX"
 		add_child(p2)
 		pool2.append(p2)
+	call_voice = AudioStreamPlayer.new()
+	call_voice.bus = "Phone" if AudioServer.get_bus_index("Phone") >= 0 else "Voice"
+	call_voice.volume_db = 1.0
+	add_child(call_voice)
 
 func _p3(id: String) -> AudioStreamPlayer3D:
 	var p := AudioStreamPlayer3D.new()
@@ -305,12 +310,13 @@ func start_night(n: int, lv := {}) -> void:
 	crank_last = ""
 	light_hold = {"l": false, "r": false}
 	air_tune.stop()
+	call_voice.stop()
 	crawl.volume_db = -60.0
 	state = "night"
 	fear_t = randf_range(16.0, 26.0)
 	sfx2("sting_night", -3.0, 1.0, "Music")
-	var title: String = "CUSTOM NIGHT" if n >= FNData.NIGHTS.size() else String(FNData.NIGHTS[n]["title"])
-	ui.night_card("НОЧЬ %d" % (n + 1) if n < FNData.NIGHTS.size() else "CUSTOM NIGHT", title)
+	var title: String = "свои уровни" if n >= FNData.NIGHTS.size() else String(FNData.NIGHTS[n]["title"])
+	ui.night_card("НОЧЬ %d" % (n + 1) if n < FNData.NIGHTS.size() else "СВОЯ НОЧЬ", title)
 	intro_t = 3.6                                  # заставка закрывает и снимки камер ниже
 	actors.tick(st, 0.0)
 	await cams.capture_all()
@@ -330,6 +336,7 @@ func retry() -> void:
 
 func to_terminal() -> void:
 	set_paused(false)
+	call_voice.stop()
 	scare.restore()
 	if st != null:
 		st.outcome = "quit"
@@ -342,6 +349,7 @@ func set_paused(on: bool) -> void:
 	ui.show_pause(on)
 	for id in amb:
 		(amb[id] as AudioStreamPlayer).stream_paused = on
+	call_voice.stream_paused = on
 	for id in actors.rigs:
 		(actors.rigs[id] as Rig).player.speed_scale = 0.0 if on else 1.0
 
@@ -407,8 +415,7 @@ func _night_tick(dt: float) -> void:
 		cams.mat.set_shader_parameter("haunt", 1.0)
 	if hint_t > 0.0:
 		hint_t -= dt
-		ui.hints("A / D — двери · Q / E (держать) — свет\nПРОБЕЛ — камеры · 1–8 — выбор камеры
-на камере: L — приманка · C (держать) — перезапуск\nмышь к краю — посмотреть влево и вправо" if hint_t > 0.0 else "")
+		ui.hints("office" if hint_t > 0.0 and not st.monitor else "")
 	if st.power_out:
 		ui.show_dark(not st.emergency_used, st.crank_p / 6.0)
 	else:
@@ -579,14 +586,31 @@ func _call_tick(dt: float) -> void:
 	call_t -= dt
 	if call_t <= 0.0:
 		var line: String = call_lines.pop_front()
-		ui.sub("☎  " + line + ("" if call_lines.is_empty() else "\n[F — сбросить звонок]"))
+		ui.sub(line, not call_lines.is_empty())
 		call_t = clampf(float(line.length()) * 0.065, 3.2, 6.5)
-		if _snd_ok():
+		var vs := call_stream(line)
+		if vs != null and _snd_ok():
+			# настоящая озвучка: реплика на экране держится, пока её договаривают
+			call_voice.stream = vs
+			call_voice.pitch_scale = 0.84 if night == 5 else 1.0        # шестая ночь: звонит уже не Семёныч
+			call_voice.play()
+			call_t = maxf(2.0, float(vs.get_length()) / call_voice.pitch_scale + 0.45)
+		elif _snd_ok():
 			sfx2("babble", -10.0, randf_range(0.9, 1.1), "Voice")
+
+## файл озвучки реплики звонка: как у остальной озвучки игры — код говорящего и начало md5 от «код|текст»
+## (tools/godot-voice.cjs, код FN). Нет файла — null, тогда вместо голоса неразборчивое бормотание.
+static func call_path(line: String) -> String:
+	return "res://assets/voice/FN_%s.mp3" % ("FN|" + line).md5_text().substr(0, 10)
+
+func call_stream(line: String) -> AudioStream:
+	var p := call_path(line)
+	return load(p) as AudioStream if ResourceLoader.exists(p) else null
 
 func mute_call() -> void:
 	call_muted = true
 	call_lines.clear()
+	call_voice.stop()
 	ui.sub("")
 	sfx2("click", -6.0)
 
@@ -594,6 +618,7 @@ func mute_call() -> void:
 func _attack(eid: String, at: String) -> void:
 	state = "scare"
 	light_hold = {"l": false, "r": false}
+	call_voice.stop()
 	ui.show_dark(false)
 	ui.hints("")
 	ui.sub("")
@@ -618,6 +643,7 @@ func _six() -> void:
 	state = "six"
 	ui.sub("")
 	ui.show_dark(false)
+	call_voice.stop()
 	air_tune.stop()
 	crawl.stop()
 	whisper.stop()
@@ -629,7 +655,7 @@ func _six() -> void:
 	if night == 4:
 		extra = String(FNData.ENDINGS["night5"][1]) + "\n\nОТКРЫТА НОЧЬ 6."
 	elif night == 5:
-		extra = String(FNData.ENDINGS["night6"][1]) + "\n\nОТКРЫТА CUSTOM NIGHT."
+		extra = String(FNData.ENDINGS["night6"][1]) + "\n\nОткрыта СВОЯ НОЧЬ: уровни врагов — на твой выбор."
 	elif night == 6:
 		var all20 := FNData.ORDER.all(func(e): return int(levels.get(e, 0)) >= 20)
 		if all20:

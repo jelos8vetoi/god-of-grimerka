@@ -52,6 +52,113 @@ func key(k: Key) -> void:
 		Input.parse_input_event(e)
 		await wait(0.05)
 
+## карьера: дерево навыков (экран, покупка, зависимости), бизнес (покупка, найм, вечерний доход, износ), синергии,
+## вехи, копилка между неделями, ЛЕГЕНДА РАЙОНА, миграция старых сохранений, долгие симуляции стратегий
+func _career_part(R: MicroloansRoot, e: MLEconomy, U: MLUI) -> void:
+	var C: MLCareer = e.career
+	ok(C != null and R.career == C, "у недели есть карьера Пахана (MLCareer)")
+	var c0 := C.to_dict()
+	C.from_dict({})
+	ok(int(C.d["level"]) == 1 and (C.d["nodes"] as Dictionary).is_empty(), "старое сохранение без карьеры — начинаем с первого уровня")
+	C.from_dict({"xp": 12.0, "level": 3.0, "points": 2.0, "nodes": {"w_hands": 1.0}, "biz": {"workshop": {"lv": 1.0}}})
+	ok(int(C.d["level"]) == 3 and C.rank("w_hands") == 1 and C.biz_level("workshop") == 1 and float(C.biz("workshop")["cond"]) == 1.0, "загрузка: числа из JSON — целые, недостающие поля — по умолчанию")
+	C.from_dict({})
+	C.d["points"] = 3
+	# дерево: экран, покупка, зависимости
+	e.ending = ""
+	e.phase = "day"
+	U.show_phase()
+	await wait(0.4)
+	await shot("m02b_day_cards")
+	ok(U.rows.size() >= 9 and U.rows.any(func(r): return not (r["spec"] as Dictionary).is_empty()), "день — карточки действий (%d)" % U.rows.size())
+	U.dev_tree()
+	await wait(0.5)
+	await shot("m10_tree")
+	ok(U.screen == "tree" and U.tree_ui != null and U.tree_ui.widgets.size() == MLTree.NODES.size(), "РАЗВИТИЕ ПАХАНА: пять веток, узлов %d" % MLTree.NODES.size())
+	ok(C.why_not("w_pro") != "" and C.why_not("w_hands") == "", "закрытый узел объясняет почему (%s), корневой — можно" % C.why_not("w_pro"))
+	U.tree_ui.sel = "w_hands"
+	U.tree_ui.buy()
+	ok(C.rank("w_hands") == 1 and int(C.d["points"]) == 2 and C.pay_mult("repair") > 1.05, "куплен «Руки из плеч»: оплата ×%.2f" % C.pay_mult("repair"))
+	var lv0 := int(C.d["level"])
+	var ups := C.add_xp(MLCareer.xp_need(lv0) + 5)
+	ok(ups >= 1 and int(C.d["level"]) > lv0 and int(C.d["points"]) >= 3, "опыт → уровень %d и очки навыков" % int(C.d["level"]))
+	var xs: Array = range(1, 20).map(func(l): return MLCareer.xp_need(l))
+	var grows := true
+	for i in xs.size() - 1:
+		if int(xs[i + 1]) <= int(xs[i]):
+			grows = false
+	ok(grows and int(xs[1]) < 300 and int(xs[18]) > 4000, "кривая опыта растёт: ур.2 — %d, ур.19 — %d" % [int(xs[1]), int(xs[18])])
+	# бизнес
+	C.d["level"] = 8
+	C.d["points"] = 10
+	C.buy_node("b_first")
+	ok(C.biz_open("workshop") and not C.biz_open("studio"), "ветка ПРЕДПРИНИМАТЕЛЬ открыла мастерскую, студия ещё закрыта")
+	e.money = 60000
+	U.biz_screen()
+	await wait(0.5)
+	await shot("m11_biz")
+	var cost := C.biz_up("workshop", e.money)
+	e.money -= cost
+	var h := C.hire("workshop", e.money)
+	e.money -= h
+	ok(cost > 0 and h > 0 and C.biz_level("workshop") == 1 and int(C.biz("workshop")["staff"]) == 1, "мастерская куплена за %s, нанят сотрудник за %s" % [MLUI.rub(cost), MLUI.rub(h)])
+	var r1 := C.biz_day_one("workshop")
+	var r0 := MLTree.BUSINESSES["workshop"]["inc"][0] as int
+	ok(int(r1["net"]) > 0 and int(r1["inc"]) > r0, "вечерняя выручка с сотрудником: %+d ₽ (без него — %d)" % [int(r1["net"]), r0])
+	var cond0 := float(C.biz("workshop")["cond"])
+	C.biz_day()
+	ok(float(C.biz("workshop")["cond"]) < cond0, "оборудование изнашивается без автоматики")
+	ok(C.service_cost("workshop") > 0 and C.service("workshop") > 0 and float(C.biz("workshop")["cond"]) == 1.0, "обслуживание возвращает исправность")
+	var m_before := e.money
+	e.day = 2
+	e.phase = "evening"
+	e.next_phase()
+	ok(e.money != m_before, "ночь: выручка бизнеса пришла на счёт (%+d ₽)" % (e.money - m_before))
+	# синергия
+	C.d["nodes"]["s_haggle"] = 2
+	C.d["biz"]["workshop"]["lv"] = 2
+	C.cache.clear()
+	ok(C.synergy_on(MLTree.SYNERGIES[1]) and C.v("upkeep:workshop") < -0.2, "синергия «МАСТЕРСКАЯ + СХЕМЫ»: расходы мастерской %d %%" % int(C.v("upkeep:workshop") * 100.0))
+	# вехи
+	C.bump("closed")
+	var ms := C.check_milestones()
+	ok(ms.any(func(m): return String(m["id"]) == "ms_payoff"), "веха «первый закрытый долг»")
+	# копилка между неделями
+	var w0 := int(C.d["week"])
+	var put := C.end_week(20000, "paid")
+	ok(int(C.d["week"]) == w0 + 1 and put > 0 and C.week_debt_k() > 1.0, "конец недели: в копилку %s, долги новой недели ×%.2f" % [MLUI.rub(put), C.week_debt_k()])
+	var x := MLEconomy.new()
+	x.career = C
+	x.new_game(77)
+	ok(x.money > MLData.START_MONEY and x.total_debt() > 45000, "новая неделя: старт с копилкой %s, долги %s" % [MLUI.rub(x.money), MLUI.rub(x.total_debt())])
+	# ЛЕГЕНДА РАЙОНА
+	C.d["level"] = MLTree.LEGEND_LEVEL
+	ok(C.prestige_ready(), "уровень %d — открыта ЛЕГЕНДА РАЙОНА" % MLTree.LEGEND_LEVEL)
+	U.legend_screen()
+	await wait(0.4)
+	await shot("m12_legend")
+	var pv := C.prestige_preview()
+	ok((pv["lose"] as Array).size() >= 3 and (pv["keep"] as Array).size() >= 2 and int(pv["gain"]) > 0, "перед престижем видно, что потеряется и что останется (+%d АВТОРИТЕТА)" % int(pv["gain"]))
+	var gain := C.prestige()
+	ok(gain > 0 and int(C.d["legend"]["points"]) == gain and (C.d["nodes"] as Dictionary).is_empty() and C.biz_count() == 0 and int(C.d["level"]) == 1, "престиж: навыки и бизнесы сброшены, АВТОРИТЕТ %d" % gain)
+	ok(C.legend_buy("L_start") and C.v("start_money") > 0.0, "бонус ЛЕГЕНДЫ куплен навсегда")
+	# симуляции карьеры
+	var tot := {}
+	for s in ["clean", "workshop", "delivery", "credit", "combo", "auto"]:
+		var r := MLCareer.simulate(s, 10, 21)
+		tot[s] = int(r["total"])
+		var w: Array = r["weeks"]
+		print("MICROLOANSCHECK   карьера %-9s 10 недель: %7d ₽, уровень %d, бизнесов %d, неделя 1 — %s, неделя 3 — %s" % [s, int(r["total"]), int(r["level"]), int(r["biz"]), w[0]["ending"], w[2]["ending"]])
+		ok(String(w[0]["ending"]) == "paid", "стратегия «%s»: первая неделя проходима" % s)
+	var best := 0
+	for s in tot:
+		best = maxi(best, int(tot[s]))
+	ok(float(tot["combo"]) > float(best) * 0.55, "развитие всех веток не хуже лучшей узкой стратегии больше чем вдвое (%d из %d)" % [int(tot["combo"]), best])
+	ok(float(tot["workshop"]) > float(tot["clean"]) and float(tot["delivery"]) > float(tot["clean"]), "бизнес обгоняет одни подработки на длинной дистанции")
+	ok(float(best) < float(tot["clean"]) * 5.0, "ни одна стратегия не отрывается безумно (лучшая ×%.1f от одних подработок)" % (float(best) / maxf(1.0, float(tot["clean"]))))
+	C.from_dict(c0)
+	U.show_phase()
+
 func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	await wait(2.0)
@@ -145,17 +252,22 @@ func _run() -> void:
 	U._flow_keys(KEY_E)
 	U.show_phase()
 	# ================= подработки: настоящие мини-игры с ботом =================
-	for jid in ["podezd", "repair", "junk"]:
+	var good_clean := 0
+	for jid in ["podezd", "repair", "deliv", "junk"]:
 		e.actions = maxi(e.actions, 1)
 		var mb := e.money
+		if jid == "podezd":
+			e.rng.seed = 4242                       # тот же уровень уборки достанется и «плохому» боту ниже
 		var J: MLJob = U.run_job(jid, 0.9)
 		await wait(0.3)
-		if jid == "podezd":
-			await wait(2.0)
-			await shot("m04_job_podezd")
+		ok(J is MLJob3D and (J as MLJob3D).vp != null, "подработка %s — своя 3D-сцена" % MLData.JOBS[jid]["name"])
+		await wait(4.0)
+		await shot("m04_job_" + jid)
 		var fin: bool = await until(func(): return not is_instance_valid(J) or J.done, 70.0)
 		await wait(0.3)
 		ok(fin and e.money > mb, "подработка %s: бот прошёл, +%s" % [MLData.JOBS[jid]["name"], MLUI.rub(e.money - mb)])
+		if jid == "podezd":
+			good_clean = e.money - mb
 	# звукарь нужен с репутацией
 	e.rep = 60
 	e.actions = maxi(e.actions, 1)
@@ -169,10 +281,11 @@ func _run() -> void:
 	# плохой игрок получает меньше
 	e.actions = maxi(e.actions, 1)
 	var mp := e.money
+	e.rng.seed = 4242
 	var JP: MLJob = U.run_job("podezd", 0.1)
 	await until(func(): return not is_instance_valid(JP) or JP.done, 70.0)
 	await wait(0.3)
-	ok(e.money - mp < int(MLData.JOBS["podezd"]["base"]) * 0.6, "плохо убрал — меньше денег (%s)" % MLUI.rub(e.money - mp))
+	ok(e.money - mp < int(float(good_clean) * 0.85), "плохо убрал — меньше денег (%s против %s у аккуратного)" % [MLUI.rub(e.money - mp), MLUI.rub(good_clean)])
 	# стресс и отдых
 	e.stress = 85
 	ok(e.actions_max() == MLData.ACTIONS - 1, "высокий стресс отнимает действие")
@@ -271,6 +384,7 @@ func _run() -> void:
 	await wait(0.4)
 	await shot("m09_ending")
 	ok(U.screen == "ending" and MLSave.load_all().get("endings", {}).has("paid"), "экран концовки, концовка записана в зал славы")
+	await _career_part(R, e, U)
 	# ================= симуляции стратегий =================
 	var res := {}
 	for s in ["juggler", "grinder", "balanced", "talker", "borrower", "abuser", "lazy"]:
