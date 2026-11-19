@@ -1,4 +1,4 @@
-// Локальный сервер для compose-modes.html (трейлер режимов). Ничего не шлёт наружу, слушает только 127.0.0.1.
+// Локальный сервер для compose-modes.html (трейлер режимов) и compose-mini.html (трейлер мини-игр). Ничего не шлёт наружу, слушает только 127.0.0.1.
 //   node tools/trailer/serve-modes.cjs <папка кадров trailermodes> <куда сохранить mp4> [порт]
 // /frames/* — кадры и sfx_*.wav из --trailermodes, /voice/* — godot/assets/voice, /music/* — godot/assets/music,
 // остальное — tools/trailer; PUT /__save?name=… — записать готовое видео в папку вывода.
