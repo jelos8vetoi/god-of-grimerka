@@ -662,6 +662,39 @@ func open_mode(id: String) -> void:
 			_open_training()
 		"race":
 			open_race()
+		"microloans":
+			_open_microloans()
+		"five_nights":
+			launch_minigame("five_nights")
+
+## Мини-игры со своей сценой (main.MINIGAMES): тот же уход меню, что у режимов, затем main.cinematic_minigame
+func launch_minigame(id: String, opt := {}) -> void:
+	if launching:
+		return
+	_close()
+	await _launch_fx()
+	main.cinematic_minigame(id, opt)
+
+## ПАХАН НАБРАЛ МИКРОЗАЙМОВ: продолжить неделю или начать новую (своё сохранение, кампания не трогается)
+func _open_microloans() -> void:
+	var lines: Array = []
+	var acts: Array = []
+	var all := MLSave.load_all()
+	if MLSave.has_run():
+		var r: Dictionary = all["run"]
+		var debt := 0
+		for l in r.get("loans", []):
+			if String((l as Dictionary).get("status", "")) != "closed":
+				debt += int(ceil(float((l as Dictionary).get("balance", 0.0))))
+		lines.append("Неделя идёт: день %d из %d · на руках %d ₽ · долг %d ₽" % [int(r.get("day", 1)), MLData.DAYS, int(r.get("money", 0)), debt])
+		acts.append(["ПРОДОЛЖИТЬ", func(): launch_minigame("microloans", {"continue": true})])
+	else:
+		lines.append("Пахан набрал микрозаймов в четырёх конторах сразу. Семь дней, чтобы выбраться.")
+	var ends: Dictionary = all.get("endings", {})
+	lines.append("Концовок открыто: %d из %d" % [ends.size(), MLData.ENDINGS.size()])
+	acts.append(["НОВАЯ НЕДЕЛЯ", func(): launch_minigame("microloans", {"continue": false})])
+	acts.append(["НАЗАД", _close])
+	_open("ПАХАН НАБРАЛ МИКРОЗАЙМОВ", lines, acts)
 
 ## Гонки на пылесосах: меню гонок — race_menu.gd (RaceMenu), гонка — race.gd через main.cinematic_race
 func race_ready() -> bool:

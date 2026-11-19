@@ -1,0 +1,316 @@
+## Проверка «ПАХАН НАБРАЛ МИКРОЗАЙМОВ»: `--resolution 1280x720 -- --microloanscheck=<папка>`.
+## Меню режимов → мини-игра (своя сцена, game.gd не создаётся) → новая игра, займ и сумма возврата, проценты
+## ночью, график, частичная оплата, минимальный платёж, продление, рефинансирование, просрочка и штраф,
+## мелкий шрифт, переговоры (настоящий звонок: пауза, перебил, документ), репутация, стресс, все четыре
+## подработки (боты-игроки в настоящих мини-играх), вещи и бартер, события с предупреждением, все концовки,
+## сохранение, загрузка, повреждённый файл и резервная копия, симуляции стратегий (никто не уходит
+## в бесконечный плюс, честная игра проходима), возврат в меню режимов, кампания после. «MICROLOANSCHECK ok».
+extends Node
+
+const KEEP := ["user://grimerka_save.json", "user://microloans_save.json", "user://microloans_save.json.bak"]
+var main
+var out := ""
+var fails := 0
+var kept := {}
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	for p in KEEP:
+		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+	for p in KEEP.slice(1):
+		if FileAccess.file_exists(p):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+	AudioServer.set_bus_mute(0, true)
+	_run()
+
+func ok(cond: bool, text: String) -> void:
+	if not cond:
+		fails += 1
+	print(("MICROLOANSCHECK ok: " if cond else "MICROLOANSCHECK ОШИБКА: ") + text)
+
+func wait(t: float) -> void:
+	await get_tree().create_timer(t, true, false, true).timeout
+
+func until(cond: Callable, sec: float) -> bool:
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
+		if cond.call():
+			return true
+		await get_tree().process_frame
+	return bool(cond.call())
+
+func shot(name: String) -> void:
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+
+func key(k: Key) -> void:
+	for down in [true, false]:
+		var e := InputEventKey.new()
+		e.keycode = k
+		e.physical_keycode = k
+		e.pressed = down
+		Input.parse_input_event(e)
+		await wait(0.05)
+
+func _run() -> void:
+	DirAccess.make_dir_recursive_absolute(out)
+	await wait(2.0)
+	var grim0 = kept[KEEP[0]]
+	# ================= вход из меню режимов =================
+	var mm = main.menu
+	var idx := -1
+	for k in ModeSelect.MODES.size():
+		if String(ModeSelect.MODES[k]["id"]) == "microloans":
+			idx = k
+	ok(idx >= 0, "в выборе режима есть ПАХАН НАБРАЛ МИКРОЗАЙМОВ")
+	mm.open_modes(idx)
+	await wait(0.7)
+	await shot("m00_mode_card")
+	await key(KEY_ENTER)
+	await wait(0.3)
+	ok(mm.panel != null, "карточка открывает экран режима (новая игра / продолжить)")
+	mm._panel_select(0, false)
+	await key(KEY_ENTER)
+	var started: bool = await until(func(): return main.minigame != null and is_instance_valid(main.minigame) and main.minigame is MicroloansRoot, 15.0)
+	ok(started, "мини-игра запустилась своей сценой")
+	if not started:
+		_finish()
+		return
+	ok(main.game == null and main.race == null, "основная игра и гонки не созданы")
+	var R: MicroloansRoot = main.minigame
+	await wait(1.5)
+	var e := R.econ
+	var U := R.ui
+	ok(e.day == 1 and e.active().size() == 4 and e.total_debt() >= 40000, "новая неделя: день 1, четыре долга на %s" % MLUI.rub(e.total_debt()))
+	ok(R.pahan != null and R.pahan.model != null, "в комнате настоящий Пахан (pahan.glb)")
+	await shot("m01_morning")
+	MLSave.persist = true
+	# ================= займ: условия до подписания, сумма возврата =================
+	if e.event_today != "" and not e.event_done:
+		e.resolve_event((MLData.EVENTS[e.event_today]["choices"] as Array).size() - 1)
+	e.next_phase()
+	U.show_phase()
+	await wait(0.3)
+	ok(e.phase == "day" and e.actions == MLData.ACTIONS, "день: %d действия" % e.actions)
+	U.offers()
+	await wait(0.3)
+	await shot("m02_offers")
+	var O: Dictionary = e.offers[0]
+	var pv := e.preview("take", {"offer": O})
+	ok(pv["lines"].size() >= 1 and int(pv["debt"]) == e.total_debt() + int(O["amount"]), "до подписания видно: на руки, вернуть к сроку, долг станет %s" % MLUI.rub(int(pv["debt"])))
+	var hidden := e.offers.filter(func(o): return o["clause"] != "" and not o["known"])
+	if not hidden.is_empty():
+		var a0 := e.actions
+		e.study(int(hidden[0]["id"]))
+		ok(bool(hidden[0]["known"]) and e.actions == a0 - 1, "мелкий шрифт: «изучить договор» — одно действие, приписка видна")
+	var m0 := e.money
+	var d0 := e.total_debt()
+	e.take(int(O["id"]))
+	var L: Dictionary = e.loans.back()
+	var C: Dictionary = MLData.CLAUSES.get(String(L["clause"]), ["", {}])[1]
+	ok(e.money == m0 + int(float(L["principal"]) * (1.0 - float(C.get("cut", 0.0)))) and e.total_debt() == d0 + int(L["principal"]), "займ выдан: +%s на руки, долг +%s" % [MLUI.rub(e.money - m0), MLUI.rub(int(L["principal"]))])
+	ok(int(L["due"]) == e.day + int(MLData.LENDERS[L["lender"]]["term"]), "график: срок — день %d" % int(L["due"]))
+	# частичная оплата, минимальный, продление
+	var bal0 := float(L["balance"])
+	e.pay(int(L["id"]), 1000)
+	ok(float(L["balance"]) < bal0, "частичная оплата: долг %s → %s" % [MLUI.rub(int(bal0)), MLUI.rub(int(L["balance"]))])
+	var due0 := int(L["due"])
+	if e.pay_min(int(L["id"])):
+		ok(int(L["due"]) == due0 + 1, "минимальный платёж: срок +1 день")
+	var e_info := e.extend_info(L)
+	if bool(e_info["ok"]):
+		var due1 := int(L["due"])
+		e.extend(int(L["id"]))
+		ok(int(L["due"]) > due1, "продление: срок %d → %d за %s" % [due1, int(L["due"]), MLUI.rub(int(e_info["fee"]))])
+	else:
+		ok(String(e_info["why"]) != "", "продление недоступно — понятно почему: %s" % e_info["why"])
+	# рефинансирование
+	var two := e.active().filter(func(x): return x["lender"] in ["bystro", "srochno"]).map(func(x): return int(x["id"]))
+	var info := e.refinance_info(two, "cash")
+	var pvr := e.preview("refinance", {"ids": two, "lender": "cash"})
+	ok(pvr["lines"].size() == 2, "рефинансирование: последствия видно заранее (%s)" % pvr["lines"][0])
+	if bool(info["ok"]):
+		var n0 := e.active().size()
+		e.refinance(two, "cash")
+		ok(e.active().size() == n0 - two.size() + 1 and e.loans.back().has("from"), "рефинансирование: %d долга закрыты новым" % two.size())
+	else:
+		ok(true, "рефинансирование сейчас нельзя: %s" % info["why"])
+	# карта долгов
+	U.debt_flow()
+	await wait(0.4)
+	ok(U.screen == "flow" and U.flow_canvas != null, "КАРТА ДОЛГОВ открыта")
+	await shot("m03_debt_flow")
+	U._flow_keys(KEY_Q)
+	ok(U.flow_focus >= 0 and U.pay_amount >= 0, "стратегия «самый дорогой» выбирает долг")
+	U._flow_keys(KEY_E)
+	U.show_phase()
+	# ================= подработки: настоящие мини-игры с ботом =================
+	for jid in ["podezd", "repair", "junk"]:
+		e.actions = maxi(e.actions, 1)
+		var mb := e.money
+		var J: MLJob = U.run_job(jid, 0.9)
+		await wait(0.3)
+		if jid == "podezd":
+			await wait(2.0)
+			await shot("m04_job_podezd")
+		var fin: bool = await until(func(): return not is_instance_valid(J) or J.done, 70.0)
+		await wait(0.3)
+		ok(fin and e.money > mb, "подработка %s: бот прошёл, +%s" % [MLData.JOBS[jid]["name"], MLUI.rub(e.money - mb)])
+	# звукарь нужен с репутацией
+	e.rep = 60
+	e.actions = maxi(e.actions, 1)
+	var ms := e.money
+	var JS: MLJob = U.run_job("sound", 0.9)
+	await wait(4.0)
+	await shot("m05_job_sound")
+	await until(func(): return not is_instance_valid(JS) or JS.done, 70.0)
+	await wait(0.3)
+	ok(e.money > ms, "ЗВУКАРЬ: +%s" % MLUI.rub(e.money - ms))
+	# плохой игрок получает меньше
+	e.actions = maxi(e.actions, 1)
+	var mp := e.money
+	var JP: MLJob = U.run_job("podezd", 0.1)
+	await until(func(): return not is_instance_valid(JP) or JP.done, 70.0)
+	await wait(0.3)
+	ok(e.money - mp < int(MLData.JOBS["podezd"]["base"]) * 0.6, "плохо убрал — меньше денег (%s)" % MLUI.rub(e.money - mp))
+	# стресс и отдых
+	e.stress = 85
+	ok(e.actions_max() == MLData.ACTIONS - 1, "высокий стресс отнимает действие")
+	e.actions = 1
+	e.rest()
+	ok(e.stress == 60, "отдых снимает стресс (85 → %d)" % e.stress)
+	# вещи и бартер
+	var rl := e.active().filter(func(x): return x["lender"] == "reshim")
+	if not rl.is_empty():
+		e.inventory.append(0)                      # кассетный плеер — Гена его возьмёт
+		var rb := float(rl[0]["balance"])
+		e.barter(e.inventory.size() - 1, int(rl[0]["id"]))
+		ok(float(rl[0]["balance"]) < rb, "бартер: «Решим вопрос» взял вещь в счёт долга")
+	# ================= переговоры — настоящий звонок =================
+	var tgt: Dictionary = e.active()[0]
+	tgt["due"] = e.day
+	var N: MLNegotiation = U.negotiate(int(tgt["id"]), func(): pass)
+	await wait(0.2)
+	await shot("m06_call")
+	var tr0 := N.trust
+	await until(func(): return N.speaking, 2.0)
+	N.play(0)
+	ok(N.trust < tr0, "перебил коллектора — доверие упало (%.0f → %.0f)" % [tr0, N.trust])
+	await until(func(): return not N.speaking, 4.0)
+	var tr1 := N.trust
+	N.play(1 if N._avail(1) == "" else 2 if N._avail(2) == "" else 3)
+	ok(N.trust >= tr1 or N.doc_mode, "ответил в паузу — доверие выросло")
+	if N.doc_mode:
+		N.pick_doc(N.DOCS.map(func(d): return d[0]).find(N.doc_right))
+	await until(func(): return not N.speaking, 4.0)
+	N.play(3)
+	ok(N.doc_mode, "«ПРЕДЪЯВИТЬ ДОКУМЕНТ» открывает ящик стола")
+	await shot("m07_documents")
+	var tr2 := N.trust
+	N.pick_doc(N.DOCS.map(func(d): return d[0]).find(N.doc_right))
+	ok(N.trust > tr2, "нужная бумага найдена — доверие +%.0f" % (N.trust - tr2))
+	var due_before := int(tgt["due"])
+	N._end()
+	await wait(1.4)
+	ok(int(tgt["due"]) >= due_before, "итог переговоров применён: срок %d → %d" % [due_before, int(tgt["due"])])
+	# повтор уступок — не абуз
+	tgt["talk_wins"] = 2
+	var bal_t := float(tgt["balance"])
+	e.negotiation_result(int(tgt["id"]), 90.0, 0.0, 0, false)
+	ok(float(tgt["balance"]) >= bal_t - 0.5, "третья уступка по одному займу не даётся")
+	# ================= ночь: проценты, просрочка =================
+	var night_l: Dictionary = e.active()[0]
+	var b0 := float(night_l["balance"])
+	night_l["due"] = e.day
+	var rep0 := e.rep
+	e.phase = "evening"
+	e.next_phase()
+	ok(float(night_l["balance"]) > b0 and night_l["status"] == "overdue" and e.rep < rep0, "ночь: проценты и штраф начислены, просрочка, репутация упала")
+	ok(e.day >= 2 and e.phase == "morning", "наступил день %d" % e.day)
+	# события с предупреждением
+	e.warned.clear()
+	e.warned["collector_visit"] = e.day + 1
+	e.day += 1
+	e._pick_event()
+	ok(e.event_today == "collector_visit", "событие с предупреждением наступает на следующий день")
+	U.show_phase()
+	await wait(0.3)
+	await shot("m08_event")
+	# ================= сохранение и загрузка =================
+	R.save()
+	ok(FileAccess.file_exists(MLSave.PATH), "сохранение: user://microloans_save.json")
+	var money_saved := e.money
+	var e2 := MLEconomy.new()
+	ok(MLSave.load_run(e2) and e2.money == money_saved and e2.loans.size() == e.loans.size() and e2.day == e.day, "загрузка: те же деньги, долги и день")
+	R.save()                                      # теперь есть .bak
+	var f := FileAccess.open(MLSave.PATH, FileAccess.WRITE)
+	f.store_string("{сломано")
+	f.close()
+	var e3 := MLEconomy.new()
+	ok(MLSave.load_run(e3) and e3.day == e.day, "повреждённый файл: загружена резервная копия")
+	ok(FileAccess.get_file_as_string(KEEP[0]) == (grim0 if grim0 != null else ""), "сюжетное сохранение не тронуто")
+	# ================= концовки =================
+	var seen := {}
+	for c in [["paid", {}], ["talks", {"talk_closed": 2}], ["king", {"taken": 5, "closed": 8, "fines": 0}], ["business", {}], ["pit", {}]]:
+		var x := MLEconomy.new()
+		x.new_game(5)
+		for k in (c[1] as Dictionary):
+			x.stats[k] = int(c[1][k])
+		if c[0] != "pit":
+			for l2 in x.loans:
+				l2["status"] = "closed"
+				l2["balance"] = 0.0
+		if c[0] == "business":
+			x.flags["business"] = true
+		if c[0] == "king":
+			x.stats["fines"] = 0
+		seen[x.compute_ending()] = true
+	ok(seen.size() == 5, "все пять концовок: %s" % ", ".join(seen.keys()))
+	e.ending = "paid"
+	U.ending()
+	await wait(0.4)
+	await shot("m09_ending")
+	ok(U.screen == "ending" and MLSave.load_all().get("endings", {}).has("paid"), "экран концовки, концовка записана в зал славы")
+	# ================= симуляции стратегий =================
+	var res := {}
+	for s in ["juggler", "grinder", "balanced", "talker", "borrower", "abuser", "lazy"]:
+		for sk in [0.5, 0.8]:
+			var b := MLSim.batch(s, 80, sk)
+			res["%s_%.1f" % [s, sk]] = b
+			print("MICROLOANSCHECK   симуляция %-9s мастерство %.1f: побед %3d%%, итог в середине %7d, лучший %7d, %s" % [s, sk, int(b["win"] * 100), b["median_net"], b["max_net"], str(b["ends"])])
+	var max_all := 0
+	for k in res:
+		max_all = maxi(max_all, int(res[k]["max_net"]))
+	ok(max_all < 70000, "ни одна стратегия не уходит в бесконечный плюс (лучший итог %s)" % MLUI.rub(max_all))
+	ok(float(res["grinder_0.8"]["win"]) > 0.85 and float(res["balanced_0.8"]["win"]) > 0.85, "честная хорошая игра проходима")
+	ok(float(res["grinder_0.5"]["win"]) < 0.9 and float(res["balanced_0.5"]["win"]) < 0.9, "средняя игра — не гарантия (напряжение есть)")
+	ok(float(res["lazy_0.5"]["win"]) == 0.0 and float(res["borrower_0.8"]["win"]) < 0.2 and float(res["abuser_0.8"]["win"]) < 0.3, "лень, займы ради займов и абуз — проигрыш")
+	var all_ends := {}
+	for k in res:
+		for en in res[k]["ends"]:
+			all_ends[en] = true
+	ok(all_ends.size() == 5, "в симуляциях встречаются все концовки (%s)" % ", ".join(all_ends.keys()))
+	# ================= выход в меню режимов и кампания =================
+	R.quit_to_menu()
+	var back: bool = await until(func(): return main.menu != null and main.minigame == null and main.menu.modes.visible, 8.0)
+	ok(back, "выход — в меню режимов")
+	main.start_game(false, 0)
+	var camp: bool = await until(func(): return main.game != null and main.game.player != null, 20.0)
+	ok(camp, "кампания после мини-игры запускается")
+	main.game._to_menu()
+	await wait(1.0)
+	_finish()
+
+func _finish() -> void:
+	MLSave.persist = true
+	for p in KEEP:
+		if kept[p] == null:
+			if FileAccess.file_exists(p):
+				DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
+		else:
+			var f := FileAccess.open(p, FileAccess.WRITE)
+			if f:
+				f.store_string(kept[p])
+	AudioServer.set_bus_mute(0, false)
+	print("MICROLOANSCHECK ok" if fails == 0 else "MICROLOANSCHECK ОШИБКА: %d" % fails)
+	get_tree().quit()

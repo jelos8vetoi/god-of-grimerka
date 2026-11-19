@@ -27,6 +27,9 @@ var racecheck := ""         # --racecheck=<папка>: гонки на пыле
 var racenet := ""           # --race-netcheck=<папка> (хост) / --race-netclient=<папка> (клиент): сетевая гонка (scripts/racenetcheck.gd)
 var weathercheck := ""      # --weathercheck=<папка>: погода и случайные ситуации гонок (scripts/weathercheck.gd)
 var race: Node              # идущая гонка (race.gd) или null
+var minigame: Node          # мини-игра со своей сценой (ПАХАН НАБРАЛ МИКРОЗАЙМОВ, 5 НОЧЕЙ С ПАХАНОМ) или null
+var microloanscheck := ""   # --microloanscheck=<папка>: мини-игра «микрозаймы» (scripts/microloans/microloanscheck.gd)
+var fivenightscheck := ""   # --fivenightscheck=<папка>: мини-игра «5 ночей» (scripts/five_nights/fivenightscheck.gd)
 var race_net: Node          # сетевая гонка (race_net.gd, /root/Main/RaceNet) или null — тогда игра офлайн
 var net_msg := ""           # почему закончилась сетевая сессия (покажет экран ONLINE RACE)
 var onechapter := false     # --onechapter: и в проверках только доступные игроку главы (проверка концовки первой главы)
@@ -165,6 +168,10 @@ func _ready() -> void:
 			modecheck = arg.substr(12)
 		elif arg.begins_with("--racecheck="):
 			racecheck = arg.substr(12)
+		elif arg.begins_with("--microloanscheck="):
+			microloanscheck = arg.substr(18)
+		elif arg.begins_with("--fivenightscheck="):
+			fivenightscheck = arg.substr(18)
 		elif arg.begins_with("--race-netcheck="):
 			racenet = arg.substr(16)
 		elif arg.begins_with("--race-netclient="):
@@ -248,6 +255,16 @@ func _ready() -> void:
 			mdc.main = self
 			mdc.out = modecheck
 			add_child(mdc)
+		if microloanscheck != "":
+			var mlc = load("res://scripts/microloans/microloanscheck.gd").new()
+			mlc.main = self
+			mlc.out = microloanscheck
+			add_child(mlc)
+		if fivenightscheck != "":
+			var fnc = load("res://scripts/five_nights/fivenightscheck.gd").new()
+			fnc.main = self
+			fnc.out = fivenightscheck
+			add_child(fnc)
 		if racecheck != "":
 			var rcc = preload("res://scripts/racecheck.gd").new()
 			rcc.main = self
@@ -286,6 +303,9 @@ func show_menu() -> void:
 	if race:
 		race.queue_free()
 		race = null
+	if minigame:
+		minigame.queue_free()
+		minigame = null
 	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 	music.volume_db = -6.0
 	if not music.playing:
@@ -363,12 +383,12 @@ func testing() -> String:
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 ## Играет человек, а не проверка: только тогда игра пишет его настройки iPod и прочее «на выходе»
 func user_play() -> bool:
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and not voicecheck
 
 func tutorial_on() -> bool:
 	if tutorialcheck != "":
 		return true
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and not voicecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
@@ -424,6 +444,49 @@ func cinematic_race(cfg: Dictionary) -> void:
 	for i in 3:
 		await get_tree().process_frame
 	intro_fx.reveal()
+
+## Мини-игра со своей сценой (MINIGAMES): та же шторка, что у режимов; основная игра и гонка не создаются.
+const MINIGAMES := {
+	"microloans": {"scene": "res://scenes/microloans/microloans.tscn", "title": "ПАХАН НАБРАЛ МИКРОЗАЙМОВ", "sub": "неделя долгов · 7 дней · 5 концовок"},
+	"five_nights": {"scene": "res://scenes/five_nights/five_nights.tscn", "title": "5 НОЧЕЙ С ПАХАНОМ", "sub": "«ты просто хотел спокойно отработать смену»"},
+}
+
+func cinematic_minigame(id: String, opt := {}) -> void:
+	if not MINIGAMES.has(id) or not await _intro_ready():
+		return
+	await intro_fx.cover(String(MINIGAMES[id]["title"]), String(MINIGAMES[id]["sub"]))
+	start_minigame(id, opt)
+	starting = false
+	for i in 3:
+		await get_tree().process_frame
+	intro_fx.reveal()
+
+func start_minigame(id: String, opt := {}) -> void:
+	if menu:
+		menu.queue_free()
+		menu = null
+	if game:
+		game.queue_free()
+		game = null
+	if race:
+		race.queue_free()
+		race = null
+	if minigame:
+		minigame.queue_free()
+		minigame = null
+	var ps := load(String(MINIGAMES[id]["scene"])) as PackedScene
+	var mg := ps.instantiate()
+	mg.set("main", self)
+	minigame = mg
+	add_child(mg)
+	if mg.has_method("begin"):
+		mg.begin(bool(opt.get("continue", false)))
+
+## конец мини-игры: меню → выбор режима на её карточке
+func end_minigame(mode_idx: int) -> void:
+	show_menu()
+	if menu != null:
+		menu.open_modes(mode_idx)
 
 func start_race(cfg: Dictionary) -> void:
 	if menu:

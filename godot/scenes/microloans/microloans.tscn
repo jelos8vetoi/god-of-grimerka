@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://doknvlanduy0g" path="res://scripts/microloans/ml_root.gd" id="1_ml"]
+
+[node name="Microloans" type="Node3D"]
+script = ExtResource("1_ml")
