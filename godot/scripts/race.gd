@@ -44,6 +44,14 @@ var look_back := false
 var dust_vis := 0.0            # игрок в облаке пыли (HUD)
 var new_record := ""
 var stats := {"frames": 0, "slow": 0}
+var online := false              # сетевая гонка (race_net.gd)
+var hazard_id := 0
+var snap_host_t := -1.0          # клиент: время хоста в последнем снимке
+var snap_local_t := 0.0          # и когда он пришёл (наши часы)
+var net_menu := false            # сетевая гонка: открыт экран выхода (гонка не стоит)
+var net_fix := {"hard": 0, "soft": 0.0}   # клиент: сколько раз хост поправил своего гонщика (для проверки)
+var local_hist: Array = []       # клиент: где был свой гонщик [наше время, положение] — для сверки со снимками хоста
+const PHYSICAL := ["drift_start", "drift_lvl", "drift_boost", "drift_cut", "jump", "ramp", "land", "wall"]
 var cam_snap := false
 
 func setup(m, c: Dictionary) -> void:
@@ -51,7 +59,8 @@ func setup(m, c: Dictionary) -> void:
 	cfg = c
 	laps = int(cfg.get("laps", 3))
 	rng.seed = int(cfg.get("seed", Time.get_ticks_usec()))
-	authority = String(cfg.get("mode", "single")) != "online" or bool(cfg.get("host", true))
+	online = String(cfg.get("mode", "single")) == "online"
+	authority = not online or bool(cfg.get("host", true))
 	sound_on = main == null or main.testing() == "" or main.audiolog
 	track = RaceTrack.new()
 	add_child(track)
@@ -69,7 +78,13 @@ func setup(m, c: Dictionary) -> void:
 	hud = RaceHud.new()
 	hud.race = self
 	add_child(hud)
-	_set_state("intro")
+	if online and main != null and main.race_net != null:
+		net = main.race_net
+		_set_state("wait")                       # сетевая гонка: ждём, пока трасса загрузится у всех
+		hud.flash_text("ЖДЁМ ОСТАЛЬНЫХ…")
+		net.race_ready(self)
+	else:
+		_set_state("intro")
 
 ## участники: игрок (или игроки по сети) и боты; в заезде на время — один игрок
 func _spawn_riders() -> void:
@@ -98,6 +113,8 @@ func _spawn_riders() -> void:
 			r.ai = ai
 		if r.kind == "local":
 			local = r
+		if online and not authority and r.kind == "remote":
+			r.puppet = true                      # клиент: чужие гонщики — по снимкам хоста
 		riders.append(r)
 
 func _spawn_boxes() -> void:
@@ -143,7 +160,12 @@ func _physics_process(dt: float) -> void:
 	if paused:
 		return
 	st += dt
+	if not authority:
+		_client_tick(dt)
+		return
 	match state:
+		"wait":
+			pass
 		"intro":
 			if st >= 2.4:
 				_set_state("countdown")
@@ -166,9 +188,9 @@ func _physics_process(dt: float) -> void:
 					main.sfx("sfx_rage", -6.0, 1.3)
 		"race", "done":
 			t += dt
-	if not authority:
-		return                                  # клиент: всё считает хост
 	for r in riders:
+		if r.disconnected:
+			continue                             # вышедший по сети стоит, где был (невидим и без столкновений)
 		var inp: RaceInput = _input_of(r, dt)
 		r.simulate(inp, dt, go and not (r.finished and r != local and r.kind != "bot"))
 		if go and inp.item:
@@ -186,6 +208,8 @@ func _physics_process(dt: float) -> void:
 		var all_done := riders.all(func(r): return r.finished or r.disconnected)
 		if all_done or st > 25.0:
 			_results()
+	if net != null:
+		net.host_tick(dt)
 
 func _input_of(r: RaceRider, dt: float) -> RaceInput:
 	if r.has_meta("auto"):
@@ -343,6 +367,8 @@ func respawn(r: RaceRider) -> void:
 func _rank() -> void:
 	var list := riders.duplicate()
 	list.sort_custom(func(a, b):
+		if a.disconnected != b.disconnected:
+			return b.disconnected
 		if a.finished != b.finished:
 			return a.finished
 		if a.finished and b.finished:
@@ -374,6 +400,8 @@ func _boxes_tick(dt: float) -> void:
 			b["t"] = float(b["t"]) - dt
 			if float(b["t"]) <= 0.0:
 				n.visible = true
+				if net != null:
+					net.send_box(boxes.find(b), true)
 				n.scale = Vector3.ONE * 0.2
 				n.create_tween().tween_property(n, "scale", Vector3.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 			continue
@@ -385,6 +413,8 @@ func _boxes_tick(dt: float) -> void:
 			if r.global_position.distance_to(b["pos"] as Vector3) < 1.7:
 				b["t"] = RaceData.BOX_RESPAWN
 				n.visible = false
+				if net != null:
+					net.send_box(boxes.find(b), false)
 				if r.item == "" and not r.finished:
 					r.item = roll_item(r)
 					r.ev("item_get", r.item)
@@ -493,7 +523,10 @@ func _hazard(kind: String, p: Vector3, rad: float, life: float, owner: RaceRider
 		mi.material_override = mat
 		mi.position.y = 0.03
 		n.add_child(mi)
-	hazards.append({"kind": kind, "pos": p, "r": rad, "life": life, "owner": owner, "hits": 0, "hit": {}, "node": n, "age": 0.0})
+	hazard_id += 1
+	hazards.append({"kind": kind, "pos": p, "r": rad, "life": life, "owner": owner, "hits": 0, "hit": {}, "node": n, "age": 0.0, "id": hazard_id})
+	if net != null and authority:
+		net.send_hazard(hazard_id, kind, p, rad)
 
 func _hazards_tick(dt: float) -> void:
 	for h in hazards.duplicate():
@@ -523,6 +556,8 @@ func _hazards_tick(dt: float) -> void:
 			hazards.erase(h)
 			if is_instance_valid(n):
 				n.queue_free()
+			if net != null and authority:
+				net.send_hazard_end(int(h["id"]))
 
 func _tethers_tick(dt: float) -> void:
 	for r in riders:
@@ -571,6 +606,11 @@ func _results() -> void:
 				new_record = "lap" if new_record == "" else new_record + "+lap"
 	_set_state("results")
 	hud.show_results()
+	if net != null and authority:
+		var rows: Array = []
+		for row in results:
+			rows.append([(row["rider"] as RaceRider).slot, float(row["time"]), float(row["best"]), bool(row["est"]), bool(row["dc"])])
+		net.send_results(rows)
 
 func standings() -> Array:
 	var list := riders.duplicate()
@@ -579,6 +619,13 @@ func standings() -> Array:
 
 # ---------------- события участников: эффекты, звук, HUD ----------------
 func on_rider_event(r: RaceRider, k: String, v) -> void:
+	if net != null and authority:
+		net.send_event(r.slot, k, v)
+	elif net != null and not authority and not (k in PHYSICAL):
+		return                                   # клиент: решающие события приходят только от хоста (remote_event)
+	_show_event(r, k, v)
+
+func _show_event(r: RaceRider, k: String, v) -> void:
 	var p: Vector3 = r.global_position
 	var me: bool = r == local
 	match k:
@@ -715,6 +762,11 @@ func shake(a: float) -> void:
 func _process(dt: float) -> void:
 	if cam == null:
 		return
+	if online and not authority:
+		_puppets()
+		for h in hazards:
+			if (h["kind"] == "dust_bomb") and randf() < dt * 4.0:
+				fx.dust(h["pos"] as Vector3 + Vector3(randf_range(-1.5, 1.5), 0.5, randf_range(-1.5, 1.5)), 4, Color(0.62, 0.57, 0.5, 0.8), 1.4, 0.3)
 	if go and Engine.time_scale == 1.0 and not paused:
 		stats["frames"] += 1                      # кадры экрана (для проверки: доля медленных, дольше 1/30 с)
 		if dt > 1.0 / 30.0:
@@ -774,7 +826,9 @@ func _unhandled_input(e: InputEvent) -> void:
 
 func set_paused(on: bool) -> void:
 	if net != null:
-		on = false                               # сетевая гонка не останавливается
+		net_menu = on                            # сетевая гонка не останавливается: только экран выхода
+		hud.show_pause(on)
+		return
 	paused = on
 	hud.show_pause(on)
 	for r in riders:
@@ -786,5 +840,246 @@ func restart() -> void:
 		main.start_race(cfg)
 
 func quit(to_race_menu: bool) -> void:
+	if net != null:
+		net.race = null
+		net.leave_peer()                         # выход из сетевой гонки — выход из лобби, игра снова офлайн
+		if main != null:
+			main.end_race_online("")
+		return
 	if main != null:
 		main.end_race(to_race_menu)
+
+# ---------------- сетевая гонка ----------------
+func rider_of_peer(id: int) -> RaceRider:
+	for r in riders:
+		if r.peer == id and r.kind != "bot":
+			return r
+	return null
+
+## хост: все загрузили трассу — облёт и отсчёт
+func net_go() -> void:
+	if state == "wait":
+		_set_state("intro")
+
+## хост: игрок отключился посреди гонки — его пылесос убирается, остальные едут
+func peer_left(id: int) -> void:
+	var r := rider_of_peer(id)
+	if r == null or r.disconnected:
+		return
+	r.disconnected = true
+	r.visible = false
+	r.collision_layer = 0
+	r.collision_mask = 0
+	r.net_input = RaceInput.new()
+	r.ev("disconnect", 0)
+	hud.feed("%s отключился" % r.title, false)
+
+## клиент: снимок хоста
+func apply_snapshot(b: PackedByteArray) -> void:
+	if b.size() < 14:
+		return
+	var n := b.decode_u8(13)
+	if b.size() != 14 + n * 29 or n != riders.size():
+		return
+	var ht := b.decode_float(4)
+	var s_code := b.decode_u8(8)
+	var nst: String = RaceNet.STATES[clampi(s_code, 0, RaceNet.STATES.size() - 1)]
+	if nst != state:
+		var was := state
+		_set_state(nst)
+		if nst == "countdown":
+			hud.countdown(3)
+			_beep(0.9)
+		elif nst == "race" and was != "race":
+			go = true
+			hud.countdown(0)
+			_beep(1.5)
+			if main != null:
+				main.sfx("sfx_rage", -6.0, 1.3)
+	st = b.decode_float(9)
+	t = ht
+	go = state in ["race", "done"]
+	snap_host_t = ht
+	snap_local_t = Time.get_ticks_msec() / 1000.0
+	var o := 14
+	for k in n:
+		var r: RaceRider = riders[k]
+		var pos := Vector3(b.decode_float(o), b.decode_float(o + 4), b.decode_float(o + 8))
+		var h := b.decode_half(o + 12)
+		var spd := b.decode_half(o + 14)
+		var f := b.decode_u8(o + 16)
+		var dl := b.decode_u8(o + 17)
+		r.turbo = float(b.decode_u8(o + 18)) / 2.55
+		var it := b.decode_u8(o + 19)
+		r.item = RaceData.ITEM_IDS[it - 1] if it >= 1 and it <= RaceData.ITEM_IDS.size() else ""
+		r.lap = b.decode_u8(o + 20)
+		r.next_gate = b.decode_u8(o + 21)
+		r.rank = b.decode_u8(o + 22)
+		var vh := b.decode_half(o + 23)
+		var air := b.decode_half(o + 25)
+		r.finished = (f & 64) != 0
+		r.shield_t = 1.0 if (f & 16) != 0 else 0.0
+		if (f & 128) != 0 and not r.disconnected:
+			r.disconnected = true
+			r.visible = false
+		if r == local:
+			# предсказание своего гонщика. Снимок хоста — это где мы были, когда хост учёл наш ввод № seq: сверяем
+			# его с нашей же позицией при том вводе (история), а не с текущей — иначе тянуло бы назад на скорость × пинг.
+			var hp := _hist_seq(b.decode_u16(o + 27))
+			var past: Vector3 = hp[0]
+			var err := pos - past
+			if OS.get_cmdline_user_args().has("--net-debug") and Engine.get_physics_frames() % 6 == 0:
+				print("NETDBG seq=%d host=%s past=%s now=%s err=%.2f host_v=%.1f my_v=%.1f hist=%d" % [b.decode_u16(o + 27), str(pos.snapped(Vector3.ONE * 0.1)), str(past.snapped(Vector3.ONE * 0.1)), str(r.global_position.snapped(Vector3.ONE * 0.1)), err.length(), spd, r.speed, local_hist.size()])
+			# Ввод № seq хост мог применить на шаг-другой меньше или больше, чем мы (30 Гц ввода на 60 Гц физики,
+			# потерянный пакет) — это доли метра, и тянуть за них назад каждый снимок нельзя: копится отставание.
+			# Поправляем только настоящее расхождение (столкновение, предмет, другой путь) — сразу всё, видимый
+			# гонщик доезжает плавно (vis_off).
+			var tol := 0.6 + absf(r.speed) * 0.05
+			if err.length() > 12.0:
+				net_fix["hard"] = int(net_fix["hard"]) + 1
+				r.global_position = pos
+				r.heading = h
+				local_hist.clear()
+			elif err.length() > tol:
+				net_fix["soft"] = float(net_fix["soft"]) + err.length()
+				r.global_position += err
+				for hh in local_hist:
+					hh[1] = (hh[1] as Vector3) + err
+				r.vis_off = (r.vis_off - err).limit_length(3.0)
+			var dv := spd - float(hp[1])
+			if absf(dv) > 2.0:
+				r.speed += dv * 0.5
+			if (f & 8) != 0 and r.spin_t <= 0.0:
+				r.spin_t = 0.6
+		else:
+			r.speed = spd
+			r.drifting = (f & 1) != 0
+			r.drift_lvl = dl & 3
+			r.drift_dir = 1.0 if (dl & 4) != 0 else -1.0
+			r.turbo_on = (f & 32) != 0
+			r.boost_t = 0.5 if (f & 2) != 0 and not r.turbo_on else 0.0
+			r.spin_t = 0.5 if (f & 8) != 0 else 0.0
+			r.air_t = air
+			r.vdir = Vector3(sin(vh), 0, cos(vh))
+			r.snaps.append([ht, pos, h])
+			if r.snaps.size() > 30:
+				r.snaps.pop_front()
+		o += 29
+
+## клиент, шаг физики: свой гонщик — по своему вводу (сразу отзывается), ввод — хосту
+func _client_tick(dt: float) -> void:
+	if state in ["race", "done"]:
+		t += dt
+	if state == "countdown":
+		var left := 3 - int(st)
+		if left != hud.count_shown and left >= 1:
+			hud.countdown(left)
+			_beep(0.9)
+	if local == null or local.finished or local.disconnected:
+		return
+	var inp: RaceInput = RaceInput.new() if net_menu else _input_of(local, dt)
+	if local.has_meta("auto"):
+		inp = local.get_meta("auto")
+	net.client_input(inp, dt)
+	local.simulate(inp, dt, go)
+	local_hist.append([net.seq, local.global_position, local.speed])
+	if local_hist.size() > 180:
+		local_hist.pop_front()
+	local.proj = track.project(local.global_position, local.proj)
+	local.prev_s = local.s
+	local.s = float(local.proj["s"])               # путь по трассе — для своего HUD и бота за игрока (проверки)
+	local.lat = float(local.proj["lat"])
+	local.half = float(local.proj["half"])
+	local.on_short = bool(local.proj["short"])
+
+## где был свой гонщик, когда отправил ввод № sq (последний шаг с этим номером) — по истории
+func _hist_seq(sq: int) -> Array:
+	for k in range(local_hist.size() - 1, -1, -1):
+		if int(local_hist[k][0]) == sq:
+			return [local_hist[k][1], local_hist[k][2]]
+	if not local_hist.is_empty():
+		return [local_hist[0][1], local_hist[0][2]]
+	return [local.global_position, local.speed]
+
+## клиент: куклы между снимками — с задержкой 100 мс, по двум ближайшим снимкам; пропал снимок — по скорости
+func _puppets() -> void:
+	if snap_host_t < 0.0:
+		return
+	var now := snap_host_t + (Time.get_ticks_msec() / 1000.0 - snap_local_t) - 0.1
+	for r in riders:
+		if not r.puppet or r.snaps.is_empty():
+			continue
+		var a = null
+		var c = null
+		for sn in r.snaps:
+			if float(sn[0]) <= now:
+				a = sn
+			elif c == null:
+				c = sn
+		var pos: Vector3
+		var h: float
+		if a != null and c != null:
+			var u := clampf((now - float(a[0])) / maxf(0.001, float(c[0]) - float(a[0])), 0.0, 1.0)
+			pos = (a[1] as Vector3).lerp(c[1], u)
+			h = lerp_angle(float(a[2]), float(c[2]), u)
+		elif a != null:
+			var ex := minf(now - float(a[0]), 0.25)          # снимок потерялся: чуть вперёд по скорости
+			pos = (a[1] as Vector3) + r.vdir * r.speed * ex
+			h = float(a[2])
+		else:
+			pos = r.snaps[0][1]
+			h = float(r.snaps[0][2])
+		r.set_snapshot_xf(pos, h)
+
+func remote_event(slot: int, k: String, v) -> void:
+	if slot < 0 or slot >= riders.size():
+		return
+	var r: RaceRider = riders[slot]
+	if r == local and k in PHYSICAL:
+		return                                   # свои занос, прыжок и стены клиент уже показал сам
+	r.events.append([k, v])
+	if k == "item_get" and typeof(v) == TYPE_STRING and RaceData.ITEMS.has(String(v)):
+		r.item = String(v)
+	if k == "respawn" and r == local:
+		cam_snap = true
+	if k == "disconnect":
+		r.disconnected = true
+		r.visible = false
+		hud.feed("%s отключился" % r.title, false)
+		return
+	if (k == "item_use" or k == "item_get" or k == "hit") and not (typeof(v) == TYPE_STRING and RaceData.ITEMS.has(String(v))):
+		return
+	_show_event(r, k, v)
+
+func remote_hazard(hid: int, kind: String, pos: Vector3, rad: float) -> void:
+	_hazard(kind, pos, clampf(rad, 0.5, 6.0), 999.0, null)
+	hazards.back()["id"] = hid
+
+func remote_hazard_end(hid: int) -> void:
+	for h in hazards.duplicate():
+		if int(h.get("id", -1)) == hid:
+			hazards.erase(h)
+			if is_instance_valid(h["node"]):
+				(h["node"] as Node).queue_free()
+
+func remote_box(i: int, on: bool) -> void:
+	if i >= 0 and i < boxes.size():
+		(boxes[i]["node"] as Node3D).visible = on
+
+func remote_results(rows: Array) -> void:
+	results = []
+	for row in rows:
+		if typeof(row) != TYPE_ARRAY or (row as Array).size() != 5 or typeof(row[0]) != TYPE_INT or int(row[0]) < 0 or int(row[0]) >= riders.size():
+			continue
+		var r: RaceRider = riders[int(row[0])]
+		results.append({"rider": r, "title": r.title, "time": float(row[1]), "best": float(row[2]), "est": bool(row[3]), "dc": bool(row[4])})
+	new_record = ""
+	_set_state("results")
+	hud.show_results()
+
+## все в лобби (хост нажал «В ЛОББИ»)
+func quit_to_lobby() -> void:
+	if net != null:
+		net.race = null
+	if main != null:
+		main.end_race_online("")

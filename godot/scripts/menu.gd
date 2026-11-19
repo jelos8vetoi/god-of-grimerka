@@ -158,6 +158,7 @@ var modes: ModeSelect          # экран «ВЫБОР РЕЖИМА» (PLAY)
 var main_only: Array = []      # что видно только на главном списке: логотип, список, герои, подсказки — гаснет на экране режимов
 var panel_back := Callable()   # Esc на открытом экране: куда вернуться (пусто — просто закрыть)
 var capture := Callable()      # ждём нажатия клавиши (переназначение гоночных клавиш): получит событие
+var online: RaceLobby          # экран ONLINE RACE
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -672,11 +673,16 @@ func race_status() -> String:
 func open_race(start := 2) -> void:
 	RaceMenu.open(self, start)
 
-## Сетевая гонка: пока не подключена — честный экран статуса, без кнопок-пустышек
+## Сетевая гонка: экран ONLINE RACE (race_lobby.gd), сеть — main.race_net (race_net.gd)
 func open_online() -> void:
-	_open("ONLINE RACE", ["Сетевая гонка с друзьями ещё в разработке и выйдет отдельным обновлением.",
-		"Сейчас можно сыграть SINGLE RACE против пяти соперников или TIME TRIAL на рекорд."], [["НАЗАД", func(): open_race(4)]])
-	panel_back = func(): open_race(4)
+	if online == null:
+		online = RaceLobby.new()
+		online.setup(self)
+		stage.add_child(online)
+	if main.net_msg != "":
+		online.msg_text = main.net_msg
+		main.net_msg = ""
+	online.open()
 
 ## Гонка: тот же уход меню, что у других режимов, затем main.cinematic_race
 func launch_race(cfg: Dictionary) -> void:
@@ -947,6 +953,10 @@ func _unhandled_input(e: InputEvent) -> void:
 			else:
 				_close()
 		get_viewport().set_input_as_handled()
+		return
+	if online != null and online.visible:
+		if online.handle_key(k):
+			get_viewport().set_input_as_handled()
 		return
 	if modes.visible:
 		if up or k == KEY_A or k == KEY_LEFT:

@@ -169,14 +169,16 @@ func _run() -> void:
 	await key(KEY_ESCAPE)
 	await wait(0.3)
 	ok(mm.panel != null and mm.panel_rows.size() == names.size(), "Esc из управления — назад в меню гонок")
-	# ONLINE RACE — пока честный статус
+	# ONLINE RACE — свой экран лобби (сама сеть — --race-netcheck), Esc — назад в меню гонок
 	mm._panel_select(names.find("ONLINE RACE"), false)
 	await key(KEY_ENTER)
 	await wait(0.3)
-	ok(mm.panel != null, "ONLINE RACE открывает свой экран")
+	ok(mm.online != null and mm.online.visible, "ONLINE RACE открывает экран сетевой игры")
 	await shot("m03_online")
 	await key(KEY_ESCAPE)
-	await wait(0.3)
+	await wait(0.4)
+	ok(mm.panel != null and (mm.online == null or not mm.online.visible) and main.race_net == null, "Esc из ONLINE RACE — назад в меню гонок, сеть не поднята")
+	mm._panel_select(names.find("SINGLE RACE"), false)
 	# ================= SINGLE RACE =================
 	mm._panel_select(names.find("SINGLE RACE"), false)
 	await key(KEY_ENTER)
