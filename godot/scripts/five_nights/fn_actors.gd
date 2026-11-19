@@ -27,6 +27,19 @@ var stare := {}                    # id → точка, к которой мед
 var dart := {}                     # id → [время до следующего движения глаз, сколько ещё смотрят вбок]
 var lunge_t := {}                  # id → у двери играет FNLunge (вот-вот войдёт)
 const HORROR_DIR := "res://assets/minigames/fn_horror_%s.glb"   # модель владельца с костями Mixamo — встанет вместо обычной
+## Модели владельца (скелет им ставит tools/rig-horror.py): рост в метрах и лицо. Точки лица — в единицах модели
+## (1 = рост, начало — центр основания, +Z — лицо): eye — середина между глазами, sep — расстояние между ними,
+## r — радиус светящегося зрачка, maw — центр пасти, ms — её ширина. Светящиеся глаза и пасть скримера садятся
+## на настоящее лицо модели (экран BOT, линза CLIPPER, глазницы GHOST).
+const OWN := {
+	"balon": {"h": 2.0, "eye": Vector3(0.013, 0.586, 0.17), "sep": 0.145, "r": 0.018, "maw": Vector3(0.013, 0.49, 0.18), "ms": 0.2},
+	"madk1d": {"h": 1.62, "eye": Vector3(-0.004, 0.66, 0.175), "sep": 0.18, "r": 0.02, "maw": Vector3(0.0, 0.535, 0.2), "ms": 0.13},
+	"bot": {"h": 1.85, "eye": Vector3(-0.02, 0.672, 0.16), "sep": 0.117, "r": 0.016, "maw": Vector3(-0.02, 0.6, 0.165), "ms": 0.14},
+	"clipper": {"h": 1.75, "eye": Vector3(0.0, 0.867, 0.275), "sep": 0.0, "r": 0.034, "maw": Vector3(0.0, 0.79, 0.265), "ms": 0.1},
+	"ghost": {"h": 1.85, "eye": Vector3(0.0, 0.81, 0.11), "sep": 0.088, "r": 0.012, "maw": Vector3(0.0, 0.745, 0.125), "ms": 0.075, "alpha": 0.72, "emit": 0.18},
+	"mod": {"h": 1.7, "eye": Vector3(0.059, 0.578, 0.315), "sep": 0.258, "r": 0.028, "maw": Vector3(0.0625, 0.5, 0.3), "ms": 0.14},
+}
+var owned := {}                    # id → true: у врага модель владельца
 
 func build(o: FNOffice, f: FNFacility) -> void:
 	office = o
@@ -51,20 +64,44 @@ func _make(id: String) -> void:
 	var L: Dictionary = LOOK[id]
 	var r := Rig.new()
 	add_child(r)
-	var own := ResourceLoader.exists(HORROR_DIR % id)
-	r.setup(HORROR_DIR % id if own else "res://assets/models/%s.glb" % L["model"], float(L["h"]), FNPoses.set_for(id), true, 1.0, "fn_" + id)
-	if not own:
+	var own := ResourceLoader.exists(HORROR_DIR % id) and OWN.has(id)
+	r.setup(HORROR_DIR % id if own else "res://assets/models/%s.glb" % L["model"], float(OWN[id]["h"]) if own else float(L["h"]), FNPoses.set_for(id), true, 1.0, "fn_" + id)
+	if own:
+		owned[id] = true
+		_own_look(r, float(OWN[id].get("alpha", 1.0)), float(OWN[id].get("emit", 0.0)))
+	else:
 		_tint(r, L["tint"], float(L.get("alpha", 1.0)), float(L.get("emit", 0.0)))
-	if id == "clipper":
+	if id == "clipper" and not own:                       # у своей модели лезвия — часть руки
 		r.attach("res://assets/models/katana.glb", "r", {"axis": "z", "from": -48.8, "to": 48.8, "grip": 0.15, "edge": true, "length": 0.62, "part": func(y): return y > 13.0, "shadow": true})
 	rigs[id] = r
 	_face(id, r)
 	if id == "balon" and not own:
 		_balon_costume(r)
+	if own:
+		(face[id]["maw"] as Node3D).visible = false       # у своей модели пасть появляется только в скримере
 	if not own:
 		_horror(id, r)
 	r.visible = false
 	r.position = Vector3(0, -60, 0)
+
+## модель владельца: свои текстуры без перекраски; чуть светится своим цветом (в тёмном коридоре иначе чёрное на
+## чёрном), GHOST — ещё и полупрозрачный
+func _own_look(r: Rig, alpha: float, emit: float) -> void:
+	for mi in r.model.find_children("*", "MeshInstance3D", true, false):
+		var inst := mi as MeshInstance3D
+		for s in inst.mesh.get_surface_count():
+			var src := inst.get_active_material(s) as BaseMaterial3D
+			if src == null:
+				continue
+			var mat := src.duplicate() as BaseMaterial3D
+			mat.emission_enabled = true
+			mat.emission = Color(1, 1, 1)
+			mat.emission_texture = mat.albedo_texture
+			mat.emission_energy_multiplier = 0.035 + emit
+			if alpha < 1.0:
+				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+				mat.albedo_color.a = alpha
+			inst.set_surface_override_material(s, mat)
 
 func _tint(r: Rig, c: Color, alpha: float, emit: float) -> void:
 	for mi in r.model.find_children("*", "MeshInstance3D", true, false):
@@ -99,24 +136,38 @@ func _face(id: String, r: Rig) -> void:
 	var hy: float = rest_g.origin.y - r.global_position.y
 	var hs: float = maxf(0.18, top - hy)
 	var center := r.global_position + Vector3(0, hy + 0.42 * hs, 0) + Vector3(0, 0, 1) * 0.42 * hs
+	var sep: float = float(LOOK[id]["sep"]) * hs
+	var eye_r := 0.055 * hs
+	var eye_z := 0.02 * hs
+	var maw_at := Vector3(0, -0.3 * hs, 0.0)
+	if owned.has(id):
+		# лицо своей модели: точки заданы на самой модели (OWN), пересчитываются в мир через её узел
+		var O: Dictionary = OWN[id]
+		var mx: Transform3D = r.model.global_transform
+		var u: float = mx.basis.get_scale().y
+		center = mx * (O["eye"] as Vector3)
+		sep = float(O["sep"]) * u
+		eye_r = float(O["r"]) * u
+		eye_z = 0.0
+		hs = float(O["ms"]) * u / 0.44                    # пасть шириной ms: её детали заданы в долях hs
+		maw_at = mx * (O["maw"] as Vector3) - center
 	var anchor := Node3D.new()
 	att.add_child(anchor)
 	anchor.transform = rest_g.affine_inverse() * Transform3D(Basis(), center)
 	var eyes := Node3D.new()
 	anchor.add_child(eyes)
-	var sep: float = float(LOOK[id]["sep"]) * hs
-	for sx in [-1.0, 1.0]:
+	for sx in ([-1.0, 1.0] if sep > 0.0 else [0.0]):
 		var e := MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		sm.radius = 0.055 * hs
-		sm.height = 0.11 * hs
+		sm.radius = eye_r
+		sm.height = eye_r * 2.0
 		e.mesh = sm
 		e.material_override = office.mats[LOOK[id]["eye"]]
-		e.position = Vector3(sx * sep * 0.5, 0, 0.02 * hs)
+		e.position = Vector3(sx * sep * 0.5, 0, eye_z)
 		eyes.add_child(e)
 	# пасть: чёрный провал с красной глубиной и зубами; закрыта — щель (scale.y маленький)
 	var maw := Node3D.new()
-	maw.position = Vector3(0, -0.3 * hs, 0.0)
+	maw.position = maw_at
 	anchor.add_child(maw)
 	office.box(Vector3.ZERO, Vector3(0.44 * hs, 0.3 * hs, 0.06 * hs), office.mats["black"], maw)
 	office.box(Vector3(0, 0, -0.02 * hs), Vector3(0.36 * hs, 0.22 * hs, 0.02 * hs), office._glow(Color(0.5, 0.0, 0.0), 1.2), maw)
@@ -333,6 +384,8 @@ func maw(id: String, k: float) -> void:
 	if f.is_empty():
 		return
 	(f["maw"] as Node3D).scale = Vector3(1.0 + k * 0.25, lerpf(0.08, 1.15, k), 1.0)
+	if owned.has(id):
+		(f["maw"] as Node3D).visible = k > 0.03
 
 func hide_all() -> void:
 	for id in rigs:

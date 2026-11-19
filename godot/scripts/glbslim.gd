@@ -71,7 +71,9 @@ func slim(src: String, dst: String, limit: int, quality: float) -> bool:
 	while out.size() % 4 != 0:
 		out.append(0)
 	(json["buffers"] as Array)[0]["byteLength"] = out.size()
-	var jb := JSON.stringify(json).to_utf8_buffer()
+	# Godot читает все числа JSON дробными и пишет «3.0»; номера и счётчики glTF должны быть целыми
+	var rx := RegEx.create_from_string("(-?\d+)\.0(?=[,\}\]])")
+	var jb := rx.sub(JSON.stringify(json), "$1", true).to_utf8_buffer()
 	while jb.size() % 4 != 0:
 		jb.append(0x20)
 	var res := PackedByteArray()
