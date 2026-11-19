@@ -103,6 +103,7 @@ func _run() -> void:
 	ok(bad, "лень, двери весь вечер, всё включено, «не отводит глаз» — проигрыш")
 	# ================= логика: двери, энергия, маршруты, атаки =================
 	_logic()
+	_incidents_logic()
 	await _ui_part()
 
 func _ui_part() -> void:
@@ -212,6 +213,7 @@ func _ui_part() -> void:
 			seen_cams += 1
 		await shot("f1%d_cam_%s" % [i, FNData.CAMS[i]["id"]])
 	ok(seen_cams == 8, "1–8 — все восемь камер (%d)" % seen_cams)
+	await _anomalies(R, st)
 	ok(R.cams.vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS, "рисуется только выбранная камера, пока монитор поднят")
 	await key(KEY_SPACE)
 	await wait(0.4)
@@ -343,6 +345,119 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 	ok(close and R.state == "dead", "скример %s: в 3D вплотную, затем экран гибели (%.1f с)" % [FNData.ENEMIES[eid]["name"], dur])
 
 ## чистая логика ночи: энергия, двери, маршруты, условия атаки
+## аномалии камер в настоящей сцене: силуэт, свет, головы, поворот врага, «за спиной»; снимки a_*
+func _anomalies(R: FiveNightsRoot, st: FNNight) -> void:
+	var A: FNAnomaly = R.anomaly
+	var f: FNFacility = R.fac
+	ok(f.figures.size() >= 8 and f.lights.size() >= 7 and f.heads.has("storage") and f.movable.size() >= 2, "у комнат есть точки для аномалий: силуэтов %d, комнат со светом %d, тележка и автомат могут «переехать»" % [f.figures.size(), f.lights.size()])
+	var meshes := f.find_children("*", "MeshInstance3D", true, false).size()
+	ok(meshes > 1200, "комнаты обставлены моделями (деталей %d)" % meshes)
+	st.set_cam("stage")
+	await wait(0.4)
+	A._start("figure", "stage", st)
+	await wait(0.25)
+	ok((f.figures["stage"] as Node3D).visible, "аномалия «силуэт»: в углу главного зала стоит фигура")
+	await shot("a1_figure_stage")
+	st.set_cam("arcade")
+	await wait(0.3)
+	ok(not (f.figures["stage"] as Node3D).visible, "переключил камеру — силуэта больше нет")
+	A._start("light", "arcade", st)
+	await wait(0.5)
+	var red: bool = (f.lights["arcade"] as Array).any(func(l): return (l as Light3D).light_color.r > 0.9 and (l as Light3D).light_color.g < 0.2)
+	ok(red, "аномалия «свет»: игровая зона краснеет и мигает")
+	await shot("a2_light_arcade")
+	st.set_cam("storage")
+	await wait(0.4)
+	A._start("heads", "storage", st)
+	await wait(0.2)
+	await shot("a3_heads_storage")
+	var cp: Vector3 = f.cams["storage"]["pos"]
+	var faced := 0
+	for h in f.heads["storage"]:
+		var hn := h as Node3D
+		var to := cp - hn.global_position
+		if absf(wrapf(hn.global_rotation.y - atan2(to.x, to.z), -PI, PI)) < 0.2:
+			faced += 1
+	ok(faced == (f.heads["storage"] as Array).size(), "аномалия «головы»: все %d голов маскотов смотрят в камеру" % faced)
+	st.set_cam("hall_r")
+	await wait(0.3)
+	A._start("self", "hall_r", st)
+	await wait(0.15)
+	ok((f.figures["office"] as Node3D).visible, "аномалия «за спиной»: камера на миг показывает будку, за стулом кто-то стоит")
+	await shot("a4_self")
+	await wait(0.6)
+	ok(not (f.figures["office"] as Node3D).visible, "«за спиной» — меньше секунды, потом снова коридор")
+	A._moved("hall_r")
+	await wait(0.3)
+	await shot("a5_moved_hall_r")
+	ok(A.events_log.size() >= 5, "журнал аномалий: %s" % ", ".join(A.events_log))
+	A.reset(int(st.rng.seed))
+	ok(not (f.figures["office"] as Node3D).visible and A.count == 0, "новая ночь — аномалии сброшены")
+
+## поломка камеры, перебой, приманка — на чистой логике ночи
+func _incidents_logic() -> void:
+	var st := FNNight.new()
+	st.setup(2, 4242)
+	for id in st.enemies:
+		(st.enemies[id] as FNEnemy).level = 0
+	st.break_next = 0.0
+	st.step(0.1)
+	ok(st.broken != "", "поломка: камера %s перестала отвечать" % st.broken)
+	var b := st.broken
+	st.set_monitor(true)
+	st.set_cam(b)
+	ok(not st.sees(b), "сломанная камера ничего не показывает")
+	var p0 := st.power
+	for k in 35:
+		st.fix_cam(0.1)
+	ok(st.broken == "" and st.power < p0, "держать C на ней 3 с — камера перезапустилась (−%.1f %% энергии)" % (p0 - st.power))
+	st.break_next = 0.0
+	st.step(0.1)
+	var b2 := st.broken
+	st.set_cam("stage" if b2 != "stage" else "arcade")
+	for k in 35:
+		st.fix_cam(0.1)
+	ok(st.broken == b2, "перезапуск работает только на самой сломанной камере")
+	for k in 620:
+		st.step(0.1)
+		if st.broken == "":
+			break
+	ok(st.broken == "", "не починил — через минуту камера оживает сама")
+	st.brown_next = 0.0
+	st.light["l"] = true
+	st.step(0.05)
+	ok(st.brown_warn > 0.0 and not st.cams_dead(), "перебой: сначала предупреждение (лампы гудят), камеры ещё работают")
+	for k in 30:
+		st.step(0.1)
+	ok(st.brown_t > 0.0 and st.cams_dead() and not st.light["l"], "перебой: камеры и фонари погасли")
+	st.door["r"] = true
+	for k in 45:
+		st.step(0.1)
+	ok(st.brown_t <= 0.0 and not st.cams_dead() and st.door["r"], "перебой кончился за %.0f с, дверь всё это время держала" % FNNight.BROWN_LEN)
+	# приманка
+	var L := FNNight.new()
+	L.setup(1, 99)
+	var bal: FNEnemy = L.enemies["balon"]
+	for id in L.enemies:
+		(L.enemies[id] as FNEnemy).level = 0
+	bal.level = 10
+	bal.go(L, "hall_l")
+	var pulled := false
+	for k in 8:
+		L.lure_cd = 0.0
+		var m: Array = L.lure("arcade")
+		if m.has("balon"):
+			pulled = true
+			break
+	ok(pulled and bal.spot == "arcade", "приманка в игровой зоне увела БАЛОНА из коридора")
+	bal.go(L, "door_l")
+	L.lure_cd = 0.0
+	L.lure("stage")
+	ok(bal.spot == "door_l", "у двери приманка уже не работает — закрывай дверь")
+	L.lure_cd = 0.0
+	ok(L.lure("hall_r").is_empty() and L.lure_cd == 0.0, "в коридор приманку не поставить")
+	ok(L.lure_uses >= 2, "каждая приманка слабее прошлой (использовано %d)" % L.lure_uses)
+
 func _logic() -> void:
 	var P := FNData.POWER
 	var st := FNNight.new()

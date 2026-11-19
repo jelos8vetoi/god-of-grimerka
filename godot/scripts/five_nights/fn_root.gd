@@ -20,6 +20,10 @@ var menu: FNMenu
 var menu_layer: CanvasLayer
 var scare: FNScare
 var horror: FNHorror
+var anomaly: FNAnomaly             # аномалии камер (fn_anomaly.gd)
+var fix_hold := false              # держат C — перезапуск сломанной камеры
+var said_broken := false
+var said_brown := false
 var st: FNNight
 var menu_st: FNNight
 var state := "menu"                 # menu / night / scare / dead / six
@@ -82,6 +86,9 @@ func _ready() -> void:
 	horror = FNHorror.new()
 	horror.root = self
 	add_child(horror)
+	anomaly = FNAnomaly.new()
+	anomaly.root = self
+	add_child(anomaly)
 	_audio()
 	menu_layer = CanvasLayer.new()
 	menu_layer.layer = 8
@@ -288,7 +295,9 @@ func start_night(n: int, lv := {}) -> void:
 	office.dark_eyes.visible = false
 	office.cam.current = true
 	horror.reset(int(st.rng.seed))
+	anomaly.reset(int(st.rng.seed))
 	said_door = false
+	fix_hold = false
 	finale_done = false
 	call_muted = false
 	face_flash = 0.0
@@ -374,11 +383,21 @@ func _night_tick(dt: float) -> void:
 	if state != "night":
 		return
 	office.tick(st, dt, look_in)
+	# перебой: перед ним лампа будки мигает и гудит, во время — еле тлеет
+	if st.brown_warn > 0.0:
+		office.lamp.light_energy *= 0.35 if randf() < 0.45 else 1.0
+	elif st.brown_t > 0.0:
+		office.lamp.light_energy *= 0.22
+	if fix_hold:
+		st.fix_cam(dt)
+	else:
+		st.fix_t = maxf(0.0, st.fix_t - dt)
 	fac.tick(dt)
 	actors.tick(st, dt)
 	cams.tick(st, dt)
 	ui.tick(st, dt, cams)
 	horror.tick(st, dt)
+	anomaly.tick(st, dt)
 	if intro_t <= 0.0:
 		_call_tick(dt)
 	_threat_sounds(dt)
@@ -388,7 +407,8 @@ func _night_tick(dt: float) -> void:
 		cams.mat.set_shader_parameter("haunt", 1.0)
 	if hint_t > 0.0:
 		hint_t -= dt
-		ui.hints("A / D — двери · Q / E (держать) — свет\nПРОБЕЛ — камеры · 1–8 — выбор камеры\nмышь к краю — посмотреть влево и вправо" if hint_t > 0.0 else "")
+		ui.hints("A / D — двери · Q / E (держать) — свет\nПРОБЕЛ — камеры · 1–8 — выбор камеры
+на камере: L — приманка · C (держать) — перезапуск\nмышь к краю — посмотреть влево и вправо" if hint_t > 0.0 else "")
 	if st.power_out:
 		ui.show_dark(not st.emergency_used, st.crank_p / 6.0)
 	else:
@@ -486,10 +506,35 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"stare":
 			if st.monitor and st.cam == String(d["at"]):
 				sfx2("static", -20.0, 0.7)
+		"cam_broken":
+			sfx2("power_down", -16.0, 2.6)
+			if not said_broken:
+				said_broken = true
+				ui.msg("Одна камера перестала отвечать. Найди её и держи C, пока не перезапустится.", 4.0)
+		"cam_fixed":
+			sfx2("ping", -8.0, 1.3 if not bool(d["auto"]) else 0.9)
+		"brown_warn":
+			sfx2("buzz", 4.0, 0.7)
+			if not said_brown:
+				said_brown = true
+				ui.msg("Лампы гудят… сейчас будет перебой. Двери держат, а камеры и фонари — нет.", 4.0)
+		"brown":
+			sfx2("power_down", -8.0, 2.2)
+		"brown_end":
+			sfx2("click", -2.0, 1.1)
+		"lure":
+			sfx2("toy", -6.0, 1.0)
+			ui.msg("Приманка в комнате «%s»." % _cam_name(String(d["room"])), 2.0)
 		"attack":
 			_attack(String(d["e"]), String(d["at"]))
 		"win":
 			_six()
+
+func _cam_name(id: String) -> String:
+	for c in FNData.CAMS:
+		if String(c["id"]) == id:
+			return String(c["name"]).to_lower()
+	return id
 
 ## звуки угрозы, которые идут, пока угроза есть: MADK1D в шахте, шёпот GHOST, писк сервера
 func _threat_sounds(dt: float) -> void:
@@ -705,6 +750,8 @@ func _unhandled_input(e: InputEvent) -> void:
 				light_hold["l"] = e.pressed
 			KEY_E:
 				light_hold["r"] = e.pressed
+			KEY_C:
+				fix_hold = e.pressed
 		if not e.pressed or e.echo:
 			return
 		match k:
@@ -720,6 +767,9 @@ func _unhandled_input(e: InputEvent) -> void:
 				_toggle("reset")
 			KEY_F:
 				mute_call()
+			KEY_L:
+				if st.monitor:
+					st.lure(st.cam)
 			KEY_SPACE, KEY_S, KEY_TAB:
 				st.set_monitor(not st.monitor)
 			_:

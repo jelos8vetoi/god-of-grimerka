@@ -33,7 +33,7 @@ static func warm() -> void:
 	for id in ["hum", "fan", "buzz", "whine", "click", "door_down", "door_up", "step", "step_heavy", "clank", "scrape", "crawl",
 			"vent_bang", "whisper", "giggle", "ring", "static", "ping", "power_down", "crank", "chime", "babble", "cam",
 			"scream_balon", "scream_madk1d", "scream_bot", "scream_clipper", "scream_ghost", "scream_mod", "scream_dark", "scream_pahan", "breath", "heart", "music_box_air",
-			"sting_night", "sting_lose", "knock", "drip", "creak"]:
+			"sting_night", "sting_lose", "knock", "drip", "creak", "toy"]:
 		get_stream(id)
 
 static func _wav(buf: PackedFloat32Array, loop := false) -> AudioStreamWAV:
@@ -341,6 +341,19 @@ static func _make(id: String) -> AudioStreamWAV:
 				for i in range(st, mini(b.size(), st + int(0.25 * RATE))):
 					var t := float(i - st) / RATE
 					b[i] += (sin(TAU * 190.0 * t) * 0.7 + sin(TAU * 420.0 * t) * 0.35 + rng.randf_range(-1, 1) * 0.4 * exp(-t * 80.0)) * exp(-t * 26.0)
+			return _wav(b)
+		"toy":            # приманка: пищалка игрушки и обрывок мелодии из динамика комнаты (сквозь камеру — тонко)
+			var b := _buf(1.6)
+			var notes := [784.0, 988.0, 1175.0, 988.0, 1568.0]
+			for i in b.size():
+				var t := float(i) / RATE
+				var k := mini(int(t / 0.22), notes.size() - 1)
+				var tt := fposmod(t, 0.22)
+				var f: float = notes[k]
+				b[i] = (signf(sin(TAU * f * t)) * 0.25 + sin(TAU * f * 2.0 * t) * 0.2) * exp(-tt * 9.0) * float(t < 1.1)
+				if t < 0.2:
+					b[i] += sin(TAU * (1800.0 - 900.0 * t / 0.2) * t) * 0.4 * (1.0 - t / 0.2)    # писк пищалки
+				b[i] += rng.randf_range(-1, 1) * 0.06
 			return _wav(b)
 		"drip":           # капля в служебке
 			var b := _buf(0.5)

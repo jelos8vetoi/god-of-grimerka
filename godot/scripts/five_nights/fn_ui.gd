@@ -173,6 +173,8 @@ func _layout() -> void:
 		rec_dot.position = feed.position + Vector2(feed.size.x - 30, 58)
 		jam_l.position = feed.position + Vector2(0, feed.size.y * 0.45)
 		jam_l.size = Vector2(feed.size.x, 40)
+		if lure_l != null:
+			lure_l.position = feed.position + Vector2(24, 58)
 		ping_l.position = feed.position + Vector2(22, feed.size.y - 46)
 		var mp := feed.position + feed.size - Vector2(330, 250)
 		for id in map_btns:
@@ -211,6 +213,7 @@ func _tablet() -> void:
 	jam_l = _label(tablet, "", 34, Color(0.9, 0.9, 0.9), big)
 	jam_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ping_l = _label(tablet, "", 18, RED, mono)
+	lure_l = _label(tablet, "", 16, Color(0.75, 0.8, 0.75), mono)
 	for c in FNData.CAMS:
 		var b := _cam_btn(String(c["no"]), String(c["id"]))
 		map_btns[c["id"]] = b
@@ -324,7 +327,16 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 		cam_l.text = "CAM %s · %s" % [no, label]
 		stamp_l.text = "%s  %s  REC" % [night_name, st.clock()]
 		rec_dot.visible = fposmod(t, 1.0) < 0.6
-		jam_l.text = "НЕТ СИГНАЛА" if st.cams_dead() else ("ПОМЕХИ" if st.jammed(st.cam) else "")
+		if st.brown_t > 0.0:
+			jam_l.text = "ПЕРЕБОЙ ПИТАНИЯ"
+		elif st.cam_broken(st.cam):
+			jam_l.text = "КАМЕРА НЕ ОТВЕЧАЕТ · держи C — перезапуск %d%%" % int(st.fix_t / FNNight.FIX_NEED * 100.0)
+		else:
+			jam_l.text = "НЕТ СИГНАЛА" if st.cams_dead() else ("ПОМЕХИ" if st.jammed(st.cam) else "")
+		if st.monitor and st.cam in FNNight.LURE_ROOMS and st.brown_t <= 0.0:
+			lure_l.text = "L — приманка (игрушка в этой комнате)" if st.lure_cd <= 0.0 else "приманка: ещё %d с" % ceili(st.lure_cd)
+		else:
+			lure_l.text = ""
 		var bot: FNBot = st.enemies["bot"]
 		if bot.ping_left > 0.0:
 			ping_l.text = "СЕРВЕР: ПИНГ — %s  %d с" % ["ПРИНИМАЮ…" if st.cam == "server" else "ОТКРОЙ CAM 6", ceili(bot.ping_left)] if not st.glitches.has("leds_off") else ""
@@ -335,6 +347,8 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 			b.modulate = Color(1, 0.4, 0.35) if id == st.cam else Color(1, 1, 1)
 			var ii := FNData.CAMS.map(func(c): return c["id"]).find(id)
 			b.text = "CAM %d" % (ii + 1)
+
+var lure_l: Label                  # подсказка приманки под картинкой камеры
 
 func msg(text: String, sec := 3.0) -> void:
 	msg_l.text = text

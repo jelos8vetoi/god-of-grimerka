@@ -16,12 +16,24 @@ static func _common(base: Callable, still: Dictionary, stare: Dictionary, peek: 
 	var tw: Dictionary = base.call(Poses.add(still, {"head": {"z": 0.32, "y": -0.25}, "neck": {"z": 0.1}}))
 	var R: Dictionary = base.call(stare)
 	var R2: Dictionary = base.call(Poses.add(stare, {"head": {"z": 0.12, "x": 0.06}}))
+	var a1: Dictionary = base.call(Poses.add(still, {"spine": {"x": 0.3, "z": 0.08}, "head": {"x": -0.28, "z": 0.35}, "rup": {"x": -0.42}, "rleg": {"x": 0.35}, "lup": {"x": 0.18}, "rarm": {"x": -0.55}, "larm": {"x": -0.35}}))
+	var a2: Dictionary = base.call(Poses.add(still, {"spine": {"x": 0.3, "z": -0.08}, "head": {"x": -0.28, "z": -0.2}, "lup": {"x": -0.42}, "lleg": {"x": 0.35}, "rup": {"x": 0.18}, "larm": {"x": -0.55}, "rarm": {"x": -0.35}}))
+	var b1: Dictionary = base.call(Poses.add(still, {"spine": {"x": -0.18}, "head": {"x": 0.35}, "rup": {"x": 0.3}, "lup": {"x": -0.1}}))
+	var b2: Dictionary = base.call(Poses.add(still, {"spine": {"x": -0.18}, "head": {"x": 0.35, "z": 0.2}, "lup": {"x": 0.3}, "rup": {"x": -0.1}}))
+	var L1: Dictionary = base.call(Poses.add(peek, {"spine": {"x": 0.25}}))
+	var L2: Dictionary = base.call(Poses.add(peek, {"spine": {"x": 0.55}, "head": {"x": -0.3}, "rarm": {"x": -1.2, "z": -0.5}, "larm": {"x": -1.2, "z": 0.5}, "rfa": {"x": -0.6}, "lfa": {"x": -0.6}}))
 	return {
 		# стоит, не дышит; под конец цикла голова дёргается вбок и медленно возвращается
 		"FNStill": {"d": 5.0, "loop": true, "k": [[0.0, S], [0.86, S], [0.88, tw, "out"], [0.97, S, "io"], [1.0, S]]},
 		# смотрит прямо в камеру: голова завалена набок, иногда ещё сильнее
 		"FNStare": {"d": 3.6, "loop": true, "k": [[0.0, R], [0.45, R], [0.5, R2, "out"], [0.9, R2], [1.0, R, "io"]]},
 		"FNPeek": {"d": 4.0, "loop": true, "ease": "io", "k": [[0.0, base.call(peek)], [0.5, base.call(Poses.add(peek, {"head": {"z": 0.12}, "spine": {"z": 0.05}}))], [1.0, base.call(peek)]]},
+		# приближается: шаг — замер — шаг, корпус вперёд, руки висят; между шагами голова «не успевает» за телом
+		"FNApproach": {"d": 2.8, "loop": true, "k": [[0.0, a1], [0.42, a1], [0.5, a2, "out"], [0.62, Poses.add(a2, {"head": {"z": -0.35}}), "out"], [0.92, a2], [1.0, a1, "out"]]},
+		# пятится от двери, не отводя глаз: корпус назад, голова наклонена вперёд
+		"FNRetreat": {"d": 2.2, "loop": true, "ease": "io", "k": [[0.0, b1], [0.5, b2], [1.0, b1]]},
+		# сейчас войдёт: у проёма подаётся вперёд, руки поднимаются — честный знак «закрывай дверь»
+		"FNLunge": {"d": 1.4, "loop": true, "k": [[0.0, L1], [0.35, L2, "out"], [0.55, Poses.add(L2, {"head": {"z": 0.3}}), "io"], [0.8, L2], [1.0, L1, "in"]]},
 	}
 
 ## шаг: полупроходка из фаз [бедро и голень ведущей ноги, толчковой, просадка]
