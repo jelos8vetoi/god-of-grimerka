@@ -1,5 +1,5 @@
 // Генерация 3D-моделей окружения через Tripo AI (официальный API v3, аккаунт владельца проекта).
-//   node tools/tripo-gen.cjs [--dry] [имя…]
+//   node tools/tripo-gen.cjs [--dry] [--config=tools/tripo-minigames.json] [имя…]
 // Ключ — только из переменной окружения TRIPO_API_KEY или из файла .env в корне репозитория (.env в git не идёт).
 // Список моделей и промпты — tools/tripo-models.json (общий стиль — поле "style", добавляется к каждому промпту).
 // Готовые модели сохраняются сразу после генерации в godot/assets/racing/<имя>.glb, описание — в manifest.json рядом.
@@ -7,8 +7,10 @@
 // если после генерации останется меньше "reserve" кредитов — отказ (кредиты не докупаются).
 const fs = require('fs'), path = require('path'), https = require('https');
 const ROOT = path.join(__dirname, '..');
-const OUT = path.join(ROOT, 'godot', 'assets', 'racing');
-const CFG = JSON.parse(fs.readFileSync(path.join(__dirname, 'tripo-models.json'), 'utf8'));
+// список: по умолчанию — окружение гонок; --config=<файл> — другой список (у него своё поле "out", папка внутри godot/assets)
+const CFG_ARG = process.argv.find(a => a.startsWith('--config='));
+const CFG = JSON.parse(fs.readFileSync(CFG_ARG ? path.resolve(ROOT, CFG_ARG.slice(9)) : path.join(__dirname, 'tripo-models.json'), 'utf8'));
+const OUT = path.join(ROOT, 'godot', 'assets', CFG.out || 'racing');
 const API = 'https://api.tripo3d.ai';            // баланс — /v2/openapi/user/balance
 const V3 = 'https://openapi.tripo3d.ai/v3';      // генерация и задачи
 
@@ -54,7 +56,7 @@ async function balance() {
 }
 
 async function make(m) {
-  const body = { prompt: (m.prompt + ' ' + CFG.style).slice(0, 1024), negative_prompt: CFG.negative.slice(0, 255), model: CFG.model,
+  const body = { prompt: (m.prompt + ' ' + (m.style && CFG.styles ? CFG.styles[m.style] : CFG.style)).slice(0, 1024), negative_prompt: CFG.negative.slice(0, 255), model: CFG.model,
     texture: true, pbr: true, texture_quality: CFG.texture_quality, smart_low_poly: true, face_limit: m.faces || CFG.faces, auto_size: true };
   let r;
   for (let a = 0; a < 6; a++) {
