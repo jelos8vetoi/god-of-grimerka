@@ -69,7 +69,11 @@ func _room() -> void:
 		world_root.add_child(wb)
 	# шкаф и полки — для вида и физики
 	MGProps.shelf(at(Vector3(-2.4, 0.05, -3.2)))
-	MGProps.wardrobe(at(Vector3(2.6, 0, -2.9), -0.3))
+	MGModels.spawn("ml_wardrobe", world_root, Vector3(2.6, 0, -2.9), -0.3, Vector3(1.2, 2.0, 0.6), func(r): MGProps.wardrobe(r))
+	if MGModels.has("ml_job_junk_crate"):
+		MGModels.spawn("ml_job_junk_crate", world_root, Vector3(2.3, 0, -1.2), -0.5, Vector3(0.9, 0.98, 0.85), func(_r): pass)
+	if MGModels.has("ml_job_old_tv"):
+		MGModels.spawn("ml_job_old_tv", world_root, Vector3(-2.5, 0, -0.9), 0.7, Vector3(0.9, 1.0, 0.6), func(_r): pass)
 	for k in 6:                                          # завалы по углам — для вида
 		MGProps.carton(at(Vector3(-3.0 + float(k % 2) * 0.5, float(k / 2) * 0.45, -2.2 + float(k % 3) * 0.4), 0.3 * k), Vector3(0.6, 0.45, 0.5), ["", "ХЛАМ", "РАЗНОЕ"][k % 3])
 

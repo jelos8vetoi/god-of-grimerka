@@ -47,8 +47,17 @@ func m(k: String) -> Material:
 	return office.mats[k]
 
 ## модель в слот: .glb владельца или код
+## Модели из файла в тёмных комнатах чуть светятся своим цветом — иначе на камере сливаются в пятно. Камера ночного
+## видения сильно усиливает яркость, поэтому числа крошечные; чёрным стойкам подсветка не нужна (свет в проходе).
+const GLB_LIFT := 0.012
+const GLB_LIFT_BY := {"fn_mascot_shelf": 0.025, "fn_prize_counter": 0.02, "fn_generator": 0.02, "fn_server_rack": 0.0}
+
 func put(id: String, p: Vector3, yaw: float, size: Vector3, build_fn: Callable) -> Node3D:
-	return MGModels.spawn(id, self, p, yaw, size, build_fn)
+	var r := MGModels.spawn(id, self, p, yaw, size, build_fn)
+	var lk: float = GLB_LIFT_BY.get(id, GLB_LIFT)
+	if lk > 0.0:
+		MGModels.lift(r, lk)
+	return r
 
 ## пустой узел в точке — для мелких моделей кодом
 func node(p: Vector3, yaw := 0.0, parent: Node = self) -> Node3D:
@@ -128,34 +137,40 @@ func _lamp_row(room: String, o: Vector3, y: float, xs: Array, c: Color) -> void:
 # ---------------- будка охранника: обстановка вокруг стола ----------------
 func _office_dress() -> void:
 	var W := FNOffice.W
-	# вентилятор на столе: лопасти крутятся (tick)
-	var fan := node(Vector3(0.88, 0.81, -1.28), -0.5)
-	MGProps.cyl(fan, Vector3(0, 0.01, 0), 0.07, 0.08, 0.02, MGProps.mat("plastic"))
-	MGProps.cyl(fan, Vector3(0, 0.12, 0), 0.012, 0.012, 0.22, MGProps.mat("plastic"))
-	MGProps.cyl(fan, Vector3(0, 0.25, 0.0), 0.05, 0.05, 0.08, MGProps.mat("plastic"), Vector3(PI / 2, 0, 0))
-	var cage := MeshInstance3D.new()
-	var tm := TorusMesh.new()
-	tm.inner_radius = 0.12
-	tm.outer_radius = 0.13
-	cage.mesh = tm
-	cage.material_override = MGProps.mat("steel")
-	cage.position = Vector3(0, 0.25, 0.06)
-	cage.rotation.x = PI / 2
-	fan.add_child(cage)
-	fan_blades = node(Vector3(0, 0.25, 0.06), 0.0, fan)
-	for k in 3:
-		MGProps.box(fan_blades, Vector3(0, 0, 0), Vector3(0.22, 0.05, 0.005), MGProps.mat("plastic"), Vector3(0, 0, k * TAU / 3.0))
-	# второй монитор слева — помехи
-	var crt := node(Vector3(-1.0, 0.81, -1.3), 0.35)
-	crt.scale = Vector3.ONE * 0.7
-	var c := MGProps.crt(crt, Color(0.6, 0.85, 0.7), 2.0, 3.0)
-	screens.append(c["screen"])
-	# стикеры на рамке монитора
-	for k in 3:
-		MGProps.box(self, Vector3(-0.28 + k * 0.05, 1.33 - k * 0.02, -0.845), Vector3(0.05, 0.05, 0.002), MGProps._yellow() if k != 1 else MGProps.mat("red"), Vector3(0, 0, 0.1 * k - 0.1))
-	# кабели от монитора вниз за стол
-	for k in 3:
-		MGProps.cable(self, Vector3(-0.15 + k * 0.12, 0.95, -1.45), Vector3(-0.4 + k * 0.3, 0.02, -1.55), 0.25, 0.012, MGProps.mat("rubber") if k != 1 else MGProps.mat("red_dark"))
+	if office.desk_model != null:
+		# пульт из файла уже со своим вентилятором и вторым монитором: на маленьком мониторе — помехи поверх стекла
+		var sm := MGProps.screen_mat(Color(0.6, 0.85, 0.7), 2.0, 3.0, 1.2)
+		MGProps.quad(self, office.du(Vector3(0.293, 0.617, -0.075)), Vector2(0.155, 0.13) * FNOffice.DESK_K, sm, Vector3(0, -0.12, 0))
+		screens.append(sm)
+	else:
+		# вентилятор на столе: лопасти крутятся (tick)
+		var fan := node(Vector3(0.88, 0.81, -1.28), -0.5)
+		MGProps.cyl(fan, Vector3(0, 0.01, 0), 0.07, 0.08, 0.02, MGProps.mat("plastic"))
+		MGProps.cyl(fan, Vector3(0, 0.12, 0), 0.012, 0.012, 0.22, MGProps.mat("plastic"))
+		MGProps.cyl(fan, Vector3(0, 0.25, 0.0), 0.05, 0.05, 0.08, MGProps.mat("plastic"), Vector3(PI / 2, 0, 0))
+		var cage := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.12
+		tm.outer_radius = 0.13
+		cage.mesh = tm
+		cage.material_override = MGProps.mat("steel")
+		cage.position = Vector3(0, 0.25, 0.06)
+		cage.rotation.x = PI / 2
+		fan.add_child(cage)
+		fan_blades = node(Vector3(0, 0.25, 0.06), 0.0, fan)
+		for k in 3:
+			MGProps.box(fan_blades, Vector3(0, 0, 0), Vector3(0.22, 0.05, 0.005), MGProps.mat("plastic"), Vector3(0, 0, k * TAU / 3.0))
+		# второй монитор слева — помехи
+		var crt := node(Vector3(-1.0, 0.81, -1.3), 0.35)
+		crt.scale = Vector3.ONE * 0.7
+		var c := MGProps.crt(crt, Color(0.6, 0.85, 0.7), 2.0, 3.0)
+		screens.append(c["screen"])
+		# стикеры на рамке монитора
+		for k in 3:
+			MGProps.box(self, Vector3(-0.28 + k * 0.05, 1.33 - k * 0.02, -0.845), Vector3(0.05, 0.05, 0.002), MGProps._yellow() if k != 1 else MGProps.mat("red"), Vector3(0, 0, 0.1 * k - 0.1))
+		# кабели от монитора вниз за стол
+		for k in 3:
+			MGProps.cable(self, Vector3(-0.15 + k * 0.12, 0.95, -1.45), Vector3(-0.4 + k * 0.3, 0.02, -1.55), 0.25, 0.012, MGProps.mat("rubber") if k != 1 else MGProps.mat("red_dark"))
 	# часы, плакат, камера в углу, решётка вентиляции на потолке
 	var clock := node(Vector3(-1.62, 2.12, -1.69))
 	MGProps.cyl(clock, Vector3.ZERO, 0.14, 0.14, 0.03, MGProps.mat("plastic"), Vector3(PI / 2, 0, 0))
@@ -241,7 +256,7 @@ func _stage(o: Vector3) -> void:
 	for side in [-1.0, 1.0]:
 		var cn := node(o + Vector3(side * 3.8, 0, -5.2))
 		MGProps.curtain(cn, 1.8, 4.0)
-		var sp := put("fn_stage_speaker", o + Vector3(side * 3.4, 0.9, -3.4), -side * 0.3, Vector3(0.8, 1.6, 0.6), func(r): MGProps.speaker(r))
+		var sp := put("fn_stage_speaker", o + Vector3(side * 3.4, 0.9, -3.4), -side * 0.3, Vector3(0.8, 1.7, 0.85), func(r): MGProps.speaker(r))
 		sp.scale = Vector3.ONE * 0.9
 	office.box(o + Vector3(0, 3.9, -5.4), Vector3(9.6, 0.5, 0.2), m("red"), self)
 	office.label("ОБЛАКО", o + Vector3(0, 3.35, -5.85), 260, Color(0.85, 0.08, 0.06))
@@ -254,7 +269,8 @@ func _stage(o: Vector3) -> void:
 	MGProps.cable(self, o + Vector3(0.6, 1.0, -3.6), o + Vector3(1.6, 0.92, -4.6), 0.05, 0.008)
 	for i in 4:
 		var p := o + Vector3(-3.0 + float(i % 2) * 6.0, 0, 0.8 + float(i / 2) * 3.4)
-		var tb := put("fn_party_table", p, float(i) * 0.15 - 0.2, Vector3(2.0, 0.9, 1.0), func(r): MGProps.party_table(r, i))
+		# высота слота — с шарами над столом: столешница модели приходится на ~0,75 м
+		var tb := put("fn_party_table", p, float(i) * 0.15 - 0.2 + (PI if i % 2 == 1 else 0.0), Vector3(2.0, 1.4, 1.1), func(r): MGProps.party_table(r, i))
 		for c in tb.get_children():
 			if c.has_meta("balloon"):
 				balloons.append(c)
@@ -295,13 +311,18 @@ func _arcade(o: Vector3) -> void:
 			var d := MGProps.arcade(r, title, col, float(i))
 			screens.append(d["screen"])
 			blink.append(d["marquee"]))
+		if MGModels.is_glb(cab) and i != 4:
+			# у модели из файла экран тёмный — поверх стекла светится игра (пятый автомат выключен)
+			var sm := MGProps.screen_mat(col, 0.0, float(i), 1.2)
+			MGProps.quad(cab, MGModels.local(cab, Vector3(-0.003, 0.673, 0.062)), Vector2(0.31, 0.205) * float(cab.get_meta("k")), sm, Vector3(-0.15, 0, 0))
+			screens.append(sm)
 		if i == 2:
 			movable["arcade"] = [cab, p + Vector3(0.6, 0, 1.1), yaw + 0.9]   # автомат «развернулся»
 	# автомат, выключенный из сети, — накрыт тканью
 	var cov := node(o + Vector3(4.6, 0, -3.6))
 	MGProps.box(cov, Vector3(0, 0.95, 0), Vector3(0.95, 1.9, 0.85), MGProps.mat("fabric"))
 	MGProps.box(cov, Vector3(0.1, 1.92, 0.1), Vector3(1.0, 0.08, 0.95), MGProps.mat("fabric"), Vector3(0, 0, 0.06))
-	var pc := put("fn_prize_counter", o + Vector3(4.6, 0, 2.0), -PI / 2, Vector3(2.3, 2.2, 0.8), func(r): MGProps.prize_counter(r))
+	var pc := put("fn_prize_counter", o + Vector3(4.7, 0, 2.0), -PI / 2, Vector3(2.3, 2.0, 1.5), func(r): MGProps.prize_counter(r))
 	pc.scale = Vector3.ONE * 0.95
 	for k in 6:                                                     # кабели автоматов по полу к розеткам
 		MGProps.cable(self, o + Vector3(-4.0 + float(k % 3) * 2.4, 0.05, -3.4 + float(k / 3) * 4.6 + (0.4 if k >= 3 else -0.4)), o + Vector3(-5.9, 0.02, -3.0 + k * 0.8), 0.0, 0.015)
@@ -324,6 +345,10 @@ func _storage(o: Vector3) -> void:
 		var sh := put("fn_mascot_shelf", o + Vector3(x, 0, -3.95), 0.0, Vector3(2.2, 2.0, 0.7), func(r):
 			var d := MGProps.mascot_shelf(r, k)
 			(heads["storage"] as Array).append_array(d["heads"]))
+		if MGModels.is_glb(sh):
+			# у стеллажа из файла головы — часть модели и повернуться не могут: для аномалии «головы» перед
+			# каждым стеллажом лежит по отдельной голове (как та, что на полу)
+			(heads["storage"] as Array).append(_loose_head(o + Vector3(x + [0.7, -0.5, 0.3][k], 0.24, -3.2 + k * 0.12), [0.5, -0.4, 2.6][k], ["cream", "fabric", "plastic"][k]))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 110
 	var labels := ["КОСТЮМЫ", "ГОЛОВЫ", "НЕ ТРОГАТЬ", "БАЛОН — ЗАПЧАСТИ", "", "ГЛАЗА", "", "ВОЗВРАТ"]
@@ -339,12 +364,7 @@ func _storage(o: Vector3) -> void:
 	MGProps.caps(hang, Vector3(0, 2.0, 0), 0.35, 1.3, MGProps.mat("fabric_red"))
 	for sx in [-0.42, 0.42]:
 		MGProps.caps(hang, Vector3(sx, 1.85, 0), 0.1, 0.9, MGProps.mat("fabric_red"), Vector3(0, 0, sx * 0.3))
-	var fh := node(o + Vector3(2.4, 0.26, 2.6), 2.4)
-	MGProps.ball(fh, Vector3.ZERO, 0.26, MGProps.mat("cream"))
-	for ex in [-0.09, 0.09]:
-		MGProps.ball(fh, Vector3(ex, 0.05, 0.22), 0.065, MGProps.mat("paper"))
-		MGProps.ball(fh, Vector3(ex, 0.05, 0.27), 0.03, MGProps.mat("black"))
-	(heads["storage"] as Array).append(fh)
+	(heads["storage"] as Array).append(_loose_head(o + Vector3(2.4, 0.26, 2.6), 2.4, "cream"))
 	_omni("storage", o + Vector3(-1, 2.9, 1), 0.45, 7.0, Color(1.0, 0.85, 0.65))
 	_omni("storage", o + Vector3(-1.5, 2.6, -2.6), 0.3, 4.0, Color(0.9, 0.8, 0.7))     # подсветка стеллажей с головами
 	var bare := node(o + Vector3(1.5, 3.2, -1.0))
@@ -355,6 +375,17 @@ func _storage(o: Vector3) -> void:
 	spots["storage"] = [_xf(o + Vector3(-1.5, 0, 0.5), 0.8), _xf(o + Vector3(1.0, 0, -2.6), 0.2), _xf(o + Vector3(-3.0, 0, 2.4), 1.6)]
 	spots["ghost_storage"] = [_xf(o + Vector3(2.6, 0, -2.9), 0.6)]
 
+## голова маскота, лежащая отдельно (поворачивается в аномалии «головы»)
+func _loose_head(p: Vector3, yaw: float, mat_id: String) -> Node3D:
+	var fh := node(p, yaw)
+	MGProps.ball(fh, Vector3.ZERO, 0.26, MGProps.mat(mat_id))
+	for ex in [-0.09, 0.09]:
+		MGProps.ball(fh, Vector3(ex, 0.05, 0.22), 0.065, MGProps.mat("paper"))
+		MGProps.ball(fh, Vector3(ex, 0.05, 0.27), 0.03, MGProps.mat("black"))
+		MGProps.ball(fh, Vector3(ex * 2.2, 0.22, 0), 0.07, MGProps.mat(mat_id))
+	MGProps.box(fh, Vector3(0, -0.1, 0.23), Vector3(0.16, 0.04, 0.03), MGProps.mat("black"))
+	return fh
+
 # ---------------- серверная: стойки, кабельные лотки, холодный свет ----------------
 func _server(o: Vector3) -> void:
 	_shell(o, Vector3(10, 3.0, 9), "black")
@@ -363,9 +394,16 @@ func _server(o: Vector3) -> void:
 		for k in 4:
 			var p := o + Vector3(-3.0 + k * 2.0, 0, -2.0 + row * 3.8)
 			var seed_v := n
-			put("fn_server_rack", p, 0.0 if row == 0 else PI, Vector3(0.7, 2.1, 1.0), func(r):
+			# модель из файла — широкая стойка на два отсека: слот шире (между стойками остаётся проход)
+			var rk := put("fn_server_rack", p, 0.0 if row == 0 else PI, Vector3(1.15, 2.0, 0.95), func(r):
 				var d := MGProps.server_rack(r, seed_v)
 				blink.append_array(d["leds"]))
+			if MGModels.is_glb(rk):
+				# лампочки серверов мигают, как у стойки из кода: по одной на блок в левом отсеке
+				for li in 8:
+					var lm := MGProps.glow(Color(0.25, 1.0, 0.4) if (li + seed_v) % 3 != 0 else Color(1.0, 0.15, 0.1), 3.0)
+					MGProps.ball(rk, MGModels.local(rk, Vector3(-0.086 - 0.02 * (li % 2), [0.828, 0.719, 0.625, 0.539, 0.445, 0.344, 0.242, 0.148][li], 0.28)), 0.018, lm)
+					blink.append(lm)
 			n += 1
 	# кабельный лоток под потолком и пучки к стойкам
 	MGProps.box(self, o + Vector3(0, 2.6, -0.1), Vector3(8.6, 0.06, 0.5), MGProps.mat("metal"))
@@ -381,6 +419,10 @@ func _server(o: Vector3) -> void:
 	office.label("СЕРВЕР 06 — ОБЛАКО ХРАНИТ ВСЁ", o + Vector3(0, 2.5, -4.44), 60, Color(0.8, 0.1, 0.1))
 	office.label("ОРИГИНАЛЫ НЕ УДАЛЯТЬ", o + Vector3(-4.94, 1.6, 0), 40, Color(0.7, 0.7, 0.7), Vector3(0, PI / 2, 0))
 	_omni("server", o + Vector3(0, 2.7, 0), 0.22, 6.0, Color(0.55, 0.75, 1.0))
+	if MGModels.has("fn_server_rack"):
+		# чёрные стойки из файла на чёрных стенах: холодный свет в проходе между рядами ложится на их лица
+		for sx in [-2.2, 2.2]:
+			_omni("server", o + Vector3(sx, 1.5, -0.1), 0.45, 3.6, Color(0.6, 0.8, 1.0))
 	_lamp_row("server", o + Vector3(0, 0, 1.0), 2.95, [-3.0, 0.0, 3.0], Color(0.6, 0.8, 1.0))
 	_figure("server", o + Vector3(-4.3, 0, 3.8), 2.4)
 	cams["server"] = {"pos": o + Vector3(4.4, 2.7, 3.8), "look": o + Vector3(-1.0, 0.9, -0.5), "fov": 64.0, "sway": 5.0}
@@ -419,6 +461,10 @@ func _power(o: Vector3) -> void:
 		gauges.append_array(d["gauges"])
 		blink.append(d["lamp"]))
 	g.scale = Vector3.ONE * 1.4
+	if MGModels.is_glb(g):
+		var gl := MGProps.glow(Color(1.0, 0.2, 0.1), 3.0)                # сигнальная лампа над щитком
+		MGProps.ball(g, MGModels.local(g, Vector3(0.36, 0.8, 0.0)), 0.03, gl)
+		blink.append(gl)
 	for k in 4:
 		var fp := node(o + Vector3(1.2 + k * 0.9, 1.5, -3.88))
 		blink.append_array(MGProps.fuse_panel(fp, "ЩИТ %d" % (k + 1)))

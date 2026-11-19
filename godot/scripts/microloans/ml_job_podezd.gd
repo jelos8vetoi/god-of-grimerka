@@ -117,7 +117,7 @@ func _level() -> void:
 	match int(tier):
 		1:
 			_furn(Vector3(-2.5, 0, -2.4), Vector2(0.9, 0.45), "ml_armchair", func(r): MGProps.armchair(r), 0.0)
-			_furn(Vector3(0.5, 0, -2.6), Vector2(0.6, 0.4), "", func(r): MGProps.crt(r), 0.0, true)
+			_furn(Vector3(0.5, 0, -2.6), Vector2(0.6, 0.4), "ml_job_old_tv", func(r): MGProps.crt(r), 0.0, true)
 			_furn(Vector3(0.5, 0, 0.3), Vector2(0.8, 0.45), "", func(r): MGProps.party_table(r, 3), 0.0)
 			_furn(Vector3(3.8, 0, -2.8), Vector2(0.6, 0.3), "ml_wardrobe", func(r): MGProps.wardrobe(r), 0.0)
 			_furn(Vector3(3.9, 0, 1.5), Vector2(0.3, 0.3), "ml_fridge", func(r): MGProps.fridge(r), -PI / 2)
@@ -189,7 +189,9 @@ func _level() -> void:
 
 func _furn(p: Vector3, half: Vector2, id: String, build: Callable, yaw: float, fragile := false) -> void:
 	var n: Node3D
-	if id != "":
+	if id == "ml_desk":
+		n = MGModels.wide_desk(world_root, p, yaw, half.x * 2.0, half.y * 2.0, 0.78, build)
+	elif id != "":
 		n = MGModels.spawn(id, world_root, p, yaw, Vector3(half.x * 2.0, 1.0, half.y * 2.0), build)
 	else:
 		n = at(p, yaw)

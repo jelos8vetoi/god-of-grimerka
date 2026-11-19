@@ -370,7 +370,9 @@ func _anomalies(R: FiveNightsRoot, st: FNNight) -> void:
 	var f: FNFacility = R.fac
 	ok(f.figures.size() >= 8 and f.lights.size() >= 7 and f.heads.has("storage") and f.movable.size() >= 2, "у комнат есть точки для аномалий: силуэтов %d, комнат со светом %d, тележка и автомат могут «переехать»" % [f.figures.size(), f.lights.size()])
 	var meshes := f.find_children("*", "MeshInstance3D", true, false).size()
-	ok(meshes > 1200, "комнаты обставлены моделями (деталей %d)" % meshes)
+	var from_files := f.get_children().filter(func(c): return MGModels.is_glb(c)).size()
+	# модель из файла — одна сетка вместо десятков деталей из кода, поэтому считаем и то и другое
+	ok(meshes > 1200 or (from_files >= 10 and meshes > 400), "комнаты обставлены: деталей %d, моделей из файлов %d" % [meshes, from_files])
 	st.set_cam("stage")
 	await wait(0.4)
 	A._start("figure", "stage", st)

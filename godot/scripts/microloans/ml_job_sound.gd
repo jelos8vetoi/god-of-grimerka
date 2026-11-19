@@ -60,10 +60,11 @@ func _stage() -> void:
 		sig.append(0.0)
 		ins.append(mx.transform * Vector3(-0.24 + c * (0.48 / float(chn - 1)), 0.075, -0.22))
 	# усилитель, колонки, микрофон, ноутбук, наушники
-	var amp := at(Vector3(0.8, 0.79, -0.2), -0.3)
-	MGProps.box(amp, Vector3(0, 0.12, 0), Vector3(0.4, 0.24, 0.3), MGProps.mat("black"))
-	for k in 3:
-		MGProps.cyl(amp, Vector3(-0.1 + k * 0.1, 0.16, 0.155), 0.02, 0.02, 0.02, MGProps.mat("chrome"), Vector3(PI / 2, 0, 0))
+	var amp := at(Vector3(0.82, 0.79, -0.22), -0.3)
+	MGModels.spawn("ml_job_amp", amp, Vector3.ZERO, 0.0, Vector3(0.42, 0.42, 0.3), func(r):
+		MGProps.box(r, Vector3(0, 0.12, 0), Vector3(0.4, 0.24, 0.3), MGProps.mat("black"))
+		for k in 3:
+			MGProps.cyl(r, Vector3(-0.1 + k * 0.1, 0.16, 0.155), 0.02, 0.02, 0.02, MGProps.mat("chrome"), Vector3(PI / 2, 0, 0)))
 	for sx in [-1.0, 1.0]:
 		var sp := at(Vector3(sx * 1.5, 0, -0.9), -sx * 0.4)
 		MGProps.speaker(sp)
