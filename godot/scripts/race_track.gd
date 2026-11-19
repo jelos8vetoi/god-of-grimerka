@@ -10,6 +10,7 @@ const STEP := 1.0                  # шаг точек кривой, м
 const SHOULDER := 1.6              # обочина за краем дороги, м
 const WALL_H := 4.0                # высота стен (видимые — ниже: барьеры, гаражи, заборы)
 const KILL_Y := -3.0               # ниже — упал: возврат на последнюю контрольную точку
+const GATE_GAP := 18.0             # контрольные точки не ближе друг к другу, м
 
 var data: Dictionary = {}
 var id := ""
@@ -668,6 +669,15 @@ func _gates() -> void:
 		var i := at_s(s)
 		gates.append({"s": S[i], "pos": P[i], "tan": T[i], "w": W[i]})
 	gates.sort_custom(func(a, b): return from_start(a["s"]) < from_start(b["s"]))
+	# Две точки не могут стоять в одном месте: вторую тогда засчитало бы только на следующем витке, и каждый «круг»
+	# требовал бы двух проездов трассы (так и было: точки, сдвинутые с участка срезки, вставали на одно место).
+	# Оставляем точки не ближе GATE_GAP друг к другу и к финишу.
+	var kept: Array = [gates[0]]
+	for k in range(1, gates.size()):
+		var fs := from_start(float(gates[k]["s"]))
+		if fs - from_start(float(kept.back()["s"])) >= GATE_GAP and L - fs >= GATE_GAP:
+			kept.append(gates[k])
+	gates = kept
 	# арка над финишем
 	var g0: Dictionary = gates[0]
 	var right: Vector3 = (g0["tan"] as Vector3).cross(Vector3.UP)

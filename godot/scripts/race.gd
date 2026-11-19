@@ -51,7 +51,8 @@ var snap_local_t := 0.0          # и когда он пришёл (наши ч�
 var net_menu := false            # сетевая гонка: открыт экран выхода (гонка не стоит)
 var net_fix := {"hard": 0, "soft": 0.0}   # клиент: сколько раз хост поправил своего гонщика (для проверки)
 var local_hist: Array = []       # клиент: где был свой гонщик [наше время, положение] — для сверки со снимками хоста
-const PHYSICAL := ["drift_start", "drift_lvl", "drift_boost", "drift_cut", "jump", "ramp", "land", "wall"]
+const PHYSICAL := ["drift_start", "drift_lvl", "drift_boost", "drift_cut", "jump", "ramp", "land", "wall", "trick", "trick_land", "trick_fail", "combo", "draft"]
+var missiles: Array = []         # [{s, lat, y, owner, target, life, node}] — ЖЕЛЕЗЯКИ в полёте
 var weather: RaceWeather       # погода и случайные ситуации (race_weather.gd)
 var cam_snap := false
 
@@ -201,10 +202,12 @@ func _physics_process(dt: float) -> void:
 		if go and inp.item:
 			use_item(r)
 	_bumps()
+	_drafts(dt)
 	for r in riders:
 		_progress(r, dt)
 	_boxes_tick(dt)
 	_hazards_tick(dt)
+	_missiles_tick(dt)
 	_tethers_tick(dt)
 	_pads_tick()
 	weather.tick(dt)
@@ -275,6 +278,37 @@ func _bumps() -> void:
 						rb.speed *= 0.9
 					ra.ev("bump", rb.slot)
 					rb.ev("bump", ra.slot)
+
+## воздушный мешок: держишься точно за соперником — через draft_time секунд тянет вперёд и копит турбо
+func _drafts(dt: float) -> void:
+	var P := RaceData.PHYS
+	var rng_m: float = float(P["draft_range"])
+	for r in riders:
+		if r.disconnected or r.finished or not go:
+			r.draft = 0.0
+			r.draft_t = 0.0
+			continue
+		var found := false
+		if r.speed > 12.0 and r.air_t < 0.1:
+			var f: Vector3 = r.fwd()
+			for o in riders:
+				if o == r or o.disconnected or o.speed < 8.0:
+					continue
+				var d: Vector3 = o.global_position - r.global_position
+				d.y = 0.0
+				var ln := d.length()
+				if ln > 2.5 and ln < rng_m and f.dot(d / ln) > float(P["draft_cone"]) and f.dot(o.fwd()) > 0.7:
+					found = true
+					break
+		if found:
+			r.draft_t += dt
+			if r.draft_t >= float(P["draft_time"]):
+				if r.draft <= 0.0:
+					r.ev("draft", 1)
+				r.draft = move_toward(r.draft, 1.0, dt * 2.5)
+		else:
+			r.draft_t = maxf(0.0, r.draft_t - dt * 2.0)
+			r.draft = move_toward(r.draft, 0.0, dt * 1.6)
 
 # ---------------- круги и контрольные точки ----------------
 func _wrap(x: float) -> float:
@@ -396,6 +430,9 @@ func _catchup(dt: float) -> void:
 			want = float(C["down"])
 		elif gap < -float(C["behind"]):
 			want = float(C["up"])
+		# характер «прибавляет к финишу»: на последнем круге этот соперник едет чуть быстрее (честно — тем же газом)
+		if r.ai != null and r.lap >= laps - 1:
+			want += float((r.ai.style as Dictionary).get("late_push", 0.0))
 		r.pace = move_toward(r.pace, want, dt * 0.05)
 
 # ---------------- предметы ----------------
@@ -485,6 +522,10 @@ func use_item(r: RaceRider) -> void:
 			r.item_boost_t = float(I["t"])
 		"filter":
 			r.shield_t = float(I["t"])
+		"overclock":
+			r.overclock_t = float(I["t"])
+		"missile":
+			_missile(r)
 		"dust_bomb", "soap":
 			var p: Vector3 = r.global_position - r.fwd() * float(I["back"])
 			p.y = r.global_position.y
@@ -510,25 +551,91 @@ func use_item(r: RaceRider) -> void:
 			elif tg2 == null:
 				r.ev("miss", id)
 
+## ЖЕЛЕЗЯКА: летит по трассе вперёд от хозяина; видит соперника впереди — наводится на его полосу
+func _missile(owner: RaceRider) -> void:
+	var I: Dictionary = RaceData.ITEMS["missile"]
+	var n := RaceItems.model("missile", 1.3)
+	add_child(n)
+	n.global_position = owner.global_position + Vector3(0, 0.9, 0) + owner.fwd() * 1.4
+	var m := {"s": owner.s + 1.5, "lat": owner.lat, "y": owner.global_position.y + 0.9, "owner": owner, "life": float(I["life"]), "node": n, "target": null, "gone": 0.0}
+	m["target"] = _missile_target(m)
+	missiles.append(m)
+
+func _missile_target(m: Dictionary) -> RaceRider:
+	var best: RaceRider = null
+	var bd: float = float(RaceData.ITEMS["missile"]["seek"])
+	for o in riders:
+		if o == m["owner"] or o.finished or o.disconnected:
+			continue
+		var ahead := fposmod(o.s - float(m["s"]), track.L)
+		if ahead < bd:
+			bd = ahead
+			best = o
+	return best
+
+func _missiles_tick(dt: float) -> void:
+	var I: Dictionary = RaceData.ITEMS["missile"]
+	for m in missiles.duplicate():
+		m["life"] = float(m["life"]) - dt
+		m["gone"] = float(m["gone"]) + dt
+		var tg: RaceRider = m["target"]
+		if tg == null or not is_instance_valid(tg) or tg.finished:
+			m["target"] = _missile_target(m)
+			tg = m["target"]
+		m["s"] = float(m["s"]) + float(I["speed"]) * dt
+		if tg != null:
+			m["lat"] = move_toward(float(m["lat"]), tg.lat, dt * 14.0)
+		var i := track.at_s(float(m["s"]))
+		var right: Vector3 = track.T[i].cross(Vector3.UP)
+		var p: Vector3 = track.P[i] + right * float(m["lat"])
+		p.y = float(m["y"])
+		var n: Node3D = m["node"]
+		if is_instance_valid(n):
+			n.global_position = p
+			n.rotation = Vector3(0, atan2(track.T[i].x, track.T[i].z), float(m["gone"]) * 9.0)
+			if fmod(float(m["gone"]), 0.06) < dt:
+				fx.dust(p - track.T[i] * 0.6, 2, Color(0.35, 0.33, 0.32, 0.8), 0.7, 0.2)
+		var hit: RaceRider = null
+		for o in riders:
+			if o == m["owner"] or o.disconnected or o.finished:
+				continue
+			var d: Vector3 = o.global_position - p
+			d.y *= 0.5
+			if d.length() < float(I["r"]):
+				hit = o
+				break
+		if hit != null:
+			if hit.spin_out(float(I["spin"]), "missile"):
+				hit.speed *= 0.55
+				hit.ev("hit", "missile")
+			fx.sparks(p, Vector3.UP, 16, Color(1.0, 0.6, 0.25), 1.0, 70.0)
+			fx.flash(p, 1.6, Color(1.0, 0.7, 0.3), "star_08", 0.15)
+			_sfx("sfx_boom", -4.0, 1.2, hit)
+		if hit != null or float(m["life"]) <= 0.0:
+			missiles.erase(m)
+			if is_instance_valid(n):
+				if hit == null:
+					fx.poof(p, 0.8, Color(0.5, 0.45, 0.4))
+				n.queue_free()
+
 func _hazard(kind: String, p: Vector3, rad: float, life: float, owner: RaceRider) -> void:
 	var n := Node3D.new()
 	n.position = p
 	add_child(n)
 	if kind == "soap":
-		var mi := MeshInstance3D.new()
-		var cm := CylinderMesh.new()
-		cm.top_radius = rad
-		cm.bottom_radius = rad
-		cm.height = 0.04
-		mi.mesh = cm
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.85, 0.95, 1.0, 0.75)
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.metallic = 0.3
-		mat.roughness = 0.05
-		mi.material_override = mat
-		mi.position.y = 0.03
-		n.add_child(mi)
+		var pd := RaceItems.puddle(rad)
+		n.add_child(pd)
+		pd.scale = Vector3(0.1, 1.0, 0.1)
+		pd.create_tween().tween_property(pd, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	elif kind == "dust_bomb":
+		# мешок падает на дорогу и лопается: дальше — облако (частицы в _hazards_tick)
+		var bag := RaceItems.model("dust_bomb", 1.5)
+		bag.position = Vector3(0, 0.9, 0)
+		n.add_child(bag)
+		var tw := bag.create_tween()
+		tw.tween_property(bag, "position:y", 0.45, 0.16).set_ease(Tween.EASE_IN)
+		tw.tween_property(bag, "scale", Vector3(2.4, 0.5, 2.4), 0.07)
+		tw.tween_callback(bag.queue_free)
 	hazard_id += 1
 	hazards.append({"kind": kind, "pos": p, "r": rad, "life": life, "owner": owner, "hits": 0, "hit": {}, "node": n, "age": 0.0, "id": hazard_id})
 	if net != null and authority:
@@ -706,8 +813,37 @@ func _show_event(r: RaceRider, k: String, v) -> void:
 		"lap":
 			if me:
 				var final := int(v) == laps - 1
-				hud.flash_text("ПОСЛЕДНИЙ КРУГ!" if final else "КРУГ %d / %d" % [int(v) + 1, laps])
+				hud.flash_text("FINAL LAP" if final else "LAP %d / %d" % [int(v) + 1, laps])
 				_sfx("sfx_wave", -6.0, 1.2)
+				if final and laps > 1:
+					hud.final_lap()
+					_sfx("sfx_rage", -8.0, 1.6)
+					if main != null and main.audio != null and main.audio.has_method("race_final"):
+						main.audio.race_final()
+		"trick":
+			fx.ring(p + Vector3(0, 0.6, 0), 1.0, Color(1.0, 0.9, 0.4), 0.2)
+			if me:
+				_sfx("sfx_roll", -6.0, 1.2 + 0.15 * int(v))
+		"trick_land":
+			fx.flash(p + Vector3(0, 0.5, 0), 1.0 + 0.3 * int(v), Color(1.0, 0.85, 0.3), "star_08", 0.18)
+			fx.streaks(p + Vector3(0, 0.6, 0), -r.fwd(), 8 + 4 * int(v), Color(1.0, 0.9, 0.5))
+			if me:
+				hud.trick_text(["ТРЮК!", "ДВОЙНОЙ ТРЮК!", "ТРОЙНОЙ ТРЮК!"][clampi(int(v) - 1, 0, 2)])
+				_sfx("sfx_charge", -5.0, 1.5)
+				shake(0.15)
+		"trick_fail":
+			fx.dust(p + Vector3(0, 0.1, 0), 12, fx.DUST, 1.2)
+			if me:
+				hud.trick_text("НЕ ДОКРУТИЛ", true)
+				_sfx("sfx_scrape", -5.0, 0.9)
+				shake(0.35)
+		"combo":
+			if me:
+				hud.combo(int(v))
+		"draft":
+			if me:
+				hud.trick_text("ВОЗДУШНЫЙ МЕШОК")
+				_sfx("sfx_wave", -10.0, 1.7)
 		"finish":
 			fx.flash(p + Vector3(0, 1.2, 0), 2.0, Color(1, 1, 1), "star_08", 0.3)
 			if me:
@@ -755,6 +891,14 @@ func _item_fx(r: RaceRider, id: String) -> void:
 		"filter":
 			fx.shield(p, r.fwd(), col, 1.6)
 			_sfx("sfx_block", -6.0, 1.2, r)
+		"overclock":
+			fx.ring(p, 1.5, col, 0.3)
+			fx.sparks(p, Vector3.UP, 14, col, 0.8, 60.0)
+			_sfx("sfx_charge", -4.0, 1.9, r)
+		"missile":
+			fx.flash(p + r.fwd() * 1.2, 1.2, col, "star_08", 0.15)
+			fx.dust(p - r.fwd() * 0.4, 8, Color(0.4, 0.38, 0.36, 0.8), 1.0, 0.3)
+			_sfx("sfx_swing_heavy", -4.0, 1.5, r)
 		"air_blast":
 			fx.streaks(p + r.fwd() * 1.0, r.fwd(), 14, col)
 			fx.ring(p + r.fwd() * 1.5, 1.6, col, 0.25)
