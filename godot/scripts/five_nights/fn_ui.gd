@@ -95,6 +95,30 @@ var card_gen := 0                   # поколение карточки: от�
 var inv_t := 0.0
 var neg := false                    # цветокор «негатив» целиком (скример Пахана)
 
+## ПУЛЬТ ОХРАНЫ: все устройства будки одной строкой снизу — клавиша, название, состояние. Порядок как в комнате:
+## слева то, что слева. tip — что делает и чего стоит (показывается при наведении на плашку или на саму кнопку в будке).
+const DEVICES := [
+	{"id": "door_l", "key": "A", "name": "ЛЕВАЯ ДВЕРЬ", "tip": "Закрывает левый проём от тех, кто пришёл по левому коридору. Пока закрыта — тратит энергию."},
+	{"id": "light_l", "key": "Q", "name": "СВЕТ СЛЕВА", "tip": "Держи клавишу: фонарь показывает, кто стоит за левой дверью. Пока горит — тратит энергию."},
+	{"id": "seal_l", "key": "Z", "name": "ВЕНТИЛЯЦИЯ СЛЕВА", "tip": "Заслонка левой шахты: от тех, кто ползёт по вентиляции. Пока закрыта — тратит энергию."},
+	{"id": "monitor", "key": "ПРОБЕЛ", "name": "КАМЕРЫ", "tip": "Поднять планшет: восемь комнат, приманка и перезапуск камеры. Пока поднят — тратит энергию."},
+	{"id": "reset", "key": "R", "name": "СБРОС СИСТЕМЫ", "tip": "Снимает сбои и ложные показания. Стоит 2,5 % энергии, камеры гаснут на несколько секунд."},
+	{"id": "seal_t", "key": "X", "name": "ЛЮК СВЕРХУ", "tip": "Заслонка верхней шахты над столом: от тех, кто лезет сверху. Пока закрыта — тратит энергию."},
+	{"id": "light_r", "key": "E", "name": "СВЕТ СПРАВА", "tip": "Держи клавишу: фонарь показывает, кто стоит за правой дверью. Пока горит — тратит энергию."},
+	{"id": "door_r", "key": "D", "name": "ПРАВАЯ ДВЕРЬ", "tip": "Закрывает правый проём от тех, кто пришёл по правому коридору. Пока закрыта — тратит энергию."},
+]
+const DECK_H := 62.0
+var deck: HBoxContainer
+var deck_rows := {}                 # id → {panel, sb, name, state}
+var tip_box: PanelContainer
+var tip_l: Label
+var tip_id := ""                    # над какой плашкой мышь
+var tip_3d := ""                    # над какой кнопкой будки мышь (ставит fn_root)
+var look_hint := false              # первая ночь: подсказка «как осмотреться»
+var cam_rows := {}                  # id камеры → строка в списке комнат планшета
+var act_lure: Dictionary = {}
+var act_fix: Dictionary = {}
+
 const SIDE_W := 268.0
 const EDGE := 24.0
 const MAP_SIZE := Vector2(236, 176)
@@ -180,6 +204,7 @@ func setup(r) -> void:
 		var hr := MGUI.hints(row)
 		hr.alignment = BoxContainer.ALIGNMENT_END
 		hint_box.add_child(hr)
+	_deck()
 	_tablet()
 	_dark()
 	_pause()
@@ -189,6 +214,114 @@ func setup(r) -> void:
 	add_child(card)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
+
+## ПУЛЬТ: плашки устройств. Каждая — клавиша, название, состояние; нажимается мышью; при наведении — что делает.
+func _deck() -> void:
+	deck = MGUI.hbox(6)
+	deck.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(deck)
+	for D in DEVICES:
+		var id := String(D["id"])
+		var p := PanelContainer.new()
+		var sb := MGUI.box(Color(0.03, 0.03, 0.04, 0.9), 3, 1, Color(0.34, 0.34, 0.37), 8)
+		sb.content_margin_top = 6
+		sb.content_margin_bottom = 6
+		p.add_theme_stylebox_override("panel", sb)
+		p.custom_minimum_size = Vector2(0, DECK_H)
+		p.mouse_filter = Control.MOUSE_FILTER_STOP
+		p.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		deck.add_child(p)
+		var v := MGUI.vbox(3)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.add_child(v)
+		var top := MGUI.hbox(6)
+		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(top)
+		top.add_child(MGUI.keycap(String(D["key"])))
+		var nm := MGUI.label(String(D["name"]), "caps", MGUI.TEXT)
+		top.add_child(nm)
+		var stl := MGUI.label("", "mono", MGUI.TEXT_2)
+		v.add_child(stl)
+		deck_rows[id] = {"panel": p, "sb": sb, "name": nm, "state": stl, "d": D}
+		p.mouse_entered.connect(func(): tip_id = id)
+		p.mouse_exited.connect(func():
+			if tip_id == id:
+				tip_id = "")
+		p.gui_input.connect(func(e: InputEvent):
+			if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
+				root.deck_press(id, e.pressed))
+	tip_box = MGUI.panel(true, null, MGUI.S3)
+	tip_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tip_box.visible = false
+	hud.add_child(tip_box)
+	tip_l = MGUI.label("", "small", MGUI.TEXT, 520.0)
+	tip_box.add_child(tip_l)
+
+## состояние устройства для пульта: [надпись, цвет, включено, недоступно, что сделает нажатие]
+func dev_state(st: FNNight, id: String) -> Array:
+	var off := MGUI.TEXT_2
+	if st.power_out:
+		return ["НЕТ ПИТАНИЯ", MGUI.TEXT_3, false, true, ""]
+	match id:
+		"door_l", "door_r":
+			var s := id.substr(5)
+			var led := st.door_led(s)                         # сбои MOD: индикатор может врать или молчать
+			if led < 0:
+				return ["НЕТ ДАННЫХ", MGUI.WARN, false, false, "ПЕРЕКЛЮЧИТЬ"]
+			return ["ЗАКРЫТА", RED, true, false, "ОТКРЫТЬ"] if led == 1 else ["ОТКРЫТА", off, false, false, "ЗАКРЫТЬ"]
+		"light_l", "light_r":
+			if st.brown_t > 0.0:
+				return ["ПЕРЕБОЙ", MGUI.WARN, false, true, ""]
+			return ["ГОРИТ", MGUI.GOLD, true, false, "ОТПУСТИ — ПОГАСНЕТ"] if st.light[id.substr(6)] else ["ВЫКЛ · ДЕРЖАТЬ", off, false, false, "ВКЛЮЧИТЬ"]
+		"seal_l", "seal_t":
+			return ["ЗАКРЫТА", RED, true, false, "ОТКРЫТЬ"] if st.seal[id.substr(5)] else ["ОТКРЫТА", off, false, false, "ЗАКРЫТЬ"]
+		"monitor":
+			if st.cam_off_t > 0.0:
+				return ["ПЕРЕЗАГРУЗКА %d с" % ceili(st.cam_off_t), MGUI.WARN, false, false, "ОТКРЫТЬ"]
+			return ["ОТКРЫТЫ", MGUI.GOLD, true, false, "ЗАКРЫТЬ"] if st.monitor else ["ЗАКРЫТЫ", off, false, false, "ОТКРЫТЬ"]
+		"reset":
+			if st.power <= float(FNData.POWER["reset"]) + 0.5:
+				return ["МАЛО ЭНЕРГИИ", MGUI.TEXT_3, false, true, ""]
+			if st.cam_off_t > 0.0:
+				return ["ИДЁТ · %d с" % ceili(st.cam_off_t), MGUI.WARN, true, false, ""]
+			return ["ГОТОВ · −2,5 %", off, false, false, "ВЫПОЛНИТЬ"]
+	return ["", off, false, false, ""]
+
+## строка «УСТРОЙСТВО — ДЕЙСТВИЕ» и пояснение: для подсказки при наведении
+func dev_tip(st: FNNight, id: String) -> String:
+	if not deck_rows.has(id):
+		return ""
+	var D: Dictionary = deck_rows[id]["d"]
+	var s := dev_state(st, id)
+	var head := "%s — %s" % [D["name"], s[4]] if String(s[4]) != "" else "%s — %s" % [D["name"], s[0]]
+	return "%s   [%s]\n%s" % [head, D["key"], D["tip"]]
+
+func _deck_tick(st: FNNight) -> void:
+	var show: bool = tablet_k < 0.5 and not st.power_out and (card == null or card.get_child_count() == 0) and not pause_box.visible
+	deck.visible = show
+	var hover := tip_id if tip_id != "" else tip_3d
+	for id in deck_rows:
+		var r: Dictionary = deck_rows[id]
+		var s := dev_state(st, String(id))
+		(r["state"] as Label).text = String(s[0])
+		(r["state"] as Label).add_theme_color_override("font_color", s[1])
+		var sb: StyleBoxFlat = r["sb"]
+		var on: bool = s[2]
+		var dis: bool = s[3]
+		sb.bg_color = Color(0.2, 0.03, 0.03, 0.92) if on and (s[1] as Color) == RED else (Color(0.2, 0.16, 0.04, 0.92) if on else Color(0.03, 0.03, 0.04, 0.9))
+		sb.border_color = (s[1] as Color) if on else (Color(0.95, 0.93, 0.88) if hover == id else Color(0.34, 0.34, 0.37))
+		sb.set_border_width_all(2 if on or hover == id else 1)
+		(r["name"] as Label).add_theme_color_override("font_color", MGUI.TEXT_3 if dis else MGUI.TEXT)
+		(r["panel"] as Control).modulate.a = 0.6 if dis else 1.0
+	var tip := dev_tip(st, hover) if show and hover != "" else ""
+	if tip == "" and show and look_hint:
+		tip = "Осмотреться — мышь к краю экрана или стрелки ← →. Пульт внизу: клавиша, устройство, состояние."
+	if tip_l.text != tip:
+		tip_l.text = tip
+		tip_box.visible = tip != ""
+		_layout.call_deferred()
+	elif tip == "" and tip_box.visible:
+		tip_box.visible = false
 
 ## надпись поверх сцены: тёмная обводка, чтобы читалась на любом фоне
 func _out(l: Label) -> Label:
@@ -215,8 +348,17 @@ func _layout() -> void:
 	var s := _vs()
 	clock_box.position = Vector2(s.x - EDGE - 240, EDGE - 6)
 	clock_box.size = Vector2(240, 0)
+	var deck_top := s.y
+	if deck != null:
+		deck.reset_size()
+		var dw := deck.get_combined_minimum_size().x
+		deck.position = Vector2((s.x - dw) * 0.5, s.y - 12.0 - DECK_H)
+		deck_top = deck.position.y
+		tip_box.reset_size()
+		var ts := tip_box.get_combined_minimum_size()
+		tip_box.position = Vector2((s.x - ts.x) * 0.5, deck_top - ts.y - 8.0)
 	power_box.reset_size()
-	power_box.position = Vector2(EDGE, s.y - EDGE - maxf(64.0, power_box.get_combined_minimum_size().y))
+	power_box.position = Vector2(EDGE, deck_top - 10.0 - maxf(64.0, power_box.get_combined_minimum_size().y))
 	alarm_l.position = Vector2(s.x * 0.2, EDGE)
 	alarm_l.size = Vector2(s.x * 0.6, 30)
 	msg_l.position = Vector2(s.x * 0.25, s.y * 0.64)
@@ -224,7 +366,8 @@ func _layout() -> void:
 	sub_box.reset_size()
 	# звонок — над плашкой генератора, если она на экране (обе живут снизу по центру)
 	var lift := 110.0 if dark_box != null and dark_box.visible else 0.0
-	sub_box.position = Vector2((s.x - sub_box.get_combined_minimum_size().x) * 0.5, s.y - EDGE - sub_box.get_combined_minimum_size().y - 70 - lift)
+	var tip_h: float = (tip_box.get_combined_minimum_size().y + 8.0) if tip_box != null and tip_box.visible else 0.0
+	sub_box.position = Vector2((s.x - sub_box.get_combined_minimum_size().x) * 0.5, s.y - EDGE - sub_box.get_combined_minimum_size().y - 70 - lift - tip_h)
 	hint_box.reset_size()
 	hint_box.position = Vector2(s.x - EDGE - hint_box.get_combined_minimum_size().x, s.y - EDGE - hint_box.get_combined_minimum_size().y)
 	if tablet != null:
@@ -306,22 +449,68 @@ func _tablet() -> void:
 	cam9_btn = _cam_btn("9", "room9")
 	cam9_btn.position = (FNData.CAM9["map"] as Vector2) * (MAP_SIZE - CAM_BTN)
 	cam9_btn.visible = false
+	# список комнат: номер — это клавиша; выбранная подсвечена, сломанная — серая
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 2)
+	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(grid)
+	for c in FNData.CAMS:
+		var rl := MGUI.label("%s %s" % [c["no"], String(c["short"]) if c.has("short") else String(c["name"])], "mono_s", MGUI.TEXT_2)
+		rl.custom_minimum_size.x = (SIDE_W - 2.0 * MGUI.S4 - 8.0) * 0.5
+		rl.clip_text = true
+		rl.set_meta("audit_clip", true)
+		grid.add_child(rl)
+		cam_rows[c["id"]] = rl
+		(map_btns[c["id"]] as Button).tooltip_text = "КАМЕРА 0%s — %s" % [c["no"], c["name"]]
 	v.add_child(MGUI.hsep())
 	ping_l = MGUI.label("", "mono", RED, SIDE_W - 2.0 * MGUI.S4)
 	v.add_child(ping_l)
 	lure_l = MGUI.label("", "mono", MGUI.TEXT_2, SIDE_W - 2.0 * MGUI.S4)
+	lure_l.visible = false                     # прежняя строка приманки: её читают проверки, на экране — плашка ниже
 	v.add_child(lure_l)
+	# действия планшета — плашками: клавиша, название, состояние (как на пульте будки)
+	act_lure = _act(v, "L", "ПРИМАНКА")
+	act_fix = _act(v, "C", "ПЕРЕЗАПУСК КАМЕРЫ")
 	var sp := Control.new()
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(sp)
-	for row in [[["1–8", "камера"], ["Пробел", "закрыть"]], [["L", "приманка"], ["C", "перезапуск"]]]:
+	for row in [[["1–8", "выбрать камеру"]], [["Пробел", "закрыть планшет"]]]:
 		v.add_child(MGUI.hints(row))
 	v.add_child(MGUI.hsep())
 	tab_power = MGUI.label("", "mono_m", DIM)
 	v.add_child(tab_power)
 	tab_eta = MGUI.label("", "mono_s", MGUI.TEXT_2)
 	v.add_child(tab_eta)
+
+## плашка действия в боковой панели планшета: клавиша + название, ниже — состояние одной строкой
+func _act(parent: Control, key: String, title: String) -> Dictionary:
+	var p := PanelContainer.new()
+	var sb := MGUI.box(Color(0.07, 0.07, 0.08), 3, 1, Color(0.3, 0.3, 0.33), 8)
+	sb.content_margin_top = 5
+	sb.content_margin_bottom = 5
+	p.add_theme_stylebox_override("panel", sb)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(p)
+	var v := MGUI.vbox(2)
+	p.add_child(v)
+	var top := MGUI.hbox(6)
+	v.add_child(top)
+	top.add_child(MGUI.keycap(key))
+	var nm := MGUI.label(title, "caps", MGUI.TEXT)
+	top.add_child(nm)
+	var stl := MGUI.label("", "mono_s", MGUI.TEXT_2, SIDE_W - 2.0 * MGUI.S4 - 18.0)
+	v.add_child(stl)
+	return {"panel": p, "sb": sb, "name": nm, "state": stl}
+
+func _act_set(a: Dictionary, text: String, col: Color, on: bool, dis: bool) -> void:
+	(a["state"] as Label).text = text
+	(a["state"] as Label).add_theme_color_override("font_color", col)
+	(a["sb"] as StyleBoxFlat).border_color = col if on else Color(0.3, 0.3, 0.33)
+	(a["name"] as Label).add_theme_color_override("font_color", MGUI.TEXT_3 if dis else MGUI.TEXT)
+	(a["panel"] as Control).modulate.a = 0.6 if dis else 1.0
 
 ## план здания под кнопками камер: тонкие линии от комнат к будке
 func _map_draw() -> void:
@@ -430,6 +619,7 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 	power_box.visible = not st.power_out
 	# планшет поднят — часы и энергия будки не нужны (на планшете свои), клавиши будки тоже
 	clock_box.visible = tablet_k < 0.5
+	_deck_tick(st)
 	# ложная тревога MOD
 	alarm_t = maxf(0.0, alarm_t - dt)
 	alarm_l.visible = alarm_t > 0.0 and fposmod(t, 0.5) < 0.35
@@ -458,8 +648,17 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 			jam_l.text = "НЕТ СИГНАЛА" if st.cams_dead() else ("ПОМЕХИ" if st.jammed(st.cam) else "")
 		if st.monitor and st.cam in FNNight.LURE_ROOMS and st.brown_t <= 0.0:
 			lure_l.text = "Приманка: в этой комнате есть игрушка — L" if st.lure_cd <= 0.0 else "Приманка: ещё %d с" % ceili(st.lure_cd)
+			if st.lure_cd <= 0.0:
+				_act_set(act_lure, "ВКЛЮЧИТЬ: игрушка зашумит и уведёт врага сюда · −1,5 % энергии", MGUI.GOLD, true, false)
+			else:
+				_act_set(act_lure, "ЗАРЯЖАЕТСЯ: ещё %d с" % ceili(st.lure_cd), MGUI.WARN, false, true)
 		else:
 			lure_l.text = "Приманка: в этой комнате нет игрушки"
+			_act_set(act_lure, "НЕДОСТУПНО: в этой комнате нет игрушки" if st.brown_t <= 0.0 else "НЕДОСТУПНО: перебой питания", MGUI.TEXT_3, false, true)
+		if st.cam_broken(st.cam):
+			_act_set(act_fix, "ДЕРЖАТЬ C: перезапуск %d %%" % int(st.fix_t / FNNight.FIX_NEED * 100.0), RED, true, false)
+		else:
+			_act_set(act_fix, "НЕ НУЖЕН: камера отвечает", MGUI.TEXT_3, false, true)
 		var bot: FNBot = st.enemies["bot"]
 		if bot.ping_left > 0.0 and not st.glitches.has("leds_off"):
 			ping_l.text = "Сервер: пинг — %s · %d с" % ["принимаю…" if st.cam == "server" else "открой CAM 6", ceili(bot.ping_left)]
@@ -474,6 +673,8 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 		for id in map_btns:
 			var b2: Button = map_btns[id]
 			b2.modulate = Color(1.0, 0.4, 0.35) if id == st.cam else (Color(0.55, 0.55, 0.55) if st.cam_broken(String(id)) else Color(1, 1, 1))
+			var rl2: Label = cam_rows[id]
+			rl2.add_theme_color_override("font_color", RED if id == st.cam else (MGUI.TEXT_3 if st.cam_broken(String(id)) else (MGUI.TEXT if b2.is_hovered() else MGUI.TEXT_2)))
 		cam9_btn.modulate = Color(1.0, 0.4, 0.35) if st.cam == "room9" else Color(1, 1, 1)
 
 func msg(text: String, sec := 3.0) -> void:
@@ -493,10 +694,7 @@ func sub(text: String, can_skip := false) -> void:
 
 ## подсказки клавиш будки (первая ночь): "office" — показать, "" — убрать
 func hints(kind: String) -> void:
-	var on := kind != ""
-	if hint_box.visible != on:
-		hint_box.visible = on
-		_layout.call_deferred()
+	look_hint = kind != ""                 # клавиши теперь всегда на пульте; на первой ночи добавляется «как осмотреться»
 
 func show_dark(on: bool, k := 0.0) -> void:
 	if dark_box.visible != on:
