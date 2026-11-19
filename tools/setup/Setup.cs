@@ -43,7 +43,7 @@ static class Program
 	static void Main(string[] args)
 	{
 		try { SetProcessDPIAware(); } catch { }
-		ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+		FastDownload.Setup();
 		Application.EnableVisualStyles();
 		Application.Run(new SetupForm(args));
 	}
@@ -997,27 +997,20 @@ class SetupForm : Form
 	void Download(Dictionary<string, object> asset, string target)
 	{
 		string part = target + ".part";
-		HttpWebRequest r = (HttpWebRequest)WebRequest.Create(Get(asset, "browser_download_url"));
-		r.UserAgent = UA; r.Timeout = 30000; r.ReadWriteTimeout = 60000;
 		Stopwatch sw = Stopwatch.StartNew();
-		long got = 0;
+		long size = Convert.ToInt64(asset["size"]);
+		long last = 0;
+		object gate = new object();
 		try
 		{
-			using (WebResponse resp = r.GetResponse())
-			using (Stream src = resp.GetResponseStream())
-			using (FileStream dst = File.Create(part))
+			// сразу несколько частей параллельно (..\launcher\FastDownload.cs); счётчик done общий на весь установщик
+			FastDownload.Get(Get(asset, "browser_download_url"), part, size, UA, delegate (long got)
 			{
-				byte[] buf = new byte[1 << 16];
-				int n;
-				while ((n = src.Read(buf, 0, buf.Length)) > 0)
-				{
-					if (cancel) throw new Cancelled();
-					dst.Write(buf, 0, n);
-					got += n;
-					Interlocked.Add(ref done, n);
-					speed = got / 1048576.0 / Math.Max(0.2, sw.Elapsed.TotalSeconds);
-				}
-			}
+				long add;
+				lock (gate) { add = got - last; if (add > 0) last = got; }     // части сообщают вразнобой — счёт только вперёд
+				if (add > 0) Interlocked.Add(ref done, add);
+				speed = got / 1048576.0 / Math.Max(0.2, sw.Elapsed.TotalSeconds);
+			}, delegate () { return cancel; });
 			if (new FileInfo(part).Length != Convert.ToInt64(asset["size"])) throw new Exception("файл скачался не полностью");
 			string dg = Get(asset, "digest");
 			if (dg.StartsWith("sha256:"))
@@ -1027,6 +1020,11 @@ class SetupForm : Form
 			}
 			if (File.Exists(target)) File.Delete(target);
 			File.Move(part, target);
+		}
+		catch (OperationCanceledException)
+		{
+			try { if (File.Exists(part)) File.Delete(part); } catch { }
+			throw new Cancelled();
 		}
 		catch
 		{

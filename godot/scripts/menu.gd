@@ -159,6 +159,7 @@ var main_only: Array = []      # что видно только на главн�
 var panel_back := Callable()   # Esc на открытом экране: куда вернуться (пусто — просто закрыть)
 var capture := Callable()      # ждём нажатия клавиши (переназначение гоночных клавиш): получит событие
 var online: RaceLobby          # экран ONLINE RACE
+var bed: AudioStreamPlayer     # подложка меню: треск винила и гул (MenuSfx.make_bed, Ambient), уходит вместе с меню
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -171,6 +172,8 @@ func _ready() -> void:
 	var ws := Shader.new()
 	ws.code = WORN_SHADER
 	worn.shader = ws
+	if main != null and main.ui_sfx != null:
+		bed = main.ui_sfx.make_bed(self)
 	has_save = FileAccess.file_exists(SAVE)
 	if has_save:
 		var d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
@@ -489,16 +492,18 @@ func _torn(w: float, h: float, seed_v: int) -> PackedVector2Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_v
 	var pts := PackedVector2Array()
-	var x := -60.0
-	while x < w:                       # верхний край
+	# края лежат в своих полосах (левый x < -50, верх и низ -40…w-30, правый > w-16) и идут монотонно —
+	# многоугольник не пересекает сам себя; иначе Godot не может его разбить на треугольники и не рисует вовсе
+	var x := -40.0
+	while x < w - 30.0:                # верхний край
 		pts.append(Vector2(x, rng.randf_range(-5.0, 4.0)))
 		x += rng.randf_range(9.0, 26.0)
 	var y := 0.0
 	while y < h:                       # правый край — рваный, клином
 		pts.append(Vector2(w + rng.randf_range(-16.0, 26.0) + 40.0 * (1.0 - absf(y / h - 0.5) * 2.0), y))
 		y += rng.randf_range(7.0, 15.0)
-	x = w
-	while x > -60.0:                   # нижний край
+	x = w - 30.0
+	while x > -40.0:                   # нижний край
 		pts.append(Vector2(x, h + rng.randf_range(-4.0, 6.0)))
 		x -= rng.randf_range(9.0, 26.0)
 	y = h
@@ -541,7 +546,7 @@ func _build_list() -> void:
 		elif ITEMS[i].size() > 2:
 			sub = _text(root, String(ITEMS[i][2]), 15, INK, Vector2(40, size * 1.06))
 		rows.append({"root": root, "label": lab, "mark": mark, "sub": sub, "w": w, "h": size})
-		root.mouse_entered.connect(func(): if panel == null and not modes.visible: _select(i))
+		root.mouse_entered.connect(func(): if panel == null and not modes.visible: _select(i, true, "hover"))
 		root.gui_input.connect(func(e: InputEvent):
 			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and panel == null and not modes.visible:
 				_select(i)
@@ -551,9 +556,9 @@ func _build_list() -> void:
 func _enabled(i: int) -> bool:
 	return i != 0 or has_save
 
-func _select(i: int, sound := true) -> void:
+func _select(i: int, sound := true, kind := "move") -> void:
 	if i != sel and sound:
-		main.sfx("sfx_ui", -10.0, 1.2)
+		main.ui(kind, 1.0 + (2 - i) * 0.04)      # ниже по списку — чуть ниже звук
 	sel = i
 	info.text = ITEMS[i][1] if _enabled(i) else "Сохранения пока нет — начни новую игру."
 	var r: Dictionary = rows[i]
@@ -595,7 +600,9 @@ func launch_training() -> void:
 
 func _launch_fx() -> void:
 	launching = true
-	main.sfx("sfx_ui", -2.0, 0.72)
+	main.ui("launch")
+	if bed != null:
+		bed.create_tween().tween_property(bed, "volume_db", -60.0, 0.8)
 	var tw := create_tween().set_parallel(true)
 	var b: Polygon2D = band
 	if modes.visible:
@@ -620,7 +627,11 @@ func _launch_fx() -> void:
 func _activate() -> void:
 	if launching:
 		return
-	main.sfx("sfx_ui")
+	if not _enabled(sel):
+		main.ui("deny")
+		return
+	if String(ITEMS[sel][0]) != "CONTINUE":       # у CONTINUE свой звук — запуск
+		main.ui("confirm")
 	match String(ITEMS[sel][0]):
 		"CONTINUE":
 			if has_save:
@@ -641,6 +652,7 @@ func open_modes(start := -1) -> void:
 	for n in main_only:
 		var c := n as CanvasItem
 		c.create_tween().tween_property(c, "modulate:a", 0.0, 0.18)
+	main.ui("open")
 	modes.open(start)
 
 ## назад на главный список
@@ -651,7 +663,7 @@ func close_modes() -> void:
 		var c := n as CanvasItem
 		c.create_tween().tween_property(c, "modulate:a", 1.0, 0.25)
 	_select(sel, false)
-	main.sfx("sfx_ui", -8.0, 0.8)
+	main.ui("back")
 
 ## что делает выбранный режим
 func open_mode(id: String) -> void:
@@ -816,13 +828,14 @@ func _open(title: String, lines: Array, actions: Array, start := 0) -> VBoxConta
 		l2.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		box.add_child(l2)
 		panel_rows.append({"label": l2, "text": a[0], "act": a[1] if a.size() > 1 else null, "adj": a[2] if a.size() > 2 else null})
-		l2.mouse_entered.connect(func(): _panel_select(i))
+		l2.mouse_entered.connect(func(): _panel_select(i, true, "hover"))
 		l2.gui_input.connect(func(e: InputEvent):
 			if e is InputEventMouseButton and e.pressed and (e.button_index == MOUSE_BUTTON_LEFT or e.button_index == MOUSE_BUTTON_RIGHT):
 				_panel_select(i)
 				_panel_activate(-1 if e.button_index == MOUSE_BUTTON_RIGHT else 1))
 	panel.modulate.a = 0.0
 	create_tween().tween_property(panel, "modulate:a", 1.0, 0.14)
+	main.ui("open")
 	_panel_select(clampi(start, 0, max(0, panel_rows.size() - 1)), false)
 	info.text = "Enter — выбрать · A/D — изменить значение · Esc — назад"
 	return box
@@ -837,11 +850,11 @@ func _para(s: String, size: int, col: Color) -> Label:
 	l.custom_minimum_size = Vector2(640, 0)
 	return l
 
-func _panel_select(i: int, sound := true) -> void:
+func _panel_select(i: int, sound := true, kind := "move") -> void:
 	if panel_rows.is_empty():
 		return
 	if sound and i != panel_sel:
-		main.sfx("sfx_ui", -10.0, 1.2)
+		main.ui(kind)
 	panel_sel = i
 	for k in panel_rows.size():
 		var r: Dictionary = panel_rows[k]
@@ -863,11 +876,13 @@ func _panel_activate(dir := 1) -> void:
 		return
 	var r: Dictionary = panel_rows[panel_sel]
 	if r["adj"] != null:
-		main.sfx("sfx_ui", -6.0, 1.1 if dir > 0 else 0.9)
+		main.ui("value", 1.08 if dir > 0 else 0.92)
 		(r["adj"] as Callable).call(dir)
 	elif r["act"] != null and dir > 0:
-		main.sfx("sfx_ui")
+		main.ui("back" if r["text"] is String and String(r["text"]) == "НАЗАД" else "confirm")
 		(r["act"] as Callable).call()
+	elif dir < 0:
+		main.ui("deny")
 	if panel != null:
 		_panel_select(panel_sel, false)
 
@@ -988,7 +1003,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		elif k == KEY_A or k == KEY_LEFT:
 			_panel_activate(-1)
 		elif k == KEY_ESCAPE or k == KEY_BACKSPACE:
-			main.sfx("sfx_ui", -8.0, 0.8)
+			main.ui("back")
 			if panel_back.is_valid():
 				panel_back.call()
 			else:

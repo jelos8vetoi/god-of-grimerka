@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://de51bdgc3poqw"
-path="res://.godot/imported/bare_tree_NormalGL_1fb91b75-ddd5-48d5-b930-ebf5c028cab3.png-807bec26002b2f07b5625986d895f2f2.ctex"
+path.s3tc="res://.godot/imported/bare_tree_NormalGL_1fb91b75-ddd5-48d5-b930-ebf5c028cab3.png-807bec26002b2f07b5625986d895f2f2.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "72a172ef1c3d7485b628c70127445e41"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/bare_tree_NormalGL_1fb91b75-ddd5-48d5-b930-ebf5c028cab3.png"
-dest_files=["res://.godot/imported/bare_tree_NormalGL_1fb91b75-ddd5-48d5-b930-ebf5c028cab3.png-807bec26002b2f07b5625986d895f2f2.ctex"]
+dest_files=["res://.godot/imported/bare_tree_NormalGL_1fb91b75-ddd5-48d5-b930-ebf5c028cab3.png-807bec26002b2f07b5625986d895f2f2.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

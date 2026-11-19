@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://k2g6w1r17wcm"
-path="res://.godot/imported/billboard_Color_7cbc8e0a-0fd4-4261-83cc-571c6f931de4.jpg-b61e37e4f10b06b4b5b1c637845a1a0d.ctex"
+path.s3tc="res://.godot/imported/billboard_Color_7cbc8e0a-0fd4-4261-83cc-571c6f931de4.jpg-b61e37e4f10b06b4b5b1c637845a1a0d.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "813b95adec74de5f175e7fcd93e0d526"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/billboard_Color_7cbc8e0a-0fd4-4261-83cc-571c6f931de4.jpg"
-dest_files=["res://.godot/imported/billboard_Color_7cbc8e0a-0fd4-4261-83cc-571c6f931de4.jpg-b61e37e4f10b06b4b5b1c637845a1a0d.ctex"]
+dest_files=["res://.godot/imported/billboard_Color_7cbc8e0a-0fd4-4261-83cc-571c6f931de4.jpg-b61e37e4f10b06b4b5b1c637845a1a0d.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

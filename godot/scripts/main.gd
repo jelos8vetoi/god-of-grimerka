@@ -40,6 +40,7 @@ var ipodbuds := false       # вместе с --ipodcheck: только науш
 var ipodhand := false       # вместе с --ipodcheck: только проверка руки и позы (--hand)
 var voicecheck := false   # --voicecheck: пройти диалог главы и напечатать, какие реплики заиграли
 var sfx_pool: Array[AudioStreamPlayer] = []
+var ui_sfx: MenuSfx
 var sfx_cache := {}
 var autotest := ""
 var smoke := ""
@@ -105,6 +106,8 @@ func _ready() -> void:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
 		sfx_pool.append(p)
+	ui_sfx = MenuSfx.new()               # звуки главного меню (синтез при запуске, menu_sfx.gd)
+	add_child(ui_sfx)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--autotest="):
 			autotest = arg.substr(11)
@@ -288,6 +291,11 @@ func _ready() -> void:
 			wc.main = self
 			wc.out = weathercheck
 			add_child(wc)
+
+## звук меню: hover, move, confirm, back, open, close, card, value, deny, launch (menu_sfx.gd)
+func ui(kind: String, pitch := 1.0) -> void:
+	if ui_sfx != null:
+		ui_sfx.play(kind, pitch)
 
 func sfx(name: String, vol := 0.0, pitch := 1.0) -> void:
 	if not sfx_cache.has(name):

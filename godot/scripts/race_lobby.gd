@@ -156,7 +156,7 @@ func select(i: int, sound := true) -> void:
 	if rows[i]["kind"] == "info":
 		i = posmod(i + 1, rows.size())
 	if sound and i != sel:
-		menu.main.sfx("sfx_ui", -10.0, 1.2)
+		menu.main.ui("move")
 	sel = i
 	_paint()
 
@@ -185,10 +185,10 @@ func activate(dir := 1) -> void:
 		(r["edit"] as LineEdit).caret_column = (r["edit"] as LineEdit).text.length()
 		return
 	if r["adj"] != null:
-		menu.main.sfx("sfx_ui", -6.0, 1.1 if dir > 0 else 0.9)
+		menu.main.ui("value", 1.08 if dir > 0 else 0.92)
 		(r["adj"] as Callable).call(dir)
 	elif r["act"] != null and dir > 0:
-		menu.main.sfx("sfx_ui")
+		menu.main.ui("confirm")
 		(r["act"] as Callable).call()
 	if visible and not rows.is_empty():
 		_paint()
@@ -420,7 +420,7 @@ func handle_key(k: int) -> bool:
 	elif k == KEY_A or k == KEY_LEFT:
 		activate(-1)
 	elif k == KEY_ESCAPE or k == KEY_BACKSPACE:
-		menu.main.sfx("sfx_ui", -8.0, 0.8)
+		menu.main.ui("back")
 		back()
 	else:
 		return false

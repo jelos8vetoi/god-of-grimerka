@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d0emlg4ru5b1d"
-path="res://.godot/imported/panel_tower_NormalGL_473a5acc-7dfe-432d-acc3-806dd7379ad8.png-210c4fdee98db15c9110e81ef56c72d6.ctex"
+path.s3tc="res://.godot/imported/panel_tower_NormalGL_473a5acc-7dfe-432d-acc3-806dd7379ad8.png-210c4fdee98db15c9110e81ef56c72d6.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "a553a39394c498c5d0dae92c9c97861a"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/panel_tower_NormalGL_473a5acc-7dfe-432d-acc3-806dd7379ad8.png"
-dest_files=["res://.godot/imported/panel_tower_NormalGL_473a5acc-7dfe-432d-acc3-806dd7379ad8.png-210c4fdee98db15c9110e81ef56c72d6.ctex"]
+dest_files=["res://.godot/imported/panel_tower_NormalGL_473a5acc-7dfe-432d-acc3-806dd7379ad8.png-210c4fdee98db15c9110e81ef56c72d6.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

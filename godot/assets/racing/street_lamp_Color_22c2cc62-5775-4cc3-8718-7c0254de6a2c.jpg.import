@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b6lpwdqo4e68b"
-path="res://.godot/imported/street_lamp_Color_22c2cc62-5775-4cc3-8718-7c0254de6a2c.jpg-9785d72e85ee1165122445a68f233fbe.ctex"
+path.s3tc="res://.godot/imported/street_lamp_Color_22c2cc62-5775-4cc3-8718-7c0254de6a2c.jpg-9785d72e85ee1165122445a68f233fbe.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "ecf711e4a10053537dee8153a558375c"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/street_lamp_Color_22c2cc62-5775-4cc3-8718-7c0254de6a2c.jpg"
-dest_files=["res://.godot/imported/street_lamp_Color_22c2cc62-5775-4cc3-8718-7c0254de6a2c.jpg-9785d72e85ee1165122445a68f233fbe.ctex"]
+dest_files=["res://.godot/imported/street_lamp_Color_22c2cc62-5775-4cc3-8718-7c0254de6a2c.jpg-9785d72e85ee1165122445a68f233fbe.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

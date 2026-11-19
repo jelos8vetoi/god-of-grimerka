@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bfsmm8sid3tv4"
-path="res://.godot/imported/kiosk_Color_2ac8b863-8ce9-42f7-a52c-21dca07f8e78.jpg-a016f77b3095850dca8e726a200907e5.ctex"
+path.s3tc="res://.godot/imported/kiosk_Color_2ac8b863-8ce9-42f7-a52c-21dca07f8e78.jpg-a016f77b3095850dca8e726a200907e5.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "1cd1c5e3b487439d6c276c4a390d8002"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/kiosk_Color_2ac8b863-8ce9-42f7-a52c-21dca07f8e78.jpg"
-dest_files=["res://.godot/imported/kiosk_Color_2ac8b863-8ce9-42f7-a52c-21dca07f8e78.jpg-a016f77b3095850dca8e726a200907e5.ctex"]
+dest_files=["res://.godot/imported/kiosk_Color_2ac8b863-8ce9-42f7-a52c-21dca07f8e78.jpg-a016f77b3095850dca8e726a200907e5.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

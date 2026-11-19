@@ -79,6 +79,23 @@ func _run() -> void:
 	ok(mm != null, "главное меню открыто")
 	var m0 := await listen(2.0, "меню")
 	ok(m0["Music"] > -45.0, "в меню играет заглавный трек (пик %.1f дБ)" % m0["Music"])
+	ok(m0["Ambient"] > -75.0, "в меню звучит подложка — треск винила (пик %.1f дБ)" % m0["Ambient"])
+	# звуки меню: шаг по списку и наведение мышью (сам выбор не жмём — он уводит из меню)
+	var c0 := int(main.ui_sfx.count.get("move", 0))
+	await key(KEY_DOWN)                  # клавиши: звук запускается (счётчик); короткий — слушаем ниже напрямую
+	await key(KEY_UP)
+	await wait(0.3)
+	ok(int(main.ui_sfx.count.get("move", 0)) >= c0 + 2, "клавиши в меню дают звук шага (звуков %d)" % (int(main.ui_sfx.count.get("move", 0)) - c0))
+	mm._select(1)
+	var mv := await listen(0.3, "меню: шаг")
+	mm._select(0, false)
+	ok(mv["SFX"] > -45.0, "шаг по списку слышно на шине SFX (пик %.1f дБ)" % mv["SFX"])
+	mm._select(2, true, "hover")
+	var hv := await listen(0.3, "меню: наведение")
+	mm._select(0, false)
+	ok(hv["SFX"] > -50.0, "наведение мышью звучит (пик SFX %.1f дБ)" % hv["SFX"])
+	for kind in MenuSfx.LEVEL:
+		ok(main.ui_sfx.streams.has(kind) and (main.ui_sfx.streams[kind] as AudioStreamWAV).data.size() > 1000, "звук меню «%s» собран" % kind)
 	# ---------- кампания ----------
 	main.cinematic_start(mm.has_save, -1 if mm.has_save else 0)
 	var t0 := Time.get_ticks_msec()

@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bwvoceguxjvap"
-path="res://.godot/imported/dumpster_Color_927b00ab-379f-4b77-b91d-860523466538.jpg-662d59f483167fcf513126e8738a0bad.ctex"
+path.s3tc="res://.godot/imported/dumpster_Color_927b00ab-379f-4b77-b91d-860523466538.jpg-662d59f483167fcf513126e8738a0bad.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "6d3c659e70561f543d54288ca793ef43"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/dumpster_Color_927b00ab-379f-4b77-b91d-860523466538.jpg"
-dest_files=["res://.godot/imported/dumpster_Color_927b00ab-379f-4b77-b91d-860523466538.jpg-662d59f483167fcf513126e8738a0bad.ctex"]
+dest_files=["res://.godot/imported/dumpster_Color_927b00ab-379f-4b77-b91d-860523466538.jpg-662d59f483167fcf513126e8738a0bad.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

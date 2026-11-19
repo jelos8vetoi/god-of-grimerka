@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://daewkt23iih60"
-path="res://.godot/imported/playground_Color_4f120c87-0ed2-436b-952b-93806b736471.jpg-51fb8632e32b8f648b0b21981c73aaeb.ctex"
+path.s3tc="res://.godot/imported/playground_Color_4f120c87-0ed2-436b-952b-93806b736471.jpg-51fb8632e32b8f648b0b21981c73aaeb.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "ecac820493499ef9ad965efb9fe20d4b"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/playground_Color_4f120c87-0ed2-436b-952b-93806b736471.jpg"
-dest_files=["res://.godot/imported/playground_Color_4f120c87-0ed2-436b-952b-93806b736471.jpg-51fb8632e32b8f648b0b21981c73aaeb.ctex"]
+dest_files=["res://.godot/imported/playground_Color_4f120c87-0ed2-436b-952b-93806b736471.jpg-51fb8632e32b8f648b0b21981c73aaeb.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

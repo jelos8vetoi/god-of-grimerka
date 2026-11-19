@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://x5i5o5wcqm35"
-path="res://.godot/imported/khrushchevka_ORM_bf4c5ae8-0c09-4c51-b22f-a6cc8bde95ef.jpg-ebdb1b96eeb8dfe9357d11276b7b38bd.ctex"
+path.s3tc="res://.godot/imported/khrushchevka_ORM_bf4c5ae8-0c09-4c51-b22f-a6cc8bde95ef.jpg-ebdb1b96eeb8dfe9357d11276b7b38bd.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "2e68fe7537f5d416332406e1b4b93100"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/khrushchevka_ORM_bf4c5ae8-0c09-4c51-b22f-a6cc8bde95ef.jpg"
-dest_files=["res://.godot/imported/khrushchevka_ORM_bf4c5ae8-0c09-4c51-b22f-a6cc8bde95ef.jpg-ebdb1b96eeb8dfe9357d11276b7b38bd.ctex"]
+dest_files=["res://.godot/imported/khrushchevka_ORM_bf4c5ae8-0c09-4c51-b22f-a6cc8bde95ef.jpg-ebdb1b96eeb8dfe9357d11276b7b38bd.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

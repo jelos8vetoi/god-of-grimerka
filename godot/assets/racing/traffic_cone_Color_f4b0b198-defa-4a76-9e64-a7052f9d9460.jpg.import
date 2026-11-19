@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dm2nirulir23u"
-path="res://.godot/imported/traffic_cone_Color_f4b0b198-defa-4a76-9e64-a7052f9d9460.jpg-61eb258050830fc2d552421c904c4adf.ctex"
+path.s3tc="res://.godot/imported/traffic_cone_Color_f4b0b198-defa-4a76-9e64-a7052f9d9460.jpg-61eb258050830fc2d552421c904c4adf.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "1f8fa38ab12743c76f0f42be5fefb6a5"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/traffic_cone_Color_f4b0b198-defa-4a76-9e64-a7052f9d9460.jpg"
-dest_files=["res://.godot/imported/traffic_cone_Color_f4b0b198-defa-4a76-9e64-a7052f9d9460.jpg-61eb258050830fc2d552421c904c4adf.ctex"]
+dest_files=["res://.godot/imported/traffic_cone_Color_f4b0b198-defa-4a76-9e64-a7052f9d9460.jpg-61eb258050830fc2d552421c904c4adf.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

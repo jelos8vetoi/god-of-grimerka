@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bkjinbay0sxm5"
-path="res://.godot/imported/madk1d_stylized_3d_character_metallic-stylized_3d_character_roughness.jpg-91ae291e97a0f1a42d6220ae704f2202.ctex"
+path.s3tc="res://.godot/imported/madk1d_stylized_3d_character_metallic-stylized_3d_character_roughness.jpg-91ae291e97a0f1a42d6220ae704f2202.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "b120a011678235032a670e0b948504fd"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/madk1d_stylized_3d_character_metallic-stylized_3d_character_roughness.jpg"
-dest_files=["res://.godot/imported/madk1d_stylized_3d_character_metallic-stylized_3d_character_roughness.jpg-91ae291e97a0f1a42d6220ae704f2202.ctex"]
+dest_files=["res://.godot/imported/madk1d_stylized_3d_character_metallic-stylized_3d_character_roughness.jpg-91ae291e97a0f1a42d6220ae704f2202.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=2048
 detect_3d/compress_to=1

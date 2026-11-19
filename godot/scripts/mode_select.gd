@@ -103,8 +103,14 @@ func _build_card(i: int) -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	add_child(root)
+	# длинное название чуть уменьшается, а плашка вытягивается под него: у выбранной карточки текст тёмный,
+	# и хвост названия за краем плашки пропал бы на чёрном фоне
+	var tsize := 46
+	while tsize > 36 and menu.serif.get_string_size(String(m["title"]), HORIZONTAL_ALIGNMENT_LEFT, -1, tsize).x > 380.0:
+		tsize -= 2
+	var tw: float = menu.serif.get_string_size(String(m["title"]), HORIZONTAL_ALIGNMENT_LEFT, -1, tsize).x
 	var band := Polygon2D.new()
-	band.polygon = menu._torn(520.0, 136.0, 31 + i * 7)
+	band.polygon = menu._torn(maxf(520.0, 110.0 + tw * 1.15 + 30.0), 136.0, 31 + i * 7)
 	band.color = Menu.WHITE
 	band.material = menu.worn
 	band.position = Vector2(40, 0)
@@ -115,7 +121,7 @@ func _build_card(i: int) -> void:
 	accent.position = Vector2(-18, 0)
 	root.add_child(accent)
 	var num: Label = menu._text(root, String(m["no"]), 112, Menu.WHITE, Vector2(4, -6), menu.serif, true)
-	var title: Label = menu._text(root, String(m["title"]), 46, Menu.WHITE, Vector2(150, 14), menu.serif)
+	var title: Label = menu._text(root, String(m["title"]), tsize, Menu.WHITE, Vector2(150, 14 + (46 - tsize) * 0.5), menu.serif)
 	var ru: Label = menu._text(root, String(m["ru"]), 17, Menu.SILVER, Vector2(154, 72), menu.tech)
 	var tag := ColorRect.new()
 	tag.position = Vector2(154, 100)
@@ -129,7 +135,7 @@ func _build_card(i: int) -> void:
 	cards.append({"root": root, "band": band, "num": num, "title": title, "ru": ru, "tag": tag, "tag_l": tag_l, "accent": accent})
 	root.mouse_entered.connect(func():
 		if visible and menu.panel == null and not menu.launching:
-			select(i))
+			select(i, true, false, "hover"))
 	root.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and visible and menu.panel == null and not menu.launching:
 			select(i, false)
@@ -425,12 +431,12 @@ func close() -> void:
 			if a["vp"] != null:
 				(a["vp"] as SubViewport).render_target_update_mode = SubViewport.UPDATE_DISABLED)
 
-func select(i: int, sound := true, force := false) -> void:
+func select(i: int, sound := true, force := false, kind := "card") -> void:
 	i = posmod(i, MODES.size())
 	if i == sel and not force:
 		return
 	if sound and i != sel:
-		menu.main.sfx("sfx_ui", -10.0, 1.2)
+		menu.main.ui(kind, 1.0 + (2 - i) * 0.03)
 	var prev := sel
 	sel = i
 	for k in cards.size():
@@ -456,6 +462,10 @@ func select(i: int, sound := true, force := false) -> void:
 			band.create_tween().tween_property(band, "scale:x", 1.0, 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	var m: Dictionary = MODES[i]
 	desc_title.text = "%s · %s" % [String(m["no"]), String(m["ru"])]
+	var dsize := 30                          # длинное название режима не уходит за правый край экрана
+	while dsize > 20 and menu.serif.get_string_size(desc_title.text, HORIZONTAL_ALIGNMENT_LEFT, -1, dsize).x * 1.15 > 510.0:
+		dsize -= 1
+	desc_title.add_theme_font_size_override("font_size", dsize)
 	desc_text.text = String(m["desc"]) if available(i) else String(m["desc"]) + " " + menu.race_status()
 	desc_facts.text = "\n".join(m["facts"]) if available(i) else "статус: " + _tag(i).to_lower()
 	menu.info.text = desc_text.text
@@ -504,7 +514,7 @@ func _ml_day() -> int:
 	return int(r.get("day", 1))
 
 func activate() -> void:
-	menu.main.sfx("sfx_ui")
+	menu.main.ui("confirm" if available(sel) else "deny")
 	menu.open_mode(String(MODES[sel]["id"]))
 
 func _process(dt: float) -> void:

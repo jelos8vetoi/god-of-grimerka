@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bicm4ag43qot4"
-path="res://.godot/imported/tower_crane_Color_727bc1b5-80c0-41fe-9b20-f002af62d7fa.jpg-4a629a03ee9b7c9557f58174060981d4.ctex"
+path.s3tc="res://.godot/imported/tower_crane_Color_727bc1b5-80c0-41fe-9b20-f002af62d7fa.jpg-4a629a03ee9b7c9557f58174060981d4.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "bb941d7617c956c11b660288d1cf35a3"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/tower_crane_Color_727bc1b5-80c0-41fe-9b20-f002af62d7fa.jpg"
-dest_files=["res://.godot/imported/tower_crane_Color_727bc1b5-80c0-41fe-9b20-f002af62d7fa.jpg-4a629a03ee9b7c9557f58174060981d4.ctex"]
+dest_files=["res://.godot/imported/tower_crane_Color_727bc1b5-80c0-41fe-9b20-f002af62d7fa.jpg-4a629a03ee9b7c9557f58174060981d4.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1
