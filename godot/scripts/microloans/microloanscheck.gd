@@ -256,6 +256,8 @@ func _run() -> void:
 	for jid in ["podezd", "repair", "deliv", "junk"]:
 		e.actions = maxi(e.actions, 1)
 		var mb := e.money
+		if jid == "podezd":
+			e.rng.seed = 4242                       # тот же уровень уборки достанется и «плохому» боту ниже
 		var J: MLJob = U.run_job(jid, 0.9)
 		await wait(0.3)
 		ok(J is MLJob3D and (J as MLJob3D).vp != null, "подработка %s — своя 3D-сцена" % MLData.JOBS[jid]["name"])
@@ -279,6 +281,7 @@ func _run() -> void:
 	# плохой игрок получает меньше
 	e.actions = maxi(e.actions, 1)
 	var mp := e.money
+	e.rng.seed = 4242
 	var JP: MLJob = U.run_job("podezd", 0.1)
 	await until(func(): return not is_instance_valid(JP) or JP.done, 70.0)
 	await wait(0.3)

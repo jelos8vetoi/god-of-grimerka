@@ -1,25 +1,27 @@
 ## Переговоры с коллектором — мини-игра звонка. Коллектор говорит фразами (текст печатается), между ними —
 ## пауза «ТВОЯ ОЧЕРЕДЬ». Ответ картой в паузе — полный эффект, посреди фразы — «ПЕРЕБИЛ» (доверие падает,
 ## давление растёт), промолчал всю паузу — давление растёт. «Предъявить документ» — найти нужную бумагу за
-## 4 с (клавиши 1–4). Три шкалы: TRUST (доверие), PRESSURE (давление), PROMISE (сколько пообещал внести завтра).
+## 4 с (клавиши 1–4). Три шкалы: доверие, давление, сколько пообещал внести завтра.
 ## Итог считает экономика (ml_economy.negotiation_result). Клавиши 1–6, мышь.
+## Вёрстка — MGUI: одна колонка по центру (шапка звонка, реплика и шкалы, шесть ответов строками), контейнерами.
 class_name MLNegotiation
 extends Control
 
 signal done(result: Dictionary)
 
-const RED := Color(0.86, 0.09, 0.11)
-const GREEN := Color(0.4, 0.9, 0.45)
+const RED := MGUI.RED
+const GREEN := MGUI.GOOD
 const PHRASES := 6
 const CARDS := [
 	["delay", "ПРОШУ ОТСРОЧКУ", "мягко, без денег"],
-	["part", "ВНЕСУ ЧАСТЬ СЕЙЧАС", "30% остатка — сразу с карты"],
-	["plan", "НОВЫЙ ГРАФИК", "обещание внести завтра 40%"],
-	["doc", "ПРЕДЪЯВИТЬ ДОКУМЕНТ", "найди нужную бумагу за 4 с"],
-	["error", "ОШИБКА В ДОГОВОРЕ!", "если знаешь, о чём говоришь"],
-	["refuse", "НЕ БУДУ ПЛАТИТЬ", "кладёшь трубку"],
+	["part", "ВНЕСУ ЧАСТЬ СЕЙЧАС", "30 % остатка — сразу с карты"],
+	["plan", "НОВЫЙ ГРАФИК", "обещание внести завтра 40 %"],
+	["doc", "ПРЕДЪЯВИТЬ ДОКУМЕНТ", "найти нужную бумагу за 4 секунды"],
+	["error", "ОШИБКА В ДОГОВОРЕ", "если знаешь, о чём говоришь"],
+	["refuse", "НЕ БУДУ ПЛАТИТЬ", "положить трубку"],
 ]
-const DOCS := [["receipt", "КВИТАНЦИЯ ОБ ОПЛАТЕ"], ["contract", "ДОГОВОР С МЕЛКИМ ШРИФТОМ"], ["work", "СПРАВКА С ПОДРАБОТКИ"], ["screen", "СКРИН ОШИБОЧНОГО СЧЁТА"]]
+const DOCS := [["receipt", "КВИТАНЦИЯ ОБ ОПЛАТЕ"], ["contract", "ДОГОВОР С МЕЛКИМ ШРИФТОМ"], ["work", "СПРАВКА С ПОДРАБОТКИ"], ["screen", "СНИМОК ОШИБОЧНОГО СЧЁТА"]]
+const COL_W := 1000.0             # ширина колонки звонка
 
 var econ: MLEconomy
 var loan := {}
@@ -32,6 +34,7 @@ var promise := 0
 var used_error := false
 var asked_delay := 0
 var t_left := 35.0
+var t_full := 35.0
 var phrase := 0
 var speaking := true
 var speak_t := 0.0
@@ -47,13 +50,14 @@ var finished := false
 var log_lines: Array = []
 # узлы
 var bubble: Label
-var turn_bar: ColorRect
+var turn_bar: Dictionary
 var turn_l: Label
-var timer_bar: ColorRect
+var timer_bar: Dictionary
+var time_l: Label
 var bars := {}
-var cards_box: Control
 var card_nodes: Array = []
 var doc_box: Control
+var doc_bar: Dictionary
 var flash: Label
 var auto_answers: Array = []      # проверка: [[фраза, карта, в паузе?]]
 
@@ -66,6 +70,7 @@ func setup(e: MLEconomy, loan_id: int, f: Font, sf: SystemFont) -> void:
 	trust = clampf(float(e.rep) * 0.7 + (12.0 if e.lender_flags.get(loan["lender"], {}).has("error") else 0.0), 10.0, 80.0)
 	pressure = clampf(30.0 + float(loan["overdue"]) * 18.0 + (10.0 if e.flags.has("bad_phone") else 0.0), 0.0, 95.0)
 	t_left = 35.0 + (4.0 if e.upgrades.has("phone") else 0.0)
+	t_full = t_left
 	window_len = 1.4 + (0.6 if e.upgrades.has("talk") else 0.0) - (0.3 if e.stress >= 70 else 0.0)
 	# какой документ правильный: ошибочный счёт → скрин; платил раньше → квитанция; работал → справка; иначе договор
 	if e.lender_flags.get(loan["lender"], {}).has("error"):
@@ -79,114 +84,164 @@ func setup(e: MLEconomy, loan_id: int, f: Font, sf: SystemFont) -> void:
 	_build()
 	_next_phrase()
 
-func _txt(parent: Node, s: String, fs: int, col: Color, pos: Vector2, f: Font = null) -> Label:
-	var l := Label.new()
-	l.text = s
-	l.add_theme_font_override("font", f if f != null else font)
-	l.add_theme_font_size_override("font_size", fs)
-	l.add_theme_color_override("font_color", col)
-	l.position = pos
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(l)
-	return l
-
 func _build() -> void:
-	size = Vector2(1600, 900)
+	var par := get_parent() as Control
+	size = Vector2(maxf(1600.0, par.size.x) if par != null else 1600.0, 900.0)
 	var shade := ColorRect.new()
-	shade.color = Color(0, 0, 0, 0.78)
+	shade.color = Color(0, 0, 0, 0.62)
 	shade.size = size
 	add_child(shade)
-	_txt(self, "☎ ВХОДЯЩИЙ: " + String(lender["name"]), 40, Color(1, 1, 1), Vector2(80, 50), serif)
-	_txt(self, "Долг %d ₽ · срок: день %d%s" % [int(ceil(float(loan["balance"]))), int(loan["due"]), " · ПРОСРОЧКА %d дн." % int(loan["overdue"]) if int(loan["overdue"]) > 0 else ""], 20, Color(0.8, 0.8, 0.82), Vector2(84, 104))
-	var tb := ColorRect.new()
-	tb.color = Color(0.2, 0.2, 0.22)
-	tb.position = Vector2(80, 140)
-	tb.size = Vector2(1440, 8)
-	add_child(tb)
-	timer_bar = ColorRect.new()
-	timer_bar.color = RED
-	timer_bar.position = tb.position
-	timer_bar.size = tb.size
-	add_child(timer_bar)
-	# шкалы
-	var y := 180.0
-	for k in [["trust", "TRUST — ДОВЕРИЕ", GREEN], ["pressure", "PRESSURE — ДАВЛЕНИЕ", RED], ["promise", "PROMISE — ОБЕЩАНО НА ЗАВТРА", Color(1, 0.85, 0.3)]]:
-		_txt(self, String(k[1]), 16, Color(0.85, 0.85, 0.87), Vector2(1080, y))
-		var bg := ColorRect.new()
-		bg.color = Color(0.15, 0.15, 0.17)
-		bg.position = Vector2(1080, y + 24)
-		bg.size = Vector2(440, 14)
-		add_child(bg)
-		var fg := ColorRect.new()
-		fg.color = k[2]
-		fg.position = bg.position
-		fg.size = Vector2(0, 14)
-		add_child(fg)
-		bars[k[0]] = fg
-		y += 64
-	# реплика коллектора
-	var bub := ColorRect.new()
-	bub.color = Color(0.94, 0.94, 0.92)
-	bub.position = Vector2(80, 180)
-	bub.size = Vector2(960, 200)
-	add_child(bub)
-	bubble = _txt(bub, "", 30, Color(0.05, 0.05, 0.06), Vector2(24, 20), serif)
-	bubble.size = Vector2(910, 160)
-	bubble.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	turn_bar = ColorRect.new()
-	turn_bar.color = GREEN
-	turn_bar.position = Vector2(80, 392)
-	turn_bar.size = Vector2(0, 16)
-	add_child(turn_bar)
-	turn_l = _txt(self, "", 20, GREEN, Vector2(84, 412), serif)
-	flash = _txt(self, "", 44, RED, Vector2(0, 470), serif)
-	flash.size = Vector2(1600, 60)
-	flash.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	# карты ответов
-	cards_box = Control.new()
-	cards_box.position = Vector2(80, 560)
-	add_child(cards_box)
+	var pc := MGUI.panel(false, null, MGUI.S5)
+	pc.custom_minimum_size = Vector2(COL_W, 0)
+	pc.position = Vector2((size.x - COL_W) * 0.5, 70)
+	pc.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(pc)
+	var v := MGUI.vbox(MGUI.S4)
+	pc.add_child(v)
+	# шапка: кто звонит, по какому долгу, сколько осталось времени
+	var top := MGUI.hbox(MGUI.S3)
+	v.add_child(top)
+	var ic := MGIcon.make("call", 30, Color(0.55, 0.85, 1.0))
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top.add_child(ic)
+	var who := MGUI.vbox(0)
+	top.add_child(who)
+	who.add_child(MGUI.label("ВХОДЯЩИЙ ЗВОНОК", "caps", Color(0.55, 0.85, 1.0)))
+	who.add_child(MGUI.label(String(lender["name"]), "h1"))
+	top.add_child(MGUI.spacer())
+	var debt := MGUI.stat("ДОЛГ", MGUI.rub(int(ceil(float(loan["balance"])))), "num")
+	top.add_child(debt["box"])
+	top.add_child(MGUI.vsep())
+	var od := int(loan["overdue"])
+	var due := MGUI.stat("СРОК", ("просрочен на %d дн." % od) if od > 0 else "день %d" % int(loan["due"]), "num")
+	if od > 0:
+		(due["val"] as Label).add_theme_color_override("font_color", RED)
+	top.add_child(due["box"])
+	top.add_child(MGUI.vsep())
+	var tm := MGUI.stat("РАЗГОВОР", "0:35", "mono_l")
+	time_l = tm["val"]
+	(tm["box"] as Control).custom_minimum_size.x = 84
+	top.add_child(tm["box"])
+	timer_bar = MGUI.bar(COL_W - 2.0 * MGUI.S5, 3, RED)
+	v.add_child(timer_bar["box"])
+	# середина: реплика коллектора слева, три шкалы справа
+	var mid := MGUI.hbox(MGUI.S4)
+	v.add_child(mid)
+	var left := MGUI.vbox(MGUI.S2)
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mid.add_child(left)
+	var bub := PanelContainer.new()
+	bub.add_theme_stylebox_override("panel", MGUI.box(MGUI.PAPER, 4, 0, MGUI.LINE, MGUI.S4))
+	bub.custom_minimum_size = Vector2(0, 128)
+	bub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left.add_child(bub)
+	bubble = MGUI.label("", "h2", MGUI.INK, 560.0)
+	bubble.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	bubble.size_flags_vertical = Control.SIZE_FILL
+	bub.add_child(bubble)
+	turn_bar = MGUI.bar(620, 4, GREEN)
+	left.add_child(turn_bar["box"])
+	turn_l = MGUI.label("", "caps_m")
+	left.add_child(turn_l)
+	var right := MGUI.vbox(MGUI.S3)
+	right.custom_minimum_size.x = 300
+	mid.add_child(right)
+	for k in [["trust", "ДОВЕРИЕ", GREEN], ["pressure", "ДАВЛЕНИЕ", RED], ["promise", "ОБЕЩАНО НА ЗАВТРА", MGUI.GOLD]]:
+		var mv := MGUI.vbox(MGUI.S1)
+		right.add_child(mv)
+		var mh := MGUI.hbox(MGUI.S2)
+		mv.add_child(mh)
+		mh.add_child(MGUI.label(String(k[1]), "caps"))
+		mh.add_child(MGUI.spacer())
+		var num := MGUI.label("", "mono", MGUI.TEXT)
+		mh.add_child(num)
+		var bar := MGUI.bar(300, 8, k[2])
+		mv.add_child(bar["box"])
+		bars[k[0]] = {"bar": bar, "num": num}
+	# короткая строка-ответ коллектора: одна, на постоянном месте (панель не прыгает)
+	flash = MGUI.label("", "body_b", RED)
+	flash.custom_minimum_size.y = 22
+	flash.modulate.a = 0.0
+	v.add_child(flash)
+	v.add_child(MGUI.hsep())
+	# ответы: шесть строк в две колонки — клавиша, название, пояснение; причина недоступности вместо пояснения
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", MGUI.S2)
+	grid.add_theme_constant_override("v_separation", MGUI.S2)
+	v.add_child(grid)
 	for k in CARDS.size():
-		var c := ColorRect.new()
-		c.color = Color(0.07, 0.07, 0.08)
-		c.position = Vector2((k % 3) * 485, (k / 3) * 140)
-		c.size = Vector2(465, 124)
+		var c := PanelContainer.new()
+		var sb := MGUI.box(Color(0.09, 0.09, 0.105), 3, 1, MGUI.LINE, MGUI.S3)
+		c.add_theme_stylebox_override("panel", sb)
+		c.custom_minimum_size = Vector2((COL_W - 2.0 * MGUI.S5 - MGUI.S2) * 0.5, 0)
 		c.mouse_filter = Control.MOUSE_FILTER_STOP
-		cards_box.add_child(c)
-		var edge := ReferenceRect.new()
-		edge.border_color = Color(1, 1, 1, 0.8)
-		edge.border_width = 2.0
-		edge.editor_only = false
-		edge.size = c.size
-		edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		c.add_child(edge)
-		_txt(c, "[%d]" % (k + 1), 18, RED, Vector2(16, 12))
-		var title := _txt(c, String(CARDS[k][1]), 26, Color(1, 1, 1), Vector2(64, 8), serif)
-		var sub := _txt(c, String(CARDS[k][2]), 16, Color(0.7, 0.7, 0.72), Vector2(66, 50))
-		var why := _txt(c, "", 15, Color(1.0, 0.5, 0.45), Vector2(66, 80))
-		card_nodes.append({"root": c, "title": title, "sub": sub, "why": why})
+		c.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		grid.add_child(c)
+		var h := MGUI.hbox(MGUI.S3)
+		c.add_child(h)
+		var key := MGUI.keycap(str(k + 1))
+		key.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(key)
+		var tv := MGUI.vbox(0)
+		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(tv)
+		var title := MGUI.label(String(CARDS[k][1]), "body_b", RED if String(CARDS[k][0]) == "refuse" else MGUI.TEXT)
+		tv.add_child(title)
+		var sub := MGUI.label(String(CARDS[k][2]), "micro", MGUI.TEXT_2)
+		sub.clip_text = true
+		tv.add_child(sub)
+		card_nodes.append({"root": c, "sb": sb, "title": title, "sub": sub, "why": sub, "base": String(CARDS[k][2])})
 		var kk := k
+		c.mouse_entered.connect(func(): sb.border_color = MGUI.PAPER)
+		c.mouse_exited.connect(func(): sb.border_color = MGUI.LINE)
 		c.gui_input.connect(func(ev: InputEvent):
 			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
 				play(kk))
-	# документы
+	v.add_child(MGUI.hints([["1–6", "ответить"], ["мышь", "выбрать ответ"]]))
+	# документы: ящик стола поверх колонки
 	doc_box = Control.new()
-	doc_box.position = Vector2(300, 300)
+	doc_box.size = size
 	doc_box.visible = false
+	doc_box.set_meta("audit_modal", true)
 	add_child(doc_box)
-	var dbg := ColorRect.new()
-	dbg.color = Color(0.92, 0.9, 0.85)
-	dbg.size = Vector2(1000, 330)
-	doc_box.add_child(dbg)
-	_txt(doc_box, "ЯЩИК СТОЛА — КАКАЯ БУМАГА НУЖНА? (1–4, 4 секунды)", 24, Color(0.1, 0.1, 0.1), Vector2(30, 20), serif)
+	var dsh := ColorRect.new()
+	dsh.color = Color(0, 0, 0, 0.82)
+	dsh.size = size
+	doc_box.add_child(dsh)
+	var dp := PanelContainer.new()
+	dp.add_theme_stylebox_override("panel", MGUI.box(MGUI.PAPER, 4, 0, MGUI.LINE, MGUI.S5))
+	dp.custom_minimum_size = Vector2(640, 0)
+	dp.position = Vector2((size.x - 640.0) * 0.5, 300)
+	doc_box.add_child(dp)
+	var dv := MGUI.vbox(MGUI.S3)
+	dp.add_child(dv)
+	dv.add_child(MGUI.label("ЯЩИК СТОЛА", "caps", Color(0.35, 0.34, 0.33)))
+	dv.add_child(MGUI.label("Какая бумага нужна?", "h2", MGUI.INK))
+	doc_bar = MGUI.bar(640 - 2.0 * MGUI.S5, 4, RED)
+	(doc_bar["box"] as ColorRect).color = Color(0.7, 0.68, 0.64)
+	dv.add_child(doc_bar["box"])
+	var dg := GridContainer.new()
+	dg.columns = 2
+	dg.add_theme_constant_override("h_separation", MGUI.S2)
+	dg.add_theme_constant_override("v_separation", MGUI.S2)
+	dv.add_child(dg)
 	for k in DOCS.size():
-		var b := ColorRect.new()
-		b.color = Color(1, 1, 1)
-		b.position = Vector2(30 + (k % 2) * 480, 80 + (k / 2) * 120)
-		b.size = Vector2(460, 100)
+		var b := PanelContainer.new()
+		var bsb := MGUI.box(Color(1, 1, 1), 3, 1, Color(0.6, 0.58, 0.55), MGUI.S3)
+		b.add_theme_stylebox_override("panel", bsb)
+		b.custom_minimum_size = Vector2((640 - 2.0 * MGUI.S5 - MGUI.S2) * 0.5, 54)
 		b.mouse_filter = Control.MOUSE_FILTER_STOP
-		doc_box.add_child(b)
-		_txt(b, "[%d] %s" % [k + 1, DOCS[k][1]], 22, Color(0.05, 0.05, 0.06), Vector2(18, 34))
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		dg.add_child(b)
+		var bh := MGUI.hbox(MGUI.S3)
+		b.add_child(bh)
+		var kc := MGUI.keycap(str(k + 1))
+		kc.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		bh.add_child(kc)
+		var dl := MGUI.label(String(DOCS[k][1]), "body_b", MGUI.INK, 200.0)
+		dl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		bh.add_child(dl)
 		var kk2 := k
 		b.gui_input.connect(func(ev: InputEvent):
 			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
@@ -197,7 +252,7 @@ func _avail(k: int) -> String:
 	match String(CARDS[k][0]):
 		"part":
 			var need := int(ceil(float(loan["balance"]) * 0.3))
-			return "" if econ.money >= need else "нужно %d ₽" % need
+			return "" if econ.money >= need else "нужно " + MGUI.rub(need)
 		"plan":
 			return "" if econ.upgrades.has("talk") or trust >= 50.0 else "нужна книга о переговорах или доверие 50"
 	return ""
@@ -205,11 +260,17 @@ func _avail(k: int) -> String:
 func _paint_cards() -> void:
 	for k in card_nodes.size():
 		var why := _avail(k)
-		(card_nodes[k]["why"] as Label).text = why
-		(card_nodes[k]["root"] as ColorRect).modulate.a = 0.45 if why != "" else 1.0
-	(bars["trust"] as ColorRect).size.x = 440.0 * trust / 100.0
-	(bars["pressure"] as ColorRect).size.x = 440.0 * pressure / 100.0
-	(bars["promise"] as ColorRect).size.x = 440.0 * clampf(float(promise) / maxf(1.0, float(loan["balance"])), 0.0, 1.0)
+		var n: Dictionary = card_nodes[k]
+		(n["sub"] as Label).text = why if why != "" else String(n["base"])
+		(n["sub"] as Label).add_theme_color_override("font_color", Color(1.0, 0.5, 0.45) if why != "" else MGUI.TEXT_2)
+		(n["root"] as Control).modulate.a = 0.5 if why != "" else 1.0
+	var pk := clampf(float(promise) / maxf(1.0, float(loan["balance"])), 0.0, 1.0)
+	MGUI.set_bar(bars["trust"]["bar"], trust / 100.0)
+	MGUI.set_bar(bars["pressure"]["bar"], pressure / 100.0)
+	MGUI.set_bar(bars["promise"]["bar"], pk)
+	(bars["trust"]["num"] as Label).text = "%d" % int(round(trust))
+	(bars["pressure"]["num"] as Label).text = "%d" % int(round(pressure))
+	(bars["promise"]["num"] as Label).text = MGUI.rub(promise)
 
 func _next_phrase() -> void:
 	if phrase >= PHRASES:
@@ -231,29 +292,32 @@ func _process(dt: float) -> void:
 	if finished:
 		return
 	t_left -= dt
-	timer_bar.size.x = 1440.0 * clampf(t_left / 39.0, 0.0, 1.0)
+	MGUI.set_bar(timer_bar, t_left / maxf(1.0, t_full))
+	time_l.text = "0:%02d" % int(ceil(maxf(0.0, t_left)))
+	time_l.add_theme_color_override("font_color", RED if t_left < 8.0 else MGUI.TEXT)
 	if t_left <= 0.0:
 		_end()
 		return
 	if doc_mode:
 		doc_t -= dt
+		MGUI.set_bar(doc_bar, doc_t / 4.0)
 		if doc_t <= 0.0:
 			pick_doc(-1)
 		return
 	if speaking:
 		speak_t += dt
 		bubble.text = text_full.substr(0, int(float(text_full.length()) * clampf(speak_t / speak_len, 0.0, 1.0)))
-		turn_bar.size.x = 0
-		turn_l.text = "коллектор говорит — не перебивай"
-		turn_l.add_theme_color_override("font_color", Color(0.75, 0.75, 0.78))
+		MGUI.set_bar(turn_bar, 0.0)
+		turn_l.text = "КОЛЛЕКТОР ГОВОРИТ — НЕ ПЕРЕБИВАЙ"
+		turn_l.add_theme_color_override("font_color", MGUI.TEXT_3)
 		if speak_t >= speak_len:
 			speaking = false
 			window_t = 0.0
 			bubble.text = text_full
 	else:
 		window_t += dt
-		turn_bar.size.x = 960.0 * (1.0 - clampf(window_t / window_len, 0.0, 1.0))
-		turn_l.text = "ТВОЯ ОЧЕРЕДЬ — отвечай!"
+		MGUI.set_bar(turn_bar, 1.0 - clampf(window_t / window_len, 0.0, 1.0))
+		turn_l.text = "ТВОЯ ОЧЕРЕДЬ — ОТВЕЧАЙ"
 		turn_l.add_theme_color_override("font_color", GREEN)
 		if window_t >= window_len:
 			if not answered:
@@ -314,7 +378,7 @@ func play(k: int) -> void:
 			econ.pay(int(loan["id"]), amt)
 			trust += 20.0 * mul
 			pressure -= 15.0 * mul
-			_flash("−%d ₽ ушло в счёт долга" % amt, GREEN)
+			_flash("%s ушло в счёт долга" % MGUI.rub(amt), GREEN)
 		"plan":
 			promise += int(ceil(float(loan["balance"]) * 0.4))
 			trust += 12.0 * mul

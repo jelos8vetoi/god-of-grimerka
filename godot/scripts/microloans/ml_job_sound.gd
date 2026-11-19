@@ -38,10 +38,12 @@ var notes: Array = []
 func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	rng.seed = seed_v
 	rng_bot.seed = seed_v + 7
-	base_setup(f, sf, stress, "ЗВУКАРЬ НА ТУСЕ", "1) кабели: клик по выходу, потом по входу микшера · 2) W/S — фейдер, ←/→ — канал, G — убрать фон · 3) пробел в бит", 60.0 + tier * 4.0)
+	keys = []
+	base_setup(f, sf, stress, "ЗВУКАРЬ НА ТУСЕ", "", 60.0 + tier * 4.0)
 	setup_3d(Color(0.03, 0.02, 0.05), Color(0.5, 0.45, 0.6), 0.4)
 	_stage()
 	cam.fov = 46.0
+	MGUI.style_label(tip_l, "mono", MGUI.TEXT)
 	cam.look_at_from_position(Vector3(0, 1.9, 1.35), Vector3(0, 0.85, -0.15), Vector3.UP)
 	_part1()
 
@@ -80,7 +82,7 @@ func _stage() -> void:
 	order.shuffle()
 	for k in chn:
 		var j := MGProps.cyl(world_root, outs[k], 0.018, 0.018, 0.03, MGProps.mat("red"), Vector3.ZERO, 10)
-		MGProps.text(world_root, names[k], outs[k] + Vector3(0, 0.05, 0), 22, Color(0.95, 0.9, 0.8), Vector3(-0.9, 0, 0))
+		MGProps.text(world_root, String(names[k]).capitalize(), outs[k] + Vector3(0, 0.045, 0), 10, Color(0.95, 0.9, 0.8), Vector3(-0.9, 0, 0))
 		srcs.append({"name": names[k], "out": outs[k], "want": int(order[k]), "node": j})
 	# схема на листке
 	var sheet := at(Vector3(0.55, 0.785, 0.32), -0.2)
@@ -88,24 +90,37 @@ func _stage() -> void:
 	var txt_s := ""
 	for s in srcs:
 		txt_s += "%s → %d\n" % [s["name"], int(s["want"]) + 1]
-	MGProps.text(sheet, "СХЕМА\n" + txt_s, Vector3(0, 0.003, 0), 22, Color(0.1, 0.1, 0.12), Vector3(-PI / 2, 0, 0))
+	MGProps.text(sheet, "СХЕМА\n" + txt_s, Vector3(0, 0.003, 0), 11, Color(0.1, 0.1, 0.12), Vector3(-PI / 2, 0, 0))
 
 func _part1() -> void:
 	part = 1
-	task_l.text = "КОММУТАЦИЯ: по схеме — выход источника → вход микшера (клик, клик)"
+	task_l.text = "Подключи по схеме: выход → вход микшера"
+	_keys([["ЛКМ", "выход, потом вход"]])
 
 func _part2() -> void:
 	part = 2
-	task_l.text = "УРОВНИ: держи каждый канал в зелёном (W/S — фейдер, ←/→ — канал, G — земля)"
+	task_l.text = "Держи каналы в зелёной зоне"
+	_keys([["A/D", "канал"], ["W/S", "фейдер"], ["G", "убрать фон"]])
 	sfx("phase")
 
 func _part3() -> void:
 	part = 3
-	task_l.text = "ТУСА: [пробел] в бит — метки бегут к линии"
+	task_l.text = "Туса началась — бей в бит"
+	_keys([["Пробел", "в бит"]])
 	for k in 24:
 		beats.append(1.0 + k * 0.5)
 	beat_t = 0.0
 	sfx("cheer")
+
+## строка клавиш меняется по частям задания
+var keys_p: PanelContainer
+func _keys(pairs: Array) -> void:
+	if keys_p != null:
+		keys_p.queue_free()
+	keys_p = MGUI.panel(true, null, MGUI.S2)
+	add_child(keys_p)
+	keys_p.add_child(MGUI.hints(pairs))
+	_place_keys.call_deferred(keys_p)
 
 func _window() -> float:
 	return 0.12 + cv("sound_precise") * 0.06 + (0.04 if eq("sound") >= 2 else 0.0) - stress_k * 0.04
@@ -121,7 +136,7 @@ func _process(dt: float) -> void:
 	match part:
 		1:
 			progress(float(links.size()) / float(srcs.size()) * 0.33)
-			score_l.text = "кабелей %d / %d" % [links.size(), srcs.size()]
+			score_l.text = "кабели %d из %d" % [links.size(), srcs.size()]
 		2:
 			_levels(dt)
 		3:
@@ -154,7 +169,7 @@ func pick_src(k: int) -> void:
 		return
 	picked = k
 	sfx("tick")
-	tip_l.text = "%s → куда? (клик по входу микшера)" % srcs[k]["name"]
+	tip_l.text = "%s — теперь вход микшера" % String(srcs[k]["name"]).capitalize()
 
 func plug(c: int) -> void:
 	if picked < 0 or links.values().has(c):
@@ -232,11 +247,12 @@ func _levels(dt: float) -> void:
 		hum_t = rng.randf_range(4.0, 8.0)
 		if hum_on:
 			sfx("zap", 0.5)
-			tip_l.text = "НАВОДКА: [G] — земля"
+			pass
 	var lane := ""
 	for c in levels.size():
-		lane += ("▶" if c == ch_sel else " ") + "К%d %s  " % [c + 1, "●" if absf(float(levels[c]) - float(targets[c])) < w else "○"]
-	score_l.text = lane
+		lane += ("[%d%s] " if c == ch_sel else " %d%s  ") % [c + 1, "●" if absf(float(levels[c]) - float(targets[c])) < w else "○"]
+	tip_l.text = lane if not hum_on else "Наводка — нажми G"
+	score_l.text = "в зелёном %d из %d" % [ok, levels.size()]
 	progress(0.33 + clampf(in_green / 12.0, 0.0, 1.0) * 0.33)
 	if in_green >= 12.0 or level_t > 22.0:
 		_part3()
@@ -253,7 +269,8 @@ func _beat(dt: float) -> void:
 	for k in 12:
 		var tt := beat_t + float(k) * 0.15
 		lane += "█" if beats.any(func(b): return absf(float(b) - tt) < 0.07) else "·"
-	score_l.text = "|" + lane + "   %d / %d" % [hits, hits + misses]
+	tip_l.text = "▶" + lane
+	score_l.text = "попаданий %d из %d" % [hits, hits + misses]
 	if fposmod(beat_t, 0.5) < dt:
 		sfx("tick", 1.6)
 	progress(0.66 + clampf(beat_t / 13.0, 0.0, 1.0) * 0.34)

@@ -9,15 +9,11 @@ static func build(id: String, r: Node3D) -> float:
 		return 0.55
 	match id:
 		"job_podezd":
-			var ps := load("res://assets/models/tyaga812.glb") as PackedScene
-			if ps != null:
-				var t := ps.instantiate() as Node3D
-				r.add_child(t)
-				t.scale = Vector3.ONE * 0.5
-				t.rotation.y = -0.7
+			var t := fit("res://assets/models/tyaga812.glb", r, 0.95)
+			t.rotation.y = -PI * 0.5 - 0.5
 			for k in 5:
-				MGProps.ball(r, Vector3(0.4 + k * 0.08, 0.03, 0.2 - k * 0.07), 0.04, MGProps.mat("paper"), Vector3(1, 0.7, 1.2))
-			return 1.1
+				MGProps.ball(r, Vector3(0.45 + k * 0.07, 0.03, 0.3 - k * 0.06), 0.04, MGProps.mat("paper"), Vector3(1, 0.7, 1.2))
+			return 1.0
 		"job_repair":
 			MGModels.spawn("ml_job_console", r, Vector3(0, 0, 0), -0.4, Vector3(0.32, 0.08, 0.22), func(n): MGProps.console_open(n))
 			MGProps.tools(MGProps_at(r, Vector3(0.2, 0, 0.15)))
@@ -80,6 +76,26 @@ static func build(id: String, r: Node3D) -> float:
 			return 0.9
 	MGProps.carton(MGProps_at(r, Vector3.ZERO), Vector3(0.4, 0.3, 0.3), "?")
 	return 0.6
+
+## модель из файла, вписанная в size по самой длинной стороне, низом на пол, центром в начало координат
+static func fit(path: String, parent: Node, size: float) -> Node3D:
+	var holder := Node3D.new()
+	parent.add_child(holder)
+	var ps := load(path) as PackedScene
+	if ps == null:
+		return holder
+	var m := ps.instantiate() as Node3D
+	var acc: Array = []
+	MGModels._walk(m, Transform3D.IDENTITY, acc)
+	var bb := AABB()
+	for i in acc.size():
+		bb = acc[i] if i == 0 else bb.merge(acc[i])
+	var s := size / maxf(0.001, maxf(bb.size.x, maxf(bb.size.y, bb.size.z)))
+	holder.add_child(m)
+	m.scale = Vector3.ONE * s
+	var c := bb.get_center()
+	m.position = Vector3(-c.x, -bb.position.y, -c.z) * s
+	return holder
 
 static func MGProps_at(r: Node3D, p: Vector3, yaw := 0.0) -> Node3D:
 	var n := Node3D.new()

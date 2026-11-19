@@ -681,7 +681,7 @@ static func mug(r: Node3D, label := "ПАХАН") -> void:
 	h.position = Vector3(0.045, 0.05, 0)
 	h.rotation = Vector3(PI / 2, 0, 0)
 	r.add_child(h)
-	text(r, label, Vector3(0, 0.055, 0.041), 22, Color(0.7, 0.05, 0.05))
+	text(r, label, Vector3(0, 0.055, 0.041), 9, Color(0.7, 0.05, 0.05))
 
 ## стаканчик лапши и коробка пиццы
 static func food(r: Node3D) -> void:

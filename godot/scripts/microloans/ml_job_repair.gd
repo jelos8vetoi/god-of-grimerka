@@ -48,16 +48,20 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	rng_bot.seed = seed_v + 5
 	D = DEVICES[clampi(tier - 1, 0, DEVICES.size() - 1)]
 	broken = rng.randi() % (D["parts"] as Array).size()
-	base_setup(f, sf, stress, "РЕМОНТ · %s" % D["name"], "A/D или мышь — вращать · 1 отвёртка · 2 тестер · 3 пинцет · клик — действие · пробел — включить в зелёной зоне", 55.0 + tier * 5.0)
+	keys = [["A/D", "вращать"], ["1", "отвёртка"], ["2", "тестер"], ["3", "пинцет"], ["ЛКМ", "действие"]]
+	base_setup(f, sf, stress, "РЕМОНТ · %s" % D["name"], "", 55.0 + tier * 5.0)
 	setup_3d(Color(0.04, 0.035, 0.03), Color(0.55, 0.5, 0.45), 0.5)
 	_desk()
 	_device()
 	_tray()
 	cam.fov = 40.0
 	cam.look_at_from_position(Vector3(0, 1.75, 0.95), Vector3(0, 0.82, -0.05), Vector3.UP)
+	right_box.add_child(MGUI.label("ИНСТРУМЕНТ", "caps"))
 	for k in 3:
-		var l := txt(self, "[%d] %s" % [k + 1, TOOLS[k]], 20, WHITE, Vector2(640 + k * 200, 780), serif)
+		var l := MGUI.label("%d  %s" % [k + 1, String(TOOLS[k]).capitalize()], "small")
+		right_box.add_child(l)
 		tool_ls.append(l)
+	MGUI.style_label(tip_l, "mono", MGUI.TEXT)
 	_phase("inspect")
 
 func _desk() -> void:
@@ -110,32 +114,35 @@ func _device() -> void:
 
 ## лоток с запчастями: нужная и две похожие
 func _tray() -> void:
-	MGProps.box(world_root, Vector3(0.42, 0.79, -0.1), Vector3(0.24, 0.02, 0.36), MGProps.mat("metal"))
+	MGProps.box(world_root, Vector3(0.47, 0.79, -0.1), Vector3(0.34, 0.02, 0.36), MGProps.mat("metal"))
 	var names: Array = D["parts"]
 	var opts := [broken, (broken + 1) % names.size(), (broken + 2) % names.size()]
 	opts.shuffle()
 	for k in 3:
 		var p := Vector3(0.42, 0.81, -0.22 + k * 0.12)
 		var n := MGProps.box(world_root, p, Vector3(0.09, 0.02, 0.07), (comps[opts[k]]["mat"] as Material))
-		var l := MGProps.text(world_root, String(names[opts[k]]), p + Vector3(0, 0.02, 0.045), 18, Color(0.95, 0.9, 0.8), Vector3(-PI / 2, 0, 0))
-		l.no_depth_test = true
+		# подпись детали — мелко, на краю лотка справа от неё (не поверх детали)
+		var l := MGProps.text(world_root, String(names[opts[k]]).capitalize(), p + Vector3(0.115, 0.003, 0.0), 8, Color(0.95, 0.9, 0.8), Vector3(-PI / 2, 0, 0))
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		l.width = 60.0
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		tray.append({"node": n, "name": names[opts[k]], "right": opts[k] == broken})
 
 func _phase(p: String) -> void:
 	phase = p
 	match p:
 		"inspect":
-			task_l.text = "ОСМОТР: «%s». Покрути устройство, потом [1] отвёртка." % D["sym"][broken]
+			task_l.text = "Жалоба: «%s». Возьми отвёртку." % D["sym"][broken]
 		"screws":
-			task_l.text = "РАЗБОРКА: отвёрткой [1] — по винтам (%d)" % screws.size()
+			task_l.text = "Открути винты (%d) отвёрткой" % screws.size()
 		"test":
-			task_l.text = "ДИАГНОСТИКА: тестером [2] — по деталям, найди неисправную"
+			task_l.text = "Проверь детали тестером — найди неисправную"
 		"swap":
-			task_l.text = "ЗАМЕНА: пинцетом [3] — по неисправной, потом нужную деталь из лотка"
+			task_l.text = "Вынь неисправную пинцетом"
 		"close":
-			task_l.text = "СБОРКА: отвёрткой [1] — винты обратно"
+			task_l.text = "Закрути винты обратно"
 		"boot":
-			task_l.text = "ПРОВЕРКА: [пробел], когда стрелка в зелёном (попыток 3)"
+			task_l.text = "Включи: пробел, когда стрелка в зелёной зоне"
 
 func _process(dt: float) -> void:
 	if done:
@@ -149,7 +156,7 @@ func _process(dt: float) -> void:
 		rot += axis().x * dt * 2.0
 	dev.rotation.y = lerp_angle(dev.rotation.y, rot, 1.0 - exp(-8.0 * dt))
 	for k in 3:
-		(tool_ls[k] as Label).add_theme_color_override("font_color", Color(1.0, 0.8, 0.3) if tool == k else GREY)
+		(tool_ls[k] as Label).add_theme_color_override("font_color", MGUI.GOLD if tool == k else MGUI.TEXT_3)
 	# лупа: неисправное подсвечено (снаряжение 2+), когда крышка снята
 	if eq("repair") >= 2 and phase in ["test", "swap"]:
 		var bm: StandardMaterial3D = comps[broken]["mat"]
@@ -162,7 +169,8 @@ func _process(dt: float) -> void:
 			needle_dir *= -1.0
 			needle = clampf(needle, 0.0, 1.0)
 		var z := _zone()
-		score_l.text = "[" + "".join(range(20).map(func(i): return "█" if absf(float(i) / 19.0 - needle) < 0.03 else ("▒" if float(i) / 19.0 >= z.x and float(i) / 19.0 <= z.y else "░"))) + "]"
+		tip_l.text = "".join(range(32).map(func(i): return "█" if absf(float(i) / 31.0 - needle) < 0.02 else ("▓" if float(i) / 31.0 >= z.x and float(i) / 31.0 <= z.y else "░")))
+		score_l.text = "попытка %d из 3" % (tries + 1)
 	else:
 		score_l.text = "ошибок: %d" % (wrong_tool + wrong_part)
 	progress({"inspect": 0.05, "screws": 0.2, "test": 0.45, "swap": 0.65, "close": 0.8, "boot": 0.92}.get(phase, 1.0))
@@ -259,7 +267,7 @@ func act(kind: String, o: Dictionary) -> void:
 					tw.tween_callback(func(): n.visible = false)
 					o["removed"] = true
 					sfx("tick", 0.8)
-					task_l.text = "ЗАМЕНА: выбери в лотке нужную деталь (%s)" % o["name"]
+					task_l.text = "Возьми из лотка: %s" % String(o["name"]).to_lower()
 				else:
 					wrong_part += 1
 					sfx("fail")
@@ -292,7 +300,7 @@ func _wrong() -> void:
 	wrong_tool += 1
 	time_left -= 1.5
 	sfx("fail", 1.2)
-	tip_l.text = "НЕ ТОТ ИНСТРУМЕНТ: нужен %s" % TOOLS[{"screws": 0, "close": 0, "test": 1, "swap": 2}.get(phase, 0)]
+	tip_l.text = "Не тот инструмент — нужен %s" % String(TOOLS[{"screws": 0, "close": 0, "test": 1, "swap": 2}.get(phase, 0)]).to_lower()
 
 func _screw(s: Dictionary, out: bool) -> void:
 	var n: Node3D = s["node"]

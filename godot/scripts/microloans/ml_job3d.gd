@@ -11,8 +11,7 @@ var world_root: Node3D
 var cam: Camera3D
 var env: Environment
 var task_l: Label
-var prog_bg: ColorRect
-var prog_fg: ColorRect
+var prog: Dictionary
 var score_l: Label
 var tip_l: Label
 var combo_l: Label
@@ -30,7 +29,7 @@ func setup_3d(bg := Color(0.02, 0.02, 0.03), ambient := Color(0.5, 0.5, 0.55), a
 	vp = SubViewport.new()
 	vp.own_world_3d = true
 	vp.msaa_3d = Viewport.MSAA_2X
-	vp.size = Vector2i(1600, 900)
+	vp.size = Vector2i(size)
 	vp.physics_object_picking = true
 	vpc.add_child(vp)
 	world_root = Node3D.new()
@@ -52,42 +51,23 @@ func setup_3d(bg := Color(0.02, 0.02, 0.03), ambient := Color(0.5, 0.5, 0.55), a
 	cam.fov = 55.0
 	world_root.add_child(cam)
 	cam.current = true
-	# HUD: задача и прогресс слева сверху, оценка справа, подсказка снизу
-	var plate := Panel.new()
-	plate.position = Vector2(60, 160)
-	plate.size = Vector2(520, 96)
-	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.04, 0.04, 0.05, 0.85)
-	sb.set_corner_radius_all(8)
-	sb.border_width_left = 5
-	sb.border_color = RED
-	plate.add_theme_stylebox_override("panel", sb)
-	add_child(plate)
-	task_l = txt(plate, "", 18, WHITE, Vector2(16, 10))
-	task_l.size = Vector2(490, 40)
-	task_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	prog_bg = ColorRect.new()
-	prog_bg.color = Color(0.18, 0.18, 0.2)
-	prog_bg.position = Vector2(16, 66)
-	prog_bg.size = Vector2(488, 12)
-	prog_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	plate.add_child(prog_bg)
-	prog_fg = ColorRect.new()
-	prog_fg.color = GREEN
-	prog_fg.position = prog_bg.position
-	prog_fg.size = Vector2(0, 12)
-	prog_fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	plate.add_child(prog_fg)
-	score_l = txt(self, "", 30, WHITE, Vector2(1200, 165), serif)
-	score_l.size = Vector2(340, 40)
-	score_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	combo_l = txt(self, "", 26, Color(1.0, 0.8, 0.3), Vector2(1200, 208), serif)
-	combo_l.size = Vector2(340, 36)
-	combo_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	tip_l = txt(self, "", 18, Color(0.85, 0.86, 0.88), Vector2(0, 836))
-	tip_l.size = Vector2(1600, 30)
+	# HUD — в плашках основы (MLJob): слева цель и прогресс, справа счёт; комбо — под счётом; подсказка по ходу — внизу
+	task_l = hint_l
+	var pb := MGUI.bar(316, 5, MGUI.GOOD)
+	left_box.add_child(pb["box"])
+	prog = pb
+	score_l = MGUI.label("", "small", MGUI.TEXT)
+	score_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	score_l.custom_minimum_size.x = 166
+	right_box.add_child(score_l)
+	combo_l = MGUI.label("", "num", MGUI.GOLD)        # серия — в той же плашке, под счётом; пустая — скрыта
+	combo_l.visible = false
+	right_box.add_child(combo_l)
+	tip_l = MGUI.label_3d("", "body_b", MGUI.WARN)
+	tip_l.position = Vector2(0, size.y - 92)
+	tip_l.size = Vector2(size.x, 24)
 	tip_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	add_child(tip_l)
 	result_l.position.y = 700
 	if bot >= 0.0:
 		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -139,15 +119,18 @@ func at(p: Vector3, yaw := 0.0, parent: Node = null) -> Node3D:
 	return n
 
 func progress(k: float) -> void:
-	prog_fg.size.x = prog_bg.size.x * clampf(k, 0.0, 1.0)
+	MGUI.set_bar(prog, k)
 
 ## всплывающая надпись над точкой мира («+120», «КОМБО ×3», «ЗАЦЕПИЛ!»)
 func pop(text: String, world_p: Vector3, col := Color(1, 1, 1)) -> void:
 	if cam == null or not cam.is_inside_tree() or cam.is_position_behind(world_p):
 		return
 	var sp := cam.unproject_position(world_p)
-	var l := txt(self, text, 26, col, sp - Vector2(80, 20), serif)
-	l.size = Vector2(160, 30)
+	var l := MGUI.label_3d(text, "caps_m", col)
+	l.set_meta("audit_skip", true)
+	l.position = sp - Vector2(90, 16)
+	l.size = Vector2(180, 20)
+	add_child(l)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var tw := l.create_tween().set_parallel(true)
 	tw.tween_property(l, "position:y", l.position.y - 60.0, 0.8).set_ease(Tween.EASE_OUT)
@@ -180,33 +163,33 @@ func show_result(score: float, lines: Array, extra: Array = []) -> void:
 	if done:
 		return
 	score = clampf(score, 0.0, 1.0)
-	result_box = Panel.new()
-	result_box.position = Vector2(520, 300)
-	result_box.size = Vector2(560, 300)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.92, 0.9, 0.85)
-	sb.set_corner_radius_all(10)
-	sb.border_width_left = 8
-	sb.border_color = GREEN if score > 0.5 else RED
-	result_box.add_theme_stylebox_override("panel", sb)
-	add_child(result_box)
+	var rp := MGUI.panel(false, GREEN if score > 0.5 else RED, MGUI.S5)
+	result_box = rp
+	rp.custom_minimum_size = Vector2(460, 0)
+	add_child(rp)
+	var rv := MGUI.vbox(MGUI.S2)
+	rp.add_child(rv)
 	var stars := 1 + int(score > 0.45) + int(score > 0.7) + int(score > 0.9)
-	var st := txt(result_box, "★".repeat(stars) + "☆".repeat(4 - stars), 44, Color(0.85, 0.55, 0.05), Vector2(24, 14), serif)
-	st.add_theme_constant_override("outline_size", 0)
-	var hd := txt(result_box, "ОТЛИЧНО!" if score > 0.85 else ("НОРМАЛЬНО" if score > 0.5 else "ТАК СЕБЕ"), 32, Color(0.05, 0.05, 0.06), Vector2(24, 70), serif)
-	hd.add_theme_constant_override("outline_size", 0)
-	var body := txt(result_box, "\n".join(lines.map(func(x): return String(x))), 17, Color(0.18, 0.18, 0.2), Vector2(26, 118))
-	body.size = Vector2(510, 170)
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.add_theme_constant_override("outline_size", 0)
-	result_box.scale = Vector2(0.7, 0.7)
-	result_box.pivot_offset = result_box.size * 0.5
-	result_box.create_tween().tween_property(result_box, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var sr := MGUI.hbox(MGUI.S1)
+	for k in 4:
+		sr.add_child(MGIcon.make("star", 22, MGUI.GOLD if k < stars else Color(0.25, 0.25, 0.28)))
+	rv.add_child(sr)
+	rv.add_child(MGUI.label("Отлично" if score > 0.85 else ("Нормально" if score > 0.5 else "Так себе"), "h1"))
+	rv.add_child(MGUI.hsep())
+	for x in lines:
+		rv.add_child(MGUI.label(String(x), "small", MGUI.TEXT_2, 412.0))
+	_center.call_deferred(rp)
+	rp.modulate.a = 0.0
+	rp.create_tween().tween_property(rp, "modulate:a", 1.0, 0.2)
 	sfx("clean" if score > 0.5 else "fail")
 	done = true
 	var tw := create_tween()
 	tw.tween_interval(2.4 if bot < 0.0 else 0.05)
 	tw.tween_callback(func(): finished.emit(score, extra))
+
+func _center(c: Control) -> void:
+	if is_instance_valid(c):
+		c.position = (size - c.size) * 0.5
 
 ## ввод направления (WASD и стрелки)
 func axis() -> Vector2:

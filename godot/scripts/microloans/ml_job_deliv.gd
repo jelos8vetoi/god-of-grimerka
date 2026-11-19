@@ -31,17 +31,22 @@ var chain := 0
 var best_chain := 0
 var parcel_t := 0.0
 var stumble_t := 0.0
+var stam_bar: Dictionary
 
 func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	rng.seed = seed_v
 	rng_bot.seed = seed_v + 11
 	weather = ["clear", "clear", "rain", "night", "snow"][clampi(tier - 1, 0, 4)]
-	base_setup(f, sf, stress, "ДОСТАВКА · %s" % {"clear": "ДЕНЬ", "rain": "ДОЖДЬ", "night": "ВЕЧЕР", "snow": "СНЕГ"}[weather], "WASD — идти · Shift — бег (выносливость) · у двери подъезда посылка отдаётся сама · не врезайся с посылкой", 60.0 + tier * 8.0)
+	keys = [["WASD", "идти"], ["Shift", "бег"]]
+	base_setup(f, sf, stress, "ДОСТАВКА · %s" % {"clear": "ДЕНЬ", "rain": "ДОЖДЬ", "night": "ВЕЧЕР", "snow": "СНЕГ"}[weather], "", 60.0 + tier * 8.0)
 	var bg := Color(0.45, 0.55, 0.65) if weather == "clear" else (Color(0.05, 0.06, 0.1) if weather == "night" else Color(0.3, 0.33, 0.37))
 	setup_3d(bg, Color(0.6, 0.62, 0.68), 0.6 if weather != "night" else 0.25)
 	env.fog_enabled = weather != "clear"
 	env.fog_density = 0.03 if weather == "rain" else (0.02 if weather == "snow" else 0.01)
 	env.fog_light_color = bg
+	right_box.add_child(MGUI.label("ВЫНОСЛИВОСТЬ", "caps"))
+	stam_bar = MGUI.bar(166, 5, MGUI.GOOD)
+	right_box.add_child(stam_bar["box"])
 	_yard()
 	_parcels()
 	_pahan()
@@ -76,7 +81,7 @@ func _yard() -> void:
 			MGProps.text(dn, "ДОМ %d · ПОД. %d" % [hi + 1, di + 1], Vector3(0, 2.75, 0.12), 70, Color(0.95, 0.92, 0.85))
 			var lamp := light(dp + fw * 0.6 + Vector3(0, 2.3, 0), 1.2 if weather == "night" else 0.3, 5.0, Color(1.0, 0.8, 0.5))
 			lamp.shadow_enabled = false
-			doors.append({"p": dp + fw * 0.9, "name": "ДОМ %d · ПОД. %d" % [hi + 1, di + 1]})
+			doors.append({"p": dp + fw * 0.9, "name": "Дом %d, подъезд %d" % [hi + 1, di + 1]})
 	# киоск выдачи — старт
 	_prop("kiosk", Vector3(-4.5, 0, 4.5), 0.6, 1.6)
 	MGProps.text(at(Vector3(-4.5, 3.2, 4.5), 0.6), "ПУНКТ ВЫДАЧИ", Vector3.ZERO, 90, Color(0.95, 0.3, 0.25))
@@ -232,13 +237,14 @@ func _process(dt: float) -> void:
 		arrow.position = pos + Vector3(0, 2.6, 0)
 		arrow.rotation.y = atan2(to.x, to.z) + PI
 		var P: Dictionary = parcels[cur]
-		task_l.text = "%s%s · %s · %d/%d" % [P["name"], " (ждёт на лавке у площадки)" if String(P["quirk"]) == "bench" else "", "ХРУПКОЕ" if bool(P["fragile"]) else "обычная", cur + 1, parcels.size()]
-		score_l.text = "посылка %d%% · %d м" % [int(float(P["cond"]) * 100.0), int(to.length())]
+		task_l.text = "%s%s" % ["Получатель ждёт на лавке у площадки" if String(P["quirk"]) == "bench" else String(P["name"]), " — хрупкая" if bool(P["fragile"]) else ""]
+		score_l.text = "посылка %d из %d · %d м\nцелость %d %%" % [cur + 1, parcels.size(), int(to.length()), int(float(P["cond"]) * 100.0)]
 		if to.length() < 1.6:
 			_deliver()
 	progress(float(cur) / float(parcels.size()))
-	tip_l.text = "ВЫНОСЛИВОСТЬ: %s" % ("▮".repeat(int(stamina * 10.0)) + "▯".repeat(10 - int(stamina * 10.0)))
-	combo_l.text = "ЦЕПОЧКА ×%d" % chain if chain >= 2 else ""
+	MGUI.set_bar(stam_bar, stamina, MGUI.GOOD if stamina > 0.3 else MGUI.RED)
+	combo_l.text = "цепочка ×%d" % chain if chain >= 2 else ""
+	combo_l.visible = chain >= 2
 	# камера: сзади-сверху за Паханом
 	var back := Vector3(sin(yaw), 0, cos(yaw))
 	cam.position = cam.position.lerp(pos - back * 6.0 + Vector3(0, 4.5, 0), 1.0 - exp(-3.0 * dt))
@@ -280,7 +286,7 @@ func _bump(k: float) -> void:
 	stumble_t = 0.6
 	vel *= -0.3
 	sfx("drop", 0.8)
-	pop("ПОСЫЛКА −%d%%" % int(loss * 100.0), pos + Vector3(0, 2.0, 0), RED)
+	pop("посылка −%d%%" % int(loss * 100.0), pos + Vector3(0, 2.0, 0), RED)
 
 func _ped_tick(dt: float) -> void:
 	for pd in peds:
@@ -305,7 +311,7 @@ func _deliver() -> void:
 	best_chain = maxi(best_chain, chain)
 	sfx("ok")
 	sfx("coins", 1.1)
-	pop("ДОСТАВЛЕНО" + (" · ЦЕПОЧКА ×%d" % chain if chain >= 2 else ""), pos + Vector3(0, 2.2, 0), GREEN)
+	pop("доставлено", pos + Vector3(0, 2.2, 0), GREEN)
 	puff(pos + Vector3(0, 1.0, 0.4), Color(0.9, 0.85, 0.6), 6)
 	cur += 1
 	parcel_t = 0.0

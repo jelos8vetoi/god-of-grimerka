@@ -17,12 +17,15 @@ var cap := 3
 var kept := 0
 var bot_t := 0.0
 var info_l: Label
+var info_t: Label
+var info_p: PanelContainer
 var hold_node: Node3D
 
 func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	rng.seed = seed_v
 	rng_bot.seed = seed_v + 9
-	base_setup(f, sf, stress, "РАЗБОР ХЛАМА", "клик — поднять вещь · 1 ПРОДАТЬ · 2 РАЗОБРАТЬ · 3 ОСТАВИТЬ · 4 положить обратно · что-то здесь стоит денег", 45.0 + tier * 5.0)
+	keys = [["ЛКМ", "поднять"], ["1", "продать"], ["2", "разобрать"], ["3", "оставить"], ["4", "положить"]]
+	base_setup(f, sf, stress, "РАЗБОР ХЛАМА", "", 45.0 + tier * 5.0)
 	setup_3d(Color(0.06, 0.05, 0.045), Color(0.6, 0.55, 0.5), 0.55)
 	cap = 3 + int(cv("junk_cap"))
 	_room()
@@ -30,9 +33,17 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	cam.fov = 52.0
 	cam.look_at_from_position(Vector3(0, 2.3, 2.9), Vector3(0, 0.2, -0.9), Vector3.UP)
 	hold_node = at(Vector3(0, 1.7, 1.9))
-	info_l = txt(self, "", 20, WHITE, Vector2(60, 280))
-	info_l.size = Vector2(520, 220)
-	info_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info_p = MGUI.panel(true, MGUI.GOLD, MGUI.S3)
+	info_p.position = Vector2(16, 130)
+	info_p.custom_minimum_size = Vector2(340, 0)
+	info_p.visible = false
+	add_child(info_p)
+	var iv := MGUI.vbox(MGUI.S1)
+	info_p.add_child(iv)
+	info_t = MGUI.label("", "h2", null, 316.0)
+	iv.add_child(info_t)
+	info_l = MGUI.label("", "small", MGUI.TEXT_2, 316.0)
+	iv.add_child(info_l)
 	_update_task()
 
 func _room() -> void:
@@ -101,7 +112,7 @@ func _items() -> void:
 
 func _update_task() -> void:
 	var left := items.filter(func(i): return not bool(i["decided"])).size()
-	task_l.text = "Осталось вещей: %d · оставить можно ещё %d" % [left, cap - kept]
+	task_l.text = "Осталось вещей: %d · места для себя: %d" % [left, cap - kept]
 	progress(1.0 - float(left) / float(maxi(1, items.size())))
 
 func _process(dt: float) -> void:
@@ -120,7 +131,7 @@ func _process(dt: float) -> void:
 	for p in picks:
 		var it: Array = MLData.JUNK[int(p[0])]
 		got += int(it[2]) if p[1] == "sell" else (int(it[4]) if p[1] == "scrap" else 0)
-	score_l.text = "≈ %d ₽" % got
+	score_l.text = "набрано ≈ %s" % MGUI.rub(got)
 	if items.all(func(i): return bool(i["decided"])):
 		_end()
 
@@ -166,9 +177,11 @@ func pick(k: int) -> void:
 	var I: Dictionary = items[k]
 	var it: Array = MLData.JUNK[int(I["idx"])]
 	sfx("open", 1.2)
-	info_l.text = "%s%s\n%s\nсостояние: %d%%\nпродать: %s\nразобрать: %d ₽ · Гене: %s\n\n[1] ПРОДАТЬ  [2] РАЗОБРАТЬ  [3] ОСТАВИТЬ  [4] обратно" % [
-		it[0], "  ★ РЕДКАЯ" if bool(I["rare"]) and cv("junk_eval") > 0.0 else "", it[1], int(float(I["cond"]) * 100.0),
-		("%d ₽" % int(I["value"])) if int(I["hi"]) - int(I["lo"]) < 120 else ("%d–%d ₽" % [int(I["lo"]), int(I["hi"])]), int(it[4]), ("%d ₽" % int(it[3])) if int(it[3]) > 0 else "не возьмёт"]
+	info_p.visible = true
+	info_t.text = String(it[0]) + ("  · редкая" if bool(I["rare"]) and cv("junk_eval") > 0.0 else "")
+	info_l.text = "%s\nСостояние %d%%\nПродать: %s\nРазобрать: %s · Гене: %s" % [
+		String(it[1]).capitalize().left(1) + String(it[1]).substr(1), int(float(I["cond"]) * 100.0),
+		MGUI.rub(int(I["value"])) if int(I["hi"]) - int(I["lo"]) < 120 else ("%d–%s" % [int(I["lo"]), MGUI.rub(int(I["hi"]))]), MGUI.rub(int(it[4])), MGUI.rub(int(it[3])) if int(it[3]) > 0 else "не возьмёт"]
 
 func drop() -> void:
 	if held < 0:
@@ -177,7 +190,7 @@ func drop() -> void:
 	b.freeze = false
 	b.linear_velocity = Vector3(randf_range(-1, 1), 0.5, -1.5)
 	held = -1
-	info_l.text = ""
+	info_p.visible = false
 	sfx("drop")
 
 func decide(kind: String) -> void:
@@ -185,7 +198,7 @@ func decide(kind: String) -> void:
 		return
 	if kind == "keep" and kept >= cap:
 		sfx("fail")
-		tip_l.text = "МЕСТА НЕТ — продай или разбери"
+		tip_l.text = "Места нет — продай или разбери"
 		return
 	var I: Dictionary = items[held]
 	I["decided"] = true
@@ -208,7 +221,7 @@ func decide(kind: String) -> void:
 		if o != null:
 			(o as Node).queue_free())
 	held = -1
-	info_l.text = ""
+	info_p.visible = false
 	_update_task()
 
 ## бот: поднимает по очереди и решает по настоящей цене (плохой бот путается)

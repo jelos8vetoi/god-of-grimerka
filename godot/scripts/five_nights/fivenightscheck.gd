@@ -135,7 +135,7 @@ func _ui_part() -> void:
 	await wait(1.2)
 	ok(R.state == "menu" and R.menu.visible and R.menu.rows.size() == 7, "терминал: %s" % ", ".join(R.menu.rows.map(func(r): return String(r["text"].call()) if r["text"] is Callable else String(r["text"]))))
 	await shot("f01_terminal")
-	ok(not R.menu.rows[3].get("ok", true), "CUSTOM NIGHT закрыт до прохождения")
+	ok(not R.menu.rows[3].get("ok", true), "СВОЯ НОЧЬ закрыта до прохождения")
 	R.menu.open_nights()
 	await wait(0.2)
 	ok(R.menu.rows.size() == 6 and not R.menu.rows[1].get("ok", true), "выбор ночи: закрытые ночи не запускаются")
@@ -144,8 +144,27 @@ func _ui_part() -> void:
 	R.menu.select(0, false)
 	await key(KEY_ENTER)
 	var night_on: bool = await until(func(): return R.state == "night" and R.st != null and R.intro_t <= 0.0, 12.0)
-	ok(night_on and R.st.night == 0, "NEW GAME — первая ночь")
-	await wait(4.0)
+	ok(night_on and R.st.night == 0, "НОВАЯ ИГРА — первая ночь")
+	# озвучка звонка: у каждой реплики начальника есть файл голоса, первая реплика звучит из трубки, F обрывает
+	var need := 0
+	var have := 0
+	var rx_note := RegEx.create_from_string("\\[[^\\]]*\\]")
+	var rx_word := RegEx.create_from_string("[A-Za-zА-Яа-яЁё]")
+	for night_calls in FNData.CALLS:
+		for ln in night_calls:
+			if rx_word.search(rx_note.sub(String(ln), "", true)) == null:
+				continue                                  # «[помехи]» — ремарка, её не читают
+			need += 1
+			if R.call_stream(String(ln)) != null:
+				have += 1
+	ok(need >= 20 and have == need, "звонки начальника озвучены: %d из %d реплик" % [have, need])
+	var spoke: bool = await until(func(): return R.call_voice.playing, 9.0)
+	ok(spoke and R.call_voice.bus == "Phone" and R.ui.sub_box.visible, "первая реплика звонка звучит голосом из трубки (шина %s), субтитр на экране" % R.call_voice.bus)
+	var held := R.call_t
+	ok(R.call_voice.stream != null and held >= R.call_voice.stream.get_length(), "субтитр держится, пока реплику договаривают (%.1f с)" % held)
+	await key(KEY_F)
+	ok(not R.call_voice.playing and not R.ui.sub_box.visible, "F сбрасывает звонок: голос замолчал, субтитр убран")
+	await wait(1.0)
 	await shot("f03_office")
 	var st: FNNight = R.st
 	print("FIVENIGHTSCHECK   состояние: %s, заставка %.1f, пауза %s, t %.1f, монитор %s" % [R.state, R.intro_t, str(R.paused), st.t, str(st.monitor)])
@@ -289,12 +308,12 @@ func _ui_part() -> void:
 	var lv0 := int((FNSave.v("levels") as Dictionary)["balon"])
 	R.menu.select(7, false)
 	await key(KEY_ENTER)
-	ok((FNSave.v("presets") as Dictionary).size() >= 1, "CUSTOM NIGHT: свой набор сохранён")
+	ok((FNSave.v("presets") as Dictionary).size() >= 1, "СВОЯ НОЧЬ: свой набор сохранён")
 	await shot("f50_custom")
 	R.menu.select(8, false)
 	await key(KEY_ENTER)
 	await until(func(): return R.state == "night", 6.0)
-	ok(R.st.night == 6 and (R.st.enemies["balon"] as FNEnemy).level == lv0, "CUSTOM NIGHT запущена с выставленными уровнями (Балон %d)" % lv0)
+	ok(R.st.night == 6 and (R.st.enemies["balon"] as FNEnemy).level == lv0, "СВОЯ НОЧЬ запущена с выставленными уровнями (Балон %d)" % lv0)
 	# сохранение: файл, резервная копия, повреждение
 	ok(FileAccess.file_exists(FNSave.PATH), "сохранение: user://five_nights_save.json")
 	FNSave.save()
@@ -309,7 +328,7 @@ func _ui_part() -> void:
 	await wait(0.3)
 	R.quit_to_menu()
 	var back: bool = await until(func(): return main.menu != null and main.minigame == null and main.menu.modes.visible, 8.0)
-	ok(back, "BACK TO MENU — в меню режимов")
+	ok(back, "В МЕНЮ РЕЖИМОВ — выход в выбор режима")
 	main.start_game(false, 0)
 	var camp: bool = await until(func(): return main.game != null and main.game.player != null, 20.0)
 	ok(camp, "кампания после мини-игры запускается")

@@ -51,8 +51,11 @@ func _ready() -> void:
 func _fit() -> void:
 	var vs := get_viewport().get_visible_rect().size
 	var k: float = min(vs.x / STAGE.x, vs.y / STAGE.y)
+	W = maxf(STAGE.x, vs.x / k)
 	stage.scale = Vector2.ONE * k
-	stage.position = (vs - STAGE * k) * 0.5
+	stage.size = Vector2(W, STAGE.y)
+	stage.position = Vector2(0, (vs.y - STAGE.y * k) * 0.5)
+	_layout()
 
 func econ() -> MLEconomy:
 	return root.econ
@@ -60,11 +63,11 @@ func econ() -> MLEconomy:
 func txt(parent: Node, s: String, fs: int, col: Color, pos: Vector2, f: Font = null) -> Label:
 	var l := Label.new()
 	l.text = s
-	l.add_theme_font_override("font", f if f != null else font)
+	l.add_theme_font_override("font", f if f != null else MGUI.font("ui"))
 	l.add_theme_font_size_override("font_size", fs)
 	l.add_theme_color_override("font_color", col)
 	l.add_theme_color_override("font_outline_color", INK)
-	l.add_theme_constant_override("outline_size", 6)
+	l.add_theme_constant_override("outline_size", 4)
 	l.position = pos
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(l)
@@ -93,95 +96,94 @@ func torn(w: float, h: float, seed_v: int) -> PackedVector2Array:
 	return pts
 
 static func rub(v: int) -> String:
-	var s := str(absi(v))
-	var out := ""
-	while s.length() > 3:
-		out = " " + s.substr(s.length() - 3) + out
-		s = s.substr(0, s.length() - 3)
-	return ("−" if v < 0 else "") + s + out + " ₽"
+	return MGUI.rub(v)
 
 # ---------------- HUD ----------------
-## Верх экрана — плитки: ДЕНЬ (фаза и кружки дней), ДЕНЬГИ и ОБЩИЙ ДОЛГ (цифры доезжают плавно и вспыхивают
-## зелёным/красным), БЛИЖАЙШИЙ ПЛАТЁЖ (контора, сумма, когда — красным, если сегодня-завтра), СТРЕСС (шкала с цветом),
-## ДЕЙСТВИЯ (кружки), УРОВЕНЬ ПАХАНА (опыт и очки навыков). Справа под плитками — уведомления телефона.
-func _tile(pos: Vector2, size: Vector2, title: String) -> Panel:
-	var p := Panel.new()
-	p.position = pos
-	p.size = size
-	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.05, 0.05, 0.06, 0.9)
-	sb.border_color = Color(0.22, 0.22, 0.25)
-	sb.border_width_bottom = 3
-	sb.set_corner_radius_all(6)
-	sb.shadow_color = Color(0, 0, 0, 0.5)
-	sb.shadow_size = 6
-	p.add_theme_stylebox_override("panel", sb)
-	stage.add_child(p)
-	txt(p, title, 13, SILVER, Vector2(12, 6))
-	return p
+## Вёрстка — на дизайн-системе MGUI (mg_ui.gd), контейнерами. Сверху одна тонкая строка показателей: день и фаза,
+## деньги, долг, ближайший платёж, стресс, действия, уровень. Слева — панель раздела (список или карточки), справа
+## под строкой — уведомления телефона. Правая половина экрана остаётся комнате и Пахану.
+var topbar: PanelContainer
+var foot: HBoxContainer
+var W := 1600.0                  # ширина стола интерфейса: на широком экране — больше 1600
 
 func _hud() -> void:
-	var t1 := _tile(Vector2(20, 14), Vector2(230, 104), "ДЕНЬ")
-	hud["day"] = txt(t1, "", 38, WHITE, Vector2(12, 20), serif)
-	hud["phase"] = txt(t1, "", 15, RED, Vector2(14, 70))
+	topbar = MGUI.panel(false, null, 0)
+	var tsb := topbar.get_theme_stylebox("panel") as StyleBoxFlat
+	tsb.content_margin_left = MGUI.S4
+	tsb.content_margin_right = MGUI.S4
+	tsb.content_margin_top = 6
+	tsb.content_margin_bottom = 6
+	stage.add_child(topbar)
+	var row := MGUI.hbox(MGUI.S4)
+	topbar.add_child(row)
+	# день: «3 / 7», фаза, кружки дней
+	var d := MGUI.stat("ДЕНЬ", "", "num")
+	row.add_child(d["box"])
+	hud["day"] = d["val"]
+	var ph := MGUI.vbox(3)
+	hud["phase"] = MGUI.label("", "caps", MGUI.RED)
+	ph.add_child(hud["phase"])
+	var pips := MGUI.hbox(3)
 	hud["pips"] = []
 	for k in MLData.DAYS:
 		var c := ColorRect.new()
-		c.size = Vector2(18, 6)
-		c.position = Vector2(118 + k * 15, 36)
+		c.custom_minimum_size = Vector2(12, 4)
 		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		t1.add_child(c)
+		pips.add_child(c)
 		(hud["pips"] as Array).append(c)
-	var t2 := _tile(Vector2(262, 14), Vector2(250, 104), "ДЕНЬГИ")
-	hud["money"] = txt(t2, "", 42, WHITE, Vector2(12, 26), serif)
-	hud["money_d"] = txt(t2, "", 16, GREEN, Vector2(14, 78))
-	var t3 := _tile(Vector2(524, 14), Vector2(270, 104), "ОБЩИЙ ДОЛГ")
-	hud["debt"] = txt(t3, "", 42, RED, Vector2(12, 26), serif)
-	hud["debt_d"] = txt(t3, "", 16, GREEN, Vector2(14, 78))
-	var t4 := _tile(Vector2(806, 14), Vector2(300, 104), "БЛИЖАЙШИЙ ПЛАТЁЖ")
-	hud["due_tile"] = t4
-	hud["due_l"] = txt(t4, "", 22, WHITE, Vector2(12, 28), serif)
-	hud["due_s"] = txt(t4, "", 15, SILVER, Vector2(12, 62))
-	hud["due_s"].size = Vector2(280, 40)
-	hud["due_s"].autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var t5 := _tile(Vector2(1118, 14), Vector2(220, 104), "СТРЕСС")
-	var bg := ColorRect.new()
-	bg.color = Color(0.16, 0.16, 0.18)
-	bg.position = Vector2(12, 34)
-	bg.size = Vector2(196, 16)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	t5.add_child(bg)
-	var fg := ColorRect.new()
-	fg.position = bg.position
-	fg.size = Vector2(0, 16)
-	fg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	t5.add_child(fg)
-	hud["stress"] = fg
-	hud["stress_n"] = txt(t5, "", 15, WHITE, Vector2(12, 56))
-	hud["actions"] = txt(t5, "", 15, WHITE, Vector2(12, 78))
-	var t6 := _tile(Vector2(1350, 14), Vector2(230, 104), "ПАХАН")
-	hud["lvl"] = txt(t6, "", 28, Color(1.0, 0.8, 0.3), Vector2(12, 22), serif)
-	var xb := ColorRect.new()
-	xb.color = Color(0.16, 0.16, 0.18)
-	xb.position = Vector2(12, 62)
-	xb.size = Vector2(206, 8)
-	xb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	t6.add_child(xb)
-	var xf := ColorRect.new()
-	xf.color = Color(1.0, 0.8, 0.3)
-	xf.position = xb.position
-	xf.size = Vector2(0, 8)
-	xf.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	t6.add_child(xf)
-	hud["xp"] = xf
-	hud["pts"] = txt(t6, "", 14, SILVER, Vector2(12, 76))
-	notes_box = VBoxContainer.new()
-	notes_box.position = Vector2(1200, 132)
-	notes_box.size = Vector2(380, 420)
-	notes_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	notes_box.add_theme_constant_override("separation", 8)
+	ph.add_child(pips)
+	ph.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(ph)
+	row.add_child(MGUI.vsep())
+	for key in ["money", "debt"]:
+		var s := MGUI.stat("ДЕНЬГИ" if key == "money" else "ОБЩИЙ ДОЛГ", "", "num_l")
+		(s["val"] as Label).custom_minimum_size.x = 170
+		row.add_child(s["box"])
+		hud[key] = s["val"]
+		var dl := MGUI.label("", "small", MGUI.GOOD)
+		dl.custom_minimum_size.x = 84
+		dl.size_flags_vertical = Control.SIZE_SHRINK_END
+		row.add_child(dl)
+		hud[key + "_d"] = dl
+		row.add_child(MGUI.vsep())
+	var due := MGUI.stat("БЛИЖАЙШИЙ ПЛАТЁЖ", "", "num")
+	(due["box"] as Control).custom_minimum_size.x = 250
+	row.add_child(due["box"])
+	hud["due_l"] = due["val"]
+	hud["due_cap"] = due["cap"]
+	row.add_child(MGUI.spacer())
+	row.add_child(MGUI.vsep())
+	var st := MGUI.vbox(4)
+	hud["stress_n"] = MGUI.label("СТРЕСС", "caps")
+	st.add_child(hud["stress_n"])
+	hud["stress"] = MGUI.bar(130, 6)
+	st.add_child(hud["stress"]["box"])
+	hud["actions"] = MGUI.label("", "caps", MGUI.TEXT)
+	st.add_child(hud["actions"])
+	st.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(st)
+	row.add_child(MGUI.vsep())
+	var lv := MGUI.vbox(4)
+	hud["lvl"] = MGUI.label("", "caps_m", MGUI.GOLD)
+	lv.add_child(hud["lvl"])
+	hud["xp"] = MGUI.bar(150, 4, MGUI.GOLD)
+	lv.add_child(hud["xp"]["box"])
+	hud["pts"] = MGUI.label("", "micro")
+	lv.add_child(hud["pts"])
+	lv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(lv)
+	notes_box = MGUI.vbox(MGUI.S2)
 	stage.add_child(notes_box)
+	_layout()
+
+## расставить закреплённые части по ширине стола (после смены размера окна)
+func _layout() -> void:
+	if topbar == null:
+		return
+	topbar.position = Vector2(16, 12)
+	topbar.size = Vector2(W - 32, 0)
+	notes_box.position = Vector2(W - 16 - 310, 86)
+	notes_box.custom_minimum_size = Vector2(310, 0)
 
 var shown := {"money": 0.0, "debt": 0.0}       # что сейчас нарисовано (цифры доезжают)
 var target := {"money": 0.0, "debt": 0.0}
@@ -190,12 +192,12 @@ var first_refresh := true
 
 func refresh() -> void:
 	var e := econ()
-	if e == null or not is_instance_valid(hud["day"]):
+	if e == null or hud.is_empty() or not is_instance_valid(hud["day"]):
 		return
 	hud["day"].text = "%d / %d" % [e.day, MLData.DAYS]
-	hud["phase"].text = MLEconomy.PHASE_NAMES.get(e.phase, "") + (" · ещё %d дн." % (MLData.DAYS - e.day) if e.day < MLData.DAYS else " · ПОСЛЕДНИЙ ДЕНЬ")
+	hud["phase"].text = String(MLEconomy.PHASE_NAMES.get(e.phase, "")) + (" · ещё %d дн." % (MLData.DAYS - e.day) if e.day < MLData.DAYS else " · последний день")
 	for k in MLData.DAYS:
-		(hud["pips"][k] as ColorRect).color = RED if k + 1 == e.day else (Color(0.5, 0.5, 0.52) if k + 1 < e.day else Color(0.2, 0.2, 0.22))
+		(hud["pips"][k] as ColorRect).color = MGUI.RED if k + 1 == e.day else (Color(0.5, 0.5, 0.52) if k + 1 < e.day else Color(0.2, 0.2, 0.22))
 	for key in ["money", "debt"]:
 		var nv := float(e.money if key == "money" else e.total_debt())
 		if first_refresh:
@@ -204,149 +206,140 @@ func refresh() -> void:
 			var dlt := nv - float(target[key])
 			var good := dlt > 0.0 if key == "money" else dlt < 0.0
 			var dl: Label = hud[key + "_d"]
-			dl.text = ("+" if dlt > 0 else "−") + rub(int(absf(dlt))).trim_prefix("−")
-			dl.add_theme_color_override("font_color", GREEN if good else RED)
+			dl.text = ("+" if dlt > 0 else "−") + rub(int(absf(dlt)))
+			dl.add_theme_color_override("font_color", MGUI.GOOD if good else MGUI.RED)
 			dl.modulate.a = 1.0
-			dl.create_tween().tween_property(dl, "modulate:a", 0.0, 2.2).set_delay(1.2)
+			dl.create_tween().tween_property(dl, "modulate:a", 0.0, 1.6).set_delay(1.4)
 			flash[key] = 1.0 if good else -1.0
 		target[key] = nv
 	first_refresh = false
-	var st := float(e.stress) / 100.0
-	(hud["stress"] as ColorRect).color = Color(0.4, 0.85, 0.45).lerp(Color(1.0, 0.75, 0.2), clampf(st * 2.0, 0.0, 1.0)).lerp(RED, clampf(st * 2.0 - 1.0, 0.0, 1.0))
-	hud["stress_n"].text = "%d / 100%s" % [e.stress, "  · отнимает действие" if e.stress >= 80 else ""]
-	hud["actions"].text = "ДЕЙСТВИЯ: " + "●".repeat(maxi(0, e.actions)) + "○".repeat(maxi(0, e.actions_max() - e.actions))
+	var stv := float(e.stress) / 100.0
+	MGUI.set_bar(hud["stress"], stv, MGUI.GOOD.lerp(MGUI.WARN, clampf(stv * 2.0, 0.0, 1.0)).lerp(MGUI.RED, clampf(stv * 2.0 - 1.0, 0.0, 1.0)))
+	hud["stress_n"].text = "СТРЕСС %d%s" % [e.stress, " · −1 действие" if e.stress >= 80 else ""]
+	hud["actions"].text = "ДЕЙСТВИЯ " + "●".repeat(maxi(0, e.actions)) + "○".repeat(maxi(0, e.actions_max() - e.actions))
 	# ближайший платёж
 	var near: Dictionary = {}
 	for L in e.active():
 		if near.is_empty() or int(L["due"]) < int(near["due"]):
 			near = L
-	var tile: Panel = hud["due_tile"]
-	var sb := tile.get_theme_stylebox("panel") as StyleBoxFlat
+	due_hot = false
 	if near.is_empty():
-		hud["due_l"].text = "ДОЛГОВ НЕТ"
-		hud["due_s"].text = "телефон молчит"
-		sb.border_color = GREEN
+		hud["due_l"].text = "долгов нет"
+		hud["due_cap"].text = "БЛИЖАЙШИЙ ПЛАТЁЖ"
+		hud["due_cap"].add_theme_color_override("font_color", MGUI.GOOD)
 	else:
 		var D: Dictionary = MLData.LENDERS[near["lender"]]
 		var dd := int(near["due"]) - e.day
+		var when := "просрочен %d дн." % int(near["overdue"]) if near["status"] == "overdue" else ("сегодня" if dd <= 0 else ("завтра" if dd == 1 else "через %d дн." % dd))
 		hud["due_l"].text = "%s · %s" % [D["short"], rub(int(ceil(float(near["balance"]))))]
-		hud["due_s"].text = "ПРОСРОЧЕН %d дн." % int(near["overdue"]) if near["status"] == "overdue" else ("СЕГОДНЯ" if dd <= 0 else ("завтра" if dd == 1 else "через %d дн." % dd))
-		sb.border_color = RED if dd <= 1 or near["status"] == "overdue" else Color(1.0, 0.75, 0.3) if dd == 2 else Color(0.22, 0.22, 0.25)
+		hud["due_cap"].text = "БЛИЖАЙШИЙ ПЛАТЁЖ · " + when.to_upper()
+		due_hot = dd <= 1 or near["status"] == "overdue"
+		hud["due_cap"].add_theme_color_override("font_color", MGUI.RED if due_hot else (MGUI.WARN if dd == 2 else MGUI.TEXT_3))
 	if e.career != null:
 		var C: MLCareer = e.career
-		hud["lvl"].text = "УР. %d · нед. %d" % [int(C.d["level"]), int(C.d["week"])]
-		(hud["xp"] as ColorRect).size.x = 206.0 * clampf(float(C.d["xp"]) / float(MLCareer.xp_need(int(C.d["level"]))), 0.0, 1.0)
-		hud["pts"].text = ("ОЧКИ: %d · [T] развитие" % int(C.d["points"])) if int(C.d["points"]) > 0 else "опыт %d / %d" % [int(C.d["xp"]), MLCareer.xp_need(int(C.d["level"]))]
+		hud["lvl"].text = "ПАХАН · УР. %d · НЕД. %d" % [int(C.d["level"]), int(C.d["week"])]
+		MGUI.set_bar(hud["xp"], float(C.d["xp"]) / float(MLCareer.xp_need(int(C.d["level"]))))
+		hud["pts"].text = ("очков навыков: %d — клавиша T" % int(C.d["points"])) if int(C.d["points"]) > 0 else "опыт %d / %d" % [int(C.d["xp"]), MLCareer.xp_need(int(C.d["level"]))]
+		hud["pts"].add_theme_color_override("font_color", MGUI.GOLD if int(C.d["points"]) > 0 else MGUI.TEXT_3)
 	if e.ending != "" and screen != "ending":
 		ending()
 	elif panel != null and rows.size() > 0:
 		_paint()
 
-## каждый кадр: цифры денег и долга доезжают до нужных, вспышка цвета гаснет, платёж «сегодня» пульсирует
+var due_hot := false
+## каждый кадр: цифры денег и долга доезжают до нужных, вспышка цвета гаснет, срочный платёж мягко пульсирует
 func _process(dt: float) -> void:
 	if hud.is_empty():
 		return
 	for key in ["money", "debt"]:
 		var cur := float(shown[key])
 		var tg := float(target[key])
-		cur = move_toward(cur, tg, maxf(absf(tg - cur) * 6.0 * dt, 40.0 * dt * 10.0))
+		cur = move_toward(cur, tg, maxf(absf(tg - cur) * 6.0 * dt, 400.0 * dt))
 		shown[key] = cur
 		var l: Label = hud[key]
 		l.text = rub(int(round(cur)))
-		var base := WHITE if key == "money" else RED
+		var base := MGUI.TEXT if key == "money" else MGUI.RED
 		var fk := float(flash[key])
 		if absf(fk) > 0.01:
-			l.add_theme_color_override("font_color", base.lerp(GREEN if fk > 0 else Color(1, 0.3, 0.2), absf(fk)))
+			l.add_theme_color_override("font_color", base.lerp(MGUI.GOOD if fk > 0 else Color(1, 0.35, 0.25), absf(fk)))
 			flash[key] = move_toward(fk, 0.0, dt * 1.2)
 		else:
 			l.add_theme_color_override("font_color", base)
-	var tile: Panel = hud["due_tile"]
-	var sb := tile.get_theme_stylebox("panel") as StyleBoxFlat
-	if sb.border_color == RED:
-		sb.border_width_bottom = 3 + int(2.5 + 2.5 * sin(Time.get_ticks_msec() * 0.008))
-	else:
-		sb.border_width_bottom = 3
+	(hud["due_l"] as Label).modulate.a = 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.006) if due_hot else 1.0
+	# поверх идёт подработка или звонок — у них свой экран: строка показателей и уведомления не мешают
+	var busy := overlay != null and is_instance_valid(overlay)
+	topbar.visible = not busy
+	notes_box.visible = not busy and not (screen in ["flow", "tree"])
 
-## уведомление телефона: карточка с иконкой приложения, названием и временем — выезжает справа
-const APPS := {"bad": ["⚠", "СРОКИ", Color(0.86, 0.09, 0.11)], "warn": ["⏰", "НАПОМИНАНИЕ", Color(1.0, 0.7, 0.25)], "money": ["₽", "ПЕРЕВОДЫ", Color(0.35, 0.85, 0.45)],
-	"level": ["★", "РАЗВИТИЕ", Color(1.0, 0.8, 0.3)], "milestone": ["🏆", "ВЕХА", Color(0.8, 0.6, 1.0)], "call": ["☎", "ЗВОНОК", Color(0.55, 0.85, 1.0)], "info": ["✉", "СООБЩЕНИЯ", Color(0.75, 0.78, 0.82)]}
+## уведомление телефона: узкая карточка со значком и названием приложения; выезжает справа, само уходит
+const APPS := {"bad": ["warn", "СРОКИ", MGUI.RED], "warn": ["clock", "НАПОМИНАНИЕ", MGUI.WARN], "money": ["coin", "ПЕРЕВОДЫ", MGUI.GOOD],
+	"level": ["star", "РАЗВИТИЕ", MGUI.GOLD], "milestone": ["trophy", "ВЕХА", Color(0.8, 0.6, 1.0)], "call": ["call", "ЗВОНОК", Color(0.55, 0.85, 1.0)], "info": ["mail", "СООБЩЕНИЕ", MGUI.TEXT_2]}
+var toast_slot: Label            # экран во всю ширину (карта долгов, дерево): место уведомления в его шапке
+var toast_tw: Tween
+
+## место под уведомление в шапке широкого экрана: две строки, справа, перед кнопками
+func make_toast_slot() -> Label:
+	toast_slot = MGUI.label("", "small", MGUI.TEXT, 380.0)
+	toast_slot.max_lines_visible = 2
+	toast_slot.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	toast_slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	toast_slot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	toast_slot.custom_minimum_size.y = 40
+	toast_slot.set_meta("audit_clip", true)
+	toast_slot.modulate.a = 0.0
+	return toast_slot
+
 func notify(text: String, kind: String) -> void:
 	var app: Array = APPS.get(kind, APPS["info"])
 	var col: Color = app[2]
-	var card := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.09, 0.09, 0.1, 0.96)
-	sb.set_corner_radius_all(14)
-	sb.border_color = col
-	sb.border_width_left = 4
-	sb.content_margin_left = 12
-	sb.content_margin_right = 12
-	sb.content_margin_top = 8
-	sb.content_margin_bottom = 10
-	sb.shadow_color = Color(0, 0, 0, 0.6)
-	sb.shadow_size = 8
-	card.add_theme_stylebox_override("panel", sb)
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var box := HBoxContainer.new()
-	box.add_theme_constant_override("separation", 10)
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if kind in ["level", "milestone"]:
+		_banner(text, col)
+	if toast_slot != null and is_instance_valid(toast_slot) and toast_slot.is_visible_in_tree():
+		toast_slot.text = MGUI.nb("%s · %s" % [app[1], text])
+		toast_slot.add_theme_color_override("font_color", col.lerp(MGUI.TEXT, 0.35))
+		if toast_tw != null and toast_tw.is_valid():
+			toast_tw.kill()
+		toast_tw = toast_slot.create_tween()
+		toast_tw.tween_property(toast_slot, "modulate:a", 1.0, 0.15)
+		toast_tw.tween_interval(3.6)
+		toast_tw.tween_property(toast_slot, "modulate:a", 0.0, 0.4)
+		return
+	var card := MGUI.panel(false, col, MGUI.S2)
+	var box := MGUI.hbox(MGUI.S2)
 	card.add_child(box)
-	var ic := Label.new()
-	ic.text = String(app[0])
-	ic.custom_minimum_size = Vector2(40, 40)
-	ic.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ic.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	ic.add_theme_font_size_override("font_size", 22)
-	ic.add_theme_color_override("font_color", INK)
-	var isb := StyleBoxFlat.new()
-	isb.bg_color = col
-	isb.set_corner_radius_all(10)
-	ic.add_theme_stylebox_override("normal", isb)
+	var ic := MGIcon.make(String(app[0]), 20, col)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	box.add_child(ic)
-	var col_box := VBoxContainer.new()
-	col_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col_box.add_theme_constant_override("separation", 2)
-	box.add_child(col_box)
-	var head := Label.new()
-	head.text = "%s  ·  сейчас" % app[1]
-	head.add_theme_font_override("font", font)
-	head.add_theme_font_size_override("font_size", 11)
-	head.add_theme_color_override("font_color", col)
-	col_box.add_child(head)
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_override("font", font)
-	l.add_theme_font_size_override("font_size", 14)
-	l.add_theme_color_override("font_color", WHITE)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(290, 0)
-	col_box.add_child(l)
+	var v := MGUI.vbox(1)
+	box.add_child(v)
+	v.add_child(MGUI.label(String(app[1]), "caps", col))
+	v.add_child(MGUI.label(MGUI.nb(text), "small", MGUI.TEXT, 252.0))
 	notes_box.add_child(card)
 	notes_box.move_child(card, 0)
 	card.modulate.a = 0.0
 	var tw := card.create_tween()
 	tw.tween_property(card, "modulate:a", 1.0, 0.18)
-	tw.tween_interval(5.5 if kind in ["level", "milestone", "bad"] else 4.2)
-	tw.tween_property(card, "modulate:a", 0.0, 0.5)
+	tw.tween_interval(5.0 if kind in ["level", "milestone", "bad"] else 3.6)
+	tw.tween_property(card, "modulate:a", 0.0, 0.45)
 	tw.tween_callback(card.queue_free)
-	if kind in ["level", "milestone"]:
-		_banner(text, col)
-	while notes_box.get_child_count() > 4:
+	while notes_box.get_child_count() > 3:
 		var c := notes_box.get_child(notes_box.get_child_count() - 1)
 		notes_box.remove_child(c)
 		c.queue_free()
 
-## большая надпись по центру — новый уровень, веха
+## крупная строка по центру — только для редких событий (новый уровень, веха); 2 секунды
 func _banner(text: String, col: Color) -> void:
-	var b := txt(stage, text, 40, col, Vector2(0, 380), serif)
-	b.size = Vector2(STAGE.x, 60)
+	var b := MGUI.label_3d(text, "h1", col)
+	b.set_meta("audit_skip", true)
+	b.position = Vector2(0, 400)
+	b.size = Vector2(W, 44)
 	b.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	b.pivot_offset = Vector2(STAGE.x / 2, 30)
-	b.scale = Vector2(0.6, 0.6)
+	stage.add_child(b)
+	b.modulate.a = 0.0
 	var tw := b.create_tween()
-	tw.tween_property(b, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(b, "modulate:a", 1.0, 0.2)
 	tw.tween_interval(1.6)
-	tw.tween_property(b, "modulate:a", 0.0, 0.5)
+	tw.tween_property(b, "modulate:a", 0.0, 0.4)
 	tw.tween_callback(b.queue_free)
 	root.snd.play("cheer")
 
@@ -357,7 +350,7 @@ func thumb(id: String) -> Texture2D:
 	if thumbs.has(id):
 		return thumbs[id]
 	var vp := SubViewport.new()
-	vp.size = Vector2i(220, 160)
+	vp.size = Vector2i(288, 192)
 	vp.own_world_3d = true
 	vp.transparent_bg = true
 	vp.msaa_3d = Viewport.MSAA_4X
@@ -368,189 +361,208 @@ func thumb(id: String) -> Texture2D:
 	var hold := Node3D.new()
 	r.add_child(hold)
 	var span := MLThumbs.build(id, hold)
+	var boxes: Array = []
+	MGModels._walk(hold, Transform3D.IDENTITY, boxes)
+	var mid := Vector3(0, span * 0.22, 0)
+	if not boxes.is_empty():
+		var bb: AABB = boxes[0]
+		for k in range(1, boxes.size()):
+			bb = bb.merge(boxes[k])
+		span = maxf(0.08, maxf(bb.size.x, maxf(bb.size.y * 1.25, bb.size.z)) * 1.12)
+		mid = bb.get_center()
 	var cam := Camera3D.new()
-	cam.fov = 30.0
+	cam.fov = 28.0
 	vp.add_child(cam)
-	cam.position = Vector3(span * 0.9, span * 0.75, span * 1.6)
-	cam.look_at(Vector3(0, span * 0.32, 0), Vector3.UP)
+	cam.look_at_from_position(mid + Vector3(span * 0.85, span * 0.62, span * 1.45), mid, Vector3.UP)
 	var key := DirectionalLight3D.new()
 	key.rotation = Vector3(-0.8, 0.6, 0)
-	key.light_energy = 1.6
+	key.light_energy = 2.0
 	vp.add_child(key)
 	var fill := OmniLight3D.new()
 	fill.position = Vector3(-span, span, span)
-	fill.light_energy = 0.8
+	fill.light_energy = 1.2
 	fill.omni_range = span * 6.0
 	vp.add_child(fill)
 	var env := WorldEnvironment.new()
 	var en := Environment.new()
 	en.background_mode = Environment.BG_CLEAR_COLOR
 	en.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	en.ambient_light_color = Color(0.6, 0.6, 0.65)
-	en.ambient_light_energy = 0.7
+	en.ambient_light_color = Color(0.8, 0.8, 0.85)
+	en.ambient_light_energy = 1.0
 	env.environment = en
 	vp.add_child(env)
 	thumbs[id] = vp.get_texture()
 	return thumbs[id]
 
-# ---------------- экран: карточки и кнопки ----------------
-## items: [текст, действие, почему нельзя (Callable) или пусто, карточка {icon, thumb, sub, value, tag, col}]
-## С карточками — сетка карточек (картинка, название, описание, цена, метка), без — крупные кнопки.
+# ---------------- экран раздела ----------------
+## items: [текст, действие, почему нельзя (Callable) или пусто, свойства {icon, thumb, sub, value, tag, col}]
+## mode: "list" — компактный список (значок, название, значение справа); "cards" — пункты с thumb становятся
+## карточками с картинкой (сравнивать варианты: подработки, магазин, бизнес), остальные — строками под ними;
+## "grid" — сетка ячеек с картинками (вещи). Описание (sub) показывается только у выбранного пункта — внизу панели.
 var cols := 1
-func open(title: String, lines: Array, items: Array, w := 760.0) -> Control:
+var card_n := 0                 # сколько первых пунктов — карточки (сетка), дальше — строки
+var detail_l: Label
+var detail_t: TextureRect
+func open(title: String, lines: Array, items: Array, _w := 760.0, mode := "list") -> Control:
 	close_panel()
+	var pw := 520.0 if mode == "list" else 760.0
 	panel = Control.new()
-	panel.size = STAGE
+	panel.size = Vector2(W, STAGE.y)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(panel)
-	var card := Polygon2D.new()
-	card.polygon = torn(w, 730.0, title.hash())
-	card.color = Color(0.035, 0.035, 0.04, 0.93)
-	card.position = Vector2(20, 134)
-	panel.add_child(card)
-	var edge := Line2D.new()
-	edge.points = card.polygon
-	edge.closed = true
-	edge.width = 2.0
-	edge.default_color = Color(0.85, 0.86, 0.88, 0.6)
-	card.add_child(edge)
-	var stripe := ColorRect.new()
-	stripe.color = RED
-	stripe.position = Vector2(40, 196)
-	stripe.size = Vector2(minf(420.0, w - 60.0), 5)
-	stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(stripe)
-	var h := txt(panel, title, 44, WHITE, Vector2(40, 142), serif)
-	h.rotation = deg_to_rad(-1.2)
-	var y := 212.0
-	for s in lines:
-		if String(s) == "":
-			y += 6.0
-			continue
-		var chip := PanelContainer.new()
-		var csb := StyleBoxFlat.new()
-		csb.bg_color = Color(0.1, 0.1, 0.11, 0.95)
-		csb.set_corner_radius_all(6)
-		csb.content_margin_left = 10
-		csb.content_margin_right = 10
-		csb.content_margin_top = 4
-		csb.content_margin_bottom = 4
-		chip.add_theme_stylebox_override("panel", csb)
-		chip.position = Vector2(44, y)
-		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(chip)
-		var l := Label.new()
-		l.text = String(s)
-		l.add_theme_font_override("font", font)
-		l.add_theme_font_size_override("font_size", 15)
-		l.add_theme_color_override("font_color", SILVER)
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.custom_minimum_size = Vector2(w - 90, 0)
-		chip.add_child(l)
-		y += maxf(30.0, l.get_minimum_size().y + 12.0)
-	y += 6.0
+	var pc := MGUI.panel(false, null, MGUI.S4)
+	pc.position = Vector2(16, 86)
+	pc.custom_minimum_size = Vector2(pw, 0)
+	pc.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.add_child(pc)
+	var v := MGUI.vbox(MGUI.S3)
+	pc.add_child(v)
+	var head := MGUI.vbox(MGUI.S1)
+	v.add_child(head)
+	var tl := MGUI.label(title, "h1", null, pw - 2.0 * MGUI.S4)
+	tl.max_lines_visible = 2
+	tl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	tl.set_meta("audit_clip", true)
+	head.add_child(tl)
+	var rule := ColorRect.new()
+	rule.color = MGUI.RED
+	rule.custom_minimum_size = Vector2(56, 3)
+	rule.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(rule)
+	if not lines.is_empty():
+		var info := MGUI.vbox(2)
+		v.add_child(info)
+		for s in lines:
+			if String(s) != "":
+				info.add_child(MGUI.label(MGUI.nb(String(s)), "small", MGUI.TEXT_2, pw - 2.0 * MGUI.S4))
 	rows = []
-	var has_cards := items.any(func(it): return (it as Array).size() > 3 and it[3] is Dictionary)
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(40, y)
-	scroll.size = Vector2(w - 30, 850.0 - y)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	panel.add_child(scroll)
-	var cw := 246.0
-	cols = maxi(1, int((w - 40.0) / (cw + 12.0))) if has_cards else 1
+	scroll.theme = MGUI.theme()
+	v.add_child(scroll)
+	var body := MGUI.vbox(MGUI.S2)
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(body)
+	var cardable := func(it: Array) -> bool: return mode != "list" and it.size() > 3 and it[3] is Dictionary and (it[3] as Dictionary).has("thumb")
 	var grid := GridContainer.new()
+	var cw := 168.0 if mode == "cards" else 104.0
+	cols = maxi(1, int((pw - 2.0 * MGUI.S4 - 10.0 + MGUI.S2) / (cw + MGUI.S2)))
 	grid.columns = cols
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 12)
-	scroll.add_child(grid)
-	var n := 0
+	grid.add_theme_constant_override("h_separation", MGUI.S2)
+	grid.add_theme_constant_override("v_separation", MGUI.S2)
+	card_n = 0
+	if items.any(cardable):
+		body.add_child(grid)
+	else:
+		cols = 1
+	var list := MGUI.vbox(3)
+	body.add_child(list)
 	for it in items:
 		var i := rows.size()
 		var spec: Dictionary = it[3] if it.size() > 3 and it[3] is Dictionary else {}
+		var is_card: bool = cardable.call(it)
 		var box := PanelContainer.new()
 		box.mouse_filter = Control.MOUSE_FILTER_STOP
 		box.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		var bsb := StyleBoxFlat.new()
-		bsb.set_corner_radius_all(8)
-		bsb.content_margin_left = 12
-		bsb.content_margin_right = 12
-		bsb.content_margin_top = 8
-		bsb.content_margin_bottom = 8
-		bsb.border_width_left = 5
+		var bsb := MGUI.box(Color(0.09, 0.09, 0.105), 3, 0, MGUI.LINE, 0)
 		box.add_theme_stylebox_override("panel", bsb)
-		var lab := Label.new()
-		lab.add_theme_font_override("font", serif)
-		lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var lab := MGUI.label("", "body_b")
 		var parts := {}
-		if has_cards:
-			box.custom_minimum_size = Vector2(cw, 268 if spec.has("thumb") else 190)
-			var v := VBoxContainer.new()
-			v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			v.add_theme_constant_override("separation", 4)
-			box.add_child(v)
-			var top := HBoxContainer.new()
-			top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			v.add_child(top)
-			var ic := Label.new()
-			ic.text = String(spec.get("icon", ""))
-			ic.add_theme_font_size_override("font_size", 26)
-			top.add_child(ic)
-			var tag := Label.new()
-			tag.text = String(spec.get("tag", ""))
-			tag.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-			tag.add_theme_font_override("font", font)
-			tag.add_theme_font_size_override("font_size", 12)
-			top.add_child(tag)
-			parts["tag"] = tag
-			if spec.has("thumb"):
-				var tr := TextureRect.new()
-				tr.texture = thumb(String(spec["thumb"]))
-				tr.custom_minimum_size = Vector2(cw - 24, 96)
-				tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-				tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-				tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-				v.add_child(tr)
-			lab.add_theme_font_size_override("font_size", 21)
-			lab.custom_minimum_size = Vector2(cw - 24, 0)
-			v.add_child(lab)
-			var sub := Label.new()
-			sub.text = _sv(spec.get("sub", ""))
-			sub.add_theme_font_override("font", font)
-			sub.add_theme_font_size_override("font_size", 12)
-			sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			sub.custom_minimum_size = Vector2(cw - 24, 0)
-			v.add_child(sub)
-			parts["sub"] = sub
-			var val := Label.new()
-			val.text = _sv(spec.get("value", ""))
-			val.add_theme_font_override("font", serif)
-			val.add_theme_font_size_override("font_size", 22)
-			v.add_child(val)
-			parts["val"] = val
+		if is_card:
+			card_n += 1
+			bsb.set_content_margin_all(MGUI.S2)
+			bsb.set_border_width_all(2)
+			box.custom_minimum_size = Vector2(cw, 0)
+			var cv := MGUI.vbox(MGUI.S1)
+			box.add_child(cv)
+			var tr := TextureRect.new()
+			tr.texture = thumb(String(spec["thumb"]))
+			tr.custom_minimum_size = Vector2(cw - 2.0 * MGUI.S2, 88 if mode == "cards" else 66)
+			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cv.add_child(tr)
+			if mode == "cards":
+				lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				lab.custom_minimum_size = Vector2(cw - 2.0 * MGUI.S2, 0)
+				MGUI.style_label(lab, "caps_m")
+				cv.add_child(lab)
+				var val := MGUI.label("", "num")
+				cv.add_child(val)
+				parts["val"] = val
+				var tag := MGUI.label("", "micro")
+				tag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				tag.custom_minimum_size = Vector2(cw - 2.0 * MGUI.S2, 0)
+				cv.add_child(tag)
+				parts["tag"] = tag
+			else:
+				lab.visible = false                      # в сетке вещей название — только у выбранной, внизу
+				cv.add_child(lab)
+			grid.add_child(box)
 		else:
-			lab.add_theme_font_size_override("font_size", 23)
-			lab.custom_minimum_size = Vector2(w - 90, 0)
-			box.add_child(lab)
-		grid.add_child(box)
-		rows.append({"label": lab, "text": it[0], "act": it[1], "why": it[2] if it.size() > 2 and it[2] is Callable else Callable(), "box": box, "sb": bsb, "spec": spec, "parts": parts})
+			bsb.content_margin_left = MGUI.S3
+			bsb.content_margin_right = MGUI.S3
+			bsb.content_margin_top = 7
+			bsb.content_margin_bottom = 8
+			bsb.border_width_left = 3
+			var h := MGUI.hbox(MGUI.S3)
+			box.add_child(h)
+			if spec.has("icon"):
+				var ic := MGIcon.make(String(spec["icon"]), 18, MGUI.TEXT_2)
+				ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+				h.add_child(ic)
+				parts["icon"] = ic
+			lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			lab.custom_minimum_size.x = 120
+			h.add_child(lab)
+			var val2 := MGUI.label("", "small")
+			val2.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			val2.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			val2.set_meta("audit_clip", true)
+			h.add_child(val2)
+			parts["val"] = val2
+			list.add_child(box)
+		rows.append({"label": lab, "text": it[0], "act": it[1], "why": it[2] if it.size() > 2 and it[2] is Callable else Callable(), "box": box, "sb": bsb, "spec": spec, "parts": parts, "card": is_card})
 		box.mouse_entered.connect(func(): _select(i))
 		box.gui_input.connect(func(ev: InputEvent):
 			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
 				_select(i)
 				_activate())
-		box.modulate.a = 0.0
-		box.create_tween().tween_property(box, "modulate:a", 1.0, 0.18).set_delay(0.025 * n)
-		n += 1
+	# подробности выбранного пункта: описание и (в сетке вещей) название; высота постоянная — панель не прыгает
+	v.add_child(MGUI.hsep())
+	var det := MGUI.hbox(MGUI.S3)
+	det.custom_minimum_size.y = 80
+	v.add_child(det)
+	detail_l = MGUI.label("", "small", MGUI.TEXT_2, pw - 2.0 * MGUI.S4 - (112.0 if mode == "list" else 0.0))
+	detail_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_l.max_lines_visible = 4
+	detail_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	detail_l.set_meta("audit_clip", true)
+	det.add_child(detail_l)
+	detail_t = TextureRect.new()
+	detail_t.custom_minimum_size = Vector2(100, 58)
+	detail_t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	detail_t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	detail_t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	detail_t.visible = mode == "list"
+	det.add_child(detail_t)
+	v.add_child(MGUI.hints([["W/S", "выбор"], ["Enter", "открыть"], ["Esc", "назад"]] if cols == 1 else [["WASD", "выбор"], ["Enter", "открыть"], ["Esc", "назад"]]))
+	_fit_scroll.call_deferred(v, scroll, body)
+	pc.modulate.a = 0.0
+	pc.create_tween().tween_property(pc, "modulate:a", 1.0, 0.14)
+	root.snd.play("open")
 	sel = 0
 	_paint()
-	panel.modulate.a = 0.0
-	panel.position.x = -30.0
-	var tw := panel.create_tween().set_parallel(true)
-	tw.tween_property(panel, "modulate:a", 1.0, 0.16)
-	tw.tween_property(panel, "position:x", 0.0, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	root.snd.play("open")
 	return panel
+
+## высота списка: по содержимому, но не ниже края экрана (дальше — прокрутка)
+func _fit_scroll(v: VBoxContainer, scroll: ScrollContainer, body: Control) -> void:
+	if not is_instance_valid(scroll):
+		return
+	var fixed := v.get_combined_minimum_size().y - scroll.get_combined_minimum_size().y + 2.0 * MGUI.S4
+	scroll.custom_minimum_size.y = minf(body.get_combined_minimum_size().y, STAGE.y - 86.0 - 16.0 - fixed)
 
 func close_panel() -> void:
 	if panel != null:
@@ -566,9 +578,11 @@ func _select(i: int) -> void:
 	sel = posmod(i, rows.size())
 	_paint()
 	var b: Control = rows[sel]["box"]
-	var sc := b.get_parent().get_parent() as ScrollContainer
-	if sc != null:
-		sc.ensure_control_visible.call_deferred(b)
+	var p := b.get_parent()
+	while p != null and not (p is ScrollContainer):
+		p = p.get_parent()
+	if p != null:
+		(p as ScrollContainer).ensure_control_visible.call_deferred(b)
 
 func _why(r: Dictionary) -> String:
 	var w = r["why"]
@@ -582,34 +596,50 @@ func _paint() -> void:
 		var why := _why(r)
 		var on := k == sel
 		var spec: Dictionary = r["spec"]
-		var acc: Color = spec.get("col", RED)
+		var acc: Color = spec.get("col", MGUI.RED)
 		var sb: StyleBoxFlat = r["sb"]
 		var lab: Label = r["label"]
-		if spec.is_empty():
-			# кнопка: чёрная с белой надписью, выбранная — белая с тёмной
-			lab.text = s + ("  — " + why if why != "" else "")
-			sb.bg_color = Color(0.92, 0.92, 0.9) if on else Color(0.1, 0.1, 0.11)
-			sb.border_color = acc if why == "" else GREY
-			lab.add_theme_color_override("font_color", (INK if on else WHITE) if why == "" else GREY)
+		var parts: Dictionary = r["parts"]
+		lab.text = s
+		if bool(r["card"]):
+			# карточка: бумага; выбранная — красная рамка; недоступная — тусклая, причина вместо метки
+			sb.bg_color = MGUI.PAPER if why == "" else MGUI.PAPER_DIM
+			sb.border_color = MGUI.RED if on else Color(0, 0, 0, 0)
+			lab.add_theme_color_override("font_color", MGUI.INK)
+			if parts.has("val"):
+				(parts["val"] as Label).text = _sv(spec.get("value", ""))
+				(parts["val"] as Label).add_theme_color_override("font_color", acc.darkened(0.45) if why == "" else Color(0.2, 0.2, 0.22))
+				(parts["tag"] as Label).text = why if why != "" else _sv(spec.get("tag", ""))
+				(parts["tag"] as Label).add_theme_color_override("font_color", Color(0.55, 0.05, 0.06) if why != "" else Color(0.3, 0.3, 0.32))
 		else:
-			# карточка: грязно-белая, выбранная — с толстой цветной рамкой; недоступная — тусклая с причиной
-			lab.text = s
-			sb.bg_color = Color(0.9, 0.88, 0.83) if why == "" else Color(0.35, 0.35, 0.37)
-			sb.border_color = acc
-			sb.border_width_left = 8 if on else 5
-			sb.border_width_top = 3 if on else 0
-			sb.border_width_right = 3 if on else 0
-			sb.border_width_bottom = 3 if on else 0
-			lab.add_theme_color_override("font_color", INK)
-			var parts: Dictionary = r["parts"]
-			(parts["sub"] as Label).add_theme_color_override("font_color", Color(0.25, 0.25, 0.27))
-			(parts["val"] as Label).add_theme_color_override("font_color", acc.darkened(0.35))
-			(parts["tag"] as Label).text = why if why != "" else _sv(spec.get("tag", ""))
-			(parts["val"] as Label).text = _sv(spec.get("value", ""))
-			(parts["tag"] as Label).add_theme_color_override("font_color", RED if why != "" else Color(0.3, 0.3, 0.32))
-			var box: Control = r["box"]
-			box.pivot_offset = box.size * 0.5
-			box.scale = Vector2.ONE * (1.03 if on else 1.0)
+			# строка: тёмная; выбранная — бумага с чернилами и красной полосой; недоступная — серая, причина справа
+			sb.bg_color = MGUI.PAPER if on else Color(0.09, 0.09, 0.105)
+			sb.border_color = MGUI.RED if on else (acc if why == "" and not spec.is_empty() else MGUI.LINE)
+			lab.add_theme_color_override("font_color", (MGUI.INK if on else MGUI.TEXT) if why == "" else (Color(0.3, 0.3, 0.32) if on else MGUI.TEXT_3))
+			var vl: Label = parts["val"]
+			var vt: String = why if why != "" else _sv(spec.get("value", ""))
+			vl.text = vt
+			# длинное значение не выдавливает название: обрезается с многоточием (целиком — в подробностях внизу)
+			var long_v := vt.length() > 22
+			vl.clip_text = long_v
+			vl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if long_v else TextServer.OVERRUN_NO_TRIMMING
+			vl.custom_minimum_size.x = 170.0 if long_v else 0.0
+			vl.add_theme_color_override("font_color", (Color(0.55, 0.05, 0.06) if on else MGUI.RED) if why != "" else (Color(0.25, 0.25, 0.27) if on else MGUI.TEXT_2))
+			if parts.has("icon"):
+				(parts["icon"] as MGIcon).set_icon(String(spec["icon"]), (MGUI.INK if on else MGUI.TEXT_2) if why == "" else MGUI.TEXT_3)
+		if on and detail_l != null and is_instance_valid(detail_l):
+			var sub := _sv(spec.get("sub", ""))
+			var in_cell: bool = bool(r["card"]) and not lab.visible       # ячейка сетки: название — только здесь, внизу
+			if sub != "":
+				sub = (sub.left(1).to_lower() if in_cell else sub.left(1).to_upper()) + sub.substr(1)
+			var dt: String = (s + " — " + sub if in_cell else sub) if sub != "" else (s if in_cell else "")
+			if bool(r["card"]) and not lab.visible and _sv(spec.get("value", "")) != "":
+				dt += "\nEnter — " + _sv(spec.get("value", ""))
+			if why != "":
+				dt = ("Нельзя: " + why + ". " + dt) if dt != "" else why
+			detail_l.text = MGUI.nb(dt)
+			if detail_t.visible:
+				detail_t.texture = thumb(String(spec["thumb"])) if spec.has("thumb") else null
 
 func _activate() -> void:
 	if rows.is_empty():
@@ -618,12 +648,8 @@ func _activate() -> void:
 	if _why(r) != "":
 		root.snd.play("fail")
 		var b: Control = r["box"]
-		var x0 := b.position.x
-		var tw := b.create_tween()
-		for k in 3:
-			tw.tween_property(b, "position:x", x0 + 6.0, 0.03)
-			tw.tween_property(b, "position:x", x0 - 6.0, 0.03)
-		tw.tween_property(b, "position:x", x0, 0.03)
+		b.modulate = Color(1.0, 0.6, 0.6)
+		b.create_tween().tween_property(b, "modulate", Color.WHITE, 0.25)
 		return
 	root.snd.play("ok")
 	(r["act"] as Callable).call()
@@ -638,13 +664,17 @@ func _unhandled_input(e: InputEvent) -> void:
 	if screen == "tree" and tree_ui != null and tree_ui.key(k):
 		get_viewport().set_input_as_handled()
 		return
+	var in_grid := sel < card_n and cols > 1
 	if k == KEY_W or k == KEY_UP:
-		_select(sel - cols)
+		if in_grid:
+			_select(sel - cols if sel - cols >= 0 else sel)
+		else:
+			_select(sel - 1)
 	elif k == KEY_S or k == KEY_DOWN:
-		_select(sel + cols)
-	elif (k == KEY_A or k == KEY_LEFT) and cols > 1:
+		_select(mini(sel + cols, card_n) if in_grid else sel + 1)
+	elif (k == KEY_A or k == KEY_LEFT) and in_grid:
 		_select(sel - 1)
-	elif (k == KEY_D or k == KEY_RIGHT) and cols > 1:
+	elif (k == KEY_D or k == KEY_RIGHT) and in_grid:
 		_select(sel + 1)
 	elif k == KEY_ENTER or k == KEY_KP_ENTER or k == KEY_SPACE:
 		_activate()
@@ -659,8 +689,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	get_viewport().set_input_as_handled()
 
-
-## значение карточки: строка или Callable, который её возвращает
+## значение свойства: строка или Callable, который её возвращает
 func _sv(v) -> String:
 	return String(v.call()) if v is Callable else String(v)
 
@@ -698,11 +727,10 @@ func _morning() -> void:
 	var items: Array = []
 	if e.event_today != "" and not e.event_done:
 		var E: Dictionary = MLData.EVENTS[e.event_today]
-		lines.append("")
-		lines.append("СОБЫТИЕ: " + String(E["title"]) + " — " + String(E["text"]))
+		lines.append("Событие: " + String(E["title"]) + ".")
 		for c in (E["choices"] as Array).size():
 			var cc := c
-			items.append([String(E["choices"][c][0]), func():
+			items.append([String(E["choices"][c][0]).to_upper(), func():
 				var r := e.resolve_event(cc)
 				if r.has("fail"):
 					notify(String(r["fail"]), "bad")
@@ -712,12 +740,12 @@ func _morning() -> void:
 					if not cl.is_empty():
 						negotiate(int(cl[0]["id"]), func(): show_phase())
 						return
-				show_phase()])
+				show_phase(), Callable(), {"icon": "mail", "sub": String(E["text"]), "value": ""}])
 	else:
 		items.append(["НАЧАТЬ ДЕНЬ", func():
 			e.next_phase()
-			show_phase()])
-	items.append(["КАРТА ДОЛГОВ", func(): debt_flow()])
+			show_phase(), Callable(), {"icon": "sun", "sub": "три действия: подработки, займы, платежи, отдых", "value": "дальше", "col": MGUI.GOLD}])
+	items.append(["КАРТА ДОЛГОВ", func(): debt_flow(), Callable(), {"icon": "map", "sub": "платежи, продление, рефинансирование", "value": func(): return rub(e.total_debt()), "col": RED}])
 	open("УТРО · ДЕНЬ %d" % e.day, lines, items)
 
 func _evening() -> void:
@@ -730,136 +758,244 @@ func _evening() -> void:
 		if int(L.get("called", -1)) == e.day:
 			continue
 		var D: Dictionary = MLData.LENDERS[L["lender"]]
-		items.append(["☎ ОТВЕТИТЬ: %s (%s)" % [D["name"], rub(int(ceil(L["balance"])))], func():
+		items.append(["ОТВЕТИТЬ: %s" % D["short"], func():
 			L["called"] = e.day
-			negotiate(id, func(): show_phase())])
-		items.append(["✕ СБРОСИТЬ %s (+стресс)" % D["short"], func():
+			negotiate(id, func(): show_phase()), Callable(), {"icon": "call", "sub": "%s звонит по долгу. Переговоры: можно выбить отсрочку или скидку." % D["name"], "value": rub(int(ceil(L["balance"]))), "col": Color(0.55, 0.85, 1.0)}])
+		items.append(["СБРОСИТЬ: %s" % D["short"], func():
 			L["called"] = e.day
 			e.stress = clampi(e.stress + 8, 0, 100)
 			e.rep = clampi(e.rep - 2, 0, 100)
 			e.say("Сбросил звонок %s. Перезвонят." % D["short"], "bad")
-			show_phase()])
-	items.append(["КАРТА ДОЛГОВ — ПЛАТЕЖИ", func(): debt_flow()])
-	items.append(["СПАТЬ (ночь: проценты и штрафы) →", func():
+			show_phase(), Callable(), {"icon": "cross", "sub": "Не брать трубку: стресс растёт, репутация падает, перезвонят.", "value": "+8 стресса", "col": GREY}])
+	items.append(["КАРТА ДОЛГОВ", func(): debt_flow(), Callable(), {"icon": "map", "sub": "заплатить до ночи — меньше процентов и штрафов", "value": func(): return rub(e.total_debt()), "col": RED}])
+	items.append(["СПАТЬ", func():
 		e.next_phase()
-		show_phase()])
+		show_phase(), Callable(), {"icon": "moon", "sub": "ночью начислятся проценты и штрафы, придёт выручка бизнесов", "value": "ночь", "col": Color(0.85, 0.5, 0.9)}])
 	open("ВЕЧЕР · ДЕНЬ %d" % e.day, lines, items)
 	if not calls.is_empty():
 		root.react("call")
 
 # ---------------- карта долгов ----------------
-## Граф: займы — узлы по дням срока (слева направо) и конторам (сверху вниз), рефинансирование — стрелки
-## от закрытых к новому. Внизу — пачка денег: перетащи её на узел — откроется платёж. Справа — что будет.
+## Граф: займы — узлы по дням срока (слева направо) и конторам (сверху вниз), рефинансирование — линии
+## от закрытых к новому. Внизу — деньги: перетащи их на долг — откроется платёж. Справа — выбранный долг:
+## условия и действия с последствиями. Вёрстка — MGUI: шапка, карта + панель подробностей, строка клавиш.
+const FLOW_NODE := Vector2(150, 46)
+const FLOW_LEFT := 96.0          # место под названия контор
+const FLOW_TOP := 34.0
+const FLOW_BOTTOM := 66.0        # полоса с деньгами
+var flow_side: VBoxContainer
+
 func debt_flow() -> void:
 	screen = "flow"
 	close_panel()
 	panel = Control.new()
-	panel.size = STAGE
+	panel.size = Vector2(W, STAGE.y)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(panel)
-	var bg := ColorRect.new()
-	bg.color = Color(0.02, 0.02, 0.025, 0.93)
-	bg.position = Vector2(20, 150)
-	bg.size = Vector2(1140, 730)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(bg)
-	txt(panel, "КАРТА ДОЛГОВ ПАХАНА", 40, WHITE, Vector2(44, 156), serif)
-	txt(panel, "Тащи пачку денег на долг · клик — выбрать · 1 погасить · 2 минимум · 3 продлить · 4 объединить выбранные · Q самый дорогой · E самый срочный · Esc назад", 14, SILVER, Vector2(48, 206))
+	var pc := MGUI.panel(false, null, MGUI.S4)
+	pc.position = Vector2(16, 86)
+	pc.custom_minimum_size = Vector2(W - 32, STAGE.y - 86 - 16)
+	pc.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.add_child(pc)
+	var v := MGUI.vbox(MGUI.S3)
+	pc.add_child(v)
+	var top := MGUI.hbox(MGUI.S4)
+	v.add_child(top)
+	var tl := MGUI.vbox(MGUI.S1)
+	top.add_child(tl)
+	tl.add_child(MGUI.label("КАРТА ДОЛГОВ", "h1"))
+	tl.add_child(MGUI.label("Слева направо — дни до срока, сверху вниз — конторы. Перетащи деньги на долг, чтобы заплатить.", "small"))
+	top.add_child(MGUI.spacer())
+	top.add_child(make_toast_slot())
+	var back := MGUI.button("НАЗАД")
+	back.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	back.focus_mode = Control.FOCUS_NONE
+	back.pressed.connect(func(): show_phase())
+	top.add_child(back)
+	v.add_child(MGUI.hsep())
+	var mid := MGUI.hbox(MGUI.S4)
+	mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(mid)
 	flow_canvas = Control.new()
-	flow_canvas.position = Vector2(20, 230)
-	flow_canvas.size = Vector2(1140, 640)
+	flow_canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flow_canvas.custom_minimum_size = Vector2(0, 520)
+	flow_canvas.clip_contents = true
 	flow_canvas.mouse_filter = Control.MOUSE_FILTER_STOP
-	panel.add_child(flow_canvas)
+	mid.add_child(flow_canvas)
 	flow_canvas.draw.connect(_flow_draw)
 	flow_canvas.gui_input.connect(_flow_input)
-	var side := txt(panel, "", 16, WHITE, Vector2(1180, 560))
-	side.size = Vector2(400, 320)
-	side.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	side.name = "side"
-	if flow_focus < 0 and not econ().active().is_empty():
+	flow_canvas.resized.connect(flow_canvas.queue_redraw)
+	var det := MGUI.panel(false, MGUI.RED, MGUI.S4)
+	det.custom_minimum_size = Vector2(360, 0)
+	mid.add_child(det)
+	flow_side = MGUI.vbox(MGUI.S2)
+	det.add_child(flow_side)
+	v.add_child(MGUI.hsep())
+	v.add_child(MGUI.hints([["W/S", "долг"], ["Q", "самый дорогой"], ["E", "самый срочный"], ["A/D", "сумма"], ["Enter", "оплатить"], ["Shift+клик", "отметить"], ["Esc", "назад"]]))
+	if (flow_focus < 0 or econ().loan(flow_focus).is_empty() or econ().loan(flow_focus)["status"] == "closed") and not econ().active().is_empty():
 		flow_focus = int(econ().active()[0]["id"])
 	pay_amount = 0
 	_flow_side()
 
-func _node_pos(L: Dictionary) -> Vector2:
+## шаг сетки карты: по ширине — дни (9 столбцов), по высоте — конторы
+func _flow_step() -> Vector2:
+	var cs := flow_canvas.size if flow_canvas != null and is_instance_valid(flow_canvas) and flow_canvas.size.x > 200.0 else Vector2(1150, 600)
+	return Vector2((cs.x - FLOW_LEFT - FLOW_NODE.x - 6.0) / 8.0, (cs.y - FLOW_TOP - FLOW_BOTTOM) / float(maxi(1, MLData.LENDER_ORDER.size())))
+
+## где стоит узел долга (прямоугольник на карте); долги одной конторы с близкими сроками встают друг под другом
+func _node_rect(L: Dictionary) -> Rect2:
 	var e := econ()
+	var st := _flow_step()
 	var lane := MLData.LENDER_ORDER.find(String(L["lender"]))
-	var x := 120.0 + clampf(float(int(L["due"]) - e.day + 1), 0.0, 8.0) * 115.0
-	var same := e.loans.filter(func(o): return o["lender"] == L["lender"] and int(o["due"]) == int(L["due"]) and o["status"] != "closed")
-	return Vector2(x, 90.0 + lane * 125.0 + same.find(L) * 34.0)
+	var col := func(o: Dictionary) -> float: return clampf(float(int(o["due"]) - e.day + 1), 0.0, 8.0)
+	var mates: Array = e.loans.filter(func(o): return o["lender"] == L["lender"] and o["status"] != "closed")
+	mates.sort_custom(func(p, q): return int(p["due"]) < int(q["due"]) if int(p["due"]) != int(q["due"]) else int(p["id"]) < int(q["id"]))
+	var rows: Array = []                      # ряд → столбцы занятых узлов
+	var my_row := 0
+	for o in mates:
+		var cx: float = col.call(o) * st.x
+		var r := 0
+		while r < rows.size() and (rows[r] as Array).any(func(x): return absf(float(x) - cx) < FLOW_NODE.x + 6.0):
+			r += 1
+		if r == rows.size():
+			rows.append([])
+		(rows[r] as Array).append(cx)
+		if int(o["id"]) == int(L["id"]):
+			my_row = r
+			break
+	var sub := minf(FLOW_NODE.y + 6.0, (st.y - 10.0) / float(maxi(1, my_row + 1)))
+	return Rect2(Vector2(FLOW_LEFT + col.call(L) * st.x, FLOW_TOP + 10.0 + lane * st.y + my_row * sub), FLOW_NODE)
+
+func _node_pos(L: Dictionary) -> Vector2:
+	return _node_rect(L).get_center()
+
+func _money_rect() -> Rect2:
+	var cs := flow_canvas.size
+	return Rect2(Vector2(cs.x * 0.5 - 85.0, cs.y - 50.0), Vector2(170, 40))
 
 func _flow_draw() -> void:
 	var e := econ()
 	var c := flow_canvas
-	# дни
+	var st := _flow_step()
+	var f_caps := MGUI.font("caps")
+	var f_ui := MGUI.font("ui")
+	var f_num := MGUI.font("display")
+	var bottom := c.size.y - FLOW_BOTTOM
+	# дни: столбцы; «сегодня» подсвечен, «просрочено» — красным
 	for d in 9:
-		var x := 120.0 + d * 115.0
-		c.draw_line(Vector2(x, 30), Vector2(x, 560), Color(1, 1, 1, 0.06), 1.0)
+		var x := FLOW_LEFT + d * st.x
 		var day := e.day + d - 1
-		c.draw_string(font, Vector2(x - 26, 24), ("СЕГОДНЯ" if d == 1 else ("ПРОСРОЧ." if d == 0 else "ДЕНЬ %d" % day)), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, RED if d == 0 else (WHITE if day == MLData.DAYS else GREY))
+		if d == 1:
+			c.draw_rect(Rect2(x - 5, FLOW_TOP - 6, st.x, bottom - FLOW_TOP + 6), Color(1, 1, 1, 0.04))
+		elif d == 0:
+			c.draw_rect(Rect2(x - 5, FLOW_TOP - 6, st.x, bottom - FLOW_TOP + 6), Color(0.86, 0.09, 0.11, 0.07))
+		c.draw_line(Vector2(x - 5, FLOW_TOP - 6), Vector2(x - 5, bottom), Color(1, 1, 1, 0.07), 1.0)
+		var cap := "СЕГОДНЯ" if d == 1 else ("ПРОСРОЧЕНО" if d == 0 else "ДЕНЬ %d" % day)
+		c.draw_string(f_caps, Vector2(x, 16), cap, HORIZONTAL_ALIGNMENT_LEFT, -1, MGUI.MICRO, MGUI.RED if d == 0 else (MGUI.TEXT if d == 1 or day == MLData.DAYS else MGUI.TEXT_3))
 	for lane in MLData.LENDER_ORDER.size():
 		var D: Dictionary = MLData.LENDERS[MLData.LENDER_ORDER[lane]]
-		c.draw_string(font, Vector2(6, 96 + lane * 125), String(D["short"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, D["col"])
+		var y := FLOW_TOP + lane * st.y
+		c.draw_line(Vector2(0, y), Vector2(c.size.x, y), Color(1, 1, 1, 0.07), 1.0)
+		c.draw_string(f_caps, Vector2(0, y + 28), String(D["short"]), HORIZONTAL_ALIGNMENT_LEFT, FLOW_LEFT - 10.0, MGUI.MICRO, D["col"])
+	c.draw_line(Vector2(0, bottom), Vector2(c.size.x, bottom), Color(1, 1, 1, 0.07), 1.0)
 	# связи рефинансирования
 	for L in e.loans:
 		if L.has("from") and L["status"] != "closed":
 			for fid in L["from"]:
 				var F := e.loan(int(fid))
 				if not F.is_empty():
-					var a := _node_pos(F) if F["status"] != "closed" else Vector2(60, _node_pos(L).y)
-					c.draw_line(a, _node_pos(L), Color(1, 0.75, 0.3, 0.6), 3.0)
-	# узлы
+					var to := _node_rect(L)
+					var a := _node_rect(F).get_center() if F["status"] != "closed" else Vector2(FLOW_LEFT - 20.0, to.get_center().y)
+					c.draw_line(a, Vector2(to.position.x, to.get_center().y), Color(1, 0.75, 0.3, 0.55), 2.0, true)
+	# узлы: полоса цвета конторы слева, остаток, ставка и штраф; выбранный — светлая рамка, отмеченные — золотая
 	for L in e.active():
-		var p := _node_pos(L)
+		var r := _node_rect(L)
 		var D: Dictionary = MLData.LENDERS[L["lender"]]
-		var r := Rect2(p - Vector2(54, 16), Vector2(150, 50))
 		var focus: bool = int(L["id"]) == flow_focus
-		c.draw_rect(r, Color(0.08, 0.08, 0.09))
-		c.draw_rect(r, (RED if L["status"] == "overdue" else (D["col"] as Color)) if not focus else WHITE, false, 4.0 if focus else 2.0)
+		var over: bool = L["status"] == "overdue"
+		c.draw_rect(r, Color(0.2, 0.06, 0.07) if over else Color(0.1, 0.1, 0.115))
+		c.draw_rect(Rect2(r.position, Vector2(4, r.size.y)), MGUI.RED if over else (D["col"] as Color))
+		if focus:
+			c.draw_rect(r, MGUI.PAPER, false, 2.0)
 		if flow_sel.has(int(L["id"])):
-			c.draw_rect(r.grow(5), Color(1, 0.8, 0.3), false, 2.0)
-		c.draw_string(serif, p + Vector2(-46, 6), rub(int(ceil(L["balance"]))), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, WHITE)
-		c.draw_string(font, p + Vector2(-46, 26), "%.1f%%/д · штр %.0f%%" % [float(L["rate"]) * 100.0, float(L["fine"]) * 100.0], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, SILVER)
-	# пачка денег
-	var mp := drag_pos if drag_money else Vector2(560, 600)
-	c.draw_rect(Rect2(mp - Vector2(60, 22), Vector2(120, 44)), Color(0.25, 0.55, 0.3))
-	c.draw_string(serif, mp + Vector2(-52, 8), rub(e.money), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, WHITE)
+			c.draw_rect(r.grow(4), MGUI.GOLD, false, 2.0)
+		c.draw_string(f_num, r.position + Vector2(12, 20), rub(int(ceil(L["balance"]))), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 16.0, 17, MGUI.TEXT)
+		c.draw_string(f_ui, r.position + Vector2(12, 38), "%.1f %% · штраф %.0f %%" % [float(L["rate"]) * 100.0, float(L["fine"]) * 100.0], HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 16.0, MGUI.MICRO, MGUI.TEXT_2)
+	# деньги: пачка внизу по центру (или под курсором, пока тащат)
+	var mr := _money_rect()
+	c.draw_string(f_caps, Vector2(mr.position.x - 250.0, mr.position.y + 25.0), "ДЕНЬГИ — ПЕРЕТАЩИ НА ДОЛГ", HORIZONTAL_ALIGNMENT_RIGHT, 236.0, MGUI.MICRO, MGUI.TEXT_3)
+	if drag_money:
+		mr.position = drag_pos - mr.size * 0.5
+	c.draw_rect(mr, Color(0.13, 0.3, 0.17))
+	c.draw_rect(mr, MGUI.GOOD, false, 1.0)
+	c.draw_string(f_num, mr.position + Vector2(0, 26), rub(e.money), HORIZONTAL_ALIGNMENT_CENTER, mr.size.x, 17, MGUI.TEXT)
+
+## строка действия в панели подробностей: клавиша, что будет, причина (если нельзя)
+func _flow_act(key: String, text: String, why := "") -> void:
+	var h := MGUI.hbox(MGUI.S2)
+	flow_side.add_child(h)
+	var kc := MGUI.keycap(key)
+	kc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	h.add_child(kc)
+	var tv := MGUI.vbox(0)
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(tv)
+	tv.add_child(MGUI.label(MGUI.nb(text), "small", MGUI.TEXT if why == "" else MGUI.TEXT_3, 250.0))
+	if why != "":
+		tv.add_child(MGUI.label(MGUI.nb("нельзя: " + why), "micro", Color(1.0, 0.5, 0.45), 250.0))
 
 func _flow_side() -> void:
-	if panel == null or panel.get_node_or_null("side") == null:
+	if flow_side == null or not is_instance_valid(flow_side):
 		return
+	for ch in flow_side.get_children():
+		flow_side.remove_child(ch)
+		ch.queue_free()
 	var e := econ()
 	var L := e.loan(flow_focus)
-	var s := ""
+	var w := 360.0 - 2.0 * MGUI.S4 - 6.0
 	if L.is_empty() or L["status"] == "closed":
-		s = "Выбери долг на карте."
+		flow_side.add_child(MGUI.label("ДОЛГОВ НЕТ" if e.active().is_empty() else "ВЫБЕРИ ДОЛГ", "caps"))
+		flow_side.add_child(MGUI.label("Все займы закрыты." if e.active().is_empty() else "Клик по долгу на карте или клавиши W/S.", "small", null, w))
 	else:
 		var D: Dictionary = MLData.LENDERS[L["lender"]]
-		s = "%s\nостаток %s · срок день %d%s\nставка %.1f%% в день, штраф %.0f%% в день просрочки\n%s" % [D["name"], rub(int(ceil(L["balance"]))), int(L["due"]), " · ПРОСРОЧКА" if L["status"] == "overdue" else "",
-			float(L["rate"]) * 100.0, float(L["fine"]) * 100.0, ("мелкий шрифт: " + String(MLData.CLAUSES[L["clause"]][0])) if bool(L["known"]) and L["clause"] != "" else ""]
+		var over: bool = L["status"] == "overdue"
+		flow_side.add_child(MGUI.label("ПРОСРОЧЕН НА %d ДН." % int(L["overdue"]) if over else "ДОЛГ", "caps", MGUI.RED if over else (D["col"] as Color)))
+		flow_side.add_child(MGUI.label(String(D["name"]), "h2", null, w))
+		var sr := MGUI.hbox(MGUI.S5)
+		flow_side.add_child(sr)
+		sr.add_child(MGUI.stat("ОСТАТОК", rub(int(ceil(L["balance"]))), "num")["box"])
+		sr.add_child(MGUI.stat("СРОК", "день %d" % int(L["due"]), "num")["box"])
+		flow_side.add_child(MGUI.label(MGUI.nb("Ставка %.1f %% в день, штраф %.0f %% за день просрочки." % [float(L["rate"]) * 100.0, float(L["fine"]) * 100.0]), "small", null, w))
+		if bool(L["known"]) and L["clause"] != "":
+			flow_side.add_child(MGUI.label(MGUI.nb("Мелкий шрифт: " + String(MLData.CLAUSES[L["clause"]][0])), "small", MGUI.WARN, w))
+		flow_side.add_child(MGUI.hsep())
 		if pay_amount > 0:
 			var pv := e.preview("pay", {"id": flow_focus, "amount": pay_amount})
-			s += "\n\nПЛАТЁЖ %s (A/D −/+, Enter — оплатить):\n%s" % [rub(pay_amount), _pv(pv)]
+			flow_side.add_child(MGUI.label("ПЛАТЁЖ", "caps"))
+			flow_side.add_child(MGUI.label(rub(pay_amount), "num_l", MGUI.GOOD))
+			flow_side.add_child(MGUI.label(MGUI.nb(_pv(pv)), "small", null, w))
+			_flow_act("Enter", "Оплатить")
+			_flow_act("A/D", "Сумма: шаг 500 ₽")
 		else:
+			flow_side.add_child(MGUI.label("ДЕЙСТВИЯ", "caps"))
+			_flow_act("1", _pv(e.preview("pay", {"id": flow_focus, "amount": int(ceil(L["balance"]))})), "" if e.money > 0 else "нет денег")
 			for kind in ["min", "extend"]:
 				var pv2 := e.preview(kind, {"id": flow_focus})
-				s += "\n\n[%s] %s%s" % ["2" if kind == "min" else "3", _pv(pv2), ("" if bool(pv2["ok"]) else " — нельзя: " + String(pv2["why"]))]
-			var cw := e.can_call(flow_focus)
-			s += "
-
-[5] Позвонить в контору и договориться (1 действие)%s" % ("" if cw == "" else " — " + cw)
+				_flow_act("2" if kind == "min" else "3", _pv(pv2), "" if bool(pv2["ok"]) else String(pv2["why"]))
+			_flow_act("5", "Позвонить в контору и договориться (1 действие)", e.can_call(flow_focus))
 		if flow_sel.size() >= 1:
 			var best := _best_refi()
 			if best != "":
-				s += "\n\n[4] %s" % _pv(e.preview("refinance", {"ids": flow_sel, "lender": best}))
-	(panel.get_node("side") as Label).text = s
+				_flow_act("4", _pv(e.preview("refinance", {"ids": flow_sel, "lender": best})))
+			else:
+				_flow_act("4", "Объединить отмеченные (%d)" % flow_sel.size(), String(e.refinance_info(flow_sel, "cash")["why"]))
 	if flow_canvas != null:
 		flow_canvas.queue_redraw()
 	refresh()
 
 func _pv(pv: Dictionary) -> String:
 	var ap := "≈" if pv.get("approx", false) else ""
-	return " ".join(pv["lines"]) + " → деньги %s%s, долг %s%s" % [ap, rub(int(pv["money"])), ap, rub(int(pv["debt"]))]
+	return " ".join(pv["lines"]) + " Итог: деньги %s%s, долг %s%s." % [ap, rub(int(pv["money"])), ap, rub(int(pv["debt"]))]
 
 func _best_refi() -> String:
 	var e := econ()
@@ -872,12 +1008,12 @@ func _flow_input(ev: InputEvent) -> void:
 	var e := econ()
 	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT:
 		if ev.pressed:
-			if Rect2(Vector2(500, 578), Vector2(120, 44)).has_point(ev.position) and e.money > 0:
+			if _money_rect().has_point(ev.position) and e.money > 0:
 				drag_money = true
 				drag_pos = ev.position
 				return
 			for L in e.active():
-				if Rect2(_node_pos(L) - Vector2(54, 16), Vector2(150, 50)).has_point(ev.position):
+				if _node_rect(L).has_point(ev.position):
 					flow_focus = int(L["id"])
 					if Input.is_key_pressed(KEY_SHIFT) or flow_sel.has(flow_focus):
 						if flow_sel.has(flow_focus):
@@ -890,7 +1026,7 @@ func _flow_input(ev: InputEvent) -> void:
 		elif drag_money:
 			drag_money = false
 			for L in e.active():
-				if Rect2(_node_pos(L) - Vector2(54, 16), Vector2(150, 50)).has_point(ev.position):
+				if _node_rect(L).has_point(ev.position):
 					flow_focus = int(L["id"])
 					pay_amount = mini(e.money, int(ceil(L["balance"])))
 			_flow_side()
@@ -983,23 +1119,23 @@ func _day() -> void:
 	var C: MLCareer = e.career
 	var no_act := func(): return "действий нет" if e.actions <= 0 else ""
 	var items: Array = []
-	items.append([func(): return "ПОДРАБОТКИ", func(): jobs(), Callable(), {"icon": "🧹", "thumb": "job_podezd", "sub": "уборка, ремонт, доставка, звук, хлам — настоящие мини-игры", "value": func(): return "%d действ." % e.actions, "tag": "1 действие", "col": Color(0.95, 0.75, 0.25)}])
-	items.append(["ЗАЙМЫ И ДОГОВОРЫ", func(): offers(), Callable(), {"icon": "📄", "thumb": "up_scanner", "sub": "кто сегодня даёт и на каких условиях", "value": func(): return "%d предл." % e.offers.size(), "col": Color(0.55, 0.85, 1.0)}])
-	items.append(["КАРТА ДОЛГОВ", func(): debt_flow(), Callable(), {"icon": "🗺", "thumb": "up_calc", "sub": "платежи, продление, рефинансирование — с последствиями", "value": func(): return rub(e.total_debt()), "col": RED}])
+	items.append([func(): return "ПОДРАБОТКИ", func(): jobs(), Callable(), {"icon": "broom", "thumb": "job_podezd", "sub": "уборка, ремонт, доставка, звук, хлам — настоящие мини-игры", "value": func(): return "%d действ." % e.actions, "tag": "1 действие", "col": Color(0.95, 0.75, 0.25)}])
+	items.append(["ЗАЙМЫ И ДОГОВОРЫ", func(): offers(), Callable(), {"icon": "doc", "thumb": "up_scanner", "sub": "кто сегодня даёт и на каких условиях", "value": func(): return "%d предл." % e.offers.size(), "col": Color(0.55, 0.85, 1.0)}])
+	items.append(["КАРТА ДОЛГОВ", func(): debt_flow(), Callable(), {"icon": "map", "thumb": "up_calc", "sub": "платежи, продление, рефинансирование — с последствиями", "value": func(): return rub(e.total_debt()), "col": RED}])
 	items.append(["ОТДОХНУТЬ", func():
 		e.rest()
-		root.rest_anim(), no_act, {"icon": "🛋", "sub": "Пахан откидывается в кресле, слушает iPod", "value": "−25 стресса", "tag": "1 действие", "col": Color(0.6, 0.8, 1.0)}])
-	items.append([func(): return "ВЕЩИ (%d)" % e.inventory.size(), func(): items_screen(), Callable(), {"icon": "🎒", "thumb": "junk_0", "sub": "что оставил из хлама: продать, отдать Гене, держать", "value": func(): return "%d шт." % e.inventory.size(), "col": Color(0.8, 0.7, 0.5)}])
-	items.append(["МАГАЗИН", func(): shop(), Callable(), {"icon": "🛒", "thumb": "up_phone", "sub": "вещи, которые меняют правила недели", "value": func(): return "%d / %d" % [e.upgrades.size(), MLData.UPGRADES.size()], "col": Color(0.4, 0.9, 0.45)}])
+		root.rest_anim(), no_act, {"icon": "sofa", "sub": "Пахан откидывается в кресле, слушает iPod", "value": "−25 стресса", "tag": "1 действие", "col": Color(0.6, 0.8, 1.0)}])
+	items.append([func(): return "ВЕЩИ (%d)" % e.inventory.size(), func(): items_screen(), Callable(), {"icon": "bag", "thumb": "junk_0", "sub": "что оставил из хлама: продать, отдать Гене, держать", "value": func(): return "%d шт." % e.inventory.size(), "col": Color(0.8, 0.7, 0.5)}])
+	items.append(["МАГАЗИН", func(): shop(), Callable(), {"icon": "cart", "thumb": "up_phone", "sub": "вещи, которые меняют правила недели", "value": func(): return "%d / %d" % [e.upgrades.size(), MLData.UPGRADES.size()], "col": Color(0.4, 0.9, 0.45)}])
 	if C != null:
-		items.append(["РАЗВИТИЕ ПАХАНА", func(): dev_tree(), Callable(), {"icon": "★", "sub": "пять веток навыков, синергии, ЛЕГЕНДА РАЙОНА", "value": func(): return "%d очк." % int(C.d["points"]), "tag": "[T]", "col": Color(1.0, 0.8, 0.3)}])
-		items.append(["БИЗНЕС", func(): biz_screen(), Callable(), {"icon": "🏪", "thumb": "biz_workshop", "sub": "мастерская, уборка, доставка, студия, склад: доход каждый вечер", "value": func(): return "%d из 5" % C.biz_count(), "col": Color(0.5, 1.0, 0.6)}])
+		items.append(["РАЗВИТИЕ ПАХАНА", func(): dev_tree(), Callable(), {"icon": "star", "sub": "пять веток навыков, синергии, ЛЕГЕНДА РАЙОНА", "value": func(): return "%d очк." % int(C.d["points"]), "tag": "[T]", "col": Color(1.0, 0.8, 0.3)}])
+		items.append(["БИЗНЕС", func(): biz_screen(), Callable(), {"icon": "shop", "thumb": "biz_workshop", "sub": "мастерская, уборка, доставка, студия, склад: доход каждый вечер", "value": func(): return "%d из 5" % C.biz_count(), "col": Color(0.5, 1.0, 0.6)}])
 	if e.can_finish():
-		items.append(["ВСЁ ВЫПЛАЧЕНО — ЗАКОНЧИТЬ НЕДЕЛЮ", func(): e.finish(), Callable(), {"icon": "🏁", "sub": "долгов нет — можно закрыть неделю раньше", "value": "", "col": GREEN}])
-	items.append(["ВЕЧЕР →", func():
+		items.append(["ВСЁ ВЫПЛАЧЕНО — ЗАКОНЧИТЬ НЕДЕЛЮ", func(): e.finish(), Callable(), {"icon": "check", "sub": "долгов нет — можно закрыть неделю раньше", "value": "", "col": GREEN}])
+	items.append(["ВЕЧЕР", func():
 		e.next_phase()
-		show_phase(), Callable(), {"icon": "🌆", "sub": "звонки тех, у кого срок, выручка бизнесов", "value": "дальше", "tag": "фаза дня", "col": Color(0.85, 0.5, 0.9)}])
-	open("ДЕНЬ %d" % e.day, ["Каждая подработка, отдых или договор — одно действие. Осталось: %d." % e.actions], items, 1100.0)
+		show_phase(), Callable(), {"icon": "moon", "sub": "звонки тех, у кого срок, выручка бизнесов", "value": "дальше", "tag": "фаза дня", "col": Color(0.85, 0.5, 0.9)}])
+	open("ДЕНЬ %d" % e.day, [], items)
 
 ## РАЗВИТИЕ ПАХАНА — дерево навыков (ml_tree_ui.gd)
 var tree_ui: MLTreeUI
@@ -1009,7 +1145,7 @@ func dev_tree() -> void:
 	screen = "tree"
 	close_panel()
 	panel = Control.new()
-	panel.size = STAGE
+	panel.size = Vector2(W, STAGE.y)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(panel)
 	tree_ui = MLTreeUI.new()
@@ -1040,7 +1176,7 @@ func biz_screen() -> void:
 				e.xp(40)
 				root.biz_visuals()
 				e.changed.emit()
-			biz_screen(), func(): return C.biz_why(b, e.money), {"icon": String(B["icon"]), "thumb": "biz_" + b,
+			biz_screen(), func(): return C.biz_why(b, e.money), {"icon": {"workshop": "wrench", "cleaning": "broom", "delivery": "box", "studio": "sliders", "warehouse": "crate"}.get(b, "shop"), "thumb": "biz_" + b,
 			"sub": ("за день %+d ₽ · сотрудники %d/%d · исправность %d%%" % [int(r["net"]), int(C.biz(b).get("staff", 0)), C.biz_slots(b), int(float(C.biz(b).get("cond", 1.0)) * 100.0)]) if lv > 0 else "доход по вечерам: от %d ₽ в день" % int(B["inc"][0]),
 			"value": rub(cost) if cost > 0 else "МАКС.", "tag": "купить" if lv == 0 else ("уровень ↑" if cost > 0 else ""), "col": Color(0.5, 1.0, 0.6)}])
 		if lv > 0:
@@ -1052,7 +1188,7 @@ func biz_screen() -> void:
 					e.xp(15)
 					root.biz_visuals()
 					e.changed.emit()
-				biz_screen(), func(): return C.hire_why(b, e.money), {"icon": "👷", "sub": "+%d %% выручки у первого, дальше меньше · %d ₽ в день" % [int(float(B["k"]) * 100.0), int(B["wage"])], "value": rub(int(B["hire"])), "tag": "найм", "col": Color(0.55, 0.85, 1.0)}])
+				biz_screen(), func(): return C.hire_why(b, e.money), {"icon": "worker", "sub": "+%d %% выручки у первого, дальше меньше · %d ₽ в день" % [int(float(B["k"]) * 100.0), int(B["wage"])], "value": rub(int(B["hire"])), "tag": "найм", "col": Color(0.55, 0.85, 1.0)}])
 			if float(C.biz(b).get("cond", 1.0)) < 0.99 and C.v("auto:service") <= 0.0:
 				items.append(["ОБСЛУЖИТЬ — %s" % B["name"], func():
 					var sc := C.service_cost(b)
@@ -1060,7 +1196,7 @@ func biz_screen() -> void:
 						e.money -= C.service(b)
 						e.say("%s: оборудование в порядке" % B["name"], "info")
 						e.changed.emit()
-					biz_screen(), func(): return "" if e.money >= C.service_cost(b) else "не хватает денег", {"icon": "🛠", "sub": "износ режет выручку; автоматика в ветке МАСТЕР убирает его", "value": rub(C.service_cost(b)), "tag": "ремонт", "col": Color(1.0, 0.7, 0.25)}])
+					biz_screen(), func(): return "" if e.money >= C.service_cost(b) else "не хватает денег", {"icon": "tool", "sub": "износ режет выручку; автоматика в ветке МАСТЕР убирает его", "value": rub(C.service_cost(b)), "tag": "ремонт", "col": Color(1.0, 0.7, 0.25)}])
 	items.append(["НАЗАД", func(): show_phase()])
 	var lines: Array = ["Выручка приходит каждую ночь: доход × сотрудники × исправность, минус зарплаты и расходы. Сейчас за день: %+d ₽." % day_net]
 	var syn: Array = MLTree.SYNERGIES.filter(func(s): return C.synergy_on(s)).map(func(s): return String(s["name"]))
@@ -1070,7 +1206,7 @@ func biz_screen() -> void:
 	if hist.size() >= 2:
 		var last: Array = hist.slice(-7)
 		lines.append("Последние дни (выручка − расходы): " + " · ".join(last.map(func(h): return "%+d" % (int(h[1]) - int(h[2])))))
-	open("БИЗНЕС", lines, items, 1100.0)
+	open("БИЗНЕС", lines, items, 0.0, "cards")
 
 ## ЛЕГЕНДА РАЙОНА: экран престижа — что потеряется, что останется, сколько АВТОРИТЕТА; постоянные бонусы
 func legend_screen() -> void:
@@ -1093,24 +1229,24 @@ func legend_screen() -> void:
 			if C.legend_buy(lid):
 				e.say("ЛЕГЕНДА: %s" % L["name"], "level")
 				e.changed.emit()
-			legend_screen(), func(): return C.legend_why(lid), {"icon": "👑", "sub": String(L["desc"]), "value": "%d АВТ." % int(L["cost"]), "col": Color(1.0, 0.7, 0.2)}])
+			legend_screen(), func(): return C.legend_why(lid), {"icon": "crown", "sub": String(L["desc"]), "value": "%d АВТ." % int(L["cost"]), "col": Color(1.0, 0.7, 0.2)}])
 	if C.prestige_ready():
 		items.append(["СТАТЬ ЛЕГЕНДОЙ РАЙОНА", func():
-			_confirm_prestige(), Callable(), {"icon": "🔥", "sub": "новый цикл: всё заново, но с АВТОРИТЕТОМ", "value": "+%d" % int(pv["gain"]), "tag": "престиж", "col": RED}])
+			_confirm_prestige(), Callable(), {"icon": "bolt", "sub": "новый цикл: всё заново, но с АВТОРИТЕТОМ", "value": "+%d" % int(pv["gain"]), "tag": "престиж", "col": RED}])
 	items.append(["НАЗАД", func(): dev_tree()])
-	open("ЛЕГЕНДА РАЙОНА", lines, items, 1100.0)
+	open("ЛЕГЕНДА РАЙОНА", lines, items)
 
 func _confirm_prestige() -> void:
 	var e := econ()
-	open("ТОЧНО?", ["Навыки, бизнесы, сотрудники, копилка и текущая неделя обнулятся. Останутся АВТОРИТЕТ, бонусы ЛЕГЕНДЫ и концовки."], [
-		["ДА — НОВЫЙ ЦИКЛ", func():
+	open("НАЧАТЬ НОВЫЙ ЦИКЛ?", ["Навыки, бизнесы, сотрудники, копилка и текущая неделя обнулятся. Останутся АВТОРИТЕТ, бонусы ЛЕГЕНДЫ и концовки."], [
+		["НЕТ, ВЕРНУТЬСЯ", func(): legend_screen(), Callable(), {"icon": "back", "sub": "ничего не изменится", "value": ""}],
+		["ДА, НОВЫЙ ЦИКЛ", func():
 			var g: int = e.career.prestige()
 			e.new_game(int(Time.get_ticks_usec() % 2147483647))
 			e.say("ЛЕГЕНДА РАЙОНА: +%d АВТОРИТЕТА. Новый цикл." % g, "milestone")
 			root.biz_visuals()
 			root.save()
-			show_phase()],
-		["НЕТ", func(): legend_screen()]])
+			show_phase(), Callable(), {"icon": "crown", "sub": "навыки, бизнесы и копилка обнулятся — это нельзя отменить", "value": "", "col": RED}]])
 
 # ---------------- займы ----------------
 func offers() -> void:
@@ -1126,19 +1262,19 @@ func offers() -> void:
 		items.append(["%s %s" % [D["short"], rub(int(O["amount"]))], func():
 			e.take(id)
 			root.snd.play("loan")
-			offers(), func(): return "действий нет" if e.actions <= 0 else "", {"icon": "🏦", "sub": "%.1f%% в день · %d дн. · %s\n%s" % [float(O["rate"]) * 100.0, int(O["term"]), clause, String(pv["lines"][0])], "value": rub(int(O["amount"])), "tag": D["name"], "col": D["col"]}])
+			offers(), func(): return "действий нет" if e.actions <= 0 else "", {"icon": "coin", "sub": "%.1f%% в день · %d дн. · %s\n%s" % [float(O["rate"]) * 100.0, int(O["term"]), clause, String(pv["lines"][0])], "value": rub(int(O["amount"])), "tag": D["name"], "col": D["col"]}])
 		if not bool(O["known"]):
 			items.append(["ИЗУЧИТЬ ДОГОВОР %s" % D["short"], func():
 				e.study(id)
-				offers(), func(): return "действий нет" if e.actions <= 0 else "", {"icon": "🔍", "sub": "прочитать мелкий шрифт", "value": "1 действие", "col": D["col"]}])
+				offers(), func(): return "действий нет" if e.actions <= 0 else "", {"icon": "search", "sub": "прочитать мелкий шрифт", "value": "1 действие", "col": D["col"]}])
 			items.append(["ПОЗВОНИТЬ ОПЕРАТОРУ %s" % D["short"], func():
 				e.call_operator(id)
-				offers(), Callable(), {"icon": "☎", "sub": "оператор скажет, но нервы потратишь", "value": "+6 стресса", "col": D["col"]}])
+				offers(), Callable(), {"icon": "call", "sub": "оператор скажет, но нервы потратишь", "value": "+6 стресса", "col": D["col"]}])
 	if e.offers.is_empty():
 		lines.append("Сегодня никто не даёт — репутация или день не тот.")
-	items.append(["КАРТА ДОЛГОВ: РЕФИНАНСИРОВАТЬ", func(): debt_flow(), Callable(), {"icon": "🗺", "sub": "объединить займы в один", "value": "", "col": RED}])
-	items.append(["НАЗАД", func(): show_phase(), Callable(), {"icon": "←", "sub": "", "value": "", "col": GREY}])
-	open("ЗАЙМЫ", lines, items, 1100.0)
+	items.append(["КАРТА ДОЛГОВ: РЕФИНАНСИРОВАТЬ", func(): debt_flow(), Callable(), {"icon": "map", "sub": "объединить займы в один", "value": "", "col": RED}])
+	items.append(["НАЗАД", func(): show_phase(), Callable(), {"icon": "back", "sub": "", "value": "", "col": GREY}])
+	open("ЗАЙМЫ", lines, items)
 
 # ---------------- подработки ----------------
 func jobs() -> void:
@@ -1146,7 +1282,7 @@ func jobs() -> void:
 	var e := econ()
 	var C: MLCareer = e.career
 	var items: Array = []
-	var icons := {"podezd": "🧹", "repair": "🔧", "deliv": "📦", "sound": "🎛", "junk": "🗃"}
+	var icons := {"podezd": "broom", "repair": "wrench", "deliv": "box", "sound": "sliders", "junk": "crate"}
 	for jid in MLData.JOB_ORDER:
 		var J: Dictionary = MLData.JOBS[jid]
 		var j := String(jid)
@@ -1159,8 +1295,8 @@ func jobs() -> void:
 			if not e.job_open(j):
 				return "закрыто" + (" (репутация %d или контакты)" % int(J["rep"]) if j == "sound" else " (пылесос сломан)")
 			return "", {"icon": icons.get(j, "•"), "thumb": "job_" + j, "sub": "%s\nуровень заказа %d · стресс +%d" % [J["desc"], tier, int(J["stress"])], "value": pay_s, "tag": "1 действие", "col": Color(0.95, 0.75, 0.25)}])
-	items.append(["НАЗАД", func(): show_phase(), Callable(), {"icon": "←", "sub": "", "value": "", "col": GREY}])
-	open("ПОДРАБОТКИ", ["Каждая — своя 3D-игра. Чем лучше сделал, тем больше заплатят; стресс мешает; навыки открывают сложные заказы."], items, 1100.0)
+	items.append(["НАЗАД", func(): show_phase(), Callable(), {"icon": "back", "sub": "", "value": "", "col": GREY}])
+	open("ПОДРАБОТКИ", ["Чем лучше сделал — тем больше заплатят. Стресс мешает."], items, 0.0, "cards")
 
 ## уровень заказа подработки 1..5: растёт с навыками и снаряжением этой работы (сложнее, но дороже)
 func job_tier(jid: String) -> int:
@@ -1227,14 +1363,14 @@ func items_screen() -> void:
 		items.append([String(it[0]), func():
 			e.sell_item(kk)
 			root.snd.play("coins")
-			items_screen(), Callable(), {"icon": "🏷", "thumb": "junk_%d" % idx, "sub": "%s\nразобрать: %s · Гене: %s" % [it[1], rub(int(it[4])), rub(int(it[3])) if int(it[3]) > 0 else "не возьмёт"], "value": "продать " + rub(int(it[2])), "tag": "вещь", "col": Color(0.8, 0.7, 0.5)}])
+			items_screen(), Callable(), {"icon": "coin", "thumb": "junk_%d" % idx, "sub": "%s. Разобрать: %s · Гене: %s." % [it[1], rub(int(it[4])), rub(int(it[3])) if int(it[3]) > 0 else "не возьмёт"], "value": "продать " + rub(int(it[2])), "tag": "вещь", "col": Color(0.8, 0.7, 0.5)}])
 		if not reshim.is_empty() and int(it[3]) > 0:
 			var rid := int(reshim[0]["id"])
 			items.append(["ОТДАТЬ ГЕНЕ: %s" % it[0], func():
 				e.barter(kk, rid)
-				items_screen(), Callable(), {"icon": "🤝", "thumb": "junk_%d" % idx, "sub": "«Решим вопрос» спишет часть долга", "value": "−" + rub(int(it[3])), "tag": "бартер", "col": Color(0.7, 1.0, 0.55)}])
-	items.append(["НАЗАД", func(): show_phase(), Callable(), {"icon": "←", "sub": "", "value": "", "col": GREY}])
-	open("ВЕЩИ", ["Оставленное из хлама. Продать, отдать «Решим вопрос» в счёт долга (Гена берёт не всё) или держать до лучшей цены."] if not e.inventory.is_empty() else ["Пусто. Вещи появляются, если в разборе хлама выбрать «ОСТАВИТЬ»."], items, 1100.0)
+				items_screen(), Callable(), {"icon": "box", "thumb": "junk_%d" % idx, "sub": "«Решим вопрос» спишет часть долга", "value": "−" + rub(int(it[3])), "tag": "бартер", "col": Color(0.7, 1.0, 0.55)}])
+	items.append(["НАЗАД", func(): show_phase(), Callable(), {"icon": "back", "sub": "", "value": "", "col": GREY}])
+	open("ВЕЩИ", ["Оставленное из хлама. Продать, отдать «Решим вопрос» в счёт долга (Гена берёт не всё) или держать до лучшей цены."] if not e.inventory.is_empty() else ["Пусто. Вещи появляются, если в разборе хлама выбрать «ОСТАВИТЬ»."], items, 0.0, "grid")
 
 func shop() -> void:
 	screen = "shop"
@@ -1247,18 +1383,18 @@ func shop() -> void:
 			if e.buy(u):
 				root.snd.play("buy")
 				root.desk_item(u)
-			shop(), func(): return "" if not e.upgrades.has(u) and e.money >= int(U["cost"]) else ("куплено" if e.upgrades.has(u) else "не хватает денег"), {"icon": "🛒", "thumb": "up_" + u, "sub": String(U["desc"]), "value": "КУПЛЕНО" if e.upgrades.has(u) else rub(int(U["cost"])), "tag": "на неделю", "col": Color(0.4, 0.9, 0.45)}])
-	items.append(["НАЗАД", func(): show_phase(), Callable(), {"icon": "←", "sub": "", "value": "", "col": GREY}])
-	open("МАГАЗИН", ["Покупки меняют, как играть: мелкий шрифт, точные цифры, лишнее действие, новые ответы в переговорах. Действуют до конца недели."], items, 1100.0)
+			shop(), func(): return "" if not e.upgrades.has(u) and e.money >= int(U["cost"]) else ("куплено" if e.upgrades.has(u) else "не хватает денег"), {"icon": "cart", "thumb": "up_" + u, "sub": String(U["desc"]), "value": "КУПЛЕНО" if e.upgrades.has(u) else rub(int(U["cost"])), "tag": "на неделю", "col": Color(0.4, 0.9, 0.45)}])
+	items.append(["НАЗАД", func(): show_phase(), Callable(), {"icon": "back", "sub": "", "value": "", "col": GREY}])
+	open("МАГАЗИН", ["Покупки действуют до конца недели."], items, 0.0, "cards")
 
 # ---------------- пауза и концовка ----------------
 func pause_menu() -> void:
 	open("ПАУЗА", ["Игра сохраняется сама после каждой фазы."], [
-		["ПРОДОЛЖИТЬ", func(): show_phase()],
-		["ЗАНОВО (новая неделя)", func():
+		["ПРОДОЛЖИТЬ", func(): show_phase(), Callable(), {"icon": "check", "sub": "вернуться к делам", "value": ""}],
+		["НАЧАТЬ ЗАНОВО", func():
 			econ().new_game(int(Time.get_ticks_usec() % 2147483647))
-			show_phase()],
-		["В МЕНЮ РЕЖИМОВ", func(): root.quit_to_menu()]])
+			show_phase(), Callable(), {"icon": "sun", "sub": "новая неделя с новыми долгами; развитие Пахана остаётся", "value": "", "col": MGUI.WARN}],
+		["В МЕНЮ РЕЖИМОВ", func(): root.quit_to_menu(), Callable(), {"icon": "back", "sub": "выйти из «Микрозаймов»; прогресс сохранён", "value": "", "col": GREY}]])
 	screen = "pause"
 
 func ending() -> void:
@@ -1266,7 +1402,7 @@ func ending() -> void:
 	var e := econ()
 	var E: Array = MLData.ENDINGS.get(e.ending, MLData.ENDINGS["pit"])
 	MLSave.record_ending(e)
-	var lines: Array = [String(E[1]), "", "День %d · деньги %s · долг %s" % [e.day, rub(e.money), rub(e.total_debt())],
+	var lines: Array = [String(E[1]), "День %d · деньги %s · долг %s" % [e.day, rub(e.money), rub(e.total_debt())],
 		"Займов взято: %d · закрыто: %d (переговорами: %d) · подработок: %d" % [int(e.stats["taken"]), int(e.stats["closed"]), int(e.stats["talk_closed"]), int(e.stats["jobs"])],
 		"Переплачено процентами %s, штрафами и комиссиями %s" % [rub(int(e.stats["interest"])), rub(int(e.stats["fines"]))]]
 	var all: Dictionary = MLSave.load_all().get("endings", {})
@@ -1274,10 +1410,10 @@ func ending() -> void:
 	if e.career != null and e.career.prestige_ready():
 		lines.append("Открыта ЛЕГЕНДА РАЙОНА — можно начать новый цикл с АВТОРИТЕТОМ.")
 	open(String(E[0]), lines, [
-		["ЛЕГЕНДА РАЙОНА", func(): legend_screen(), func(): return "" if e.career != null and e.career.prestige_ready() else "уровень %d или %s за цикл" % [MLTree.LEGEND_LEVEL, rub(MLTree.LEGEND_EARN)]],
 		["ЕЩЁ НЕДЕЛЯ", func():
 			e.new_game(int(Time.get_ticks_usec() % 2147483647))
 			intro()
-			show_phase()],
-		["В МЕНЮ РЕЖИМОВ", func(): root.quit_to_menu()]], 1000.0)
+			show_phase(), Callable(), {"icon": "sun", "sub": "новые долги, прежние навыки и бизнесы", "value": "дальше", "col": MGUI.GOLD}],
+		["ЛЕГЕНДА РАЙОНА", func(): legend_screen(), func(): return "" if e.career != null and e.career.prestige_ready() else "с %d уровня" % MLTree.LEGEND_LEVEL, {"icon": "crown", "sub": "новый цикл с АВТОРИТЕТОМ: открывается с %d уровня или после %s за цикл" % [MLTree.LEGEND_LEVEL, rub(MLTree.LEGEND_EARN)], "value": "", "col": MGUI.GOLD}],
+		["В МЕНЮ РЕЖИМОВ", func(): root.quit_to_menu(), Callable(), {"icon": "back", "sub": "", "value": "", "col": GREY}]], 1000.0)
 	root.react("money" if e.ending != "pit" else "bad")

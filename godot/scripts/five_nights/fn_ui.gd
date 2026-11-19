@@ -1,7 +1,11 @@
 ## Интерфейс ночи «5 НОЧЕЙ С ПАХАНОМ» — минимальный, чтобы не ломать атмосферу: время и ночь, энергия с расходом
-## и прогнозом, планшет камер (картинка, подпись, метка времени, карта), субтитры звонка и реплик, ложные тревоги
-## MOD, экран 6 AM, экран гибели, «последний шанс» с генератором, пауза. Поверх всего — экранный шейдер в духе
-## GOD OF GRIMERKA: монохром с сохранённым красным, полутон в тенях, зерно, виньетка (сила — настройка).
+## и прогнозом, планшет камер, субтитры звонка и реплик, ложные тревоги MOD, экран 6 AM, экран гибели,
+## «последний шанс» с генератором, пауза. Под интерфейсом — экранный шейдер в духе GOD OF GRIMERKA: монохром
+## с сохранённым красным, полутон в тенях, зерно, виньетка (сила — настройка).
+## Вёрстка — на дизайн-системе MGUI (mg_ui.gd), характер — старый охранный пульт: моноширинный текст, Russo One
+## только в часах и коротких заголовках. В будке на экране — часы (справа сверху), энергия (слева снизу) и на
+## первой ночи — плашки клавиш (справа снизу). На планшете картинка камеры крупная и чистая: название камеры и
+## метка времени — над ней, карта камер, состояние (пинг, приманка), клавиши и энергия — в боковой панели справа.
 class_name FNUI
 extends CanvasLayer
 
@@ -43,21 +47,26 @@ void fragment() {
 
 var root                            # FiveNightsRoot
 var big: Font
-var mono: SystemFont
+var mono: Font
 var post: ColorRect
 var post_mat: ShaderMaterial
 var hud: Control
 var time_l: Label
 var night_l: Label
+var clock_box: VBoxContainer
+var power_box: VBoxContainer
 var power_l: Label
 var usage_bars: Array = []
+var usage_row: HBoxContainer
 var eta_l: Label
 var alarm_l: Label
 var alarm_t := 0.0
 var msg_l: Label
 var msg_t := 0.0
+var sub_box: PanelContainer
 var sub_l: Label
-var hint_l: Label
+var sub_skip: Control
+var hint_box: VBoxContainer
 var tablet: Control
 var tablet_k := 0.0
 var feed: TextureRect
@@ -65,26 +74,37 @@ var cam_l: Label
 var stamp_l: Label
 var rec_dot: ColorRect
 var jam_l: Label
+var jam_sub: Label
 var ping_l: Label
+var lure_l: Label                  # приманка: подсказка в боковой панели планшета
+var side: PanelContainer            # боковая панель планшета: карта, состояние, клавиши, энергия
+var map_box: Control
+var tab_power: Label
+var tab_eta: Label
 var map_btns := {}                  # id → Button
 var cam9_btn: Button
 var card: Control                   # заставка ночи / 6 AM / гибель
-var dark_box: Control
-var dark_bar: ColorRect
+var dark_box: PanelContainer
+var dark_bar: Dictionary
 var pause_box: Control
+var pause_first: Button
 var t := 0.0
 var fx_k := 1.0
 var hurt := 0.0
-var card_gen := 0
+var card_gen := 0                   # поколение карточки: отложенные вызовы старой карточки не рисуют поверх новой
 var inv_t := 0.0
-var neg := false                     # цветокор «негатив» целиком (скример Пахана)                    # поколение карточки: отложенные вызовы старой карточки не рисуют поверх новой
+var neg := false                    # цветокор «негатив» целиком (скример Пахана)
+
+const SIDE_W := 268.0
+const EDGE := 24.0
+const MAP_SIZE := Vector2(236, 176)
+const CAM_BTN := Vector2(40, 24)
 
 func setup(r) -> void:
 	root = r
 	layer = 5
-	big = load("res://assets/fonts/RussoOne-Regular.ttf")
-	mono = SystemFont.new()
-	mono.font_names = PackedStringArray(["Consolas", "Lucida Console", "Courier New", "monospace"])
+	big = MGUI.font("caps")
+	mono = MGUI.font("mono")
 	post = ColorRect.new()
 	post.set_anchors_preset(Control.PRESET_FULL_RECT)
 	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -98,24 +118,68 @@ func setup(r) -> void:
 	hud.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hud)
-	night_l = _label(hud, "", 22, DIM, big)
-	time_l = _label(hud, "", 54, Color(0.92, 0.9, 0.85), big)
-	power_l = _label(hud, "", 22, DIM, mono)
-	eta_l = _label(hud, "", 16, Color(0.6, 0.58, 0.54), mono)
+	# часы: ночь мелко, время крупно — справа сверху
+	clock_box = MGUI.vbox(0)
+	hud.add_child(clock_box)
+	night_l = _out(MGUI.label("", "mono", MGUI.TEXT_2))
+	night_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	clock_box.add_child(night_l)
+	time_l = _out(MGUI.label("", "caps_h", Color(0.92, 0.9, 0.85)))
+	time_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	clock_box.add_child(time_l)
+	# энергия: процент, нагрузка полосками, на сколько хватит — слева снизу
+	power_box = MGUI.vbox(MGUI.S1)
+	hud.add_child(power_box)
+	power_l = _out(MGUI.label("", "mono_m", DIM))
+	power_box.add_child(power_l)
+	usage_row = MGUI.hbox(3)
+	power_box.add_child(usage_row)
+	var ul := _out(MGUI.label("НАГРУЗКА", "mono_s", MGUI.TEXT_2))
+	usage_row.add_child(ul)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(MGUI.S1, 0)
+	usage_row.add_child(gap)
 	for k in 6:
 		var b := ColorRect.new()
-		b.size = Vector2(16, 26)
+		b.custom_minimum_size = Vector2(9, 14)
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		b.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hud.add_child(b)
+		usage_row.add_child(b)
 		usage_bars.append(b)
-	alarm_l = _label(hud, "", 30, RED, big)
+	eta_l = _out(MGUI.label("", "mono_s", MGUI.TEXT_2))
+	power_box.add_child(eta_l)
+	# ложная тревога MOD — коротко сверху по центру; мысли Пахана — ниже середины; обе сами гаснут
+	alarm_l = _out(MGUI.label("", "caps_l", RED))
 	alarm_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	msg_l = _label(hud, "", 24, Color(0.95, 0.93, 0.88), big)
+	alarm_l.set_meta("audit_skip", true)
+	hud.add_child(alarm_l)
+	msg_l = _out(MGUI.label("", "body_b", Color(0.95, 0.93, 0.88)))
 	msg_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub_l = _label(hud, "", 22, Color(0.92, 0.9, 0.84), mono)
-	sub_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint_l = _label(hud, "", 15, Color(0.62, 0.6, 0.56), mono)
+	msg_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg_l.set_meta("audit_skip", true)
+	hud.add_child(msg_l)
+	# звонок: узкая плашка снизу по центру — значок, реплика, «F — сбросить»
+	sub_box = MGUI.panel(true, null, MGUI.S3)
+	sub_box.visible = false
+	hud.add_child(sub_box)
+	var sh2 := MGUI.hbox(MGUI.S3)
+	sub_box.add_child(sh2)
+	var sic := MGIcon.make("call", 18, MGUI.TEXT_2)
+	sic.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	sh2.add_child(sic)
+	sub_l = MGUI.label("", "mono", Color(0.92, 0.9, 0.84), 560.0)
+	sh2.add_child(sub_l)
+	sub_skip = MGUI.hints([["F", "сбросить"]])
+	sub_skip.size_flags_vertical = Control.SIZE_SHRINK_END
+	sh2.add_child(sub_skip)
+	# клавиши будки — только пока учимся (первая ночь), плашками, справа снизу
+	hint_box = MGUI.vbox(MGUI.S1)
+	hint_box.visible = false
+	hud.add_child(hint_box)
+	for row in [[["A", "левая дверь"], ["D", "правая дверь"]], [["Q", "свет слева"], ["E", "свет справа"]], [["Пробел", "камеры"], ["мышь к краю", "осмотреться"]]]:
+		var hr := MGUI.hints(row)
+		hr.alignment = BoxContainer.ALIGNMENT_END
+		hint_box.add_child(hr)
 	_tablet()
 	_dark()
 	_pause()
@@ -126,15 +190,20 @@ func setup(r) -> void:
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 
+## надпись поверх сцены: тёмная обводка, чтобы читалась на любом фоне
+func _out(l: Label) -> Label:
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	l.add_theme_constant_override("outline_size", 5)
+	return l
+
 func _label(parent: Control, text: String, size: int, col: Color, font: Font) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_override("font", font)
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", col)
-	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-	l.add_theme_constant_override("shadow_offset_x", 2)
-	l.add_theme_constant_override("shadow_offset_y", 2)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	l.add_theme_constant_override("outline_size", 5)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(l)
 	return l
@@ -144,47 +213,45 @@ func _vs() -> Vector2:
 
 func _layout() -> void:
 	var s := _vs()
-	night_l.position = Vector2(s.x - 260, 22)
-	night_l.size = Vector2(230, 30)
-	night_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	time_l.position = Vector2(s.x - 360, 46)
-	time_l.size = Vector2(330, 70)
-	time_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	power_l.position = Vector2(28, s.y - 112)
-	eta_l.position = Vector2(28, s.y - 36)
-	for k in usage_bars.size():
-		(usage_bars[k] as ColorRect).position = Vector2(30 + k * 21, s.y - 76)
-	alarm_l.position = Vector2(0, 26)
-	alarm_l.size = Vector2(s.x, 40)
-	msg_l.position = Vector2(0, s.y * 0.62)
-	msg_l.size = Vector2(s.x, 40)
-	sub_l.position = Vector2(s.x * 0.15, s.y - 150)
-	sub_l.size = Vector2(s.x * 0.7, 80)
-	hint_l.position = Vector2(s.x - 520, s.y - 100)
-	hint_l.size = Vector2(500, 90)
-	hint_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	clock_box.position = Vector2(s.x - EDGE - 240, EDGE - 6)
+	clock_box.size = Vector2(240, 0)
+	power_box.reset_size()
+	power_box.position = Vector2(EDGE, s.y - EDGE - maxf(64.0, power_box.get_combined_minimum_size().y))
+	alarm_l.position = Vector2(s.x * 0.2, EDGE)
+	alarm_l.size = Vector2(s.x * 0.6, 30)
+	msg_l.position = Vector2(s.x * 0.25, s.y * 0.64)
+	msg_l.size = Vector2(s.x * 0.5, 50)
+	sub_box.reset_size()
+	# звонок — над плашкой генератора, если она на экране (обе живут снизу по центру)
+	var lift := 110.0 if dark_box != null and dark_box.visible else 0.0
+	sub_box.position = Vector2((s.x - sub_box.get_combined_minimum_size().x) * 0.5, s.y - EDGE - sub_box.get_combined_minimum_size().y - 70 - lift)
+	hint_box.reset_size()
+	hint_box.position = Vector2(s.x - EDGE - hint_box.get_combined_minimum_size().x, s.y - EDGE - hint_box.get_combined_minimum_size().y)
 	if tablet != null:
 		tablet.size = s
-		feed.position = Vector2(s.x * 0.08, s.y * 0.07)
-		feed.size = Vector2(s.x * 0.84, s.y * 0.8)
-		cam_l.position = feed.position + Vector2(22, 16)
-		stamp_l.position = feed.position + Vector2(feed.size.x - 360, 16)
-		stamp_l.size = Vector2(340, 30)
-		rec_dot.position = feed.position + Vector2(feed.size.x - 30, 58)
-		jam_l.position = feed.position + Vector2(0, feed.size.y * 0.45)
-		jam_l.size = Vector2(feed.size.x, 40)
-		if lure_l != null:
-			lure_l.position = feed.position + Vector2(24, 58)
-		ping_l.position = feed.position + Vector2(22, feed.size.y - 46)
-		var mp := feed.position + feed.size - Vector2(330, 250)
-		for id in map_btns:
-			var c := FNData.cam(id)
-			var b: Button = map_btns[id]
-			b.position = mp + (c["map"] as Vector2) * Vector2(300, 220)
-		cam9_btn.position = mp + (FNData.CAM9["map"] as Vector2) * Vector2(300, 220)
+		# картинка камеры: всё место слева от боковой панели, 16:9, по центру высоты
+		var aw := s.x - 2.0 * EDGE - SIDE_W - MGUI.S4
+		var ah := s.y - 2.0 * EDGE - 34.0
+		var fw := minf(aw, ah * 16.0 / 9.0)
+		var fh := fw * 9.0 / 16.0
+		feed.size = Vector2(fw, fh)
+		feed.position = Vector2(EDGE + (aw - fw) * 0.5, EDGE + 34.0 + (ah - fh) * 0.5)
+		cam_l.position = feed.position + Vector2(0, -28)
+		cam_l.size = Vector2(fw * 0.6, 22)
+		stamp_l.position = feed.position + Vector2(fw - 300 - 18, -26)
+		stamp_l.size = Vector2(300, 20)
+		rec_dot.position = feed.position + Vector2(fw - 10, -20)
+		jam_l.position = feed.position + Vector2(0, fh * 0.44)
+		jam_l.size = Vector2(fw, 30)
+		jam_sub.position = jam_l.position + Vector2(0, 34)
+		jam_sub.size = Vector2(fw, 22)
+		side.position = Vector2(feed.position.x + fw + MGUI.S4, feed.position.y)
+		side.size = Vector2(SIDE_W, fh)
+		side.custom_minimum_size = Vector2(SIDE_W, fh)
 	if dark_box != null:
-		dark_box.position = Vector2(s.x * 0.5 - 230, s.y - 170)
-		pause_box.position = s * 0.5 - Vector2(220, 150)
+		dark_box.reset_size()
+		dark_box.position = Vector2((s.x - dark_box.get_combined_minimum_size().x) * 0.5, s.y - 190)
+		pause_box.size = s
 
 # ---------------- планшет камер ----------------
 func _tablet() -> void:
@@ -193,7 +260,7 @@ func _tablet() -> void:
 	tablet.visible = false
 	add_child(tablet)
 	var bezel := ColorRect.new()
-	bezel.color = Color(0.02, 0.02, 0.02, 0.96)
+	bezel.color = Color(0.015, 0.015, 0.018)
 	bezel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bezel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tablet.add_child(bezel)
@@ -202,88 +269,137 @@ func _tablet() -> void:
 	feed.stretch_mode = TextureRect.STRETCH_SCALE
 	feed.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tablet.add_child(feed)
-	cam_l = _label(tablet, "", 30, RED, big)
-	stamp_l = _label(tablet, "", 18, Color(0.85, 0.85, 0.8), mono)
+	cam_l = MGUI.label("", "mono_m", RED)
+	cam_l.clip_text = true
+	tablet.add_child(cam_l)
+	stamp_l = MGUI.label("", "mono", MGUI.TEXT_2)
 	stamp_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	tablet.add_child(stamp_l)
 	rec_dot = ColorRect.new()
-	rec_dot.size = Vector2(14, 14)
+	rec_dot.size = Vector2(10, 10)
 	rec_dot.color = RED
 	rec_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tablet.add_child(rec_dot)
-	jam_l = _label(tablet, "", 34, Color(0.9, 0.9, 0.9), big)
+	# «нет сигнала» — по центру картинки: в этот момент картинки всё равно нет
+	jam_l = _out(MGUI.label("", "caps_l", Color(0.9, 0.9, 0.9)))
 	jam_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ping_l = _label(tablet, "", 18, RED, mono)
-	lure_l = _label(tablet, "", 16, Color(0.75, 0.8, 0.75), mono)
+	tablet.add_child(jam_l)
+	jam_sub = _out(MGUI.label("", "mono", MGUI.TEXT_2))
+	jam_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tablet.add_child(jam_sub)
+	# боковая панель
+	side = MGUI.panel(false, null, MGUI.S4)
+	side.mouse_filter = Control.MOUSE_FILTER_PASS
+	tablet.add_child(side)
+	var v := MGUI.vbox(MGUI.S3)
+	side.add_child(v)
+	v.add_child(MGUI.label("КАМЕРЫ", "caps"))
+	map_box = Control.new()
+	map_box.custom_minimum_size = MAP_SIZE
+	map_box.mouse_filter = Control.MOUSE_FILTER_PASS
+	map_box.draw.connect(_map_draw)
+	v.add_child(map_box)
 	for c in FNData.CAMS:
 		var b := _cam_btn(String(c["no"]), String(c["id"]))
+		b.position = (c["map"] as Vector2) * (MAP_SIZE - CAM_BTN)
 		map_btns[c["id"]] = b
 	cam9_btn = _cam_btn("9", "room9")
+	cam9_btn.position = (FNData.CAM9["map"] as Vector2) * (MAP_SIZE - CAM_BTN)
 	cam9_btn.visible = false
+	v.add_child(MGUI.hsep())
+	ping_l = MGUI.label("", "mono", RED, SIDE_W - 2.0 * MGUI.S4)
+	v.add_child(ping_l)
+	lure_l = MGUI.label("", "mono", MGUI.TEXT_2, SIDE_W - 2.0 * MGUI.S4)
+	v.add_child(lure_l)
+	var sp := Control.new()
+	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(sp)
+	for row in [[["1–8", "камера"], ["Пробел", "закрыть"]], [["L", "приманка"], ["C", "перезапуск"]]]:
+		v.add_child(MGUI.hints(row))
+	v.add_child(MGUI.hsep())
+	tab_power = MGUI.label("", "mono_m", DIM)
+	v.add_child(tab_power)
+	tab_eta = MGUI.label("", "mono_s", MGUI.TEXT_2)
+	v.add_child(tab_eta)
+
+## план здания под кнопками камер: тонкие линии от комнат к будке
+func _map_draw() -> void:
+	var c := map_box
+	var k := MAP_SIZE - CAM_BTN
+	var half := CAM_BTN * 0.5
+	var office := Vector2(0.5, 1.0) * k + Vector2(half.x, CAM_BTN.y)
+	var col := Color(1, 1, 1, 0.14)
+	var by := {}
+	for cm in FNData.CAMS:
+		by[cm["id"]] = (cm["map"] as Vector2) * k + half
+	for pr in [["storage", "arcade"], ["stage", "arcade"], ["arcade", "hall_l"], ["stage", "vent"], ["stage", "server"], ["server", "power"], ["power", "hall_r"]]:
+		c.draw_line(by[pr[0]], by[pr[1]], col, 1.0, true)
+	for id in ["hall_l", "hall_r", "vent"]:
+		c.draw_line(by[id], office, col, 1.0, true)
 
 func _cam_btn(no: String, id: String) -> Button:
 	var b := Button.new()
-	b.text = "CAM %s" % no
+	b.text = no
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_override("font", mono)
-	b.add_theme_font_size_override("font_size", 15)
-	b.custom_minimum_size = Vector2(70, 28)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.1, 0.1, 0.1, 0.85)
-	sb.border_color = Color(0.7, 0.7, 0.65)
-	sb.set_border_width_all(1)
+	b.add_theme_font_size_override("font_size", MGUI.SMALL)
+	b.custom_minimum_size = CAM_BTN
+	b.size = CAM_BTN
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var sb := MGUI.box(Color(0.1, 0.1, 0.11), 2, 1, Color(0.5, 0.5, 0.48), 0)
 	b.add_theme_stylebox_override("normal", sb)
 	var sh := sb.duplicate() as StyleBoxFlat
-	sh.bg_color = Color(0.35, 0.05, 0.04, 0.95)
+	sh.bg_color = Color(0.35, 0.05, 0.04)
+	sh.border_color = RED
 	b.add_theme_stylebox_override("hover", sh)
 	b.add_theme_stylebox_override("pressed", sh)
 	b.pressed.connect(func(): root.pick_cam(id))
-	tablet.add_child(b)
+	map_box.add_child(b)
 	return b
 
 # ---------------- темнота и пауза ----------------
 func _dark() -> void:
-	dark_box = Control.new()
+	dark_box = MGUI.panel(true, RED, MGUI.S3)
 	dark_box.visible = false
-	dark_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(dark_box)
-	var l := _label(dark_box, "РУЧНОЙ ГЕНЕРАТОР — КРУТИ: A / D ПО ОЧЕРЕДИ", 20, Color(0.9, 0.86, 0.8), big)
-	l.position = Vector2(0, 0)
-	var back := ColorRect.new()
-	back.color = Color(0.15, 0.15, 0.15)
-	back.position = Vector2(0, 40)
-	back.size = Vector2(460, 16)
-	dark_box.add_child(back)
-	dark_bar = ColorRect.new()
-	dark_bar.color = RED
-	dark_bar.position = Vector2(0, 40)
-	dark_bar.size = Vector2(0, 16)
-	dark_box.add_child(dark_bar)
+	var v := MGUI.vbox(MGUI.S2)
+	dark_box.add_child(v)
+	var h := MGUI.hbox(MGUI.S3)
+	v.add_child(h)
+	h.add_child(MGUI.label("РУЧНОЙ ГЕНЕРАТОР", "caps_m", Color(0.9, 0.86, 0.8)))
+	h.add_child(MGUI.hints([["A", ""], ["D", "по очереди"]]))
+	dark_bar = MGUI.bar(340, 8, RED)
+	v.add_child(dark_bar["box"])
 
 func _pause() -> void:
 	pause_box = Control.new()
 	pause_box.visible = false
+	pause_box.set_meta("audit_modal", true)
 	add_child(pause_box)
-	var bg := ColorRect.new()
-	bg.color = Color(0, 0, 0, 0.88)
-	bg.size = Vector2(440, 300)
-	pause_box.add_child(bg)
-	var l := _label(pause_box, "ПАУЗА", 44, RED, big)
-	l.position = Vector2(30, 20)
-	var y := 100
-	for it in [["ПРОДОЛЖИТЬ", func(): root.set_paused(false)], ["ЗАНОВО", func(): root.retry()], ["В МЕНЮ ОХРАНЫ", func(): root.to_terminal()]]:
-		var b := Button.new()
-		b.text = it[0]
-		b.add_theme_font_override("font", big)
-		b.add_theme_font_size_override("font_size", 26)
-		b.position = Vector2(30, y)
-		b.size = Vector2(380, 50)
-		b.flat = true
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.6)
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_box.add_child(shade)
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_box.add_child(cc)
+	var p := MGUI.panel(false, null, MGUI.S5)
+	p.custom_minimum_size = Vector2(320, 0)
+	cc.add_child(p)
+	var v := MGUI.vbox(MGUI.S2)
+	p.add_child(v)
+	v.add_child(MGUI.label("ПАУЗА", "caps_l", RED))
+	v.add_child(MGUI.label("ночь не идёт, пока открыта пауза", "mono_s"))
+	v.add_child(MGUI.hsep())
+	for it in [["ПРОДОЛЖИТЬ", func(): root.set_paused(false)], ["НАЧАТЬ НОЧЬ ЗАНОВО", func(): root.retry()], ["В МЕНЮ ОХРАНЫ", func(): root.to_terminal()]]:
+		var b := MGUI.button(String(it[0]))
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.add_theme_color_override("font_color", Color(0.9, 0.88, 0.84))
-		b.add_theme_color_override("font_hover_color", RED)
 		b.pressed.connect(it[1])
-		pause_box.add_child(b)
-		y += 60
+		v.add_child(b)
+		if pause_first == null:
+			pause_first = b
+	v.add_child(MGUI.hints([["↑↓", "выбор"], ["Enter", "открыть"], ["Esc", "продолжить"]]))
 
 # ---------------- каждый кадр ----------------
 func tick(st: FNNight, dt: float, cams: FNCams) -> void:
@@ -296,19 +412,24 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 	post_mat.set_shader_parameter("dark", 1.0 if st.power_out else 0.0)
 	inv_t = maxf(0.0, inv_t - dt)
 	post_mat.set_shader_parameter("inv", 1.0 if neg or (inv_t > 0.0 and fposmod(t, 0.12) < 0.08) else 0.0)
-	var night_name := "CUSTOM NIGHT" if st.night >= FNData.NIGHTS.size() else "НОЧЬ %d" % (st.night + 1)
+	var night_name := "СВОЯ НОЧЬ" if st.night >= FNData.NIGHTS.size() else "НОЧЬ %d" % (st.night + 1)
 	night_l.text = night_name
 	time_l.text = st.clock()
-	power_l.text = "ЭНЕРГИЯ  %d%%" % ceili(st.power)
-	power_l.add_theme_color_override("font_color", RED if st.power < 15.0 else DIM)
+	var p_txt := "ЭНЕРГИЯ %d %%" % ceili(st.power)
+	var p_col := RED if st.power < 15.0 else DIM
+	power_l.text = p_txt
+	power_l.add_theme_color_override("font_color", p_col)
 	var hide_usage := st.glitches.has("usage_hide")
+	usage_row.visible = not hide_usage and not st.power_out
 	for k in usage_bars.size():
 		var b: ColorRect = usage_bars[k]
-		b.visible = not hide_usage and not st.power_out
-		b.color = (RED if k >= 3 else Color(0.85, 0.82, 0.75)) if k < st.usage else Color(0.2, 0.2, 0.2, 0.6)
+		b.color = (RED if k >= 3 else Color(0.85, 0.82, 0.75)) if k < st.usage else Color(0.2, 0.2, 0.2, 0.7)
 	var eta := st.time_left()
-	eta_l.text = "НАГРУЗКА %d · ХВАТИТ НА ~%d:%02d" % [st.usage, int(eta) / 60, int(eta) % 60] if not hide_usage and not st.power_out else ("НАГРУЗКА ??" if hide_usage else "")
-	power_l.visible = not st.power_out
+	var e_txt := ("хватит на ~%d:%02d" % [int(eta) / 60, int(eta) % 60]) if not hide_usage and not st.power_out else ("нагрузка: нет данных" if hide_usage else "")
+	eta_l.text = e_txt
+	power_box.visible = not st.power_out
+	# планшет поднят — часы и энергия будки не нужны (на планшете свои), клавиши будки тоже
+	clock_box.visible = tablet_k < 0.5
 	# ложная тревога MOD
 	alarm_t = maxf(0.0, alarm_t - dt)
 	alarm_l.visible = alarm_t > 0.0 and fposmod(t, 0.5) < 0.35
@@ -322,33 +443,38 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 	if tablet.visible:
 		feed.material = cams.mat
 		var i := FNData.CAMS.map(func(c): return c["id"]).find(st.cam)
-		var label := FNData.CAM9["name"] if st.cam == "room9" else st.cam_label(maxi(i, 0))
+		var label: String = FNData.CAM9["name"] if st.cam == "room9" else st.cam_label(maxi(i, 0))
 		var no := "9" if st.cam == "room9" else str(maxi(i, 0) + 1)
 		cam_l.text = "CAM %s · %s" % [no, label]
-		stamp_l.text = "%s  %s  REC" % [night_name, st.clock()]
+		stamp_l.text = "%s · %s · REC" % [night_name, st.clock()]
 		rec_dot.visible = fposmod(t, 1.0) < 0.6
+		jam_sub.text = ""
 		if st.brown_t > 0.0:
 			jam_l.text = "ПЕРЕБОЙ ПИТАНИЯ"
 		elif st.cam_broken(st.cam):
-			jam_l.text = "КАМЕРА НЕ ОТВЕЧАЕТ · держи C — перезапуск %d%%" % int(st.fix_t / FNNight.FIX_NEED * 100.0)
+			jam_l.text = "КАМЕРА НЕ ОТВЕЧАЕТ"
+			jam_sub.text = "держи C — перезапуск %d %%" % int(st.fix_t / FNNight.FIX_NEED * 100.0)
 		else:
 			jam_l.text = "НЕТ СИГНАЛА" if st.cams_dead() else ("ПОМЕХИ" if st.jammed(st.cam) else "")
 		if st.monitor and st.cam in FNNight.LURE_ROOMS and st.brown_t <= 0.0:
-			lure_l.text = "L — приманка (игрушка в этой комнате)" if st.lure_cd <= 0.0 else "приманка: ещё %d с" % ceili(st.lure_cd)
+			lure_l.text = "Приманка: в этой комнате есть игрушка — L" if st.lure_cd <= 0.0 else "Приманка: ещё %d с" % ceili(st.lure_cd)
 		else:
-			lure_l.text = ""
+			lure_l.text = "Приманка: в этой комнате нет игрушки"
 		var bot: FNBot = st.enemies["bot"]
-		if bot.ping_left > 0.0:
-			ping_l.text = "СЕРВЕР: ПИНГ — %s  %d с" % ["ПРИНИМАЮ…" if st.cam == "server" else "ОТКРОЙ CAM 6", ceili(bot.ping_left)] if not st.glitches.has("leds_off") else ""
+		if bot.ping_left > 0.0 and not st.glitches.has("leds_off"):
+			ping_l.text = "Сервер: пинг — %s · %d с" % ["принимаю…" if st.cam == "server" else "открой CAM 6", ceili(bot.ping_left)]
 		else:
 			ping_l.text = ""
+		ping_l.visible = ping_l.text != ""
+		tab_power.text = p_txt if not st.power_out else "ЭНЕРГИИ НЕТ"
+		tab_power.add_theme_color_override("font_color", p_col)
+		tab_eta.text = e_txt
+		# панель не растёт от смены текста: размер каждый кадр — по картинке камеры
+		side.size = Vector2(SIDE_W, feed.size.y)
 		for id in map_btns:
-			var b: Button = map_btns[id]
-			b.modulate = Color(1, 0.4, 0.35) if id == st.cam else Color(1, 1, 1)
-			var ii := FNData.CAMS.map(func(c): return c["id"]).find(id)
-			b.text = "CAM %d" % (ii + 1)
-
-var lure_l: Label                  # подсказка приманки под картинкой камеры
+			var b2: Button = map_btns[id]
+			b2.modulate = Color(1.0, 0.4, 0.35) if id == st.cam else (Color(0.55, 0.55, 0.55) if st.cam_broken(String(id)) else Color(1, 1, 1))
+		cam9_btn.modulate = Color(1.0, 0.4, 0.35) if st.cam == "room9" else Color(1, 1, 1)
 
 func msg(text: String, sec := 3.0) -> void:
 	msg_l.text = text
@@ -358,15 +484,25 @@ func alarm(text: String) -> void:
 	alarm_l.text = text
 	alarm_t = 3.5
 
-func sub(text: String) -> void:
+## реплика звонка: плашка снизу по центру; can_skip — показать «F — сбросить»
+func sub(text: String, can_skip := false) -> void:
 	sub_l.text = text
+	sub_box.visible = text != ""
+	sub_skip.visible = can_skip
+	_layout.call_deferred()
 
-func hints(text: String) -> void:
-	hint_l.text = text
+## подсказки клавиш будки (первая ночь): "office" — показать, "" — убрать
+func hints(kind: String) -> void:
+	var on := kind != ""
+	if hint_box.visible != on:
+		hint_box.visible = on
+		_layout.call_deferred()
 
 func show_dark(on: bool, k := 0.0) -> void:
-	dark_box.visible = on
-	dark_bar.size.x = 460.0 * clampf(k, 0.0, 1.0)
+	if dark_box.visible != on:
+		dark_box.visible = on
+		_layout.call_deferred()
+	MGUI.set_bar(dark_bar, k)
 
 # ---------------- карточки: начало ночи, 6 AM, гибель ----------------
 func clear_card() -> void:
@@ -374,6 +510,8 @@ func clear_card() -> void:
 	for c in card.get_children():
 		c.queue_free()
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if card.has_meta("audit_modal"):
+		card.remove_meta("audit_modal")
 
 func _bg(a := 1.0) -> ColorRect:
 	var bg := ColorRect.new()
@@ -390,76 +528,108 @@ func _center(text: String, size: int, col: Color, y: float, font: Font) -> Label
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return l
 
+## колонка по центру экрана (карточки собираются контейнером, а не координатами)
+func _column(w: float) -> VBoxContainer:
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(cc)
+	var v := MGUI.vbox(MGUI.S3)
+	v.custom_minimum_size.x = w
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	cc.add_child(v)
+	return v
+
+func _line(v: VBoxContainer, text: String, style: String, col: Color, wrap := true) -> Label:
+	var l := MGUI.label(text, style, col)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if wrap:
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(l)
+	return l
+
 func night_card(title: String, sub_t: String) -> void:
 	clear_card()
 	var g := card_gen
 	var bg := _bg()
-	var s := _vs()
-	var a := _center("12:00 AM", 70, Color(0.92, 0.9, 0.85), s.y * 0.36, big)
-	var b := _center(title, 40, RED, s.y * 0.36 + 90, big)
-	var c := _center(sub_t, 20, DIM, s.y * 0.36 + 150, mono)
+	var v := _column(minf(640.0, _vs().x - 2.0 * EDGE))
+	_line(v, "12:00 AM", "caps_xl", Color(0.92, 0.9, 0.85), false)
+	_line(v, title, "caps_h", RED)
+	_line(v, sub_t, "mono", DIM)
 	var tw := create_tween()
 	tw.tween_interval(2.6)
 	tw.tween_property(bg, "color:a", 0.0, 1.2)
-	tw.parallel().tween_property(a, "modulate:a", 0.0, 1.0)
-	tw.parallel().tween_property(b, "modulate:a", 0.0, 1.0)
-	tw.parallel().tween_property(c, "modulate:a", 0.0, 1.0)
+	tw.parallel().tween_property(v, "modulate:a", 0.0, 1.0)
 	tw.tween_callback(func(): if g == card_gen: clear_card())
 
 func six_card(pay: int, line: String, extra := "") -> void:
 	clear_card()
 	var g := card_gen
 	_bg()
+	hud.visible = false
+	dark_box.visible = false
+	card.set_meta("audit_modal", true)
 	var s := _vs()
-	var five := _center("5 AM", 110, Color(0.92, 0.9, 0.85), s.y * 0.32, big)
-	var six := _center("6 AM", 110, Color(0.92, 0.9, 0.85), s.y * 0.32 + 130, big)
+	var five := _center("5 AM", 96, Color(0.92, 0.9, 0.85), s.y * 0.26, big)
+	var six := _center("6 AM", 96, Color(0.92, 0.9, 0.85), s.y * 0.26 + 120, big)
+	five.set_meta("audit_skip", true)
 	six.modulate.a = 0.0
 	var tw := create_tween()
 	tw.tween_interval(1.0)
-	tw.tween_property(five, "position:y", s.y * 0.32 - 130, 1.4).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(five, "position:y", s.y * 0.26 - 120, 1.4).set_trans(Tween.TRANS_CUBIC)
 	tw.parallel().tween_property(five, "modulate:a", 0.0, 1.2)
-	tw.parallel().tween_property(six, "position:y", s.y * 0.32, 1.4).set_trans(Tween.TRANS_CUBIC)
+	tw.parallel().tween_property(six, "position:y", s.y * 0.26, 1.4).set_trans(Tween.TRANS_CUBIC)
 	tw.parallel().tween_property(six, "modulate:a", 1.0, 1.0)
 	tw.tween_callback(func():
 		if g != card_gen:
 			return
-		_center(line, 24, DIM, s.y * 0.32 + 150, big)
-		_center("Уведомление банка: зачислена зарплата %d ₽" % pay, 18, Color(0.55, 0.85, 0.6), s.y * 0.32 + 200, mono)
+		five.queue_free()
+		# строки под часами: итог смены, зарплата, концовка — одной колонкой с переносом
+		var v := MGUI.vbox(MGUI.S3)
+		v.position = Vector2((s.x - minf(760.0, s.x - 2.0 * EDGE)) * 0.5, s.y * 0.26 + 150)
+		v.custom_minimum_size.x = minf(760.0, s.x - 2.0 * EDGE)
+		card.add_child(v)
+		_line(v, line, "body_b", DIM)
+		_line(v, "Уведомление банка: зачислена зарплата %s" % MGUI.rub(pay), "mono", Color(0.55, 0.85, 0.6))
 		if extra != "":
-			var e := _center(extra, 18, RED, s.y * 0.32 + 240, mono)
-			e.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART)
+			_line(v, extra, "mono", RED))
 
 func dead_card(killer: String, hint: String, buttons: Array) -> void:
 	clear_card()
 	var g := card_gen
 	var bg := _bg(0.0)
-	var s := _vs()
 	var tw := create_tween()
-	tw.tween_property(bg, "color:a", 0.94, 0.4)
+	tw.tween_property(bg, "color:a", 0.95, 0.4)
 	tw.tween_callback(func():
 		if g != card_gen:
 			return
-		_center("ПАХАН УМЕР", 72, RED, s.y * 0.26, big)
-		_center(killer, 26, DIM, s.y * 0.26 + 96, big)
-		var h := _center(hint, 18, Color(0.7, 0.68, 0.62), s.y * 0.26 + 150, mono)
-		h.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		h.size = Vector2(s.x * 0.6, 80)
-		h.position.x = s.x * 0.2
+		hud.visible = false
+		dark_box.visible = false
+		var v := _column(minf(620.0, _vs().x - 2.0 * EDGE))
+		card.set_meta("audit_modal", true)
+		_line(v, "ПАХАН УМЕР", "caps_xl", RED, false)
+		_line(v, killer, "caps_l", DIM)
+		_line(v, hint, "mono", Color(0.7, 0.68, 0.62))
+		var gap := Control.new()
+		gap.custom_minimum_size.y = MGUI.S4
+		v.add_child(gap)
 		card.mouse_filter = Control.MOUSE_FILTER_STOP
-		var y := s.y * 0.26 + 260
+		var first: Button = null
 		for it in buttons:
-			var b := Button.new()
-			b.text = it[0]
-			b.add_theme_font_override("font", big)
-			b.add_theme_font_size_override("font_size", 28)
-			b.flat = true
-			b.size = Vector2(360, 50)
-			b.position = Vector2(s.x * 0.5 - 180, y)
-			b.add_theme_color_override("font_color", Color(0.9, 0.88, 0.84))
-			b.add_theme_color_override("font_hover_color", RED)
+			var b := MGUI.button(String(it[0]))
+			b.custom_minimum_size = Vector2(300, 0)
+			b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 			b.pressed.connect(it[1])
-			card.add_child(b)
-			y += 60)
+			v.add_child(b)
+			if first == null:
+				first = b
+		var hh := MGUI.hints([["↑↓", "выбор"], ["Enter", "открыть"]])
+		hh.alignment = BoxContainer.ALIGNMENT_CENTER
+		v.add_child(hh)
+		if first != null:
+			first.grab_focus.call_deferred())
 
 func show_pause(on: bool) -> void:
 	pause_box.visible = on
+	if on and pause_first != null:
+		pause_first.grab_focus.call_deferred()

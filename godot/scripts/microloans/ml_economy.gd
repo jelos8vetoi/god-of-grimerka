@@ -607,7 +607,7 @@ func _pick_event() -> void:
 			if E.has("warn"):
 				# неприятное — с предупреждением: случится завтра (с новым телефоном — послезавтра)
 				warned[eid] = day + (2 if upgrades.has("phone") else 1)
-				say("⚠ " + String(E["warn"]), "warn")
+				say(String(E["warn"]), "warn")
 			else:
 				event_today = eid
 

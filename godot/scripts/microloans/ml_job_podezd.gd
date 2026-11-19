@@ -82,7 +82,8 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	if tier >= 3:
 		opts.append("valuables")
 	task = opts[rng.randi() % opts.size()]
-	base_setup(f, sf, stress, "УБОРКА НА ТЯГЕ-812 · %s" % L["name"], "W/S — газ и назад · A/D — поворот%s · мусор втягивается щёткой спереди · провода и шланг — следи" % (" · Shift — турбо" if cv("tyaga_turbo") > 0.0 else ""), 50.0 + tier * 6.0)
+	keys = [["W/S", "газ, назад"], ["A/D", "руль"]] + ([["Shift", "турбо"]] if cv("tyaga_turbo") > 0.0 else [])
+	base_setup(f, sf, stress, "УБОРКА НА ТЯГЕ-812 · %s" % L["name"], "", 50.0 + tier * 6.0)
 	setup_3d(Color(0.05, 0.05, 0.06), Color(0.55, 0.55, 0.6), 0.45)
 	hose_len = 7.0 + float(L["w"]) * 0.35 + cv("tyaga_hose") * 6.0 + (2.0 if eq("tyaga") >= 2 else 0.0)
 	cap = (38.0 + 4.0 * tier) * (1.0 + 0.5 * float(eq("tyaga") >= 1)) + 8.0 * eq("tyaga")
@@ -112,7 +113,7 @@ func _level() -> void:
 	bin_p = Vector3(-w / 2 + 0.7, 0, d / 2 - 0.6)
 	var bn := at(bin_p)
 	MGProps.cyl(bn, Vector3(0, 0.3, 0), 0.3, 0.26, 0.6, MGProps.mat("green_paint"))
-	MGProps.text(at(bin_p + Vector3(0, 0.75, 0.3)), "ВЕДРО", Vector3.ZERO, 40, Color(0.95, 0.9, 0.8))
+	MGProps.text(at(bin_p + Vector3(0, 0.75, 0.3)), "ведро", Vector3.ZERO, 26, Color(0.95, 0.9, 0.8))
 	match int(tier):
 		1:
 			_furn(Vector3(-2.5, 0, -2.4), Vector2(0.9, 0.45), "ml_armchair", func(r): MGProps.armchair(r), 0.0)
@@ -126,7 +127,7 @@ func _level() -> void:
 				_furn(Vector3(-5.5 + k * 3.6, 0, -2.2), Vector2(0.5, 0.25), "", func(r): MGProps.locker(r, 0.0, "КВ. %d" % (40 + k)), 0.0)
 			_furn(Vector3(2.0, 0, 1.5), Vector2(0.5, 0.25), "", func(r): MGProps.janitor_cart(r), 0.3)
 			_furn(Vector3(-2.0, 0, 1.6), Vector2(0.4, 0.4), "", func(r): MGProps.carton(r, Vector3(0.7, 0.5, 0.6), "КОЛЯСКА"), 0.2)
-			MGProps.text(at(Vector3(0, 2.0, -2.44)), "ПОДЪЕЗД 3 · НЕ КУРИТЬ", Vector3.ZERO, 80, Color(0.85, 0.82, 0.75))
+			MGProps.text(at(Vector3(0, 2.0, -2.44)), "ПОДЪЕЗД 3 · НЕ КУРИТЬ", Vector3.ZERO, 44, Color(0.85, 0.82, 0.75))
 		3:
 			for k in 6:
 				var p := Vector3(-4.0 + float(k % 3) * 4.0, 0, -2.0 + float(k / 3) * 3.6)
@@ -290,15 +291,19 @@ func _process(dt: float) -> void:
 	combo_t -= dt
 	if combo_t <= 0.0 and combo > 0:
 		combo = 0
-	combo_l.text = "КОМБО ×%d" % combo if combo >= 3 else ""
+	combo_l.text = "серия ×%d" % combo if combo >= 3 else ""
+	combo_l.visible = combo >= 3
 	var k_got := got_w / maxf(1.0, need)
 	progress(k_got)
-	score_l.text = "%d%% · %s" % [int(k_got * 100.0), "контейнер %d%%" % int(load / cap * 100.0)]
-	tip_l.text = "КОНТЕЙНЕР ПОЛОН — К ВЕДРУ У ДВЕРИ" if load >= cap else ("ШЛАНГ НАТЯНУТ" if tension > 0.95 else ("ЗАПУТАЛСЯ! назад" if stuck_t > 0.0 else ""))
+	score_l.text = "убрано %d %%\nконтейнер %d %%\nшланг %d %%" % [int(k_got * 100.0), int(load / cap * 100.0), int(clampf(tension, 0.0, 1.0) * 100.0)]
+	tip_l.text = "Контейнер полон — к ведру у двери" if load >= cap else ("Шланг натянут" if tension > 0.95 else ("Запутался — сдай назад" if stuck_t > 0.0 else ""))
 	hum.pitch_scale = 0.8 + absf(speed) / vmax * 0.5 + (0.25 if turbo_t > 0.0 else 0.0)
 	hum.volume_db = -16.0 + (4.0 if load < cap else -4.0)
 	# камера: сзади-сверху, мягко
 	var want := pos - fwd * 3.0 + Vector3(0, 3.0, 0)
+	# камера не уходит за стены (сзади, слева, справа); спереди комната открыта
+	want.x = clampf(want.x, -float(L["w"]) / 2 + 0.4, float(L["w"]) / 2 - 0.4)
+	want.z = maxf(want.z, -float(L["d"]) / 2 + 0.4)
 	cam.position = cam.position.lerp(want, 1.0 - exp(-4.0 * dt))
 	cam.look_at(pos + fwd * 1.0 + Vector3(0, 0.3, 0), Vector3.UP)
 	if k_got >= 0.999:
@@ -505,7 +510,7 @@ func _suck(dt: float, fwd: Vector3) -> void:
 			if bool(t["val"]):
 				pop("НАШЁЛ!", tp + Vector3(0, 0.6, 0), Color(1.0, 0.85, 0.3))
 			elif combo >= 3 and combo % 3 == 0:
-				pop("КОМБО ×%d" % combo, tp + Vector3(0, 0.6, 0), Color(1.0, 0.8, 0.3))
+				pop("серия ×%d" % combo, tp + Vector3(0, 0.6, 0), Color(1.0, 0.8, 0.3))
 			if load >= cap:
 				sfx("alert")
 
@@ -631,7 +636,7 @@ func _end() -> void:
 	var time_b := clampf(time_left / time_max, 0.0, 1.0) * 0.1 if k_got >= 0.999 else 0.0
 	var pen := minf(0.3, 0.035 * tangles) + minf(0.2, 0.02 * cable_hits) + 0.06 * fragile_hits + 0.1 * broke_val + 0.01 * bumps
 	var score := clampf(k_got * 0.85 + combo_b + time_b - pen, 0.0, 1.0)
-	var lines: Array = ["%s · %s" % [L["name"], TASKS[task]], "Убрано: %d%%  ·  лучшее комбо ×%d%s" % [int(k_got * 100.0), best_combo, "  ·  быстро: +%d%%" % int(time_b * 100.0) if time_b > 0.0 else ""]]
+	var lines: Array = ["%s · %s" % [L["name"], TASKS[task]], "Убрано: %d %% · лучшая серия ×%d%s" % [int(k_got * 100.0), best_combo, "  ·  быстро: +%d%%" % int(time_b * 100.0) if time_b > 0.0 else ""]]
 	var bad: Array = []
 	if tangles > 0:
 		bad.append("шланг запутался ×%d" % tangles)
