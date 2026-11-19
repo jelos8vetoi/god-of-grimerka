@@ -52,6 +52,7 @@ var net_menu := false            # сетевая гонка: открыт эк�
 var net_fix := {"hard": 0, "soft": 0.0}   # клиент: сколько раз хост поправил своего гонщика (для проверки)
 var local_hist: Array = []       # клиент: где был свой гонщик [наше время, положение] — для сверки со снимками хоста
 const PHYSICAL := ["drift_start", "drift_lvl", "drift_boost", "drift_cut", "jump", "ramp", "land", "wall"]
+var weather: RaceWeather       # погода и случайные ситуации (race_weather.gd)
 var cam_snap := false
 
 func setup(m, c: Dictionary) -> void:
@@ -70,6 +71,10 @@ func setup(m, c: Dictionary) -> void:
 	add_child(fx)
 	_spawn_riders()
 	_spawn_boxes()
+	weather = RaceWeather.new()
+	add_child(weather)
+	# в заезде на время случайных ситуаций нет никогда — рекорд должен быть честным, что бы ни пришло в cfg
+	weather.setup(self, String(cfg.get("weather", "clear")), bool(cfg.get("happenings", true)) and String(cfg.get("mode", "single")) != "time", rng.randi())
 	cam = Camera3D.new()
 	cam.fov = 70.0
 	cam.far = 600.0
@@ -202,6 +207,7 @@ func _physics_process(dt: float) -> void:
 	_hazards_tick(dt)
 	_tethers_tick(dt)
 	_pads_tick()
+	weather.tick(dt)
 	_rank()
 	_catchup(dt)
 	if state == "done":
@@ -416,7 +422,7 @@ func _boxes_tick(dt: float) -> void:
 				if net != null:
 					net.send_box(boxes.find(b), false)
 				if r.item == "" and not r.finished:
-					r.item = roll_item(r)
+					r.item = weather.box_item(roll_item(r))
 					r.ev("item_get", r.item)
 				else:
 					r.ev("box_break", 0)
@@ -710,6 +716,18 @@ func _show_event(r: RaceRider, k: String, v) -> void:
 		"pad":
 			if me:
 				_sfx("sfx_charge", -8.0, 1.6)
+		"steam":
+			fx.dust(p + Vector3(0, 0.3, 0), 12, Color(0.92, 0.95, 1.0, 0.85), 1.6, 0.1)
+			if me:
+				_sfx("sfx_boom", -8.0, 1.6)
+				shake(0.25)
+				hud.flash_text("ПАРОМ ВВЕРХ!")
+		"hit_van":
+			fx.sparks(p + Vector3(0, 0.8, 0), Vector3.UP, 12, Color(1.0, 0.8, 0.45), 0.9, 60.0)
+			if me:
+				_sfx("sfx_clang", -2.0, 0.7)
+				shake(0.5)
+			hud.feed("%s поцеловался с буханкой" % r.title, me)
 		"miss":
 			if me:
 				hud.feed("%s — мимо, впереди никого" % String(RaceData.ITEMS[String(v)]["name"]), true)
@@ -1032,6 +1050,11 @@ func _puppets() -> void:
 		r.set_snapshot_xf(pos, h)
 
 func remote_event(slot: int, k: String, v) -> void:
+	if slot == -1:
+		# событие трассы, а не гонщика: случайная ситуация — хост решил, где и какая; строим ту же
+		if k == "happening" and weather != null and typeof(v) == TYPE_ARRAY and (v as Array).size() == 2 and typeof(v[0]) == TYPE_STRING and typeof(v[1]) in [TYPE_FLOAT, TYPE_INT] and is_finite(float(v[1])):
+			weather.start(String(v[0]), float(v[1]), true)
+		return
 	if slot < 0 or slot >= riders.size():
 		return
 	var r: RaceRider = riders[slot]

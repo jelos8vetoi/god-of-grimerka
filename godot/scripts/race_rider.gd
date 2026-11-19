@@ -44,6 +44,7 @@ var side_v := Vector3.ZERO     # толчок вбок (выброс возду�
 var pull_v := Vector3.ZERO     # притяжение (супер-всасывание) — задаёт гонка
 var shield_t := 0.0
 var air_t := 0.0
+var pop_v := 0.0               # толчок снизу на следующем шаге физики (пар теплотрассы), м/с
 var was_floor := true
 var floor_n := Vector3.UP
 var wall_cd := 0.0
@@ -182,7 +183,10 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 		inp = RaceInput.new()
 		drifting = false
 	# предел скорости
+	var wx = race.weather if race != null else null          # погода (race_weather.gd)
 	var vlim: float = float(P["vmax"]) * pace * slow_mul()
+	if wx != null and wx.wind != Vector3.ZERO:
+		vlim += (wx.wind as Vector3).dot(fwd()) * 0.25            # по ветру быстрее, против — медленнее
 	if absf(lat) > half + 0.2:
 		vlim *= float(P["shoulder_slow"])
 	if drifting:
@@ -206,14 +210,14 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 	if boosting():
 		speed = move_toward(speed, vlim, 40.0 * dt)
 	elif inp.throttle > 0.05 and speed > -0.5:
-		var acc: float = float(P["accel_low"]) if speed < 8.0 else float(P["accel"])
+		var acc: float = (float(P["accel_low"]) if speed < 8.0 else float(P["accel"])) * (wx.mod("accel") if wx != null else 1.0)
 		if speed > vlim * inp.throttle:
 			speed = move_toward(speed, vlim * inp.throttle, 9.0 * dt)
 		else:
 			speed = move_toward(speed, vlim * inp.throttle, acc * inp.throttle * dt)
 	elif inp.brake > 0.05:
 		if speed > 0.5:
-			speed = move_toward(speed, 0.0, float(P["brake"]) * inp.brake * dt)
+			speed = move_toward(speed, 0.0, float(P["brake"]) * inp.brake * dt * (wx.mod("brake") if wx != null else 1.0))
 		else:
 			speed = move_toward(speed, -float(P["rev_max"]), float(P["accel"]) * 0.6 * dt)
 	else:
@@ -234,7 +238,7 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 		var into := clampf(inp.steer * drift_dir, -1.0, 1.0)
 		var rate: float = lerpf(float(P["drift_turn_min"]), float(P["steer_drift"]), (into + 1.0) * 0.5)
 		# заряд копится, пока занос правда поворачивает: «боком по прямой» почти ничего не даёт
-		drift_t += dt * clampf(0.35 + rate / 0.9, 0.0, 1.4)
+		drift_t += dt * clampf(0.35 + rate / 0.9, 0.0, 1.4) * (wx.mod("charge") if wx != null else 1.0)
 		var lv := 0
 		for t_lv in P["drift_levels"]:
 			if drift_t >= float(t_lv):
@@ -259,14 +263,20 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 	steer_vis = lerpf(steer_vis, inp.steer, 1.0 - exp(-8.0 * dt))
 	# куда едет на самом деле: в заносе сцепление слабое
 	var hd := fwd()
-	var grip: float = float(P["grip_drift"]) if drifting else float(P["grip"])
+	var grip: float = (float(P["grip_drift"]) if drifting else float(P["grip"])) * (wx.mod("grip") if wx != null else 1.0)
 	if floor and not drifting:
 		vdir = vdir.slerp(hd, 1.0 - exp(-grip * dt)).normalized()
 	side_v = side_v.move_toward(Vector3.ZERO, 9.0 * dt)
 	var hv := vdir * speed + side_v + pull_v
+	if wx != null and wx.wind != Vector3.ZERO and floor and go:          # до старта ветер не двигает
+		var side := fwd().cross(Vector3.UP)
+		hv += side * (wx.wind as Vector3).dot(side) * 0.22          # порыв сбоку сносит
 	# прыжок, склон, полёт
 	if floor:
-		if inp.jump and go and spin_t <= 0.0:
+		if pop_v > 0.0:
+			velocity = Vector3(hv.x, pop_v, hv.z)      # подбросило снизу (пар теплотрассы)
+			pop_v = 0.0
+		elif inp.jump and go and spin_t <= 0.0:
 			velocity = Vector3(hv.x, float(P["hop"]), hv.z)
 			ev("jump", 0)
 		else:

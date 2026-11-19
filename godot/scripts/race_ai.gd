@@ -90,7 +90,7 @@ func think(dt: float) -> RaceInput:
 	# скорость: перед крутым поворотом — медленнее (поздний тормоз — ошибка)
 	var look_d := 10.0 + absf(spd) * 0.9
 	var turn := track.turn_ahead(r.s, look_d)
-	var vmax: float = float(P["vmax"]) * float(cfg["pace"])
+	var vmax: float = float(P["vmax"]) * float(cfg["pace"]) * (race.weather.mod("bot") if race.weather != null else 1.0)
 	# с какой скоростью поворот ещё проходится рулём: нужная угловая скорость v·κ не больше 80% руля
 	var kappa := turn / look_d
 	var safe := (float(P["steer"]) * 0.8 / maxf(kappa, 0.001)) * float(cfg["corner"])

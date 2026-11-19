@@ -25,6 +25,7 @@ var trainingcheck := ""     # --trainingcheck=<папка>: тренировоч
 var modecheck := ""         # --modecheck=<папка>: главное меню и экран выбора режима (scripts/modecheck.gd)
 var racecheck := ""         # --racecheck=<папка>: гонки на пылесосах из меню (scripts/racecheck.gd)
 var racenet := ""           # --race-netcheck=<папка> (хост) / --race-netclient=<папка> (клиент): сетевая гонка (scripts/racenetcheck.gd)
+var weathercheck := ""      # --weathercheck=<папка>: погода и случайные ситуации гонок (scripts/weathercheck.gd)
 var race: Node              # идущая гонка (race.gd) или null
 var race_net: Node          # сетевая гонка (race_net.gd, /root/Main/RaceNet) или null — тогда игра офлайн
 var net_msg := ""           # почему закончилась сетевая сессия (покажет экран ONLINE RACE)
@@ -168,6 +169,8 @@ func _ready() -> void:
 			racenet = arg.substr(16)
 		elif arg.begins_with("--race-netclient="):
 			racenet = arg.substr(17)
+		elif arg.begins_with("--weathercheck="):
+			weathercheck = arg.substr(15)
 		elif arg == "--onechapter":
 			onechapter = true
 		elif arg == "--pause":
@@ -255,6 +258,11 @@ func _ready() -> void:
 			rnc.main = self
 			rnc.out = racenet
 			add_child(rnc)
+		if weathercheck != "":
+			var wc = preload("res://scripts/weathercheck.gd").new()
+			wc.main = self
+			wc.out = weathercheck
+			add_child(wc)
 
 func sfx(name: String, vol := 0.0, pitch := 1.0) -> void:
 	if not sfx_cache.has(name):
@@ -355,12 +363,12 @@ func testing() -> String:
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 ## Играет человек, а не проверка: только тогда игра пишет его настройки iPod и прочее «на выходе»
 func user_play() -> bool:
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and not voicecheck
 
 func tutorial_on() -> bool:
 	if tutorialcheck != "":
 		return true
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and racecheck == "" and racenet == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and not voicecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
