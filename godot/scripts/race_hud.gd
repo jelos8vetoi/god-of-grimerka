@@ -483,11 +483,19 @@ func show_results() -> void:
 	var rec_l := RaceSave.best(String(race.cfg.get("track", "")), "lap")
 	_text(results_panel, ("Рекорд трассы (%s): %s" % ["на время" if mode == "time" else "гонка", fmt(rec_t)] if rec_t > 0.0 else "") + ("   ·   лучший круг: " + fmt(rec_l) if rec_l > 0.0 else ""), 16, SILVER, Vector2(400, 548))
 	var items: Array = []
-	if mode != "online":
+	if mode == "online":
+		if race.authority:
+			items.append(["ВСЕ В ЛОББИ", func():
+				race.net.back_to_lobby()
+				race.quit_to_lobby()])
+		else:
+			_text(results_panel, "Хост решает, ехать ли ещё раз.", 16, SILVER, Vector2(400, 574))
+		items.append(["ВЫЙТИ ИЗ СЕТЕВОЙ ГОНКИ", func(): race.quit(false)])
+	else:
 		items.append(["ЕЩЁ РАЗ", func(): race.restart()])
-	items.append(["В МЕНЮ ГОНОК", func(): race.quit(true)])
-	items.append(["В ГЛАВНОЕ МЕНЮ", func(): race.quit(false)])
-	_menu(results_panel, items, 590)
+		items.append(["В МЕНЮ ГОНОК", func(): race.quit(true)])
+		items.append(["В ГЛАВНОЕ МЕНЮ", func(): race.quit(false)])
+	_menu(results_panel, items, 600)
 
 func show_pause(on: bool) -> void:
 	if not on:
@@ -498,14 +506,16 @@ func show_pause(on: bool) -> void:
 		return
 	if pause_panel != null:
 		return
-	pause_panel = _screen("ПАУЗА", "Гонка стоит · Esc — продолжить")
+	pause_panel = _screen("ПАУЗА" if race.net == null else "СЕТЕВАЯ ГОНКА", "Гонка стоит · Esc — продолжить" if race.net == null else "Гонка идёт дальше — в сети её не остановить · Esc — назад к рулю")
 	_text(pause_panel, "Управление: %s — газ · %s — тормоз · %s / %s — руль · %s — занос · %s — прыжок · %s — турбо · %s — предмет · %s — назад" % [
 		_k("race_accelerate"), _k("race_brake"), _k("race_left"), _k("race_right"), _k("race_drift"), _k("race_jump"), _k("race_boost"), _k("race_item"), _k("race_look_back")], 15, SILVER, Vector2(400, 270)).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var items: Array = [["ПРОДОЛЖИТЬ", func(): race.set_paused(false)]]
 	if String(race.cfg.get("mode", "single")) != "online":
 		items.append(["ЗАНОВО", func(): race.restart()])
-	items.append(["В МЕНЮ ГОНОК", func(): race.quit(true)])
-	items.append(["В ГЛАВНОЕ МЕНЮ", func(): race.quit(false)])
+		items.append(["В МЕНЮ ГОНОК", func(): race.quit(true)])
+		items.append(["В ГЛАВНОЕ МЕНЮ", func(): race.quit(false)])
+	else:
+		items.append(["ВЫЙТИ ИЗ СЕТЕВОЙ ГОНКИ", func(): race.quit(false)])
 	_menu(pause_panel, items, 360)
 	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 

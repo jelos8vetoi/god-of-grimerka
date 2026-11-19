@@ -42,7 +42,7 @@ static func from_actions(sens: float, jump_edge: bool, item_edge: bool) -> RaceI
 	r.look_back = Input.is_action_pressed("race_look_back")
 	return r.sanitize()
 
-## компактно для сети: 4 числа (газ, тормоз и руль — байтами, флаги — битами)
+## компактно для сети: 4 байта (газ, тормоз и руль — байтами, флаги — битами); race_net дописывает 2 байта номера ввода
 func pack() -> PackedByteArray:
 	var b := PackedByteArray()
 	b.resize(4)

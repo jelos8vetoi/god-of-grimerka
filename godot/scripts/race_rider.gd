@@ -74,6 +74,10 @@ var lap_times: Array = []
 var best_lap := 0.0
 var events: Array = []         # что было: [вид, значение] — для проверок и HUD
 var disconnected := false
+var snaps: Array = []          # клиент: снимки хоста [время хоста, положение, нос] — для кукол
+var net_err := Vector3.ZERO    # клиент: поправка от хоста, которую ещё доводим (мягко)
+var net_seq := 0               # хост: номер последнего учтённого ввода этого гонщика
+var vis_off := Vector3.ZERO    # клиент: видимый сдвиг после поправки хоста — гаснет, чтобы не было рывка
 # ---- звук ----
 var engine: AudioStreamPlayer3D
 
@@ -365,7 +369,10 @@ func _process(dt: float) -> void:
 	var b := cur_xf
 	var xf := Transform3D(a.basis.slerp(b.basis, f), a.origin.lerp(b.origin, f))
 	if puppet:
-		xf = smooth.global_transform.interpolate_with(cur_xf, 1.0 - exp(-18.0 * dt))
+		xf = cur_xf                               # кукла: race.gd уже сгладил по снимкам
+	if vis_off.length() > 0.001:
+		vis_off = vis_off * exp(-10.0 * dt)
+		xf.origin += vis_off
 	smooth.global_transform = xf
 	# наклон в поворот, разворот кормы в заносе, нос вверх в воздухе
 	var turn_k := clampf(absf(speed) / 14.0, 0.0, 1.0)

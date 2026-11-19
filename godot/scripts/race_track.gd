@@ -58,8 +58,9 @@ func build(track_id: String) -> void:
 	_obstacles()
 	_gates()
 	_boxes()
-	_decor()
-	_fill()
+	if DisplayServer.get_name() != "headless":        # без экрана (сервер, проверки) оформление не нужно: физики в нём нет
+		_decor()
+		_fill()
 
 # ---------------- кривые ----------------
 static func _cr(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, t: float) -> Vector3:
@@ -877,12 +878,30 @@ func _house(p: Vector3, yaw: float, rng: RandomNumberGenerator) -> void:
 
 # ---------------- заполнение: локация без пустоты ----------------
 ## расстояние от точки до края ближайшей дороги (главной или срезки), м
+var _cells := {}                   # сетка 12 м: клетка → [[x, z, половина ширины]] — быстрый поиск ближайшей дороги
+
 func _edge_dist(p: Vector3) -> float:
-	var d := INF
-	for i in range(0, P.size(), 3):                  # каждая третья точка: ошибка до 1,5 м, а строится втрое быстрее
-		d = minf(d, Vector2(p.x - P[i].x, p.z - P[i].z).length() - W[i] * 0.5 - SHOULDER)
-	for i in range(0, SP.size(), 3):
-		d = minf(d, Vector2(p.x - SP[i].x, p.z - SP[i].z).length() - short_w * 0.5 - SHOULDER)
+	if _cells.is_empty():
+		for i in range(0, P.size(), 2):
+			var c := Vector2i(floori(P[i].x / 12.0), floori(P[i].z / 12.0))
+			if not _cells.has(c):
+				_cells[c] = []
+			(_cells[c] as Array).append([P[i].x, P[i].z, W[i] * 0.5 + SHOULDER])
+		for i in range(0, SP.size(), 2):
+			var c2 := Vector2i(floori(SP[i].x / 12.0), floori(SP[i].z / 12.0))
+			if not _cells.has(c2):
+				_cells[c2] = []
+			(_cells[c2] as Array).append([SP[i].x, SP[i].z, short_w * 0.5 + SHOULDER])
+	var d := 60.0                                    # дальше 60 м от дороги точная цифра не нужна
+	var cx := floori(p.x / 12.0)
+	var cz := floori(p.z / 12.0)
+	for ox in range(-5, 6):
+		for oz in range(-5, 6):
+			var lst = _cells.get(Vector2i(cx + ox, cz + oz))
+			if lst == null:
+				continue
+			for q in lst:
+				d = minf(d, Vector2(p.x - float(q[0]), p.z - float(q[1])).length() - float(q[2]))
 	return d
 
 ## Слоями вокруг дороги и внутри кольца: у дороги — деревья, кусты, скамейки, столбы; дальше — дворы
