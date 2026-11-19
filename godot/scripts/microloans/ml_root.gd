@@ -40,11 +40,18 @@ func _ready() -> void:
 	econ.note.connect(_on_note)
 	econ.changed.connect(func():
 		ui.refresh()
-		_feel())
+		_feel()
+		dirty = true)                       # любое изменение денег, долгов и заказов сохраняется сразу (см. _save_tick)
 
 ## новая игра или продолжение
 func begin(load_save: bool) -> void:
-	if not (load_save and MLSave.load_run(econ)):
+	if load_save and MLSave.load_run(econ):
+		# вышел из игры посреди подработки — заказ брошен: действие потрачено, оплаты нет
+		econ.job_abandon()
+	else:
+		# новая игра поверх идущей недели — неделя брошена: это «яма» с последствиями, а не бесплатный сброс долгов
+		if MLSave.has_run() and MLSave.load_run(econ):
+			econ.surrender()
 		econ.new_game(int(Time.get_ticks_usec() % 2147483647))
 		ui.intro()
 	ui.refresh()
@@ -53,7 +60,18 @@ func begin(load_save: bool) -> void:
 	biz_visuals()
 
 func save() -> void:
+	dirty = false
 	MLSave.save_run(econ)
+
+## Сохранение после каждого изменения, а не только между фазами: закрыть игру посреди дня и «переиграть»
+## неудачную подработку или взятый займ нельзя. Пишем не чаще раза в полсекунды.
+var dirty := false
+var save_cd := 0.0
+func _save_tick(dt: float) -> void:
+	save_cd = maxf(0.0, save_cd - dt)
+	if dirty and save_cd <= 0.0:
+		save_cd = 0.5
+		save()
 
 # ---------------- комната ----------------
 func _mat(col: Color, rough := 0.85, emit := 0.0) -> StandardMaterial3D:
@@ -424,6 +442,7 @@ func react(kind: String) -> void:
 
 func _process(dt: float) -> void:
 	t += dt
+	_save_tick(dt)
 	if buzz_t > 0.0:
 		buzz_t -= dt
 		phone.position.x = 0.55 + sin(t * 90.0) * 0.003
