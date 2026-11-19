@@ -57,6 +57,9 @@ var lost_t := 0.0
 var frozen := {}                  # id камеры → ImageTexture (подмена MOD)
 var t := 0.0
 var fx_k := 1.0
+var base_basis := Basis()          # куда смотрит камера без поворота
+var sway := 0.0                    # размах медленного поворота поворотной камеры, рад
+var turn_t := 0.0
 
 func build(f: FNFacility, world: World3D) -> void:
 	fac = f
@@ -83,7 +86,18 @@ func set_cam(id: String) -> void:
 	cam.global_position = c["pos"]
 	cam.look_at(c["look"], Vector3.UP)
 	cam.fov = float(c["fov"])
+	base_basis = cam.global_basis
+	sway = deg_to_rad(float(c.get("sway", 0.0)))
 	switch_t = 0.22
+
+## аномалия «self»: на миг камера показывает будку со спины охранника
+func peek_office() -> void:
+	cam.global_position = Vector3(1.7, 2.45, 1.45)
+	cam.look_at(Vector3(-0.2, 1.0, -0.7), Vector3.UP)
+	cam.fov = 76.0
+	base_basis = cam.global_basis
+	sway = 0.0
+	switch_t = 0.12
 
 ## снимки всех камер в начале ночи — их подсовывает MOD («старая картинка»: на ней всё как было в полночь)
 func capture_all() -> void:
@@ -107,10 +121,16 @@ func tick(st: FNNight, dt: float) -> void:
 	lost_t -= dt
 	if lost_t < -randf_range(14.0, 40.0):
 		lost_t = randf_range(0.08, 0.25)            # редкая потеря сигнала
-	var on := st.monitor and not st.cams_dead()
+	var on := st.monitor and not st.cams_dead() and not st.cam_broken(cur)
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if on and not st.cam_lies(cur) else SubViewport.UPDATE_DISABLED
 	if st.cam != cur:
 		set_cam(st.cam)
+	# поворотная камера: медленно ходит туда-обратно и замирает у краёв (как настоящий привод)
+	turn_t += dt
+	if sway > 0.0:
+		var k := sin(turn_t * 0.22)
+		k = signf(k) * pow(absf(k), 0.6)
+		cam.global_basis = base_basis.rotated(Vector3.UP, k * sway)
 	if view == null:
 		return
 	var lying := st.cam_lies(cur) and frozen.has(cur)
@@ -120,5 +140,5 @@ func tick(st: FNNight, dt: float) -> void:
 	var g: FNGhost = st.enemies["ghost"]
 	mat.set_shader_parameter("haunt", clampf(g.haunt, 0.0, 1.0))
 	mat.set_shader_parameter("switch_k", switch_t / 0.22)
-	mat.set_shader_parameter("lost", 1.0 if (lost_t > 0.0 or st.cams_dead()) else 0.0)
+	mat.set_shader_parameter("lost", 1.0 if (lost_t > 0.0 or st.cams_dead() or st.cam_broken(cur)) else 0.0)
 	mat.set_shader_parameter("fx", fx_k)

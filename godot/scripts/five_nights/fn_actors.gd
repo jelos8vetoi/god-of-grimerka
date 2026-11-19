@@ -21,6 +21,12 @@ var rigs := {}                     # id → Rig
 var face := {}                     # id → {eyes, maw}
 var place_key := {}                # id → где поставлен (чтобы не переставлять каждый кадр)
 var t := 0.0
+var mode := {}                     # id → "approach" / "retreat" / "" — что делает в коридоре
+var creep := {}                    # id → на сколько подполз к офису, пока стоит в коридоре (м)
+var stare := {}                    # id → точка, к которой медленно поворачивается (аномалия «stare»)
+var dart := {}                     # id → [время до следующего движения глаз, сколько ещё смотрят вбок]
+var lunge_t := {}                  # id → у двери играет FNLunge (вот-вот войдёт)
+const HORROR_DIR := "res://assets/minigames/fn_horror_%s.glb"   # модель владельца с костями Mixamo — встанет вместо обычной
 
 func build(o: FNOffice, f: FNFacility) -> void:
 	office = o
@@ -45,14 +51,18 @@ func _make(id: String) -> void:
 	var L: Dictionary = LOOK[id]
 	var r := Rig.new()
 	add_child(r)
-	r.setup("res://assets/models/%s.glb" % L["model"], float(L["h"]), FNPoses.set_for(id), true, 1.0, "fn_" + id)
-	_tint(r, L["tint"], float(L.get("alpha", 1.0)), float(L.get("emit", 0.0)))
+	var own := ResourceLoader.exists(HORROR_DIR % id)
+	r.setup(HORROR_DIR % id if own else "res://assets/models/%s.glb" % L["model"], float(L["h"]), FNPoses.set_for(id), true, 1.0, "fn_" + id)
+	if not own:
+		_tint(r, L["tint"], float(L.get("alpha", 1.0)), float(L.get("emit", 0.0)))
 	if id == "clipper":
 		r.attach("res://assets/models/katana.glb", "r", {"axis": "z", "from": -48.8, "to": 48.8, "grip": 0.15, "edge": true, "length": 0.62, "part": func(y): return y > 13.0, "shadow": true})
 	rigs[id] = r
 	_face(id, r)
-	if id == "balon":
+	if id == "balon" and not own:
 		_balon_costume(r)
+	if not own:
+		_horror(id, r)
 	r.visible = false
 	r.position = Vector3(0, -60, 0)
 
@@ -161,7 +171,9 @@ func tick(st: FNNight, dt: float) -> void:
 			key += "|" + str((e as FNGhost).flicker)
 		if place_key.get(id, "") != key:
 			place_key[id] = key
+			stare.erase(id)
 			_place(id, e, r)
+		_live(id, e, r, dt)
 		# мерцание глаз; у GHOST — растёт с одержимостью
 		var f: Dictionary = face.get(id, {})
 		if not f.is_empty():
@@ -184,6 +196,7 @@ func _place(id: String, e: FNEnemy, r: Rig) -> void:
 			var p := FNOffice.point(sp)
 			r.position = p
 			r.rotation.y = PI / 2 if sp == "door_l" else -PI / 2
+			lunge_t[id] = false
 			r.play("FNPeek" if e.pose != 1 else "FNStill", 0.0)
 			return
 		"vent_l":
@@ -215,10 +228,104 @@ func _place(id: String, e: FNEnemy, r: Rig) -> void:
 		r.rotation.y = atan2(to.x, to.z)
 		r.play("FNStare", 0.0)
 	elif sp in ["hall_l", "hall_r"]:
-		r.rotation.y = 0.0 if sp.ends_with("l") else 0.0
-		r.play("FNWalk", 0.0, 0.18)                 # застыл посреди шага
+		r.rotation.y = 0.0
+		# пришёл от двери — пятится, не сводя глаз; идёт к офису — приближается рывками и сам подползает ближе
+		mode[id] = "retreat" if e.prev in ["door_l", "door_r"] else "approach"
+		creep[id] = 0.0
+		r.set_meta("hall_z", r.position.z)
+		r.play("FNRetreat" if mode[id] == "retreat" else ("FNApproach" if id != "clipper" else "FNWalk"), 0.0, 1.0 if id != "clipper" else 0.18)
 	else:
 		r.play("FNStill" if e.pose != 2 else "Idle", 0.0)
+
+## живое между переездами: подползает по коридору, у двери подаётся вперёд перед входом, глаза бегают,
+## поворот к камере (аномалия «stare»)
+func _live(id: String, e: FNEnemy, r: Rig, dt: float) -> void:
+	if not r.visible:
+		return
+	if e.spot in ["hall_l", "hall_r"] and String(mode.get(id, "")) == "approach":
+		creep[id] = minf(1.1, float(creep.get(id, 0.0)) + dt * 0.05)
+		r.position.z = float(r.get_meta("hall_z", r.position.z)) + float(creep[id])
+	if e.spot in ["door_l", "door_r"] and e.linger > 0.0:
+		var near: bool = e.door_t > e.linger * 0.7
+		if near != bool(lunge_t.get(id, false)):
+			lunge_t[id] = near
+			r.play("FNLunge" if near else "FNPeek", 0.25)
+	if stare.has(id):
+		var to: Vector3 = (stare[id] as Vector3) - r.global_position
+		r.rotation.y = rotate_toward(r.rotation.y, atan2(to.x, to.z), dt * 0.45)
+	var f: Dictionary = face.get(id, {})
+	if f.is_empty():
+		return
+	var d: Array = dart.get(id, [randf_range(2.0, 5.0), 0.0])
+	d[0] -= dt
+	if d[0] <= 0.0:
+		d[0] = randf_range(2.5, 6.0)
+		d[1] = randf_range(0.25, 0.6)
+		(f["eyes"] as Node3D).position.x = randf_range(-1.0, 1.0) * 0.035 * float(f["hs"])
+	if d[1] > 0.0:
+		d[1] -= dt
+		if d[1] <= 0.0:
+			(f["eyes"] as Node3D).position.x = 0.0
+	dart[id] = d
+
+## аномалия камеры: враг медленно поворачивается к ней всем телом
+func stare_at(id: String, cam_pos: Vector3) -> void:
+	if id != "":
+		stare[id] = cam_pos
+
+## хоррор-детали на обычной модели (пока нет своей модели владельца): у каждого врага своё
+func _horror(id: String, r: Rig) -> void:
+	var hb: int = r.bone["head"]
+	var hs: float = float((face.get(id, {"hs": 0.4}) as Dictionary)["hs"])
+	match id:
+		"bot":
+			# вместо лица — экран кинескопа со смайлом, который «плывёт» помехами
+			if hb >= 0:
+				var n := _on_bone(r, hb, Vector3(0, 0.42 * hs, 0.47 * hs))
+				var scr := MGProps.screen_mat(Color(0.8, 0.95, 0.85), 3.0, 2.0, 1.6)
+				MGProps.quad(n, Vector3.ZERO, Vector2(0.5 * hs, 0.4 * hs), scr)
+		"madk1d":
+			# очки: одна линза треснула и светится красным
+			if hb >= 0:
+				var n := _on_bone(r, hb, Vector3(0, 0.44 * hs, 0.46 * hs))
+				MGProps.box(n, Vector3(-0.12 * hs, 0, 0), Vector3(0.18 * hs, 0.12 * hs, 0.01), MGProps.mat("black"))
+				MGProps.box(n, Vector3(0.12 * hs, 0, 0), Vector3(0.18 * hs, 0.12 * hs, 0.01), MGProps.glow(Color(0.9, 0.05, 0.05), 2.4))
+				MGProps.box(n, Vector3(0.12 * hs, 0, 0.007), Vector3(0.2 * hs, 0.012, 0.002), MGProps.mat("paper"), Vector3(0, 0, 0.7))
+		"clipper":
+			# красные кабели свисают с плеч, как вены
+			for k in ["rarm", "larm"]:
+				var b: int = r.bone[k]
+				if b < 0:
+					continue
+				var n := _on_bone(r, b, Vector3.ZERO)
+				MGProps.cable(n, Vector3(0, 0.0, 0.04), Vector3(0.02, -0.45, 0.08), 0.06, 0.008, MGProps.mat("red"))
+				MGProps.cable(n, Vector3(0, 0.02, -0.03), Vector3(-0.03, -0.38, -0.05), 0.05, 0.006, MGProps.mat("red_dark"))
+		"mod":
+			# огромный резиновый молоток бана в правой руке
+			var hb2: int = r.bone["rhand"]
+			if hb2 >= 0:
+				var n := _on_bone(r, hb2, Vector3(0, -0.05, 0.0))
+				MGProps.cyl(n, Vector3(0, -0.2, 0), 0.02, 0.02, 0.5, MGProps.mat("black"))
+				MGProps.cyl(n, Vector3(0, -0.48, 0), 0.09, 0.09, 0.26, MGProps.mat("red"), Vector3(0, 0, PI / 2))
+				MGProps.text(n, "BAN", Vector3(0, -0.48, 0.095), 40, Color(0.95, 0.9, 0.85))
+		"balon":
+			# вентиль на затылке иногда «дышит» паром — тонкий конус
+			if hb >= 0:
+				var n := _on_bone(r, hb, Vector3(0, 0.9 * hs, -0.2 * hs))
+				var steam := MGProps.cyl(n, Vector3(0, 0.12, 0), 0.06, 0.005, 0.22, MGProps.glow(Color(0.85, 0.88, 0.9), 0.4))
+				steam.set_meta("steam", true)
+				steam.name = "steam"
+
+## узел, привязанный к кости, со сдвигом от неё в осях героя (вверх, вперёд)
+func _on_bone(r: Rig, b: int, off: Vector3) -> Node3D:
+	var att := BoneAttachment3D.new()
+	att.bone_name = r.skel.get_bone_name(b)
+	r.skel.add_child(att)
+	var rest_g: Transform3D = r.skel.global_transform * r.skel.get_bone_global_rest(b)
+	var n := Node3D.new()
+	att.add_child(n)
+	n.transform = rest_g.affine_inverse() * Transform3D(Basis(), rest_g.origin + off)
+	return n
 
 ## пасть: 0 — закрыта, 1 — раскрыта
 func maw(id: String, k: float) -> void:

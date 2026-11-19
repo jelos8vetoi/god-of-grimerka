@@ -31,7 +31,27 @@ var dark_t := 0.0
 var dark_need := 0.0
 var crank_p := 0.0
 var emergency_used := false
-var stats := {"door_s": 0.0, "light_s": 0.0, "cam_s": 0.0, "seal_s": 0.0, "switches": 0, "bangs": 0, "resets": 0}
+var stats := {"door_s": 0.0, "light_s": 0.0, "cam_s": 0.0, "seal_s": 0.0, "switches": 0, "bangs": 0, "resets": 0, "lures": 0, "fixes": 0, "browns": 0}
+# происшествия (своё зерно — не сдвигают ходы врагов): поломка камеры, перебой электричества, приманка
+var inc := RandomNumberGenerator.new()
+var broken := ""                 # сломанная камера: «НЕТ СИГНАЛА», пока не перезапустишь (держать C) — или сама через BROKEN_MAX
+var broken_t := 0.0
+var fix_t := 0.0                 # сколько уже держат перезапуск
+var break_next := 0.0
+var brown_warn := 0.0            # предупреждение: лампы гудят и мигают — сейчас будет перебой
+var brown_t := 0.0               # перебой: камеры и фонари не работают, двери держат
+var brown_next := 0.0
+var lure_cd := 0.0
+var lure_uses := 0
+const FIX_NEED := 3.0
+const BROKEN_MAX := 60.0
+const BROWN_WARN := 2.5
+const BROWN_LEN := 4.0
+const LURE_CD := 30.0
+const LURE_POWER := 1.5
+const LURE_ROOMS := ["stage", "arcade", "storage", "server", "power"]
+## кого тянет приманка (звук игрушки в комнате) и как сильно; MADK1D и GHOST её не слышат
+const LURE_PULL := {"balon": 0.85, "clipper": 0.6, "bot": 0.55, "mod": 0.45}
 
 static func _make(id: String) -> FNEnemy:
 	match id:
@@ -51,6 +71,9 @@ func setup(n: int, seed_v: int, levels := {}) -> void:
 	night = n
 	custom = levels
 	rng.seed = seed_v
+	inc.seed = seed_v ^ 0x5bd1e995
+	break_next = inc.randf_range(70.0, 140.0) if n >= 1 else 1e9
+	brown_next = inc.randf_range(90.0, 170.0) if n >= 2 else 1e9
 	for id in FNData.ORDER:
 		var e: FNEnemy = _make(id)
 		e.setup(self, id, _level_for(id, 0))
@@ -97,6 +120,7 @@ func step(dt: float) -> void:
 	_drain(dt)
 	if power_out:
 		return
+	_incidents(dt)
 	for id in FNData.ORDER:
 		(enemies[id] as FNEnemy).tick(self, dt)
 		if outcome != "":
@@ -134,6 +158,81 @@ func time_left() -> float:
 	var d := float(P["base"]) + (float(P["door"]) * (int(door["l"]) + int(door["r"]))) + float(P["light"]) * (int(light["l"]) + int(light["r"])) \
 		+ float(P["seal"]) * (int(seal["l"]) + int(seal["t"])) + (float(P["monitor"]) if monitor else 0.0)
 	return power / maxf(0.01, d)
+
+# ---------------- происшествия ----------------
+func _incidents(dt: float) -> void:
+	lure_cd = maxf(0.0, lure_cd - dt)
+	# поломка камеры
+	if broken != "":
+		broken_t += dt
+		if broken_t >= BROKEN_MAX:
+			broken = ""
+			emit("cam_fixed", {"auto": true})
+	else:
+		break_next -= dt
+		if break_next <= 0.0:
+			var ids: Array = FNData.CAMS.map(func(c): return String(c["id"]))
+			broken = String(ids[inc.randi() % ids.size()])
+			broken_t = 0.0
+			fix_t = 0.0
+			break_next = inc.randf_range(80.0, 160.0)
+			emit("cam_broken", {"id": broken})
+	# перебой: предупреждение → короткая темнота камер и фонарей → снова свет
+	if brown_t > 0.0:
+		brown_t -= dt
+		if brown_t <= 0.0:
+			brown_next = inc.randf_range(100.0, 180.0)
+			emit("brown_end", {})
+	elif brown_warn > 0.0:
+		brown_warn -= dt
+		if brown_warn <= 0.0:
+			brown_t = BROWN_LEN
+			stats["browns"] = int(stats["browns"]) + 1
+			for s in ["l", "r"]:
+				set_light(s, false)
+			emit("brown", {})
+	else:
+		brown_next -= dt
+		if brown_next <= 0.0:
+			brown_warn = BROWN_WARN
+			emit("brown_warn", {})
+
+## перезапуск сломанной камеры: держать C, пока смотришь именно на неё (3 с), стоит 1 % энергии
+func fix_cam(dt: float) -> bool:
+	if broken == "" or not monitor or cam != broken or power_out or brown_t > 0.0:
+		fix_t = maxf(0.0, fix_t - dt)
+		return false
+	fix_t += dt
+	if fix_t >= FIX_NEED:
+		broken = ""
+		fix_t = 0.0
+		power = maxf(0.0, power - 1.0)
+		stats["fixes"] = int(stats["fixes"]) + 1
+		emit("cam_fixed", {"auto": false})
+		return true
+	return false
+
+## приманка: звук игрушки в выбранной комнате тянет туда врагов из коридоров и соседних комнат (не от дверей —
+## там уже поздно). Каждый раз действует слабее: враги привыкают. Перезарядка LURE_CD, цена LURE_POWER.
+func lure(room: String) -> Array:
+	if lure_cd > 0.0 or power_out or brown_t > 0.0 or not (room in LURE_ROOMS) or power <= LURE_POWER + 0.5:
+		return []
+	lure_cd = LURE_CD
+	power -= LURE_POWER
+	lure_uses += 1
+	stats["lures"] = int(stats["lures"]) + 1
+	var fade := maxf(0.25, 1.0 - 0.15 * float(lure_uses - 1))
+	var moved: Array = []
+	for id in LURE_PULL:
+		var e: FNEnemy = enemies[id]
+		if e.level <= 0 or e.entered or e._at_door() or e.spot in ["away", "office", "corner", room]:
+			continue
+		if inc.randf() < float(LURE_PULL[id]) * fade:
+			e.go(self, room, "lure")
+			e.move_t = maxf(e.move_t, 6.0)
+			moved.append(id)
+	emit("lure", {"room": room, "moved": moved})
+	return moved
 
 # ---------------- темнота: последний шанс ----------------
 func _power_out() -> void:
@@ -183,7 +282,7 @@ func set_door(s: String, closed: bool) -> bool:
 	return true
 
 func set_light(s: String, on: bool) -> void:
-	if power_out:
+	if power_out or brown_t > 0.0:
 		on = false
 	if light[s] == on:
 		return
@@ -224,7 +323,11 @@ func reset_system() -> bool:
 
 # ---------------- то, что спрашивают враги ----------------
 func cams_dead() -> bool:
-	return power_out or cam_off_t > 0.0
+	return power_out or cam_off_t > 0.0 or brown_t > 0.0
+
+## эта камера сейчас не показывает (сломана)
+func cam_broken(id: String) -> bool:
+	return broken == id
 
 ## камера врёт (MOD подсунул старую картинку)
 func cam_lies(id: String) -> bool:
@@ -239,7 +342,7 @@ func jammed(id: String) -> bool:
 func sees(spot: String) -> bool:
 	if spot == "corner":
 		return not monitor and yaw < -0.62 and not power_out
-	return monitor and cam == spot and not cams_dead() and not cam_lies(spot)
+	return monitor and cam == spot and not cams_dead() and not cam_lies(spot) and broken != spot
 
 func attack(eid: String, at: String) -> void:
 	if outcome != "":
