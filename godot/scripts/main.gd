@@ -29,6 +29,7 @@ var weathercheck := ""      # --weathercheck=<папка>: погода и сл�
 var race: Node              # идущая гонка (race.gd) или null
 var minigame: Node          # мини-игра со своей сценой (ПАХАН НАБРАЛ МИКРОЗАЙМОВ, 5 НОЧЕЙ С ПАХАНОМ) или null
 var microloanscheck := ""   # --microloanscheck=<папка>: мини-игра «микрозаймы» (scripts/microloans/microloanscheck.gd)
+var trailermodes := ""      # --trailermodes=<папка>: кадры трейлера режимов (scripts/trailermodes.gd, tools/trailer/compose-modes.html)
 var fivenightscheck := ""   # --fivenightscheck=<папка>: мини-игра «5 ночей» (scripts/five_nights/fivenightscheck.gd)
 var race_net: Node          # сетевая гонка (race_net.gd, /root/Main/RaceNet) или null — тогда игра офлайн
 var net_msg := ""           # почему закончилась сетевая сессия (покажет экран ONLINE RACE)
@@ -172,6 +173,8 @@ func _ready() -> void:
 			microloanscheck = arg.substr(18)
 		elif arg.begins_with("--fivenightscheck="):
 			fivenightscheck = arg.substr(18)
+		elif arg.begins_with("--trailermodes="):
+			trailermodes = arg.substr(15)
 		elif arg.begins_with("--race-netcheck="):
 			racenet = arg.substr(16)
 		elif arg.begins_with("--race-netclient="):
@@ -260,6 +263,11 @@ func _ready() -> void:
 			mlc.main = self
 			mlc.out = microloanscheck
 			add_child(mlc)
+		if trailermodes != "":
+			var tmc = load("res://scripts/trailermodes.gd").new()
+			tmc.main = self
+			tmc.out = trailermodes
+			add_child(tmc)
 		if fivenightscheck != "":
 			var fnc = load("res://scripts/five_nights/fivenightscheck.gd").new()
 			fnc.main = self
@@ -383,12 +391,12 @@ func testing() -> String:
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 ## Играет человек, а не проверка: только тогда игра пишет его настройки iPod и прочее «на выходе»
 func user_play() -> bool:
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and trailermodes == "" and not voicecheck
 
 func tutorial_on() -> bool:
 	if tutorialcheck != "":
 		return true
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and trailermodes == "" and not voicecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
