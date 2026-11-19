@@ -62,6 +62,25 @@ func _ready() -> void:
 		if AudioServer.get_bus_index(b) < 0:
 			AudioServer.add_bus()
 			AudioServer.set_bus_name(AudioServer.bus_count - 1, b)
+	# подшины эффектов: UI (интерфейс мини-игр и меню) и Horror (скримеры) идут в SFX — ползунок «Эффекты» и режим
+	# наушников действуют на них как на обычные эффекты; у Horror свой ограничитель, чтобы крик не перегружал микс
+	for sub in ["UI", "Horror"]:
+		if AudioServer.get_bus_index(sub) < 0:
+			AudioServer.add_bus()
+			var si := AudioServer.bus_count - 1
+			AudioServer.set_bus_name(si, sub)
+			AudioServer.set_bus_send(si, "SFX")
+			if sub == "Horror":
+				var lim := AudioEffectHardLimiter.new()
+				lim.ceiling_db = -1.0
+				AudioServer.add_bus_effect(si, lim)
+	# ограничители: эффекты (скример поверх двери и шагов) и общий выход не хрипят
+	var sfx_lim := AudioEffectHardLimiter.new()
+	sfx_lim.ceiling_db = -1.0
+	AudioServer.add_bus_effect(AudioServer.get_bus_index("SFX"), sfx_lim)
+	var master_lim := AudioEffectHardLimiter.new()
+	master_lim.ceiling_db = -0.3
+	AudioServer.add_bus_effect(0, master_lim)
 	# Фокус iPod обрабатывается только на Music: голоса, SFX и окружение остаются чистыми.
 	var music_bus := AudioServer.get_bus_index("Music")
 	ipod_lowpass = AudioEffectLowPassFilter.new()
@@ -307,9 +326,12 @@ func _minigame(dt: float, mg) -> void:
 	if nm != "" and not ResourceLoader.exists(DIR + nm + "_base.wav"):
 		nm = ""
 	play_set(nm)
-	_want([0.7, 0.0])
+	# слои: игра сама говорит, насколько громко base и drive (микрозаймы: drive — когда горит срок); по умолчанию — только base
+	var lv: Array = mg.music_layers() if mg.has_method("music_layers") else [0.7, 0.0]
+	_want(lv)
 	_set_state("minigame")
-	_bed("")
+	# фон окружения из набора amb_<имя> (у «5 ночей» свой синтез — она отдаёт "")
+	_bed(String(mg.bed_set()) if mg.has_method("bed_set") else "")
 	_mix(dt, 0.0)
 
 func _want(v: Array) -> void:

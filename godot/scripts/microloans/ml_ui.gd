@@ -248,6 +248,7 @@ func open(title: String, lines: Array, items: Array, w := 760.0) -> Control:
 	_paint()
 	panel.modulate.a = 0.0
 	panel.create_tween().tween_property(panel, "modulate:a", 1.0, 0.15)
+	root.snd.play("open")
 	return panel
 
 func close_panel() -> void:
@@ -259,6 +260,8 @@ func close_panel() -> void:
 func _select(i: int) -> void:
 	if rows.is_empty():
 		return
+	if posmod(i, rows.size()) != sel:
+		root.snd.play("move")
 	sel = posmod(i, rows.size())
 	_paint()
 	var l: Label = rows[sel]["label"]
@@ -284,11 +287,9 @@ func _activate() -> void:
 		return
 	var r: Dictionary = rows[sel]
 	if _why(r) != "":
-		if root.main != null and not root.quiet:
-			root.main.sfx("sfx_block", -8.0, 1.2)
+		root.snd.play("fail")
 		return
-	if root.main != null and not root.quiet:
-		root.main.sfx("sfx_ui")
+	root.snd.play("ok")
 	(r["act"] as Callable).call()
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -317,11 +318,16 @@ func _unhandled_input(e: InputEvent) -> void:
 func intro() -> void:
 	notify("Пахан, твои займы на %s. Через 7 дней приходят коллекторы." % rub(econ().total_debt()), "bad")
 
+var last_phase := ""
 func show_phase() -> void:
 	var e := econ()
 	if e.ending != "":
 		ending()
 		return
+	if e.phase != last_phase:
+		if last_phase != "":
+			root.snd.play("phase")
+		last_phase = e.phase
 	screen = e.phase
 	match e.phase:
 		"morning":
@@ -699,8 +705,8 @@ func negotiate(id: int, after: Callable) -> MLNegotiation:
 	overlay = N
 	close_panel()
 	root.react("call")
-	if root.main != null and not root.quiet:
-		root.main.sfx("sfx_charge", -6.0, 0.6)
+	root.snd.ring_on()
+	get_tree().create_timer(1.3, true, false, true).timeout.connect(func(): root.snd.ring_off())
 	N.done.connect(func(r: Dictionary):
 		var tw := N.create_tween()
 		tw.tween_interval(0.9 if root.quiet == false else 0.05)

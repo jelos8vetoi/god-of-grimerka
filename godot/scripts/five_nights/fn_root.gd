@@ -127,8 +127,8 @@ func _audio() -> void:
 		var p := AudioStreamPlayer.new()
 		p.stream = FNSound.get_stream(a[0])
 		p.bus = a[1]
-		p.volume_db = a[2]
-		p.set_meta("base", a[2])
+		p.volume_db = a[2] + FNSound.trim(a[0])
+		p.set_meta("base", a[2] + FNSound.trim(a[0]))
 		add_child(p)
 		amb[a[0]] = p
 	crawl = _p3("crawl")
@@ -143,8 +143,8 @@ func _audio() -> void:
 	for k in 8:
 		var p3 := AudioStreamPlayer3D.new()
 		p3.bus = "SFX"
-		p3.unit_size = 3.0
-		p3.max_db = 6.0
+		p3.unit_size = 6.0              # было 3: шаги в коридоре за 6–8 м гасли почти до нуля
+		p3.max_db = 0.0                 # вблизи не громче, чем задано (иначе дверь у уха шла с +6 дБ и перегружала)
 		add_child(p3)
 		pool3.append(p3)
 	for k in 6:
@@ -157,7 +157,7 @@ func _p3(id: String) -> AudioStreamPlayer3D:
 	var p := AudioStreamPlayer3D.new()
 	p.stream = FNSound.get_stream(id)
 	p.bus = "SFX"
-	p.unit_size = 2.5
+	p.unit_size = 5.0
 	add_child(p)
 	return p
 
@@ -173,7 +173,7 @@ func sfx3(id: String, pos: Vector3, vol := 0.0, pitch := 1.0) -> void:
 		if not a.playing:
 			a.stream = FNSound.get_stream(id)
 			a.global_position = pos
-			a.volume_db = vol
+			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
 			a.play()
 			return
@@ -186,9 +186,9 @@ func sfx2(id: String, vol := 0.0, pitch := 1.0, bus := "SFX") -> void:
 		var a := p as AudioStreamPlayer
 		if not a.playing:
 			a.stream = FNSound.get_stream(id)
-			a.volume_db = vol
+			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
-			a.bus = bus
+			a.bus = FNSound.bus_for(id, bus)
 			a.play()
 			return
 
@@ -250,8 +250,24 @@ func quit_to_menu() -> void:
 	if main != null and main.has_method("end_minigame"):
 		main.end_minigame(4)
 
+## музыка: в терминале — своя тема (хор и колокольчики, loc_fn), ночью музыки нет — только здание и враги
 func music_set() -> String:
-	return ""                                    # музыка игры молчит: у ночи свой звук
+	return "loc_fn" if state == "menu" else ""
+
+## страх: редкие звуки здания в разных местах (скрип в коридоре, капля в служебке, стук за спиной, железо в шахте);
+## не чаще раза в 14–30 с, только в тишине ночи и не во время скримера; ни один не означает угрозу — враги звучат своими
+var fear_t := 18.0
+const FEAR := [["creak", "hall_l", -6.0], ["creak", "hall_r", -6.0], ["drip", "vent_l", -8.0], ["knock", "behind", -10.0], ["clank", "vent_t", -16.0], ["giggle", "hall_r", -14.0]]
+func _fear_tick(dt: float) -> void:
+	if state != "night" or st == null or st.power_out or scare.busy or intro_t > 0.0:
+		return
+	fear_t -= dt
+	if fear_t > 0.0:
+		return
+	fear_t = randf_range(14.0, 30.0) - float(night) * 1.5
+	var f: Array = FEAR[randi() % (FEAR.size() if night >= 2 else 3)]
+	var pos := Vector3(0.0, 1.5, 2.2) if String(f[1]) == "behind" else FNOffice.point(String(f[1])) + Vector3(0, 1.4, 0)
+	sfx3(String(f[0]), pos, float(f[2]), randf_range(0.85, 1.1))
 
 # ---------------- ночь ----------------
 func start_night(n: int, lv := {}) -> void:
@@ -282,6 +298,8 @@ func start_night(n: int, lv := {}) -> void:
 	air_tune.stop()
 	crawl.volume_db = -60.0
 	state = "night"
+	fear_t = randf_range(16.0, 26.0)
+	sfx2("sting_night", -3.0, 1.0, "Music")
 	var title: String = "CUSTOM NIGHT" if n >= FNData.NIGHTS.size() else String(FNData.NIGHTS[n]["title"])
 	ui.night_card("НОЧЬ %d" % (n + 1) if n < FNData.NIGHTS.size() else "CUSTOM NIGHT", title)
 	intro_t = 3.6                                  # заставка закрывает и снимки камер ниже
@@ -320,6 +338,7 @@ func set_paused(on: bool) -> void:
 
 func _process(dt: float) -> void:
 	_amb_tick(dt)
+	_fear_tick(dt)
 	match state:
 		"menu":
 			_menu_tick(dt)
@@ -544,6 +563,7 @@ func _attack(eid: String, at: String) -> void:
 
 func _dead(eid: String, at: String) -> void:
 	state = "dead"
+	sfx2("sting_lose", -4.0)
 	var nm: String = FNData.ENEMIES[eid]["name"]
 	var hint := "Энергия кончилась. Двери, свет и камеры — всё в расход. Экономь: открывай двери, как только ушли." if at == "dark" else String(FNData.ENEMIES[eid]["counter"])
 	ui.dead_card(nm, hint, [["ЕЩЁ РАЗ", func(): start_night(night, levels)], ["В МЕНЮ ОХРАНЫ", to_terminal]])

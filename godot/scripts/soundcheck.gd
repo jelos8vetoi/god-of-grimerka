@@ -5,7 +5,8 @@
 ## ничего не нужно, пики подшин меряются. Сохранение и настройки игрока запоминаются в начале и возвращаются в конце.
 extends Node
 
-const KEEP := ["user://grimerka_save.json", "user://grimerka_display.json", "user://grimerka_audio.json", "user://grimerka_ipod.json", "user://grimerka_training.json"]
+const KEEP := ["user://grimerka_save.json", "user://grimerka_display.json", "user://grimerka_audio.json", "user://grimerka_ipod.json", "user://grimerka_training.json",
+	"user://microloans_save.json", "user://microloans_save.json.bak", "user://five_nights_save.json", "user://five_nights_save.json.bak"]
 
 var main
 var out := ""
@@ -39,7 +40,7 @@ func vol(b: String) -> float:
 
 ## Несколько секунд слушаем шины: самый громкий пик каждой; раз в секунду — строка состояния
 func listen(sec: float, tag: String) -> Dictionary:
-	var best := {"Music": -200.0, "SFX": -200.0, "Ambient": -200.0, "Voice": -200.0, "IPod": -200.0}
+	var best := {"Music": -200.0, "SFX": -200.0, "Ambient": -200.0, "Voice": -200.0, "IPod": -200.0, "UI": -200.0, "Horror": -200.0}
 	var a = main.audio
 	var t0 := Time.get_ticks_msec()
 	var next := 0
@@ -199,7 +200,82 @@ func _run() -> void:
 	main.sfx("sfx_hit", 0.0)
 	var rs := await listen(1.0, "арена-эффект")
 	ok(rs["SFX"] > -45.0, "на арене эффекты звучат (пик %.1f дБ)" % rs["SFX"])
+	gg._to_menu()
+	await wait(2.0)
+	await _minigames()
 	_finish()
+
+func until(cond: Callable, sec: float) -> bool:
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
+		if cond.call():
+			return true
+		await get_tree().process_frame
+	return bool(cond.call())
+
+## мини-игры как у игрока: 5 НОЧЕЙ (терминал, ночь, дверь, свет, камеры) и МИКРОЗАЙМЫ (комната, действия)
+func _minigames() -> void:
+	FNSave.persist = false
+	main.start_minigame("five_nights")
+	await wait(2.5)
+	var F = main.minigame
+	ok(F is FiveNightsRoot, "5 НОЧЕЙ запущены")
+	if not (F is FiveNightsRoot):
+		return
+	var fm := await listen(2.0, "5 ночей: терминал")
+	ok(fm["Ambient"] > -40.0, "5 НОЧЕЙ, терминал: слышен гул (Ambient %.1f дБ)" % fm["Ambient"])
+	F.start_night(0)
+	await until(func(): return F.state == "night" and F.st != null and F.intro_t <= 0.0, 15.0)
+	for id in F.st.enemies:
+		(F.st.enemies[id] as FNEnemy).level = 0
+	var fn := await listen(4.0, "5 ночей: ночь")
+	ok(fn["Ambient"] > -35.0, "5 НОЧЕЙ, ночь: окружение слышно (Ambient %.1f дБ)" % fn["Ambient"])
+	F.sfx3("step", FNOffice.point("hall_l") + Vector3(0, 0.2, 0), -10.0, 0.8)     # шаг в дальнем коридоре — как у врага
+	var fs := await listen(0.6, "5 ночей: шаг в коридоре")
+	ok(fs["SFX"] > -36.0, "5 НОЧЕЙ: шаг в дальнем коридоре слышно (SFX %.1f дБ)" % fs["SFX"])
+	F.sfx2("scream_balon", 2.0)
+	var fh := await listen(0.8, "5 ночей: крик")
+	ok(fh["SFX"] > -12.0 and fh["SFX"] < 0.5, "5 НОЧЕЙ: крик скримера громкий, но без перегруза (шина Horror → SFX, пик %.1f дБ)" % fh["SFX"])
+	await key(KEY_A)
+	var fd := await listen(0.8, "5 ночей: дверь")
+	await key(KEY_A)
+	ok(fd["SFX"] > -30.0, "5 НОЧЕЙ: дверь слышно (SFX %.1f дБ)" % fd["SFX"])
+	await key(KEY_SPACE)
+	var fc := await listen(1.0, "5 ночей: планшет")
+	await key(KEY_SPACE)
+	ok(fc["SFX"] > -30.0, "5 НОЧЕЙ: планшет слышно (SFX %.1f дБ)" % fc["SFX"])
+	F.quit_to_menu()
+	await wait(2.5)
+	main.start_minigame("microloans")
+	await wait(3.0)
+	var M = main.minigame
+	ok(M is MicroloansRoot, "МИКРОЗАЙМЫ запущены")
+	if not (M is MicroloansRoot):
+		return
+	var mr := await listen(3.0, "микрозаймы: комната")
+	ok(mr["Music"] > -45.0 or mr["Ambient"] > -45.0, "МИКРОЗАЙМЫ, комната: есть музыка или фон (Music %.1f, Ambient %.1f дБ)" % [mr["Music"], mr["Ambient"]])
+	ok(mr["Ambient"] > -60.0, "МИКРОЗАЙМЫ: фон комнаты звучит (Ambient %.1f дБ)" % mr["Ambient"])
+	var mv0 := int(M.snd.count.get("move", 0))
+	await key(KEY_DOWN)                         # клавиша → звук шага (счётчик); сам звук 0,05 с — слушаем ниже напрямую
+	ok(int(M.snd.count.get("move", 0)) == mv0 + 1, "МИКРОЗАЙМЫ: стрелка вниз даёт звук шага по меню")
+	M.ui._select(M.ui.sel + 1)
+	var mk := await listen(0.3, "микрозаймы: выбор")
+	ok(mk["SFX"] > -35.0, "МИКРОЗАЙМЫ: шаг по меню слышно (SFX %.1f дБ)" % mk["SFX"])
+	for kind in ["notify", "money", "alert", "stamp", "phase", "sigh"]:
+		M.snd.play(kind)
+		var one := await listen(0.5, "микрозаймы: " + kind)
+		ok(one["SFX"] > -30.0 or one["Voice"] > -30.0, "МИКРОЗАЙМЫ: звук «%s» слышно (SFX %.1f, Voice %.1f дБ)" % [kind, one["SFX"], one["Voice"]])
+	ok(main.audio.cur == "loc_ml", "МИКРОЗАЙМЫ: своя музыка комнаты (%s)" % main.audio.cur)
+	# все звуки обеих мини-игр собраны и не пустые
+	for c in [FNSound._cache, MLSound._cache]:
+		for id in c:
+			var w: AudioStreamWAV = c[id]
+			var pk := 0
+			for i in range(0, w.data.size() - 1, 64):
+				pk = maxi(pk, absi(w.data.decode_s16(i)))
+			ok(pk > 3000 and pk <= 32000, "звук «%s»: пик %.1f дБFS" % [id, linear_to_db(float(pk) / 32768.0)])
+	M.quit_to_menu()
+	await wait(2.5)
 
 func _finish() -> void:
 	if main.game != null and is_instance_valid(main.game) and main.game.ipod != null:

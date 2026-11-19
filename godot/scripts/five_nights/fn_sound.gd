@@ -6,6 +6,20 @@ class_name FNSound
 
 const RATE := 22050
 static var _cache := {}
+## поправка громкости, дБ, поверх той, что задаёт место вызова: раньше многое звучало на −10…−16 дБ и почти целиком ниже
+## 300 Гц — на динамиках ноутбука и в тихих наушниках этого не слышно; теперь у звуков есть «верх», а уровни выровнены
+const TRIM := {"cam": 7.0, "static": 6.0, "click": 5.0, "step": 9.0, "step_heavy": 6.0, "door_down": 3.0, "door_up": 4.0,
+	"ping": 3.0, "crawl": 7.0, "giggle": 7.0, "heart": 8.0, "whine": 6.0, "babble": 5.0, "fan": 3.0, "hum": 1.0, "buzz": 4.0,
+	"crank": 4.0, "clank": 2.0, "vent_bang": 1.0, "power_down": 3.0, "breath": 5.0, "ring": 2.0}
+
+## шина для звука: крики скримеров — отдельная Horror (с ограничителем, через SFX), остальное — как просит вызов
+static func bus_for(id: String, want: String) -> String:
+	if (id.begins_with("scream_") or id == "sting_lose") and AudioServer.get_bus_index("Horror") >= 0:
+		return "Horror"
+	return want
+
+static func trim(id: String) -> float:
+	return float(TRIM.get(id, 0.0))
 
 static func get_stream(id: String) -> AudioStreamWAV:
 	if _cache.has(id):
@@ -18,7 +32,8 @@ static func get_stream(id: String) -> AudioStreamWAV:
 static func warm() -> void:
 	for id in ["hum", "fan", "buzz", "whine", "click", "door_down", "door_up", "step", "step_heavy", "clank", "scrape", "crawl",
 			"vent_bang", "whisper", "giggle", "ring", "static", "ping", "power_down", "crank", "chime", "babble", "cam",
-			"scream_balon", "scream_madk1d", "scream_bot", "scream_clipper", "scream_ghost", "scream_mod", "scream_dark", "scream_pahan", "breath", "heart", "music_box_air"]:
+			"scream_balon", "scream_madk1d", "scream_bot", "scream_clipper", "scream_ghost", "scream_mod", "scream_dark", "scream_pahan", "breath", "heart", "music_box_air",
+			"sting_night", "sting_lose", "knock", "drip", "creak"]:
 		get_stream(id)
 
 static func _wav(buf: PackedFloat32Array, loop := false) -> AudioStreamWAV:
@@ -61,6 +76,8 @@ static func _make(id: String) -> AudioStreamWAV:
 				var t := float(i) / RATE
 				lp += (rng.randf_range(-1, 1) - lp) * 0.02
 				b[i] = 0.32 * sin(TAU * 41.0 * t) + 0.22 * sin(TAU * 41.5 * t + 1.0) + 0.1 * sin(TAU * 82.3 * t) + lp * 0.5
+				# середина: дроссели ламп (120/240/360 Гц, плавают) и сухой воздух — то, что слышно и на маленьких динамиках
+				b[i] += (0.07 * sin(TAU * 120.0 * t) + 0.05 * sin(TAU * 240.3 * t + 0.4) + 0.03 * sin(TAU * 361.0 * t)) * (0.75 + 0.25 * sin(TAU * 0.5 * t)) + rng.randf_range(-1, 1) * 0.025
 			_loop_fade(b, 0.4)
 			return _wav(b, true)
 		"fan":            # старая вентиляция: шум с ритмом лопастей
@@ -72,6 +89,7 @@ static func _make(id: String) -> AudioStreamWAV:
 				lp += (rng.randf_range(-1, 1) - lp) * 0.08
 				lp2 += (lp - lp2) * 0.2
 				b[i] = lp2 * (0.7 + 0.3 * sin(TAU * 7.5 * t)) * 0.9 + 0.04 * sin(TAU * 120.0 * t)
+				b[i] += (lp - lp2) * 0.5 * (0.5 + 0.5 * sin(TAU * 7.5 * t)) + 0.02 * sin(TAU * (640.0 + 30.0 * sin(TAU * 0.2 * t)) * t)   # свист лопастей
 			_loop_fade(b, 0.3)
 			return _wav(b, true)
 		"buzz":           # лампа и фонари: 50 Гц с гармониками и треском
@@ -113,12 +131,15 @@ static func _make(id: String) -> AudioStreamWAV:
 				if t < 0.32:
 					var f := lerpf(70.0, 46.0, t / 0.32) if down else lerpf(46.0, 72.0, t / 0.32)
 					x += 0.35 * (fposmod(t * f, 1.0) * 2.0 - 1.0) * (0.6 + 0.4 * sin(TAU * 13.0 * t))
+					x += 0.12 * sin(TAU * (lerpf(980.0, 720.0, t / 0.32) if down else lerpf(700.0, 1020.0, t / 0.32)) * t) * smoothstep(0.0, 0.05, t)   # вой привода
 				var ht := t - (0.32 if down else 0.3)
 				if ht >= 0.0:
 					x += (sin(TAU * 52.0 * ht) * 0.9 + rng.randf_range(-1, 1) * 0.6 * exp(-ht * 30.0)) * exp(-ht * 9.0)
 					x += (0.22 * sin(TAU * 317.0 * ht) + 0.16 * sin(TAU * 521.0 * ht) + 0.1 * sin(TAU * 853.0 * ht)) * exp(-ht * 4.5) * (1.0 if down else 0.5)
 				lp += (x - lp) * 0.5
 				b[i] = lp
+				if ht >= 0.0 and ht < 0.12:            # засов: короткий звон металла (без фильтра — ему нужен верх)
+					b[i] += (0.3 * sin(TAU * 1730.0 * ht) + 0.22 * sin(TAU * 2610.0 * ht) + rng.randf_range(-1, 1) * 0.3) * exp(-ht * 45.0)
 			return _wav(b)
 		"step", "step_heavy":
 			var b := _buf(0.4)
@@ -132,6 +153,12 @@ static func _make(id: String) -> AudioStreamWAV:
 					x += rng.randf_range(-1, 1) * 0.12 * exp(-(t - 0.12) * 14.0)      # шарканье
 				lp += (x - lp) * 0.25
 				b[i] = lp
+				# слышимая часть шага: стук каблука (сухой щелчок) и скрип пола — без них шаг на ноутбуке не слышен
+				var n := rng.randf_range(-1, 1)
+				b[i] += (n * 0.45 + sin(TAU * (1900.0 if not hv else 1150.0) * t) * 0.3) * exp(-t * (90.0 if not hv else 60.0))
+				b[i] += sin(TAU * (170.0 if not hv else 120.0) * t) * exp(-t * 22.0) * 0.5
+				if hv and t > 0.05:
+					b[i] += 0.08 * sin(TAU * (560.0 + 80.0 * t) * t) * exp(-(t - 0.05) * 9.0)     # половица
 			return _wav(b)
 		"clank":          # металлический шаг BOT
 			var b := _buf(0.6)
@@ -162,6 +189,7 @@ static func _make(id: String) -> AudioStreamWAV:
 				var burst := exp(-ph * 9.0)
 				lp += (rng.randf_range(-1, 1) - lp) * 0.3
 				b[i] = lp * burst * 0.9 + sin(TAU * 90.0 * t) * exp(-ph * 22.0) * 0.4
+				b[i] += (0.18 * sin(TAU * 1340.0 * t) + 0.12 * sin(TAU * 2170.0 * t)) * exp(-ph * 14.0) * (0.6 + 0.4 * sin(TAU * 37.0 * t))   # жесть дребезжит
 			return _wav(b)
 		"vent_bang":      # удар по жести решётки
 			var b := _buf(0.9)
@@ -266,7 +294,7 @@ static func _make(id: String) -> AudioStreamWAV:
 			for i in b.size():
 				var t := float(i) / RATE
 				var a := exp(-t * 18.0) if t < 0.2 else exp(-(t - 0.22) * 16.0) * (1.0 if t >= 0.22 else 0.0) * 0.7
-				b[i] = sin(TAU * 52.0 * t) * a
+				b[i] = sin(TAU * 52.0 * t) * a + sin(TAU * 104.0 * t) * a * 0.5 + rng.randf_range(-1, 1) * a * a * 0.25
 			_loop_fade(b, 0.02)
 			return _wav(b, true)
 		"music_box_air":  # «последний шанс»: Балон шипит вентилем — неровная мелодия свистом воздуха
@@ -282,6 +310,53 @@ static func _make(id: String) -> AudioStreamWAV:
 				b[i] = (sin(TAU * f * t) * 0.25 + lp * 0.15) * (0.3 + 0.7 * exp(-ph * 2.0)) * (0.6 + 0.4 * sin(TAU * 0.33 * t))
 			_loop_fade(b, 0.1)
 			return _wav(b, true)
+		"sting_night":    # начало ночи: низкий гул нарастает, сверху — неровный колокол (полутон вниз)
+			var b := _buf(4.0)
+			var lp := 0.0
+			for i in b.size():
+				var t := float(i) / RATE
+				var sw := smoothstep(0.0, 2.2, t) * (1.0 - smoothstep(3.2, 4.0, t))
+				lp += (rng.randf_range(-1, 1) - lp) * 0.04
+				var drone := (sin(TAU * 55.0 * t) + 0.6 * sin(TAU * 58.3 * t) + 0.3 * sin(TAU * 110.0 * t + 0.7)) * 0.3 + lp * 0.6
+				var bt := maxf(t - 1.6, 0.0)
+				var bell := (sin(TAU * 622.3 * bt + 1.8 * exp(-bt * 2.0) * sin(TAU * 870.0 * bt)) + 0.6 * sin(TAU * 587.3 * bt)) * exp(-bt * 1.4) * 0.3 * float(t >= 1.6)
+				b[i] = drone * sw + bell
+			return _wav(b)
+		"sting_lose":     # поражение: удар и кластер, который медленно проваливается вниз
+			var b := _buf(3.4)
+			var lp := 0.0
+			for i in b.size():
+				var t := float(i) / RATE
+				var d := pow(2.0, -t * 0.35)
+				lp += (rng.randf_range(-1, 1) - lp) * 0.3
+				var cl := 0.0
+				for f in [98.0, 103.8, 146.8, 155.6, 196.0]:
+					cl += fposmod(f * d * t, 1.0) * 2.0 - 1.0
+				b[i] = cl * 0.09 * exp(-t * 0.7) + sin(TAU * (60.0 + 80.0 * exp(-t * 20.0)) * t) * exp(-t * 3.5) * 0.8 + lp * exp(-t * 12.0) * 0.5
+			return _wav(b)
+		"knock":          # три стука за спиной — по дереву, глухо и чётко
+			var b := _buf(1.3)
+			for k in 3:
+				var st := int((0.08 + k * 0.32) * RATE)
+				for i in range(st, mini(b.size(), st + int(0.25 * RATE))):
+					var t := float(i - st) / RATE
+					b[i] += (sin(TAU * 190.0 * t) * 0.7 + sin(TAU * 420.0 * t) * 0.35 + rng.randf_range(-1, 1) * 0.4 * exp(-t * 80.0)) * exp(-t * 26.0)
+			return _wav(b)
+		"drip":           # капля в служебке
+			var b := _buf(0.5)
+			for i in b.size():
+				var t := float(i) / RATE
+				b[i] = sin(TAU * (1500.0 + 900.0 * exp(-t * 40.0)) * t) * exp(-t * 22.0) * 0.6
+			return _wav(b)
+		"creak":          # далёкий скрип двери или металла
+			var b := _buf(1.4)
+			var lp := 0.0
+			for i in b.size():
+				var t := float(i) / RATE
+				var f := 380.0 + 140.0 * sin(TAU * 0.7 * t) + 40.0 * sin(TAU * 11.0 * t)
+				lp += ((fposmod(f * t, 1.0) * 2.0 - 1.0) - lp) * 0.2
+				b[i] = lp * sin(PI * t / 1.4) * 0.5 * (0.7 + 0.3 * float(rng.randf() < 0.5))
+			return _wav(b)
 		_:
 			if id.begins_with("scream_"):
 				return _scream(id.substr(7), rng)

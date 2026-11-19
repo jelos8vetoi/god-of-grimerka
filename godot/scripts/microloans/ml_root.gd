@@ -21,17 +21,23 @@ var flicker_t := 0.0
 var react_t := 0.0
 var t := 0.0
 var quiet := false
+var snd: MLSound                # звук мини-игры (ml_sound.gd)
 
 func _ready() -> void:
 	if main == null:
 		main = get_tree().root.get_node_or_null("Main")
 	quiet = main != null and main.testing() != ""
+	snd = MLSound.new()
+	snd.muted = quiet and not (main != null and main.audiolog)
+	add_child(snd)
 	_room()
 	ui = MLUI.new()
 	ui.root = self
 	add_child(ui)
 	econ.note.connect(_on_note)
-	econ.changed.connect(func(): ui.refresh())
+	econ.changed.connect(func():
+		ui.refresh()
+		_feel())
 
 ## новая игра или продолжение
 func begin(load_save: bool) -> void:
@@ -199,8 +205,15 @@ func _on_note(text: String, kind: String) -> void:
 	phone_screen.emission_energy_multiplier = 2.4
 	phone_screen.albedo_color = Color(1.0, 0.4, 0.35) if kind == "bad" or kind == "warn" else (Color(0.5, 1.0, 0.6) if kind == "money" else Color(0.9, 0.95, 1.0))
 	phone_screen.emission = phone_screen.albedo_color
-	if main != null and not quiet:
-		main.sfx("sfx_ui", -6.0, 0.55 if kind == "bad" else 0.8)
+	match kind:
+		"money":
+			snd.play("money")
+		"bad":
+			snd.play("alert")
+		"warn":
+			snd.play("alert", 0.85)
+		_:
+			snd.play("notify")
 	if kind == "money":
 		react("money")
 	elif kind == "bad":
@@ -241,9 +254,46 @@ func _process(dt: float) -> void:
 	# камера чуть дышит
 	cam.position = Vector3(-1.5 + sin(t * 0.3) * 0.02, 2.05 + sin(t * 0.5) * 0.01, 1.55)
 
-## мелодия: тихий набор подъезда (музыка игры), если он есть
+## музыка: свой лоу-фай комнаты (loc_ml, tools/godot-music.cjs); слой drive (бит и бас) — когда горит срок или стресс
 func music_set() -> String:
-	return "loc_hall"
+	return "loc_ml"
+
+func music_layers() -> Array:
+	return [0.75, tension()]
+
+## фон комнаты: холодильник, улица за окном (amb_ml)
+func bed_set() -> String:
+	return "ml"
+
+## напряжение 0…1: платёж сегодня или завтра, просрочка, стресс от 70
+func tension() -> float:
+	var k := 0.0
+	for l in econ.loans:
+		var L: Dictionary = l
+		if String(L.get("status", "")) == "closed":
+			continue
+		if int(L.get("overdue", 0)) > 0:
+			return 1.0
+		if int(L.get("due", 99)) - econ.day <= 1:
+			k = maxf(k, 0.8)
+	if econ.stress >= 70:
+		k = maxf(k, 1.0 if econ.stress >= 85 else 0.7)
+	return k
+
+## отклик на изменения экономики: деньги пришли — монеты, долг уменьшился — печать, стресс вырос — сердце
+var _last := {}
+func _feel() -> void:
+	var now := {"money": econ.money, "debt": econ.total_debt(), "stress": econ.stress}
+	if not _last.is_empty():
+		if int(now["money"]) > int(_last["money"]):
+			snd.play("coins")
+		if float(now["debt"]) < float(_last["debt"]) - 0.5:
+			snd.play("stamp")
+		elif float(now["debt"]) > float(_last["debt"]) + 0.5:
+			snd.play("loan")
+		if int(now["stress"]) >= int(_last["stress"]) + 5:
+			snd.play("stress")
+	_last = now
 
 func quit_to_menu() -> void:
 	save()
