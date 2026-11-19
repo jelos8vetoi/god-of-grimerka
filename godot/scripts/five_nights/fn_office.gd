@@ -44,6 +44,9 @@ var dark_eyes: Node3D
 var scare_light: OmniLight3D       # свет у лица Пахана — только в скримере: высвечивает морду врага
 var t := 0.0
 var power_on := true
+var desk_model: Node3D = null     # пульт охранника из файла (fn_security_desk.glb); null — стол собран кодом
+const DESK_K := 1.78               # ширина модели пульта в метрах (1 «единица модели»)
+const DESK_Z := -1.05              # где стоит центр модели
 
 func build() -> void:
 	font = load("res://assets/fonts/RussoOne-Regular.ttf")
@@ -227,26 +230,10 @@ func _room() -> void:
 
 # ---------------- стол, монитор, пульт ----------------
 func _desk() -> void:
-	box(Vector3(0, 0.78, -0.95), Vector3(2.4, 0.06, 0.85), mats["desk"])
-	for x in [-1.1, 1.1]:
-		box(Vector3(x, 0.38, -0.95), Vector3(0.08, 0.76, 0.8), mats["black"])
-	# ЭЛТ-монитор
-	box(Vector3(0, 1.08, -1.15), Vector3(0.66, 0.54, 0.6), mats["plastic"])
-	box(Vector3(0, 1.08, -1.48), Vector3(0.48, 0.42, 0.2), mats["plastic"])
-	screen_mat = StandardMaterial3D.new()
-	screen_mat.albedo_color = Color(0.03, 0.05, 0.04)
-	screen_mat.emission_enabled = true
-	screen_mat.emission = Color(0.2, 0.42, 0.3)
-	screen_mat.emission_energy_multiplier = 0.25
-	screen_mat.roughness = 0.15
-	screen = box(Vector3(0, 1.1, -0.848), Vector3(0.54, 0.4, 0.01), screen_mat)
-	label("CAM", Vector3(-0.22, 0.86, -0.842), 26, Color(0.7, 0.68, 0.6))
-	glow = OmniLight3D.new()
-	glow.position = Vector3(0, 1.1, -0.6)
-	glow.omni_range = 1.8
-	glow.light_energy = 0.35
-	glow.light_color = Color(0.5, 0.9, 0.65)
-	add_child(glow)
+	if MGModels.has("fn_security_desk"):
+		_desk_model()
+	else:
+		_desk_code()
 	# отражение в выключенном экране — фигура за спиной (событие)
 	reflection = MeshInstance3D.new()
 	var q := QuadMesh.new()
@@ -257,19 +244,35 @@ func _desk() -> void:
 	rm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	rm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	reflection.material_override = rm
-	reflection.position = Vector3(0.14, 1.1, -0.84)
+	reflection.position = screen.position + Vector3(0.14, 0, 0.008)
 	reflection.visible = false
 	add_child(reflection)
-	# пульт на столе: заслонки и СБРОС
-	var panel := box(Vector3(-0.72, 0.84, -0.78), Vector3(0.6, 0.06, 0.28), mats["black"])
+	# пульт на столе: заслонки и СБРОС (у модели из файла — перед клавиатурой, по центру)
+	var po := Vector3(0.77, -0.027, -0.04) if desk_model != null else Vector3.ZERO
+	var panel := box(Vector3(-0.72, 0.84, -0.78) + po, Vector3(0.6, 0.06, 0.28), mats["black"])
 	panel.rotation.x = deg_to_rad(-12.0)
-	_button("seal_l", Vector3(-0.88, 0.885, -0.75), mats["metal"], 0.06, "ЗАСЛ. Л")
-	_button("seal_t", Vector3(-0.68, 0.885, -0.75), mats["metal"], 0.06, "ЛЮК")
-	_button("reset", Vector3(-0.48, 0.885, -0.75), mats["red"], 0.06, "СБРОС")
-	_led("seal_l", Vector3(-0.88, 0.88, -0.86))
-	_led("seal_t", Vector3(-0.68, 0.88, -0.86))
-	_led("ping", Vector3(-0.48, 0.88, -0.86))
-	label("СЕРВЕР", Vector3(-0.48, 0.883, -0.9), 18, Color(0.8, 0.2, 0.2), Vector3(deg_to_rad(-90), 0, 0))
+	_button("seal_l", Vector3(-0.88, 0.885, -0.75) + po, mats["metal"], 0.06, "ЗАСЛ. Л")
+	_button("seal_t", Vector3(-0.68, 0.885, -0.75) + po, mats["metal"], 0.06, "ЛЮК")
+	_button("reset", Vector3(-0.48, 0.885, -0.75) + po, mats["red"], 0.06, "СБРОС")
+	_led("seal_l", Vector3(-0.88, 0.88, -0.86) + po)
+	_led("seal_t", Vector3(-0.68, 0.88, -0.86) + po)
+	_led("ping", Vector3(-0.48, 0.88, -0.86) + po)
+	label("СЕРВЕР", Vector3(-0.48, 0.883, -0.9) + po, 18, Color(0.8, 0.2, 0.2), Vector3(deg_to_rad(-90), 0, 0))
+	# инструкция на стене
+	var note := box(Vector3(-0.85, 1.55, -1.69), Vector3(0.42, 0.56, 0.01), mats["paper"])
+	label("ИНСТРУКЦИЯ ОХРАННИКА\n\n1. Смотреть камеры до 6:00\n2. Не открывать незнакомым\n3. Из вентиляции зовут — не отвечать\n\nНЕ КОРМИТЬ BOT ПОСЛЕ 22:00", Vector3(-0.85, 1.55, -1.683), 15, Color(0.08, 0.08, 0.08), Vector3.ZERO, self, 330)
+	note.rotation.z = 0.03
+
+## стол, собранный кодом: столешница, ЭЛТ-монитор, клавиатура, телефон, кружка, шаурма, бумаги
+func _desk_code() -> void:
+	box(Vector3(0, 0.78, -0.95), Vector3(2.4, 0.06, 0.85), mats["desk"])
+	for x in [-1.1, 1.1]:
+		box(Vector3(x, 0.38, -0.95), Vector3(0.08, 0.76, 0.8), mats["black"])
+	# ЭЛТ-монитор
+	box(Vector3(0, 1.08, -1.15), Vector3(0.66, 0.54, 0.6), mats["plastic"])
+	box(Vector3(0, 1.08, -1.48), Vector3(0.48, 0.42, 0.2), mats["plastic"])
+	_screen(Vector3(0, 1.1, -0.848), Vector2(0.54, 0.4), Vector3(0, 1.1, -0.6))
+	label("CAM", Vector3(-0.22, 0.86, -0.842), 26, Color(0.7, 0.68, 0.6))
 	# клавиатура, телефон, кружка, шаурма, бумаги
 	box(Vector3(0, 0.83, -0.72), Vector3(0.48, 0.03, 0.16), mats["plastic"])
 	var phone := box(Vector3(0.72, 0.86, -0.8), Vector3(0.24, 0.08, 0.18), mats["black"])
@@ -298,10 +301,39 @@ func _desk() -> void:
 	box(Vector3(0.95, 0.885, -1.05), Vector3(0.05, 0.02, 0.08), _m(Color(0.6, 0.35, 0.2), 0.9), self, Vector3(0, deg_to_rad(70), 0))
 	for k in 4:
 		box(Vector3(-0.15 + k * 0.03, 0.812 + k * 0.002, -1.32 + k * 0.01), Vector3(0.21, 0.002, 0.29), mats["paper"], self, Vector3(0, k * 0.15, 0))
-	# инструкция на стене
-	var note := box(Vector3(-0.85, 1.55, -1.69), Vector3(0.42, 0.56, 0.01), mats["paper"])
-	label("ИНСТРУКЦИЯ ОХРАННИКА\n\n1. Смотреть камеры до 6:00\n2. Не открывать незнакомым\n3. Из вентиляции зовут — не отвечать\n\nНЕ КОРМИТЬ BOT ПОСЛЕ 22:00", Vector3(-0.85, 1.55, -1.683), 15, Color(0.08, 0.08, 0.08), Vector3.ZERO, self, 330)
-	note.rotation.z = 0.03
+
+## пульт охранника из файла (fn_security_desk.glb): стол с двумя ЭЛТ, вентилятором, телефонами и клавиатурой —
+## одной моделью. Рабочее остаётся рабочим: экран камер светится поверх стекла большого монитора, красный телефон
+## нажимается (сброс звонка), пульт заслонок стоит перед клавиатурой. Разметка — в единицах модели (ширина = 1):
+## столешница y 0,44; экран большого монитора — центр (−0,027; 0,727), 0,28 × 0,22, стекло на z −0,09;
+## красный телефон (0,375; 0,48; 0,0).
+func _desk_model() -> void:
+	desk_model = MGModels.spawn("fn_security_desk", self, Vector3(0, 0, DESK_Z), 0.0, Vector3(DESK_K, 0.8706 * DESK_K, 1.3), func(_r): pass)
+	_screen(du(Vector3(-0.027, 0.727, -0.094)), Vector2(0.272, 0.212) * DESK_K, du(Vector3(-0.027, 0.727, 0.06)))
+	var phone := Node3D.new()                       # красный телефон модели: невидимая точка нажатия
+	phone.position = du(Vector3(0.375, 0.47, 0.0))
+	add_child(phone)
+	buttons["phone"] = {"node": phone, "r": 0.1}
+
+## точка на модели пульта: единицы модели → координаты будки
+func du(u: Vector3) -> Vector3:
+	return Vector3(u.x * DESK_K, u.y * DESK_K, DESK_Z + u.z * DESK_K)
+
+## экран камер: светится слабее, пока планшет опущен, и ярче — когда поднят (tick); рядом — его свет
+func _screen(p: Vector3, size: Vector2, light_p: Vector3) -> void:
+	screen_mat = StandardMaterial3D.new()
+	screen_mat.albedo_color = Color(0.03, 0.05, 0.04)
+	screen_mat.emission_enabled = true
+	screen_mat.emission = Color(0.2, 0.42, 0.3)
+	screen_mat.emission_energy_multiplier = 0.25
+	screen_mat.roughness = 0.15
+	screen = box(p, Vector3(size.x, size.y, 0.01), screen_mat)
+	glow = OmniLight3D.new()
+	glow.position = light_p
+	glow.omni_range = 1.8
+	glow.light_energy = 0.35
+	glow.light_color = Color(0.5, 0.9, 0.65)
+	add_child(glow)
 
 func _button(id: String, p: Vector3, m: Material, r: float, text := "", parent: Node = self) -> MeshInstance3D:
 	var b := MeshInstance3D.new()
@@ -422,7 +454,7 @@ func _decor() -> void:
 		add_child(w)
 	# предмет, которого не было: маленький Балон на столе (событие)
 	extra_item = Node3D.new()
-	extra_item.position = Vector3(-0.3, 0.81, -0.66)
+	extra_item.position = Vector3(-0.3, 0.81, -0.66) if desk_model == null else Vector3(-0.33, 0.79, -0.8)
 	extra_item.visible = false
 	add_child(extra_item)
 	var bl := MeshInstance3D.new()

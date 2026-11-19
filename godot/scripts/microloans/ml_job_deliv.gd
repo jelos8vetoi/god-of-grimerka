@@ -84,6 +84,8 @@ func _yard() -> void:
 			doors.append({"p": dp + fw * 0.9, "name": "Дом %d, подъезд %d" % [hi + 1, di + 1]})
 	# киоск выдачи — старт
 	_prop("kiosk", Vector3(-4.5, 0, 4.5), 0.6, 1.6)
+	if MGModels.has("ml_job_parcel_cart"):                                    # тележка с посылками у киоска
+		MGModels.spawn("ml_job_parcel_cart", world_root, Vector3(-2.9, 0, 5.1), 1.0, Vector3(0.95, 1.2, 0.7), func(_r): pass)
 	MGProps.text(at(Vector3(-4.5, 3.2, 4.5), 0.6), "ПУНКТ ВЫДАЧИ", Vector3.ZERO, 90, Color(0.95, 0.3, 0.25))
 	for p in [[Vector3(6, 0, 6), 0.4], [Vector3(-8, 0, -6), 1.2], [Vector3(9, 0, -9), 0.0], [Vector3(-12, 0, 11), 2.0]]:
 		_prop("bench", p[0], p[1], 1.0)

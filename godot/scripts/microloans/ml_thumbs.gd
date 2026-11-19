@@ -19,16 +19,28 @@ static func build(id: String, r: Node3D) -> float:
 			MGProps.tools(MGProps_at(r, Vector3(0.2, 0, 0.15)))
 			return 0.5
 		"job_deliv":
+			if MGModels.has("ml_job_parcel_cart"):
+				var ct := MGModels.spawn("ml_job_parcel_cart", r, Vector3.ZERO, -0.5, Vector3(0.8, 1.1, 0.7), func(_x): pass)
+				ct.rotation.y = -0.5
+				return 1.1
 			MGProps.carton(MGProps_at(r, Vector3(0, 0, 0)), Vector3(0.5, 0.35, 0.4), "ХРУПКОЕ")
 			MGProps.carton(MGProps_at(r, Vector3(0.05, 0.35, 0), 0.3), Vector3(0.35, 0.25, 0.3), "")
 			return 0.75
 		"job_sound":
+			if MGModels.has("ml_job_mixer"):
+				MGModels.spawn("ml_job_mixer", r, Vector3(0.1, 0, 0.15), -0.35, Vector3(0.6, 0.45, 0.52), func(_n): pass)
+				if MGModels.has("ml_job_amp"):
+					MGModels.spawn("ml_job_amp", r, Vector3(-0.42, 0, -0.25), 0.3, Vector3(0.45, 0.46, 0.3), func(_n): pass)
+				return 0.9
 			MGModels.spawn("ml_job_mixer", r, Vector3(0, 0, 0.1), 0.0, Vector3(0.6, 0.12, 0.45), func(n): MGProps.mixer(n))
 			var sp := MGProps_at(r, Vector3(-0.45, 0, -0.2), 0.3)
 			sp.scale = Vector3.ONE * 0.4
 			MGProps.speaker(sp)
 			return 0.9
 		"job_junk":
+			if MGModels.has("ml_job_junk_crate"):
+				MGModels.spawn("ml_job_junk_crate", r, Vector3.ZERO, -0.4, Vector3(0.7, 0.78, 0.66), func(_x): pass)
+				return 0.9
 			for k in 4:
 				MGProps.junk_item(MGProps_at(r, Vector3(-0.3 + k * 0.2, 0, (k % 2) * 0.15), k * 0.6), [0, 1, 4, 7][k])
 			return 0.9
@@ -71,6 +83,10 @@ static func build(id: String, r: Node3D) -> float:
 		"biz_studio":
 			return build("job_sound", r)
 		"biz_warehouse":
+			if MGModels.has("ml_job_junk_crate"):
+				MGProps.carton(MGProps_at(r, Vector3(-0.45, 0, -0.1)), Vector3(0.5, 0.45, 0.45), "ПАРТИЯ")
+				MGModels.spawn("ml_job_junk_crate", r, Vector3(0.3, 0, 0.1), -0.4, Vector3(0.6, 0.66, 0.56), func(_x): pass)
+				return 0.9
 			MGProps.carton(MGProps_at(r, Vector3(-0.3, 0, 0)), Vector3(0.5, 0.45, 0.45), "ПАРТИЯ")
 			MGProps.junk_item(MGProps_at(r, Vector3(0.3, 0, 0.1)), 4)
 			return 0.9

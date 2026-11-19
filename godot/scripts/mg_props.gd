@@ -795,6 +795,9 @@ static func mixer(r: Node3D, ch := 6) -> Dictionary:
 static func junk_item(r: Node3D, idx: int) -> void:
 	match idx:
 		0:  # кассетный плеер
+			if MGModels.has("ml_job_radio"):
+				MGModels.spawn("ml_job_radio", r, Vector3.ZERO, 0.0, Vector3(0.2, 0.17, 0.12), func(_x): pass)
+				return
 			box(r, Vector3(0, 0.04, 0), Vector3(0.14, 0.08, 0.03), mat("plastic"))
 			box(r, Vector3(0, 0.05, 0.016), Vector3(0.1, 0.05, 0.002), mat("glass"))
 			for k in 2:

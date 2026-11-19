@@ -129,22 +129,28 @@ func _room() -> void:
 	moon.rotation = Vector3(-0.6, 0.4, 0)
 	add_child(moon)
 	# мебель: стол, кресло, шкаф, холодильник, полка, ковёр, коробки (свои модели владельца или кодом)
-	MGModels.spawn("ml_desk", self, Vector3(0, 0, -1.75), 0.0, Vector3(2.2, 0.8, 0.9), func(r): MGProps.desk(r, 2.2, 0.9))
+	MGModels.wide_desk(self, Vector3(0, 0, -1.75), 0.0, 2.2, 0.9, 0.782, func(r): MGProps.desk(r, 2.2, 0.9))
 	armchair = MGModels.spawn("ml_armchair", self, Vector3(2.1, 0, -0.5), -2.2, Vector3(0.9, 1.0, 0.9), func(r): MGProps.armchair(r))
-	MGModels.spawn("ml_wardrobe", self, Vector3(-2.6, 0, -1.3), PI / 2, Vector3(1.2, 2.0, 0.6), func(r): MGProps.wardrobe(r))
+	# диван-кровать (если есть модель) — слева от стола под полкой; шкаф тогда отъезжает вдоль стены ближе к камере
+	sofa = MGModels.has("ml_sofa_bed")
+	if sofa:
+		MGModels.spawn("ml_sofa_bed", self, Vector3(-2.02, 0, -1.56), 0.0, Vector3(1.7, 1.07, 1.6), func(_r): pass)
+	MGModels.spawn("ml_wardrobe", self, Vector3(-2.6, 0, 0.3 if sofa else -1.3), PI / 2, Vector3(1.2, 2.0, 0.6), func(r): MGProps.wardrobe(r))
 	MGModels.spawn("ml_fridge", self, Vector3(2.55, 0, -1.95), -PI / 2 + 0.2, Vector3(0.6, 1.5, 0.6), func(r): MGProps.fridge(r))
 	shelf = _at(Vector3(-1.5, 1.25, -2.22))
 	MGProps.shelf(shelf)
 	MGProps.rug(_at(Vector3(0.4, 0, -0.3), 0.1), 2.4, 1.6)
 	for k in 3:
-		MGProps.carton(_at(Vector3(-2.3 + k * 0.1, k * 0.38, 0.7), 0.2 * k), Vector3(0.55, 0.38, 0.45), ["ВЕЩИ", "ПРОВОДА", ""][k])
+		MGProps.carton(_at(Vector3(-2.3 + k * 0.1, k * 0.38, 1.7 if sofa else 0.7), 0.2 * k), Vector3(0.55, 0.38, 0.45), ["ВЕЩИ", "ПРОВОДА", ""][k])
 	# стол: ноутбук, телефон, калькулятор, счета, деньги, кошелёк, ключи, кружка, еда, лампа, провода
 	var lp := _at(Vector3(-0.15, 0.785, -1.7), 0.1)
 	lp.scale = Vector3.ONE * 1.6
 	var ld: Dictionary = {}
 	if MGModels.has("ml_laptop"):
-		MGModels.spawn("ml_laptop", lp, Vector3.ZERO, 0.0, Vector3(0.36, 0.25, 0.26), func(r): pass)
+		var lr := MGModels.spawn("ml_laptop", lp, Vector3.ZERO, 0.0, Vector3(0.36, 0.25, 0.26), func(r): pass)
 		laptop_mat = MGProps.screen_mat(Color(0.55, 0.8, 1.0), 1.0, 1.0, 1.0)
+		# экран модели тёмный — поверх стекла светится «приложение займов» (разметка в единицах модели)
+		MGProps.quad(lr, MGModels.local(lr, Vector3(0.078, 0.469, -0.281)), Vector2(0.68, 0.41) * float(lr.get_meta("k")), laptop_mat)
 	else:
 		ld = MGProps.laptop(lp)
 		laptop_mat = ld["screen"]
@@ -203,6 +209,7 @@ func _room() -> void:
 	desk_refresh()
 
 var armchair: Node3D
+var sofa := false               # в комнате стоит диван-кровать (ml_sofa_bed.glb): часть вещей сдвинута
 var shelf: Node3D
 var bills_root: Node3D
 var cash_root: Node3D
@@ -263,16 +270,18 @@ func biz_visuals() -> void:
 			c2.position = Vector3(-1.35, 1.66, -2.22)
 			c2.scale = Vector3.ONE * 0.8
 			biz_root.add_child(c2)
-			MGProps.console_open(c2)
+			MGModels.spawn("ml_job_console", c2, Vector3.ZERO, 0.3, Vector3(0.32, 0.08, 0.22), func(r): MGProps.console_open(r))
 	if int(lv.call("cleaning")) > 0:
 		var ps := load("res://assets/models/tyaga812.glb") as PackedScene
 		if ps != null:
 			var t2 := ps.instantiate() as Node3D
 			biz_root.add_child(t2)
-			t2.position = Vector3(-2.2, 0, -0.2)
+			t2.position = Vector3(-1.45, 0, 0.35) if sofa else Vector3(-2.2, 0, -0.2)
 			t2.rotation.y = 0.8
 			t2.scale = Vector3.ONE * 0.55
-	if int(lv.call("delivery")) > 0:
+	if int(lv.call("delivery")) > 0 and MGModels.has("ml_job_parcel_cart"):
+		MGModels.spawn("ml_job_parcel_cart", biz_root, Vector3(-1.1, 0, 1.0), 0.6, Vector3(0.75, 1.1, 0.6), func(_r): pass)
+	elif int(lv.call("delivery")) > 0:
 		for k in mini(3, int(lv.call("delivery")) + 1):
 			var b := Node3D.new()
 			b.position = Vector3(-1.2 + k * 0.05, k * 0.3, 0.9)
@@ -284,7 +293,9 @@ func biz_visuals() -> void:
 		m.position = Vector3(-1.5, 1.26, -2.2)
 		m.scale = Vector3.ONE * 0.6
 		biz_root.add_child(m)
-		MGProps.mixer(m)
+		MGModels.spawn("ml_job_mixer", m, Vector3.ZERO, 0.0, Vector3(0.6, 0.42, 0.52), func(r): MGProps.mixer(r))
+		if MGModels.has("ml_job_amp"):
+			MGModels.spawn("ml_job_amp", biz_root, Vector3(1.5, 0, -2.05), 0.25, Vector3(0.5, 0.5, 0.35), func(_r): pass)
 		var sp := Node3D.new()
 		sp.position = Vector3(1.9, 0, -2.0)
 		sp.scale = Vector3.ONE * 0.75
@@ -294,11 +305,11 @@ func biz_visuals() -> void:
 		var j := Node3D.new()
 		j.position = Vector3(1.4, 0, 0.9)
 		biz_root.add_child(j)
-		MGProps.junk_item(j, 2)
+		MGModels.spawn("ml_job_junk_crate", j, Vector3.ZERO, 0.4, Vector3(0.65, 0.72, 0.62), func(r): MGProps.junk_item(r, 2))
 	# сотрудники — силуэты на фото-доске у шкафа (сколько наняли)
 	var staff := C.staff_total()
 	for k in mini(staff, 10):
-		var ph := MGProps.box(biz_root, Vector3(-2.93, 1.4 + float(k / 5) * 0.18, -0.6 + float(k % 5) * 0.16), Vector3(0.01, 0.14, 0.12), MGProps.mat("paper"))
+		var ph := MGProps.box(biz_root, Vector3(-2.93, 1.4 + float(k / 5) * 0.18, (-2.1 if sofa else -0.6) + float(k % 5) * 0.16), Vector3(0.01, 0.14, 0.12), MGProps.mat("paper"))
 		ph.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# покупки магазина — на столе
 	if up_root != null:
