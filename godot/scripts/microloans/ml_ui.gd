@@ -1098,6 +1098,7 @@ func _flow_keys(k: int) -> bool:
 func negotiate(id: int, after: Callable) -> MLNegotiation:
 	var N := MLNegotiation.new()
 	stage.add_child(N)
+	N.voice_on = not root.snd.muted
 	N.setup(econ(), id, font, serif)
 	overlay = N
 	close_panel()

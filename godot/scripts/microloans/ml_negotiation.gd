@@ -3,6 +3,10 @@
 ## давление растёт), промолчал всю паузу — давление растёт. «Предъявить документ» — найти нужную бумагу за
 ## 4 с (клавиши 1–4). Три шкалы: доверие, давление, сколько пообещал внести завтра.
 ## Итог считает экономика (ml_economy.negotiation_result). Клавиши 1–6, мышь.
+## Голос: фразы и ответы коллектора озвучены (assets/voice/C<номер конторы>_*.mp3, шина Phone — как из трубки).
+## Говорит он всегда что-то одно: у него один проигрыватель; ответ на ход игрока обрывает недосказанную фразу,
+## а пока ответ звучит, звонок стоит (время разговора не идёт, следующая фраза ждёт). Фраза держится на экране,
+## пока её договаривают; лишнее время добавляется к разговору — на решения игрока остаётся столько же, сколько без звука.
 ## Вёрстка — MGUI: одна колонка по центру (шапка звонка, реплика и шкалы, шесть ответов строками), контейнерами.
 class_name MLNegotiation
 extends Control
@@ -60,11 +64,21 @@ var doc_box: Control
 var doc_bar: Dictionary
 var flash: Label
 var auto_answers: Array = []      # проверка: [[фраза, карта, в паузе?]]
+var voice_on := true              # звук включён (MLUI передаёт, заглушена ли мини-игра)
+var vo: AudioStreamPlayer         # голос коллектора — один на все его реплики
+var vcode := "C1"                 # код голоса конторы: C1…C4 по MLData.LENDER_ORDER
+var hold_t := 0.0                 # коллектор отвечает на ход игрока — звонок ждёт
+var advance := false              # пора начинать следующую фразу (после ответа)
 
 func setup(e: MLEconomy, loan_id: int, f: Font, sf: SystemFont) -> void:
 	econ = e
 	loan = e.loan(loan_id)
 	lender = MLData.LENDERS[loan["lender"]]
+	vcode = "C%d" % (MLData.LENDER_ORDER.find(String(loan["lender"])) + 1)
+	vo = AudioStreamPlayer.new()
+	vo.bus = "Phone" if AudioServer.get_bus_index("Phone") >= 0 else "Voice"
+	vo.volume_db = 1.0
+	add_child(vo)
 	font = f
 	serif = sf
 	trust = clampf(float(e.rep) * 0.7 + (12.0 if e.lender_flags.get(loan["lender"], {}).has("error") else 0.0), 10.0, 80.0)
@@ -277,19 +291,53 @@ func _next_phrase() -> void:
 		_end()
 		return
 	var voice: Array = lender["voice"]
-	var lines := voice.duplicate()
-	lines.append("Ваш долг — %d рублей. Это не шутки." % int(ceil(float(loan["balance"]))))
-	lines.append("Мы видим, что вы читаете это сообщение.")
-	text_full = String(lines[phrase % lines.size()]) if phrase < voice.size() else String(lines[voice.size() + (phrase - voice.size()) % 2])
-	speak_len = clampf(float(text_full.length()) * 0.045, 1.2, 2.6)
+	var more: Array = MLData.COLLECTOR["more"]
+	text_full = String(voice[phrase]) if phrase < voice.size() else String(more[(phrase - voice.size()) % more.size()])
+	var base_len := clampf(float(text_full.length()) * 0.045, 1.2, 2.6)
+	# с голосом фраза длится столько, сколько её говорят; разница добавляется ко времени разговора
+	speak_len = maxf(base_len, _speak(text_full) + 0.15)
+	t_left += speak_len - base_len
+	t_full += speak_len - base_len
 	speak_t = 0.0
 	speaking = true
 	answered = false
 	window_t = 0.0
 	phrase += 1
 
+## файл реплики коллектора: как у остальной озвучки — код и начало md5 от «код|текст»
+static func voice_path(code: String, text: String) -> String:
+	return "res://assets/voice/%s_%s.mp3" % [code, (code + "|" + text).md5_text().substr(0, 10)]
+
+## коллектор говорит text; прежняя его реплика обрывается. Возвращает длину записи (0 — нет файла или звук выключен)
+func _speak(text: String) -> float:
+	var p := voice_path(vcode, text)
+	if not voice_on or not ResourceLoader.exists(p):
+		return 0.0
+	vo.stream = load(p)
+	vo.play()
+	return float(vo.stream.get_length())
+
+## ответ коллектора на ход игрока: строка под репликой и голос. Недосказанная фраза обрывается (он перебил сам
+## себя), звонок ждёт, пока ответ не прозвучит.
+func _reply(key: String, col: Color) -> void:
+	var line := String(MLData.COLLECTOR[key][0])
+	var vl := _speak(line)
+	_flash("«%s»" % line, col, maxf(0.8, vl))
+	if vl > 0.0:
+		hold_t = vl + 0.2
+		if speaking:
+			speak_t = speak_len
+
 func _process(dt: float) -> void:
 	if finished:
+		return
+	if hold_t > 0.0:
+		hold_t -= dt
+		_paint_cards()
+		return
+	if advance:
+		advance = false
+		_next_phrase()
 		return
 	t_left -= dt
 	MGUI.set_bar(timer_bar, t_left / maxf(1.0, t_full))
@@ -322,8 +370,8 @@ func _process(dt: float) -> void:
 		if window_t >= window_len:
 			if not answered:
 				pressure = minf(100.0, pressure + 6.0)
-				_flash("«Алло? Вы меня слышите?»", RED)
-			_next_phrase()
+				_reply("silence", RED)
+			advance = true                             # следующая фраза — со следующего кадра (после ответа, если он был)
 	# проверка: заготовленные ответы
 	for a in auto_answers.duplicate():
 		if int(a[0]) == phrase and (bool(a[2]) == (not speaking)) and (not speaking or speak_t > speak_len * 0.4):
@@ -331,12 +379,16 @@ func _process(dt: float) -> void:
 			play(int(a[1]))
 	_paint_cards()
 
-func _flash(s: String, col: Color) -> void:
+var flash_tw: Tween
+func _flash(s: String, col: Color, sec := 0.8) -> void:
 	flash.text = s
 	flash.add_theme_color_override("font_color", col)
 	flash.modulate.a = 1.0
-	var tw := flash.create_tween()
-	tw.tween_interval(0.8)
+	if flash_tw != null and flash_tw.is_valid():
+		flash_tw.kill()
+	flash_tw = flash.create_tween()
+	var tw := flash_tw
+	tw.tween_interval(sec)
 	tw.tween_property(flash, "modulate:a", 0.0, 0.4)
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -360,7 +412,7 @@ func play(k: int) -> void:
 	if interrupt:
 		trust = maxf(0.0, trust - 10.0)
 		pressure = minf(100.0, pressure + 8.0)
-		_flash("ПЕРЕБИЛ!", RED)
+		_flash("Перебил — доверие падает", RED)
 	answered = true
 	log_lines.append([String(CARDS[k][0]), interrupt])
 	match String(CARDS[k][0]):
@@ -372,7 +424,7 @@ func play(k: int) -> void:
 			else:
 				trust -= 6.0
 				pressure += 6.0
-				_flash("«Вы это уже говорили»", RED)
+				_reply("again", RED)
 		"part":
 			var amt := int(ceil(float(loan["balance"]) * 0.3))
 			econ.pay(int(loan["id"]), amt)
@@ -395,11 +447,11 @@ func play(k: int) -> void:
 				used_error = true
 				trust += 10.0 * mul
 				pressure -= 20.0 * mul
-				_flash("«…Мы проверим этот пункт»", GREEN)
+				_reply("check", GREEN)
 			else:
 				pressure += 15.0
 				trust -= 8.0
-				_flash("«Какая ещё ошибка? Не выдумывайте»", RED)
+				_reply("no_error", RED)
 		"refuse":
 			pressure = minf(100.0, pressure + 25.0)
 			trust = maxf(0.0, trust - 15.0)
@@ -417,10 +469,10 @@ func pick_doc(i: int) -> void:
 	if i >= 0 and String(DOCS[i][0]) == doc_right:
 		trust = minf(100.0, trust + 18.0)
 		pressure = maxf(0.0, pressure - 10.0)
-		_flash("«Так… да, вижу. Хорошо»", GREEN)
+		_reply("doc_ok", GREEN)
 	else:
 		trust = maxf(0.0, trust - 8.0)
-		_flash("«Это не то. Вы издеваетесь?»" if i >= 0 else "«Не можете найти? Ясно»", RED)
+		_reply("doc_bad" if i >= 0 else "doc_none", RED)
 	if not speaking:
 		window_t = window_len
 
@@ -428,6 +480,7 @@ func _end() -> void:
 	if finished:
 		return
 	finished = true
+	vo.stop()
 	var r := econ.negotiation_result(int(loan["id"]), trust, pressure, promise, used_error)
 	r["trust"] = trust
 	r["pressure"] = pressure
