@@ -35,7 +35,15 @@ static func load_all() -> Dictionary:
 static func save_run(econ: MLEconomy) -> void:
 	var d := load_all()
 	d["run"] = econ.to_dict()
+	if econ.career != null:
+		d["career"] = econ.career.to_dict()
 	_write(d)
+
+## карьера (прокачка, бизнесы, престиж) переживает новые недели; старое сохранение без неё — начинаем с нуля
+static func load_career(c: MLCareer) -> void:
+	var d := load_all()
+	if d.has("career") and d["career"] is Dictionary:
+		c.from_dict(d["career"])
 
 static func record_ending(econ: MLEconomy) -> void:
 	var d := load_all()
@@ -48,6 +56,8 @@ static func record_ending(econ: MLEconomy) -> void:
 	best["max_money"] = maxi(int(best.get("max_money", 0)), econ.money)
 	d["best"] = best
 	d["run"] = econ.to_dict()
+	if econ.career != null:
+		d["career"] = econ.career.to_dict()
 	_write(d)
 
 static func load_run(econ: MLEconomy) -> bool:

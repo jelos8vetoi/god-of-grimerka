@@ -22,6 +22,20 @@ var hint_l: Label
 var time_bar: ColorRect
 var result_l: Label
 var bot := -1.0               # проверка: бот-игрок качества 0..1 (−1 — играет человек)
+var career: MLCareer          # навыки и снаряжение Пахана (мини-игра читает свои параметры: tyaga_*, repair_*, …)
+var tier := 1                 # уровень заказа 1..5: сложнее и дороже (MLUI.job_tier)
+var snd: MLSound              # звук мини-игры
+
+## параметр навыков для мини-игры (без карьеры — 0)
+func cv(key: String) -> float:
+	return career.v(key) if career != null else 0.0
+
+func eq(tool: String) -> int:
+	return career.eq(tool) if career != null else 0
+
+func sfx(kind: String, pitch := 1.0) -> void:
+	if snd != null:
+		snd.play(kind, pitch)
 
 func base_setup(f: Font, sf: SystemFont, stress: int, title: String, hint: String, t: float) -> void:
 	font = f
