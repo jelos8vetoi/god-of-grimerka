@@ -158,10 +158,51 @@ func _ui_part() -> void:
 			if R.call_stream(String(ln)) != null:
 				have += 1
 	ok(need >= 20 and have == need, "звонки начальника озвучены: %d из %d реплик" % [have, need])
+	var p_need := 0
+	var p_have := 0
+	for sec_id in FNData.PAHAN:
+		for ln in FNData.PAHAN[sec_id]:
+			if rx_word.search(String(ln)) == null:
+				continue                                  # «…» не читают
+			p_need += 1
+			if ResourceLoader.exists(FiveNightsRoot.pahan_path(String(ln))):
+				p_have += 1
+	ok(p_need >= 15 and p_have == p_need, "мысли Пахана на смене озвучены его голосом: %d из %d" % [p_have, p_need])
+	# говорит кто-то один: сначала Пахан, телефон звонит после него; реплика Пахана посреди звонка ждёт конца реплики
+	# начальника, а начальник не продолжает, пока Пахан не договорит; подсказки не затирают его строку
+	var said: bool = await until(func(): return R.pahan_voice.playing, 3.0)
+	ok(said and not R.call_voice.playing and R.ring_t > 0.0, "первым говорит Пахан — голосом; телефон ещё не звонил")
+	var overlap := 0
+	var spoke_boss := false
+	var t_end := Time.get_ticks_msec() + 16000
+	while Time.get_ticks_msec() < t_end and not spoke_boss:
+		if R.pahan_voice.playing and R.call_voice.playing:
+			overlap += 1
+		spoke_boss = R.call_voice.playing
+		await get_tree().process_frame
+	ok(spoke_boss and overlap == 0, "начальник заговорил после Пахана, голоса не наложились")
+	R.pahan_say(String(FNData.PAHAN["door"][1]), 2.0)
+	R.say("Проверочная подсказка.", 1.5)
+	await get_tree().process_frame
+	ok(R.call_voice.playing and not R.pahan_voice.playing and R.say_q.size() == 2, "реплика Пахана посреди звонка ждёт: начальник договаривает")
+	var line1 := R.call_voice.stream
+	var pahan_after: bool = await until(func(): return R.pahan_voice.playing, 9.0)
+	ok(pahan_after and not R.call_voice.playing, "начальник договорил реплику — говорит Пахан")
+	var held := true
+	while R.pahan_voice.playing:
+		if R.call_voice.playing:
+			held = false
+		await get_tree().process_frame
+	ok(held, "пока Пахан говорит, начальник молчит")
+	ok(R.ui.msg_l.text == String(FNData.PAHAN["door"][1]), "подсказка не затёрла строку Пахана, пока он говорил")
+	var hint_shown: bool = await until(func(): return R.ui.msg_l.text == "Проверочная подсказка.", 4.0)
+	ok(hint_shown, "подсказка показана следом, в свою очередь")
+	var resumed: bool = await until(func(): return R.call_voice.playing and R.call_voice.stream != line1, 8.0)
+	ok(resumed, "звонок продолжился со следующей реплики")
 	var spoke: bool = await until(func(): return R.call_voice.playing, 9.0)
-	ok(spoke and R.call_voice.bus == "Phone" and R.ui.sub_box.visible, "первая реплика звонка звучит голосом из трубки (шина %s), субтитр на экране" % R.call_voice.bus)
-	var held := R.call_t
-	ok(R.call_voice.stream != null and held >= R.call_voice.stream.get_length(), "субтитр держится, пока реплику договаривают (%.1f с)" % held)
+	ok(spoke and R.call_voice.bus == "Phone" and R.ui.sub_box.visible, "реплика звонка звучит голосом из трубки (шина %s), субтитр на экране" % R.call_voice.bus)
+	var held_t := R.call_t
+	ok(R.call_voice.stream != null and held_t >= R.call_voice.stream.get_length() - R.call_voice.get_playback_position() - 0.1, "субтитр держится, пока реплику договаривают (ещё %.1f с)" % held_t)
 	await key(KEY_F)
 	ok(not R.call_voice.playing and not R.ui.sub_box.visible, "F сбрасывает звонок: голос замолчал, субтитр убран")
 	await wait(1.0)

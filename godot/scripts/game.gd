@@ -1172,6 +1172,7 @@ func _dlg_advance() -> void:
 		dlg_chars = 9999.0
 		return
 	voice.stop()
+	_hush()
 	dlg_i += 1
 	if dlg_i >= dlg.size():
 		_dlg_finish()
@@ -1234,6 +1235,16 @@ func _say(pl: AudioStreamPlayer, line: String, vol := 0.0) -> bool:
 		print("VOICE play %s len=%.2f playing=%s bus=%s vol=%.1f master=%.1f mute=%s" % [path.get_file(), pl.stream.get_length(), pl.playing, pl.bus, pl.volume_db, AudioServer.get_bus_volume_db(0), AudioServer.is_bus_mute(0)])
 	return true
 
+## Говорит кто-то один: пока звучит реплика диалога или чей-то выкрик, новый выкрик не начинается (Пахан получил
+## удар и вскрикнул — madk1d не причитает поверх него). Предсмертный крик и фраза босса на смене фазы важнее:
+## они обрывают прежний выкрик. С началом диалога выкрики смолкают.
+func _speaking() -> bool:
+	return voice.playing or bark_v.playing or bark_m.playing or bark_b.playing
+
+func _hush() -> void:
+	for p in [bark_v, bark_m, bark_b]:
+		(p as AudioStreamPlayer).stop()
+
 ## Боевой выкрик из data/barks.json: не поверх диалога, не чаще раза в gap секунд на вид, с вероятностью chance.
 func bark(kind: String, gap := 8.0, chance := 1.0) -> void:
 	if mode == "dlg" or over and kind != "dead" or not barks.has(kind) or clock < float(bark_cd.get(kind, 0.0)) or randf() > chance:
@@ -1241,8 +1252,10 @@ func bark(kind: String, gap := 8.0, chance := 1.0) -> void:
 	var arr: Array = barks[kind]
 	var line: String = arr[randi() % arr.size()]
 	var pl := bark_m if line.begins_with("M") else (bark_v if line.begins_with("V") else bark_b)
-	if pl.playing:
-		return
+	if _speaking():
+		if kind != "dead":
+			return
+		_hush()
 	if _say(pl, line, 2.0):
 		bark_cd[kind] = clock + gap
 
@@ -1288,6 +1301,7 @@ func toast(text: String) -> void:
 
 func boss_bark(who: String, text: String, col: Color, sp := "") -> void:
 	if sp != "":
+		_hush()
 		_say(bark_b, sp + "|" + text, 3.0)
 	banner(text, who, col, 2.8)
 	main.sfx("sfx_rage", -6.0, 1.2)

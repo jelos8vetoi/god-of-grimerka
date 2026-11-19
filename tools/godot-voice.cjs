@@ -1,6 +1,7 @@
 // Озвучка Пахана и madk1d для Godot-версии через Fish Audio.
 // Берёт реплики V (Пахан), M и MV (madk1d) из godot/data/story.json, боевые выкрики из godot/data/barks.json
-// и звонки начальника смены из «5 НОЧЕЙ С ПАХАНОМ» (код FN — массив CALLS в godot/scripts/five_nights/fn_data.gd),
+// и «5 НОЧЕЙ С ПАХАНОМ» из godot/scripts/five_nights/fn_data.gd: звонки начальника смены (код FN — массив CALLS)
+// и мысли Пахана на смене (код V — словарь PAHAN),
 // кладёт по файлу на реплику в godot/assets/voice/<код>_<md5 строки, 10 знаков>.mp3 — игра ищет файл по тому же имени.
 // Уже готовые файлы не трогает, файлы от удалённых реплик стирает.
 // Ключ и голоса — только через переменные окружения, в git их не класть:
@@ -32,6 +33,13 @@ const fnSrc = fs.readFileSync(path.join(root, 'scripts', 'five_nights', 'fn_data
 const fnBlock = /\nconst CALLS := \[\n([\s\S]*?)\n\]\n/.exec(fnSrc);
 if (!fnBlock) { console.error('не найден массив CALLS в fn_data.gd'); process.exit(1); }
 for (const m of fnBlock[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)) lines.add('FN|' + m[1].replace(/\\"/g, '"'));
+// мысли Пахана на смене (словарь PAHAN там же) — его обычным голосом (код V): берём строки из массивов, ключи разделов пропускаем
+const fnPahan = /\nconst PAHAN := \{\n([\s\S]*?)\n\}\n/.exec(fnSrc);
+if (!fnPahan) { console.error('не найден словарь PAHAN в fn_data.gd'); process.exit(1); }
+for (const row of fnPahan[1].split('\n')) {
+  const arr = /:\s*\[(.*)\]\s*,?\s*$/.exec(row);
+  if (arr) for (const m of arr[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)) lines.add('V|' + m[1].replace(/\\"/g, '"'));
+}
 
 // как в игре (_clean): без эмодзи и значков
 const clean = s => [...s].filter(ch => { const c = ch.codePointAt(0); return c < 0x1F000 && !(c >= 0x2600 && c <= 0x27BF) && c !== 0xFE0F; }).join('').trim();
