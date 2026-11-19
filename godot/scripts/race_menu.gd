@@ -15,12 +15,24 @@ static func open(menu, start := 2) -> void:
 	menu._open("VACUUM RACING", lines, [
 		[func(): return "ТРАССА: " + String(RaceData.track(String(RaceSave.v("track")))["name"]), null, func(d: int): _track_step(d)],
 		[func(): return "СОПЕРНИКИ: " + String(RaceData.BOTS[String(RaceSave.v("level"))]["name"]), null, func(d: int): _level_step(d)],
+		[func(): return "ПОГОДА: " + _weather_name(String(RaceSave.v("weather"))), null, func(d: int): _weather_step(d)],
+		[func(): return "СЛУЧАЙНЫЕ СИТУАЦИИ: " + ("ВКЛ" if bool(RaceSave.v("happen")) else "ВЫКЛ"), null, func(_d: int): RaceSave.put("happen", not bool(RaceSave.v("happen")))],
 		["SINGLE RACE", func(): _start(menu, "single")],
 		["TIME TRIAL", func(): _start(menu, "time")],
 		["ONLINE RACE", func(): menu.open_online()],
 		["РЕКОРДЫ", func(): _records(menu)],
 		["УПРАВЛЕНИЕ", func(): controls(menu)],
-		["НАЗАД", func(): menu._close()]], start)
+		["НАЗАД", func(): menu._close()]], start + 2 if start >= 2 else start)
+
+static func _weather_name(w: String) -> String:
+	if w == "random":
+		return "СЛУЧАЙНАЯ"
+	var W: Dictionary = RaceWeather.WEATHERS.get(w, RaceWeather.WEATHERS["clear"])
+	return "%s — %s" % [String(W["name"]), String(W["desc"])]
+
+static func _weather_step(d: int) -> void:
+	var list: Array = RaceWeather.WEATHER_ORDER
+	RaceSave.put("weather", String(list[posmod(list.find(String(RaceSave.v("weather"))) + d, list.size())]))
 
 static func _track_step(d: int) -> void:
 	var list: Array = RaceData.TRACK_ORDER
@@ -36,7 +48,8 @@ static func _level_step(d: int) -> void:
 static func config(mode: String) -> Dictionary:
 	var tid := String(RaceSave.v("track"))
 	return {"mode": mode, "track": tid, "laps": int(RaceData.track(tid)["laps"]), "level": String(RaceSave.v("level")),
-		"rider": "pahan", "name": "ПАХАН", "seed": int(Time.get_ticks_usec() % 2147483647)}
+		"rider": "pahan", "name": "ПАХАН", "seed": int(Time.get_ticks_usec() % 2147483647),
+		"weather": String(RaceSave.v("weather")), "happenings": bool(RaceSave.v("happen")) and mode != "time"}
 
 static func _start(menu, mode: String) -> void:
 	menu.launch_race(config(mode))

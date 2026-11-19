@@ -276,7 +276,9 @@ func start_race() -> bool:
 	var riders: Array = []
 	for p in lobby["players"]:
 		riders.append({"id": String(p["rider"]), "name": String(p["name"]), "peer": int(p["id"])})
-	var cfg := {"mode": "online", "track": String(lobby["track"]), "laps": int(lobby["laps"]), "seed": randi(), "riders": riders}
+	# погода и случайные ситуации — как выбрал хост в меню гонок; «случайная» выпадает одинаково у всех (тот же seed)
+	var cfg := {"mode": "online", "track": String(lobby["track"]), "laps": int(lobby["laps"]), "seed": randi(), "riders": riders,
+		"weather": String(RaceSave.v("weather")), "happenings": bool(RaceSave.v("happen"))}
 	_send_lobby()
 	_all("h_load", [cfg])
 	loading.emit(_cfg_for(cfg, 1))

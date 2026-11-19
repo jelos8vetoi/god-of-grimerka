@@ -44,6 +44,9 @@ var pause_panel: Control
 var menu_rows: Array = []      # [Label, Callable] — пункты открытого экрана (результаты или пауза)
 var menu_sel := 0
 var item_seen := ""
+var weather_l: Label
+var happen_l: Label
+var happen_sub: Label
 
 func _ready() -> void:
 	layer = 20
@@ -218,6 +221,16 @@ func _build() -> void:
 	flash_l.size = Vector2(STAGE.x, 70)
 	flash_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	flash_l.add_theme_constant_override("outline_size", 14)
+	weather_l = _text(stage, "", 16, SILVER, Vector2(640, 116))
+	weather_l.size = Vector2(320, 22)
+	weather_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	happen_l = _text(stage, "", 46, Color(1.0, 0.85, 0.25), Vector2(0, 600), serif)
+	happen_l.size = Vector2(STAGE.x, 60)
+	happen_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	happen_l.add_theme_constant_override("outline_size", 14)
+	happen_sub = _text(stage, "", 18, WHITE, Vector2(0, 656))
+	happen_sub.size = Vector2(STAGE.x, 26)
+	happen_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	feed_box = VBoxContainer.new()
 	feed_box.position = Vector2(560, 128)
 	feed_box.size = Vector2(480, 120)
@@ -263,6 +276,9 @@ func _process(dt: float) -> void:
 		shield_l.text = "ФИЛЬТР %.0f с" % me.shield_t if me.shield_t > 0.0 else ""
 		wrong_l.visible = me.wrong_t > float(RaceData.PHYS["wrong_way"]) and not me.finished and int(Time.get_ticks_msec() / 300) % 2 == 0
 	time_l.text = fmt(race.t)
+	if race.weather != null:
+		var Wd: Dictionary = race.weather.W
+		weather_l.text = "%s %s" % [String(Wd.get("icon", "")), String(Wd.get("name", ""))] + ("  ·  ветер %d м/с" % int(race.weather.wind.length()) if race.weather.wind.length() > 0.5 else "")
 	dust.color.a = clampf(race.dust_vis, 0.0, 1.0) * 0.55
 	map.queue_redraw()
 
@@ -328,6 +344,20 @@ func flash_text(s: String) -> void:
 	var tw := flash_l.create_tween().set_parallel(true)
 	tw.tween_property(flash_l, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(flash_l, "modulate:a", 0.0, 0.5).set_delay(1.6)
+
+## случайная ситуация на трассе: большая надпись и пояснение
+func happening(title: String, sub: String) -> void:
+	happen_l.text = title
+	happen_sub.text = sub
+	for l in [happen_l, happen_sub]:
+		(l as Label).modulate.a = 1.0
+	happen_l.pivot_offset = happen_l.size * 0.5
+	happen_l.scale = Vector2(1.4, 1.4)
+	var tw := happen_l.create_tween().set_parallel(true)
+	tw.tween_property(happen_l, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(happen_l, "modulate:a", 0.0, 0.6).set_delay(3.0)
+	tw.tween_property(happen_sub, "modulate:a", 0.0, 0.6).set_delay(3.0)
+	feed(title + " — " + sub, true)
 
 func item_got(id: String) -> void:
 	item_card.scale = Vector2(1.25, 1.25)

@@ -12,7 +12,7 @@ static func _load() -> void:
 	if loaded:
 		return
 	loaded = true
-	data = {"steer": 1.0, "binds": {}, "records": {}, "level": "normal", "track": "tomsk_dust", "name": "ПАХАН"}
+	data = {"steer": 1.0, "binds": {}, "records": {}, "level": "normal", "track": "tomsk_dust", "name": "ПАХАН", "weather": "random", "happen": true}
 	if FileAccess.file_exists(PATH):
 		var d = JSON.parse_string(FileAccess.get_file_as_string(PATH))
 		if d is Dictionary:
@@ -26,6 +26,10 @@ static func _load() -> void:
 				data["level"] = String(d["level"])
 			if RaceData.TRACKS.has(String(d.get("track", ""))):
 				data["track"] = String(d["track"])
+			if RaceWeather.WEATHER_ORDER.has(String(d.get("weather", ""))):
+				data["weather"] = String(d["weather"])
+			if typeof(d.get("happen")) == TYPE_BOOL:
+				data["happen"] = bool(d["happen"])
 			if d.get("name") is String and String(d["name"]).strip_edges() != "":
 				data["name"] = String(d["name"]).substr(0, 16)
 
