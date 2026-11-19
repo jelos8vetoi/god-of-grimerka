@@ -305,17 +305,40 @@ func _run() -> void:
 	var N: MLNegotiation = U.negotiate(int(tgt["id"]), func(): pass)
 	await wait(0.2)
 	await shot("m06_call")
+	# голос: у каждой конторы озвучены свои фразы и общие ответы; в трубке говорит коллектор именно этой конторы
+	var v_need := 0
+	var v_have := 0
+	for li in MLData.LENDER_ORDER.size():
+		var lines: Array = (MLData.LENDERS[MLData.LENDER_ORDER[li]]["voice"] as Array).duplicate()
+		for key in MLData.COLLECTOR:
+			lines.append_array(MLData.COLLECTOR[key])
+		for ln in lines:
+			v_need += 1
+			if ResourceLoader.exists(MLNegotiation.voice_path("C%d" % (li + 1), String(ln))):
+				v_have += 1
+	ok(v_need >= 48 and v_have == v_need, "коллекторы четырёх контор озвучены: %d из %d реплик" % [v_have, v_need])
+	ok(N.vo.playing and N.vo.bus == "Phone" and N.vcode == "C%d" % (MLData.LENDER_ORDER.find(String(tgt["lender"])) + 1), "звонок: коллектор говорит голосом своей конторы (%s), как из трубки" % N.vcode)
+	ok(N.speak_len >= N.vo.stream.get_length(), "фраза держится на экране, пока её договаривают (%.1f с)" % N.speak_len)
 	var tr0 := N.trust
 	await until(func(): return N.speaking, 2.0)
 	N.play(0)
 	ok(N.trust < tr0, "перебил коллектора — доверие упало (%.0f → %.0f)" % [tr0, N.trust])
-	await until(func(): return not N.speaking, 4.0)
+	N.play(0)                                            # вторая «отсрочка» посреди фразы: коллектор отвечает и обрывает себя
+	var first := N.vo.stream
+	ok(N.hold_t > 0.0 and N.vo.playing and N.vo.stream.resource_path == MLNegotiation.voice_path(N.vcode, String(MLData.COLLECTOR["again"][0])), "ответ коллектора звучит вместо недосказанной фразы, звонок ждёт (%.1f с)" % N.hold_t)
+	var t_hold := N.t_left
+	var ph := N.phrase
+	await wait(0.4)
+	ok(is_equal_approx(N.t_left, t_hold) and N.phrase == ph and N.vo.stream == first, "пока коллектор отвечает, время разговора стоит и новая фраза не начинается")
+	await until(func(): return N.hold_t <= 0.0 and N.phrase > ph, 8.0)
+	ok(N.phrase > ph and N.vo.playing and N.vo.stream != first, "ответ прозвучал — пошла следующая фраза")
+	await until(func(): return not N.speaking, 9.0)
 	var tr1 := N.trust
 	N.play(1 if N._avail(1) == "" else 2 if N._avail(2) == "" else 3)
 	ok(N.trust >= tr1 or N.doc_mode, "ответил в паузу — доверие выросло")
 	if N.doc_mode:
 		N.pick_doc(N.DOCS.map(func(d): return d[0]).find(N.doc_right))
-	await until(func(): return not N.speaking, 4.0)
+	await until(func(): return not N.speaking and N.hold_t <= 0.0, 14.0)
 	N.play(3)
 	ok(N.doc_mode, "«ПРЕДЪЯВИТЬ ДОКУМЕНТ» открывает ящик стола")
 	await shot("m07_documents")

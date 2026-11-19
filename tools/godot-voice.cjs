@@ -1,17 +1,21 @@
-// Озвучка Пахана и madk1d для Godot-версии через Fish Audio.
-// Берёт реплики V (Пахан), M и MV (madk1d) из godot/data/story.json, боевые выкрики из godot/data/barks.json
+// Озвучка Godot-версии через Fish Audio: Пахан, madk1d, рассказчик, Лил Дрей, начальник смены, коллекторы.
+// Берёт реплики V (Пахан), M и MV (madk1d), N (рассказчик), B1 (Лил Дрей) из godot/data/story.json,
+// боевые выкрики из godot/data/barks.json, звонки коллекторов «Микрозаймов» (коды C1…C4, ml_data.gd)
 // и «5 НОЧЕЙ С ПАХАНОМ» из godot/scripts/five_nights/fn_data.gd: звонки начальника смены (код FN — массив CALLS)
 // и мысли Пахана на смене (код V — словарь PAHAN),
 // кладёт по файлу на реплику в godot/assets/voice/<код>_<md5 строки, 10 знаков>.mp3 — игра ищет файл по тому же имени.
 // Уже готовые файлы не трогает, файлы от удалённых реплик стирает.
 // Ключ и голоса — только через переменные окружения, в git их не класть:
-//   FISH_KEY=sk-fish-... FISH_REF_V=<Пахан> FISH_REF_M=<madk1d> FISH_REF_B1=<Лил Дрей> FISH_REF_FN=<Семёныч> node tools/godot-voice.cjs [--limit=N] [--dry]
+//   FISH_KEY=sk-fish-... FISH_REF_V=<Пахан> FISH_REF_M=<madk1d> FISH_REF_B1=<Лил Дрей> FISH_REF_FN=<Семёныч>
+//   FISH_REF_N=<рассказчик> FISH_REF_C1=… FISH_REF_C4=<коллекторы> node tools/godot-voice.cjs [--limit=N] [--dry]
 // Можно задать только часть голосов: остальные реплики будут пропущены, готовые файлы не тронутся.
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const root = path.join(__dirname, '..', 'godot');
 const out = path.join(root, 'assets', 'voice');
 // кого озвучиваем и из какой переменной окружения берётся голос (id модели Fish Audio)
-const VOICED = { V: 'FISH_REF_V', M: 'FISH_REF_M', MV: 'FISH_REF_M', B1: 'FISH_REF_B1', FN: 'FISH_REF_FN' };
+// N — рассказчик кампании; C1…C4 — коллекторы четырёх контор «Микрозаймов» (по порядку MLData.LENDER_ORDER)
+const VOICED = { V: 'FISH_REF_V', M: 'FISH_REF_M', MV: 'FISH_REF_M', B1: 'FISH_REF_B1', FN: 'FISH_REF_FN', N: 'FISH_REF_N',
+  C1: 'FISH_REF_C1', C2: 'FISH_REF_C2', C3: 'FISH_REF_C3', C4: 'FISH_REF_C4' };
 const key = process.env.FISH_KEY, refs = {};
 for (const c in VOICED) refs[c] = process.env[VOICED[c]];
 const dry = process.argv.includes('--dry');
@@ -40,6 +44,21 @@ for (const row of fnPahan[1].split('\n')) {
   const arr = /:\s*\[(.*)\]\s*,?\s*$/.exec(row);
   if (arr) for (const m of arr[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)) lines.add('V|' + m[1].replace(/\\"/g, '"'));
 }
+
+// «Микрозаймы»: звонок коллектора (godot/scripts/microloans/ml_data.gd). У каждой конторы свои фразы ("voice" в LENDERS)
+// и общие для всех ответы (словарь COLLECTOR) — каждая контора говорит их своим голосом: код C<номер по LENDER_ORDER>
+const mlSrc = fs.readFileSync(path.join(root, 'scripts', 'microloans', 'ml_data.gd'), 'utf8').replace(/\r/g, '');
+const strs = s => [...s.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(m => m[1].replace(/\\"/g, '"'));
+const mlOrder = /\nconst LENDER_ORDER := \[(.*?)\]/.exec(mlSrc);
+const mlCommon = /\nconst COLLECTOR := \{\n([\s\S]*?)\n\}\n/.exec(mlSrc);
+if (!mlOrder || !mlCommon) { console.error('не найдены LENDER_ORDER или COLLECTOR в ml_data.gd'); process.exit(1); }
+const common = [];
+for (const row of mlCommon[1].split('\n')) { const arr = /:\s*\[(.*)\]\s*,?\s*$/.exec(row); if (arr) common.push(...strs(arr[1])); }
+strs(mlOrder[1]).forEach((id, i) => {
+  const own = new RegExp('\\n\\t"' + id + '": \\{[\\s\\S]*?"voice": \\[(.*?)\\]\\}').exec(mlSrc);
+  if (!own) { console.error('не найдены фразы конторы ' + id + ' в ml_data.gd'); process.exit(1); }
+  for (const t of [...strs(own[1]), ...common]) lines.add('C' + (i + 1) + '|' + t);
+});
 
 // как в игре (_clean): без эмодзи и значков
 const clean = s => [...s].filter(ch => { const c = ch.codePointAt(0); return c < 0x1F000 && !(c >= 0x2600 && c <= 0x27BF) && c !== 0xFE0F; }).join('').trim();
