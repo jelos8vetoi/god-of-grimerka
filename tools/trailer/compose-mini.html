@@ -1,0 +1,417 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>trailer minigames</title>
+<!-- Трейлер мини-игр GOD OF GRIMERKA — «ночной эфир ОБЛАКО-ТВ», записанный на видеокассету.
+     Телетекст (стр. 100 — эфир, 812 — микрозаймы, 666 — вакансии), реклама голосами коллекторов, звонок начальника
+     смены, подработки под мемфис-бит, обитатели «Облака» по одному под лампой, скримеры, 6 AM и зарплата 37 ₽.
+     Кадры — --trailermini (godot/scripts/trailermini.gd); голоса — игровые (godot/assets/voice) и строки трейлера
+     (tools/trailer/fish-mini.cjs → vo-mini.json); бит, шум ленты и «плавание» звука синтезируются здесь.
+     Сервер: node tools/trailer/serve-modes.cjs <папка кадров> <куда сохранить>. record() — записать MP4,
+     drawAt(t) — один кадр для проверки, plan() — раскладка по времени. -->
+<style>@font-face{font-family:"Russo One";src:url(RussoOne-Regular.ttf)}html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="v" width="1280" height="720"></canvas>
+<script>
+const W = 1280, H = 720, FPS = 30, BEAT = 0.6;       // бит монтажа подработок — 100 уд/мин
+const MONO = '"Consolas","Lucida Console","Courier New",monospace';
+// ---------- монтаж: отрезки идут подряд; kind: tt — страница телетекста, shot — кадры игры, blue — синий экран ----------
+const SEGS = []; let T = 0;
+function seg(id, dur, o) { const s = Object.assign({ id, t0: T, t1: T + dur }, o); SEGS.push(s); T += dur; return s; }
+seg('play', 0.7, { kind: 'blue', osd: 'PLAY' });
+seg('p100', 5.3, { kind: 'tt', page: 100 });
+seg('p812', 3.2, { kind: 'tt', page: 812 });
+seg('room', 3.7, { kind: 'shot', p: 'MA_', sp: 0.9 });
+seg('title1', 1.5, { kind: 'title', lines: ['ПАХАН НАБРАЛ', 'МИКРОЗАЙМОВ'], col: '#ff0' });
+seg('day', 2.0, { kind: 'shot', p: 'MB_', lower: ['НЕДЕЛЯ В ДОЛГАХ', '7 дней · 4 конторы · 5 концовок'] });
+seg('debts', 2.6, { kind: 'shot', p: 'MC_', lower: ['КАРТА ДОЛГОВ', 'плати, продлевай, рефинансируй — с последствиями'] });
+seg('call', 4.2, { kind: 'shot', p: 'MD_', sp: 0.8, lower: ['КОЛЛЕКТОРЫ ЗВОНЯТ ГОЛОСОМ', 'у каждой конторы — свой'] });
+seg('desk', 3.8, { kind: 'shot', p: 'MH_', sp: 0.9 });
+for (const [p, name] of [['J1_', 'УБОРКА НА ТЯГЕ-812'], ['J2_', 'РЕМОНТ ТЕХНИКИ'], ['J3_', 'ДОСТАВКА'], ['J4_', 'РАЗБОР ХЛАМА'], ['J5_', 'ЗВУКАРЬ']])
+  seg('job' + p[1], BEAT * 3, { kind: 'shot', p, from: 6, sp: 1.3, tag: name, beat: 1 });
+seg('result', BEAT * 2, { kind: 'shot', p: 'MG_', beat: 1 });
+seg('tree', BEAT * 3, { kind: 'shot', p: 'ME_', beat: 1, lower: ['РАЗВИТИЕ ПАХАНА', '5 веток · 71 навык · бизнес · ЛЕГЕНДА РАЙОНА'] });
+seg('biz', BEAT * 2, { kind: 'shot', p: 'MF_', beat: 1 });
+seg('p666', 6.0, { kind: 'tt', page: 666 });
+seg('night', 2.2, { kind: 'shot', p: 'FB_', sp: 1.1, big: '5 НОЧЕЙ С ПАХАНОМ' });
+seg('office', 5.4, { kind: 'shot', p: 'FC_', sp: 0.73, cam: 1 });
+seg('cams', 5.3, { kind: 'shot', p: 'FD_', sp: 0.92, cam: 1, lift: 1.5 });
+seg('door', 4.8, { kind: 'shot', p: 'FE_', sp: 0.52, cam: 1 });
+const DOSSIER = [['БАЛОН VOZDUH', 'сотрудник месяца. у него выходной'], ['MADK1D', 'живёт в вентиляции. зовёт по имени'], ['BOT', 'ждёт ответа на пинг. не любит, когда молчат'],
+  ['CLIPPER', 'самый быстрый. боится света'], ['GHOST', 'не смотри на него'], ['MOD', 'ломает систему. врёт камерами']];
+DOSSIER.forEach((d, i) => seg('who' + (i + 1), 1.5, { kind: 'shot', p: 'E' + (i + 1) + '_', sp: 1.3, who: i, cam: 1 }));
+seg('dark', 2.7, { kind: 'shot', p: 'FG_', sp: 0.8, cam: 1, lift: 1.4 });
+for (let i = 1; i <= 6; i++) seg('scare' + i, 0.75, { kind: 'shot', p: 'S' + i + '_', from: [18, 16, 14, 16, 22, 14][i - 1], scare: 1 });
+seg('six', 4.0, { kind: 'shot', p: 'FH_', sp: 0.9 });
+seg('p037', 3.9, { kind: 'tt', page: 37 });
+seg('ring', 4.2, { kind: 'shot', p: 'MH_', from: 62, sp: 0.45, lower: ['ВХОДЯЩИЙ ЗВОНОК', '«КЭШ НА МЕСТЕ»'] });
+seg('logo', 7.2, { kind: 'logo' });
+seg('stop', 1.0, { kind: 'blue', osd: 'STOP' });
+const LEN = T, at = id => SEGS.find(s => s.id === id).t0;
+
+// ---------- голоса: [файл, когда, обработка] — tv диктор эфира, ad реклама из динамика, phone трубка, dry как есть ----------
+const VO = [
+  ['frames/tn1.wav', at('p100') + 0.25, 'tv'],                 // Томск. Январь. Минус тридцать четыре. Ночной эфир.
+  ['frames/ta1.wav', at('p812') + 0.15, 'ad'],                 // Быстроденьги двадцать четыре! Деньги за пять минут…
+  ['frames/tp1.wav', at('title1') - 0.75, 'dry'],              // Беру.
+  ['frames/tn2.wav', at('day') + 0.2, 'tv'],                   // Через неделю Пахан был должен четырём конторам сразу.
+  ['voice/C3_4d7b83c2b6.mp3', at('call') + 0.2, 'phone'],      // Алло. Это «Срочно Финанс». Срочно.
+  ['voice/C4_92cbf680af.mp3', at('desk') + 0.15, 'phone'],     // Пахан, это Гена из «Решим вопрос». Помнишь меня?
+  ['frames/tn3.wav', at('job1') + 0.3, 'tv'],                  // Он мыл подъезды. Чинил приставки. Таскал посылки.
+  ['frames/tm1.wav', at('result') + 0.1, 'dry'],               // пахан... там ещё вакансия есть. ночная.
+  ['voice/FN_b3ea9b0da8.mp3', at('p666') + 0.45, 'phone'],     // Алло, Павел? Это Семёныч, начальник смены. Короче, всё просто.
+  ['voice/V_49901d65dd.mp3', at('office') + 0.1, 'dry'],       // Ну, начали. Камеры, двери, свет. Не сложнее, чем бит свести.
+  ['voice/FN_44b16e2622.mp3', at('cams') + 0.15, 'phone'],     // Сидишь в будке, смотришь камеры до шести. Двери не открывай незнакомым.
+  ['voice/FN_d34d4dcf2b.mp3', at('door') + 0.1, 'phone'],      // И это… Только не трогай Балона, у него сегодня выходной.
+  ['voice/FN_c7e5f0cf6d.mp3', at('who1') + 0.4, 'phone'],      // Если услышишь, как тебя зовут из вентиляции… не отвечай. Всё, удачи.
+  ['voice/V_3f1d557057.mp3', at('dark') + 0.3, 'dry'],         // Да вы заебали, я вообще-то на смене.
+  ['voice/V_7f3b7edf43.mp3', at('six') + 1.15, 'dry'],         // Шесть. Шесть, бля. Живой.
+  ['frames/tn4.wav', at('p037') + 0.5, 'tv'],                  // Зарплата за смену — тридцать семь рублей.
+  ['voice/C2_79b7603e93.mp3', at('ring') + 0.6, 'phone'],      // Мы готовы обсудить, если вы готовы платить.
+  ['frames/tn5.wav', at('logo') + 1.2, 'tv'],                  // Год оф Гримёрка. Ночной эфир окончен.
+];
+// музыка и подложки: [файл, начало, длительность, громкость, нарастание, затухание, смещение, скорость]
+const MUSIC = [
+  ['music/amb_ml.wav', 0, at('title1'), .5, .8, .3, 0, 1],
+  ['music/loc_ml_base.wav', at('title1'), at('job1') - at('title1'), .8, .05, .25, 0, .94],
+  ['frames/sfx_hum.wav', at('p666'), at('night') - at('p666'), .35, .5, .2, 0, 1],
+  ['frames/sfx_hum.wav', at('night'), at('scare1') - at('night'), .9, .4, .05, 0, 1],
+  ['music/loc_fn_base.wav', at('office'), at('who1') - at('office'), .5, 1.0, .6, 0, .9],
+  ['frames/sfx_music_box_air.wav', at('who1'), at('dark') - at('who1') + 1.2, .9, .6, .3, 0, 1],
+  ['music/amb_ml.wav', at('p037'), at('logo') - at('p037'), .5, .3, .2, 4, 1],
+];
+// бит: [начало, тактов, громкость]
+const BEATS = [[at('job1'), 5, 1.5], [at('logo'), 3, 1.1]];
+// эффекты: [файл, когда, громкость]
+const SFX = [
+  ['frames/sfx_static', 0.0, .5], ['frames/ml_notify', at('p100') + 3.6, .5],
+  ['frames/sfx_cam', at('p812') - 0.02, .8], ['frames/ml_coins', at('p812') + 0.3, .6], ['frames/sfx_cam', at('room') - 0.02, .7],
+  ['frames/ml_alert', at('room') + 2.0, .7], ['frames/ml_loan', at('title1') - 0.1, .9], ['frames/sfx_door_down', at('title1'), .8],
+  ['frames/ml_ring', at('call') - 0.35, .7], ['frames/ml_bills', at('desk') + 1.9, .6],
+  ['frames/ml_clean', at('result') + 0.05, .8], ['frames/ml_cheer', at('tree') + 0.1, .5], ['frames/ml_buy', at('biz') + 0.1, .7],
+  ['frames/sfx_cam', at('p666') - 0.02, .8], ['frames/sfx_ring', at('p666') + 0.02, .8],
+  ['frames/sfx_power_down', at('night') - 0.05, .7], ['frames/sfx_cam', at('cams'), .6], ['frames/sfx_cam', at('cams') + 1.1, .5],
+  ['frames/sfx_cam', at('cams') + 2.2, .5], ['frames/sfx_cam', at('cams') + 3.3, .5], ['frames/sfx_cam', at('cams') + 4.4, .5],
+  ['frames/sfx_click', at('door') + 0.75, .9], ['frames/sfx_vent_bang', at('door') + 0.8, .5],
+  ...DOSSIER.map((_, i) => ['frames/sfx_door_down', at('who' + (i + 1)), .45]),
+  ['frames/sfx_heart', at('who4'), .8], ['frames/sfx_heart', at('who6'), .9], ['frames/sfx_power_down', at('dark') - 0.05, .9],
+  ['frames/sfx_breath', at('dark') + 0.1, .7], ['frames/sfx_heart', at('dark') + 1.2, 1],
+  ['frames/sfx_scream_balon', at('scare1') + .02, 1.7], ['frames/sfx_scream_madk1d', at('scare2') + .02, 1.7], ['frames/sfx_scream_bot', at('scare3') + .02, 1.7],
+  ['frames/sfx_scream_clipper', at('scare4') + .02, 1.7], ['frames/sfx_scream_ghost', at('scare5') + .02, 1.7], ['frames/sfx_scream_mod', at('scare6') + .02, 1.7],
+  ['frames/sfx_chime', at('six') + 0.9, .9], ['frames/ml_money', at('p037') + 0.15, .8], ['frames/sfx_cam', at('p037') - 0.02, .7],
+  ['frames/ml_ring', at('ring') - 0.1, .8], ['frames/sfx_door_down', at('logo'), .9], ['frames/sfx_static', at('stop') - 0.1, .6],
+];
+const TICKER = 'КУПЛЮ ВОЛОСЫ. ДОРОГО  ///  ПОТЕРЯЛСЯ БАЛОН VOZDUH: ЧЁРНЫЙ, С ЛИЦОМ, ОТКЛИКАЕТСЯ НА «СОТРУДНИК МЕСЯЦА»  ///  ОТДАМ ДОЛГ В ХОРОШИЕ РУКИ  ///  ПЫЛЕСОС ТЯГА-812, Б/У, ОДИН ВЛАДЕЛЕЦ  ///  ' +
+  'СНИМУ ПОРЧУ, ПРОЦЕНТЫ И ШТРАФЫ  ///  ТРЕБУЕТСЯ НОЧНОЙ ОХРАННИК. ОПЛАТА 37 ₽. ПРЕДЫДУЩИЙ УВОЛИЛСЯ (?)  ///  ГЕНА, ПЕРЕЗВОНИ  ///  ПОГОДА: ТОМСК −34, ОЩУЩАЕТСЯ КАК ДОЛГ  ///  ';
+
+const c = document.getElementById('v'), x = c.getContext('2d');
+const mk = (w, h) => { const k = document.createElement('canvas'); k.width = w; k.height = h; return k; };
+const base = mk(W, H), b = base.getContext('2d'), chR = mk(W, H), cr = chR.getContext('2d'), chC = mk(W, H), cc = chC.getContext('2d');
+const clamp = (v, a, z) => v < a ? a : v > z ? z : v, ease = k => 1 - Math.pow(1 - clamp(k, 0, 1), 3);
+const blobs = {}, bmp = {}, pend = {};
+let grain, lines, lastBmp = null, rnd = Math.random;
+
+function segAt(t) { for (const s of SEGS) if (t >= s.t0 && t < s.t1) return s; return SEGS[SEGS.length - 1]; }
+function key(t) {
+  const s = segAt(t); if (s.kind !== 'shot') return null;
+  return s.p + String(Math.max(0, (s.from || 0) + Math.floor((t - s.t0) * FPS * (s.sp || 1)))).padStart(3, '0');
+}
+function want(t) {
+  const need = new Set(); for (let d = 0; d < 2.5; d += .5 / FPS) { const k = key(t + d); if (k) need.add(k); }
+  for (const k of need) if (!bmp[k] && !pend[k] && blobs[k]) pend[k] = createImageBitmap(blobs[k]).then(q => { bmp[k] = q; delete pend[k]; });
+  for (const k in bmp) if (!need.has(k) && k !== lastBmp) { bmp[k].close(); delete bmp[k]; }
+}
+
+// ---------- телетекст: сетка 40×24, моноширинный шрифт, восемь цветов, двойная высота, мигание ----------
+const CW = W / 40, CH = H / 24, SAFE = 0.84, SAFE_X = 0.08, SAFE_Y = 0.095;     // страница телетекста — с полями, как на телевизоре
+const TC = { w: '#f2f2f2', y: '#f4f000', c: '#00f0f0', g: '#00e000', m: '#f000f0', r: '#f01010', b: '#1010f0', k: '#000' };
+function tt(g, col, row, text, fg, o) {
+  o = o || {};
+  const hh = o.dbl ? 2 : 1;
+  if (o.bg) { g.fillStyle = TC[o.bg]; g.fillRect(col * CW, row * CH, (o.w || text.length) * CW, CH * hh); }
+  if (o.flash && Math.floor(o.t * 2.2) % 2 === 0) return;
+  g.save(); g.translate(col * CW, row * CH); g.scale(o.sx || 1, hh);
+  g.font = `bold ${Math.round(CH * 0.92)}px ${MONO}`; g.textBaseline = 'top'; g.textAlign = 'left'; g.fillStyle = TC[fg] || fg;
+  for (let i = 0; i < text.length; i++) g.fillText(text[i], i * CW / Math.max(1, o.sx || 1) + CW * 0.12, CH * 0.08);     // узкий текст (sx < 1) идёт плотнее, широкий — в те же знакоместа
+  g.restore();
+}
+function mosaic(g, col, row, rows, fg) {          // блочная графика: строки из # — закрашенные половинки знакомест
+  g.fillStyle = TC[fg];
+  rows.forEach((r, j) => { for (let i = 0; i < r.length; i++) if (r[i] === '#') g.fillRect(col * CW + i * CW / 2, row * CH + j * CH / 2, CW / 2 + .5, CH / 2 + .5); });
+}
+function header(g, page, t) {
+  const ss = String(7 + Math.floor(t) % 53).padStart(2, '0');
+  tt(g, 0, 0, 'P' + page, 'g'); tt(g, 6, 0, 'ОБЛАКО-ТЕЛЕТЕКСТ', 'w'); tt(g, 24, 0, String(page), 'y'); tt(g, 28, 0, 'Сб19янв', 'c');
+  tt(g, 32, 1, '03:14:' + ss, 'w');
+}
+function keys(g) {
+  tt(g, 0, 23, ' Эфир    ', 'k', { bg: 'r' }); tt(g, 10, 23, ' Займы   ', 'k', { bg: 'g' }); tt(g, 20, 23, ' Работа  ', 'k', { bg: 'y' }); tt(g, 30, 23, ' Ночь    ', 'k', { bg: 'c' });
+}
+function page(g, s, t) {
+  const u = t - s.t0, show = n => u > 0.25 + n * 0.32;
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  header(g, String(s.page).padStart(3, '0'), t);
+  if (s.page === 100) {
+    tt(g, 0, 2, ' ОБЛАКО-ТВ          ', 'y', { bg: 'b', dbl: 1, sx: 2, w: 40 });
+    tt(g, 1, 5, 'НОЧНОЙ ЭФИР · ТОМСК · −34°', 'c');
+    mosaic(g, 28, 6, ['  ####  ', ' ###### ', '########', '########', ' ##  ## '], 'w');
+    const L = [['НОВОСТИ РАЙОНА ............', '101', 'w'], ['ПОГОДА. ОЩУЩАЕТСЯ КАК ДОЛГ ', '105', 'w'], ['МИКРОЗАЙМЫ. ДЕНЬГИ СЕЙЧАС .', '812', 'y'], ['ВАКАНСИИ. НОЧНАЯ СМЕНА ....', '666', 'r'], ['ПРОГРАММА ПЕРЕДАЧ .........', '300', 'w']];
+    L.forEach((l, i) => { if (show(i + 1)) { tt(g, 2, 9 + i * 2, l[0], l[2], { flash: i === 2 && u > 3.4, t }); tt(g, 31, 9 + i * 2, l[1], 'c'); } });
+    if (show(7)) tt(g, 2, 20, 'Наберите номер страницы', 'g');
+  } else if (s.page === 812) {
+    tt(g, 0, 2, ' ДЕНЬГИ', 'y', { bg: 'r', dbl: 1, sx: 2, w: 40 });
+    tt(g, 2, 5, 'ЗА 5 МИНУТ', 'c', { dbl: 1, sx: 2, flash: 1, t });
+    mosaic(g, 27, 5, ['######  ', '##   ## ', '##   ## ', '######  ', '##      ', '######  ', '##      ', '##      '], 'y');
+    const L = [['БЫСТРОДЕНЬГИ 24', 'от 3 000 ₽', 'y'], ['КЭШ НА МЕСТЕ', 'до 30 000 ₽', 'c'], ['СРОЧНО ФИНАНС', 'срочно', 'r'], ['РЕШИМ ВОПРОС', 'решим', 'g']];
+    L.forEach((l, i) => { if (show(i * 0.8 + 1)) { tt(g, 2, 10 + i * 2, l[0], l[2]); tt(g, 20, 10 + i * 2, l[1], 'w'); } });
+    if (u > 1.6) tt(g, 2, 19, 'БЕЗ СПРАВОК. БЕЗ ВОПРОСОВ.', 'w', { bg: 'b', w: 36 });
+    tt(g, 2, 21, '2,5% в день · штраф 4% · мелкий шрифт не читать', 'b', { sx: 0.72 });
+  } else if (s.page === 666) {
+    tt(g, 0, 2, ' ВАКАНСИИ', 'w', { bg: 'r', dbl: 1, sx: 2, w: 40 });
+    const L = [['ТРЕБУЕТСЯ НОЧНОЙ ОХРАННИК', 'y', 1], ['Центр развлечений и хранения', 'w'], ['данных «ОБЛАКО»', 'c'], ['Смена:   00:00 – 06:00', 'w'], ['Оплата:  37 ₽ за смену', 'g'], ['Опыт:    не нужен. совсем', 'w'], ['Предыдущий охранник: уволился (?)', 'm']];
+    let r = 5; L.forEach((l, i) => { if (show(i * 1.2 + 1)) tt(g, 2, r, l[0], l[1], l[2] ? { dbl: 1 } : null); r += l[2] ? 3 : 2; });
+    if (u > 3.2) tt(g, 2, 20, 'ЗВОНИТ: СЕМЁНЫЧ, НАЧ. СМЕНЫ', 'k', { bg: 'y', w: 36, flash: 1, t });
+    mosaic(g, 30, 6, ['  ####  ', ' #    # ', ' # ## # ', ' #    # ', '  ####  ', '   ##   ', '  ####  '], 'r');
+  } else {
+    tt(g, 0, 2, ' УВЕДОМЛЕНИЕ БАНКА', 'k', { bg: 'g', dbl: 1, sx: 1.5, w: 40 });
+    if (show(1)) tt(g, 2, 6, 'ЗАЧИСЛЕНО:', 'w', { dbl: 1 });
+    if (show(2)) tt(g, 16, 6, '37 ₽', 'g', { dbl: 1, sx: 2 });
+    if (show(4)) tt(g, 2, 10, 'ДОЛГ:', 'w', { dbl: 1 });
+    if (show(5)) tt(g, 16, 10, '45 000 ₽', 'r', { dbl: 1, sx: 2, flash: 1, t });
+    if (show(7)) tt(g, 2, 15, 'ОСТАЛОСЬ СМЕН ДО ПОГАШЕНИЯ:', 'c');
+    if (show(8)) tt(g, 2, 17, '1 216', 'y', { dbl: 1, sx: 2 });
+    if (show(9)) tt(g, 2, 20, 'проценты продолжают начисляться', 'm');
+  }
+  keys(g);
+}
+function lower(g, s1, s2, k) {                      // плашка внизу слева — в духе телетекста
+  const ox = (1 - ease(k)) * -80;
+  g.font = `bold 30px ${MONO}`; const w1 = g.measureText(s1).width;
+  g.fillStyle = TC.b; g.fillRect(56 + ox, H - 176, w1 + 28, 42); g.fillStyle = TC.y; g.textBaseline = 'top'; g.textAlign = 'left'; g.fillText(s1, 70 + ox, H - 170);
+  g.font = `bold 19px ${MONO}`; const w2 = g.measureText(s2).width;
+  g.fillStyle = '#000'; g.fillRect(56 + ox, H - 134, w2 + 28, 30); g.fillStyle = TC.w; g.fillText(s2, 70 + ox, H - 129);
+}
+
+// ---------- кадр без «плёнки»: содержимое отрезка ----------
+function content(t) {
+  const s = segAt(t), u = t - s.t0, d = s.t1 - s.t0;
+  b.setTransform(1, 0, 0, 1, 0, 0); b.globalAlpha = 1; b.filter = 'none';
+  b.fillStyle = '#000'; b.fillRect(0, 0, W, H);
+  if (s.kind === 'blue') { b.fillStyle = '#0a0ab8'; b.fillRect(0, 0, W, H); }
+  else if (s.kind === 'tt') { b.translate(W * SAFE_X, H * SAFE_Y); b.scale(SAFE, SAFE); page(b, s, t); b.setTransform(1, 0, 0, 1, 0, 0); }
+  else if (s.kind === 'title') {
+    b.fillStyle = '#000'; b.fillRect(0, 0, W, H);
+    const k = ease(u / .18);
+    s.lines.forEach((l, i) => {
+      const y = 7 + i * 5;
+      tt(b, 0, y, '', 'k', { bg: i ? 'r' : 'b', dbl: 1, w: 40 }); b.fillStyle = TC[i ? 'r' : 'b']; b.fillRect(0, y * CH, W, CH * 4);
+      b.save(); b.translate(W / 2 + (1 - k) * (i ? 300 : -300), y * CH + CH * 0.35); b.scale(2.1, 3.3);
+      b.font = `bold ${Math.round(CH * .92)}px ${MONO}`; b.textAlign = 'center'; b.textBaseline = 'top'; b.fillStyle = TC[i ? 'w' : 'y']; b.fillText(l, 0, 0); b.restore();
+    });
+    tt(b, 2, 19, 'мини-игра · GOD OF GRIMERKA', 'c');
+  } else if (s.kind === 'logo') {
+    b.fillStyle = '#000'; b.fillRect(0, 0, W, H);
+    b.translate(W * SAFE_X, H * SAFE_Y); b.scale(SAFE, SAFE);
+    header(b, '812', t);
+    const k = ease(u / .5);
+    b.save(); b.translate(W / 2, 250); b.scale(1.12 - k * .12, 1.12 - k * .12);
+    b.fillStyle = '#c4100c'; b.fillRect(-480, 20, 960, 10);
+    b.font = '96px "Russo One"'; b.textAlign = 'center'; b.textBaseline = 'alphabetic'; b.fillStyle = '#f4efe6'; b.fillText('GOD OF GRIMERKA', 0, 0); b.restore();
+    if (u > 1.0) tt(b, 3, 12, 'ПАХАН НАБРАЛ МИКРОЗАЙМОВ', 'y', { dbl: 1, sx: 1.42 });
+    if (u > 1.7) tt(b, 3, 15, '5 НОЧЕЙ С ПАХАНОМ', 'r', { dbl: 1, sx: 1.42 });
+    if (u > 2.6) tt(b, 3, 18, 'две мини-игры · новые голоса · новые модели', 'c', { sx: .8 });
+    if (u > 3.4) tt(b, 3, 20, ' ИГРАЙ СЕЙЧАС ', 'k', { bg: 'y', dbl: 1, flash: 1, t });
+    keys(b); b.setTransform(1, 0, 0, 1, 0, 0);
+  } else {
+    const k = key(t); let img = bmp[k];
+    if (!img && lastBmp && bmp[lastBmp]) img = bmp[lastBmp]; else if (img) lastBmp = k;
+    const z = 1.03 + (u / d) * 0.04 + (s.scare ? 0.1 : 0);
+    if (img) {
+      b.save(); if (s.lift) b.filter = `brightness(${s.lift})`; b.translate(W / 2 + (s.scare ? (rnd() - .5) * 30 : 0), H / 2 + (s.scare ? (rnd() - .5) * 20 : 0)); b.scale(z, z);
+      b.drawImage(img, -W / 2, -H / 2, W, H); b.restore();
+    }
+    if (s.scare && u < .12) { b.fillStyle = `rgba(255,255,255,${.7 * (1 - u / .12)})`; b.fillRect(0, 0, W, H); }
+    if (s.beat && u < .1) { b.fillStyle = `rgba(255,255,255,${.25 * (1 - u / .1)})`; b.fillRect(0, 0, W, H); }
+    if (s.lower) { const a = Math.min(clamp(u / .25, 0, 1), clamp((d - u) / .2, 0, 1)); b.globalAlpha = a; lower(b, s.lower[0], s.lower[1], u / .3); b.globalAlpha = 1; }
+    if (s.tag) {                                       // подработка: номер и название крупно, как титр передачи
+      const n = +s.p[1];
+      tt(b, 1, 16, ' ' + n + '/5 ', 'k', { bg: 'y', dbl: 1 }); tt(b, 1, 18.2, ' ' + s.tag + ' ', 'w', { bg: 'b', dbl: 1 });
+    }
+    if (s.big) {
+      const a = clamp((u - .5) / .3, 0, 1) * clamp((d - u) / .2, 0, 1); b.globalAlpha = a;
+      b.fillStyle = '#c4100c'; b.fillRect(0, H * .62, W, 96); b.font = '64px "Russo One"'; b.textAlign = 'center'; b.textBaseline = 'middle'; b.fillStyle = '#f4efe6'; b.fillText(s.big, W / 2, H * .62 + 50); b.globalAlpha = 1;
+    }
+    if (s.who !== undefined) {                         // досье обитателя
+      const dd = DOSSIER[s.who], a = clamp(u / .12, 0, 1); b.globalAlpha = a;
+      tt(b, 2, 16, ' ДОСЬЕ ' + (s.who + 1) + '/6 ', 'k', { bg: 'c' });
+      tt(b, 2, 17.3, dd[0], 'y', { dbl: 1, sx: dd[0].length > 8 ? 1.5 : 2 });
+      if (u > .3) tt(b, 2, 19.8, dd[1], 'w', { sx: 0.74 });
+      b.globalAlpha = 1;
+    }
+  }
+  // бегущая строка объявлений — в «телевизионной» части эфира, по нижнему краю
+  if (t > at('p100') + .6 && t < at('night') && s.kind !== 'title') {
+    b.setTransform(1, 0, 0, 1, 0, 0); b.globalAlpha = 1; b.fillStyle = '#0a0ab8'; b.fillRect(0, H - 40, W, 40);
+    b.font = `bold 22px ${MONO}`; b.textBaseline = 'middle'; b.textAlign = 'left'; b.fillStyle = TC.y;
+    const tw = b.measureText(TICKER).width, ox = -((t * 150) % tw);
+    b.fillText(TICKER, ox, H - 20); b.fillText(TICKER, ox + tw, H - 20);
+  }
+  return s;
+}
+
+// ---------- «плёнка»: сдвиг цвета, строки, шум, полоса трекинга, дрожь низа кадра, экранные надписи видеомагнитофона ----------
+function draw(t) {
+  const s = content(t), u = t - s.t0, cut = Math.min(u, 0.18) < 0.18 ? 1 - u / 0.18 : 0;     // сразу после склейки картинка «плывёт»
+  const tape = s.kind === 'shot' && s.cam ? 0.75 : 1;
+  cr.globalCompositeOperation = 'source-over'; cr.drawImage(base, 0, 0); cr.globalCompositeOperation = 'multiply'; cr.fillStyle = '#ff0000'; cr.fillRect(0, 0, W, H);
+  cc.globalCompositeOperation = 'source-over'; cc.drawImage(base, 0, 0); cc.globalCompositeOperation = 'multiply'; cc.fillStyle = '#00ffff'; cc.fillRect(0, 0, W, H);
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+  x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+  const off = (1.6 + cut * 9 + Math.sin(t * 1.7) * .5) * tape, jit = cut * (rnd() - .5) * 14;
+  x.globalCompositeOperation = 'lighter';
+  x.drawImage(chR, -off + jit, 0); x.drawImage(chC, off + jit, cut * 3);
+  x.globalCompositeOperation = 'source-over';
+  // полоса трекинга ползёт вверх; на склейке — несколько рваных строк
+  const ty = H - ((t * 62) % (H + 220)) + 60;
+  x.drawImage(c, 0, ty, W, 26, 14 + Math.sin(t * 9) * 6, ty, W, 26);
+  x.fillStyle = 'rgba(255,255,255,.05)'; x.fillRect(0, ty + 8, W, 3);
+  const tears = cut > 0 ? 5 : (rnd() < .05 ? 1 : 0);
+  for (let i = 0; i < tears; i++) { const yy = rnd() * H, hh = 4 + rnd() * 26; x.drawImage(c, 0, yy, W, hh, (rnd() - .5) * 90 * (cut + .3), yy, W, hh); }
+  // низ кадра: переключение головок
+  for (let i = 0; i < 4; i++) x.drawImage(c, 0, H - 14 + i * 3, W, 3, (rnd() - .5) * 60 - 20, H - 14 + i * 3, W, 3);
+  if (lines) { x.globalAlpha = .16; x.drawImage(lines, 0, 0); x.globalAlpha = 1; }
+  if (grain) { x.globalAlpha = .09 + cut * .25; x.drawImage(grain, -rnd() * 200, -rnd() * 200); x.globalAlpha = 1; }
+  for (let i = 0; i < 3; i++) if (rnd() < .5) { x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(rnd() * W, rnd() * H, 30 + rnd() * 160, 1.5); }
+  const g = x.createRadialGradient(W / 2, H / 2, H * .42, W / 2, H / 2, H * .95); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.6)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  // экранные надписи видеомагнитофона
+  x.font = `bold 30px ${MONO}`; x.textBaseline = 'top'; x.textAlign = 'left';
+  const osd = (str, X, Y, al) => { x.textAlign = al || 'left'; x.fillStyle = 'rgba(0,0,0,.6)'; x.fillText(str, X + 2, Y + 2); x.fillStyle = '#f2f2f2'; x.fillText(str, X, Y); };
+  const mm = Math.floor(t / 60), ss = Math.floor(t % 60), ff = Math.floor((t % 1) * 25);
+  if (s.osd === 'STOP') osd('■ STOP', 56, 24);
+  else if (t < 3.2 || Math.floor(t * 2) % 2 === 0 || s.kind === 'blue') osd('▶ PLAY', 56, 24);
+  osd('SP', 56, 58);
+  osd(`0:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}:${String(ff).padStart(2, '0')}`, W - 56, 24, 'right');
+  if (s.kind === 'shot') { x.font = `bold 22px ${MONO}`; osd('ОБЛАКО-ТВ', W - 56, 62, 'right'); osd('03:' + String(14 + Math.floor(t / 20)).padStart(2, '0') + '  19.01', W - 56, H - 78, 'right'); }
+}
+
+async function load() {
+  await document.fonts.load('40px "Russo One"');
+  grain = mk(W + 256, H + 256);
+  { const gg = grain.getContext('2d'), d = gg.createImageData(grain.width, grain.height); for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } gg.putImageData(d, 0, 0); }
+  lines = mk(W, H); { const lg = lines.getContext('2d'); lg.fillStyle = '#000'; for (let y = 0; y < H; y += 3) lg.fillRect(0, y, W, 1); }
+  const keysNeed = new Set(); for (let t = 0; t < LEN; t += .25 / FPS) { const k = key(t); if (k) keysNeed.add(k); }
+  const list = [...keysNeed]; let next = 0;         // кадров больше двух тысяч — качаем по 16 сразу, иначе браузер рвёт запросы
+  const worker = async () => { while (next < list.length) { const k = list[next++]; const r = await fetch('frames/' + k + '.jpg'); if (r.ok) blobs[k] = await r.blob(); } };
+  await Promise.all(Array.from({ length: 16 }, worker));
+  return { len: +LEN.toFixed(2), frames: keysNeed.size, loaded: Object.keys(blobs).length, missing: [...keysNeed].filter(k => !blobs[k]).slice(0, 8) };
+}
+async function drawAt(t) { if (!grain) await load(); want(t); await Promise.all(Object.values(pend)); want(t); await Promise.all(Object.values(pend)); draw(t); return segAt(t).id + ' ' + (key(t) || ''); }
+window.drawAt = drawAt;
+window.plan = () => ({ len: +LEN.toFixed(2), segs: SEGS.map(s => s.id + ' ' + s.t0.toFixed(2) + '–' + s.t1.toFixed(2)), vo: VO.map(v => v[0].split('/').pop() + ' @' + v[1].toFixed(2)) });
+
+// ---------- звук ----------
+function beat(ac, out, t0, bars, vol) {                 // мемфис-бит: бочка с 808-м хвостом, хлопок, хэты с дробью, ковбелл
+  const step = BEAT / 4, G = ac.createGain(); G.gain.value = vol; G.connect(out);
+  const nb = ac.createBuffer(1, ac.sampleRate * .4, ac.sampleRate); { const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  const noise = (when, dur, hp, v) => { const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = nb; f.type = 'highpass'; f.frequency.value = hp;
+    g.gain.setValueAtTime(v, when); g.gain.exponentialRampToValueAtTime(.001, when + dur); s.connect(f); f.connect(g); g.connect(G); s.start(when); s.stop(when + dur + .02); };
+  const kick = (when, long) => { const o = ac.createOscillator(), g = ac.createGain(), sh = ac.createWaveShaper(); const cv = new Float32Array(256); for (let i = 0; i < 256; i++) { const v = i / 128 - 1; cv[i] = Math.tanh(v * 3); } sh.curve = cv;
+    o.frequency.setValueAtTime(150, when); o.frequency.exponentialRampToValueAtTime(46, when + .09); if (long) o.frequency.exponentialRampToValueAtTime(41, when + .5);
+    g.gain.setValueAtTime(.95, when); g.gain.exponentialRampToValueAtTime(.001, when + (long ? .55 : .22)); o.connect(sh); sh.connect(g); g.connect(G); o.start(when); o.stop(when + .6); };
+  const bell = (when, f) => { const g = ac.createGain(), bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f * 1.6; bp.Q.value = 2.5;
+    for (const m of [1, 1.48]) { const o = ac.createOscillator(); o.type = 'square'; o.frequency.value = f * m; o.connect(bp); o.start(when); o.stop(when + .32); }
+    g.gain.setValueAtTime(.0001, when); g.gain.linearRampToValueAtTime(.22, when + .004); g.gain.exponentialRampToValueAtTime(.001, when + .3); bp.connect(g); g.connect(G); };
+  const N = { A: 440, C: 523.25, D: 587.33, E: 659.25, G: 783.99, a: 880 };
+  const mel = ['A', 0, 0, 'A', 0, 0, 'C', 0, 'E', 0, 0, 'D', 0, 0, 'C', 0, 'A', 0, 0, 'A', 0, 0, 'G', 0, 'E', 0, 0, 'D', 0, 'C', 'D', 0];
+  for (let bar = 0; bar < bars; bar++) for (let i = 0; i < 16; i++) {
+    const when = t0 + (bar * 16 + i) * step;
+    if (i === 0 || i === 6 || i === 10) kick(when, i === 0);
+    if (i === 4 || i === 12) { noise(when, .16, 1400, .5); noise(when + .012, .12, 900, .3); }
+    if (i % 2 === 0) noise(when, .035, 7000, .16);
+    if (i === 14 && bar % 2 === 1) for (let r = 0; r < 3; r++) noise(when + r * step / 3 * 2, .03, 7000, .14);
+    const m = mel[(bar % 2) * 16 + i]; if (m) bell(when, N[m]);
+  }
+}
+async function record() {
+  const info = await load();
+  const ac = new AudioContext({ sampleRate: 48000 }), dest = ac.createMediaStreamDestination();
+  const dec = async u => { const r = await fetch(u); if (!r.ok) throw new Error('нет ' + u); return ac.decodeAudioData(await r.arrayBuffer()); };
+  // выход: компрессор → «плавание» ленты (линия задержки с медленной и быстрой модуляцией) → запись
+  const master = ac.createGain(); master.gain.value = .3;
+  const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 5; comp.attack.value = .002; comp.release.value = .16;
+  // компрессор браузера сам добавляет громкость (около +10 дБ при таком пороге) — лишнее убирает makeup
+  const makeup = ac.createGain(); makeup.gain.value = 1.0; master.connect(comp); comp.connect(makeup);
+  const clip = ac.createWaveShaper(); { const cv = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const v = i / 1024 - 1; cv[i] = Math.tanh(v * 1.2) / Math.tanh(1.2) * .89; } clip.curve = cv; clip.oversample = '4x'; }
+  const wow = ac.createDelay(.1); wow.delayTime.value = .02;
+  for (const [f, d] of [[.55, .0016], [6.3, .00018]]) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = f; lg.gain.value = d; l.connect(lg); lg.connect(wow.delayTime); l.start(); }
+  const tone = ac.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 9500;
+  const outG = ac.createGain(); outG.gain.value = 1; makeup.connect(wow); wow.connect(tone); tone.connect(clip); clip.connect(outG); outG.connect(dest);
+  const mus = ac.createGain(); mus.gain.value = 1; mus.connect(master);
+  // голоса: диктор, реклама из динамика телевизора, телефонная трубка, обычный
+  const rev = ac.createConvolver(); { const n = ac.sampleRate * 1.3, ir = ac.createBuffer(2, n, ac.sampleRate); for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3); } rev.buffer = ir; }
+  const wet = ac.createGain(); wet.gain.value = .13; rev.connect(wet); wet.connect(master);
+  const shaper = k => { const sh = ac.createWaveShaper(), cv = new Float32Array(512); for (let i = 0; i < 512; i++) { const v = i / 256 - 1; cv[i] = Math.tanh(v * k) / Math.tanh(k); } sh.curve = cv; return sh; };
+  const chain = (gain, nodes, send) => { const inp = ac.createGain(); inp.gain.value = gain; let p = inp; for (const n of nodes) { p.connect(n); p = n; } p.connect(master); if (send) p.connect(rev); return inp; };
+  const bq = (type, f, q, g) => { const n = ac.createBiquadFilter(); n.type = type; n.frequency.value = f; if (q) n.Q.value = q; if (g) n.gain.value = g; return n; };
+  const cmp = () => { const n = ac.createDynamicsCompressor(); n.threshold.value = -24; n.ratio.value = 4; return n; };
+  const V = {
+    tv: chain(1.6, [bq('highpass', 90), bq('lowshelf', 200, 0, 5), bq('peaking', 3000, 1, 3), cmp()], true),
+    ad: chain(1.5, [bq('highpass', 320), bq('lowpass', 4200), bq('peaking', 1800, 1.2, 5), shaper(2.2), cmp()], false),
+    phone: chain(1.9, [bq('highpass', 420), bq('lowpass', 3000), bq('peaking', 1500, 1.5, 4), shaper(3), cmp()], false),
+    dry: chain(1.7, [bq('highpass', 80), bq('lowshelf', 220, 0, 3), bq('peaking', 3200, 1, 3), cmp()], true),
+  };
+  const T0 = ac.currentTime + .6;
+  // шум ленты на всю длину
+  { const n = ac.sampleRate * 2, hb = ac.createBuffer(1, n, ac.sampleRate), d = hb.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const s = ac.createBufferSource(), f = bq('bandpass', 5200, .6), g = ac.createGain(); s.buffer = hb; s.loop = true; g.gain.value = .012; s.connect(f); f.connect(g); g.connect(outG); s.start(T0); s.stop(T0 + LEN); }
+  // щелчок головок на каждой склейке
+  { const n = ac.sampleRate * .06, cb = ac.createBuffer(1, n, ac.sampleRate), d = cb.getChannelData(0); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2);
+    for (const s of SEGS) if (s.t0 > 0) { const q = ac.createBufferSource(), g = ac.createGain(); q.buffer = cb; g.gain.value = s.scare ? .0 : .22; q.connect(g); g.connect(master); q.start(T0 + s.t0); } }
+  for (const [f, a, dur, vol, fi, fo, off, rate] of MUSIC) {
+    const buf = await dec(f), src = ac.createBufferSource(), g = ac.createGain();
+    src.buffer = buf; src.loop = true; src.playbackRate.value = rate || 1; src.connect(g); g.connect(mus);
+    g.gain.setValueAtTime(0, T0 + a); g.gain.linearRampToValueAtTime(vol, T0 + a + fi);
+    g.gain.setValueAtTime(vol, T0 + a + dur - fo); g.gain.linearRampToValueAtTime(0, T0 + a + dur);
+    src.start(T0 + a, off || 0); src.stop(T0 + a + dur + .05);
+  }
+  for (const [a, bars, vol] of BEATS) beat(ac, mus, T0 + a, bars, vol);
+  for (const [f, a, vol] of SFX) {
+    const buf = await dec(f.endsWith('.wav') ? f : f + '.wav'), src = ac.createBufferSource(), g = ac.createGain();
+    src.buffer = buf; g.gain.value = vol; src.connect(g); g.connect(master); src.start(T0 + Math.max(0, a));
+  }
+  for (const [f, a, kind] of VO) {
+    const buf = await dec(f), src = ac.createBufferSource(); src.buffer = buf; src.connect(V[kind]); src.start(T0 + a);
+    mus.gain.setTargetAtTime(.42, T0 + a - .05, .05); mus.gain.setTargetAtTime(1, T0 + a + buf.duration + .1, .25);
+  }
+  const vtrack = c.captureStream(0).getVideoTracks()[0];
+  const stream = new MediaStream([vtrack, dest.stream.getAudioTracks()[0]]);
+  const mime = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m));
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6e6, audioBitsPerSecond: 192000 }), chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  const done = new Promise(r => rec.onstop = r);
+  let frames = 0, missing = 0, lastF = -1, slow = 0, lastT = 0; const missK = {}, pk = [], sq = [], cnt = [];
+  rec.start(1000);
+  await new Promise(res0 => {
+    let res = res0;
+    const loop = () => {
+      const t = ac.currentTime - T0;
+      if (t >= LEN + .15) { res(); return; }
+      if (t >= 0) { const fi = Math.floor(t * FPS); if (fi !== lastF) { if (fi - lastF > 1 && lastF >= 0) slow += fi - lastF - 1; lastF = fi; want(t); const k = key(t); if (k && !bmp[k]) { missing++; const id = segAt(t).id; missK[id] = (missK[id] || 0) + 1; } draw(t); vtrack.requestFrame(); frames++; } else want(t); }
+      else { x.fillStyle = '#000'; x.fillRect(0, 0, W, H); want(0); }
+      lastT = t;
+    };
+    const tick = ac.createScriptProcessor(512, 1, 1); outG.connect(tick);        // он же меряет громкость по секундам: пик и средняя
+    tick.onaudioprocess = e => { if (tick.done) return; const d = e.inputBuffer.getChannelData(0), si = Math.floor(ac.currentTime - T0);
+      if (si >= 0) { let m = pk[si] || 0, q = sq[si] || 0; for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > m) m = v; q += v * v; } pk[si] = m; sq[si] = q; cnt[si] = (cnt[si] || 0) + d.length; }
+      loop(); };
+    const zg = ac.createGain(); zg.gain.value = 0; tick.connect(zg); zg.connect(ac.destination);
+    const _res = res; res = () => { tick.done = 1; tick.disconnect(); _res(); };
+    loop();
+  });
+  rec.stop(); await done;
+  const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
+  const blob = new Blob(chunks, { type: mime });
+  const r = await fetch('/__save?name=trailer-mini-raw.' + ext, { method: 'PUT', body: blob });
+  const db = v => v > 0 ? Math.round(20 * Math.log10(v)) : -99;
+  return { info, mime, frames, missing, missK, dropped: slow, mb: +(blob.size / 1048576).toFixed(1), saved: await r.text(),
+    peak: pk.map(db).join(' '), rms: sq.map((q, i) => db(Math.sqrt(q / cnt[i]))).join(' ') };
+}
+window.record = record;
+</script></body></html>
