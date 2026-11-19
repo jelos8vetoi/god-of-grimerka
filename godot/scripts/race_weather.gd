@@ -376,8 +376,7 @@ func _run(h: Dictionary, dt: float) -> void:
 				var d: Vector3 = r.global_position - p
 				if absf(d.dot(t)) < 3.0 and absf(d.dot(right)) < half and r.is_on_floor() and not (h["hit"] as Dictionary).has(r.slot):
 					(h["hit"] as Dictionary)[r.slot] = true
-					r.velocity.y = 10.5
-					r.was_floor = false
+					r.pop_v = 10.5
 					r.ev("steam", 0)
 			# можно снова: раз в 1,2 с
 			if fmod(float(h["age"]), 1.2) < dt:

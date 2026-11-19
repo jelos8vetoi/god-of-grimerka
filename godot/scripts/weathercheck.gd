@@ -96,13 +96,15 @@ func charge_time(race: Race) -> float:
 	L.set_meta("auto", inp(1.0, 0.0, 0.8, true))
 	await phys(3)
 	var t0 := Time.get_ticks_msec()
+	var f0 := Engine.get_physics_frames()
 	while L.drift_lvl < 1 and L.drifting and Time.get_ticks_msec() - t0 < 4000:
 		var tg: Vector3 = tr.point(L.s + 14.0)
 		var to := tg - L.global_position
 		L.set_meta("auto", inp(1.0, 0.0, L.steer_for_rate(-angle_difference(atan2(L.vdir.x, L.vdir.z), atan2(to.x, to.z)) * 2.2), true))
 		await get_tree().physics_frame
 	L.set_meta("auto", inp(1.0))
-	return L.drift_t if L.drift_lvl >= 1 else 99.0
+	# настоящее время в заносе до первого уровня (а не счётчик заряда — он и есть то, что погода ускоряет)
+	return float(Engine.get_physics_frames() - f0) / float(Engine.physics_ticks_per_second) if L.drift_lvl >= 1 else 99.0
 
 func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(out)

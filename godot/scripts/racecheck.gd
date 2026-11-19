@@ -141,6 +141,9 @@ func _run() -> void:
 	ok(String(names[0]).contains("ТОМСК: ПЫЛЬНЫЙ ЗАЕЗД") and RaceData.TRACK_ORDER.size() == 1, "трасса одна и готовая: «ТОМСК: ПЫЛЬНЫЙ ЗАЕЗД» (будущих в списке нет)")
 	await shot("m01_race_menu")
 	RaceSave.persist = false                          # проверка не пишет настройки и рекорды игрока
+	RaceSave.v("weather")
+	RaceSave.data["weather"] = "clear"                # физика гонки — в ясную погоду и без ситуаций (их проверяет --weathercheck)
+	RaceSave.data["happen"] = false
 	var lv0 := String(RaceSave.v("level"))
 	mm._panel_select(1, false)
 	await key(KEY_D)
@@ -556,7 +559,7 @@ func _run() -> void:
 	await wait(0.6)
 	ok(main.menu != null and main.race == null and main.menu.modes.visible and main.menu.panel != null, "«В МЕНЮ ГОНОК»: меню гонок снова открыто")
 	# ================= TIME TRIAL =================
-	main.menu._panel_select(3, false)
+	main.menu._panel_select(names.find("TIME TRIAL"), false)
 	await key(KEY_ENTER)
 	await until(func(): return main.race != null and is_instance_valid(main.race), 10.0)
 	race = main.race

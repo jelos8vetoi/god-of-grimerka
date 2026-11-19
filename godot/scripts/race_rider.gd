@@ -44,6 +44,7 @@ var side_v := Vector3.ZERO     # толчок вбок (выброс возду�
 var pull_v := Vector3.ZERO     # притяжение (супер-всасывание) — задаёт гонка
 var shield_t := 0.0
 var air_t := 0.0
+var pop_v := 0.0               # толчок снизу на следующем шаге физики (пар теплотрассы), м/с
 var was_floor := true
 var floor_n := Vector3.UP
 var wall_cd := 0.0
@@ -267,12 +268,15 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 		vdir = vdir.slerp(hd, 1.0 - exp(-grip * dt)).normalized()
 	side_v = side_v.move_toward(Vector3.ZERO, 9.0 * dt)
 	var hv := vdir * speed + side_v + pull_v
-	if wx != null and wx.wind != Vector3.ZERO and floor:
+	if wx != null and wx.wind != Vector3.ZERO and floor and go:          # до старта ветер не двигает
 		var side := fwd().cross(Vector3.UP)
 		hv += side * (wx.wind as Vector3).dot(side) * 0.22          # порыв сбоку сносит
 	# прыжок, склон, полёт
 	if floor:
-		if inp.jump and go and spin_t <= 0.0:
+		if pop_v > 0.0:
+			velocity = Vector3(hv.x, pop_v, hv.z)      # подбросило снизу (пар теплотрассы)
+			pop_v = 0.0
+		elif inp.jump and go and spin_t <= 0.0:
 			velocity = Vector3(hv.x, float(P["hop"]), hv.z)
 			ev("jump", 0)
 		else:

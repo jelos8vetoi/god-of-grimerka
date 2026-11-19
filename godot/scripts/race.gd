@@ -73,7 +73,8 @@ func setup(m, c: Dictionary) -> void:
 	_spawn_boxes()
 	weather = RaceWeather.new()
 	add_child(weather)
-	weather.setup(self, String(cfg.get("weather", "clear")), bool(cfg.get("happenings", String(cfg.get("mode", "single")) != "time")), rng.randi())
+	# в заезде на время случайных ситуаций нет никогда — рекорд должен быть честным, что бы ни пришло в cfg
+	weather.setup(self, String(cfg.get("weather", "clear")), bool(cfg.get("happenings", true)) and String(cfg.get("mode", "single")) != "time", rng.randi())
 	cam = Camera3D.new()
 	cam.fov = 70.0
 	cam.far = 600.0
