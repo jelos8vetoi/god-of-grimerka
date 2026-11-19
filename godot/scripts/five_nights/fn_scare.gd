@@ -16,6 +16,31 @@ var office: FNOffice
 var actors: FNActors
 var busy := false
 var cam_from := Transform3D()
+## Свои модели (FNActors.owned) другого роста и сложения, чем те, под которые ставились скримеры. Поэтому с момента
+## крика лицо модели само подводится к камере: AIM[id] = [расстояние от глаз Пахана, на сколько ниже центра кадра].
+## Модель сдвигается внутри своего рига (плавно — тряска камеры остаётся видна), после скримера возвращается.
+const AIM := {"balon": [0.62, 0.03], "madk1d": [0.52, 0.02], "bot": [0.6, 0.02], "clipper": [0.72, -0.03], "ghost": [0.45, 0.0], "mod": [1.05, 0.06]}
+var aim_id := ""
+
+func _process(dt: float) -> void:
+	if aim_id == "" or not actors.owned.has(aim_id):
+		return
+	var r: Rig = actors.rigs[aim_id]
+	var c := office.cam.global_transform
+	var k := 1.0 - exp(-14.0 * dt)
+	# лицом к Пахану: модель доворачивается вокруг своего лица, пока оно не смотрит в камеру (поза скримера у
+	# сгорбленных и большеголовых иначе показывает макушку или спину)
+	var eyes: Node3D = actors.face[aim_id]["eyes"]
+	var fp := eyes.global_position
+	var f := eyes.global_transform.basis.z.normalized()
+	var d := (c.origin - fp).normalized()
+	if f.dot(d) < 0.9995:
+		var q := Quaternion(f, d)
+		var turn := Basis(Quaternion.IDENTITY.slerp(q, k))
+		var mt := r.model.global_transform
+		r.model.global_transform = Transform3D(turn * mt.basis, fp + turn * (mt.origin - fp))
+	var want: Vector3 = c.origin - c.basis.z * float(AIM[aim_id][0]) - c.basis.y * float(AIM[aim_id][1])
+	r.model.global_position += (want - eyes.global_position) * (1.0 - exp(-30.0 * dt))
 
 func setup(r) -> void:
 	root = r
@@ -55,6 +80,8 @@ func play(eid: String, at: String, pre: int) -> void:
 	actors.hide_all()
 	var r: Rig = actors.rigs.get("balon" if eid == "dark" else eid)
 	r.visible = true
+	scare_id = "balon" if eid == "dark" else eid
+	aim_id = ""
 	match eid:
 		"balon":
 			await _balon(r, at == "dark")
@@ -70,12 +97,15 @@ func play(eid: String, at: String, pre: int) -> void:
 			await _mod(r)
 	busy = false
 
+var scare_id := ""                # чей скример идёт
+
 func _wait(sec: float) -> void:
 	await get_tree().create_timer(sec, true, false, true).timeout
 
 ## общее: крик, свет, тряска, искажение, наезд камеры (FOV)
 func _hit(scream: String, lamp_col: Color, fov_to := 58.0) -> void:
 	root.sfx2(scream, 2.0)
+	aim_id = scare_id
 	office.lamp.light_color = lamp_col
 	office.lamp.light_energy = 3.2
 	office.scare_light.light_color = Color(1.0, 0.95, 0.9).lerp(lamp_col, 0.45)
@@ -270,6 +300,7 @@ func pahan(lethal := false) -> void:
 
 ## вернуть всё, что трогал скример
 func restore() -> void:
+	aim_id = ""
 	office.scare_light.light_energy = 0.0
 	office.cam.fov = 74.0
 	office.cam.transform = cam_from

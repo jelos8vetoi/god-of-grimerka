@@ -32,14 +32,15 @@ const HORROR_DIR := "res://assets/minigames/fn_horror_%s.glb"   # модель �
 ## r — радиус светящегося зрачка, maw — центр пасти, ms — её ширина. Светящиеся глаза и пасть скримера садятся
 ## на настоящее лицо модели (экран BOT, линза CLIPPER, глазницы GHOST).
 const OWN := {
-	"balon": {"h": 2.0, "eye": Vector3(0.013, 0.586, 0.17), "sep": 0.145, "r": 0.018, "maw": Vector3(0.013, 0.49, 0.18), "ms": 0.2},
+	"balon": {"h": 2.0, "eye": Vector3(0.013, 0.586, 0.17), "sep": 0.145, "r": 0.018, "maw": Vector3(0.013, 0.49, 0.18), "ms": 0.13},
 	"madk1d": {"h": 1.62, "eye": Vector3(-0.004, 0.66, 0.175), "sep": 0.18, "r": 0.02, "maw": Vector3(0.0, 0.535, 0.2), "ms": 0.13},
-	"bot": {"h": 1.85, "eye": Vector3(-0.02, 0.672, 0.16), "sep": 0.117, "r": 0.016, "maw": Vector3(-0.02, 0.6, 0.165), "ms": 0.14},
-	"clipper": {"h": 1.75, "eye": Vector3(0.0, 0.867, 0.275), "sep": 0.0, "r": 0.034, "maw": Vector3(0.0, 0.79, 0.265), "ms": 0.1},
+	"bot": {"h": 1.85, "eye": Vector3(-0.02, 0.672, 0.16), "sep": 0.117, "r": 0.016, "maw": Vector3(-0.02, 0.6, 0.165), "ms": 0.1},
+	"clipper": {"h": 1.75, "eye": Vector3(0.0, 0.867, 0.275), "sep": 0.0, "r": 0.034, "maw": Vector3(0.0, 0.79, 0.265), "ms": 0.07},
 	"ghost": {"h": 1.85, "eye": Vector3(0.0, 0.81, 0.11), "sep": 0.088, "r": 0.012, "maw": Vector3(0.0, 0.745, 0.125), "ms": 0.075, "alpha": 0.72, "emit": 0.18},
-	"mod": {"h": 1.7, "eye": Vector3(0.059, 0.578, 0.315), "sep": 0.258, "r": 0.028, "maw": Vector3(0.0625, 0.5, 0.3), "ms": 0.14},
+	"mod": {"h": 1.7, "eye": Vector3(0.059, 0.578, 0.315), "sep": 0.258, "r": 0.028, "maw": Vector3(0.0625, 0.5, 0.3), "ms": 0.11},
 }
 var owned := {}                    # id → true: у врага модель владельца
+var model_home := {}               # id → обычное место модели в риге (в скримере FNScare подводит лицо к камере)
 
 func build(o: FNOffice, f: FNFacility) -> void:
 	office = o
@@ -69,6 +70,7 @@ func _make(id: String) -> void:
 	if own:
 		owned[id] = true
 		_own_look(r, float(OWN[id].get("alpha", 1.0)), float(OWN[id].get("emit", 0.0)))
+		model_home[id] = r.model.position
 	else:
 		_tint(r, L["tint"], float(L.get("alpha", 1.0)), float(L.get("emit", 0.0)))
 	if id == "clipper" and not own:                       # у своей модели лезвия — часть руки
@@ -390,7 +392,22 @@ func maw(id: String, k: float) -> void:
 func hide_all() -> void:
 	for id in rigs:
 		(rigs[id] as Rig).visible = false
+		scare_pose(String(id), false)
 	place_key.clear()
+
+## после скримера: модель возвращается на своё место в риге
+func scare_pose(id: String, _on: bool) -> void:
+	if model_home.has(id):
+		var m: Node3D = (rigs[id] as Rig).model
+		m.transform = Transform3D(Basis().scaled(m.scale), model_home[id])
+
+## где сейчас лицо врага (середина между глазами) — в мире
+func face_pos(id: String) -> Vector3:
+	var f: Dictionary = face.get(id, {})
+	if f.is_empty():
+		var r: Rig = rigs[id]
+		return r.skel.global_transform * r.skel.get_bone_global_pose(r.bone["head"]).origin
+	return (f["eyes"] as Node3D).global_position
 
 ## маскот БАЛОН для превью в меню режимов (без будки): тот же риг, тон, балон за спиной и светящиеся глаза
 static func preview_balon(parent: Node) -> Rig:

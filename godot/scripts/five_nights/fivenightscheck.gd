@@ -355,7 +355,7 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 	await shot("f2_scare_" + eid)
 	var r: Rig = R.actors.rigs[eid]
 	var close := r.visible and r.global_position.distance_to(R.office.cam.global_position) < 2.2
-	var head: Vector3 = r.skel.global_transform * r.skel.get_bone_global_pose(r.bone["head"]).origin
+	var head: Vector3 = R.actors.face_pos(eid)        # лицо (между глаз): у своих моделей кость головы — не лицо
 	var in_view := not R.office.cam.is_position_behind(head) and Rect2(Vector2.ZERO, get_viewport().get_visible_rect().size).grow(60).has_point(R.office.cam.unproject_position(head))
 	print("FIVENIGHTSCHECK   %s: голова %s, камера %s, голова в кадре %s" % [eid, str(head.snapped(Vector3.ONE * 0.01)), str(R.office.cam.global_position.snapped(Vector3.ONE * 0.01)), str(in_view)])
 	close = close and in_view

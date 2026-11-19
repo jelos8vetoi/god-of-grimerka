@@ -7,7 +7,7 @@
 
 ## Что уже в игре
 
-Получено и стоит на местах (2026-11-19) — 21 модель:
+Получено и стоит на местах (2026-11-19) — все 27 моделей:
 
 - «5 ночей»: `fn_arcade_cabinet`, `fn_prize_counter`, `fn_security_desk`, `fn_generator`, `fn_stage_speaker`,
   `fn_party_table`, `fn_server_rack`, `fn_mascot_shelf`;
@@ -16,7 +16,11 @@
 - подработки: `ml_job_console`, `ml_job_mixer`, `ml_job_amp`, `ml_job_parcel_cart`, `ml_job_old_tv`,
   `ml_job_radio`, `ml_job_junk_crate`.
 
-**Осталось:** шесть хоррор-персонажей `fn_horror_*` (нужен скелет Mixamo).
+- хоррор-враги: `fn_horror_balon`, `fn_horror_madk1d`, `fn_horror_bot`, `fn_horror_clipper`, `fn_horror_ghost`,
+  `fn_horror_mod` — присланы без скелета, скелет поставлен скриптом `tools/rig-horror.py`
+  (подробно — `FIVE_NIGHTS_POLISH.md`).
+
+Ничего не осталось: список закрыт.
 
 Файлы с сайта весят 7–21 МБ из-за текстур 4096; перед добавлением они облегчаются скриптом
 `godot/scripts/glbslim.gd` (текстуры 1024, JPEG) — в игре разницы не видно. Присылать можно как есть.
