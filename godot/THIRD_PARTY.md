@@ -11,6 +11,7 @@
 | Модели окружения гонок | `godot/assets/racing` | сгенерированы в Tripo AI по аккаунту владельца проекта (`tools/tripo-gen.cjs`) |
 | Голоса | `godot/assets/voice` | Fish Audio, по ключу владельца проекта |
 | Музыка и треки | `godot/assets/audio`, `godot/assets/music` | права у владельца проекта; музыка локаций синтезируется `tools/godot-music.cjs` |
+| Звуки мини-игр и меню | `menu_sfx.gd`, `five_nights/fn_sound.gd`, `microloans/ml_sound.gd` | собственный синтез в коде проекта, чужих записей нет |
 
 ## Декодирование музыки в iPod
 
