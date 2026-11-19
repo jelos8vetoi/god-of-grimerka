@@ -27,7 +27,7 @@ static class Program
 	[STAThread]
 	static void Main(string[] args)
 	{
-		ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+		FastDownload.Setup();
 		Application.EnableVisualStyles();
 		Application.SetCompatibleTextRenderingDefault(false);
 		Application.Run(new LauncherForm(args));
@@ -246,33 +246,25 @@ class LauncherForm : Form
 		long size = Convert.ToInt64(asset["size"]);
 		string part = target + ".part";
 		Ui(delegate { bar.Style = ProgressBarStyle.Continuous; bar.Value = 0; });
-		HttpWebRequest r = (HttpWebRequest)WebRequest.Create(url);
-		r.UserAgent = UserAgent;
-		r.Timeout = 30000;
-		r.ReadWriteTimeout = 60000;
 		DateTime t0 = DateTime.Now;
-		using (WebResponse resp = r.GetResponse())
-		using (Stream src = resp.GetResponseStream())
-		using (FileStream dst = File.Create(part))
+		long shownAt = 0;
+		object gate = new object();
+		// сразу несколько частей параллельно (FastDownload.cs); прогресс приходит из всех потоков
+		FastDownload.Get(url, part, size, UserAgent, delegate (long done)
 		{
-			byte[] buf = new byte[1 << 16];
-			long done = 0;
-			int n;
-			DateTime shown = DateTime.MinValue;
-			while ((n = src.Read(buf, 0, buf.Length)) > 0)
+			long now = DateTime.Now.Ticks;
+			lock (gate)
 			{
-				dst.Write(buf, 0, n);
-				done += n;
-				if ((DateTime.Now - shown).TotalMilliseconds > 120 || done == size)
-				{
-					shown = DateTime.Now;
-					double sec = Math.Max(0.1, (DateTime.Now - t0).TotalSeconds);
-					int pct = size > 0 ? (int)(done * 100 / size) : 0;
-					string d = string.Format("{0:0} из {1:0} МБ · {2:0.0} МБ/с", done / 1048576.0, size / 1048576.0, done / 1048576.0 / sec);
-					Ui(delegate { bar.Value = Math.Min(100, pct); detail.Text = d; });
-				}
+				if (now - shownAt < 1200000 && done != size) return;     // не чаще раза в 120 мс
+				shownAt = now;
 			}
-		}
+			double sec = Math.Max(0.1, (DateTime.Now - t0).TotalSeconds);
+			int pct = size > 0 ? (int)(done * 100 / size) : 0;
+			double mbs = done / 1048576.0 / sec;
+			double left = mbs > 0.01 ? (size - done) / 1048576.0 / mbs : 0;
+			string d = string.Format("{0:0} из {1:0} МБ · {2:0.0} МБ/с · осталось ~{3}", done / 1048576.0, size / 1048576.0, mbs, TimeLeft(left));
+			Ui(delegate { bar.Value = Math.Min(100, pct); detail.Text = d; });
+		}, null);
 		if (new FileInfo(part).Length != size)
 			throw new Exception(what + ": файл скачался не полностью");
 		string digest = Get(asset, "digest");
@@ -287,6 +279,12 @@ class LauncherForm : Form
 		}
 		if (File.Exists(target)) File.Delete(target);
 		File.Move(part, target);
+	}
+
+	static string TimeLeft(double sec)
+	{
+		if (sec < 60) return Math.Max(1, (int)sec) + " с";
+		return (int)(sec / 60) + " мин " + ((int)sec % 60) + " с";
 	}
 
 	void Download(Dictionary<string, object> game)

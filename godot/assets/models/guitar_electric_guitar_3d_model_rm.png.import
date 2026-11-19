@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://um67wb54low7"
-path="res://.godot/imported/guitar_electric_guitar_3d_model_rm.png-fbad1e495d3d7c762455fe4f3d80241e.ctex"
+path.s3tc="res://.godot/imported/guitar_electric_guitar_3d_model_rm.png-fbad1e495d3d7c762455fe4f3d80241e.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "95a37490a1962436e6ebb0fd7dd53822"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/guitar_electric_guitar_3d_model_rm.png"
-dest_files=["res://.godot/imported/guitar_electric_guitar_3d_model_rm.png-fbad1e495d3d7c762455fe4f3d80241e.ctex"]
+dest_files=["res://.godot/imported/guitar_electric_guitar_3d_model_rm.png-fbad1e495d3d7c762455fe4f3d80241e.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=2048
 detect_3d/compress_to=1

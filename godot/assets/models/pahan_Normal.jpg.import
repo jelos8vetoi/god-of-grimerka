@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b1onyvuru0je8"
-path="res://.godot/imported/pahan_Normal.jpg-2301697ae6faf3be3a9f99b578920f69.ctex"
+path.s3tc="res://.godot/imported/pahan_Normal.jpg-2301697ae6faf3be3a9f99b578920f69.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "697419cd57a55e146f2b2ab83ea9d841"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/pahan_Normal.jpg"
-dest_files=["res://.godot/imported/pahan_Normal.jpg-2301697ae6faf3be3a9f99b578920f69.ctex"]
+dest_files=["res://.godot/imported/pahan_Normal.jpg-2301697ae6faf3be3a9f99b578920f69.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=2048
 detect_3d/compress_to=1

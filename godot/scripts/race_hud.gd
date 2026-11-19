@@ -96,16 +96,16 @@ func _torn(w: float, h: float, seed_v: int) -> PackedVector2Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_v
 	var pts := PackedVector2Array()
-	var x := 0.0
-	while x < w:
+	var x := 16.0                      # углы не заходят друг на друга: иначе многоугольник не рисуется
+	while x < w - 20.0:
 		pts.append(Vector2(x, rng.randf_range(-4.0, 4.0)))
 		x += rng.randf_range(8.0, 22.0)
 	var y := 0.0
 	while y < h:
 		pts.append(Vector2(w + rng.randf_range(-8.0, 10.0), y))
 		y += rng.randf_range(7.0, 14.0)
-	x = w
-	while x > 0.0:
+	x = w - 20.0
+	while x > 16.0:
 		pts.append(Vector2(x, h + rng.randf_range(-4.0, 5.0)))
 		x -= rng.randf_range(8.0, 22.0)
 	y = h

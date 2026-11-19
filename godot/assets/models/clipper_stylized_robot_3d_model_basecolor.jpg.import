@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d2c12hd2r4s5b"
-path="res://.godot/imported/clipper_stylized_robot_3d_model_basecolor.jpg-4970029ae2586d5b2ab0f2dd6a626803.ctex"
+path.s3tc="res://.godot/imported/clipper_stylized_robot_3d_model_basecolor.jpg-4970029ae2586d5b2ab0f2dd6a626803.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "664e64f334d12ee1b12bdcf662eedeb1"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/clipper_stylized_robot_3d_model_basecolor.jpg"
-dest_files=["res://.godot/imported/clipper_stylized_robot_3d_model_basecolor.jpg-4970029ae2586d5b2ab0f2dd6a626803.ctex"]
+dest_files=["res://.godot/imported/clipper_stylized_robot_3d_model_basecolor.jpg-4970029ae2586d5b2ab0f2dd6a626803.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=2048
 detect_3d/compress_to=1

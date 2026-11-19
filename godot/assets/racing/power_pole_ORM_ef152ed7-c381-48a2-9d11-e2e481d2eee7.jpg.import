@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dkyfmgq23wegm"
-path="res://.godot/imported/power_pole_ORM_ef152ed7-c381-48a2-9d11-e2e481d2eee7.jpg-00c512f3dde44142aa8ac19bc23a9337.ctex"
+path.s3tc="res://.godot/imported/power_pole_ORM_ef152ed7-c381-48a2-9d11-e2e481d2eee7.jpg-00c512f3dde44142aa8ac19bc23a9337.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "7e6734ab5d5917858f9e6adee765c5f6"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/power_pole_ORM_ef152ed7-c381-48a2-9d11-e2e481d2eee7.jpg"
-dest_files=["res://.godot/imported/power_pole_ORM_ef152ed7-c381-48a2-9d11-e2e481d2eee7.jpg-00c512f3dde44142aa8ac19bc23a9337.ctex"]
+dest_files=["res://.godot/imported/power_pole_ORM_ef152ed7-c381-48a2-9d11-e2e481d2eee7.jpg-00c512f3dde44142aa8ac19bc23a9337.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

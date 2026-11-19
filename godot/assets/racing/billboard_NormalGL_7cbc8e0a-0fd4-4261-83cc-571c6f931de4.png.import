@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cqsu2lf41nqkc"
-path="res://.godot/imported/billboard_NormalGL_7cbc8e0a-0fd4-4261-83cc-571c6f931de4.png-f4da0348b81d3236f7340b5d8949034a.ctex"
+path.s3tc="res://.godot/imported/billboard_NormalGL_7cbc8e0a-0fd4-4261-83cc-571c6f931de4.png-f4da0348b81d3236f7340b5d8949034a.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "80079e3ebaef05562940b9e12bfd12b2"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/billboard_NormalGL_7cbc8e0a-0fd4-4261-83cc-571c6f931de4.png"
-dest_files=["res://.godot/imported/billboard_NormalGL_7cbc8e0a-0fd4-4261-83cc-571c6f931de4.png-f4da0348b81d3236f7340b5d8949034a.ctex"]
+dest_files=["res://.godot/imported/billboard_NormalGL_7cbc8e0a-0fd4-4261-83cc-571c6f931de4.png-f4da0348b81d3236f7340b5d8949034a.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

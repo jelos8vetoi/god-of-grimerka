@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dkf2v6kev7hqx"
-path="res://.godot/imported/bridge_section_Color_312daa18-3df8-4693-88c2-ede28b1dd4fd.jpg-f41a8770c8b248657a4589337d582d74.ctex"
+path.s3tc="res://.godot/imported/bridge_section_Color_312daa18-3df8-4693-88c2-ede28b1dd4fd.jpg-f41a8770c8b248657a4589337d582d74.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "d57deafa467b3f7322df915d7968cfa5"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/racing/bridge_section_Color_312daa18-3df8-4693-88c2-ede28b1dd4fd.jpg"
-dest_files=["res://.godot/imported/bridge_section_Color_312daa18-3df8-4693-88c2-ede28b1dd4fd.jpg-f41a8770c8b248657a4589337d582d74.ctex"]
+dest_files=["res://.godot/imported/bridge_section_Color_312daa18-3df8-4693-88c2-ede28b1dd4fd.jpg-f41a8770c8b248657a4589337d582d74.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1
