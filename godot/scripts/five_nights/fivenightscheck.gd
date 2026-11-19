@@ -120,6 +120,10 @@ func _ui_part() -> void:
 	await wait(0.8)
 	await shot("f00_mode_card")
 	await key(KEY_ENTER)
+	await wait(0.3)
+	ok(mm.panel != null, "карточка открывает экран режима (ЗАСТУПИТЬ НА СМЕНУ / НАЗАД)")
+	mm._panel_select(0, false)
+	await key(KEY_ENTER)
 	var started: bool = await until(func(): return main.minigame != null and is_instance_valid(main.minigame) and main.minigame is FiveNightsRoot, 15.0)
 	ok(started, "мини-игра запустилась своей сценой (five_nights.tscn)")
 	if not started:

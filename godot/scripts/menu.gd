@@ -665,7 +665,7 @@ func open_mode(id: String) -> void:
 		"microloans":
 			_open_microloans()
 		"five_nights":
-			launch_minigame("five_nights")
+			_open_five_nights()
 
 ## Мини-игры со своей сценой (main.MINIGAMES): тот же уход меню, что у режимов, затем main.cinematic_minigame
 func launch_minigame(id: String, opt := {}) -> void:
@@ -674,6 +674,14 @@ func launch_minigame(id: String, opt := {}) -> void:
 	_close()
 	await _launch_fx()
 	main.cinematic_minigame(id, opt)
+
+## 5 НОЧЕЙ С ПАХАНОМ: экран режима, как у остальных; внутри игры — свой терминал (NEW GAME, NIGHT SELECT…)
+func _open_five_nights() -> void:
+	var beaten: Array = FNSave.v("beaten")
+	var lines: Array = ["Ночная смена в «Облаке»: камеры, двери, свет, вентиляция и энергия — до шести утра."]
+	lines.append("Пройдено ночей: %d из 5%s" % [beaten.filter(func(n): return int(n) < 5).size(), " · открыта НОЧЬ 6" if bool(FNSave.v("night6")) else ""])
+	lines.append("Хоррор: лучше играть в наушниках — по звуку слышно, откуда идут.")
+	_open("5 НОЧЕЙ С ПАХАНОМ", lines, [["ЗАСТУПИТЬ НА СМЕНУ", func(): launch_minigame("five_nights")], ["НАЗАД", _close]])
 
 ## ПАХАН НАБРАЛ МИКРОЗАЙМОВ: продолжить неделю или начать новую (своё сохранение, кампания не трогается)
 func _open_microloans() -> void:
