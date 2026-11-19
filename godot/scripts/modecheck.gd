@@ -172,11 +172,11 @@ func _run() -> void:
 	await key(KEY_ENTER)
 	await wait(0.5)
 	var ms: ModeSelect = mm.modes
-	ok(ms.visible and ms.cards.size() == 3, "PLAY открывает экран выбора режима (%d карточки)" % ms.cards.size())
+	ok(ms.visible and ms.cards.size() == 5, "PLAY открывает экран выбора режима (%d карточек)" % ms.cards.size())
 	var titles: Array = []
 	for m in ModeSelect.MODES:
 		titles.append(String(m["title"]))
-	ok(titles == ["STORY MODE", "TRAINING ARENA", "VACUUM RACING"], "режимы: %s" % ", ".join(titles))
+	ok(titles == ["STORY MODE", "TRAINING ARENA", "VACUUM RACING", "PAHAN MICROLOANS", "FIVE NIGHTS WITH PAHAN"], "режимы: %s" % ", ".join(titles))
 	ok((mm.list as Control).modulate.a < 0.05, "главный список ушёл с экрана")
 	await shot("02_modes_story")
 	await key(KEY_S)
@@ -190,6 +190,14 @@ func _run() -> void:
 	await shot("04_modes_race")
 	await wait(0.4)
 	ok((ms.arts[1]["vp"] as SubViewport).render_target_update_mode == SubViewport.UPDATE_DISABLED, "невыбранная композиция не рисуется (кадр не тратится)")
+	await key(KEY_S)
+	await wait(0.45)
+	ok(ms.sel == 3, "четвёртый — ПАХАН НАБРАЛ МИКРОЗАЙМОВ")
+	await shot("04b_modes_microloans")
+	await key(KEY_S)
+	await wait(0.45)
+	ok(ms.sel == 4 and (ms.arts[4]["vp"] as SubViewport).render_target_update_mode == SubViewport.UPDATE_ALWAYS, "пятый — 5 НОЧЕЙ С ПАХАНОМ, его композиция рисуется")
+	await shot("04c_modes_five_nights")
 	await key(KEY_S)
 	ok(ms.sel == 0, "по кругу — снова первый")
 	# мышь: наведение выбирает, клик открывает

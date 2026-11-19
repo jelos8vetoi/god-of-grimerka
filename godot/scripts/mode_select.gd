@@ -24,6 +24,12 @@ const MODES := [
 	{"id": "race", "no": "03", "title": "VACUUM RACING", "ru": "ГОНКИ НА ПЫЛЕСОСАХ", "word": "RACE",
 		"desc": "Аркадные гонки на ТЯГЕ-812: дрифт, турбо, трамплины и предметы против пяти соперников.",
 		"facts": ["одиночная гонка и заезд на время", "свои трассы, рекорды и управление"]},
+	{"id": "microloans", "no": "04", "title": "PAHAN MICROLOANS", "ru": "ПАХАН НАБРАЛ МИКРОЗАЙМОВ", "word": "ДОЛГ",
+		"desc": "Неделя в долгах у четырёх контор: проценты, мелкий шрифт, звонки коллекторов, подработки и пять концовок.",
+		"facts": ["7 дней · переговоры · подработки-мини-игры", "своё сохранение, кампания не трогается"]},
+	{"id": "five_nights", "no": "05", "title": "FIVE NIGHTS WITH PAHAN", "ru": "5 НОЧЕЙ С ПАХАНОМ", "word": "НОЧЬ",
+		"desc": "Ночная смена в «Облаке»: камеры, двери, свет, вентиляция и энергия до шести утра. Они уже знают, что ты здесь.",
+		"facts": ["5 ночей, Night 6 и Custom Night", "хоррор: играть в наушниках"]},
 ]
 
 var menu                      # Menu
@@ -90,7 +96,8 @@ func _build_header() -> void:
 func _build_card(i: int) -> void:
 	var m: Dictionary = MODES[i]
 	var root := Control.new()
-	root.position = Vector2(62 + i * 22, 268 + i * 164)
+	root.position = Vector2(62 + i * 22, 268 + i * _step())
+	root.scale = Vector2.ONE * _card_k()
 	root.rotation = deg_to_rad(-4.0)
 	root.size = Vector2(560, 140)
 	root.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -127,6 +134,13 @@ func _build_card(i: int) -> void:
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and visible and menu.panel == null and not menu.launching:
 			select(i, false)
 			activate())
+
+## шаг и масштаб карточек: до трёх — как было, больше — плотнее, чтобы все влезли над «НАЗАД»
+func _step() -> float:
+	return minf(164.0, 560.0 / float(MODES.size()))
+
+func _card_k() -> float:
+	return minf(1.0, _step() / 150.0)
 
 func _build_desc() -> void:
 	var back_card := Polygon2D.new()
@@ -227,10 +241,15 @@ func _build_art(i: int) -> void:
 	else:
 		vp = _viewport()
 		tex = vp.get_texture()
-		if id == "training":
-			_scene_training(vp)
-		else:
-			_scene_race(vp)
+		match id:
+			"training":
+				_scene_training(vp)
+			"microloans":
+				_scene_microloans(vp)
+			"five_nights":
+				_scene_five_nights(vp)
+			_:
+				_scene_race(vp)
 	var pic := TextureRect.new()
 	pic.texture = tex
 	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -306,6 +325,79 @@ func _scene_race(vp: SubViewport) -> void:
 	mate.rotation = Vector3(0.0, 0.35, 0.18)
 	mate.rig.play("RideDrift", 0.0)
 	mate.power = 0.8
+
+## Пахан над столом, заваленным квитанциями и договорами; телефон светится, на стене — «ПРОСРОЧЕНО»
+func _scene_microloans(vp: SubViewport) -> void:
+	_cam(vp, Vector3(0.6, 2.35, 5.4), Vector3(0.0, 1.05, 0.0), 30.0)
+	var ph := Rig.new()
+	vp.add_child(ph)
+	ph.setup("res://assets/models/pahan.glb", 1.85, Poses.pahan(), false, -1.0, "mode_pahan_plain")
+	ph.position = Vector3(-0.2, 0, -0.5)
+	ph.rotation.y = 0.35
+	ph.play("Idle", 0.0)
+	var paper := StandardMaterial3D.new()
+	paper.albedo_color = Color(0.92, 0.9, 0.85)
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.08, 0.08, 0.09)
+	var desk := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(1.9, 0.06, 0.8)
+	desk.mesh = bm
+	desk.material_override = dark
+	desk.position = Vector3(0.1, 0.74, 0.45)
+	vp.add_child(desk)
+	for k in 9:
+		var p := MeshInstance3D.new()
+		var pm := BoxMesh.new()
+		pm.size = Vector3(0.32, 0.005, 0.42)
+		p.mesh = pm
+		p.material_override = paper
+		p.position = Vector3(-0.65 + float(k % 5) * 0.3, 0.78 + float(k) * 0.004, 0.32 + float(k / 5) * 0.26)
+		p.rotation.y = float(k) * 0.37
+		vp.add_child(p)
+	var glow := StandardMaterial3D.new()
+	glow.albedo_color = Color(1, 1, 1)
+	glow.emission_enabled = true
+	glow.emission = Color(1, 1, 1)
+	glow.emission_energy_multiplier = 3.0
+	var phone := MeshInstance3D.new()
+	var phm := BoxMesh.new()
+	phm.size = Vector3(0.16, 0.01, 0.3)
+	phone.mesh = phm
+	phone.material_override = glow
+	phone.position = Vector3(0.75, 0.79, 0.55)
+	phone.rotation.y = -0.4
+	vp.add_child(phone)
+	var lab := Label3D.new()
+	lab.text = "ПРОСРОЧЕНО"
+	lab.font_size = 110
+	lab.pixel_size = 0.0019
+	lab.position = Vector3(-0.15, 2.15, -1.6)
+	lab.rotation.z = 0.12
+	vp.add_child(lab)
+
+## дверной проём в темноте: в нём стоит маскот БАЛОН (тот же, что в игре) и смотрит прямо в камеру
+func _scene_five_nights(vp: SubViewport) -> void:
+	_cam(vp, Vector3(0.0, 1.5, 6.2), Vector3(0.0, 1.25, 0.0), 30.0)
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.03, 0.03, 0.035)
+	for x in [-1.25, 1.25]:
+		var post := MeshInstance3D.new()
+		var pm := BoxMesh.new()
+		pm.size = Vector3(0.5, 3.4, 0.4)
+		post.mesh = pm
+		post.material_override = dark
+		post.position = Vector3(x, 1.7, 0.6)
+		vp.add_child(post)
+	var lintel := MeshInstance3D.new()
+	var lm := BoxMesh.new()
+	lm.size = Vector3(3.0, 0.5, 0.4)
+	lintel.mesh = lm
+	lintel.material_override = dark
+	lintel.position = Vector3(0, 3.1, 0.6)
+	vp.add_child(lintel)
+	var b := FNActors.preview_balon(vp)
+	b.position = Vector3(0.05, 0, -0.3)
 
 # ---------------- открытие, выбор ----------------
 func open(start := -1) -> void:
@@ -400,8 +492,16 @@ func _tag(k: int) -> String:
 			return "ГЛАВА %02d" % menu.chapter_no() if menu.has_save else "НОВАЯ ИГРА"
 		"training":
 			return "6 СТИЛЕЙ · 5 ЗОН"
+		"microloans":
+			return ("ИДЁТ ДЕНЬ %d" % _ml_day()) if MLSave.has_run() else "7 ДНЕЙ"
+		"five_nights":
+			return ("НОЧЬ %d" % (int(FNSave.v("current")) + 1)) if (FNSave.v("beaten") as Array).size() > 0 else "НОЧЬ 1"
 		_:
 			return "ДОСТУПНО" if available(k) else "СКОРО"
+
+func _ml_day() -> int:
+	var r: Dictionary = MLSave.load_all().get("run", {})
+	return int(r.get("day", 1))
 
 func activate() -> void:
 	menu.main.sfx("sfx_ui")

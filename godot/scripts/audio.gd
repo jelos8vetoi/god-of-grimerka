@@ -224,6 +224,9 @@ func _process(dt: float) -> void:
 	if main.race != null and is_instance_valid(main.race) and not quiet:
 		_race(dt, main.race)
 		return
+	if main.minigame != null and is_instance_valid(main.minigame) and not quiet:
+		_minigame(dt, main.minigame)
+		return
 	if game == null or not is_instance_valid(game) or quiet:
 		# меню: играет заглавный трек, наборы молчат
 		play_set("")
@@ -293,6 +296,21 @@ func _race(dt: float, race) -> void:
 	_set_state("race" if race.state != "results" else "victory")
 	_bed("")
 	_mix(dt, -6.0 if race.paused else (-3.0 if race.state == "results" else 0.0))
+
+## мини-игра со своей сценой: заглавный трек уходит, набор — какой попросит сама игра ("" — тишина, у неё свой звук)
+func _minigame(dt: float, mg) -> void:
+	if main.music.playing:
+		main.music.volume_db = move_toward(main.music.volume_db, -60.0, dt * 22.0)
+		if main.music.volume_db <= -59.0:
+			main.music.stop()
+	var nm: String = mg.music_set() if mg.has_method("music_set") else ""
+	if nm != "" and not ResourceLoader.exists(DIR + nm + "_base.wav"):
+		nm = ""
+	play_set(nm)
+	_want([0.7, 0.0])
+	_set_state("minigame")
+	_bed("")
+	_mix(dt, 0.0)
 
 func _want(v: Array) -> void:
 	for i in want.size():
