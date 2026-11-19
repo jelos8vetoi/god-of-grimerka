@@ -55,6 +55,13 @@ var air_tune: AudioStreamPlayer3D   # «последний шанс»
 var pool3: Array = []
 var pool2: Array = []
 var call_voice: AudioStreamPlayer   # голос начальника в трубке (assets/voice/FN_*.mp3, шина Phone → Voice)
+var pahan_voice: AudioStreamPlayer  # мысли Пахана вслух (assets/voice/V_*.mp3 — его голос из кампании, шина Voice)
+## Говорит всегда кто-то один. Строки по центру экрана (мысли Пахана и подсказки) идут очередью say_q: следующая
+## появляется, когда прошлая отстояла своё и Пахан договорил. Пахан не начинает посреди реплики начальника — ждёт её
+## конца; начальник не начинает следующую реплику (и телефон не звонит), пока Пахан говорит или ждёт очереди.
+var say_q: Array = []               # [[текст, секунды, голосом Пахана?]]
+var say_t := 0.0                    # сколько ещё держится текущая строка
+const SAY_MAX := 3                  # длиннее очередь не копим: старая подсказка уже не к месту
 
 func _ready() -> void:
 	if main == null:
@@ -164,6 +171,10 @@ func _audio() -> void:
 	call_voice.bus = "Phone" if AudioServer.get_bus_index("Phone") >= 0 else "Voice"
 	call_voice.volume_db = 1.0
 	add_child(call_voice)
+	pahan_voice = AudioStreamPlayer.new()
+	pahan_voice.bus = "Voice"
+	pahan_voice.volume_db = -1.0
+	add_child(pahan_voice)
 
 func _p3(id: String) -> AudioStreamPlayer3D:
 	var p := AudioStreamPlayer3D.new()
@@ -311,6 +322,7 @@ func start_night(n: int, lv := {}) -> void:
 	light_hold = {"l": false, "r": false}
 	air_tune.stop()
 	call_voice.stop()
+	_say_clear()
 	crawl.volume_db = -60.0
 	state = "night"
 	fear_t = randf_range(16.0, 26.0)
@@ -321,14 +333,15 @@ func start_night(n: int, lv := {}) -> void:
 	actors.tick(st, 0.0)
 	await cams.capture_all()
 	cams.set_cam(st.cam)
-	ring_t = 3.2
+	# сначала Пахан говорит своё (с четвёртой секунды), потом звонит телефон
+	ring_t = 6.8 if n < FNData.PAHAN["start"].size() else 3.2
 	call_lines = (FNData.CALLS[n] as Array).duplicate() if n < FNData.CALLS.size() else []
 	call_t = 0.0
 	hint_t = 45.0 if n == 0 else 0.0
 	ui.hints("")
 	get_tree().create_timer(4.0, true, false, true).timeout.connect(func():
 		if state == "night" and n < FNData.PAHAN["start"].size():
-			ui.msg(String(FNData.PAHAN["start"][n]), 3.5))
+			pahan_say(String(FNData.PAHAN["start"][n]), 3.5))
 
 func retry() -> void:
 	set_paused(false)
@@ -337,6 +350,7 @@ func retry() -> void:
 func to_terminal() -> void:
 	set_paused(false)
 	call_voice.stop()
+	_say_clear()
 	scare.restore()
 	if st != null:
 		st.outcome = "quit"
@@ -350,6 +364,7 @@ func set_paused(on: bool) -> void:
 	for id in amb:
 		(amb[id] as AudioStreamPlayer).stream_paused = on
 	call_voice.stream_paused = on
+	pahan_voice.stream_paused = on
 	for id in actors.rigs:
 		(actors.rigs[id] as Rig).player.speed_scale = 0.0 if on else 1.0
 
@@ -406,6 +421,7 @@ func _night_tick(dt: float) -> void:
 	ui.tick(st, dt, cams)
 	horror.tick(st, dt)
 	anomaly.tick(st, dt)
+	_say_tick(dt)
 	if intro_t <= 0.0:
 		_call_tick(dt)
 	_threat_sounds(dt)
@@ -458,7 +474,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 			office.shake = 0.5
 			if not said_door and at.begins_with("door"):
 				said_door = true
-				ui.msg(String(FNData.PAHAN["door"][randi() % FNData.PAHAN["door"].size()]), 3.0)
+				pahan_say(String(FNData.PAHAN["door"][randi() % FNData.PAHAN["door"].size()]), 3.0)
 		"scrape":
 			sfx3("scrape", FNOffice.point("door_l"), 2.0, 1.0)
 		"flinch":
@@ -497,7 +513,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 			ui.alarm("ПРАВАЯ ДВЕРЬ ОТКРЫТА СИСТЕМОЙ")
 		"power_out":
 			sfx2("power_down", 0.0)
-			ui.msg(String(FNData.PAHAN["dark"][0]), 3.0)
+			pahan_say(String(FNData.PAHAN["dark"][0]), 3.0)
 			crawl.volume_db = -60.0
 		"dark_eyes":
 			office.dark_eyes.visible = true
@@ -509,7 +525,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 			sfx2("click", 0.0)
 			office.dark_eyes.visible = false
 			air_tune.stop()
-			ui.msg("Есть! Шесть процентов. Не трать.", 3.0)
+			pahan_say(String(FNData.PAHAN["back"][0]), 3.0)
 		"stare":
 			if st.monitor and st.cam == String(d["at"]):
 				sfx2("static", -20.0, 0.7)
@@ -517,21 +533,21 @@ func _on_event(k: String, d: Dictionary) -> void:
 			sfx2("power_down", -16.0, 2.6)
 			if not said_broken:
 				said_broken = true
-				ui.msg("Одна камера перестала отвечать. Найди её и держи C, пока не перезапустится.", 4.0)
+				say("Одна камера перестала отвечать. Найди её и держи C, пока не перезапустится.", 4.0)
 		"cam_fixed":
 			sfx2("ping", -8.0, 1.3 if not bool(d["auto"]) else 0.9)
 		"brown_warn":
 			sfx2("buzz", 4.0, 0.7)
 			if not said_brown:
 				said_brown = true
-				ui.msg("Лампы гудят… сейчас будет перебой. Двери держат, а камеры и фонари — нет.", 4.0)
+				say("Лампы гудят… сейчас будет перебой. Двери держат, а камеры и фонари — нет.", 4.0)
 		"brown":
 			sfx2("power_down", -8.0, 2.2)
 		"brown_end":
 			sfx2("click", -2.0, 1.1)
 		"lure":
 			sfx2("toy", -6.0, 1.0)
-			ui.msg("Приманка в комнате «%s»." % _cam_name(String(d["room"])), 2.0)
+			say("Приманка в комнате «%s»." % _cam_name(String(d["room"])), 2.0)
 		"attack":
 			_attack(String(d["e"]), String(d["at"]))
 		"win":
@@ -571,6 +587,8 @@ func _threat_sounds(dt: float) -> void:
 # ---------------- звонок начальника ----------------
 func _call_tick(dt: float) -> void:
 	if ring_t > 0.0:
+		if ring_t - dt <= 0.0 and pahan_pending():
+			return                                    # Пахан говорит — телефон зазвонит, когда договорит
 		ring_t -= dt
 		if ring_t <= 0.0 and not call_lines.is_empty():
 			sfx3("ring", Vector3(0.72, 0.9, -0.8), -4.0)
@@ -583,6 +601,8 @@ func _call_tick(dt: float) -> void:
 				ui.sub("")
 				call_t = -99.0
 		return
+	if call_t - dt <= 0.0 and pahan_pending():
+		return                                        # следующая реплика начальника ждёт, пока Пахан договорит
 	call_t -= dt
 	if call_t <= 0.0:
 		var line: String = call_lines.pop_front()
@@ -597,6 +617,54 @@ func _call_tick(dt: float) -> void:
 			call_t = maxf(2.0, float(vs.get_length()) / call_voice.pitch_scale + 0.45)
 		elif _snd_ok():
 			sfx2("babble", -10.0, randf_range(0.9, 1.1), "Voice")
+
+## строка по центру экрана — в очередь (подсказка, мысль); voiced — голосом Пахана
+func say(text: String, sec := 3.0, voiced := false) -> void:
+	while say_q.size() >= SAY_MAX:
+		var drop := 0
+		for i in say_q.size():                        # сначала выкидываем немую подсказку, реплики голосом — в последнюю очередь
+			if not bool(say_q[i][2]):
+				drop = i
+				break
+		say_q.remove_at(drop)
+	say_q.append([text, sec, voiced])
+
+## Пахан говорит вслух: строка на экране и его голос (файл — как у реплик кампании: «V|текст»); строка держится,
+## пока он договаривает. Нет файла — только строка.
+func pahan_say(text: String, sec := 3.0) -> void:
+	say(text, sec, true)
+
+static func pahan_path(text: String) -> String:
+	return "res://assets/voice/V_%s.mp3" % ("V|" + text).md5_text().substr(0, 10)
+
+## Пахан говорит или ждёт своей очереди сказать
+func pahan_pending() -> bool:
+	return pahan_voice.playing or say_q.any(func(q): return bool(q[2]))
+
+func _say_clear() -> void:
+	say_q.clear()
+	say_t = 0.0
+	if pahan_voice != null:
+		pahan_voice.stop()
+
+func _say_tick(dt: float) -> void:
+	say_t = maxf(0.0, say_t - dt)
+	if say_t > 0.0 or pahan_voice.playing or say_q.is_empty():
+		return
+	var q: Array = say_q[0]
+	var vs: AudioStream = null
+	if bool(q[2]) and _snd_ok() and ResourceLoader.exists(pahan_path(String(q[0]))):
+		vs = load(pahan_path(String(q[0]))) as AudioStream
+	if vs != null and call_voice.playing:
+		return                                        # начальник договаривает реплику — Пахан ждёт её конца
+	say_q.pop_front()
+	var sec := float(q[1])
+	if vs != null:
+		pahan_voice.stream = vs
+		pahan_voice.play()
+		sec = maxf(sec, float(vs.get_length()) + 0.4)
+	ui.msg(String(q[0]), sec)
+	say_t = sec + 0.2
 
 ## файл озвучки реплики звонка: как у остальной озвучки игры — код говорящего и начало md5 от «код|текст»
 ## (tools/godot-voice.cjs, код FN). Нет файла — null, тогда вместо голоса неразборчивое бормотание.
@@ -619,6 +687,7 @@ func _attack(eid: String, at: String) -> void:
 	state = "scare"
 	light_hold = {"l": false, "r": false}
 	call_voice.stop()
+	_say_clear()
 	ui.show_dark(false)
 	ui.hints("")
 	ui.sub("")
@@ -644,6 +713,7 @@ func _six() -> void:
 	ui.sub("")
 	ui.show_dark(false)
 	call_voice.stop()
+	_say_clear()
 	air_tune.stop()
 	crawl.stop()
 	whisper.stop()
@@ -665,6 +735,10 @@ func _six() -> void:
 		await scare.pahan(false)                      # конец шестой: резервная копия пришла за оригиналом
 	var line: String = FNData.PAHAN["six"][mini(night, FNData.PAHAN["six"].size() - 1)]
 	ui.six_card(pay, line, extra)
+	get_tree().create_timer(2.6, true, false, true).timeout.connect(func():       # строка появляется под «6 AM» — тогда и голос
+		if state == "six" and ResourceLoader.exists(pahan_path(line)) and _snd_ok():
+			pahan_voice.stream = load(pahan_path(line))
+			pahan_voice.play())
 	get_tree().create_timer(7.5 if extra == "" else 12.0, true, false, true).timeout.connect(func():
 		if state != "six":
 			return

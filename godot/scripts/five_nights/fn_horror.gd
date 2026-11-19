@@ -42,7 +42,7 @@ func tick(st: FNNight, dt: float) -> void:
 		var looking: bool = not st.monitor and absf(st.yaw - 0.0) < 0.2
 		photo_look = photo_look + dt if looking else 0.0
 		if photo_look > 2.5 and FNSave.secret("photo"):
-			root.ui.msg("…«скоро вернёмся». Кто это написал?", 3.5)
+			root.say("…«скоро вернёмся». Кто это написал?", 3.5)
 		if photo_wrong_t <= 0.0:
 			o.photo.material_override.albedo_texture = o.photo_tex["normal"]
 	if writing_t > 0.0:
@@ -55,14 +55,14 @@ func tick(st: FNNight, dt: float) -> void:
 		cam9_t -= dt
 		root.ui.cam9_btn.visible = cam9_t > 0.0
 		if st.monitor and st.cam == "room9" and FNSave.secret("room9"):
-			root.ui.msg("КОМНАТА 9. Её нет на плане.", 3.0)
+			root.say("КОМНАТА 9. Её нет на плане.", 3.0)
 		if cam9_t <= 0.0 and st.cam == "room9":
 			st.set_cam("stage")
 	# журнал сервера: долго смотреть на CAM 6 с третьей ночи
 	if st.night >= 2 and st.monitor and st.cam == "server":
 		server_look += dt
 		if server_look > 6.0 and FNSave.secret("server_log"):
-			root.ui.msg("На стойке мигает журнал: «требуется оригинал: ОХРАННИК»", 4.0)
+			root.say("На стойке мигает журнал: «требуется оригинал: ОХРАННИК»", 4.0)
 	else:
 		server_look = 0.0
 	next_t -= dt
