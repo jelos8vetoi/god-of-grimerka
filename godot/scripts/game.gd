@@ -247,7 +247,7 @@ func start_intro() -> void:
 			tw.tween_property(c, "position", home, 0.4).set_delay(INTRO_HUD + rank * 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 func intro_busy() -> bool:
-	return intro_t >= 0.0
+	return intro_t >= 0.0 or (golda != null and golda.scene_busy())      # облёт при входе или постановка приквела
 
 func _intro_camera(rdt: float) -> void:
 	intro_t += rdt
@@ -454,7 +454,7 @@ func _update_fight(dt: float) -> void:
 						toast("Волна %d / %d" % [wave_i + 1, waves.size()])
 					main.sfx("sfx_wave", -8.0)
 					wave_wait = 1.6
-	elif mode == "boss" or training != null:
+	elif mode == "boss" or training != null or golda != null:
 		if boss_e and is_instance_valid(boss_e):
 			boss_fill.size.x = 596.0 * clamp(boss_e.hp / boss_e.max_hp, 0.0, 1.0)
 			if auto_kill > 0.0 and boss_e.alive() and boss_e.age > 5.0:
@@ -953,6 +953,8 @@ func _process(dt: float) -> void:
 		cam.global_transform = death.camera()      # камеру ведёт сцена гибели
 		cam.h_offset = 0.0
 		cam.v_offset = 0.0
+	elif golda != null and golda.owns_camera():
+		cam.global_transform = golda.camera()      # постановка приквела (выход босса)
 	cam_attributes.dof_blur_far_enabled = ipod_focus > 0.002
 	# A restrained DOF pass establishes depth; the lightweight screen pass below
 	# supplies the remaining focus separation without turning the world to mush.
@@ -1622,7 +1624,7 @@ func _update_hud(dt: float) -> void:
 	if golda != null:
 		top_label.text = golda.hud_line()
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second()
-	boss_box.visible = (mode == "boss" or training != null) and boss_e != null and is_instance_valid(boss_e) and boss_e.state != "dead"
+	boss_box.visible = (mode == "boss" or training != null or golda != null) and boss_e != null and is_instance_valid(boss_e) and boss_e.state != "dead"
 	flash.color.a = max(0.0, flash.color.a - dt * 1.5)
 	banner_t -= dt
 	var a: float = clamp(banner_t / 0.5, 0.0, 1.0)

@@ -242,6 +242,8 @@ func _run() -> void:
 	await wait(0.4)
 	ok(save_same(), "сохранение кампании не изменилось")
 	ok(not FileAccess.file_exists("user://golda67_save.json") or kept["user://golda67_save.json"] == FileAccess.get_file_as_string("user://golda67_save.json"), "проверка не пишет сохранение приквела игрока")
+	# ================= забег: район ДВОР =================
+	await _run_dvor(g, G, P)
 	# ================= выход =================
 	g._to_menu()
 	var back: bool = await until(func(): return main.menu != null and is_instance_valid(main.menu) and main.game == null, 10.0)
@@ -251,6 +253,193 @@ func _run() -> void:
 		ok(main.menu.modes.visible and main.menu.modes.sel == 1, "после выхода открыт выбор режима на карточке «ГОЛДА 67»")
 		await shot("11_back")
 	_finish()
+
+## убить всех живых врагов (бой проверяют проверки боя; здесь — цикл комнат)
+func _kill_all(g) -> void:
+	for e in g.enemies:
+		if is_instance_valid(e) and e.state != "dead":
+			e.take_hit(99999.0, Vector3.FORWARD, 0.0, true)
+
+func _clear_room(g, G: Golda67, sec := 40.0) -> bool:
+	var t0 := GameClock.ms()
+	while GameClock.ms() - t0 < int(sec * 1000.0):
+		if G.room_state != "fight":
+			return true
+		_kill_all(g)
+		await wait(0.25)
+	return G.room_state != "fight"
+
+func _go(G: Golda67, P, id: String) -> void:
+	var pt: Dictionary = G.point(id)
+	if pt.is_empty():
+		print("GOLDA67CHECK   нет точки «%s»" % id)
+		return
+	P.global_position = Vector3(pt["pos"].x, pt["pos"].y + 0.05, pt["pos"].z)
+	P.velocity = Vector3.ZERO
+	await wait(0.3)
+	await key(KEY_E)
+
+func _run_dvor(g, G: Golda67, P) -> void:
+	# выход во двор — настоящей клавишей E у входной двери
+	await _go(G, P, "exit")
+	var started: bool = await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+	ok(started, "выход из подъезда начинает забег (место: %s, комната: %s)" % [G.place, G.room.get("type", "")])
+	if not started:
+		return
+	ok(not g.buddy.visible, "до первой концовки madk1d остаётся в подъезде — в забеге его нет")
+	ok(String(g.top_label.text).contains("ДВОР 1/6"), "строка вверху: «%s»" % g.top_label.text)
+	var got: bool = await until(func(): return G.alive() >= 3, 10.0)
+	ok(got, "первая волна вышла (%d врагов)" % G.alive())
+	var skins: Array = []
+	for e in g.enemies:
+		if is_instance_valid(e):
+			skins.append(String(e.skin))
+	ok(not skins.is_empty() and skins.all(func(x): return String(x).begins_with("g67_")), "враги двора — модели приквела (%s)" % ", ".join(skins))
+	await wait(1.5)
+	await shot("20_dvor_fight")
+	# обзор двора сверху и с крыш — планировка целиком (своя камера, игровую не трогаем)
+	var oc := Camera3D.new()
+	oc.fov = 50.0
+	oc.far = 400.0
+	g.add_child(oc)
+	var yo: Vector3 = G.world.yard.position
+	for v in [["30_yard_from_south", Vector3(0, 46, 78), Vector3(0, 0, -12)], ["31_yard_from_northeast", Vector3(62, 40, -72), Vector3(-4, 0, -6)],
+			["32_yard_top", Vector3(0.1, 118, -8), Vector3(0, 0, -9)], ["33_court_from_roof", Vector3(-22, 20, -20), Vector3(4, 0, -40)],
+			["34_podezd_from_yard", Vector3(4, 5, 8), Vector3(0, 3, 34)], ["35_garages_lane", Vector3(-30, 4, 24), Vector3(-42, 1.5, -4)],
+			["36_playground", Vector3(-12, 5, 6), Vector3(3, 2, -9)], ["37_parking_kiosk", Vector3(22, 5, 22), Vector3(38, 1.5, 6)]]:
+		oc.global_position = (v[1] as Vector3) + yo
+		oc.look_at((v[2] as Vector3) + yo, Vector3.UP)
+		oc.make_current()
+		await wait(0.5)
+		await shot(String(v[0]))
+	g.cam.make_current()
+	oc.queue_free()
+	await wait(0.3)
+	# враги настоящие: бьют и получают урон
+	var e0 = null
+	for e in g.enemies:
+		if is_instance_valid(e) and e.alive():
+			e0 = e
+			break
+	if e0 != null:
+		var hp0: float = e0.hp
+		e0.take_hit(10.0, Vector3.FORWARD, 0.0, false)
+		ok(e0.hp < hp0, "враг получает урон (%.0f → %.0f)" % [hp0, e0.hp])
+	ok(await _clear_room(g, G), "комната 1 (БОЙ) зачищена")
+	ok(int(G.run["golda"]) > 0 and int(G.run["respect"]) > 0, "за комнату дали голду (%d) и РЕСПЕКТ (%d)" % [int(G.run["golda"]), int(G.run["respect"])])
+	ok(G.room_state == "open" and G.world.gates.size() == 2, "после боя открылись две двери на выбор (%d)" % G.world.gates.size())
+	await wait(0.6)
+	P.global_position = Vector3(0, 0.05, -6.0)
+	P.face = 0.0
+	g.cam_yaw = 0.0
+	await wait(0.8)
+	await shot("21_gates")
+	# дверь ФИТС
+	await _go(G, P, "gate1")
+	var in_fit: bool = await until(func(): return String(G.room.get("type", "")) == "fit" and g.panel != null, 8.0)
+	ok(in_fit and int(G.run["pos"]) == 1, "дверь «ФИТС» ведёт в комнату выбора фитса")
+	await wait(0.5)
+	await shot("22_fit_choice")
+	var opts: Array = G.fit_options(false)
+	ok(opts.size() == 3, "на выбор три фитса (%s)" % ", ".join(opts))
+	G.take_fit("heavy_hand")
+	ok(G.fit_lv("heavy_hand") == 1 and absf(P.dmg_mul - 1.12) < 0.001, "«ТЯЖЁЛАЯ РУКА»: урон ×%.2f" % P.dmg_mul)
+	ok(g.panel == null and G.room_state == "open", "после выбора окно закрыто, двери открыты")
+	# дверь ЭЛИТА
+	await _go(G, P, "gate0")
+	var in_el: bool = await until(func(): return String(G.room.get("type", "")) == "elite" and G.room_state == "fight", 8.0)
+	ok(in_el, "дверь «ЭЛИТА» ведёт в бой с элитой")
+	var big: bool = await until(func(): return g.enemies.any(func(e): return is_instance_valid(e) and String(e.skin) == "g67_smotr"), 10.0)
+	ok(big, "в комнате элиты — Смотрящий")
+	await wait(1.5)
+	await shot("23_elite")
+	ok(await _clear_room(g, G), "комната элиты зачищена")
+	ok(g.panel != null and G.room_state == "reward", "за элиту — выбор фитса")
+	var ro: Array = G.fit_options(true)
+	ok(not ro.is_empty() and bool(G67Data.FITS[ro[0]]["rare"]), "у элиты первым идёт редкий фитс (%s)" % str(ro))
+	var mhp: float = P.max_hp
+	G.take_fit("authority")
+	ok(P.max_hp == mhp + 20.0, "«АВТОРИТЕТ»: максимум здоровья %.0f → %.0f" % [mhp, P.max_hp])
+	# дверь БОЙ (позиция 4), затем передышка
+	await _go(G, P, "gate1")
+	ok(await until(func(): return String(G.room.get("type", "")) == "battle" and G.room_state == "fight" and int(G.run["pos"]) == 3, 8.0), "четвёртая позиция — бой")
+	ok(await _clear_room(g, G, 60.0), "комната 4 зачищена")
+	ok(G.world.gates.size() == 1 and String(G.world.gates[0]["option"]["type"]) == "break", "перед боссом одна дверь — ПЕРЕДЫШКА")
+	await _go(G, P, "gate0")
+	ok(await until(func(): return G.room_state == "rest", 8.0), "комната передышки")
+	P.hp = 20.0
+	await wait(0.4)
+	await shot("24_break")
+	await _go(G, P, "rest")
+	await wait(0.4)
+	ok(P.hp > 20.0 + P.max_hp * 0.4, "лавка лечит (здоровье %.0f из %.0f)" % [P.hp, P.max_hp])
+	ok(G.world.gates.size() == 1 and String(G.world.gates[0]["option"]["type"]) == "boss", "дальше одна дверь — БОСС")
+	# босс
+	await _go(G, P, "gate0")
+	var bossed: bool = await until(func(): return G.room_state == "boss" and g.boss_e != null and is_instance_valid(g.boss_e), 8.0)
+	ok(bossed, "шестая позиция — босс")
+	if not bossed:
+		return
+	var B = g.boss_e
+	ok(G.scene_busy() and g.intro_busy(), "выход босса — постановка: управление на это время закрыто")
+	await wait(1.0)
+	await shot("25a_boss_intro")
+	await wait(1.6)
+	await shot("25b_boss_intro")
+	ok(await until(func(): return not G.scene_busy(), 8.0), "постановка заканчивается сама, начинается бой")
+	ok(String(B.boss_id) == "g67_misha" and String(g.boss_name.text).begins_with("МИША МИНАСЯН"), "босс — Миша Минасян («%s»)" % g.boss_name.text)
+	ok(String(B.cfg.get("path", "")).ends_with("g67_misha.glb"), "модель босса — своя, не босс кампании")
+	ok(B.rig.skel.find_children("*", "BoneAttachment3D", true, false).size() > 0, "на Мише цепь")
+	ok(g.boss_box.visible, "полоска здоровья босса на экране")
+	P.global_position = Vector3(0, 0.05, 2.0)
+	P.face = 0.0
+	g.cam_yaw = 0.0
+	await wait(2.5)
+	await shot("25_boss")
+	# босс бьёт: ждём его удара или особого приёма
+	var acted: bool = await until(func(): return String(B.state) in ["wind", "strike", "charge", "special", "leap"], 12.0)
+	ok(acted, "Миша атакует (состояние: %s)" % String(B.state))
+	await wait(0.6)
+	await shot("26_boss_attack")
+	var hp1: float = B.hp
+	B.take_hit(40.0, Vector3.FORWARD, 0.0, false)
+	ok(B.hp < hp1, "босс получает урон")
+	B.take_hit(99999.0, Vector3.FORWARD, 0.0, true)
+	var down: bool = await until(func(): return G.events.any(func(ev): return ev.size() > 0 and String(ev[0]) == "boss_down"), 6.0)
+	ok(down, "Миша Минасян повержен")
+	ok(bool(G.meta()["flags"].get("boss_misha", false)), "победа записана в постоянное")
+	ok(G.styles_open() == ["vozduh", "bottles"], "открыта Водяра, ТЯГА-812 закрыта (%s)" % str(G.styles_open()))
+	await wait(1.0)
+	await shot("27_boss_down")
+	var home: bool = await until(func(): return G.place == "hub" and G.world.points.size() >= 9, 12.0)
+	ok(home, "после победы — обратно в подъезд")
+	await wait(1.0)
+	ok(P.own_styles == ["vozduh", "bottles"], "в подъезде у Пахана теперь Балон и Водяра (%s)" % str(P.own_styles))
+	ok(int(G.meta()["respect"]) >= 40, "РЕСПЕКТ за забег остался (%d)" % int(G.meta()["respect"]))
+	ok(g.buddy.visible, "madk1d снова рядом в подъезде")
+	await key(KEY_2)
+	await wait(1.2)
+	ok(String(P.style.id) == "bottles", "клавиша 2 включает Водяру")
+	await shot("28_hub_after")
+	# ================= гибель в забеге =================
+	var r0: int = int(G.meta()["respect"])
+	await _go(G, P, "exit")
+	ok(await until(func(): return G.place == "run" and G.room_state == "fight", 8.0), "второй забег начался")
+	ok(G.fit_lv("heavy_hand") == 0 and absf(P.dmg_mul - 1.0) < 0.001 and int(G.run["golda"]) == 0, "фитсы и голда прошлого забега не перенеслись")
+	await until(func(): return G.alive() >= 1, 8.0)
+	_kill_all(g)
+	await wait(0.3)
+	for i in 8:
+		if g.over:
+			break
+		P.inv = 0.0
+		P.take_damage(99999.0, P.global_position + Vector3(0, 0, -1))
+		await wait(0.3)
+	ok(g.over and G.events.any(func(ev): return String(ev[0]) == "dead"), "гибель заканчивает забег")
+	ok(await until(func(): return G.place == "hub" and not g.over, 12.0), "после гибели — подъезд, игра продолжается")
+	ok(int(G.meta()["respect"]) >= r0 and bool(G.meta()["flags"].get("boss_misha", false)), "гибель не стёрла РЕСПЕКТ и победу над боссом")
+	ok(P.hp == P.max_hp and P.max_hp == G.base_hp, "здоровье восстановлено, усиления забега сняты (%.0f)" % P.max_hp)
+	await wait(0.5)
 
 func _finish() -> void:
 	for p in KEEP:
