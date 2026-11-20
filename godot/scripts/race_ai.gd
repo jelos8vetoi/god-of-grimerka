@@ -174,7 +174,7 @@ func think(dt: float) -> RaceInput:
 
 func _want_item(id: String) -> bool:
 	var smart := rng.randf() < float(cfg["items"])
-	if hold_t < 0.6 + float(style.get("hold", 0.0)) * 0.0:
+	if hold_t < 0.6:
 		return false
 	if style.has("hold") and hold_t > 1.0 + float(style["hold"]) and id in ["dust_bomb", "soap", "filter", "overclock"]:
 		return true                                    # нетерпеливый: ловушки и усиления долго не держит

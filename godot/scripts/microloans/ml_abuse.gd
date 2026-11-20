@@ -97,7 +97,6 @@ static func run() -> Array:
 	for L in e.active():
 		if e.same_day(L):
 			e.pay(int(L["id"]), int(ceil(float(L["balance"]) * 2.0)))
-	m0 -= e.active().size() * 0
 	var fresh_left := e.active().filter(func(L): return e.same_day(L)).size()
 	var lost := 6000 + MLData.START_MONEY - e.money
 	add.call("займ «взял и сразу вернул» ничего не даёт", n_take >= 2 and fresh_left == 0 and e.rep <= rep0 and int(e.career.d["xp"]) + int(e.career.d["level"]) * 100000 == xp0 and int(e.stats["closed"]) == 0 and lost > 0 and e.stress >= st0,
