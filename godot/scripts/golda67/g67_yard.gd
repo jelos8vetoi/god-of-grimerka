@@ -54,7 +54,11 @@ const QUEUE_PEOPLE := [
 	{"path": "res://assets/racing/npc_spectator.glb", "h": 1.7, "rig": false, "key": "npc_spectator"},
 ]
 static var secret_tag := false     # победил Мишу — у подъезда появляется маленькое граффити
-static var crowd_seed := 1     # меняется на каждый забег: очередь каждый раз другая
+static var crowd_seed := 1
+## Коробка Миши: турники (x, z, поворот, размер), борта и место трона — их читает бой (зацеп цепи) и постановка выхода
+const BARS := [[-8.0, -43.5, 0.2, 2.7], [12.2, -33.0, PI * 0.5, 2.5]]
+const COURT := Rect2(-11.0, -49.5, 26.0, 22.5)
+const THRONE := Vector3(2.0, 0.03, -48.0)     # меняется на каждый забег: очередь каждый раз другая
 var boss_spot := Vector3(2, 0, -44.5)        # где ждёт Миша (у своей машины, на ковре)
 
 static func zone(id: String) -> Dictionary:
@@ -610,8 +614,8 @@ func _zone_sport() -> void:
 	_sign("ГЛАВНЫЙ АВТОРИТЕТ ДВОРА", Vector3(2.0, 2.85, -49.25), 0.0, Color(0.9, 0.85, 0.75), 0.008, 56)
 	_light(Vector3(2.0, 3.0, -46.6), Color(1.0, 0.75, 0.3), 3.0, 9.0)
 	# турник и брусья у западного борта — укрытие и его «качалка»
-	_put("res://assets/golda67/g67_workout_bars.glb", Vector3(-8.0, 0.03, -43.5), 0.2, 2.7)
-	_put("res://assets/golda67/g67_workout_bars.glb", Vector3(12.2, 0.03, -33.0), PI * 0.5, 2.5)
+	for bp in BARS:
+		_put("res://assets/golda67/g67_workout_bars.glb", Vector3(bp[0], 0.03, bp[1]), bp[2], bp[3])
 	_put("tire_stack", Vector3(-8.6, 0.03, -31.5), 0.6, 1.0)
 	# мачты с прожекторами по углам — свет на лёд, длинные тени
 	for c in [Vector3(x0 - 0.9, 0, z0 - 0.9), Vector3(x1 + 0.9, 0, z0 - 0.9), Vector3(x0 - 0.9, 0, z1 + 0.9), Vector3(x1 + 0.9, 0, z1 + 0.9)]:

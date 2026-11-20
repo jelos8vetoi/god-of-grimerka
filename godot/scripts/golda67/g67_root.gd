@@ -33,7 +33,13 @@ var wind_used := false        # «ВТОРОЕ ДЫХАНИЕ» уже сраб�
 var base_hp := 100.0
 var busy := false             # идёт переход между комнатами
 # ---- постановка (выход босса): камеру и ввод на это время держит контроллер
-const SCENE_LEN := 5.2
+const SCENE_LEN := 7.6        # выход Миши: сидит на троне → встаёт → идёт по ковру → топает → бой
+const SCENE_SIT := 1.7        # до этой секунды сидит
+const SCENE_WALK := 2.5       # с этой идёт
+const SCENE_STOP := 5.4       # к этой дошёл
+var scene_step := 0
+var scene_from := Vector3.ZERO
+var scene_to := Vector3.ZERO
 var scene_t := -1.0           # −1 — постановки нет
 var scene_boss = null
 var scene_said := false
@@ -346,7 +352,15 @@ func _boss_intro(b) -> void:
 	scene_boss = b
 	scene_t = 0.0
 	scene_said = false
+	scene_step = 0
 	b.set_physics_process(false)
+	# начинает на троне, лицом к воротам; выйдет по ковровой дорожке
+	scene_to = b.global_position
+	scene_from = Vector3(world.throne.x, b.global_position.y, world.throne.z + 0.2)
+	b.global_position = scene_from
+	b.face = 0.0
+	b.body.rotation.y = 0.0
+	b.rig.play("MSit", 0.0)
 	events.append(["boss_intro"])
 
 func scene_busy() -> bool:
@@ -361,9 +375,9 @@ func camera() -> Transform3D:
 	var bp: Vector3 = scene_boss.global_position
 	var chest: Vector3 = bp + Vector3(0, 1.45, 0)
 	var k := clampf((scene_t - 0.9) / (SCENE_LEN - 1.9), 0.0, 1.0)
-	var ang := lerpf(0.75, -0.35, k * k * (3.0 - 2.0 * k))            # обход от правого плеча к левому
-	var dist := lerpf(5.4, 3.4, k)
-	var pos: Vector3 = chest + Vector3(sin(ang) * dist, lerpf(-0.5, 0.15, k), cos(ang) * dist)
+	var ang := lerpf(0.55, -0.4, k * k * (3.0 - 2.0 * k))            # обход от правого плеча к левому
+	var dist := lerpf(6.2, 3.6, k)
+	var pos: Vector3 = chest + Vector3(sin(ang) * dist, lerpf(-0.7, 0.15, k), cos(ang) * dist)
 	var shot := Transform3D(Basis.looking_at(chest + Vector3(0, 0.25, 0) - pos, Vector3.UP), pos)
 	var w := 1.0
 	if scene_t < 0.9:
@@ -378,19 +392,37 @@ func _scene_tick(dt: float) -> void:
 	if scene_boss == null or not is_instance_valid(scene_boss):
 		_scene_end()
 		return
-	if not scene_said and scene_t >= 1.3:
+	var b = scene_boss
+	if scene_step == 0 and scene_t >= SCENE_SIT:
+		scene_step = 1
+		b.rig.play("Idle", 0.5)                    # встаёт
+	if scene_step == 1 and scene_t >= SCENE_WALK:
+		scene_step = 2
+		b.rig.play("Run", 0.25, 0.5)               # идёт не спеша
+	if scene_step == 2:
+		var wk := clampf((scene_t - SCENE_WALK) / (SCENE_STOP - SCENE_WALK), 0.0, 1.0)
+		b.global_position = scene_from.lerp(scene_to, wk)
+		if wk >= 1.0:
+			scene_step = 3
+			b.rig.play_for("Stomp", 1.2, 0.12)       # встал напротив и топнул
+	if scene_step == 3 and scene_t >= SCENE_STOP + 0.75:
+		scene_step = 4
+		game.shake(0.45)
+		game.main.sfx("sfx_boom", -3.0, 0.8)
+		game.fx.slam(b.global_position, 1.4, Color(game.story["BOSS"][String(b.boss_id)]["c"]))
+	if not scene_said and scene_t >= SCENE_SIT + 0.2:
 		scene_said = true
 		var bd: Dictionary = game.story["BOSS"][String(scene_boss.boss_id)]
 		game.banner(String(bd["n"]), String(bd["sub"]), Color(bd["c"]), 3.4)
 		game.boss_bark(String(bd["n"]), "На этом районе уважают только сильнейших.", Color(bd["c"]), String(bd["sp"]))
 		game.main.sfx("sfx_rage", -4.0, 0.7)
-		game.shake(0.25)
 	if scene_t >= SCENE_LEN:
 		_scene_end()
 
 func _scene_end() -> void:
 	scene_t = -1.0
 	if scene_boss != null and is_instance_valid(scene_boss):
+		scene_boss.global_position = scene_to
 		scene_boss.set_physics_process(true)
 		scene_boss.cool = 1.2
 	scene_boss = null

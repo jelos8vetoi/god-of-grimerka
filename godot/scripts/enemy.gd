@@ -24,7 +24,7 @@ const SKINS := {
 	"g67_smotr": {"model": "g67", "path": "res://assets/golda67/g67_enemy_smotryashchiy.glb", "key": "g67_smotr", "height": 2.35, "noweapon": true, "own": true, "clip": "Punch", "hp": 300.0},
 }
 const BOSS_LOOK := {
-	"g67_misha": {"model": "g67", "path": "res://assets/golda67/g67_misha.glb", "key": "g67_misha", "scale": 1.25, "own": true},
+	"g67_misha": {"model": "g67", "path": "res://assets/golda67/g67_misha.glb", "key": "g67_misha_boss", "scale": 1.25, "own": true},
 	"courier": {"model": "drey", "scale": 1.3, "own": true}, "golem": {"model": "bot", "scale": 1.9}, "hype": {"model": "hater", "scale": 1.35},
 	"dislike": {"model": "bot", "scale": 1.75}, "major": {"model": "clipper", "scale": 1.4}, "strike": {"model": "hater", "scale": 1.45},
 	"botlord": {"model": "bot", "scale": 1.6}, "ghostv": {"model": "pahan", "scale": 1.2, "alpha": 0.85, "emit": 0.12}, "algo": {"model": "hater", "scale": 2.0, "emit": 0.1},
@@ -127,6 +127,12 @@ var charge_v := 13.0
 var counter_at := 0.0       # босс: когда снова можно приём против поведения игрока
 var combo_left := 0         # босс: сколько приёмов подряд ещё (растёт с фазой)
 var moves_used := {}        # для проверок: какие приёмы делал
+var sp_lock := false        # особый приём: взгляд замер (зона на земле не поворачивается за героем)
+var guard_until := -1.0     # Миша Минасян: защитная стойка держится до этого age (golda67/g67_misha.gd)
+var guard_next := 0.0       # когда стойка снова может вернуть удар
+var grab_log: Array = []    # исходы приёмов Миши — для проверки
+var guard_log: Array = []
+var hook_log: Array = []
 var tell_until := -1.0      # метка в приёме босса (полоса рывка) видна до этого age
 var tell_sec := 0.5
 var train_guard := false      # учебная цель обучения: не умирает, пока упражнение не сделано (tutorial.gd)
@@ -171,6 +177,8 @@ func _ready() -> void:
 		poses = Poses.clipper()
 	else:
 		poses = Poses.bot()
+	if boss_id == "g67_misha":
+		poses.merge(G67Misha.clips(), true)      # свои клипы: захват, стойка, натянутая цепь, трон
 	rig.setup(String(cfg.get("path", "res://assets/models/" + m + ".glb")), height, poses, boss_id != "", -1.0 if m == "pahan" else 1.0, String(cfg.get("key", m + ("_n" if cfg.get("noweapon", false) else ""))))
 	if boss_id == "g67_misha":
 		G67Models.misha_chain(rig)        # золотая цепь на груди — идёт за анимацией
@@ -440,7 +448,7 @@ func _physics_process(dt: float) -> void:
 			while not sp_events.is_empty() and t >= float(sp_events[0][0]):
 				var ev: Array = sp_events.pop_front()
 				(ev[1] as Callable).call()
-			if boss_id != "hype":
+			if boss_id != "hype" and not sp_lock:
 				face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-5.0 * dt))
 			if t > sp_dur:
 				state = "recover"
@@ -980,6 +988,8 @@ func reaction_for(h: HitInfo) -> String:
 func take_hit_info(h: HitInfo) -> void:
 	if not alive():
 		return
+	if guard_until > 0.0 and G67Misha.guard_hit(self, h):
+		return                        # защитная стойка Миши: удар спереди принят и может вернуться
 	var m: float = float(rc("mass", 1.0))
 	var r := reaction_for(h)
 	var launch: float = h.launch if (bool(rc("launch", true)) or h.launch < 0.0) else 0.0
@@ -1165,6 +1175,7 @@ func shielded() -> bool:
 ## Пока приём идёт, босс открыт для ударов; оглушение его срывает.
 func _special() -> void:
 	state = "special"
+	sp_lock = false
 	t = 0.0
 	ring.visible = false
 	sp_events = []
