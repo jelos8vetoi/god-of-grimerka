@@ -44,6 +44,7 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	add_child(info_p)
 	var iv := MGUI.vbox(MGUI.S1)
 	info_p.add_child(iv)
+	hints_on("ml_junk", MGHintsData.JUNK)
 	info_t = MGUI.label("", "h2", null, 316.0)
 	iv.add_child(info_t)
 	info_l = MGUI.label("", "small", MGUI.TEXT_2, 316.0)
@@ -219,6 +220,9 @@ func pick(k: int) -> void:
 	var I: Dictionary = items[k]
 	var it: Array = MLData.JUNK[int(I["idx"])]
 	sfx("open", 1.2)
+	hint("shake")
+	if bool(I["rare"]) and cv("junk_eval") > 0.0:
+		hint("rare")
 	info_p.visible = true
 	info_t.text = String(it[0]) + ("  · редкая" if bool(I["rare"]) and cv("junk_eval") > 0.0 else "")
 	info_l.text = "%s\nСостояние %d%%\nПродать: %s\nРазобрать: %s · Гене: %s" % [
@@ -241,6 +245,7 @@ func decide(kind: String) -> void:
 	if kind == "keep" and kept >= cap:
 		sfx("fail")
 		tip_l.text = "Места нет — продай или разбери"
+		hint("cap")
 		return
 	var I: Dictionary = items[held]
 	I["decided"] = true

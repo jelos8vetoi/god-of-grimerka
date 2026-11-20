@@ -58,6 +58,8 @@ var weather_l: Label
 var happen_l: Label
 var happen_sub: Label
 
+var tips: MGHints                  # подсказки и справка (H) — mg_hints.gd
+
 func _ready() -> void:
 	layer = 20
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -69,6 +71,9 @@ func _ready() -> void:
 	root = Control.new()
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
+	# подсказки гонки — слева посередине (место — слева сверху, карта — слева снизу)
+	tips = MGHints.new().setup("race", MGHintsData.RACE, "left", 0.47)
+	add_child(tips)
 	dust = ColorRect.new()
 	dust.color = Color(0.55, 0.5, 0.43, 0.0)
 	dust.mouse_filter = Control.MOUSE_FILTER_IGNORE

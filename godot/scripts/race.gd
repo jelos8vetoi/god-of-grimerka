@@ -181,6 +181,9 @@ func _physics_process(dt: float) -> void:
 			if st >= 2.4:
 				_set_state("countdown")
 				hud.countdown(3)
+				if hud.tips != null:
+					hud.tips.hold_fn = func(): return not (state in ["countdown", "race"]) or get_tree().paused
+					hud.tips.tip("start")
 				_beep(0.9)
 		"countdown":
 			var left := 3 - int(st)
@@ -769,6 +772,12 @@ func on_rider_event(r: RaceRider, k: String, v) -> void:
 func _show_event(r: RaceRider, k: String, v) -> void:
 	var p: Vector3 = r.global_position
 	var me: bool = r == local
+	if me and hud != null and hud.tips != null:
+		var tid: String = {"drift_start": "drift", "drift_boost": "turbo", "item_get": "item", "ramp": "ramp", "ring": "ring", "draft": "draft", "combo": "combo", "fall": "fall", "respawn": "fall"}.get(k, "")
+		if k == "wall" and float(v) > 0.6:
+			tid = "wall"
+		if tid != "":
+			hud.tips.tip(tid)
 	match k:
 		"drift_lvl":
 			fx.sparks(p - r.fwd() * 0.5 + Vector3(0, 0.15, 0), Vector3.UP, 6 + 4 * int(v), _drift_col(int(v)), 0.6, 60.0)

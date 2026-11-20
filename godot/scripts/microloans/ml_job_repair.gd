@@ -64,6 +64,7 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 		tool_ls.append(l)
 	MGUI.style_label(tip_l, "mono", MGUI.TEXT)
 	_phase("inspect")
+	hints_on("ml_repair", MGHintsData.REPAIR)
 
 func _desk() -> void:
 	MGProps.desk(at(Vector3(0, 0, 0)), 1.8, 1.0)
@@ -176,6 +177,7 @@ func _phase(p: String) -> void:
 			task_l.text = "Закрути винты обратно"
 		"boot":
 			task_l.text = "Включи: пробел, когда стрелка в зелёной зоне"
+			hint("boot")
 
 func _process(dt: float) -> void:
 	if done:
@@ -298,6 +300,7 @@ func act(kind: String, o: Dictionary) -> void:
 					sfx("fail", 0.8)
 					pop("ПЫЛЬ — НЕ ЧИТАЕТСЯ", (o["node"] as Node3D).global_position + Vector3(0, 0.05, 0), MGUI.GOLD)
 					tip_l.text = "Тестер врёт по пыльной детали — продуй её [4]"
+					hint("dust")
 					return
 				_test(o)
 			elif phase == "swap":
@@ -312,6 +315,7 @@ func act(kind: String, o: Dictionary) -> void:
 					o["removed"] = true
 					sfx("tick", 0.8)
 					task_l.text = "Возьми из лотка: %s" % String(o["name"]).to_lower()
+					hint("tray")
 				else:
 					wrong_part += 1
 					sfx("fail")
@@ -355,6 +359,7 @@ func blow(c: Dictionary) -> void:
 var dust_miss := 0
 
 func _wrong() -> void:
+	hint("wrong")
 	wrong_tool += 1
 	time_left -= 1.5
 	sfx("fail", 1.2)

@@ -30,6 +30,17 @@ var bot := -1.0               # проверка: бот-игрок качест
 var career: MLCareer          # навыки и снаряжение Пахана (мини-игра читает свои параметры: tyaga_*, repair_*, …)
 var tier := 1                 # уровень заказа 1..5: сложнее и дороже (MLUI.job_tier)
 var snd: MLSound              # звук мини-игры
+var hints: MGHints            # подсказки и справка подработки (H) — слева посередине, не мешают
+
+## включить подсказки подработки: набор из MGHintsData; первая — «start» (что что делает)
+func hints_on(id: String, d: Dictionary) -> void:
+	hints = MGHints.new().setup(id, d, "left", 0.56)
+	add_child(hints)
+	hints.tip("start")
+
+func hint(id: String) -> void:
+	if hints != null:
+		hints.tip(id)
 
 ## параметр навыков для мини-игры (без карьеры — 0)
 func cv(key: String) -> float:
