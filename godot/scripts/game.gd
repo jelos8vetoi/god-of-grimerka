@@ -131,6 +131,8 @@ var dmg_log = null           # --damagecheck: [атака, цель, урон, �
 var lock: LockOn            # захват цели (lockon.gd)
 var training: Training = null     # тренировочная арена (training.gd); null — обычная игра
 var golda = null                  # «ГОЛДА 67» (golda67/g67_root.gd, Golda67); null — не приквел
+var dlg_partner = null            # с кем говорит герой (Node3D): камера диалога берёт в кадр его, а не напарника
+var dlg_side := -1.0              # с какой стороны от пары встаёт камера (−1 / +1): выбирает тот, кто начал разговор
 var show_dmg := true          # цифры урона над врагами (в арене — переключатель панели)
 var read: PlayerRead         # что враги знают о поведении игрока (player_read.gd)
 var squad_t := 0.0
@@ -273,7 +275,7 @@ func start_intro() -> void:
 			tw.tween_property(c, "position", home, 0.4).set_delay(INTRO_HUD + rank * 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 func intro_busy() -> bool:
-	return intro_t >= 0.0
+	return intro_t >= 0.0 or (golda != null and golda.scene_busy())      # облёт при входе или постановка приквела
 
 func _intro_camera(rdt: float) -> void:
 	intro_t += rdt
@@ -488,7 +490,7 @@ func _update_fight(dt: float) -> void:
 						toast("Волна %d / %d" % [wave_i + 1, waves.size()])
 					main.sfx("sfx_wave", -8.0)
 					wave_wait = 1.6
-	elif mode == "boss" or training != null:
+	elif mode == "boss" or training != null or golda != null:
 		if boss_e and is_instance_valid(boss_e):
 			boss_fill.size.x = 596.0 * clamp(boss_e.hp / boss_e.max_hp, 0.0, 1.0)
 			if auto_kill > 0.0 and boss_e.alive() and boss_e.age > 5.0:
@@ -1016,6 +1018,11 @@ func _process(dt: float) -> void:
 		yaw = dlg_face - 0.5   # камера перед героями, чуть сбоку: видно оба лица
 		pitch = -0.08
 		want_len = 4.0
+		if dlg_partner != null and is_instance_valid(dlg_partner):
+			# разговор с жителем: двое в профиль, камера сбоку
+			target = (player.vis_pos() + (dlg_partner as Node3D).global_position) * 0.5 + Vector3(0, 1.15, 0)
+			yaw = dlg_face + dlg_side * 1.35
+			want_len = 4.3
 	elif heat_t > 0.0:
 		want_len = 2.9
 	if hype != null and hype.active() and not (mode == "dlg" and not director):
@@ -1067,6 +1074,8 @@ func _process(dt: float) -> void:
 		cam.global_transform = death.camera()      # камеру ведёт сцена гибели
 		cam.h_offset = 0.0
 		cam.v_offset = 0.0
+	elif golda != null and golda.owns_camera():
+		cam.global_transform = golda.camera()      # постановка приквела (выход босса)
 	cam_attributes.dof_blur_far_enabled = ipod_focus > 0.002
 	# A restrained DOF pass establishes depth; the lightweight screen pass below
 	# supplies the remaining focus separation without turning the world to mush.
@@ -1318,6 +1327,7 @@ func _dlg_finish() -> void:
 	voice.stop()
 	dlg_box.visible = false
 	mode = "idle"
+	dlg_partner = null
 	dlg_after.call()
 
 func _update_dialog(dt: float) -> void:
@@ -1750,7 +1760,7 @@ func _update_hud(dt: float) -> void:
 	if golda != null:
 		top_label.text = golda.hud_line()
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second()
-	boss_box.visible = (mode == "boss" or training != null or is_survival()) and is_instance_valid(boss_e) and boss_e.state != "dead"
+	boss_box.visible = (mode == "boss" or training != null or golda != null or is_survival()) and boss_e != null and is_instance_valid(boss_e) and boss_e.state != "dead"
 	if is_survival() and boss_box.visible:
 		boss_fill.size.x = 596.0 * clampf(boss_e.hp / boss_e.max_hp, 0.0, 1.0)
 	flash.color.a = max(0.0, flash.color.a - dt * 1.5)

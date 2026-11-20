@@ -280,7 +280,7 @@ func _process(dt: float) -> void:
 		main.music.volume_db = move_toward(main.music.volume_db, -60.0, dt * 22.0)      # заглавный трек меню уходит за ~2,5 с
 		if main.music.volume_db <= -59.0:
 			main.music.stop()
-	var key: String = game.world.deco if game.world != null else ""
+	var key: String = "hall" if game.in_hall else String(game.chapter()["th"]["deco"])      # арена, приквел и Survival идут под музыку первой главы: своих наборов loc_<deco> у них нет
 	var boss = game.boss_e if (game.mode == "boss" or game.is_survival()) and is_instance_valid(game.boss_e) else null
 	var ducking := 0.0
 	if boss != null and boss.state != "dead":

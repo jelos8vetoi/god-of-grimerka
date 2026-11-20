@@ -47,7 +47,8 @@ static func _walk(n: Node, xf: Transform3D, acc: Array) -> void:
 		_walk(c, x, acc)
 
 ## Поставить модель: pos — точка на полу (у настенных — низ), yaw — поворот, size — габариты [x, y, z], в которые
-## модель вписывается целиком с сохранением пропорций. fit: "h" — по высоте (по умолчанию), "w" — по ширине.
+## модель вписывается целиком с сохранением пропорций. fit: "h" — по высоте (по умолчанию), "w" — по ширине,
+## "d" — по глубине (длине вдоль Z: лестничный пролёт).
 ## Нет файла — возвращает пустой узел с меткой from = "none" (место видно в проверке, кубов-заглушек не ставим).
 static func spawn(id: String, parent: Node, pos: Vector3, yaw: float, size: Vector3, fit := "h") -> Node3D:
 	var path := path_of(id)
@@ -69,6 +70,8 @@ static func spawn(id: String, parent: Node, pos: Vector3, yaw: float, size: Vect
 	var s := size.y / maxf(bs.y, 0.001)
 	if fit == "w":
 		s = size.x / maxf(bs.x, 0.001)
+	elif fit == "d":
+		s = size.z / maxf(bs.z, 0.001)
 	else:
 		s = minf(s, minf(size.x * 1.15 / maxf(bs.x, 0.001), size.z * 1.15 / maxf(bs.z, 0.001)))
 	var holder := Node3D.new()
@@ -82,6 +85,59 @@ static func spawn(id: String, parent: Node, pos: Vector3, yaw: float, size: Vect
 	root.set_meta("from", "glb")
 	root.set_meta("size", bs * s)
 	return root
+
+## Посадить персонажа: бёдра вперёд, голени вниз, таз — на высоту сиденья seat (м над точкой, где стоит риг).
+## Берётся поза покоя «Idle» и замирает (сидящий не переминается); руки остаются как в покое — лежат вдоль тела.
+static func sit(rig: Rig, seat: float) -> void:
+	if rig == null or rig.skel == null:
+		return
+	for i in 3:
+		await rig.get_tree().process_frame
+	if not is_instance_valid(rig) or rig.player == null:
+		return
+	rig.player.pause()
+	var sk: Skeleton3D = rig.skel
+	var hips := sk.find_bone("mixamorig_Hips")
+	if hips < 0:
+		return
+	var hip_h: float = (sk.global_transform * sk.get_bone_global_pose(hips).origin).y - rig.global_position.y
+	for side in ["Left", "Right"]:
+		var up := sk.find_bone("mixamorig_%sUpLeg" % side)
+		var lo := sk.find_bone("mixamorig_%sLeg" % side)
+		if up < 0 or lo < 0:
+			continue
+		var g := sk.get_bone_global_pose(up)
+		g.basis = Basis(Vector3(1, 0, 0), deg_to_rad(-88.0)) * g.basis
+		sk.set_bone_global_pose(up, g)
+		var g2 := sk.get_bone_global_pose(lo)
+		g2.basis = Basis(Vector3(1, 0, 0), deg_to_rad(86.0)) * g2.basis
+		sk.set_bone_global_pose(lo, g2)
+	var sp := sk.find_bone("mixamorig_Spine")
+	if sp >= 0:
+		var g3 := sk.get_bone_global_pose(sp)
+		g3.basis = Basis(Vector3(1, 0, 0), deg_to_rad(-8.0)) * g3.basis      # чуть откинулся на спинку
+		sk.set_bone_global_pose(sp, g3)
+	rig.position.y += seat + 0.06 - hip_h
+	rig.set_meta("sitting", true)
+
+## Поза «держит перед собой»: руки подняты вперёд (КРОТ с люстрой). Берётся поза покоя и замирает.
+static func hold(rig: Rig) -> void:
+	if rig == null or rig.skel == null:
+		return
+	for i in 3:
+		await rig.get_tree().process_frame
+	if not is_instance_valid(rig) or rig.player == null:
+		return
+	rig.player.pause()
+	var sk: Skeleton3D = rig.skel
+	for side in ["Left", "Right"]:
+		for part in [["%sArm", -62.0], ["%sForeArm", -38.0]]:
+			var b := sk.find_bone("mixamorig_" + (String(part[0]) % side))
+			if b < 0:
+				continue
+			var g := sk.get_bone_global_pose(b)
+			g.basis = Basis(Vector3(1, 0, 0), deg_to_rad(float(part[1]))) * g.basis
+			sk.set_bone_global_pose(b, g)
 
 ## Цепь Миши Минасяна на его риге: файл цепи записан в «единицах модели» (1 = наибольшая сторона, начало — центр
 ## основания, tools/golda67-chain.cjs). Вешается на кость груди и идёт за анимацией.
