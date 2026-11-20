@@ -42,6 +42,10 @@ var tyagacheck := ""      # --tyagacheck=<папка>: стиль «ТЯГА-812
 var madkcheck := ""       # --madkcheck=<папка>: оружие madk1d — доска за спиной, гитара в двух руках (scripts/madkcheck.gd)
 var duocheck := ""        # --duocheck=<папка>: дуэт-атака на [T] (scripts/duocheck.gd)
 var damagecheck := ""     # --damagecheck=<папка>: баланс урона (scripts/damagecheck.gd)
+var balance_lab := ""
+var balance_lab_baseline := ""
+var balance_lab_current := ""
+var balance_lab_scenario := ""
 var aicheck := ""         # --aicheck=<папка>: ИИ врагов и боссов (scripts/aicheck.gd)
 var vfxcheck := ""        # --vfxcheck=<папка>: эффекты боя по профилям атак (scripts/vfxcheck.gd)
 var tutorialcheck := ""   # --tutorialcheck=<папка>: боевое обучение (scripts/tutorialcheck.gd)
@@ -66,6 +70,9 @@ func _ready() -> void:
 		InputMap.action_add_event(a[0], m)
 	font = load("res://assets/fonts/RussoOne-Regular.ttf")
 	Opts.apply(get_window())
+	if "--balance-lab" in OS.get_cmdline_user_args():
+		add_child(preload("res://scripts/balance_panel.gd").new())
+		return
 	# отдельная шина для голосов: их громкость не зависит от музыки и эффектов, и её можно измерить в --voicecheck
 	if AudioServer.get_bus_index("Voice") < 0:
 		AudioServer.add_bus()
@@ -121,6 +128,14 @@ func _ready() -> void:
 			transcheck = arg.substr(13)
 		elif arg.begins_with("--damagecheck="):
 			damagecheck = arg.substr(14)
+		elif arg.begins_with("--balance-lab-check="):
+			balance_lab = arg.trim_prefix("--balance-lab-check=")
+		elif arg.begins_with("--balance-lab-baseline="):
+			balance_lab_baseline = arg.trim_prefix("--balance-lab-baseline=")
+		elif arg.begins_with("--balance-lab-current="):
+			balance_lab_current = arg.trim_prefix("--balance-lab-current=")
+		elif arg.begins_with("--balance-lab-scenario="):
+			balance_lab_scenario = arg.trim_prefix("--balance-lab-scenario=")
 		elif arg.begins_with("--aicheck="):
 			aicheck = arg.substr(10)
 		elif arg.begins_with("--vfxcheck="):
@@ -167,6 +182,11 @@ func _ready() -> void:
 			ac.out = arg.substr(12)
 			add_child(ac)
 			return
+	if balance_lab != "":
+		var lab = preload("res://scripts/balance_lab.gd").new()
+		lab.main = self
+		add_child(lab)
+		return
 	if testing() != "":
 		start_game(false, max(start_ch, 0))
 	elif start_ch >= 0:
@@ -280,7 +300,7 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck + vfxcheck + aicheck + damagecheck
+	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck + vfxcheck + aicheck + damagecheck + balance_lab
 
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 func tutorial_on() -> bool:
@@ -291,6 +311,31 @@ func tutorial_on() -> bool:
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
 var intro_fx: IntroFX
+
+func start_survival() -> void:
+	if game != null or menu == null:
+		return
+	if intro_fx == null:
+		intro_fx = IntroFX.new()
+		add_child(intro_fx)
+	if intro_fx.busy:
+		return
+	menu.launching = true
+	await intro_fx.cover("ENDLESS SURVIVAL", "Снежная арена")
+	start_game(false, -1, true, &"survival")
+	for i in 3:
+		await get_tree().process_frame
+	intro_fx.reveal()
+
+func restart_survival(previous: Node) -> void:
+	if not is_instance_valid(previous) or game != previous or not game.is_survival():
+		return
+	game = null
+	previous.free()
+	get_tree().paused = false
+	Engine.time_scale = 1.0
+	start_game(false, -1, false, &"survival")
+
 func cinematic_start(from_save: bool, chapter := -1, line := "") -> void:
 	if intro_fx == null:
 		intro_fx = IntroFX.new()
@@ -308,18 +353,29 @@ func cinematic_start(from_save: bool, chapter := -1, line := "") -> void:
 		await get_tree().process_frame
 	intro_fx.reveal()
 
-func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
+func start_game(from_save := false, chapter := -1, cinematic := false, run_type := &"campaign") -> void:
 	if menu:
 		menu.queue_free()
 		menu = null
 	if game:
+		game.process_mode = Node.PROCESS_MODE_DISABLED
 		game.queue_free()
 	music.volume_db = -16.0
 	if not music.playing and trailer == "":
 		music.play()
 	game = preload("res://scripts/game.gd").new()
 	game.main = self
+	game.run_type = run_type
+	game.intro_on = cinematic
 	add_child(game)
+	if run_type == &"survival":
+		game.begin_survival()
+		return
+	if run_type == &"balance_lab":
+		game._load_arena("snow")
+		game.mode = "fight"
+		game.tag.auto_assist = false
+		return
 	if ipodcheck != "":
 		var chk = preload("res://scripts/ipodcheck.gd").new()
 		chk.game = game
@@ -332,7 +388,6 @@ func start_game(from_save := false, chapter := -1, cinematic := false) -> void:
 	if smoke != "":
 		game.auto_kill = 1.6
 	game.auto_len = auto_len
-	game.intro_on = cinematic
 	if hudcheck != "":
 		var hc = preload("res://scripts/hudcheck.gd").new()
 		hc.game = game

@@ -230,8 +230,8 @@ func _process(dt: float) -> void:
 		main.music.volume_db = move_toward(main.music.volume_db, -60.0, dt * 22.0)      # заглавный трек меню уходит за ~2,5 с
 		if main.music.volume_db <= -59.0:
 			main.music.stop()
-	var key: String = "hall" if game.in_hall else String(game.chapter()["th"]["deco"])
-	var boss = game.boss_e if game.mode == "boss" and game.boss_e != null and is_instance_valid(game.boss_e) else null
+	var key: String = game.world.deco if game.world != null else ""
+	var boss = game.boss_e if (game.mode == "boss" or game.is_survival()) and is_instance_valid(game.boss_e) else null
 	var ducking := 0.0
 	if boss != null and boss.state != "dead":
 		var id: String = boss.boss_id

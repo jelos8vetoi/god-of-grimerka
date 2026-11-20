@@ -98,6 +98,7 @@ func try_start() -> bool:
 	return true
 
 func begin(e, c := "") -> void:
+	game.measure_use(p.hero, "system", "execution")
 	target = e
 	ctx = c
 	data = SETS[p.style.id]
@@ -179,7 +180,7 @@ func _beat(e, dir: Vector3, power: int, last: bool) -> void:
 	var at: Vector3 = e.global_position + Vector3(0, e.height * 0.6, 0)
 	if not last:
 		# промежуточный удар: не убивает, только встряхивает
-		e.take_hit(min(6.0 + 4.0 * power, max(0.0, e.hp - 1.0)), dir, 0.5, false, 0.0)
+		e.take_hit(min(6.0 + 4.0 * power, max(0.0, e.hp - 1.0)), dir, 0.5, false, 0.0, null, "execution", p.hero)
 		game.feedback("hit_heavy" if power >= 1 else "hit_light", at, dir, 0.8, p.style.color)
 		return
 	var col: Color = p.style.color_hot
@@ -221,7 +222,7 @@ func _beat(e, dir: Vector3, power: int, last: bool) -> void:
 		team_hook.call(e, dir)
 	var kind: String = e.kind
 	e.executed = true
-	e.take_hit(e.hp + 10.0, dir, knock, true, launch)
+	e.take_hit(e.hp + 10.0, dir, knock, true, launch, null, "execution", p.hero)
 	game.feedback("hit_super", at, dir, 1.0, col)
 	game.hitstop(0.09)
 	p.swag = min(100.0, p.swag + (22.0 if ctx != "" else 15.0))

@@ -286,6 +286,8 @@ func tick_attack(dt: float, dir: Vector3) -> void:
 		if a.projectile != "":
 			# дистанционная атака: в момент «попадания» снаряд вылетает из руки, урон нанесёт он сам
 			var pool := String(a.extra.get("ammo_style", style.id))      # бросок из комбо балоном тратит запас «Водяры»
+			if game.telemetry != null and pool == "bottles":
+				game.telemetry.expend("bottles_spent", minf(ammo_of(pool), a.ammo))
 			ammo[pool] = max(0.0, ammo_of(pool) - a.ammo)
 			p.launch_projectile(a, charged)
 		else:
@@ -450,8 +452,8 @@ func targets(a: AttackData, idx: int, sweep_only := false) -> Array:
 	return out
 
 ## Урон атаки по цели: база × ПЕРЕГРУЗ × множители. Одна точка для будущих баффов, навыков и мастерства стиля.
-func damage_for(a: AttackData, _target = null) -> float:
-	return a.damage * (Balance.RAGE_MUL if p.rage > 0.0 else 1.0) * float(p.dmg_mul) * float(p.damage_bonus(a))
+func damage_for(a: AttackData, _target = null, extra_moment := 0.0) -> float:
+	return a.damage * (Balance.RAGE_MUL if p.rage > 0.0 else 1.0) * float(p.dmg_mul) * float(p.damage_bonus(a, extra_moment))
 
 func _resolve_hits(idx: int, first: bool, sweep_only := false) -> void:
 	var a := cur
@@ -480,7 +482,11 @@ func _resolve_hits(idx: int, first: bool, sweep_only := false) -> void:
 		(hit_log[idx] as Dictionary)[e.get_instance_id()] = true
 		where = e.global_position + Vector3(0, e.height * 0.62, 0) - dn * e.radius
 		var h := HitInfo.new()
-		h.damage = damage_for(a, e)
+		var extra_moment: float = game.run_mods.consume_swap(game.clock, p.hero) if game.run_mods != null else 0.0
+		h.damage = damage_for(a, e, extra_moment)
+		if extra_moment > 0.0:
+			h.telemetry_ordinary = damage_for(a, e)
+			h.telemetry_effects.append("swap_hit")
 		h.stagger = a.stagger
 		h.dir = dn
 		h.knockback = a.knockback
@@ -493,6 +499,8 @@ func _resolve_hits(idx: int, first: bool, sweep_only := false) -> void:
 		h.style_id = style.id
 		h.source = p
 		h.pos = where
+		if game.run_mods != null:
+			game.run_mods.melee_hit(h, p, list.size())
 		e.take_hit_info(h)
 		game.fx.hit(where, dn, power if last_hits + n < 2 else 0, col)
 		n += 1

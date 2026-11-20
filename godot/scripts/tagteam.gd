@@ -131,7 +131,8 @@ func _physics_process(dt: float) -> void:
 			var rd: Vector3 = relay["dir"]
 			relay = {}
 			if is_instance_valid(re) and re.alive():
-				strike(re, 20.0, 30.0, rd, 3.0, -16.0, true, 1)
+				game.measure_use(p.hero, "team", "tag_air_relay")
+				strike(re, 20.0, 30.0, rd, 3.0, -16.0, true, 1, true, "tag_air_relay")
 				game.fx.sparks(re.global_position + Vector3(0, 1.0, 0), Vector3.DOWN, 10, Color(1, 1, 1, 0.9), 1.0, 40.0)
 				events.append(["relay_slam", mate()])
 	assist_cd = max(0.0, assist_cd - dt)
@@ -312,6 +313,8 @@ func _air_tag(ae) -> bool:
 	duo.air_tag(ae)
 	events.append(["air_tag", p.hero, old_hero])
 	tagged.emit(p.hero, "air_tag")
+	if game.telemetry != null:
+		game.telemetry.team_event(p.hero, "air_tags")
 	_hide_hint()
 	return true
 
@@ -354,6 +357,7 @@ func _hide_hint() -> void:
 
 ## Вошедший герой появляется у цели и бьёт; что именно — по обстановке
 func _team_move(ctx: String, e, old_pos: Vector3) -> void:
+	game.measure_use(p.hero, "team", "tag_" + ctx)
 	tag_cd = TEAM_CD
 	boost_t = 2.5
 	# встать с другой стороны цели от ушедшего героя
@@ -378,43 +382,43 @@ func _team_move(ctx: String, e, old_pos: Vector3) -> void:
 	var k := 1.5 if e.boss_id != "" and e.weak_t > 0.0 else 1.0
 	match ctx:
 		"attack":
-			strike(e, 18.0 * k, 25.0, dir, 5.0, 0.0, false, 1)
+			strike(e, 18.0 * k, 25.0, dir, 5.0, 0.0, false, 1, true, "tag_" + ctx)
 		"launcher":
-			strike(e, 14.0 * k, 20.0, dir, 1.0, 8.5, true, 1)
+			strike(e, 14.0 * k, 20.0, dir, 1.0, 8.5, true, 1, true, "tag_" + ctx)
 			p.velocity.y = 7.5          # герой взлетает вместе с целью
 		"double":
 			b.strike_anim("heavy", e.global_position)
-			strike(e, 34.0 * k, 60.0, dir, 10.0, 0.0, true, 2)
+			strike(e, 34.0 * k, 60.0, dir, 10.0, 0.0, true, 2, true, "tag_" + ctx)
 			game.fx.slam(e.global_position, 1.3, col)
 			game.shake(0.35)
 		"counter":
-			strike(e, 24.0 * k, 45.0, dir, 9.0, 0.0, true, 1)
+			strike(e, 24.0 * k, 45.0, dir, 9.0, 0.0, true, 1, true, "tag_" + ctx)
 			p.combat.open("parry", 0.8)      # ответ продолжается: окно контратаки у вошедшего героя
 		"air_relay":
 			# вошедший бьёт врага в воздухе в сторону напарника — тот вбивает его в землю
 			p.global_position.y = max(p.global_position.y, e.global_position.y - 0.3)
 			p.velocity.y = 5.0
-			strike(e, 16.0 * k, 15.0, -dir, 3.0, 5.0, false, 1)
+			strike(e, 16.0 * k, 15.0, -dir, 3.0, 5.0, false, 1, true, "tag_" + ctx)
 			b.blink(e.global_position - dir * 1.3 + Vector3(0, 0.2, 0), dir)
 			b.velocity.y = 5.0
 			b.strike_anim("air", e.global_position)
 			relay = {"e": e, "t": 0.28, "dir": dir}
 		"ground_relay":
 			# удар по лежачему: поднимает с земли под продолжение
-			strike(e, 26.0 * k, 40.0, dir, 2.0, 5.0, true, 1)
+			strike(e, 26.0 * k, 40.0, dir, 2.0, 5.0, true, 1, true, "tag_" + ctx)
 			game.fx.slam(e.global_position, 1.0, col)
 			game.shake(0.25)
 			p.combat.open("dodge", 0.8)
 		"rescue":
 			# сбивает нападавшего и даёт уйти: вошедший неуязвим мгновение, окно ответа открыто
-			strike(e, 12.0 * k, 70.0, dir, 12.0, 0.0, true, 1)
+			strike(e, 12.0 * k, 70.0, dir, 12.0, 0.0, true, 1, true, "tag_" + ctx)
 			if is_instance_valid(e) and e.alive():
 				e.stun(1.0)
 			p.inv = max(p.inv, 0.8)
 			p.combat.open("parry", 0.9)
 		"perfect":
 			# точная смена под замах: усиленный ответ, враг оглушён, окно точного уклонения у вошедшего
-			strike(e, 32.0 * k, 80.0, dir, 11.0, 0.0, true, 2)
+			strike(e, 32.0 * k, 80.0, dir, 11.0, 0.0, true, 2, true, "tag_" + ctx)
 			if is_instance_valid(e) and e.alive():
 				e.stun(1.4)
 			game.fx.slam(e.global_position, 1.2, col)
@@ -424,7 +428,7 @@ func _team_move(ctx: String, e, old_pos: Vector3) -> void:
 	_boss_window(e)
 
 ## Удар команды: тот же путь, что и у обычных ударов (HitInfo → реакция врага)
-func strike(e, dmg: float, stagger: float, dir: Vector3, knock: float, launch: float, heavy: bool, power: int, lethal := true) -> void:
+func strike(e, dmg: float, stagger: float, dir: Vector3, knock: float, launch: float, heavy: bool, power: int, lethal := true, measure_id := "team", measure_hero := "") -> void:
 	if not is_instance_valid(e) or not e.alive():
 		return
 	var h := HitInfo.new()
@@ -436,6 +440,9 @@ func strike(e, dmg: float, stagger: float, dir: Vector3, knock: float, launch: f
 	h.heavy = heavy
 	h.power = power
 	h.attack_id = "team"
+	if game.telemetry != null:
+		h.telemetry_hero = measure_hero if measure_hero != "" else p.hero
+		h.telemetry_id = measure_id
 	h.source = p
 	h.pos = e.global_position + Vector3(0, e.height * 0.6, 0)
 	e.take_hit_info(h)
@@ -476,6 +483,7 @@ func try_assist_simple() -> bool:
 	var e = target()
 	if e == null:
 		return false
+	game.measure_use(mate(), "team", "assist")
 	assist_cd = ASSIST_CD
 	var col := Color(0.36, 0.82, 1.0) if mate() == "madk1d" else Color(1.0, 0.8, 0.42)
 	var from_p: Vector3 = e.global_position - p.global_position
@@ -487,14 +495,14 @@ func try_assist_simple() -> bool:
 		b.blink(e.global_position + from_p * 1.2 + Vector3(0, -0.4, 0), -from_p)
 		b.velocity.y = 6.0
 		b.strike_anim("air", e.global_position)
-		strike(e, 14.0, 12.0, -from_p * 0.2, 0.5, 5.5, false, 1)
+		strike(e, 14.0, 12.0, -from_p * 0.2, 0.5, 5.5, false, 1, true, "assist", mate())
 		game.popup(e.global_position + Vector3(0, e.height + 0.8, 0), TITLES["air"], col)
 		events.append(["air", mate()])
 	else:
 		# напарник пролетает сквозь цель с другой стороны
 		b.blink(e.global_position + from_p * 1.4, -from_p)
 		b.strike_anim("heavy", e.global_position)
-		strike(e, 16.0 * k, 30.0, from_p.cross(Vector3.UP), 2.0, 0.0, true, 1)
+		strike(e, 16.0 * k, 30.0, from_p.cross(Vector3.UP), 2.0, 0.0, true, 1, true, "assist", mate())
 		game.fx.sparks(e.global_position + Vector3(0, 1.0, 0), -from_p, 10, col, 1.2, 30.0)
 		game.popup(e.global_position + Vector3(0, e.height + 0.8, 0), TITLES["cross"], col)
 		events.append(["cross", mate()])

@@ -16,15 +16,16 @@ const SILVER := Color(0.72, 0.74, 0.77)
 const GREY := Color(0.46, 0.48, 0.51)
 const INK := Color(0.03, 0.03, 0.035)
 const ITEMS := [
-	["CONTINUE", "Продолжить игру с последнего сохранения."],
-	["NEW GAME", "Начать новое прохождение GOD OF GRIMERKA."],
-	["LOAD GAME", "Посмотреть доступное сохранение."],
-	["SETTINGS", "Настройки изображения, звука и управления."],
-	["EXTRAS", "Дополнительная информация об игре."],
-	["EXIT", "Выйти из GOD OF GRIMERKA."],
+	["CONTINUE", "Продолжить игру с последнего сохранения.", &"continue"],
+	["NEW GAME", "Начать новое прохождение GOD OF GRIMERKA.", &"new"],
+	["ROGUELIKE", "Выживание против бесконечных волн.", &"roguelike"],
+	["LOAD GAME", "Посмотреть доступное сохранение.", &"load"],
+	["SETTINGS", "Настройки изображения, звука и управления.", &"settings"],
+	["EXTRAS", "Дополнительная информация об игре.", &"extras"],
+	["EXIT", "Выйти из GOD OF GRIMERKA.", &"exit"],
 ]
 const MIRROR := 660.0        # насколько ниже героев лежит их отражение (подобрано под уровень ступней в кадре)
-const SIZES := [90, 56, 52, 47, 43, 40]
+const SIZES := [80, 51, 49, 46, 43, 40, 37]
 
 const BG_SHADER := """
 shader_type canvas_item;
@@ -191,15 +192,16 @@ func _ready() -> void:
 	_build_list()
 	get_viewport().size_changed.connect(_fit)
 	_fit()
-	_select(0 if has_save else 1, false)
+	_select(_item_index(&"continue" if has_save else &"new"), false)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--menu-render="):
 			_render_heroes(arg.substr(14))
 	# для проверки по снимкам: -- --menu=new|load|settings|extras сразу открывает экран
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--menu="):
-			var i := ["continue", "new", "load", "settings", "extras"].find(arg.substr(7))
-			if i >= 0:
+			var id := StringName(arg.substr(7))
+			var i := _item_index(id)
+			if i >= 0 and id != &"exit":
 				_select(i, false)
 				_activate()
 	main._check_update(func(cb: Callable):
@@ -477,7 +479,7 @@ func _torn(w: float, h: float, seed_v: int) -> PackedVector2Array:
 
 func _build_list() -> void:
 	list = Control.new()
-	list.position = Vector2(60, 452)
+	list.position = Vector2(60, 424)
 	list.rotation = deg_to_rad(-9.0)
 	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(list)
@@ -489,7 +491,7 @@ func _build_list() -> void:
 	for i in ITEMS.size():
 		var size: int = SIZES[i]
 		var root := Control.new()
-		root.position = Vector2(70 + i * 16, y)
+		root.position = Vector2(70 + i * 14, y)
 		root.mouse_filter = Control.MOUSE_FILTER_STOP
 		root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		list.add_child(root)
@@ -502,7 +504,7 @@ func _build_list() -> void:
 		mark.color = WHITE
 		root.add_child(mark)
 		var sub: Label = null
-		if i == 0:
+		if ITEMS[i][2] == &"continue":
 			var st := "Сохранения пока нет" if not has_save else "Глава %d · %s · шаг %d · опыт %d" % [chapter_no(), chapter_name(chapter_no() - 1), int(save.get("step", 0)) + 1, int(save.get("xp", 0))]
 			sub = _text(root, st, 15, INK, Vector2(40, size * 1.1))
 		rows.append({"root": root, "label": lab, "mark": mark, "sub": sub, "w": w, "h": size})
@@ -511,10 +513,16 @@ func _build_list() -> void:
 			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and panel == null:
 				_select(i)
 				_activate())
-		y += size * (1.42 if i == 0 else 1.16)
+		y += size * (1.42 if ITEMS[i][2] == &"continue" else 1.16)
+
+func _item_index(id: StringName) -> int:
+	for i in ITEMS.size():
+		if ITEMS[i][2] == id:
+			return i
+	return -1
 
 func _enabled(i: int) -> bool:
-	return i != 0 or has_save
+	return ITEMS[i][2] != &"continue" or has_save
 
 func _select(i: int, sound := true) -> void:
 	if i != sel and sound:
@@ -523,7 +531,7 @@ func _select(i: int, sound := true) -> void:
 	info.text = ITEMS[i][1] if _enabled(i) else "Сохранения пока нет — начни новую игру."
 	var r: Dictionary = rows[i]
 	var root: Control = r["root"]
-	var h: float = float(r["h"]) * (1.5 if i == 0 else 1.14)
+	var h: float = float(r["h"]) * (1.5 if ITEMS[i][2] == &"continue" else 1.14)
 	band.polygon = _torn(float(r["w"]) + 150.0, h, 7 + i)
 	band.position = Vector2(-60.0, root.position.y + float(r["h"]) * 0.04)
 	band.scale = Vector2(0.9, 1.0)
@@ -532,7 +540,7 @@ func _select(i: int, sound := true) -> void:
 	for k in rows.size():
 		var on := k == i
 		var e := _enabled(k)
-		var col := INK if on else (WHITE if k == 1 else SILVER)
+		var col := INK if on else (WHITE if ITEMS[k][2] == &"new" else SILVER)
 		if not e:
 			col = Color(0.3, 0.31, 0.33) if on else Color(0.32, 0.33, 0.35)
 		(rows[k]["label"] as Label).add_theme_color_override("font_color", col)
@@ -567,23 +575,25 @@ func _activate() -> void:
 	if launching:
 		return
 	main.sfx("sfx_ui")
-	match sel:
-		0:
+	match ITEMS[sel][2]:
+		&"continue":
 			if has_save:
 				launch(true)
-		1:
+		&"new":
 			if has_save:
 				_open("NEW GAME", ["Сохранение будет перезаписано:", "Глава %d · %s" % [chapter_no(), chapter_name(chapter_no() - 1)], "Начать заново с первой главы?"],
 					[["НАЧАТЬ ЗАНОВО", func(): launch(false, 0)], ["ОТМЕНА", _close]], 1)
 			else:
 				launch(false, 0)
-		2:
+		&"roguelike":
+			_open_roguelike()
+		&"load":
 			_open_load()
-		3:
+		&"settings":
 			_open_settings()
-		4:
+		&"extras":
 			_open_extras()
-		5:
+		&"exit":
 			get_tree().quit()
 
 # ---------------- экраны ----------------
@@ -592,7 +602,7 @@ func _activate() -> void:
 ##   [текст или функция текста, действие] — пункт (Enter / ЛКМ),
 ##   [функция текста, null, изменение]    — настройка: A/D или ←/→ меняют значение, Enter — следующее.
 ## Длинные списки прокручиваются, выбранный пункт всегда виден.
-func _open(title: String, lines: Array, actions: Array, start := 0) -> VBoxContainer:
+func _open(title: String, lines: Array, actions: Array, start := 0, title_size := 64) -> VBoxContainer:
 	_close()
 	panel = Control.new()
 	panel.size = STAGE
@@ -612,7 +622,7 @@ func _open(title: String, lines: Array, actions: Array, start := 0) -> VBoxConta
 	edge.width = 2.0
 	edge.default_color = WHITE
 	card.add_child(edge)
-	var head := _text(panel, title, 64, WHITE, Vector2(120, 240), serif, true)
+	var head := _text(panel, title, title_size, WHITE, Vector2(120, 240), serif, true)
 	head.rotation = deg_to_rad(-2.0)
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(126, 334)
@@ -703,6 +713,40 @@ func _close() -> void:
 		panel_rows = []
 		info.text = ITEMS[sel][1] if _enabled(sel) else "Сохранения пока нет — начни новую игру."
 
+var survival_history_open := false
+
+func _open_roguelike() -> void:
+	survival_history_open = false
+	var records := preload("res://scripts/survival_records.gd")
+	var data := records.read()
+	var lines := [
+		"Отбивайся от бесконечных волн врагов. Цель — продержаться как можно дольше.",
+		"ЛИЧНЫЙ РЕКОРД · %s" % (records.format_time(data["best_time"]) if data["completed_runs"] > 0 else "—"),
+	]
+	var actions: Array = []
+	if main.has_method(&"start_survival"):
+		actions.append(["НАЧАТЬ ЗАБЕГ", Callable(main, &"start_survival")])
+	else:
+		lines.append("Забеги пока недоступны. Режим в разработке.")
+		actions.append(["#НАЧАТЬ ЗАБЕГ · НЕДОСТУПНО"])
+	actions.append(["ИСТОРИЯ ЗАБЕГОВ", _open_survival_history])
+	actions.append(["НАЗАД", _close])
+	_open("ROGUELIKE // ENDLESS SURVIVAL", lines, actions, 0, 36)
+	info.text = "Enter / Пробел — выбрать · Esc — назад"
+
+func _open_survival_history() -> void:
+	var records := preload("res://scripts/survival_records.gd")
+	var data := records.read()
+	var lines: Array = ["Всего забегов: %d  ·  Рекорд убийств: %d" % [data["completed_runs"], data["best_kills"]]]
+	for run in data["history"]:
+		lines.append("%s  ·  Враги %d  ·  Боссы %d  ·  События %d  ·  Угроза %d%%" % [
+			records.format_time(run["time"]), run["kills"], run["bosses"], run["events"], roundi(run["threat"] * 100.0)])
+	if data["history"].is_empty():
+		lines.append("Завершённых забегов пока нет.")
+	_open("ИСТОРИЯ ЗАБЕГОВ", lines, [["НАЗАД", _open_roguelike]], 0, 42)
+	survival_history_open = true
+	info.text = "Enter / Пробел — назад · Esc — назад"
+
 func _open_load() -> void:
 	if not has_save:
 		_open("LOAD GAME", ["Сохранений пока нет.", "Игра сохраняется сама — в одну ячейку — после каждого пройденного шага главы."], [["НАЗАД", _close]])
@@ -758,7 +802,10 @@ func _unhandled_input(e: InputEvent) -> void:
 			_panel_activate(-1)
 		elif k == KEY_ESCAPE or k == KEY_BACKSPACE:
 			main.sfx("sfx_ui", -8.0, 0.8)
-			_close()
+			if survival_history_open:
+				_open_roguelike()
+			else:
+				_close()
 		get_viewport().set_input_as_handled()
 		return
 	if up:

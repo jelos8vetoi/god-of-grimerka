@@ -93,17 +93,50 @@ func _ready() -> void:
 		title.add_child(g)
 	var name_l := Label.new()
 	var who := "MADK1D УМЕР" if game != null and game.player != null and String(game.player.hero) == "madk1d" else "ПАХАН УМЕР"
+	var survival_result: Dictionary = game.survival.result if game != null and game.survival != null else {}
+	var title_size := 132
+	if not survival_result.is_empty():
+		who = "ЗАБЕГ ОКОНЧЕН"
+		title_size = 100
 	name_l.text = who
 	name_l.add_theme_font_override("font", serif)
-	name_l.add_theme_font_size_override("font_size", 132)
+	name_l.add_theme_font_size_override("font_size", title_size)
 	name_l.add_theme_color_override("font_color", WHITE)
 	name_l.material = worn
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var w: float = serif.get_string_size(who, HORIZONTAL_ALIGNMENT_LEFT, -1, 132).x
+	var w: float = serif.get_string_size(who, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size).x
 	name_l.scale = Vector2(1.28, 1.0)           # растянутое начертание, как на афише
 	name_l.position = Vector2((STAGE.x - w * 1.28) * 0.5, 96)
 	name_l.name = "Title"
 	title.add_child(name_l)
+	if not survival_result.is_empty():
+		var records := preload("res://scripts/survival_records.gd")
+		var last: Dictionary = survival_result["last_run"]
+		var stats := Label.new()
+		stats.text = "Время %s   ·   Враги %d   ·   Угроза %d%%\nБоссы %d   ·   События %d   ·   Рекорд %s" % [
+			records.format_time(last["time"]), last["kills"], roundi(last["threat"] * 100.0),
+			last["bosses"], last["events"], records.format_time(survival_result["best_time"])]
+		stats.position = Vector2(0, 242)
+		stats.size.x = STAGE.x
+		stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		stats.add_theme_font_size_override("font_size", 29)
+		stats.add_theme_color_override("font_color", WHITE)
+		stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		title.add_child(stats)
+		var perks := Label.new()
+		var names: Array[String] = []
+		for id in last["upgrades"]:
+			names.append("%s ×%d" % [records.Mods.CARDS[id][0], last["upgrades"][id]])
+		var lines: Array[String] = ["УСИЛЕНИЯ · %d" % names.size()]
+		for i in range(0, names.size(), 3):
+			lines.append("   ·   ".join(names.slice(i, i + 3)))
+		perks.text = "\n".join(lines)
+		perks.position.y = 330.0
+		perks.size.x = STAGE.x
+		perks.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		perks.add_theme_font_size_override("font_size", 23)
+		perks.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		title.add_child(perks)
 	for i in 2:
 		var b := Control.new()
 		b.size = Vector2(330, 74)

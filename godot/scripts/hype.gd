@@ -283,7 +283,7 @@ func _alive_targets() -> Array:
 	return targets.filter(func(e): return is_instance_valid(e) and e.alive())
 
 ## удар постановки по одной цели: боссу — в пределах его лимита
-func _hit(e, dmg: float, stagger: float, dir: Vector3, knock: float, launch: float, power: int) -> void:
+func _hit(e, dmg: float, stagger: float, dir: Vector3, knock: float, launch: float, power: int, measure_id := "team_overdrive", measure_hero := "") -> void:
 	if not is_instance_valid(e) or not e.alive():
 		return
 	if e.boss_id != "":
@@ -293,10 +293,10 @@ func _hit(e, dmg: float, stagger: float, dir: Vector3, knock: float, launch: flo
 		if dmg <= 0.0:
 			return
 		var before: float = e.hp
-		game.tag.strike(e, dmg, stagger, dir, knock, launch, power >= 1, power)
+		game.tag.strike(e, dmg, stagger, dir, knock, launch, power >= 1, power, true, measure_id, measure_hero)
 		boss_left[e] = float(boss_left.get(e, 0.0)) - maxf(0.0, before - e.hp)
 		return
-	game.tag.strike(e, dmg, stagger, dir, knock, launch, power >= 1, power)
+	game.tag.strike(e, dmg, stagger, dir, knock, launch, power >= 1, power, true, measure_id, measure_hero)
 
 func _beat(i: int) -> void:
 	var list := _alive_targets()
@@ -339,6 +339,9 @@ func _beat(i: int) -> void:
 
 ## Приём стиля в постановке: who — активный герой (true) или напарник
 func _style_move(style_id: String, mine: bool, list: Array) -> void:
+	var actor: String = p.hero if mine else b.look
+	var measure_id := "overdrive_" + style_id
+	game.measure_use(actor, "team", measure_id)
 	var m: Dictionary = _move(style_id)
 	var col: Color = Styles.by_id(style_id).color_hot
 	var at: Vector3 = p.global_position if mine else b.global_position
@@ -354,23 +357,23 @@ func _style_move(style_id: String, mine: bool, list: Array) -> void:
 		var hp_at: Vector3 = e.global_position + Vector3(0, e.height * 0.6, 0)
 		match String(m["fx"]):
 			"slam":
-				_hit(e, 16.0, 35.0, d, 2.0, 0.0, 1)
+				_hit(e, 16.0, 35.0, d, 2.0, 0.0, 1, measure_id, actor)
 			"splash":
 				game.fx.sparks(hp_at, Vector3.UP, 10, Color(0.6, 0.85, 1.0), 1.0, 70.0)
 				e.slow(3.0)
-				_hit(e, 14.0, 20.0, d, 2.0, 0.0, 1)
+				_hit(e, 14.0, 20.0, d, 2.0, 0.0, 1, measure_id, actor)
 			"pull":
 				if e.boss_id == "":
 					e.global_position = e.global_position.lerp(Vector3(center.x, e.global_position.y, center.z), 0.75)
-				_hit(e, 12.0, 25.0, -d, 0.5, 0.0, 1)
+				_hit(e, 12.0, 25.0, -d, 0.5, 0.0, 1, measure_id, actor)
 			"dash":
 				game.fx.sparks(hp_at, d.cross(Vector3.UP), 8, col, 1.2, 25.0)
-				_hit(e, 15.0, 30.0, d.cross(Vector3.UP), 3.0, 0.0, 1)
+				_hit(e, 15.0, 30.0, d.cross(Vector3.UP), 3.0, 0.0, 1, measure_id, actor)
 			"chord":
 				game.fx.lightning(e.global_position, 3.0, col)
-				_hit(e, 15.0, 30.0, d, 2.0, 0.0, 1)
+				_hit(e, 15.0, 30.0, d, 2.0, 0.0, 1, measure_id, actor)
 			"launch":
-				_hit(e, 14.0, 20.0, d, 1.0, 6.5, 1)
+				_hit(e, 14.0, 20.0, d, 1.0, 6.5, 1, measure_id, actor)
 	match String(m["fx"]):
 		"slam":
 			game.fx.slam(center, 1.2, col)

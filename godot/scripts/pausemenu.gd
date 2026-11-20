@@ -456,9 +456,13 @@ func _open_page(i: int) -> void:
 			_bar(top, "СВЭГ", func(): return game.player.swag / 100.0, func(): return "%d / 100" % int(game.player.swag))
 			_plate(top, func(): return "ПЕРЕГРУЗ: " + ("идёт, ещё %.0f с" % game.player.rage if game.player.rage > 0.0 else ("готов — [R]" if game.player.swag >= 100.0 else "копится, нужен полный СВЭГ")))
 			_line(top, func(): return "▶  %d прослушиваний" % game.xp, 26, WHITE, serif)
-			_line(top, func(): return "Глава %d · %s" % [game.ch + 1, String(game.chapter()["name"])], 19, SILVER)
+			_line(top, func(): return game.objective() if game.is_survival() else "Глава %d · %s" % [game.ch + 1, String(game.chapter()["name"])], 19, SILVER)
 			_rows([["НАЗАД", _close_card]])
 		1:
+			if game.is_survival():
+				_line(top, func(): return "Улучшения для Survival пока недоступны.", 19, SILVER)
+				_rows([["НАЗАД", _close_card]])
+				return
 			_line(top, func(): return "▶  %d" % game.xp, 54, WHITE, serif)
 			_line(top, func(): return "прослушиваний · осталось улучшений: %d из 15" % (15 - int(game.up["hp"]) - int(game.up["dmg"]) - int(game.up["q"])), 17, SILVER)
 			var rows: Array = []
@@ -494,6 +498,13 @@ func _open_page(i: int) -> void:
 			row.add_child(_buddy_portrait())
 			_rows([["НАЗАД", _close_card]])
 		3:
+			if game.is_survival():
+				_big(top, "ENDLESS SURVIVAL", 40)
+				_plate(top, func(): return game.objective())
+				_line(top, func(): return "Враги %d · Боссы %d · События %d" % [
+					game.kills, game.survival.director.bosses_defeated, game.survival.director.events_completed], 18, SILVER)
+				_rows([["НАЗАД", _close_card]])
+				return
 			_line(top, func(): return "ГЛАВА %d" % (game.ch + 1), 18, GREY)
 			_big(top, String(game.chapter()["name"]), 40)
 			_line(top, func(): return String(game.chapter().get("place", "")), 18, SILVER)
@@ -559,7 +570,7 @@ func _tutorial_list() -> void:
 ## Подтверждение выхода в главное меню: прогресс сохранён на начало текущего шага.
 func _confirm_menu() -> void:
 	var top := _card("В МЕНЮ?")
-	_line(top, func(): return "Игра сохранена на начало текущего шага главы — «Continue» вернёт сюда.", 18, SILVER)
+	_line(top, func(): return "Текущий забег завершится без сохранения." if game.is_survival() else "Игра сохранена на начало текущего шага главы — «Continue» вернёт сюда.", 18, SILVER)
 	_rows([["ОСТАТЬСЯ", func(): _open_page(5)], ["ВЫЙТИ В ГЛАВНОЕ МЕНЮ", func(): game._to_menu()]])
 
 static func _time(s: float) -> String:
