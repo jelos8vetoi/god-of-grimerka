@@ -143,13 +143,67 @@ func _run() -> void:
 	await wait(0.3)
 	var moved: float = P.global_position.distance_to(p0)
 	ok(moved > 1.0, "Пахан идёт по подъезду на W (прошёл %.2f м)" % moved)
-	ok(absf(P.global_position.x) < G67World.HUB_X and absf(P.global_position.z) < G67World.HUB_Z, "стены держат: Пахан внутри площадки %s" % str(P.global_position))
-	ok(P.global_position.y < 0.6, "Пахан на полу (y = %.2f)" % P.global_position.y)
+	ok(absf(P.global_position.x) < G67World.HUB_X and absf(P.global_position.z) < G67World.HUB_Z, "стены держат: Пахан внутри подъезда %s" % str(P.global_position))
+	ok(P.global_position.y < 0.6, "Пахан на полу холла (y = %.2f)" % P.global_position.y)
 	await shot("04_walk")
+	# ================= только Балон до первого босса =================
+	ok(G.styles_open() == ["vozduh"] and P.own_styles == ["vozduh"], "до первого босса у Пахана только Балон VOZDUH (%s)" % str(P.own_styles))
+	ok(String(P.style.id) == "vozduh", "в руках Балон")
+	for kk in [KEY_2, KEY_3]:
+		await key(kk)
+		await wait(0.4)
+	ok(String(P.style.id) == "vozduh" and P.switch_to == "", "клавиши 2 и 3 закрытые стили не включают")
+	var fl_meta: Dictionary = {"boss_misha": true}
+	G.data["meta"]["flags"] = fl_meta
+	ok(G.styles_open() == ["vozduh", "bottles"], "после Миши Минасяна открывается Водяра, ТЯГА-812 закрыта")
+	fl_meta["boss_fortuna"] = true
+	ok(G.styles_open() == ["vozduh", "bottles", "tyaga812"], "после FORTUNA 812 открывается ТЯГА-812")
+	G.data["meta"]["flags"] = {}
+	# ================= подъём по лестнице на площадку =================
+	P.global_position = Vector3(-2.3, 0.05, 1.9)
+	P.velocity = Vector3.ZERO
+	P.face = 0.0
+	g.cam_yaw = 0.0
+	await wait(0.4)
+	e2 = InputEventKey.new()
+	e2.keycode = KEY_W
+	e2.physical_keycode = KEY_W
+	e2.pressed = true
+	Input.parse_input_event(e2)
+	await wait(1.1)
+	await shot("04b_stairs")
+	await wait(1.9)
+	e2 = InputEventKey.new()
+	e2.keycode = KEY_W
+	e2.physical_keycode = KEY_W
+	e2.pressed = false
+	Input.parse_input_event(e2)
+	await wait(0.4)
+	ok(P.global_position.y > G67World.LAND_Y - 0.2 and P.global_position.z < G67World.Z_STAIR_TOP, "Пахан поднялся по пролёту на площадку %s" % str(P.global_position))
+	await shot("04c_landing")
+	# спуск обратно
+	P.face = PI
+	g.cam_yaw = PI
+	await wait(0.3)
+	e2 = InputEventKey.new()
+	e2.keycode = KEY_W
+	e2.physical_keycode = KEY_W
+	e2.pressed = true
+	Input.parse_input_event(e2)
+	await wait(3.2)
+	e2 = InputEventKey.new()
+	e2.keycode = KEY_W
+	e2.physical_keycode = KEY_W
+	e2.pressed = false
+	Input.parse_input_event(e2)
+	await wait(0.4)
+	ok(P.global_position.y < 0.5 and P.global_position.z > G67World.Z_EDGE, "и спустился обратно в холл %s" % str(P.global_position))
+	var fr = G.world.actors["g67_dj_flurr"]
+	ok(bool(fr.get_meta("sitting", false)), "dj flürr сидит на лавке")
 	# ================= предметы и подсказка =================
 	var seen := 0
 	for pt in G.world.points:
-		P.global_position = Vector3(pt["pos"].x, 0.05, pt["pos"].z)
+		P.global_position = Vector3(pt["pos"].x, pt["pos"].y + 0.05, pt["pos"].z)
 		P.velocity = Vector3.ZERO
 		await wait(0.25)
 		if G.near == String(pt["id"]) and G.prompt.visible and String(G.prompt.text).contains(String(pt["title"])):
@@ -158,18 +212,22 @@ func _run() -> void:
 			print("GOLDA67CHECK   нет подсказки у «%s» (near = %s)" % [pt["id"], G.near])
 	ok(seen == G.world.points.size(), "подсказка [E] появляется у каждого предмета (%d из %d)" % [seen, G.world.points.size()])
 	var tv: Dictionary = G.point("tv")
-	P.global_position = Vector3(tv["pos"].x, 0.05, tv["pos"].z)
+	P.global_position = Vector3(tv["pos"].x, tv["pos"].y + 0.05, tv["pos"].z)
 	await wait(0.3)
 	await shot("05_prompt")
 	var n0 := G.events.size()
 	await key(KEY_E)
 	await wait(0.3)
 	ok(G.events.size() > n0 and G.events[-1] == ["use", "tv"], "клавиша E у телевизора срабатывает")
-	P.global_position = Vector3(0.0, 0.05, 0.0)
+	P.global_position = Vector3(-1.0, 0.05, 3.1)
 	await wait(0.3)
 	ok(G.near == "" and not G.prompt.visible, "вдали от предметов подсказки нет")
 	# снимки хаба с разных точек
-	for v in [["06_view_back", Vector3(0, 0.05, 3.0), PI], ["07_view_front", Vector3(0, 0.05, -2.5), 0.0], ["08_view_left", Vector3(2.0, 0.05, 0.5), PI * 0.5], ["09_view_right", Vector3(-2.0, 0.05, 0.5), -PI * 0.5]]:
+	var L := G67World.LAND_Y + 0.05
+	for v in [["06_tambur_in", Vector3(0, 0.05, 6.9), 0.0], ["06b_hall_to_stairs", Vector3(0.3, 0.05, 4.6), 0.0], ["06c_hall_to_exit", Vector3(-0.4, 0.05, 2.2), PI],
+			["06d_hall_left", Vector3(0.6, 0.05, 3.8), PI * 0.5], ["06e_hall_right", Vector3(-1.8, 0.05, 3.8), -PI * 0.5],
+			["07_landing_back", Vector3(-0.2, L, -1.2), 0.0], ["07b_landing_to_hall", Vector3(0.2, L, -4.6), PI],
+			["07c_landing_left", Vector3(1.6, L, -3.4), PI * 0.5], ["07d_landing_right", Vector3(-1.4, L, -2.2), -PI * 0.5], ["07e_flurr", Vector3(-1.2, L, -3.55), PI * 0.5]]:
 		P.global_position = v[1]
 		P.face = v[2]
 		g.cam_yaw = v[2]
