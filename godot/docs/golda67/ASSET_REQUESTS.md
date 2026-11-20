@@ -644,7 +644,7 @@ A fat grumpy city pigeon standing on the ground, a self-important little bird. R
 
 | id | Модель | Файл | Длина | Статус |
 |---|---|---|---|---|
-| G67-Y13 | Шаурмичная «ШАУРМА 67» | `godot/assets/golda67/g67_shawarma_kiosk.glb` | 975 | промпт выдан |
+| G67-Y13 | Шаурмичная «ШАУРМА 67» | `godot/assets/golda67/g67_shawarma_kiosk.glb` | 975 | интегрирована 2026-11-20 |
 
 ### G67-Y13 — Шаурмичная «ШАУРМА 67»
 
