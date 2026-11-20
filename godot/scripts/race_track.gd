@@ -726,9 +726,20 @@ func _rings() -> void:
 		add_child(n)
 		var file := "res://assets/racing/race_trick_ring.glb"
 		if ResourceLoader.exists(file):
+			# модель владельца: отверстие у неё смотрит вдоль X — разворот на четверть; обод вписан так, чтобы
+			# дыра была радиусом R (как у кольца из деталей), центр дыры — в точке кольца; стойки до земли — свои
 			var g: Node3D = (load(file) as PackedScene).instantiate()
-			g.scale = Vector3.ONE * (R * 2.0 / 3.4)
-			n.add_child(g)
+			var bb := RaceTomsk._box_of(g, Transform3D.IDENTITY)
+			var k: float = (R + 0.25) / (0.3 * bb.size.y)
+			var hold := Node3D.new()
+			hold.rotation.y = PI * 0.5
+			n.add_child(hold)
+			hold.add_child(g)
+			g.scale = Vector3.ONE * k
+			g.position = -Vector3(bb.get_center().x, bb.position.y + bb.size.y * 0.53, bb.get_center().z) * k
+			for sx in [-1.0, 1.0]:
+				var hgt2: float = maxf(0.3, float(q[2]) - R * 0.9)
+				RaceItems.cyl(n, 0.08, 0.1, hgt2, mats["metal"] if mats.has("metal") else RaceItems.mat("steel", Color(0.62, 0.64, 0.68), 0.35, 0.8), Vector3(sx * R * 0.6, -R * 0.9 - hgt2 * 0.5, 0))
 		else:
 			for k in 12:
 				var a0 := TAU * k / 12.0
@@ -877,6 +888,57 @@ func _gates() -> void:
 	ban2.position = g0["pos"] + Vector3(0, 6.0, 0) + (g0["tan"] as Vector3) * 0.25
 	ban2.rotation.y = yaw
 	add_child(ban2)
+	_start_dress()
+
+## Стартовые огни над дорогой чуть впереди линии и трибуны по обе стороны стартовой прямой со зрителями —
+## из моделей владельца (race_start_lights / race_grandstand / npc_spectator); нет файлов — ничего не ставится.
+func _start_dress() -> void:
+	var fi := at_s(start_s + 14.0)
+	var right: Vector3 = T[fi].cross(Vector3.UP)
+	var yaw := atan2(T[fi].x, T[fi].z)
+	var span: float = W[fi] + SHOULDER * 2.0 + 2.4
+	place_glb("res://assets/racing/race_start_lights.glb", P[fi], yaw, Vector3(span, 9.0, 12.0))
+	for sd in [-1.0, 1.0]:
+		var gi := at_s(start_s - 22.0 + sd * 6.0)
+		var r2: Vector3 = T[gi].cross(Vector3.UP)
+		var face: Vector3 = -r2 * sd
+		var gp: Vector3 = P[gi] + r2 * sd * (W[gi] * 0.5 + SHOULDER + 7.5)
+		gp.y = 0.0
+		var st := place_glb("res://assets/racing/race_grandstand.glb", gp, atan2(face.x, face.z), Vector3(13.0, 6.0, 8.0))
+		if st == null:
+			continue
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash(id) + int(sd * 7.0)
+		for q in 5:
+			var row := q % 3
+			var lp := Vector3(-4.0 + q * 2.0 + rng.randf_range(-0.4, 0.4), 1.0 + row * 1.15, 1.6 - row * 1.5)
+			var fan := place_glb("res://assets/racing/npc_spectator.glb", st.transform * lp, atan2(face.x, face.z) + rng.randf_range(-0.4, 0.4), Vector3(1.2, 1.55, 1.2))
+			if fan != null:
+				fan.add_to_group("race_fans")
+
+## поставить модель из файла: основанием в точку, лицом по yaw, вписать в размер size (x — ширина, y — высота,
+## z — глубина; по высоте, не шире и не глубже). Модели владельца с сайта Tripo смотрят лицом по +X — turn
+## доворачивает лицо на +Z узла (RaceTomsk.FRONT). Нет файла — null.
+func place_glb(path: String, pos: Vector3, yaw: float, size: Vector3, turn := RaceTomsk.FRONT) -> Node3D:
+	if not ResourceLoader.exists(path):
+		return null
+	var g: Node3D = (load(path) as PackedScene).instantiate()
+	var bb := RaceTomsk._box_of(g, Transform3D.IDENTITY)
+	var bs := bb.size
+	if absf(fmod(absf(turn), PI) - PI * 0.5) < 0.1:
+		bs = Vector3(bs.z, bs.y, bs.x)
+	var k: float = minf(size.y / maxf(bs.y, 0.001), minf(size.x / maxf(bs.x, 0.001), size.z / maxf(bs.z, 0.001)))
+	var n := Node3D.new()
+	n.position = pos
+	n.rotation.y = yaw
+	add_child(n)
+	var hold := Node3D.new()
+	hold.rotation.y = turn
+	n.add_child(hold)
+	hold.add_child(g)
+	g.scale = Vector3.ONE * k
+	g.position = -Vector3(bb.get_center().x, bb.position.y, bb.get_center().z) * k
+	return n
 
 func _boxes() -> void:
 	boxes = []

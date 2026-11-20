@@ -14,6 +14,7 @@ var cam: Camera3D
 var pahan: Rig
 var phone: MeshInstance3D
 var phone_screen: StandardMaterial3D
+var phone_scr: MeshInstance3D      # подсветка экрана поверх телефона из файла (видна только при сообщении)
 var lamp: SpotLight3D
 var monitor_mat: StandardMaterial3D
 var laptop_mat: Material
@@ -191,6 +192,14 @@ func _room() -> void:
 	scr.material_override = phone_screen
 	scr.position.y = 0.008
 	phone.add_child(scr)
+	# телефон владельца (ml_phone.glb): коробка-заглушка прячется, экран-подсветка вспыхивает только при сообщении
+	if MGModels.has("ml_phone"):
+		phone.transparency = 1.0
+		phone_scr = scr
+		scr.visible = false
+		scr.scale = Vector3(0.82, 1.0, 0.72)
+		scr.position.y = 0.02
+		MGModels.spawn("ml_phone", phone, Vector3(0, -0.006, 0), 0.0, Vector3(0.09, 0.03, 0.17), Callable())
 	MGProps.calculator(_at(Vector3(0.88, 0.785, -1.62), -0.25))
 	bills_root = _at(Vector3(0.78, 0.785, -2.0), 0.1)
 	cash_root = _at(Vector3(-0.72, 0.785, -1.45), 0.3)
@@ -289,12 +298,17 @@ func desk_refresh() -> void:
 		var bill := MGProps.box(bills_root, Vector3(randf_range(-0.02, 0.02), 0.002 + k * 0.004, randf_range(-0.02, 0.02)), Vector3(0.21, 0.003, 0.29), MGProps.mat("paper") if L["status"] != "overdue" else MGProps.mat("red"), Vector3(0, randf_range(-0.3, 0.3), 0))
 		bill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var stacks := clampi(econ.money / 3000, 0, 12)
+	var glb := MGModels.has("ml_cash_stack")
 	for k in stacks:
 		var st := Node3D.new()
-		st.position = Vector3(float(k % 3) * 0.17, float(k / 3) * 0.03, float(k / 6) * 0.09)
+		# пачки из файла толще: по три в ряд, рядами вглубь и слоями вверх
+		st.position = Vector3(float(k % 3) * 0.17, float(k / 6) * 0.072, float((k / 3) % 2) * 0.1) if glb else Vector3(float(k % 3) * 0.17, float(k / 3) * 0.03, float(k / 6) * 0.09)
 		st.rotation.y = randf_range(-0.2, 0.2)
 		cash_root.add_child(st)
-		MGProps.cash(st, 3)
+		if glb:
+			MGModels.spawn("ml_cash_stack", st, Vector3.ZERO, 0.0, Vector3(0.15, 0.08, 0.075), Callable())
+		else:
+			MGProps.cash(st, 3)
 
 ## бизнесы и покупки видно в комнате: инструменты и приставка — мастерская, вторая ТЯГА — служба уборки,
 ## коробки — доставка, колонка и микшер — студия, ящик хлама — склад; уровень — больше вещей
@@ -439,6 +453,8 @@ func _on_note(text: String, kind: String) -> void:
 	buzz_t = 0.6
 	glance(-0.42, 1.4)                        # телефон загудел — Пахан косится на него
 	phone_screen.emission_energy_multiplier = 2.4
+	if phone_scr != null:
+		phone_scr.visible = true
 	phone_screen.albedo_color = Color(1.0, 0.4, 0.35) if kind == "bad" or kind == "warn" else (Color(0.5, 1.0, 0.6) if kind == "money" else Color(0.9, 0.95, 1.0))
 	phone_screen.emission = phone_screen.albedo_color
 	match kind:
@@ -530,6 +546,8 @@ func _life(dt: float) -> void:
 			ui.notify(String(MLData.SPAM[randi() % MLData.SPAM.size()]), "info")
 			buzz_t = 0.6
 			phone_screen.emission_energy_multiplier = 2.4
+			if phone_scr != null:
+				phone_scr.visible = true
 			phone_screen.albedo_color = Color(0.9, 0.95, 1.0)
 			phone_screen.emission = phone_screen.albedo_color
 			snd.play("notify")
@@ -550,6 +568,8 @@ func _process(dt: float) -> void:
 		if buzz_t <= 0.0:
 			phone.position.x = 0.55
 			phone_screen.emission_energy_multiplier = 0.3
+			if phone_scr != null:
+				phone_scr.visible = false
 	if react_t > 0.0:
 		react_t -= dt
 		if react_t <= 0.0 and rest_t <= 0.0:

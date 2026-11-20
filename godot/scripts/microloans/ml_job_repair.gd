@@ -42,6 +42,7 @@ var diag_ok := true
 var screen_mat: StandardMaterial3D
 var bot_t := 0.0
 var tool_ls: Array = []
+var cover_y := 0.043               # высота крышки (у корпуса из файла — выше)
 
 func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	rng.seed = seed_v
@@ -83,15 +84,21 @@ func _device() -> void:
 	var w := 0.34 if tier != 4 else 0.46
 	var d := 0.22 if tier != 4 else 0.32
 	var body_m := MGProps.mat("plastic_black") if tier != 5 else MGProps.mat("steel")
-	MGProps.box(dev, Vector3(0, 0.02, 0), Vector3(w, 0.04, d), body_m)
-	MGProps.box(dev, Vector3(0, 0.041, 0), Vector3(w - 0.03, 0.002, d - 0.03), MGProps.mat("green_paint"))   # плата
+	# смартфон — вскрытый корпус из файла владельца (ml_job_phone_open.glb): рамка и плата; детали — поверх
+	var shell: Node3D = MGModels.spawn_flat("ml_job_phone_open", dev, Vector3.ZERO, 0.0, w, d) if tier == 1 else null
+	if shell == null:
+		MGProps.box(dev, Vector3(0, 0.02, 0), Vector3(w, 0.04, d), body_m)
+		MGProps.box(dev, Vector3(0, 0.041, 0), Vector3(w - 0.03, 0.002, d - 0.03), MGProps.mat("green_paint"))   # плата
 	var names: Array = D["parts"]
+	# корпус из файла толще коробки: детали и винты — на его верх
+	var lift: float = maxf(0.0, float(shell.get_meta("h", 0.04)) - 0.035) if shell != null else 0.0
 	for k in names.size():
-		var p := Vector3(-w * 0.3 + (k % 2) * w * 0.6, 0.05, -d * 0.22 + (k / 2) * d * 0.44)
+		var p := Vector3(-w * 0.3 + (k % 2) * w * 0.6, lift + 0.05, -d * 0.22 + (k / 2) * d * 0.44)
 		var m := StandardMaterial3D.new()
 		m.albedo_color = [Color(0.2, 0.2, 0.22), Color(0.75, 0.6, 0.2), Color(0.3, 0.3, 0.6), Color(0.6, 0.6, 0.62)][k]
 		m.roughness = 0.5
 		var c := MGProps.box(dev, p, Vector3(w * 0.3, 0.02, d * 0.28), m)
+		_part_model(c, String(names[k]), w * 0.28, d * 0.26)
 		if k == broken:
 			MGProps.ball(c, Vector3(0.0, 0.011, 0.0), 0.012, MGProps.mat("black"), Vector3(1.8, 0.2, 1.2))   # нагар
 		comps.append({"node": c, "name": names[k], "tested": false, "bad": k == broken, "mat": m, "dust": false})
@@ -107,7 +114,8 @@ func _device() -> void:
 			(dc["node"] as Node3D).add_child(holder)
 			for b in 7:
 				MGProps.ball(holder, Vector3(rng.randf_range(-0.04, 0.04), 0.013, rng.randf_range(-0.025, 0.025)), rng.randf_range(0.008, 0.016), MGProps.mat("card"), Vector3(1.3, 0.5, 1.2))
-	cover = at(Vector3(0, 0.043, 0), 0.0, dev)
+	cover_y = 0.043 + lift
+	cover = at(Vector3(0, cover_y, 0), 0.0, dev)
 	MGProps.box(cover, Vector3(0, 0.006, 0), Vector3(w, 0.012, d), body_m)
 	MGProps.box(cover, Vector3(w * 0.2, 0.013, 0), Vector3(w * 0.25, 0.002, d * 0.3), MGProps.mat("red"))
 	screen_mat = StandardMaterial3D.new()
@@ -119,10 +127,22 @@ func _device() -> void:
 	var ns: int = int(D["screws"])
 	for k in ns:
 		var a := TAU * k / ns + 0.4
-		var sp := Vector3(cos(a) * w * 0.44, 0.055, sin(a) * d * 0.4)
+		var sp := Vector3(cos(a) * w * 0.44, lift + 0.055, sin(a) * d * 0.4)
 		var s := MGProps.cyl(dev, sp, 0.009, 0.009, 0.012, MGProps.mat("steel"), Vector3.ZERO, 8)
 		MGProps.box(s, Vector3(0, 0.007, 0), Vector3(0.012, 0.002, 0.003), MGProps.mat("black"))
 		screws.append({"node": s, "out": false, "home": sp})
+
+## деталь смартфона из файла владельца (аккумулятор, динамик, шлейф) лежит поверх своей плашки: плашка остаётся
+## подложкой — по ней тестер подсвечивает «исправно / неисправно»
+const PART_MODELS := {"АККУМУЛЯТОР": "ml_job_part_battery", "ШЛЕЙФ ЭКРАНА": "ml_job_part_flex", "ДИНАМИК": "ml_job_part_speaker"}
+func _part_model(pad: Node3D, part: String, w: float, d: float) -> void:
+	var id: String = PART_MODELS.get(part, "")
+	if id == "" or not MGModels.has(id):
+		return
+	if id == "ml_job_part_speaker":
+		MGModels.spawn(id, pad, Vector3(0, 0.01, 0), 0.0, Vector3(w, 0.02, d), Callable())
+	else:
+		MGModels.spawn_flat(id, pad, Vector3(0, 0.01, 0), 0.0, w, d)
 
 ## лоток с запчастями: нужная и две похожие
 func _tray() -> void:
@@ -133,6 +153,7 @@ func _tray() -> void:
 	for k in 3:
 		var p := Vector3(0.42, 0.81, -0.22 + k * 0.12)
 		var n := MGProps.box(world_root, p, Vector3(0.09, 0.02, 0.07), (comps[opts[k]]["mat"] as Material))
+		_part_model(n, String(names[opts[k]]), 0.085, 0.065)
 		# подпись детали — мелко, на краю лотка справа от неё (не поверх детали)
 		var l := MGProps.text(world_root, String(names[opts[k]]).capitalize(), p + Vector3(0.115, 0.003, 0.0), 8, Color(0.95, 0.9, 0.8), Vector3(-PI / 2, 0, 0))
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -350,7 +371,7 @@ func _screw(s: Dictionary, out: bool) -> void:
 
 func _open(open_it: bool) -> void:
 	var tw := cover.create_tween()
-	tw.tween_property(cover, "position", Vector3(0.0, 0.2, -0.12) if open_it else Vector3(0, 0.043, 0), 0.4).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(cover, "position", Vector3(0.0, 0.2 + cover_y - 0.043, -0.12) if open_it else Vector3(0, cover_y, 0), 0.4).set_trans(Tween.TRANS_CUBIC)
 	tw.parallel().tween_property(cover, "rotation:x", -0.9 if open_it else 0.0, 0.4)
 	sfx("open" if open_it else "close")
 	if open_it:

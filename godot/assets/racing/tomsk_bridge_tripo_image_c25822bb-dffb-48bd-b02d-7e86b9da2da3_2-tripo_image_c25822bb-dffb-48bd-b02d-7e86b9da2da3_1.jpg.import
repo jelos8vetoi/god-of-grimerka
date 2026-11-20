@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://b7a5emxutag6u"
+path.s3tc="res://.godot/imported/tomsk_bridge_tripo_image_c25822bb-dffb-48bd-b02d-7e86b9da2da3_2-tripo_image_c25822bb-dffb-48bd-b02d-7e86b9da2da3_1.jpg-53cb3a64827dc71ebfb1c0560fd036b1.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "582492ca98f03782c188e03da57c4a4f"
+}
+
+[deps]
+
+source_file="res://assets/racing/tomsk_bridge_tripo_image_c25822bb-dffb-48bd-b02d-7e86b9da2da3_2-tripo_image_c25822bb-dffb-48bd-b02d-7e86b9da2da3_1.jpg"
+dest_files=["res://.godot/imported/tomsk_bridge_tripo_image_c25822bb-dffb-48bd-b02d-7e86b9da2da3_2-tripo_image_c25822bb-dffb-48bd-b02d-7e86b9da2da3_1.jpg-53cb3a64827dc71ebfb1c0560fd036b1.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=1024
+detect_3d/compress_to=1

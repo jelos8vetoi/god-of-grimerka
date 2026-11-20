@@ -376,16 +376,30 @@ func _doors() -> void:
 		doors[side] = d
 		# панель с кнопками ближе к Пахану
 		var pz := DOOR_Z + DOOR_W / 2 + 0.38
-		box(Vector3(x - s * 0.04, 1.2, pz), Vector3(0.04, 0.62, 0.3), mats["black"])
-		_button("door_" + side, Vector3(x - s * 0.08, 1.36, pz), mats["red"], 0.13, "", self).rotation.z = deg_to_rad(90) * s
-		_button("light_" + side, Vector3(x - s * 0.08, 1.06, pz), mats["paper"], 0.12, "", self).rotation.z = deg_to_rad(90) * s
+		# пульт у проёма — модель владельца (fn_door_panel.glb: красная кнопка — дверь, белая — свет); кнопки-цилиндры
+		# остаются для нажатия мышью, но невидимы и стоят точно на кнопках модели
+		var panel_glb := MGModels.has("fn_door_panel")
+		if panel_glb:
+			var pn := MGModels.spawn("fn_door_panel", self, Vector3(x - s * 0.02, 0.83, pz), PI * 0.5 if s < 0 else -PI * 0.5, Vector3(0.36, 0.74, 0.4), Callable())
+			MGModels.lift(pn, 0.05)
+		else:
+			box(Vector3(x - s * 0.04, 1.2, pz), Vector3(0.04, 0.62, 0.3), mats["black"])
+		var bd := _button("door_" + side, Vector3(x - s * 0.08, 1.37 if panel_glb else 1.36, pz), mats["red"], 0.13, "", self)
+		bd.rotation.z = deg_to_rad(90) * s
+		var bl := _button("light_" + side, Vector3(x - s * 0.08, 1.13 if panel_glb else 1.06, pz), mats["paper"], 0.12, "", self)
+		bl.rotation.z = deg_to_rad(90) * s
+		if panel_glb:
+			bd.transparency = 1.0
+			bl.transparency = 1.0
 		# подписи у кнопок проёма: крупно, с обводкой и клавишей — читаются с места охранника
-		for pair in [["ДВЕРЬ · %s" % ("A" if s < 0 else "D"), 1.52], ["СВЕТ · %s" % ("Q" if s < 0 else "E"), 0.9]]:
-			var dl := label(String(pair[0]), Vector3(x - s * 0.065, float(pair[1]), pz), 34, Color(0.97, 0.95, 0.9), Vector3(0, -deg_to_rad(90) * s, 0))
+		# у модели пульта подписи — над и под корпусом и перед ним (корпус выступает от стены на ~0,2 м)
+		var lx := 0.22 if panel_glb else 0.065
+		for pair in [["ДВЕРЬ · %s" % ("A" if s < 0 else "D"), 1.66 if panel_glb else 1.52], ["СВЕТ · %s" % ("Q" if s < 0 else "E"), 0.74 if panel_glb else 0.9]]:
+			var dl := label(String(pair[0]), Vector3(x - s * lx, float(pair[1]), pz), 34, Color(0.97, 0.95, 0.9), Vector3(0, -deg_to_rad(90) * s, 0))
 			dl.outline_size = 10
 			dl.outline_modulate = Color(0, 0, 0, 0.95)
 			dl.shaded = false
-		_led("door_" + side, Vector3(x - s * 0.07, 1.62, pz))
+		_led("door_" + side, Vector3(x - s * (0.21 if panel_glb else 0.07), 1.59 if panel_glb else 1.62, pz + (0.12 if panel_glb else 0.0)))
 
 # ---------------- вентиляция ----------------
 func _vents() -> void:

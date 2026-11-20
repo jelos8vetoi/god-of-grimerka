@@ -171,7 +171,12 @@ func _level() -> void:
 		var wgt := 1.0
 		if big:
 			wgt = 4.0
-			MGProps.carton(node, Vector3(0.32, 0.22, 0.26), "")
+			if kind == 9 and MGModels.has("ml_job_trash_set"):
+				MGModels.spawn("ml_job_trash_set", node, Vector3.ZERO, 0.0, Vector3(0.42, 0.26, 0.42), Callable())
+			elif MGModels.has("ml_job_parcel_box"):
+				MGModels.spawn("ml_job_parcel_box", node, Vector3.ZERO, 0.0, Vector3(0.32, 0.26, 0.28), Callable())
+			else:
+				MGProps.carton(node, Vector3(0.32, 0.22, 0.26), "")
 		elif kind >= 5:
 			wgt = 2.0
 			MGProps.cyl(node, Vector3(0, 0.04, 0), 0.035, 0.035, 0.12, MGProps.mat("red") if kind % 2 else MGProps.mat("steel"), Vector3(PI / 2, 0, 0))
@@ -201,6 +206,14 @@ func _level() -> void:
 		sm.albedo_color = [Color(0.2, 0.13, 0.07, 0.88), Color(0.1, 0.1, 0.11, 0.88), Color(0.3, 0.08, 0.07, 0.88)][k % 3]
 		sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		sm.roughness = 0.35
+		var flat := MGModels.spawn_flat("ml_job_stain_set", sn, Vector3(0, 0.004, 0), 0.0, sr * 2.4, sr * 1.3)
+		if flat != null:
+			flat.scale = Vector3(1.0, 0.35, 1.0)            # пятно — плёнка на полу, а не лепёшка
+			for gm in flat.find_children("*", "MeshInstance3D", true, false):
+				(gm as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			trash.append({"node": sn, "w": 3.0, "big": false, "val": false, "got": false, "pull": 0.0, "stain": true, "hp": 1.0, "r": sr, "mat": sm, "glb": flat.find_children("*", "MeshInstance3D", true, false)})
+			stains_all += 1
+			continue
 		for q in 3:
 			var blob := MeshInstance3D.new()
 			var cm := CylinderMesh.new()
@@ -528,6 +541,8 @@ func _wash(dt: float, fwd: Vector3) -> void:
 		var slow := clampf(1.35 - absf(speed) / 3.2, 0.3, 1.0)          # медленнее — чище
 		t["hp"] = float(t["hp"]) - dt * (1.0 + cv("tyaga_power")) * (1.0 if wash else 0.25) * slow / 0.8
 		(t["mat"] as StandardMaterial3D).albedo_color.a = clampf(float(t["hp"]), 0.0, 1.0) * 0.88
+		for gm in t.get("glb", []):
+			(gm as GeometryInstance3D).transparency = 1.0 - clampf(float(t["hp"]), 0.0, 1.0) * 0.95
 		bot_stall = 0.0
 		if foam_t <= 0.0:
 			foam_t = 0.18

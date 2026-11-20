@@ -80,6 +80,9 @@ static func tent(p: Node3D, pos: Vector3, r: float, h: float, m: Material) -> vo
 	cyl(p, pos + Vector3(0, h * 0.5, 0), 0.0, r, h, m, 4, Vector3(0, PI / 4, 0))
 	cyl(p, pos + Vector3(0, h + 0.7, 0), 0.0, 0.07, 1.4, mat("spire", Color(0.75, 0.7, 0.5), 0.4))
 
+## модели владельца, скачанные с сайта Tripo (tripo_convert_*.glb), смотрят лицом по +X; здесь лицо — +Z
+const FRONT := -PI * 0.5
+
 static func spawn(kind: String, parent: Node3D, pos: Vector3, yaw := 0.0, k := 1.0) -> Node3D:
 	var n := Node3D.new()
 	n.name = "tomsk_" + kind
@@ -89,8 +92,56 @@ static func spawn(kind: String, parent: Node3D, pos: Vector3, yaw := 0.0, k := 1
 	parent.add_child(n)
 	var file := "res://assets/racing/tomsk_%s.glb" % kind
 	if ResourceLoader.exists(file):
-		n.add_child((load(file) as PackedScene).instantiate())
+		# модель владельца вписывается в те же габариты, что у сборки кодом: по высоте, не шире и не глубже её
+		# с запасом; длинная сторона модели — вдоль длинной стороны сборки (автобус, трамвай, мост)
+		var ref := Node3D.new()
+		_build(kind, ref)
+		var want := _box_of(ref, Transform3D.IDENTITY)
+		ref.free()
+		var g: Node3D = (load(file) as PackedScene).instantiate()
+		var have := _box_of(g, Transform3D.IDENTITY)
+		var turn := FRONT                               # лицо модели (+X) — на лицо сборки (+Z)
+		have = AABB(Vector3(have.position.z, have.position.y, have.position.x), Vector3(have.size.z, have.size.y, have.size.x))
+		if (want.size.x > want.size.z * 1.4 and have.size.z > have.size.x * 1.4) or (want.size.z > want.size.x * 1.4 and have.size.x > have.size.z * 1.4):
+			turn += PI * 0.5                            # длинная сторона не совпала (автобус, трамвай, мост) — ещё на четверть
+			have = AABB(Vector3(have.position.z, have.position.y, have.position.x), Vector3(have.size.z, have.size.y, have.size.x))
+		var s: float = want.size.y / maxf(have.size.y, 0.001)
+		s = minf(s, minf(want.size.x * 1.25 / maxf(have.size.x, 0.001), want.size.z * 1.25 / maxf(have.size.z, 0.001)))
+		var holder := Node3D.new()
+		holder.rotation.y = turn
+		n.add_child(holder)
+		holder.add_child(g)
+		g.scale = Vector3.ONE * s
+		var own := _box_of(g, Transform3D.IDENTITY)            # в координатах самой модели (до масштаба)
+		g.position = Vector3(-own.get_center().x * s, -own.position.y * s, -own.get_center().z * s)
+		holder.position = Vector3(want.get_center().x, want.position.y, want.get_center().z)
+		n.set_meta("glb", true)
 		return n
+	_build(kind, n)
+	return n
+
+## габариты всего, что нарисовано внутри узла (в его координатах)
+static func _box_of(nd: Node, xf: Transform3D) -> AABB:
+	var out := AABB()
+	var first := true
+	var acc: Array = []
+	_walk(nd, xf, acc)
+	for a in acc:
+		out = a if first else out.merge(a)
+		first = false
+	return out
+
+static func _walk(nd: Node, xf: Transform3D, acc: Array) -> void:
+	for c in nd.get_children():
+		var x := xf
+		if c is Node3D:
+			x = xf * (c as Node3D).transform
+		if c is MeshInstance3D and (c as MeshInstance3D).mesh != null:
+			acc.append(x * (c as MeshInstance3D).mesh.get_aabb())
+		_walk(c, x, acc)
+
+## сборка кодом (запасная, когда файла нет; и мерка габаритов для файла)
+static func _build(kind: String, n: Node3D) -> void:
 	var white := mat("trim", Color(0.93, 0.92, 0.86))
 	match kind:
 		"wooden_tent":
@@ -277,4 +328,3 @@ static func spawn(kind: String, parent: Node3D, pos: Vector3, yaw := 0.0, k := 1
 			box(n, Vector3(0, 5.1, -1.5), Vector3(1.6, 0.05, 0.05), mat("rail", Color(0.2, 0.2, 0.22)))
 		_:
 			box(n, Vector3(0, 2, 0), Vector3(4, 4, 4), white)
-	return n
