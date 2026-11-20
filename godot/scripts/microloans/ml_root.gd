@@ -642,4 +642,4 @@ func _feel() -> void:
 func quit_to_menu() -> void:
 	save()
 	if main != null:
-		main.end_minigame(3)
+		main.end_minigame(ModeSelect.index_of("microloans"))

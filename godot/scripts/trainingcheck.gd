@@ -63,7 +63,7 @@ func _run() -> void:
 	mm._select(1, false)
 	await key(KEY_ENTER)
 	await wait(0.4)
-	mm.modes.select(1, false)
+	mm.modes.select(ModeSelect.index_of("training"), false)
 	await key(KEY_ENTER)
 	await wait(0.3)
 	ok(mm.panel != null and mm.panel_rows.size() == 4, "PLAY → TRAINING ARENA открывает экран выбора (%d пунктов)" % mm.panel_rows.size())

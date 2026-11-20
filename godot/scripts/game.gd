@@ -130,6 +130,7 @@ var tag: TagTeam              # Tag Team: здоровье обоих герое
 var dmg_log = null           # --damagecheck: [атака, цель, урон, кадр физики] каждого попадания по врагу; null — не пишем
 var lock: LockOn            # захват цели (lockon.gd)
 var training: Training = null     # тренировочная арена (training.gd); null — обычная игра
+var golda = null                  # «ГОЛДА 67» (golda67/g67_root.gd, Golda67); null — не приквел
 var show_dmg := true          # цифры урона над врагами (в арене — переключатель панели)
 var read: PlayerRead         # что враги знают о поведении игрока (player_read.gd)
 var squad_t := 0.0
@@ -275,7 +276,7 @@ func _intro_camera(rdt: float) -> void:
 		intro_done.emit()
 
 func _save() -> void:
-	if main.testing() != "" or training != null:      # арена сюжетное сохранение не трогает
+	if main.testing() != "" or training != null or golda != null:      # арена и приквел сюжетное сохранение не трогают
 		return
 	var f := FileAccess.open(SAVE, FileAccess.WRITE)
 	if f:
@@ -509,6 +510,9 @@ func in_arena(p: Vector3, margin: float) -> bool:
 
 func on_kill(e) -> void:
 	kills += 1
+	if golda != null:
+		golda.on_kill(e)             # приквел: свои награды, опыта и сюжета кампании нет
+		return
 	if training != null:
 		training.on_kill(e)          # арена: без опыта, без сюжета
 		return
@@ -537,6 +541,9 @@ func on_kill(e) -> void:
 			slowmo(0.6)
 
 func on_player_dead() -> void:
+	if golda != null:
+		golda.on_dead()              # приквел: своя гибель, сюжет и постоянное не стираются
+		return
 	if training != null:
 		training.on_dead()           # арена: гибель — не поражение
 		return
@@ -1501,6 +1508,9 @@ func set_paused(v: bool) -> void:
 func _to_menu() -> void:
 	get_tree().paused = false
 	Engine.time_scale = 1.0
+	if golda != null:
+		main.end_golda67()           # из приквела — на его карточку в выборе режима
+		return
 	main.show_menu()
 
 # ---------------- прокачка, выбор, финал ----------------
@@ -1606,9 +1616,11 @@ func _update_hud(dt: float) -> void:
 		obj = "   ·   выйди из подъезда во двор"
 	top_label.text = "ГЛАВА %d · %s%s" % [ch + 1, String(chapter()["name"]), obj]
 	xp_label.text = "▶ %d" % xp
-	xp_label.visible = training == null
+	xp_label.visible = training == null and golda == null
 	if training != null:
 		top_label.text = training.hud_line()
+	if golda != null:
+		top_label.text = golda.hud_line()
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second()
 	boss_box.visible = (mode == "boss" or training != null) and boss_e != null and is_instance_valid(boss_e) and boss_e.state != "dead"
 	flash.color.a = max(0.0, flash.color.a - dt * 1.5)

@@ -22,6 +22,7 @@ var deathcheck := ""        # --deathcheck=<папка>: проверка сце
 var uiqa := ""              # --uiqa=<папка>: сквозная проверка всего интерфейса (scripts/uiqa.gd)
 var soundcheck := ""        # --soundcheck=<папка>: звук как у игрока — меню, кампания, арена (scripts/soundcheck.gd)
 var trainingcheck := ""     # --trainingcheck=<папка>: тренировочная арена из меню (scripts/trainingcheck.gd)
+var golda67check := ""      # --golda67check=<папка>: приквел «ГОЛДА 67» из меню (scripts/golda67/golda67check.gd)
 var modecheck := ""         # --modecheck=<папка>: главное меню и экран выбора режима (scripts/modecheck.gd)
 var racecheck := ""         # --racecheck=<папка>: гонки на пылесосах из меню (scripts/racecheck.gd)
 var racenet := ""           # --race-netcheck=<папка> (хост) / --race-netclient=<папка> (клиент): сетевая гонка (scripts/racenetcheck.gd)
@@ -177,6 +178,8 @@ func _ready() -> void:
 			soundcheck = arg.substr(13)
 		elif arg.begins_with("--trainingcheck="):
 			trainingcheck = arg.substr(16)
+		elif arg.begins_with("--golda67check="):
+			golda67check = arg.substr(15)
 		elif arg.begins_with("--modecheck="):
 			modecheck = arg.substr(12)
 		elif arg.begins_with("--racecheck="):
@@ -267,6 +270,11 @@ func _ready() -> void:
 			snd.main = self
 			snd.out = soundcheck
 			add_child(snd)
+		if golda67check != "":
+			var g67c = preload("res://scripts/golda67/golda67check.gd").new()
+			g67c.main = self
+			g67c.out = golda67check
+			add_child(g67c)
 		if trainingcheck != "":
 			var trc = preload("res://scripts/trainingcheck.gd").new()
 			trc.main = self
@@ -430,12 +438,12 @@ func testing() -> String:
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 ## Играет человек, а не проверка: только тогда игра пишет его настройки iPod и прочее «на выходе»
 func user_play() -> bool:
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and playtest == "" and trailermodes == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and golda67check == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and playtest == "" and trailermodes == "" and not voicecheck
 
 func tutorial_on() -> bool:
 	if tutorialcheck != "":
 		return true
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and playtest == "" and trailermodes == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and golda67check == "" and modecheck == "" and soundcheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and playtest == "" and trailermodes == "" and not voicecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
@@ -479,6 +487,42 @@ func cinematic_training(hero: String, style: String) -> void:
 	for i in 3:
 		await get_tree().process_frame
 	intro_fx.reveal()
+
+## «ГОЛДА 67» из меню: та же шторка; игра создаётся как у арены, сюжет кампании не идёт, её сохранение не пишется
+func cinematic_golda67() -> void:
+	if not await _intro_ready():
+		return
+	await intro_fx.cover("ГОЛДА 67", "сюжетный приквел · подъезд")
+	await start_golda67()
+	starting = false
+	for i in 3:
+		await get_tree().process_frame
+	intro_fx.reveal()
+
+func start_golda67() -> void:
+	if menu:
+		menu.queue_free()
+		menu = null
+	if game:
+		game.queue_free()
+	music.volume_db = -16.0
+	if not music.playing:
+		music.play()
+	game = preload("res://scripts/game.gd").new()
+	game.main = self
+	add_child(game)
+	var g67 := Golda67.new()
+	game.golda = g67
+	game.add_child(g67)
+	g67.setup(game)
+	game._apply_upgrades()
+	await g67.begin()
+
+## конец «ГОЛДА 67»: меню → выбор режима на её карточке
+func end_golda67() -> void:
+	show_menu()
+	if menu != null:
+		menu.open_modes(ModeSelect.index_of("golda67"))
 
 ## Гонка на пылесосах из меню: та же шторка; сюжет, опыт и сохранение кампании не участвуют
 func cinematic_race(cfg: Dictionary) -> void:
@@ -568,14 +612,14 @@ func end_race_online(reason: String) -> void:
 	net_msg = reason
 	show_menu()
 	if menu != null:
-		menu.open_modes(2)
+		menu.open_modes(ModeSelect.index_of("race"))
 		menu.open_online()
 
 ## конец гонки: в главное меню или сразу в меню гонок
 func end_race(to_race_menu: bool) -> void:
 	show_menu()
 	if to_race_menu and menu != null:
-		menu.open_modes(2)
+		menu.open_modes(ModeSelect.index_of("race"))
 		menu.open_race()
 
 func start_training(hero: String, style: String) -> void:

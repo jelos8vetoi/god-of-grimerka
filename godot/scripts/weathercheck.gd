@@ -112,7 +112,7 @@ func _run() -> void:
 	await wait(2.0)
 	# ================= меню =================
 	var mm = main.menu
-	mm.open_modes(2)
+	mm.open_modes(ModeSelect.index_of("race"))
 	await wait(0.5)
 	mm.open_race()
 	await wait(0.3)

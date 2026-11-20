@@ -18,16 +18,19 @@ const MODES := [
 	{"id": "story", "no": "01", "title": "STORY MODE", "ru": "СЮЖЕТ", "word": "STORY",
 		"desc": "Пахан с Балоном VOZDUH и его кент madk1d идут через Облако. Продолжи сохранение, начни заново или загрузи ячейку.",
 		"facts": ["CONTINUE · NEW GAME · LOAD GAME", "одна ячейка сохранения, прогресс главы и улучшения сохраняются"]},
-	{"id": "training", "no": "02", "title": "TRAINING ARENA", "ru": "ТРЕНИРОВКА", "word": "TRAIN",
+	{"id": "golda67", "no": "02", "title": "ГОЛДА 67", "ru": "СЮЖЕТНЫЙ ПРИКВЕЛ", "word": "67",
+		"desc": "Турнир на 67 000 голды: madk1d записал Пахана, отменить нельзя. Забеги через районы, боссы, фитсы — и подъезд, куда возвращаешься.",
+		"facts": ["roguelite · свой сюжет до событий кампании", "своё сохранение, кампания не трогается"]},
+	{"id": "training", "no": "03", "title": "TRAINING ARENA", "ru": "ТРЕНИРОВКА", "word": "TRAIN",
 		"desc": "Площадка без сюжета, опыта и сохранения: все шесть стилей, манекены, замахи, воздух и босс с настоящими приёмами.",
 		"facts": ["выбор героя и стиля перед входом", "F1 в арене — панель: зоны, враги, цифры урона, упражнения"]},
-	{"id": "race", "no": "03", "title": "VACUUM RACING", "ru": "ГОНКИ НА ПЫЛЕСОСАХ", "word": "RACE",
+	{"id": "race", "no": "04", "title": "VACUUM RACING", "ru": "ГОНКИ НА ПЫЛЕСОСАХ", "word": "RACE",
 		"desc": "Аркадные гонки на ТЯГЕ-812: дрифт, турбо, трамплины и предметы против пяти соперников.",
 		"facts": ["одиночная гонка и заезд на время", "свои трассы, рекорды и управление"]},
-	{"id": "microloans", "no": "04", "title": "PAHAN MICROLOANS", "ru": "ПАХАН НАБРАЛ МИКРОЗАЙМОВ", "word": "ДОЛГ",
+	{"id": "microloans", "no": "05", "title": "PAHAN MICROLOANS", "ru": "ПАХАН НАБРАЛ МИКРОЗАЙМОВ", "word": "ДОЛГ",
 		"desc": "Неделя в долгах у четырёх контор: проценты, мелкий шрифт, звонки коллекторов, подработки и пять концовок.",
 		"facts": ["7 дней · переговоры · подработки-мини-игры", "своё сохранение, кампания не трогается"]},
-	{"id": "five_nights", "no": "05", "title": "FIVE NIGHTS WITH PAHAN", "ru": "5 НОЧЕЙ С ПАХАНОМ", "word": "НОЧЬ",
+	{"id": "five_nights", "no": "06", "title": "FIVE NIGHTS WITH PAHAN", "ru": "5 НОЧЕЙ С ПАХАНОМ", "word": "НОЧЬ",
 		"desc": "Ночная смена в «Облаке»: камеры, двери, свет, вентиляция и энергия до шести утра. Они уже знают, что ты здесь.",
 		"facts": ["5 ночей, шестая ночь и своя ночь", "хоррор: играть в наушниках"]},
 ]
@@ -43,6 +46,13 @@ var wipe: Polygon2D
 var lines: Array = []         # полосы скорости у гонок
 var t := 0.0
 var built := false
+
+## номер карточки режима по id (порядок MODES — единственное место, где он задан; в коде номера не пишем)
+static func index_of(id: String) -> int:
+	for i in MODES.size():
+		if String(MODES[i]["id"]) == id:
+			return i
+	return 0
 
 func setup(m) -> void:
 	menu = m
@@ -250,6 +260,8 @@ func _build_art(i: int) -> void:
 		match id:
 			"training":
 				_scene_training(vp)
+			"golda67":
+				_scene_golda67(vp)
 			"microloans":
 				_scene_microloans(vp)
 			"five_nights":
@@ -288,6 +300,26 @@ func _build_art(i: int) -> void:
 		root.add_child(ring)
 		root.move_child(ring, 2)
 	arts.append({"root": root, "vp": vp, "pic": pic})
+
+## «ГОЛДА 67»: Пахан с балоном против Миши Минасяна (первый босс приквела, с цепью)
+func _scene_golda67(vp: SubViewport) -> void:
+	_cam(vp, Vector3(0.1, 1.3, 6.6), Vector3(0.1, 1.0, 0.0))
+	var ph := Rig.new()
+	vp.add_child(ph)
+	ph.setup("res://assets/models/pahan.glb", 1.85, Poses.pahan_armed(), false, -1.0, "mode_pahan_armed")
+	ph.attach("res://assets/models/balon.glb", "r", {"axis": "y", "from": 98.0, "to": 0.0, "grip": 0.07, "length": 0.56, "shadow": false})
+	ph.position = Vector3(-0.95, 0, 0.5)
+	ph.rotation.y = 0.8
+	ph.play("CombatIdle" if ph.has_clip("CombatIdle") else "Idle", 0.0)
+	var path := G67Models.DIR + "g67_misha.glb"
+	if ResourceLoader.exists(path):
+		var boss := Rig.new()
+		vp.add_child(boss)
+		boss.setup(path, 2.15, Poses.pahan(), false, 1.0, "g67_misha")
+		boss.position = Vector3(1.2, 0, -0.4)
+		boss.rotation.y = -0.75
+		boss.play("Idle", 0.0)
+		G67Models.misha_chain(boss)
 
 ## Пахан с балоном в боевой стойке и манекен-бот на размеченной площадке
 func _scene_training(vp: SubViewport) -> void:
@@ -502,6 +534,8 @@ func _tag(k: int) -> String:
 			return "ГЛАВА %02d" % menu.chapter_no() if menu.has_save else "НОВАЯ ИГРА"
 		"training":
 			return "6 СТИЛЕЙ · 5 ЗОН"
+		"golda67":
+			return "ПОДЪЕЗД" if G67Save.exists() else "НОВАЯ ИГРА"
 		"microloans":
 			return ("ИДЁТ ДЕНЬ %d" % _ml_day()) if MLSave.has_run() else "7 ДНЕЙ"
 		"five_nights":
