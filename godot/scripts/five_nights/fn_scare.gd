@@ -21,6 +21,42 @@ var cam_from := Transform3D()
 ## Модель сдвигается внутри своего рига (плавно — тряска камеры остаётся видна), после скримера возвращается.
 const AIM := {"balon": [0.62, 0.03], "madk1d": [0.52, 0.02], "bot": [0.6, 0.02], "clipper": [0.72, -0.03], "ghost": [0.45, 0.0], "mod": [1.05, 0.06]}
 var aim_id := ""
+## Мёртвая тишина перед ударом: веса вариантов у каждого свои (кто-то почти всегда выходит из тишины, кто-то — без
+## предупреждения). dead — пропадает всё, amb — гул и вентиляция, sfx — обрываются эффекты, none — тишины нет.
+const HUSH := {
+	"balon": {"dead": 5, "amb": 3, "none": 2}, "dark": {"dead": 6, "none": 4},
+	"madk1d": {"dead": 4, "sfx": 3, "none": 3}, "bot": {"dead": 3, "amb": 4, "none": 3},
+	"clipper": {"none": 6, "dead": 2, "sfx": 2}, "ghost": {"dead": 7, "amb": 3},
+	"mod": {"sfx": 4, "dead": 4, "none": 2}, "pahan": {"dead": 1},
+}
+const HUSH_LEN := Vector2(0.15, 0.35)   # сколько длится тишина, с
+static var hush_last := ""
+var hush := "none"                 # вариант этого скримера
+var hush_len := 0.0
+var hush_t0 := 0                   # когда началась тишина (мс) — для проверки
+var scream_len := 1.0
+
+func _pick_hush(eid: String) -> String:
+	var W: Dictionary = HUSH.get(eid, {"dead": 1, "none": 1})
+	var sum := 0
+	for k in W:
+		sum += int(W[k]) if not (k == hush_last and W.size() > 1) else maxi(1, int(W[k]) / 3)     # тот же вариант подряд — редко
+	var x := randi() % maxi(1, sum)
+	for k in W:
+		x -= int(W[k]) if not (k == hush_last and W.size() > 1) else maxi(1, int(W[k]) / 3)
+		if x < 0:
+			hush_last = String(k)
+			return String(k)
+	return "none"
+
+## ожидание перед ударом: последние hush_len секунд — в тишине (если она выпала)
+func _lead(sec: float) -> void:
+	var cut := hush_len if hush != "none" else 0.0
+	await _wait(maxf(0.0, sec - cut))
+	if hush != "none":
+		hush_t0 = Time.get_ticks_msec()
+		root.hush_begin(hush)
+		await _wait(cut)
 
 func _process(dt: float) -> void:
 	if aim_id == "" or not actors.owned.has(aim_id):
@@ -61,10 +97,12 @@ func _face_cam(r: Rig, p: Vector3) -> void:
 func play(eid: String, at: String, pre: int) -> void:
 	busy = true
 	cam_from = office.cam.transform
-	match pre:
-		0:                                          # тишина: всё глохнет, пауза
-			root.duck(true)
-			await _wait(randf_range(0.5, 0.9))
+	hush = force_hush if force_hush != "" else _pick_hush(eid)
+	hush_len = randf_range(HUSH_LEN.x, HUSH_LEN.y)
+	side = 1.0 if at.ends_with("_r") else -1.0
+	match (pre if hush == "none" else (1 if pre == 1 else 0)):
+		0:                                          # без вступления: тишина (если выпала) придёт прямо перед ударом
+			pass
 		1:                                          # лампа мигает и гаснет
 			for k in 4:
 				office.lamp.light_energy = 0.0 if k % 2 == 0 else 0.6
@@ -98,13 +136,15 @@ func play(eid: String, at: String, pre: int) -> void:
 	busy = false
 
 var scare_id := ""                # чей скример идёт
+var force_hush := ""              # проверка: задать вариант тишины
+var side := -1.0                  # с какой стороны пришёл: −1 — левая дверь, +1 — правая
 
 func _wait(sec: float) -> void:
 	await get_tree().create_timer(sec, true, false, true).timeout
 
 ## общее: крик, свет, тряска, искажение, наезд камеры (FOV)
 func _hit(scream: String, lamp_col: Color, fov_to := 58.0) -> void:
-	root.sfx2(scream, 2.0)
+	scream_len = root.scream(scream.trim_prefix("scream_"))          # крик — в тот же кадр, что и рывок
 	aim_id = scare_id
 	office.lamp.light_color = lamp_col
 	office.lamp.light_energy = 3.2
@@ -121,11 +161,21 @@ func _maw_open(id: String, dur: float) -> void:
 
 func _shake_loop(sec: float, k: float) -> void:
 	var t0 := Time.get_ticks_msec()
+	await get_tree().create_timer(0.14, true, false, true).timeout       # рывок взгляда к лицу успевает закончиться
+	# поза рывка держится до конца крика: клип дальше почти стоит (иначе корпус продолжает клониться и лицо уходит
+	# из кадра — у Балона была видна макушка баллона). У BOT клип дёргается своим кодом — его не трогаем.
+	var rig: Rig = actors.rigs.get(scare_id)
+	if rig != null and scare_id != "bot":
+		rig.player.speed_scale = 0.08
+	# тряска — вокруг одного взгляда, а не случайным блужданием: лицо остаётся в кадре до конца крика
+	var base: Vector3 = office.cam.rotation
 	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
-		office.shake = maxf(office.shake, k)
+		var fade := 1.0 - 0.5 * clampf(float(Time.get_ticks_msec() - t0) / (sec * 1000.0), 0.0, 1.0)
+		office.shake = maxf(office.shake, k * fade)
 		office.scare_light.light_energy = randf_range(2.2, 5.0) if randf() > 0.12 else 0.4     # свет бьётся
-		office.cam.rotation += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.012 * k
+		office.cam.rotation = base + Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.03 * k * fade
 		await get_tree().process_frame
+	office.cam.rotation = base
 
 # ---------------- БАЛОН ----------------
 func _balon(r: Rig, dark: bool) -> void:
@@ -148,12 +198,12 @@ func _balon(r: Rig, dark: bool) -> void:
 	var look := create_tween()
 	look.tween_interval(0.25)
 	look.tween_property(office.cam, "rotation", Vector3(0.28, office.cam.rotation.y, 0.0), 0.12).set_trans(Tween.TRANS_EXPO)
-	await _wait(0.34)
+	await _lead(0.34)
 	_hit("scream_dark" if dark else "scream_balon", Color(1.0, 0.12, 0.08))
 	_maw_open("balon", 0.18)
 	var tw2 := create_tween()
 	tw2.tween_property(r, "global_position", _front(0.7, 0.0, -1.32 - 0.5), 0.2).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	await _shake_loop(0.85, 1.0)
+	await _shake_loop(clampf(scream_len * 0.45, 0.85, 1.4), 1.0)        # низкий долгий рёв — и трясёт дольше
 
 # ---------------- MADK1D ----------------
 func _madk1d(r: Rig) -> void:
@@ -169,7 +219,7 @@ func _madk1d(r: Rig) -> void:
 	look.tween_property(office.cam, "rotation", Vector3(-0.05, 0.0, 0.0), 0.15)
 	var tw := create_tween()
 	tw.tween_property(r, "global_position", Vector3(0.2, 0.8, -0.8), 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	await _wait(0.42)
+	await _lead(0.42)
 	_hit("scream_madk1d", Color(0.9, 0.2, 0.15), 54.0)
 	_maw_open("madk1d", 0.14)
 	var tw2 := create_tween()
@@ -179,15 +229,15 @@ func _madk1d(r: Rig) -> void:
 
 # ---------------- BOT ----------------
 func _bot(r: Rig) -> void:
-	var p0 := FNOffice.point("door_l")
+	var p0 := FNOffice.point("door_l" if side < 0.0 else "door_r")       # вламывается с той стороны, где стоял
 	_face_cam(r, p0)
 	r.play("FNWalk", 0.0, 2.0)
 	var look := create_tween()
-	look.tween_property(office.cam, "rotation", Vector3(-0.05, deg_to_rad(58.0), 0.0), 0.14).set_trans(Tween.TRANS_EXPO)
+	look.tween_property(office.cam, "rotation", Vector3(-0.05, deg_to_rad(-58.0 * side), 0.0), 0.14).set_trans(Tween.TRANS_EXPO)
 	var tw := create_tween()
-	tw.tween_property(r, "global_position", Vector3(-0.85, 0.0, 0.2), 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(r, "global_position", Vector3(0.85 * side, 0.0, 0.2), 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	root.sfx3("clank", p0, 6.0, 0.9)
-	await _wait(0.3)
+	await _lead(0.3)
 	r.play_for("FNScare", 1.1, 0.0)
 	_hit("scream_bot", Color(1.0, 0.1, 0.1))
 	_maw_open("bot", 0.1)
@@ -199,29 +249,29 @@ func _bot(r: Rig) -> void:
 		await _wait(0.07)
 	r.player.speed_scale = 1.0
 	var tw2 := create_tween()
-	tw2.tween_property(r, "global_position", Vector3(-0.55, 0.0, 0.45), 0.15)
+	tw2.tween_property(r, "global_position", Vector3(0.55 * side, 0.0, 0.45), 0.15)
 	await _shake_loop(0.4, 1.0)
 
 # ---------------- CLIPPER ----------------
 func _clipper(r: Rig) -> void:
-	var p0 := FNOffice.point("door_l") + Vector3(-0.6, 0, 0)
+	var p0 := FNOffice.point("door_l" if side < 0.0 else "door_r") + Vector3(0.6 * side, 0, 0)
 	var look := create_tween()
-	look.tween_property(office.cam, "rotation", Vector3(-0.08, deg_to_rad(40.0), 0.0), 0.1)
+	look.tween_property(office.cam, "rotation", Vector3(-0.08, deg_to_rad(-40.0 * side), 0.0), 0.1)
 	_face_cam(r, p0)
 	r.play("Run", 0.0, 1.6)
 	root.sfx3("scrape", p0, 6.0, 1.3)
 	var tw := create_tween()
-	tw.tween_property(r, "global_position", _front(0.75, -0.1, -1.32), 0.2).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	tw.tween_property(r, "global_position", _front(0.75, 0.1 * side, -1.32), 0.2).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
 	await _wait(0.2)
 	_face_cam(r, r.global_position)
 	r.play_for("FNScare", 0.9, 0.0)
 	var turn := create_tween()                   # взгляд рывком за ним — он уже перед лицом
 	turn.tween_property(office.cam, "rotation", Vector3(-0.22, 0.0, 0.0), 0.1).set_trans(Tween.TRANS_EXPO)
-	await _wait(0.36)
+	await _lead(0.36)
 	_hit("scream_clipper", Color(0.85, 0.85, 1.0), 60.0)
 	_maw_open("clipper", 0.1)
 	root.ui_slash()
-	await _shake_loop(0.8, 1.1)
+	await _shake_loop(0.6, 1.2)                  # крик короткий — и удар короткий
 
 # ---------------- GHOST ----------------
 func _ghost(r: Rig) -> void:
@@ -231,12 +281,12 @@ func _ghost(r: Rig) -> void:
 	root.sfx2("whisper", 0.0)
 	var tw := create_tween()
 	tw.tween_property(r, "global_position", _front(1.1, 0.05, -1.22), 0.6).set_trans(Tween.TRANS_SINE)
-	await _wait(0.6)
+	await _lead(0.6)
 	_face_cam(r, _front(0.33, 0.0, -1.2))
 	_hit("scream_ghost", Color(0.7, 0.6, 1.0), 50.0)
 	_maw_open("ghost", 0.08)
 	root.ui_invert(0.45)
-	await _shake_loop(0.75, 0.8)
+	await _shake_loop(1.25, 0.8)                 # вой с эхом тянется — он висит перед лицом дольше
 
 # ---------------- MOD ----------------
 func _mod(r: Rig) -> void:
@@ -246,7 +296,7 @@ func _mod(r: Rig) -> void:
 	root.ui.tablet_k = 0.0
 	_face_cam(r, _front(1.35, 0.0, -1.05))
 	r.play_for("FNScare", 1.0, 0.0)
-	await _wait(0.32)
+	await _lead(0.32)
 	_hit("scream_mod", Color(0.45, 0.6, 1.0), 56.0)
 	_maw_open("mod", 0.1)
 	root.shards(_front(0.6, 0, -0.05))
@@ -263,7 +313,8 @@ func pahan(lethal := false) -> void:
 	cam_from = office.cam.transform
 	var r: Rig = actors.pahan_copy()
 	office.reflection.visible = true
-	root.duck(true)
+	hush = "dead"
+	hush_len = randf_range(HUSH_LEN.x, HUSH_LEN.y)
 	root.sfx2("heart", -6.0, 0.8)
 	await _wait(0.5)
 	office.reflection.visible = false
@@ -276,10 +327,10 @@ func pahan(lethal := false) -> void:
 	r.play("FNStill", 0.0)
 	office.scare_light.light_color = Color(0.85, 0.9, 1.0)
 	office.scare_light.light_energy = 1.2
-	await _wait(0.75)
+	await _lead(0.75)
 	r.play_for("FNScare", 1.0, 0.0)
 	_face_cam(r, _front(0.92, 0.0, -1.3))
-	root.sfx2("scream_pahan", 3.0, 1.0)
+	scream_len = root.scream("pahan")
 	office.shake = 1.8
 	root.ui.hurt = 1.0
 	office.scare_light.light_energy = 4.5
@@ -288,8 +339,8 @@ func pahan(lethal := false) -> void:
 	_maw_open("pahan", 0.12)
 	await _shake_loop(0.75, 1.1)
 	root.ui.neg = false
-	root.duck(false)
 	if not lethal:
+		root.hush_end()
 		r.visible = false
 		actors.maw("pahan", 0.0)
 		office.scare_light.light_energy = 0.0
@@ -301,6 +352,7 @@ func pahan(lethal := false) -> void:
 ## вернуть всё, что трогал скример
 func restore() -> void:
 	aim_id = ""
+	root.hush_end()
 	office.scare_light.light_energy = 0.0
 	office.cam.fov = 74.0
 	office.cam.transform = cam_from

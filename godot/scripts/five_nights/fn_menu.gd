@@ -331,6 +331,10 @@ func open_settings() -> void:
 			var bus: String = b[0]
 			var nm: String = b[1]
 			list.append({"text": func(): return "%s: %d %%" % [nm, roundi(float(a.vol[bus]) * 100.0)], "step": func(d: int): a.set_volume(bus, clampf(snappedf(float(a.vol[bus]) + 0.05 * d, 0.05), 0.0, 1.0))})
+	list.append({"text": func(): return "ГРОМКОСТЬ СКРИМЕРОВ: %d %%" % roundi(float((FNSave.v("settings") as Dictionary).get("scream", 1.0)) * 100.0), "step": func(d: int):
+		var ss: Dictionary = FNSave.v("settings")
+		ss["scream"] = clampf(snappedf(float(ss.get("scream", 1.0)) + 0.1 * d, 0.1), 0.2, 1.0)
+		FNSave.put("settings", ss), "info": "Отдельно от общей громкости: насколько громко кричат при скримере. Меньше 20 % не бывает — иначе это не скример."})
 	list.append({"text": func(): return "ЭКРАННЫЕ ЭФФЕКТЫ: %d %%" % roundi(float(FNSave.v("settings")["fx"]) * 100.0), "step": func(d: int): _fx_step(d),
 		"info": "Шум, полосы, искажения и полутон. 0 % — чистая картинка (для чувствительных к вспышкам)."})
 	list.append({"text": "НАЗАД", "act": open_main})

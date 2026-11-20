@@ -18,6 +18,31 @@ static func bus_for(id: String, want: String) -> String:
 		return "Horror"
 	return want
 
+## Крики скримеров — готовые многослойные записи (tools/godot-screams.cjs): assets/audio/fn/scream_<кто>_<N>.wav.
+## У каждого обитателя несколько вариантов; подряд один и тот же не играет. Нет файлов — старый синтез.
+const SCREAM_DIR := "res://assets/audio/fn/"
+static var _scream_n := {}
+static var _scream_last := {}
+
+static func scream_count(kind: String) -> int:
+	if not _scream_n.has(kind):
+		var n := 0
+		while ResourceLoader.exists("%sscream_%s_%d.wav" % [SCREAM_DIR, kind, n + 1]):
+			n += 1
+		_scream_n[kind] = n
+	return int(_scream_n[kind])
+
+## kind — "balon", "ghost", …; возвращает [поток, номер варианта]
+static func scream_pick(kind: String) -> Array:
+	var n := scream_count(kind)
+	if n <= 0:
+		return [get_stream("scream_" + kind), 0]
+	var k := randi() % n
+	if n > 1 and k == int(_scream_last.get(kind, -1)):
+		k = (k + 1 + randi() % (n - 1)) % n
+	_scream_last[kind] = k
+	return [load("%sscream_%s_%d.wav" % [SCREAM_DIR, kind, k + 1]), k + 1]
+
 static func trim(id: String) -> float:
 	return float(TRIM.get(id, 0.0))
 

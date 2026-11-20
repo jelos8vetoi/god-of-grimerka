@@ -297,7 +297,7 @@ func dev_tip(st: FNNight, id: String) -> String:
 	return "%s   [%s]\n%s" % [head, D["key"], D["tip"]]
 
 func _deck_tick(st: FNNight) -> void:
-	var show: bool = tablet_k < 0.5 and not st.power_out and (card == null or card.get_child_count() == 0) and not pause_box.visible
+	var show: bool = tablet_k < 0.5 and not st.power_out and (card == null or card.get_child_count() == 0) and not pause_box.visible and String(root.state) == "night"
 	deck.visible = show
 	var hover := tip_id if tip_id != "" else tip_3d
 	for id in deck_rows:
