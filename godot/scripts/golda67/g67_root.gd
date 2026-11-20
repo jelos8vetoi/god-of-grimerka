@@ -151,6 +151,7 @@ func start_run(district_id := "dvor") -> void:
 		return
 	place = "run"
 	run = {"district": district_id, "pos": 0, "golda": 0, "fits": {}, "respect": 0, "rooms": 0}
+	G67Yard.crowd_seed = int(meta().get("runs", 0)) * 31 + int(meta().get("visits", 0)) + 1      # очередь у ларька — каждый забег другая
 	game.buddy.visible = false
 	game.buddy.global_position = Vector3(0, -50, 0)
 	events.append(["run", district_id])

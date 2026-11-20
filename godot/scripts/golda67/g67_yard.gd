@@ -44,6 +44,16 @@ var m_line: StandardMaterial3D
 var m_sand: StandardMaterial3D
 var m_carpet: StandardMaterial3D
 var misha_car: Node3D
+var queue: Array = []          # жители в очереди за шаурмой (узлы)
+## Очередь у «ШАУРМА 67»: места от окошка назад. Последнее место — за ними — занимает КРОТ (G67Data.KROT, встреча 1).
+const QUEUE_SPOTS := [Vector3(40.35, 0.07, 7.0), Vector3(39.5, 0.07, 7.15), Vector3(38.65, 0.07, 6.95)]
+## Кто может стоять в очереди: модель, рост, со скелетом ли (тогда стоит и покачивается, как живой)
+const QUEUE_PEOPLE := [
+	{"path": "res://assets/minigames/npc_customer.glb", "h": 1.74, "rig": true, "key": "npc_customer"},
+	{"path": "res://assets/minigames/npc_neighbor.glb", "h": 1.58, "rig": true, "key": "npc_neighbor"},
+	{"path": "res://assets/racing/npc_spectator.glb", "h": 1.7, "rig": false, "key": "npc_spectator"},
+]
+static var crowd_seed := 1     # меняется на каждый забег: очередь каждый раз другая
 var boss_spot := Vector3(2, 0, -44.5)        # где ждёт Миша (у своей машины, на ковре)
 
 static func zone(id: String) -> Dictionary:
@@ -450,6 +460,7 @@ func _zone_parking() -> void:
 	if _own("g67_shawarma_kiosk", Vector3(42.3, 0.07, 7.0), -PI * 0.5, 3.2) == null:
 		_put("kiosk", Vector3(42.4, 0.07, 7.0), PI, 3.0)
 	_light(Vector3(40.4, 1.8, 7.0), Color(1.0, 0.82, 0.5), 3.0, 9.0)
+	_queue()
 	_sign("ШАУРМА 67", Vector3(41.2, 3.3, 7.0), -PI * 0.5, Color(1.0, 0.8, 0.2), 0.007, 56)
 	_put("bus_stop", Vector3(42.6, 0.07, 19.0), PI, 2.7)
 	_put("transformer_booth", Vector3(19.5, 0, -14.5), -PI * 0.5, 3.4)
@@ -465,6 +476,45 @@ func _zone_parking() -> void:
 	_solid_box(Vector3(22.0, 1.5, 9.5), Vector3(0.5, 3.0, 0.5))
 	_put("bush", Vector3(23.5, 0, -5.0), 0.0, 1.2, false)
 	_drift(Vector3(22.0, 0.2, 9.5), Vector3(3.0, 0.7, 3.0))
+
+## Очередь за шаурмой: случайные жители в случайном порядке, разного роста и в разной одежде (оттенок).
+## Стоят лицом к окошку, друг за другом; пройти сквозь них нельзя.
+func _queue() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = crowd_seed * 7919 + 13
+	var order: Array = []
+	for i in QUEUE_SPOTS.size():
+		order.append(rng.randi() % QUEUE_PEOPLE.size())
+	# подряд двое одинаковых не стоят
+	for i in range(1, order.size()):
+		if order[i] == order[i - 1]:
+			order[i] = (int(order[i]) + 1 + rng.randi() % (QUEUE_PEOPLE.size() - 1)) % QUEUE_PEOPLE.size()
+	var tones := [Color(1, 1, 1), Color(0.82, 0.9, 1.0), Color(1.0, 0.86, 0.78), Color(0.86, 1.0, 0.88), Color(0.95, 0.85, 1.0), Color(0.78, 0.8, 0.86)]
+	for i in QUEUE_SPOTS.size():
+		var who: Dictionary = QUEUE_PEOPLE[order[i]]
+		if not ResourceLoader.exists(String(who["path"])):
+			missing.append(String(who["path"]))
+			continue
+		var pos: Vector3 = (QUEUE_SPOTS[i] as Vector3) + Vector3(0, 0, rng.randf_range(-0.08, 0.08))
+		var h: float = float(who["h"]) * rng.randf_range(0.95, 1.06)
+		var yaw := PI * 0.5 + rng.randf_range(-0.18, 0.18)                 # лицом к окошку (на восток)
+		var node: Node3D
+		if bool(who["rig"]):
+			var r := Rig.new()
+			add_child(r)
+			r.setup(String(who["path"]), h, Poses.pahan(), true, 1.0, String(who["key"]))
+			r.position = pos
+			r.rotation.y = yaw
+			r.play("Idle", 0.0)
+			if r.player != null:
+				r.player.seek(rng.randf_range(0.0, 2.0), true)             # не дышат в такт
+			node = r
+		else:
+			node = G67Models.spawn(String(who["path"]), self, pos, yaw - PI * 0.5, Vector3(99, h, 99))      # модель гонок — лицом по +X
+		_tint(node, tones[rng.randi() % tones.size()])
+		_solid_box(pos + Vector3(0, 0.9, 0), Vector3(0.6, 1.8, 0.6))
+		node.name = "queue%d" % i
+		queue.append(node)
 
 ## F — беседка: тихий угол за гаражами, где сидят по вечерам. Здесь передышка перед коробкой.
 func _zone_gazebo() -> void:
