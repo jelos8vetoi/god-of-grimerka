@@ -325,7 +325,34 @@ func _run_dvor(g, G: Golda67, P) -> void:
 		var hp0: float = e0.hp
 		e0.take_hit(10.0, Vector3.FORWARD, 0.0, false)
 		ok(e0.hp < hp0, "враг получает урон (%.0f → %.0f)" % [hp0, e0.hp])
+	# КРОТ — встреча 1: стоит у подъезда; во время боя не разговаривает
+	ok(G.world.actors.has("g67_krot") and not G.point("krot").is_empty(), "КРОТ стоит во дворе у подъезда (встреча 1)")
+	var kpos: Vector3 = G.world.actors["g67_krot"].global_position
+	var oc2 := Camera3D.new()
+	g.add_child(oc2)
+	oc2.global_position = kpos + Vector3(2.6, 1.5, 3.4)
+	oc2.look_at(kpos + Vector3(0, 0.9, 0), Vector3.UP)
+	oc2.make_current()
+	await wait(0.5)
+	await shot("38_krot")
+	g.cam.make_current()
+	oc2.queue_free()
+	G.talk_krot()
+	ok(g.mode != "dlg", "пока идёт бой, КРОТ не отвлекает")
 	ok(await _clear_room(g, G), "комната 1 (БОЙ) зачищена")
+	await _go(G, P, "krot")
+	ok(g.mode == "dlg" and g.dlg.size() == 5, "после боя с КРОТОМ можно поговорить: диалог из %d реплик" % g.dlg.size())
+	ok(String(g.dlg[0]) == "KR|Пахан, брат, я тебе говорил, что у меня знакомые в Forbes?" and String(g.dlg[4]).contains("шаурмой"), "реплики — дословно по ТЗ")
+	await wait(0.6)
+	await shot("39_krot_dialog")
+	for i in 14:
+		if g.mode != "dlg":
+			break
+		g._dlg_advance()
+		await wait(0.15)
+	ok(g.mode == "golda67" and (G.meta()["seen"] as Array).has("krot1"), "встреча 1 засчитана (%s)" % str(G.meta()["seen"]))
+	ok(not G.world.actors.has("g67_krot") and G.point("krot").is_empty(), "КРОТ ушёл")
+	ok(String(G.krot_next().get("id", "")) == "krot2", "следующая встреча — вторая (ЛЮСТРА, в подъезде)")
 	ok(int(G.run["golda"]) > 0 and int(G.run["respect"]) > 0, "за комнату дали голду (%d) и РЕСПЕКТ (%d)" % [int(G.run["golda"]), int(G.run["respect"])])
 	ok(G.room_state == "open" and G.world.gates.size() == 2, "после боя открылись две двери на выбор (%d)" % G.world.gates.size())
 	await wait(0.6)
