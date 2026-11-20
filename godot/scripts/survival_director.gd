@@ -143,6 +143,7 @@ func _start_boss(game, pos: Vector3) -> void:
 	var info: Dictionary = game.boss_e.boss
 	game.boss_name.text = "%s — %s" % [info["n"], info["sub"]]
 	game.banner(info["n"], info["sub"], Color(info["c"]), 3.2)
+	game.toast_t = 0.0      # «БОСС ПРИБЛИЖАЕТСЯ» больше не нужна: босс уже здесь, под его полосой она только мешала
 
 func _finish_boss(game) -> void:
 	var boss = game.boss_e

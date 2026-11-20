@@ -367,6 +367,13 @@ func interrupt() -> void:
 # ---------------- заряд ----------------
 ## Состояние "charge": удержание тяжёлого копит заряд; отпустил или набрал максимум — удар.
 func tick_charge(dt: float, dir: Vector3) -> void:
+	if cur == null:
+		# заряд оборвали со стороны (смена стиля или героя посреди удержания), а состояние героя осталось "charge":
+		# дальше шли ошибки скрипта каждый кадр, герой замирал. Найдено плейтестом Survival.
+		p.state = "move"
+		p.aim_preview(null, 0.0)
+		game.charge_zoom = 0.0
+		return
 	p.velocity.x = move_toward(p.velocity.x, 0.0, 30.0 * dt)
 	p.velocity.z = move_toward(p.velocity.z, 0.0, 30.0 * dt)
 	charge_t = min(style.charge_max, charge_t + dt)

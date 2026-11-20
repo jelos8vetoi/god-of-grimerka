@@ -112,6 +112,11 @@ func _ready() -> void:
 	if not survival_result.is_empty():
 		var records := preload("res://scripts/survival_records.gd")
 		var last: Dictionary = survival_result["last_run"]
+		# подложка: итоги стоят поверх живой сцены, и полосы здоровья врагов ложились на цифры
+		var back := ColorRect.new()
+		back.color = Color(0, 0, 0, 0.6)
+		back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		title.add_child(back)
 		var stats := Label.new()
 		stats.text = "Время %s   ·   Враги %d   ·   Угроза %d%%\nБоссы %d   ·   События %d   ·   Рекорд %s" % [
 			records.format_time(last["time"]), last["kills"], roundi(last["threat"] * 100.0),
@@ -132,6 +137,8 @@ func _ready() -> void:
 			lines.append("   ·   ".join(names.slice(i, i + 3)))
 		perks.text = "\n".join(lines)
 		perks.position.y = 330.0
+		back.position = Vector2(STAGE.x * 0.5 - 420.0, 230.0)
+		back.size = Vector2(840.0, 106.0 + 34.0 * lines.size())
 		perks.size.x = STAGE.x
 		perks.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		perks.add_theme_font_size_override("font_size", 23)

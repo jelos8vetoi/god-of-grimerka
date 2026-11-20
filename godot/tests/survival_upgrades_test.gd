@@ -40,6 +40,9 @@ func _run() -> void:
 	await create_timer(0.15, true, false, true).timeout
 	_expect(is_equal_approx(before, run.elapsed), "Draft clock advanced")
 	draft._pick(choice)
+	_expect(mods.rank(choice) == 0 and is_instance_valid(run.draft), "Draft accepted input during the opening lock")
+	draft.opened_ms -= draft.LOCK
+	draft._pick(choice)
 	draft._pick(choice)
 	await process_frame
 	await process_frame

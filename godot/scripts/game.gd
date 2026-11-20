@@ -614,6 +614,9 @@ func on_player_dead() -> void:
 		survival.save_report(self, "defeat")
 		survival.defeat(kills)
 		survival.director.stop.call_deferred(self)
+		for e in enemies:              # метки «ЭЛИТА» светятся сквозь экран итогов и ложатся на его текст
+			if is_instance_valid(e) and e.has_node("EliteBadge"):
+				e.get_node("EliteBadge").hide()
 		if is_instance_valid(boss_e):
 			clear_survival_hazards.call_deferred(boss_e)
 	bark("dead", 3.0)

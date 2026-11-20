@@ -6,11 +6,16 @@ const Mods := preload("res://scripts/survival_modifiers.gd")
 const COLORS := [Color(0.9, 0.9, 0.9), Color(0.55, 0.82, 1), Color(0.86, 0.65, 1), Color(1, 0.8, 0.45)]
 var choices: Array[String] = []
 var picked_once := false
+## Выбор открывается посреди боя: 1/2/3 — ещё и смена стиля, пробел — прыжок (и нажатие кнопки в фокусе), ЛКМ — удар,
+## а курсор стоит в центре экрана, как раз на карточках. Первые LOCK мс нажатия не принимаются.
+const LOCK := 600
+var opened_ms := 0
 
 func build(options: Array[String], mods) -> void:
 	layer = 50
 	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 	choices = options
+	opened_ms = GameClock.ms()
 	var shade := ColorRect.new()
 	shade.color = Color(0.025, 0.025, 0.04, 0.92)
 	add_child(shade)
@@ -53,7 +58,9 @@ func build(options: Array[String], mods) -> void:
 		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		strip.add_child(description)
 		strip.modulate.a = 0.0
-		create_tween().tween_property(strip, "modulate:a", 1.0, 0.18).set_delay(i * 0.04)
+		# Выбор открывается посреди боя, когда игра может стоять в стоп-кадре (time_scale 0,05) или замедлении:
+		# без этого карточки проявлялись по нескольку секунд.
+		create_tween().set_ignore_time_scale(true).tween_property(strip, "modulate:a", 1.0, 0.18).set_delay(i * 0.04)
 	var hint := Label.new()
 	hint.text = "Выбери одно усиление  ·  1 / 2 / 3"
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -68,6 +75,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_pick(choices[slot])
 
 func _pick(id: String) -> void:
+	if GameClock.ms() - opened_ms < LOCK:
+		return
 	if not picked_once:
 		picked_once = true
 		picked.emit(id)
