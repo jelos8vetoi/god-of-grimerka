@@ -560,7 +560,10 @@ func _krot_after(kr: Rig) -> void:
 	match String(krot_k.get("after", "")):
 		"walk":
 			krot_life.stage("K2Walk", 0.3)
-			kr.rotation.y += PI                          # разворачивается и уходит, люстра остаётся в руках
+			# разворачивается и уходит к выходу на улицу, люстра остаётся в руках
+			var ex := point("exit")
+			var to: Vector3 = (ex["pos"] as Vector3) - kr.global_position if not ex.is_empty() else -kr.global_transform.basis.z
+			kr.rotation.y = atan2(to.x, to.z)
 			kr.name = "krot_leaving"
 			krot_walk = 0.0
 		_:

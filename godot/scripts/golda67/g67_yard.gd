@@ -77,7 +77,7 @@ const PEOPLE := [
 		"base": "NPhone", "alts": ["NStrap", "NStraps", "NIdleL"], "poi": Vector3(2, 1.5, -38)},
 	# таксист у своей машины на парковке: опёрся на неё спиной; телефон, руки на поясе, поправляет куртку; смотрит на дорогу
 	{"id": "g67_npc_taxi_driver", "h": 1.76, "pos": Vector3(30.2, 0.02, 9.6), "yaw": -PI * 0.5,
-		"base": "NLeanBack", "alts": ["NTaxiPhone", "NHips", "NJacket"], "poi": Vector3(30, 1.4, 22)},
+		"base": "NLeanBack", "alts": ["NTaxiPhone", "NHips", "NJacket"], "poi": Vector3(30, 1.4, 22), "shot_side": -1.0},
 ]
 var lifes: Array = []          # поведение всех жителей (G67Life): кому смотреть на героя — ставит Golda67
 static var secret_tag := false     # победил Мишу — у подъезда появляется маленькое граффити
