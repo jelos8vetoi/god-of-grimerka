@@ -159,6 +159,7 @@ var main_only: Array = []      # что видно только на главн�
 var panel_back := Callable()   # Esc на открытом экране: куда вернуться (пусто — просто закрыть)
 var capture := Callable()      # ждём нажатия клавиши (переназначение гоночных клавиш): получит событие
 var online: RaceLobby          # экран ONLINE RACE
+var studio: MenuStudio         # 3D-сцена телестудии «ОБЛАКО-ТВ»: пункты меню — телевизоры (menu_studio.gd)
 var bed: AudioStreamPlayer     # подложка меню: треск винила и гул (MenuSfx.make_bed, Ambient), уходит вместе с меню
 
 func _ready() -> void:
@@ -190,6 +191,10 @@ func _ready() -> void:
 		if b is Dictionary:
 			build = b
 	_build_bg()
+	bg.visible = false                   # прежний плоский фон: его место заняла студия
+	studio = MenuStudio.new()
+	add_child(studio)
+	studio.setup(ITEMS, serif)
 	stage = Control.new()
 	stage.size = STAGE
 	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -198,6 +203,9 @@ func _ready() -> void:
 	_build_logo()
 	_build_corners()
 	_build_list()
+	studio.set_enabled(0, has_save)
+	if rows[0]["sub"] != null:
+		studio.set_sub(0, (rows[0]["sub"] as Label).text)
 	modes = ModeSelect.new()
 	modes.setup(self)
 	stage.add_child(modes)
@@ -241,6 +249,8 @@ func _fit() -> void:
 	size = vs
 	bg.position = Vector2.ZERO
 	bg.size = vs
+	studio.position = Vector2.ZERO
+	studio.size = vs
 	bg_mat.set_shader_parameter("aspect", vs.x / max(1.0, vs.y))
 	var k: float = min(vs.x / STAGE.x, vs.y / STAGE.y)
 	stage.scale = Vector2.ONE * k
@@ -342,7 +352,7 @@ func _build_characters() -> void:
 	clip.clip_contents = true
 	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(clip)
-	main_only.append(clip)
+	clip.visible = false                 # плоские герои больше не на главном экране (их рендер нужен экрану режимов и установщику)
 	var sky := Control.new()
 	sky.size = Vector2(STAGE.x, 600)
 	sky.clip_contents = true
@@ -389,8 +399,9 @@ func _text(parent: Control, s: String, size: int, col: Color, pos: Vector2, f: F
 
 func _build_logo() -> void:
 	var logo := Control.new()
-	logo.position = Vector2(70, 84)
+	logo.position = Vector2(64, 96)
 	logo.rotation = deg_to_rad(-3.5)
+	logo.scale = Vector2(0.5, 0.5)       # меньше прежнего: главное на экране — студия и её телевизоры
 	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(logo)
 	main_only.append(logo)
@@ -514,14 +525,15 @@ func _torn(w: float, h: float, seed_v: int) -> PackedVector2Array:
 
 func _build_list() -> void:
 	list = Control.new()
-	list.position = Vector2(60, 452)
-	list.rotation = deg_to_rad(-9.0)
+	# список слов заменён телевизорами студии: строки остались невидимыми зонами нажатия поверх экранов
+	# (их место каждый кадр берётся из studio.screen_rect)
 	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(list)
 	main_only.append(list)
 	band = Polygon2D.new()
 	band.color = WHITE
 	band.material = worn
+	band.visible = false
 	list.add_child(band)
 	var y := 0.0
 	for i in ITEMS.size():
@@ -545,6 +557,10 @@ func _build_list() -> void:
 			sub = _text(root, st, 15, INK, Vector2(40, size * 1.1))
 		elif ITEMS[i].size() > 2:
 			sub = _text(root, String(ITEMS[i][2]), 15, INK, Vector2(40, size * 1.06))
+		lab.visible = false
+		mark.visible = false
+		if sub != null:
+			sub.visible = false
 		rows.append({"root": root, "label": lab, "mark": mark, "sub": sub, "w": w, "h": size})
 		root.mouse_entered.connect(func(): if panel == null and not modes.visible: _select(i, true, "hover"))
 		root.gui_input.connect(func(e: InputEvent):
@@ -560,6 +576,7 @@ func _select(i: int, sound := true, kind := "move") -> void:
 	if i != sel and sound:
 		main.ui(kind, 1.0 + (2 - i) * 0.04)      # ниже по списку — чуть ниже звук
 	sel = i
+	studio.select(i)
 	info.text = ITEMS[i][1] if _enabled(i) else "Сохранения пока нет — начни новую игру."
 	var r: Dictionary = rows[i]
 	var root: Control = r["root"]
@@ -607,6 +624,8 @@ func _launch_fx() -> void:
 	var b: Polygon2D = band
 	if modes.visible:
 		b = modes.cards[modes.sel]["band"]      # запуск с экрана режимов: вспыхивает карточка режима
+	if not modes.visible:
+		studio.flash(sel)
 	b.modulate = Color(1.6, 1.6, 1.6)
 	tw.tween_property(b, "modulate", Color.WHITE, 0.3)
 	tw.tween_property(b, "scale", Vector2(1.22, 1.12), 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -1037,6 +1056,13 @@ func _unhandled_input(e: InputEvent) -> void:
 
 func _process(dt: float) -> void:
 	t += dt
+	if studio != null and stage != null:
+		studio.back_to = 1.0 if (modes != null and modes.visible) or panel != null else 0.0
+		for i in rows.size():
+			var rc: Rect2 = studio.screen_rect(i)
+			var root: Control = rows[i]["root"]
+			root.position = (rc.position - stage.position) / stage.scale.x
+			root.size = rc.size / stage.scale.x
 	if chars == null or modes.visible:
 		return
 	# лёгкий параллакс: герои и их отражение чуть уходят от курсора, задние портреты — в другую сторону
