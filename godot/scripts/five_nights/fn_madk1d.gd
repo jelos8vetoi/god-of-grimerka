@@ -8,7 +8,13 @@ extends FNEnemy
 func _move(st) -> void:
 	match spot:
 		"vent":
-			go(st, "duct_l" if st.rng.randf() < 0.5 else "duct_t")
+			# лезет той шахтой, чью заслонку ты закрываешь реже (с 5-го уровня); слышно его по-прежнему
+			var p_left := 0.5
+			if level >= 5:
+				p_left = clampf(0.5 + 0.9 * (float(st.habit("seal_t")) - float(st.habit("seal_l"))), 0.15, 0.85)
+				if absf(p_left - 0.5) > 0.1:
+					st.emit("adapt", {"e": id, "how": "duct", "to": "l" if p_left > 0.5 else "t"})
+			go(st, "duct_l" if st.rng.randf() < p_left else "duct_t")
 		"duct_l", "duct_t":
 			# перелезть в другую шахту — чаще на высоких уровнях
 			if st.rng.randf() < 0.16 + float(level) * 0.01:

@@ -83,7 +83,8 @@ func _run() -> void:
 		return
 	for n in 6:
 		for s in ["perfect", "good", "average", "lazy", "turtle", "spam", "starer"]:
-			sims["%d_%s" % [n, s]] = FNSim.batch(n, s, 24)
+			# «безупречному» — выборка больше: порог 95 % на 24 прогонах — это «не больше одной смерти», и итог решал случай
+			sims["%d_%s" % [n, s]] = FNSim.batch(n, s, 72 if s == "perfect" else 24)
 		print("FIVENIGHTSCHECK   ночь %d: безупречный %d%%, хороший %d%%, средний %d%%, лень %d%%, двери весь вечер %d%%, всё включено %d%%, не отводит глаз %d%%" % [n + 1,
 			int(sims["%d_perfect" % n]["win"] * 100), int(sims["%d_good" % n]["win"] * 100), int(sims["%d_average" % n]["win"] * 100), int(sims["%d_lazy" % n]["win"] * 100),
 			int(sims["%d_turtle" % n]["win"] * 100), int(sims["%d_spam" % n]["win"] * 100), int(sims["%d_starer" % n]["win"] * 100)])
@@ -358,6 +359,8 @@ func _ui_part() -> void:
 	ok(R.state == "night" and not R.ui.neg and st.outcome == "", "после копии ночь идёт дальше (безвредный секрет)")
 	# ================= скримеры: все шесть и темнота =================
 	_scream_catalog()
+	_habits_check()
+	await _dress_check(R)
 	for eid in ["balon", "madk1d", "bot", "clipper", "ghost", "mod"]:
 		await _scare_case(R, eid)
 	# темнота: отключение, генератор, второй раз — скример
@@ -445,6 +448,93 @@ func _ui_part() -> void:
 	main.game._to_menu()
 	await wait(1.0)
 	_finish()
+
+## привычки игрока: обитатели подстраиваются под прошлое поведение (чистая логика)
+func _habits_check() -> void:
+	var hn := FNNight.new()
+	hn.setup(4, 99)
+	for id in hn.enemies:
+		(hn.enemies[id] as FNEnemy).level = 0
+	hn.door["l"] = true
+	hn.seal["t"] = true
+	for k in 600:
+		hn._habits(0.1)
+	var b: FNBalon = hn.enemies["balon"]
+	b.level = 10
+	var left := 0
+	var right := 0
+	for k in 300:
+		b.spot = "stage"
+		b.transit_to = ""
+		b._move(hn)
+		if b.spot in ["power", "hall_r"] or b.transit_to == "hall_r":
+			right += 1
+		elif b.spot in ["arcade", "hall_l"] or b.transit_to == "hall_l":
+			left += 1
+	ok(float(hn.habit("door_l")) > 0.6 and float(hn.habit("door_r")) < 0.05 and right > left * 2, "привычка «держу левую дверь» (%.0f %% времени): Балон из зала идёт направо %d раз против %d налево" % [float(hn.habit("door_l")) * 100.0, right, left])
+	var m: FNMadk1d = hn.enemies["madk1d"]
+	m.level = 10
+	var dl := 0
+	for k in 300:
+		m.spot = "vent"
+		m._move(hn)
+		if m.spot == "duct_l":
+			dl += 1
+	ok(dl > 200, "привычка «держу верхний люк»: MADK1D лезет левой шахтой %d раз из 300" % dl)
+	var c: FNClipper = hn.enemies["clipper"]
+	c.level = 8
+	c.spot = "hall_l"
+	hn.monitor = true
+	hn.cam = "hall_l"
+	hn.cam_hold = 2.0
+	c.move_t = 0.1
+	c.tick(hn, 0.05)
+	var held: bool = c.spot == "hall_l"
+	hn.cam_hold = FNClipper.CAMP_SEC + 0.5
+	c.tick(hn, 0.05)
+	var left_cam: bool = c.spot == "arcade" and c.rush
+	c._move(hn)
+	ok(held and left_cam and c.spot in ["hall_l", "door_l"], "CLIPPER: камера держит его в коридоре, но не дольше %.0f с — уходит в игровую и возвращается обычным путём" % FNClipper.CAMP_SEC)
+	var g: FNGhost = hn.enemies["ghost"]
+	g.level = 5
+	hn.hab["mon"] = 20.0
+	hn.hab_cam = {"stage": 20.0}
+	var corner := 0
+	for k in 300:
+		g.spot = "away"
+		g._move(hn)
+		if g.spot == "corner":
+			corner += 1
+	hn.hab_cam = {"storage": 15.0, "arcade": 8.0}
+	var corner2 := 0
+	for k in 300:
+		g.spot = "away"
+		g._move(hn)
+		if g.spot == "corner":
+			corner2 += 1
+	ok(corner > 60 and corner2 == 0, "GHOST: его камеры обходят — приходит в угол будки (%d из 300); смотрят — не приходит (%d)" % [corner, corner2])
+
+## следы прошлых смен: будка от ночи к ночи меняется; событие часа не оставляет тишину висеть
+func _dress_check(R: FiveNightsRoot) -> void:
+	var o: FNOffice = R.office
+	o.dress(0)
+	await get_tree().process_frame
+	var n0 := o.dress_root.get_child_count()
+	var lamp0 := o.lamp_base
+	o.dress(2)
+	await get_tree().process_frame
+	var n2 := o.dress_root.get_child_count()
+	o.dress(5)
+	await get_tree().process_frame
+	var n5 := o.dress_root.get_child_count()
+	ok(n0 >= 1 and n2 > n0 + 4 and n5 > n2 + 4 and o.alarm_lamp != null and o.lamp_base < lamp0, "будка меняется по ночам: деталей «следов смен» %d → %d → %d, с четвёртой ночи аварийная лампа, свет тусклее (%.2f → %.2f)" % [n0, n2, n5, lamp0, o.lamp_base])
+	await shot("f06b_office_night6")
+	R._hour_event(3)
+	await wait(0.3)
+	var hushed: bool = R.hush_mode == "amb"
+	await wait(2.4)
+	ok(hushed and R.hush_mode == "", "три часа ночи: гул пропадает на две секунды и возвращается сам")
+	o.dress(R.night)
 
 ## записи криков: у каждого свои, не меньше трёх, подряд один и тот же не выпадает
 func _scream_catalog() -> void:

@@ -186,6 +186,7 @@ func _p3(id: String) -> AudioStreamPlayer3D:
 
 ## Крик скримера: один проигрыватель на шине Horror (у неё свой ограничитель) — два крика друг на друга не лягут.
 ## kind — "balon", "ghost", "pahan", "dark"…; громкость — настройка «ГРОМКОСТЬ СКРИМЕРОВ». Возвращает длину, с.
+var adapt_log: Array = []          # как обитатели подстраивались под игрока за эту ночь: [кто, как] — для проверки и архива
 var scream_p: AudioStreamPlayer
 var scream_kind := ""
 var scream_var := 0
@@ -365,6 +366,7 @@ func start_night(n: int, lv := {}) -> void:
 	office.dark_eyes.visible = false
 	office.cam.current = true
 	horror.reset(int(st.rng.seed))
+	office.dress(n)
 	anomaly.reset(int(st.rng.seed))
 	said_door = false
 	fix_hold = false
@@ -506,8 +508,48 @@ func _finale() -> void:
 	office.dark_eyes.visible = false
 
 # ---------------- события ночи → звук и картинка ----------------
+## Каждый час ночи — своё событие (не вредят, только давят): час 1 — тихо; час 2 — свет проседает; час 3 — всё
+## замолкает на две секунды и три удара издалека; час 4 — телефон звонит один раз и молчит; час 5 — дыхание за спиной.
+func _hour_event(h: int) -> void:
+	if state != "night" or st == null or st.power_out:
+		return
+	match h:
+		2:
+			for q in 5:
+				office.lamp.light_energy = office.lamp_base * (0.15 if q % 2 == 0 else 0.7)
+				await get_tree().create_timer(0.16, true, false, true).timeout
+			office.lamp.light_energy = office.lamp_base
+			sfx2("power_down", -14.0, 1.8)
+		3:
+			hush_begin("amb")
+			await get_tree().create_timer(2.0, true, false, true).timeout
+			if state == "night":
+				hush_end()
+				for q in 3:
+					sfx3("knock", FNOffice.point("door_r" if q % 2 == 0 else "door_l") + Vector3(0, 0, -6.0), -4.0, 0.8)
+					await get_tree().create_timer(0.55, true, false, true).timeout
+		4:
+			if not call_voice.playing and call_lines.is_empty():
+				sfx2("ring", -6.0)
+				await get_tree().create_timer(2.4, true, false, true).timeout
+				if state == "night":
+					sfx2("click", -4.0, 0.8)
+					sfx2("breath", -10.0, 0.8)
+		5:
+			sfx3("breath", office.cam.global_position + Vector3(0.3, 0.1, 0.9), 2.0, 0.7)
+			await get_tree().create_timer(1.2, true, false, true).timeout
+			if state == "night" and not pahan_voice.playing:
+				msg_hour()
+
+func msg_hour() -> void:
+	ui.msg("Последний час.", 3.0)
+
 func _on_event(k: String, d: Dictionary) -> void:
 	match k:
+		"hour":
+			_hour_event(int(d["h"]))
+		"adapt":
+			adapt_log.append([String(d["e"]), String(d["how"])])
 		"move":
 			var to := String(d["to"])
 			var e := String(d["e"])

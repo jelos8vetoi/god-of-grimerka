@@ -44,6 +44,16 @@ func _move(st) -> void:
 	var opts: Array = CAMS.duplicate()
 	if level >= 7:
 		opts.append("corner")                      # в углу офиса — видно, если посмотреть налево
+	# его камеры обходят стороной — он приходит сам: в угол будки (с 4-го уровня)
+	if level >= 4 and float(st.cam_share(CAMS)) < 0.06 and float(st.habit("mon")) > 0.2:
+		opts.append("corner")
+		opts.append("corner")
+		st.emit("adapt", {"e": id, "how": "avoid"})
+	# а на камере, с которой не сводят глаз, проявится охотнее
+	var fav: String = st.top_cam()
+	if fav in CAMS and float(st.cam_hold) > 6.0:
+		opts.append(fav)
+		opts.append(fav)
 	var to: String = opts[st.rng.randi() % opts.size()]
 	flicker = st.rng.randf() < 0.25
 	show_t = 0.12 if flicker else st.rng.randf_range(4.0, 7.5)

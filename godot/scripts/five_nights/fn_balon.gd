@@ -26,6 +26,12 @@ func _move(st) -> void:
 		return
 	var opts: Array = NEXT.get(spot, ["stage"])
 	var to: String = opts[st.rng.randi() % opts.size()]
+	# помнит, какую дверь ты держишь: из зала чаще идёт той стороной, где дверь бывает открыта (с 5-го уровня)
+	if spot == "stage" and level >= 5:
+		var lean: float = float(st.habit("door_l")) - float(st.habit("door_r"))      # > 0 — левую держат чаще
+		if absf(lean) > 0.12 and st.rng.randf() < clampf(absf(lean) * 1.6, 0.0, 0.8):
+			to = "power" if lean > 0.0 else "arcade"
+			st.emit("adapt", {"e": id, "how": "side", "to": to})
 	# две комнаты за раз: из зала сразу в коридор, с тяжёлым шагом
 	if spot == "stage" and level >= 4 and st.rng.randf() < 0.12 + float(level) * 0.006:
 		to = "hall_l" if st.rng.randf() < 0.5 else "hall_r"

@@ -490,6 +490,70 @@ func _decor() -> void:
 		dark_eyes.add_child(e)
 
 ## фото на стене — нарисованное кодом: два силуэта; «неправильное» — лица чёрные, глаза красные
+## Следы прошлых смен: с каждой ночью будка выглядит хуже. Ночь 1 — чисто, одна зарубка. Дальше: зарубки по
+## числу смен, царапины на косяке, бумаги на полу и опрокинутая кружка, отпечаток ладони и красная аварийная
+## лампа, подпись под фото меняется, на шестую ночь — надпись на стене не гаснет. n — номер ночи с нуля.
+var dress_root: Node3D
+var alarm_lamp: OmniLight3D
+func dress(n: int) -> void:
+	if dress_root != null and is_instance_valid(dress_root):
+		dress_root.queue_free()
+	dress_root = Node3D.new()
+	add_child(dress_root)
+	alarm_lamp = null
+	var k: int = clampi(n, 0, 6)
+	var chalk := _glow(Color(0.85, 0.82, 0.75), 0.25)
+	# зарубки на стене справа от стола: по одной на смену, каждая пятая — поперёк
+	for q in k + 1:
+		var bx := 1.62 + float(q % 5) * 0.045 + float(q / 5) * 0.3
+		box(Vector3(bx, 1.02, -1.692), Vector3(0.012, 0.13, 0.004), chalk, dress_root, Vector3(0, 0, 0.06 * (q % 3 - 1)))
+	if k >= 4:
+		box(Vector3(1.71, 1.02, -1.691), Vector3(0.26, 0.012, 0.004), chalk, dress_root, Vector3(0, 0, 0.35))
+	if k >= 1:
+		# царапины на косяке левой двери — три борозды наискось
+		for q in 3:
+			box(Vector3(-W + 0.03, 1.15 + q * 0.07, 0.05 + q * 0.03), Vector3(0.006, 0.01, 0.42), mats["black"], dress_root, Vector3(0.5, 0, 0))
+	if k >= 2:
+		# бумаги на полу и опрокинутая кружка
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 100 + k
+		for q in 4 + k:
+			box(Vector3(rng.randf_range(-0.9, 1.1), 0.006 + q * 0.001, rng.randf_range(-0.6, 0.5)), Vector3(0.21, 0.002, 0.3), mats["paper"], dress_root, Vector3(0, rng.randf() * TAU, 0))
+		var mug := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.04
+		cm.bottom_radius = 0.035
+		cm.height = 0.09
+		mug.mesh = cm
+		mug.material_override = mats["paper"]
+		mug.position = Vector3(0.62, 0.04, 0.2)
+		mug.rotation = Vector3(0, 0.6, PI / 2)
+		dress_root.add_child(mug)
+		box(Vector3(0.72, 0.004, 0.24), Vector3(0.26, 0.002, 0.16), _m(Color(0.12, 0.07, 0.04), 0.3), dress_root, Vector3(0, 0.5, 0))    # лужа кофе
+	if k >= 3:
+		# отпечаток ладони на стене у левой двери и красная аварийная лампа над правой
+		var hand := _m(Color(0.32, 0.02, 0.02), 0.5)
+		box(Vector3(-W + 0.022, 1.42, 0.62), Vector3(0.004, 0.12, 0.1), hand, dress_root)
+		for q in 4:
+			box(Vector3(-W + 0.022, 1.53 + (0.02 if q in [1, 2] else 0.0), 0.575 + q * 0.03), Vector3(0.004, 0.09, 0.018), hand, dress_root)
+		box(Vector3(-W + 0.022, 1.36, 0.6), Vector3(0.004, 0.3, 0.012), hand, dress_root, Vector3(0.12, 0, 0))                      # потёк
+		box(Vector3(W - 0.05, 2.36, 0.0), Vector3(0.08, 0.1, 0.16), _glow(Color(0.9, 0.08, 0.05), 1.6), dress_root)
+		alarm_lamp = OmniLight3D.new()
+		alarm_lamp.light_color = Color(1.0, 0.1, 0.06)
+		alarm_lamp.light_energy = 0.0
+		alarm_lamp.omni_range = 3.2
+		alarm_lamp.position = Vector3(W - 0.25, 2.3, 0.0)
+		dress_root.add_child(alarm_lamp)
+	if k >= 4:
+		# подпись под «сотрудником месяца» перечёркнута, ниже — другое имя
+		box(Vector3(1.4, 1.35, -1.688), Vector3(0.42, 0.01, 0.004), _m(Color(0.5, 0.03, 0.03), 0.5), dress_root)
+		var l2 := label("СОТРУДНИК МЕСЯЦА: ТЫ", Vector3(1.4, 1.27, -1.688), 16, Color(0.55, 0.02, 0.02), Vector3(0, 0, -0.04), dress_root)
+		l2.shaded = false
+	if k >= 5:
+		var l3 := label("НЕ ДОЛЖЕН БЫЛ ВЫЖИТЬ", Vector3(W - 0.06, 1.75, 0.7), 46, Color(0.5, 0.0, 0.0), Vector3(0, -deg_to_rad(90), 0.03), dress_root)
+		l3.shaded = false
+	lamp_base = [0.9, 0.9, 0.85, 0.78, 0.7, 0.6, 0.75][k]
+
 func _photo(wrong: bool) -> ImageTexture:
 	var img := Image.create(136, 104, false, Image.FORMAT_RGB8)
 	img.fill(Color(0.62, 0.6, 0.55))
@@ -522,7 +586,15 @@ func _photo(wrong: bool) -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 # ---------------- каждый кадр ----------------
+## аварийная лампа над правой дверью: медленно пульсирует, когда кто-то стоит у любой двери или шахты
+func alarm_pulse(danger: bool, dt: float) -> void:
+	if alarm_lamp == null or not is_instance_valid(alarm_lamp):
+		return
+	var want := (0.55 + 0.45 * sin(t * 5.0)) * 0.9 if danger and power_on else 0.0
+	alarm_lamp.light_energy = lerpf(alarm_lamp.light_energy, want, 1.0 - exp(-6.0 * dt))
+
 func tick(st: FNNight, dt: float, look_in: float) -> void:
+	alarm_pulse(st.enemies.values().any(func(e): return (e as FNEnemy)._at_door()), dt)
 	t += dt
 	# взгляд мышью/стрелками: плавно, с инерцией
 	yaw_v = lerpf(yaw_v, (look_in - yaw) * 6.0, 1.0 - exp(-12.0 * dt))
