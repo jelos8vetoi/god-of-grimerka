@@ -6,7 +6,7 @@
 class_name Golda67
 extends Node
 
-const REACH := 1.9            # с какого расстояния предмет хаба «под рукой»
+const REACH := 1.4            # с какого расстояния предмет хаба «под рукой»
 const TITLE := "ГОЛДА 67"
 
 var game
@@ -45,11 +45,12 @@ func enter_hub() -> void:
 	game.in_hall = false
 	world.build("g67_hub")
 	var p = game.player
-	p.global_position = Vector3(0.0, 0.05, 2.6)
+	p.global_position = world.spawn_pos
 	p.velocity = Vector3.ZERO
-	p.face = PI
-	game.cam_yaw = PI
-	game.buddy.global_position = Vector3(-1.4, 0.05, 1.2)
+	p.face = 0.0                 # вошёл с улицы: лицом в холл, к лестнице
+	game.cam_yaw = 0.0
+	game.buddy.global_position = world.spawn_pos + Vector3(-1.1, 0.0, -0.7)
+	apply_styles()
 	game.buddy.target = Vector3.ZERO
 	game.tutorial.on = false
 	game.tutorial.persist = false
@@ -75,6 +76,30 @@ func _build_prompt() -> void:
 	prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	prompt.visible = false
 	game.hud_root.add_child(prompt)
+
+## Какие стили Пахана открыты (SPEC, раздел 6): до первого босса — только Балон VOZDUH; Водяра — после победы над
+## Мишей Минасяном; ТЯГА-812 — после победы над FORTUNA 812. Новых стилей нет — только три существующих.
+func styles_open() -> Array:
+	var fl: Dictionary = data["meta"].get("flags", {})
+	var out: Array = ["vozduh"]
+	if bool(fl.get("boss_misha", false)):
+		out.append("bottles")
+	if bool(fl.get("boss_fortuna", false)):
+		out.append("tyaga812")
+	return out
+
+## Оставить герою только открытые стили (список у Пахана общий с его записью в player.heroes — меняем на месте)
+func apply_styles() -> void:
+	var p = game.player
+	var open := styles_open()
+	var list: Array = p.heroes["pahan"]["styles"]
+	list.clear()
+	for s in open:
+		list.append(s)
+	if p.hero == "pahan":
+		p.own_styles = list
+		if not list.has(String(p.style.id)):
+			p.set_style("vozduh")
 
 ## Строка вверху экрана вместо главы и задания кампании
 func hud_line() -> String:
