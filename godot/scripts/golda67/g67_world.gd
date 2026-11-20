@@ -326,7 +326,7 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	var fl := _actor("g67_dj_flurr", G67Models.DIR + "g67_dj_flurr.glb", 1.8, Vector3(-X + 0.42, LAND_Y, -3.55), PI * 0.5)
 	if fl != null:
 		G67Models.sit(fl, 0.47)
-	_point("flurr", "dj flürr", "поговорить", Vector3(-X + 1.3, LAND_Y, -3.55))
+	_point("flurr", "DJ FLÜRR", "поговорить", Vector3(-X + 1.3, LAND_Y, -3.55))
 	# стол улучшений и стойка стилей — вдоль правой стены, между дверью третьей квартиры и решёткой
 	_put("res://assets/minigames/ml_desk.glb", Vector3(X - 0.42, LAND_Y, -2.75), -PI * 0.5, Vector3(1.3, 0.85, 0.8))
 	_point("upgrades", "АВТОРИТЕТ РАЙОНА", "улучшения за РЕСПЕКТ", Vector3(X - 1.3, LAND_Y, -2.75))

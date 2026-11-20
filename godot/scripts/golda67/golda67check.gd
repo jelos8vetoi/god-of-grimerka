@@ -370,6 +370,27 @@ func _flurr_check(g, G: Golda67, P) -> void:
 			break
 		g._dlg_advance()
 		await wait(0.05)
+	# знакомство после уже найденного КРОТА: четыре реплики знакомства, связка, сразу нынешний диалог
+	var arch0: Array = (G.meta().get("archive", []) as Array).duplicate()
+	G.meta()["seen"] = ["krot1", "krot2"]
+	G.meta()["flurr"] = -1
+	G.meta()["archive"] = []
+	G.talk_flurr()
+	await wait(0.1)
+	var alt: Array = (G67Flurr.STATES[0] as Array).slice(0, 4)
+	alt.append("DJ|А ты, я слышал, уже с КРОТОМ пересёкся.")
+	alt.append_array(G67Flurr.STATES[2])
+	ok(g.dlg == alt, "первый разговор после двух встреч: знакомство (4 реплики), связка про КРОТА, диалог состояния 2 — без старых подсказок")
+	for i in 60:
+		if g.mode != "dlg":
+			break
+		g._dlg_advance()
+		await wait(0.05)
+	var ar: Array = G.meta()["archive"]
+	ok(int(G.meta()["flurr"]) == 2 and ar.has("flurr0") and ar.has("flurr1") and ar.has("flurr2"), "пропущенные диалоги записаны в архив (%s)" % str(ar))
+	G.meta()["archive"] = arch0
+	ok(String(pt.get("title", "")) == "DJ FLÜRR", "подпись у лавки — DJ FLÜRR")
+	ok(g.ipod.allowed(g), "iPod в приквеле работает, как в кампании")
 	G.meta()["seen"] = seen0
 	G.meta()["flurr"] = fl0
 	G.flurr_last = -1
@@ -505,6 +526,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await shot("38_krot")
 	g.cam.make_current()
 	oc2.queue_free()
+	ok(G.world.yard.get_node_or_null("secret_tag") == null, "до победы над Мишей секретного граффити нет")
 	var qn: Array = G.world.yard.queue
 	ok(qn.size() == 3 and qn.all(func(n): return is_instance_valid(n)), "перед КРОТОМ у окошка очередь из трёх жителей")
 	var kx: float = G.world.actors["g67_krot"].global_position.x
@@ -623,6 +645,8 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await _go(G, P, "exit")
 	ok(await until(func(): return G.place == "run" and G.room_state == "fight", 8.0), "второй забег начался")
 	ok(G.fit_lv("heavy_hand") == 0 and absf(P.dmg_mul - 1.0) < 0.001 and int(G.run["golda"]) == 0, "фитсы и голда прошлого забега не перенеслись")
+	ok(G.world.yard.get_node_or_null("secret_tag") != null, "после победы над Мишей у подъезда появилось граффити «ПАХАН + MADK1D БЫЛИ ТУТ»")
+	ok(String(G67Data.BOSSES["g67_misha"]["barks"][1]) == "Мне даже олимпийка не нужна, чтобы быть главным.", "реплика Миши во второй фазе — утверждённая")
 	# КРОТ — встреча 3 «ГОЛУБИНОЕ ПРАВИТЕЛЬСТВО»: на детской площадке, с голубями
 	if G67Models.has("g67_pigeon") and (G.meta()["seen"] as Array).has("krot2"):
 		ok(await _clear_room(g, G), "второй забег: первая комната зачищена")
@@ -634,6 +658,14 @@ func _run_dvor(g, G: Golda67, P) -> void:
 			if String(ch.name).begins_with("krot_pigeon"):
 				pig += 1
 		ok(G.world.actors.has("g67_krot") and pig == 5, "КРОТ на площадке среди голубей (%d)" % pig)
+		var pg0: Node3D = G.world.get_node("krot_pigeon0")
+		var seen_rot := {}
+		var pecked := false
+		for i in 80:
+			seen_rot[snappedf(pg0.rotation.y, 0.02)] = true
+			pecked = pecked or pg0.rotation.x > 0.3
+			await wait(0.1)
+		ok(seen_rot.size() > 3 and pecked, "голуби живые: вертятся и клюют")
 		var k3: Vector3 = G.world.actors["g67_krot"].global_position
 		var oc4 := Camera3D.new()
 		g.add_child(oc4)
