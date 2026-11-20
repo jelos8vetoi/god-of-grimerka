@@ -226,7 +226,7 @@ func _ready() -> void:
 				"modes":
 					open_modes(0)
 				"story", "new", "load", "training", "race":
-					open_modes({"training": 1, "race": 2}.get(w, 0))
+					open_modes(ModeSelect.index_of(w) if (w == "training" or w == "race") else 0)
 					if w == "new" or w == "load":
 						_open_story()
 						_panel_select(panel_rows.size() - 3 if w == "new" else panel_rows.size() - 2, false)
@@ -691,12 +691,28 @@ func open_mode(id: String) -> void:
 			_open_story()
 		"training":
 			_open_training()
+		"golda67":
+			_open_golda67()
 		"race":
 			open_race()
 		"microloans":
 			_open_microloans()
 		"five_nights":
 			_open_five_nights()
+
+## ГОЛДА 67: сюжетный приквел (scripts/golda67). Своё сохранение, кампания не трогается.
+func _open_golda67() -> void:
+	var lines: Array = ["Турнир 67: приз — 67 000 голды. madk1d записал Пахана и заплатил взнос. Отменить регистрацию нельзя."]
+	lines.append("Сейчас готов подъезд — место, откуда начинаются забеги. Район ДВОР и первый босс — в работе.")
+	lines.append("Своё сохранение: прогресс кампании не меняется.")
+	_open("ГОЛДА 67", lines, [["ВОЙТИ В ПОДЪЕЗД", func(): launch_golda67()], ["НАЗАД", _close]])
+
+func launch_golda67() -> void:
+	if launching:
+		return
+	_close()
+	await _launch_fx()
+	main.cinematic_golda67()
 
 ## Мини-игры со своей сценой (main.MINIGAMES): тот же уход меню, что у режимов, затем main.cinematic_minigame
 func launch_minigame(id: String, opt := {}) -> void:

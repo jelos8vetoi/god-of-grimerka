@@ -97,7 +97,7 @@ func release_all() -> void:
 
 func _open_race(row: String) -> bool:
 	var mm = main.menu
-	mm.open_modes(2)
+	mm.open_modes(ModeSelect.index_of("race"))
 	await wait(0.6)
 	await tap(KEY_ENTER)
 	await wait(0.4)

@@ -128,9 +128,9 @@ func _run() -> void:
 	# ================= меню =================
 	var mm = main.menu
 	ok(mm != null and mm.race_ready(), "главное меню открыто, гонки подключены")
-	mm.open_modes(2)
+	mm.open_modes(ModeSelect.index_of("race"))
 	await wait(0.6)
-	ok(mm.modes.cards[2]["tag_l"].text == "ДОСТУПНО", "карточка VACUUM RACING — «ДОСТУПНО»")
+	ok(mm.modes.cards[ModeSelect.index_of("race")]["tag_l"].text == "ДОСТУПНО", "карточка VACUUM RACING — «ДОСТУПНО»")
 	await key(KEY_ENTER)
 	await wait(0.3)
 	var names: Array = []

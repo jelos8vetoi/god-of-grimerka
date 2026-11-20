@@ -326,7 +326,7 @@ func _menu_tick(dt: float) -> void:
 func quit_to_menu() -> void:
 	FNSave.save()
 	if main != null and main.has_method("end_minigame"):
-		main.end_minigame(4)
+		main.end_minigame(ModeSelect.index_of("five_nights"))
 
 ## музыка: в терминале — своя тема (хор и колокольчики, loc_fn), ночью музыки нет — только здание и враги
 func music_set() -> String:

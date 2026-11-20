@@ -62,6 +62,7 @@ const C = [
   // ---- меню, режимы, мини-игры
   { name: 'mode', key: 'modecheck', ok: /MODECHECK ok\s*$/m, groups: ['modes'] },
   { name: 'training', key: 'trainingcheck', ok: /TRAININGCHECK ok\s*$/m, groups: ['modes'] },
+  { name: 'golda67', key: 'golda67check', ok: /GOLDA67CHECK ok\s*$/m, groups: ['modes', 'golda67'] },
   { name: 'trans', key: 'transcheck', ok: /TRANS итог: ошибок 0/, groups: ['modes'] },
   { name: 'death', key: 'deathcheck', ok: /DEATH итог: ошибок 0/, groups: ['modes'] },
   { name: 'race', key: 'racecheck', ok: /RACECHECK ok\s*$/m, groups: ['modes', 'race'] },
