@@ -498,13 +498,17 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	var kpos: Vector3 = G.world.actors["g67_krot"].global_position
 	var oc2 := Camera3D.new()
 	g.add_child(oc2)
-	oc2.global_position = kpos + Vector3(-4.2, 1.7, 3.6)
-	oc2.look_at(kpos + Vector3(0.6, 1.1, 0), Vector3.UP)
+	oc2.global_position = kpos + Vector3(-2.6, 1.8, 4.4)
+	oc2.look_at(kpos + Vector3(1.6, 1.0, 0), Vector3.UP)
 	oc2.make_current()
 	await wait(0.5)
 	await shot("38_krot")
 	g.cam.make_current()
 	oc2.queue_free()
+	var qn: Array = G.world.yard.queue
+	ok(qn.size() == 3 and qn.all(func(n): return is_instance_valid(n)), "перед КРОТОМ у окошка очередь из трёх жителей")
+	var kx: float = G.world.actors["g67_krot"].global_position.x
+	ok(qn.all(func(n): return (n as Node3D).global_position.x > kx + 0.5), "КРОТ стоит последним, очередь — между ним и окошком")
 	G.talk_krot()
 	ok(g.mode != "dlg", "пока идёт бой, КРОТ не отвлекает")
 	await wait(1.5)
