@@ -61,6 +61,10 @@ func save() -> void:
 func meta() -> Dictionary:
 	return data["meta"]
 
+## Открыт ли madk1d (управление, его стили, смена героя, дуэт, Team Hype, Overdrive) — после первой концовки
+func madk_open() -> bool:
+	return bool((meta().get("flags", {}) as Dictionary).get(G67Data.MADK_FLAG, false))
+
 ## Старт режима: хаб
 func begin(_cont := false) -> void:
 	game.mode = "golda67"
