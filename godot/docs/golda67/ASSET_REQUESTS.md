@@ -23,7 +23,7 @@
 
 | Партия | Что | Моделей | Статус |
 |---|---|---|---|
-| **P0** | хаб, район ДВОР, Миша Минасян, КРОТ, dj flürr, базовые враги, двери и награды, ведущий новостей и его стол | 22 | **промпты выданы, жду модели** |
+| **P0** | хаб, район ДВОР, Миша Минасян, КРОТ, dj flürr, базовые враги, двери и награды, ведущий новостей и его стол | 22 | **все 22 модели получены 2026-11-20; одна требует замены (см. «Приёмка P0»)** |
 | P1 | боссы 2–4, враги трёх районов, животные, ПОДЗЕМКА, ЛЕНТА, БОТОФЕРМА, события первой линии | 50 | требуется (промпты — после ответа владельца по P0) |
 | P2 | WHYOUSOLONELY, ИЗНАНКА, СТУДИЯ, Mogging Challenge, Anime Room | 20 | требуется |
 | P3 | декор | 8 | требуется |
@@ -34,26 +34,26 @@
 
 | № | id | Модель | Файл | Длина | Статус |
 |---|---|---|---|---|---|
-| 1 | G67-C01 | Миша Минасян | `godot/assets/golda67/g67_misha.glb` | 978 | промпт выдан |
-| 2 | G67-C02 | КРОТ | `godot/assets/golda67/g67_krot.glb` | 981 | промпт выдан |
-| 3 | G67-C03 | dj flürr | `godot/assets/golda67/g67_dj_flurr.glb` | 979 | промпт выдан |
-| 4 | G67-C04 | Шестёрка | `godot/assets/golda67/g67_enemy_shestyorka.glb` | 915 | промпт выдан |
-| 5 | G67-C05 | Семечник | `godot/assets/golda67/g67_enemy_semechnik.glb` | 933 | промпт выдан |
-| 6 | G67-C06 | Смотрящий | `godot/assets/golda67/g67_enemy_smotryashchiy.glb` | 904 | промпт выдан |
-| 7 | G67-H01 | Стойка выбора стилей | `godot/assets/golda67/g67_style_rack.glb` | 858 | промпт выдан |
-| 8 | G67-H02 | Сервант для артефактов | `godot/assets/golda67/g67_artifact_cabinet.glb` | 813 | промпт выдан |
-| 9 | G67-H03 | Карта маршрутов | `godot/assets/golda67/g67_route_board.glb` | 855 | промпт выдан |
-| 10 | G67-H04 | Почтовые ящики | `godot/assets/golda67/g67_mailboxes.glb` | 755 | промпт выдан |
-| 11 | G67-H05 | Доска объявлений | `godot/assets/golda67/g67_notice_board.glb` | 750 | промпт выдан |
-| 12 | G67-H06 | Скрытая дверь «колясочная» | `godot/assets/golda67/g67_service_door.glb` | 812 | промпт выдан |
-| 13 | G67-E01 | Стена подъезда (модуль) | `godot/assets/golda67/g67_podezd_wall.glb` | 855 | промпт выдан |
-| 14 | G67-E02 | Лестничный марш (модуль) | `godot/assets/golda67/g67_stair_flight.glb` | 754 | промпт выдан |
-| 15 | G67-E05 | Дверь выбора комнаты | `godot/assets/golda67/g67_room_gate.glb` | 865 | промпт выдан |
-| 16 | G67-E06 | Турник и брусья | `godot/assets/golda67/g67_workout_bars.glb` | 782 | промпт выдан |
-| 17 | G67-E07 | Стенд турнирного плаката | `godot/assets/golda67/g67_poster_stand.glb` | 807 | промпт выдан |
-| 18 | G67-E09 | Вход в подъезд | `godot/assets/golda67/g67_podezd_entrance.glb` | 859 | промпт выдан |
-| 19 | G67-I01 | Монета голды | `godot/assets/golda67/g67_golda_coin.glb` | 715 | промпт выдан |
-| 20 | G67-I02 | Фитс (вешалка-награда) | `godot/assets/golda67/g67_fit_hanger.glb` | 780 | промпт выдан |
+| 1 | G67-C01 | Миша Минасян | `godot/assets/golda67/g67_misha.glb` | 978 | получена |
+| 2 | G67-C02 | КРОТ | `godot/assets/golda67/g67_krot.glb` | 981 | получена |
+| 3 | G67-C03 | dj flürr | `godot/assets/golda67/g67_dj_flurr.glb` | 979 | получена |
+| 4 | G67-C04 | Шестёрка | `godot/assets/golda67/g67_enemy_shestyorka.glb` | 915 | получена |
+| 5 | G67-C05 | Семечник | `godot/assets/golda67/g67_enemy_semechnik.glb` | 933 | получена |
+| 6 | G67-C06 | Смотрящий | `godot/assets/golda67/g67_enemy_smotryashchiy.glb` | 904 | получена — **нужна замена** (четыре руки) |
+| 7 | G67-H01 | Стойка выбора стилей | `godot/assets/golda67/g67_style_rack.glb` | 858 | получена |
+| 8 | G67-H02 | Сервант для артефактов | `godot/assets/golda67/g67_artifact_cabinet.glb` | 813 | получена |
+| 9 | G67-H03 | Карта маршрутов | `godot/assets/golda67/g67_route_board.glb` | 855 | получена |
+| 10 | G67-H04 | Почтовые ящики | `godot/assets/golda67/g67_mailboxes.glb` | 755 | получена |
+| 11 | G67-H05 | Доска объявлений | `godot/assets/golda67/g67_notice_board.glb` | 750 | получена |
+| 12 | G67-H06 | Скрытая дверь «колясочная» | `godot/assets/golda67/g67_service_door.glb` | 812 | получена |
+| 13 | G67-E01 | Стена подъезда (модуль) | `godot/assets/golda67/g67_podezd_wall.glb` | 855 | получена |
+| 14 | G67-E02 | Лестничный марш (модуль) | `godot/assets/golda67/g67_stair_flight.glb` | 754 | получена |
+| 15 | G67-E05 | Дверь выбора комнаты | `godot/assets/golda67/g67_room_gate.glb` | 865 | получена |
+| 16 | G67-E06 | Турник и брусья | `godot/assets/golda67/g67_workout_bars.glb` | 782 | получена |
+| 17 | G67-E07 | Стенд турнирного плаката | `godot/assets/golda67/g67_poster_stand.glb` | 807 | получена |
+| 18 | G67-E09 | Вход в подъезд | `godot/assets/golda67/g67_podezd_entrance.glb` | 859 | получена |
+| 19 | G67-I01 | Монета голды | `godot/assets/golda67/g67_golda_coin.glb` | 715 | получена |
+| 20 | G67-I02 | Фитс (вешалка-награда) | `godot/assets/golda67/g67_fit_hanger.glb` | 780 | получена |
 
 ### 1. G67-C01 — Миша Минасян
 
@@ -62,7 +62,7 @@
 - **Риг и анимации:** Гуманоид: T-поза, без авторига. Скелет Mixamo поставлю сам (`tools/rig-horror.py`, шаблон `pahan`). Клипы — кодом. Уникальные клипы: проход «авторитет», зацеп цепи, захват, контратака.
 - **Имя файла:** `g67_misha.glb`
 - **Путь:** `godot/assets/golda67/g67_misha.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (978 символов):**
 
 ```text
@@ -76,7 +76,7 @@ Mikhail, a vain local courtyard boss in his thirties, stocky and broad-shouldere
 - **Риг и анимации:** Гуманоид: T-поза, без авторига. Скелет Mixamo поставлю сам (`tools/rig-horror.py`, шаблон `pahan`). Клипы — кодом. Клипы: стоит с люстрой, кормит голубей, петля «NPC», сидит на полу, кивок.
 - **Имя файла:** `g67_krot.glb`
 - **Путь:** `godot/assets/golda67/g67_krot.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (981 символов):**
 
 ```text
@@ -90,7 +90,7 @@ A strange short stocky man nicknamed Mole, absolutely serious deadpan face. Roun
 - **Риг и анимации:** Гуманоид: T-поза, без авторига. Скелет Mixamo поставлю сам (`tools/rig-horror.py`, шаблон `pahan`). Клипы — кодом. Клипы: сидит на лавке, жест «слушай сюда», наливает из термоса.
 - **Имя файла:** `g67_dj_flurr.glb`
 - **Путь:** `godot/assets/golda67/g67_dj_flurr.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (979 символов):**
 
 ```text
@@ -104,7 +104,7 @@ A tall thin eccentric street storyteller of unclear age. Long faded turquoise wo
 - **Риг и анимации:** Гуманоид: T-поза, без авторига. Скелет Mixamo поставлю сам (`tools/rig-horror.py`, шаблон `pahan`). Клипы — кодом. Использует общие клипы врагов.
 - **Имя файла:** `g67_enemy_shestyorka.glb`
 - **Путь:** `godot/assets/golda67/g67_enemy_shestyorka.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (915 символов):**
 
 ```text
@@ -118,7 +118,7 @@ A skinny young courtyard thug, a boss henchman. Black tracksuit with three white
 - **Риг и анимации:** Гуманоид: T-поза, без авторига. Скелет Mixamo поставлю сам (`tools/rig-horror.py`, шаблон `pahan`). Клипы — кодом. Использует общие клипы врагов (стрелок).
 - **Имя файла:** `g67_enemy_semechnik.glb`
 - **Путь:** `godot/assets/golda67/g67_enemy_semechnik.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (933 символов):**
 
 ```text
@@ -132,7 +132,7 @@ A chubby lazy courtyard guy who spits sunflower seeds at enemies. Puffy grey dow
 - **Риг и анимации:** Гуманоид: T-поза, без авторига. Скелет Mixamo поставлю сам (`tools/rig-horror.py`, шаблон `pahan`). Клипы — кодом. Общие клипы тяжёлого врага + захват.
 - **Имя файла:** `g67_enemy_smotryashchiy.glb`
 - **Путь:** `godot/assets/golda67/g67_enemy_smotryashchiy.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (904 символов):**
 
 ```text
@@ -146,7 +146,7 @@ A huge heavy courtyard enforcer, twice as wide as a normal man. Enormous shoulde
 - **Риг и анимации:** Риг не нужен (статичный объект).
 - **Имя файла:** `g67_style_rack.glb`
 - **Путь:** `godot/assets/golda67/g67_style_rack.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (858 символов):**
 
 ```text
@@ -160,7 +160,7 @@ An improvised weapon rack for an apartment stairwell, welded from old water pipe
 - **Риг и анимации:** Риг не нужен (статичный объект).
 - **Имя файла:** `g67_artifact_cabinet.glb`
 - **Путь:** `godot/assets/golda67/g67_artifact_cabinet.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (813 символов):**
 
 ```text
@@ -174,7 +174,7 @@ An old soviet glass display sideboard (servant) carried out onto a stairwell lan
 - **Риг и анимации:** Риг не нужен (статичный объект).
 - **Имя файла:** `g67_route_board.glb`
 - **Путь:** `godot/assets/golda67/g67_route_board.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (855 символов):**
 
 ```text
@@ -188,7 +188,7 @@ A wall-mounted evacuation plan board from a soviet apartment block, reused as a 
 - **Риг и анимации:** Риг не нужен (статичный объект).
 - **Имя файла:** `g67_mailboxes.glb`
 - **Путь:** `godot/assets/golda67/g67_mailboxes.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (755 символов):**
 
 ```text
@@ -202,7 +202,7 @@ A wall-mounted block of old soviet apartment mailboxes: two rows of four small m
 - **Риг и анимации:** Риг не нужен (статичный объект).
 - **Имя файла:** `g67_notice_board.glb`
 - **Путь:** `godot/assets/golda67/g67_notice_board.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (750 символов):**
 
 ```text
@@ -216,7 +216,7 @@ A battered apartment entrance notice board. Rectangular plywood panel about 1.2 
 - **Риг и анимации:** Риг не нужен. Желательно, чтобы полотно двери было отдельной частью от рамы (открою поворотом узла).
 - **Имя файла:** `g67_service_door.glb`
 - **Путь:** `godot/assets/golda67/g67_service_door.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (812 символов):**
 
 ```text
@@ -230,7 +230,7 @@ A low heavy metal service door in a concrete frame, the kind found under a stair
 - **Риг и анимации:** Риг не нужен (статичный объект).
 - **Имя файла:** `g67_podezd_wall.glb`
 - **Путь:** `godot/assets/golda67/g67_podezd_wall.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (855 символов):**
 
 ```text
@@ -244,7 +244,7 @@ A straight wall segment of a soviet apartment stairwell, 4 metres wide, 3 metres
 - **Риг и анимации:** Риг не нужен (статичный объект).
 - **Имя файла:** `g67_stair_flight.glb`
 - **Путь:** `godot/assets/golda67/g67_stair_flight.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (754 символов):**
 
 ```text
@@ -258,7 +258,7 @@ One straight flight of concrete stairs from a soviet apartment block: nine wide 
 - **Риг и анимации:** Риг не нужен. Две створки — отдельными частями от рамы (открываю поворотом узлов).
 - **Имя файла:** `g67_room_gate.glb`
 - **Путь:** `godot/assets/golda67/g67_room_gate.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (865 символов):**
 
 ```text
@@ -272,7 +272,7 @@ A freestanding double gate used as a level exit, built like soviet garage doors.
 - **Риг и анимации:** Риг не нужен. Желательно: верхняя перекладина турника — отдельной частью.
 - **Имя файла:** `g67_workout_bars.glb`
 - **Путь:** `godot/assets/golda67/g67_workout_bars.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (782 символов):**
 
 ```text
@@ -286,7 +286,7 @@ An old outdoor courtyard workout set welded from thick steel pipes, painted in p
 - **Риг и анимации:** Риг не нужен (статичный объект).
 - **Имя файла:** `g67_poster_stand.glb`
 - **Путь:** `godot/assets/golda67/g67_poster_stand.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (807 символов):**
 
 ```text
@@ -300,7 +300,7 @@ A cheap street advertising stand for a local tournament. Vertical lightbox panel
 - **Риг и анимации:** Риг не нужен. Полотно двери — отдельной частью от рамы.
 - **Имя файла:** `g67_podezd_entrance.glb`
 - **Путь:** `godot/assets/golda67/g67_podezd_entrance.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (859 символов):**
 
 ```text
@@ -314,7 +314,7 @@ A soviet apartment block entrance porch as one freestanding piece. Heavy brown s
 - **Риг и анимации:** Риг не нужен (статичный объект).
 - **Имя файла:** `g67_golda_coin.glb`
 - **Путь:** `godot/assets/golda67/g67_golda_coin.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (715 символов):**
 
 ```text
@@ -328,7 +328,7 @@ A single big chunky gold game coin, thick like a hockey puck, about 30 centimetr
 - **Риг и анимации:** Риг не нужен (статичный объект).
 - **Имя файла:** `g67_fit_hanger.glb`
 - **Путь:** `godot/assets/golda67/g67_fit_hanger.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (780 символов):**
 
 ```text
@@ -342,8 +342,8 @@ A reward pickup shaped like an outfit on a hanger: a thick wire coat hanger with
 
 | № | id | Модель | Файл | Длина | Статус |
 |---|---|---|---|---|---|
-| 21 | G67-C23 | Ведущий «РАЙОННОГО ВЕСТНИКА 67» | `godot/assets/golda67/g67_news_anchor.glb` | 984 | промпт выдан |
-| 22 | G67-D08 | Новостной стол | `godot/assets/golda67/g67_news_desk.glb` | 934 | промпт выдан |
+| 21 | G67-C23 | Ведущий «РАЙОННОГО ВЕСТНИКА 67» | `godot/assets/golda67/g67_news_anchor.glb` | 984 | получена |
+| 22 | G67-D08 | Новостной стол | `godot/assets/golda67/g67_news_desk.glb` | 934 | получена |
 
 ### 21. G67-C23 — Ведущий «РАЙОННОГО ВЕСТНИКА 67»
 
@@ -352,7 +352,7 @@ A reward pickup shaped like an outfit on a hanger: a thick wire coat hanger with
 - **Риг и анимации:** Гуманоид: T-поза, без авторига. Скелет Mixamo поставлю сам (`tools/rig-horror.py`, шаблон `pahan`). Клипы: сидит за столом, перекладывает листы, поворот к экрану, драматическая пауза.
 - **Имя файла:** `g67_news_anchor.glb`
 - **Путь:** `godot/assets/golda67/g67_news_anchor.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (984 символов):**
 
 ```text
@@ -366,12 +366,34 @@ A deadly serious local TV news anchor of a tiny district channel, a man in his f
 - **Риг и анимации:** Риг не нужен (статичный объект).
 - **Имя файла:** `g67_news_desk.glb`
 - **Путь:** `godot/assets/golda67/g67_news_desk.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (934 символов):**
 
 ```text
 A cheap homemade TV news desk of a tiny district channel. A curved front desk about 2.2 metres wide and 1 metre tall built from laminated chipboard, the front covered with a glossy dark blue panel with a wide blank lighter rectangle in the middle for a logo and a golden-yellow trim strip along the top edge, chipped corners showing raw chipboard, the back side open with a shelf holding a tangle of cables and an extension cord. On the desktop: a stack of blank paper sheets, a glass of tea in a metal holder, an old desk microphone on a short stand. Front clearly different from the open back. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
 ```
+
+## Приёмка P0 — 2026-11-20
+
+Владелец прислал все 22 модели. Каждая облегчена (`glbslim.gd`: текстуры 4096 → 1024, вместе 320 МБ → 58 МБ),
+переименована, импортирована (`compress/mode=2`, `process/size_limit=1024`) и просмотрена с четырёх сторон.
+
+- **Лицом по +Z** — все 22 (в этот раз не по +X): доворот в коде не нужен.
+- **Персонажи в T-позе**, без скелета — как просили. Скелет ещё не ставился.
+- Каждая модель — одна цельная сетка: створки дверей и перекладина турника **не отдельные части**. Двери
+  открываются иначе (уезжают или заменяются проёмом), перекладину в фазе 3 босса показываем эффектом.
+- 55–100 тысяч треугольников на модель — тяжелее, чем у пропсов гонок; на вертикальном срезе замерить кадр.
+
+| id | Замечание |
+|---|---|
+| G67-C06 Смотрящий | **Четыре руки**: вторая пара торчит от пояса (ошибка генерации). Скелет на такую модель не встанет — нужна новая генерация |
+| G67-C01 Миша Минасян | Модель не по промпту: чёрная футболка, борода, кудри; **нет спортивного костюма и золотой цепи**. По ТЗ цепь — главный реквизит (цепляется в V00, AD01, CL01; «поправляет цепь» в NEWS01). Решает владелец: перегенерировать или сделать цепь отдельной моделью |
+| G67-C02 КРОТ | Модель не по промпту (длинные чёрные волосы, красный свитшот, сигарета) — принят как образ владельца |
+| G67-C03 dj flürr | Модель не по промпту (кудри, серая жилетка-худи, бордовые рукава) — принят как образ владельца; на рукаве читается «77» |
+| G67-H06 Скрытая дверь | Только полотно, без рамы; стоит с наклоном — выровняю при установке, проём сделаю в стене |
+| G67-H05 Доска объявлений | Не настенная, а на ножках с козырьком — подходит и для двора, и для подъезда |
+| G67-E06 Турник и брусья | Получились две П-образные рамы разной высоты — как турник годится |
+| остальные | без замечаний |
 
 ## Партии P1–P3 — статус «требуется»
 
@@ -396,5 +418,6 @@ A cheap homemade TV news desk of a tiny district channel. A curved front desk ab
 | Дата | Что |
 |---|---|
 | 2026-11-20 | Выдана партия P0 (20 промптов). Ни одна модель не получена. |
+| 2026-11-20 | Получены все 22 модели P0, лежат в `godot/assets/golda67/`. Смотрящий (G67-C06) — на замену. Скелеты не ставились, в игру не интегрированы. |
 | 2026-11-20 | Ведущий новостей нужен в кадре: в P0 добавлены G67-C23 и G67-D08 (всего в P0 22 промпта). |
 | 2026-11-20 | Решение владельца: уникальных моделей врагов — восемь; сняты с заказа G67-C11, C15, C16, C17, C20. |
