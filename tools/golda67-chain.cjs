@@ -15,8 +15,8 @@ const R=0.019,r=0.0066,PAD=r*1.1;            // звено: большой и м
 const pts=[];const N=240;
 for(let i=0;i<N;i++){const t=i/N*Math.PI*2;const c=Math.cos(t),s=Math.sin(t);
   const f=(1+c)/2;                               // 1 — спереди внизу, 0 — сзади на шее
-  const x=0.082*s*(0.55+0.45*(1-f*f));           // у груди петля уже
-  const y=0.652-0.19*Math.pow(f,1.6);
+  const x=0.098*s*(0.72+0.28*(1-f*f));           // у груди петля уже
+  const y=0.652-0.075*Math.pow(f,1.6);
   let zf=surf(x,Math.min(y,0.65),true),zb=surf(x,Math.min(y,0.65),false);
   if(zf===null)zf=0.06;if(zb===null)zb=-0.06;
   const k=Math.max(0,Math.min(1,(c+0.35)/0.7));const kk=k*k*(3-2*k);
@@ -43,14 +43,14 @@ for(let i=0;i<count;i++){const d=i*total/count;const c=at(d);const t=nrm(sub(at(
   let outw=nrm([c[0]*0.6,0.0,c[2]>=0?1:-1]);let side=nrm(cross(t,outw));let n=(i%2===0)?nrm(cross(side,t)):side;   // соседние звенья повёрнуты на 90°
   torus(c,t,n,R,r,1.18);if(!low||c[1]<low[1])low=c;}
 // медальон: толстый диск на кольце под нижним звеном
-(function(){const c=[low[0],low[1]-R-0.03,low[2]+0.006];const RAD=0.043,TH=0.01,SEG=28;const base=P.length/3;
+(function(){const c=[low[0],low[1]-R-0.03,low[2]+0.006];const RAD=0.036,TH=0.009,SEG=28;const base=P.length/3;
   for(const sz of [1,-1]){const b0=P.length/3;P.push(c[0],c[1],c[2]+sz*TH);Nn.push(0,0,sz);
     for(let i=0;i<SEG;i++){const u=i/SEG*Math.PI*2;P.push(c[0]+Math.cos(u)*RAD,c[1]+Math.sin(u)*RAD,c[2]+sz*TH*0.7);Nn.push(Math.cos(u)*0.3,Math.sin(u)*0.3,sz*0.95);}
     for(let i=0;i<SEG;i++){const p1=b0+1+i,p2=b0+1+(i+1)%SEG;if(sz>0)I.push(b0,p1,p2);else I.push(b0,p2,p1);}}
   const rim=P.length/3;for(let i=0;i<SEG;i++){const u=i/SEG*Math.PI*2;for(const sz of [1,-1]){P.push(c[0]+Math.cos(u)*RAD,c[1]+Math.sin(u)*RAD,c[2]+sz*TH*0.7);Nn.push(Math.cos(u),Math.sin(u),0);}}
   for(let i=0;i<SEG;i++){const a0=rim+i*2,a1=rim+i*2+1,b1=rim+((i+1)%SEG)*2,b2=rim+((i+1)%SEG)*2+1;I.push(a0,a1,b2,a0,b2,b1);}
   // выпуклый ромб в центре медальона
-  const d0=P.length/3;const K=0.024;const q=[[0,K],[K,0],[0,-K],[-K,0]];P.push(c[0],c[1],c[2]+TH*1.9);Nn.push(0,0,1);for(const e of q){P.push(c[0]+e[0],c[1]+e[1],c[2]+TH);Nn.push(e[0]*30,e[1]*30,0.6);}
+  const d0=P.length/3;const K=0.02;const q=[[0,K],[K,0],[0,-K],[-K,0]];P.push(c[0],c[1],c[2]+TH*1.9);Nn.push(0,0,1);for(const e of q){P.push(c[0]+e[0],c[1]+e[1],c[2]+TH);Nn.push(e[0]*30,e[1]*30,0.6);}
   for(let i=0;i<4;i++)I.push(d0,d0+1+(i+1)%4,d0+1+i);
   torus([c[0],c[1]+RAD+R*0.55,c[2]],[0,1,0],[1,0,0],R*0.8,r,1.0);
 })();
