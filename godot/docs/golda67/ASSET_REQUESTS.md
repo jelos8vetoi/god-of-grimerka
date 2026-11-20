@@ -600,6 +600,44 @@ A section of a five-storey soviet panel apartment block with a tall drive-throug
 An open soviet metal garage box seen from the front, about 3.5 metres wide and 2.8 metres tall. Corrugated rusty steel walls and roof, both door leaves swung wide open, inside a workbench with a vice and tools, shelves with jars and oil cans, a hanging bare bulb with warm light, a stack of winter tyres, an old stool, a blank poster on the back wall, a kettle on a crate. Snow on the roof. Back and sides plain corrugated metal. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
 ```
 
+## Партия КРОТ — 2026-11-20: две модели для его встреч
+
+Встреча 1 («ДРУЗЬЯ ИЗ FORBES») уже в игре. Встречи 2 и 3 написаны и ждут только этих моделей: как только файл
+появится в папке, КРОТ сам встанет на своё место.
+
+| № | id | Модель | Файл | Длина | Статус |
+|---|---|---|---|---|---|
+| 1 | G67-S10 | Люстра | `godot/assets/golda67/g67_chandelier.glb` | 776 | промпт выдан |
+| 2 | G67-A01 | Голубь | `godot/assets/golda67/g67_pigeon.glb` | 745 | промпт выдан |
+
+### G67-S10 — Люстра
+
+- **Назначение:** Встреча КРОТА 2 «ЛЮСТРА»: он стоит в подъезде с люстрой в руках и уходит с ней. Без этой модели встреча не появляется.
+- **Поза / ракурс:** вид спереди. Формат GLB.
+- **Риг и анимации:** Риг не нужен. Точка опоры — крюк сверху.
+- **Имя файла:** `g67_chandelier.glb`
+- **Путь:** `godot/assets/golda67/g67_chandelier.glb`
+- **Статус:** промпт выдан
+- **Промпт (776 символов):**
+
+```text
+An old soviet apartment ceiling chandelier that someone has just taken down and is carrying. A brass-coloured metal body with five curved arms, each ending in a frosted glass tulip shade, rows of dangling plastic crystal pendants, a short chain and a ceiling cup at the top with a torn piece of white wire sticking out, one shade cracked, dust and a cobweb. About 0.7 metres wide and 0.6 metres tall. Slightly pompous, slightly pathetic. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-A01 — Голубь
+
+- **Назначение:** Встреча КРОТА 3 «ГОЛУБИНОЕ ПРАВИТЕЛЬСТВО»: он кормит голубей на детской площадке. Без этой модели встреча не появляется.
+- **Поза / ракурс:** вид спереди. Формат GLB.
+- **Риг и анимации:** Риг не нужен: голуби двигаются простым кодом. Стоит на двух лапах, лицом вперёд.
+- **Имя файла:** `g67_pigeon.glb`
+- **Путь:** `godot/assets/golda67/g67_pigeon.glb`
+- **Статус:** промпт выдан
+- **Промпт (745 символов):**
+
+```text
+A fat grumpy city pigeon standing on the ground, a self-important little bird. Round chunky grey body, darker wings with two black bars, a shimmering green and purple neck patch, small head with a suspicious orange eye, short beak, pink scaly legs with spread toes, tail feathers slightly ruffled, chest puffed out like an official. Wings folded. About 0.3 metres tall. Legs clearly separate from the body. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
 ## Партии P1–P3 — статус «требуется»
 
 Промпты для этих моделей будут выданы следующими партиями, после ответа владельца по P0. Список — в
@@ -623,6 +661,7 @@ An open soviet metal garage box seen from the front, about 3.5 metres wide and 2
 | Дата | Что |
 |---|---|
 | 2026-11-20 | Выдана партия P0 (20 промптов). Ни одна модель не получена. |
+| 2026-11-20 | КРОТ: встреча 1 в игре; выданы промпты люстры (G67-S10) и голубя (G67-A01) для встреч 2 и 3. |
 | 2026-11-20 | Выдана партия ДВОР (Y01–Y12): модели для арены босса и для разнообразия двора. |
 | 2026-11-20 | Смотрящий заменён второй моделью владельца. Всем семи персонажам поставлен скелет. Миша Минасян, КРОТ и dj flürr приняты в виде владельца. |
 | 2026-11-20 | Получены все 22 модели P0, лежат в `godot/assets/golda67/`. Смотрящий (G67-C06) — на замену. Скелеты не ставились, в игру не интегрированы. |

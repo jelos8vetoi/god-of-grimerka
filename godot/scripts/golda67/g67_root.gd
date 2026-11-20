@@ -97,6 +97,7 @@ func enter_hub() -> void:
 	game.tutorial.persist = false
 	game.fx.prewarm(p.global_position)
 	_build_prompt()
+	_place_krot("hub")
 	events.append(["enter", "hub"])
 	await game.get_tree().process_frame
 	game.banner(TITLE, "ПОДЪЕЗД · РЕСПЕКТ: %d" % int(meta().get("respect", 0)), Color(1.0, 0.8, 0.2), 3.5)
@@ -171,6 +172,7 @@ func enter_room(r: Dictionary) -> void:
 	game.cam_yaw = 0.0
 	game.fx.prewarm(p.global_position)
 	var type := String(r["type"])
+	_place_krot(String(r.get("place", "")))
 	events.append(["room", type])
 	await game.get_tree().process_frame
 	var d := district()
@@ -363,6 +365,77 @@ func _scene_end() -> void:
 	scene_boss = null
 	game.cam.transform = Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
 	events.append(["boss_fight"])
+
+# ---------------------------------------------------------------- КРОТ
+## Следующая неувиденная встреча КРОТА (они идут по порядку); {} — все из сделанных увидены
+func krot_next() -> Dictionary:
+	var seen: Array = meta().get("seen", [])
+	for k in G67Data.KROT:
+		if not seen.has(String(k["id"])):
+			return k
+	return {}
+
+## Поставить КРОТА, если его очередная встреча назначена на это место и нужная для сцены модель есть.
+## Встреча не пропадает: пока игрок с ним не поговорил, он стоит тут в каждом забеге.
+func _place_krot(where: String) -> void:
+	var k := krot_next()
+	if k.is_empty() or String(k["where"]) != where:
+		return
+	if String(k.get("needs", "")) != "" and not G67Models.has(String(k["needs"])):
+		return
+	var off := Vector3.ZERO if where == "hub" or world.yard == null else world.yard.position
+	var pos: Vector3 = (k["pos"] as Vector3) + off
+	var r: Rig = world._actor("g67_krot", G67Models.DIR + "g67_krot.glb", 1.62, pos, float(k["yaw"]))
+	if r == null:
+		return
+	world._static_box(pos + Vector3(0, 0.9, 0), Vector3(0.7, 1.8, 0.7))
+	world._point("krot", "КРОТ", "поговорить", pos + Vector3(sin(float(k["yaw"])), 0, cos(float(k["yaw"]))) * 1.1)
+	if String(k.get("carry", "")) != "":
+		var hand := BoneAttachment3D.new()
+		hand.bone_name = "mixamorig_RightHand"
+		r.skel.add_child(hand)
+		G67Models.spawn(String(k["carry"]), hand, Vector3.ZERO, 0.0, Vector3(9, 0.8 / maxf(r.skel.global_transform.basis.get_scale().y, 0.001), 9))
+	for i in int(k.get("pigeons", 0)):
+		var a := float(i) * 1.26 + 0.4
+		G67Models.spawn("g67_pigeon", world, pos + Vector3(sin(a), 0, cos(a)) * (1.2 + 0.25 * float(i % 3)), a * 2.0, Vector3(9, 0.28, 9))
+	events.append(["krot_here", String(k["id"])])
+
+func talk_krot() -> void:
+	var k := krot_next()
+	if k.is_empty() or (place == "run" and (alive() > 0 or not pending.is_empty())):
+		game.toast("Сначала разберись с этими")
+		return
+	events.append(["krot_talk", String(k["id"])])
+	var p = game.player
+	var kr = world.actors.get("g67_krot")
+	if kr != null and is_instance_valid(kr):
+		var to: Vector3 = kr.global_position - p.global_position
+		p.face = atan2(to.x, to.z)
+	game.start_dialog(k["lines"], func(): _krot_done(String(k["id"])))
+
+func _krot_done(id: String) -> void:
+	game.mode = "golda67"
+	if place == "run":
+		game.buddy.global_position = Vector3(0, -50, 0)
+	var seen: Array = meta().get("seen", [])
+	if not seen.has(id):
+		seen.append(id)
+	meta()["seen"] = seen
+	var arch: Array = meta().get("archive", [])
+	if not arch.has(id):
+		arch.append(id)
+	meta()["archive"] = arch
+	save()
+	events.append(["krot_seen", id])
+	# КРОТ уходит по своим делам: без объяснений
+	world.points = world.points.filter(func(pt): return String(pt["id"]) != "krot")
+	var kr = world.actors.get("g67_krot")
+	if kr != null and is_instance_valid(kr):
+		game.fx.dust(kr.global_position + Vector3(0, 0.2, 0), 10, game.fx.DUST, 1.0)
+		kr.queue_free()
+	world.actors.erase("g67_krot")
+	near = ""
+	game.toast("КРОТ: %d из 10" % seen.filter(func(x): return String(x).begins_with("krot")).size())
 
 # ---------------------------------------------------------------- фитсы
 func fit_lv(id: String) -> int:
@@ -569,6 +642,8 @@ func use(id: String) -> void:
 		start_run("dvor")
 	elif id == "rest":
 		rest()
+	elif id == "krot":
+		talk_krot()
 	elif id.begins_with("gate"):
 		choose_gate(int(id.substr(4)))
 	else:
