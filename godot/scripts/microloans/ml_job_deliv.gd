@@ -35,6 +35,8 @@ var best_chain := 0
 var parcel_t := 0.0
 var stumble_t := 0.0
 var stam_bar: Dictionary
+var recips: Array = []              # получатели у двери: соседка и заказчик (npc_neighbor / npc_customer, скелет Пахана)
+var recip_for := -1
 
 func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	rng.seed = seed_v
@@ -54,6 +56,7 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	_parcels()
 	_pahan()
 	_peds()
+	_recipients()
 	if weather in ["rain", "snow"]:
 		_precip()
 
@@ -84,7 +87,7 @@ func _yard() -> void:
 			MGProps.text(dn, "ДОМ %d · ПОД. %d" % [hi + 1, di + 1], Vector3(0, 2.75, 0.12), 70, Color(0.95, 0.92, 0.85))
 			var lamp := light(dp + fw * 0.6 + Vector3(0, 2.3, 0), 1.2 if weather == "night" else 0.3, 5.0, Color(1.0, 0.8, 0.5))
 			lamp.shadow_enabled = false
-			doors.append({"p": dp + fw * 0.9, "name": "Дом %d, подъезд %d" % [hi + 1, di + 1]})
+			doors.append({"p": dp + fw * 0.9, "name": "Дом %d, подъезд %d" % [hi + 1, di + 1], "fw": fw})
 	# киоск выдачи — старт
 	_prop("kiosk", Vector3(-4.5, 0, 4.5), 0.6, 1.6)
 	if MGModels.has("ml_job_parcel_cart"):                                    # тележка с посылками у киоска
@@ -94,6 +97,10 @@ func _yard() -> void:
 		_prop("bench", p[0], p[1], 1.0)
 	for p in [Vector3(12, 0, 4), Vector3(-6, 0, 13)]:
 		_prop("old_car", p, rng.randf() * TAU, 2.2)
+	# «копейка» соседа в засохшей грязи (ml_job_car_dirty.glb) — у дома, мешает срезать угол
+	if MGModels.has("ml_job_car_dirty"):
+		MGModels.spawn("ml_job_car_dirty", world_root, Vector3(-13.0, 0, -9.0), 0.35, Vector3(1.7, 1.45, 4.2), Callable())
+		obst.append({"c": Vector2(-13.0, -9.0), "r": 2.2})
 	for p in [Vector3(-14, 0, -14), Vector3(14, 0, 14), Vector3(-15, 0, 4), Vector3(4, 0, -15)]:
 		_prop("birch_tree", p, rng.randf() * TAU, 0.6)
 	for p in [Vector3(3.5, 0, 9), Vector3(-9, 0, -3)]:
@@ -185,12 +192,49 @@ func _pahan() -> void:
 	pahan.position = pos
 	pahan.play("Idle", 0.0)
 	box_node = at(Vector3(0, 1.0, 0.45), 0.0, pahan)
-	MGProps.carton(box_node, Vector3(0.45, 0.32, 0.36), "ХРУПКОЕ")
+	if MGModels.has("ml_job_parcel_box"):
+		MGModels.spawn("ml_job_parcel_box", box_node, Vector3.ZERO, 0.0, Vector3(0.45, 0.36, 0.38), Callable())
+	else:
+		MGProps.carton(box_node, Vector3(0.45, 0.32, 0.36), "ХРУПКОЕ")
 	box_node.position.y = 0.9
 	arrow = at(Vector3(0, 2.6, 0))
 	MGProps.cyl(arrow, Vector3(0, 0, -0.35), 0.0, 0.18, 0.4, MGProps.glow(Color(1.0, 0.3, 0.2), 2.0), Vector3(-PI / 2, 0, 0))
 	MGProps.box(arrow, Vector3(0, 0, 0.05), Vector3(0.1, 0.04, 0.45), MGProps.glow(Color(1.0, 0.3, 0.2), 2.0))
 	cam.look_at_from_position(pos + Vector3(0, 5, 7), pos, Vector3.UP)
+
+## получатель ждёт у адреса текущей посылки (вышел из подъезда или сидит на лавке) и смотрит на Пахана
+func _recipients() -> void:
+	for q in [["npc_neighbor", 1.45], ["npc_customer", 1.6]]:
+		var path := "res://assets/minigames/%s.glb" % q[0]
+		if not ResourceLoader.exists(path):
+			continue
+		var r := Rig.new()
+		world_root.add_child(r)
+		r.setup(path, float(q[1]), Poses.pahan(), true, -1.0, "deliv_" + String(q[0]))
+		r.play("Idle", 0.0)
+		r.visible = false
+		recips.append(r)
+
+func _recip_tick() -> void:
+	if recips.is_empty():
+		return
+	if cur >= parcels.size():
+		for r in recips:
+			(r as Rig).visible = false
+		return
+	var Pk: Dictionary = parcels[cur]
+	var r: Rig = recips[cur % recips.size()]
+	if recip_for != cur:
+		recip_for = cur
+		for o in recips:
+			(o as Rig).visible = false
+		var tp := _target_of(Pk)
+		if String(Pk["quirk"]) != "bench":
+			tp -= (doors[int(Pk["to"])]["fw"] as Vector3) * 0.5      # у самой двери, а не на дорожке
+		r.position = tp
+		r.visible = true
+	var to := pos - r.position
+	r.rotation.y = lerp_angle(r.rotation.y, atan2(to.x, to.z), 0.15)
 
 func _peds() -> void:
 	for k in 3 + tier:
@@ -277,6 +321,7 @@ func _process(dt: float) -> void:
 				((Pu["mark"] as MeshInstance3D).material_override as StandardMaterial3D).emission = Color(1.0, 0.82, 0.3)
 	box_node.visible = cur < parcels.size()
 	_ped_tick(dt)
+	_recip_tick()
 	# адрес, стрелка, сдача
 	if cur < parcels.size():
 		var tgt := _target()

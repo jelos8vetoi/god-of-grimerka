@@ -278,8 +278,12 @@ func _tv(i: int, title: String, font: Font) -> void:
 func _props() -> void:
 	var black := _mat(Color(0.04, 0.04, 0.045), 0.5)
 	var steel := _mat(Color(0.3, 0.3, 0.32), 0.35, 0.8)
-	# студийная камера на треноге (справа на переднем плане)
+	# студийная камера (справа на переднем плане): модель владельца, если есть
+	if MGModels.has("menu_studio_camera"):
+		var cmn := MGModels.spawn("menu_studio_camera", vp, Vector3(3.6, 0, 1.75), 1.1 + PI, Vector3(0.8, 1.75, 1.2), Callable())
+		MGModels.lift(cmn, 0.08)
 	var cx := Node3D.new()
+	cx.visible = not MGModels.has("menu_studio_camera")
 	cx.position = Vector3(4.2, 0, 2.6)
 	cx.rotation.y = 0.9
 	vp.add_child(cx)
@@ -294,13 +298,17 @@ func _props() -> void:
 	tally.emission_energy_multiplier = 3.0
 	_box(cx, Vector3(0, 1.6, -0.3), Vector3(0.05, 0.03, 0.03), tally)
 	# осветительные стойки
-	for q in [[-3.6, 1.2, 0.5], [5.2, 0.6, -0.6]]:
+	for q in [[-3.15, -0.6, 0.5], [4.95, -0.45, -0.6]]:
 		var st := Node3D.new()
 		st.position = Vector3(float(q[0]), 0, float(q[1]))
 		vp.add_child(st)
-		_cyl(st, Vector3(0, 1.5, 0), 0.02, 3.0, steel)
-		_cyl(st, Vector3(0, 0.03, 0), 0.3, 0.05, black)
-		_cyl(st, Vector3(0, 3.0, 0), 0.16, 0.3, black, Vector3(1.0, float(q[2]), 0), 0.22)
+		if MGModels.has("menu_spotlight"):
+			var to := Vector3(-2.05, 0, 1.25) - st.position
+			MGModels.spawn("menu_spotlight", st, Vector3.ZERO, atan2(to.x, to.z), Vector3(1.0, 3.2, 1.0), Callable())
+		else:
+			_cyl(st, Vector3(0, 1.5, 0), 0.02, 3.0, steel)
+			_cyl(st, Vector3(0, 0.03, 0), 0.3, 0.05, black)
+			_cyl(st, Vector3(0, 3.0, 0), 0.16, 0.3, black, Vector3(1.0, float(q[2]), 0), 0.22)
 		var sp := SpotLight3D.new()
 		sp.position = Vector3(0, 3.0, 0)
 		sp.light_energy = 5.0
@@ -313,6 +321,10 @@ func _props() -> void:
 	var cm := _mat(Color(0.02, 0.02, 0.02), 0.6)
 	for q in 5:
 		_cyl(vp, Vector3(1.0 + q * 0.7, 0.012, 1.2 + sin(q * 1.7) * 0.5), 0.012, 3.2, cm, Vector3(PI / 2, 0.5 + q * 0.5, 0))
+	# старые телевизоры владельца (menu_crt_tv.glb) стопками на полу по краям стены экранов — выключены, тускло светятся
+	if MGModels.has("menu_crt_tv"):
+		for q in [[Vector3(-3.0, 0, -0.1), 0.45], [Vector3(-2.97, 0.56, -0.1), 0.3], [Vector3(4.65, 0, -0.95), -0.5]]:
+			MGModels.spawn("menu_crt_tv", vp, q[0], float(q[1]), Vector3(0.72, 0.56, 0.55), Callable())
 	# готовые модели, если есть: колонка и старый телевизор на полу, кресло
 	for q in [["fn_stage_speaker", Vector3(-2.2, 0, -0.6), 0.3, Vector3(0.8, 1.3, 0.7)], ["ml_job_old_tv", Vector3(3.9, 0, -0.3), -0.5, Vector3(0.75, 0.7, 0.6)], ["ml_job_amp", Vector3(4.7, 0, 0.5), -0.9, Vector3(0.7, 0.6, 0.45)]]:
 		if ResourceLoader.exists("res://assets/minigames/%s.glb" % q[0]):

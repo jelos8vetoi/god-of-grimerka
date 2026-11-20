@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://dbo1h0mgfylgv"
+path.s3tc="res://.godot/imported/ml_job_part_speaker_tripo_image_9efa7d43-ee32-4c71-a948-924d9a73f45e_2-tripo_image_9efa7d43-ee32-4c71-a948-924d9a73f45e_1.jpg-4b1d3128fdcc5b21e4995e5cfcf31004.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "46df2cc365df42c797332bca0a92e60f"
+}
+
+[deps]
+
+source_file="res://assets/minigames/ml_job_part_speaker_tripo_image_9efa7d43-ee32-4c71-a948-924d9a73f45e_2-tripo_image_9efa7d43-ee32-4c71-a948-924d9a73f45e_1.jpg"
+dest_files=["res://.godot/imported/ml_job_part_speaker_tripo_image_9efa7d43-ee32-4c71-a948-924d9a73f45e_2-tripo_image_9efa7d43-ee32-4c71-a948-924d9a73f45e_1.jpg-4b1d3128fdcc5b21e4995e5cfcf31004.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=1024
+detect_3d/compress_to=1

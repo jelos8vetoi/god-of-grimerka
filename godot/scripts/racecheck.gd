@@ -634,7 +634,8 @@ func _run() -> void:
 	for id in RaceData.ITEM_IDS:
 		var mdl := RaceItems.model(String(id))
 		var meshes := mdl.find_children("*", "MeshInstance3D", true, false)
-		parts_min = mini(parts_min, meshes.size())
+		# модель из файла владельца — одна цельная сетка; у собранной кодом деталей должно быть не меньше шести
+		parts_min = mini(parts_min, 6 if mdl.has_meta("glb") and meshes.size() >= 1 else meshes.size())
 		var kinds := {}
 		var bb := AABB()
 		for q in meshes.size():

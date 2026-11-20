@@ -622,6 +622,9 @@ static func laptop(r: Node3D, c := Color(0.55, 0.8, 1.0)) -> Dictionary:
 
 ## смартфон экраном вверх; возвращает {screen}
 static func phone(r: Node3D) -> Dictionary:
+	if MGModels.has("ml_phone"):
+		MGModels.spawn("ml_phone", r, Vector3.ZERO, 0.0, Vector3(0.085, 0.03, 0.17), Callable())
+		return {"screen": screen_mat(Color(0.85, 0.9, 1.0), 1.0, 4.2, 0.5)}
 	box(r, Vector3(0, 0.005, 0), Vector3(0.075, 0.01, 0.155), mat("plastic_black"))
 	var scr := screen_mat(Color(0.85, 0.9, 1.0), 1.0, 4.2, 0.5)
 	quad(r, Vector3(0, 0.0105, 0), Vector2(0.066, 0.14), scr, Vector3(-PI / 2, 0, 0))
