@@ -269,6 +269,44 @@ func _drift(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
 		mi.scale = Vector3(size.x * k.x, size.y * k.y * 1.25, size.z * k.z)
 		root.add_child(mi)
 
+## Рисованная надпись владельца (assets/golda67/decals/<id>.png) — граффити или табличка на стене.
+## width — ширина в метрах; glow — светится сама (световой короб). Нет файла — прежняя надпись текстом.
+func _decal(id: String, text: String, pos: Vector3, yaw: float, width: float, col: Color, px := 0.01, size := 64, glow := false) -> Node3D:
+	var path := "res://assets/golda67/decals/%s.png" % id
+	if not ResourceLoader.exists(path):
+		return _sign(text, pos, yaw, col, px, size)
+	var t: Texture2D = load(path)
+	var sp := Sprite3D.new()
+	sp.texture = t
+	sp.pixel_size = width / float(t.get_width())
+	sp.position = pos
+	sp.rotation.y = yaw
+	sp.double_sided = false
+	sp.shaded = not glow
+	sp.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	sp.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	sp.name = "decal_%s_%d" % [id, get_child_count()]
+	sp.set_meta("decal", id)
+	add_child(sp)
+	return sp
+
+## Номер бокса: своя рисованная табличка (61–63 от владельца), иначе пустая табличка из той же и цифры поверх
+func _house_plate(num: int, pos: Vector3, yaw: float) -> void:
+	if ResourceLoader.exists("res://assets/golda67/decals/sign_house_%d.png" % num):
+		_decal("sign_house_%d" % num, str(num), pos, yaw, 0.42, Color(0.9, 0.85, 0.7), 0.005, 48)
+		return
+	var plate := _decal("sign_house_blank", str(num), pos, yaw, 0.42, Color(0.9, 0.85, 0.7), 0.005, 48)
+	if not (plate is Sprite3D):
+		return
+	var l := _sign(str(num), Vector3(0, -0.005, 0.012), 0.0, Color(0.12, 0.11, 0.1), 0.0045, 48)
+	remove_child(l)
+	plate.add_child(l)
+	var f := SystemFont.new()
+	f.font_names = PackedStringArray(["Impact", "Arial Black", "Arial"])
+	f.font_weight = 800
+	l.font = f
+	l.name = "plate_digits_%d" % num
+
 ## надпись баллончиком или табличка на стене
 func _sign(text: String, pos: Vector3, yaw: float, col: Color, px := 0.01, size := 64) -> Label3D:
 	var l := Label3D.new()
@@ -326,6 +364,109 @@ func build() -> void:
 	_zone_parking()
 	_zone_gazebo()
 	_zone_sport()
+	_stick_decals()
+
+## Рисованные надписи ложатся на стену вплотную: луч от надписи назад по её лицу находит поверхность модели
+## (дом, гараж, будка), надпись встаёт на 5 см перед ней и разворачивается по её нормали. Не нашёл — остаётся как была.
+func _stick_decals() -> void:
+	var meshes: Array = find_children("*", "MeshInstance3D", true, false)
+	for c in get_children():
+		if not (c is Sprite3D) or not c.has_meta("decal"):
+			continue
+		var sp := c as Sprite3D
+		var n := sp.global_transform.basis.z.normalized()
+		var near: Array = meshes.filter(func(m): return (m as MeshInstance3D).global_position.distance_to(sp.global_position) < 25.0 or (m as MeshInstance3D).get_aabb().size.length() > 12.0)
+		var flat := _flat_spot(near, sp, n)
+		if not flat.is_empty():
+			sp.global_position = Vector3(flat["pos"]) + n * 0.055      # гофра гаражей выступает на 4–5 см
+			sp.set_meta("stuck", "flat")
+			continue
+		var hit := _surface_hit(near, sp.global_position + n * 0.7, -n, 5.0)
+		if hit.is_empty():
+			continue
+		var hn: Vector3 = hit["normal"]
+		if hn.dot(n) < 0.0:
+			hn = -hn
+		if absf(hn.y) > 0.5:
+			# скос (верх арки, край крыши): поворот прежний, надпись чуть дальше от поверхности
+			sp.global_position = Vector3(hit["pos"]) + n * 0.12
+		else:
+			sp.rotation.y = atan2(hn.x, hn.z)
+			sp.global_position = Vector3(hit["pos"]) + hn * 0.055      # гофра гаражей выступает на 4–5 см
+		sp.set_meta("stuck", true)
+
+static var _tri := {}
+
+## Ровный кусок стены под надпись: сетка 3×3 лучей по всей её площади должна попасть в одну плоскость (разброс
+## глубины < 10 см, без скосов). Не вышло на месте — надпись сдвигается вдоль стены (до 3 м вбок, до 0,6 м по высоте).
+## Возвращает {pos — центр на поверхности, normal} или пусто.
+func _flat_spot(meshes: Array, sp: Sprite3D, n: Vector3) -> Dictionary:
+	var w := sp.texture.get_width() * sp.pixel_size
+	var h := sp.texture.get_height() * sp.pixel_size
+	var right := Vector3.UP.cross(n).normalized()
+	var offs: Array[Vector2] = []
+	for k in 11:
+		for dx in ([0.0] if k == 0 else [k * 0.3, -k * 0.3]):
+			for dy in [0.0, 0.3, -0.3, 0.6]:
+				offs.append(Vector2(dx, dy))
+	for o in offs:
+		var c: Vector3 = sp.global_position + right * o.x + Vector3.UP * o.y
+		var depths: Array[float] = []
+		var nsum := Vector3.ZERO
+		var ok := true
+		for gx in [-0.45, 0.0, 0.45]:
+			for gy in [-0.4, 0.0, 0.4]:
+				var p: Vector3 = c + right * (w * gx) + Vector3.UP * (h * gy)
+				var hit := _surface_hit(meshes, p + n * 0.7, -n, 5.0)
+				if hit.is_empty():
+					ok = false
+					break
+				var hn: Vector3 = hit["normal"]
+				if hn.dot(n) < 0.0:
+					hn = -hn
+				if absf(hn.y) > 0.4 or hn.dot(n) < 0.8:
+					ok = false
+					break
+				depths.append((Vector3(hit["pos"]) - c).dot(n))
+				nsum += hn
+			if not ok:
+				break
+		if not ok:
+			continue
+		if depths.max() - depths.min() > 0.1 or -float(depths.min()) > float(sp.get_meta("max_depth", 2.5)):
+			continue
+		var fn := Vector3(nsum.x, 0.0, nsum.z).normalized()
+		return {"pos": c + n * float(depths.max()), "normal": fn}
+	return {}
+
+## Ближайшая точка видимой геометрии по лучу: {pos, normal} или пусто
+func _surface_hit(meshes: Array, from: Vector3, dir: Vector3, maxd: float) -> Dictionary:
+	var best := {}
+	var bd := maxd
+	var to := from + dir * maxd
+	for mo in meshes:
+		var m := mo as MeshInstance3D
+		if m == null or m.mesh == null or not m.is_visible_in_tree():
+			continue
+		var gab: AABB = m.global_transform * m.get_aabb()
+		if gab.grow(0.05).intersects_segment(from, to) == null:
+			continue
+		var tm: TriangleMesh = _tri.get(m.mesh)
+		if tm == null:
+			tm = m.mesh.generate_triangle_mesh()
+			_tri[m.mesh] = tm
+		if tm == null:
+			continue
+		var inv := m.global_transform.affine_inverse()
+		var r: Dictionary = tm.intersect_ray(inv * from, (inv.basis * dir).normalized())
+		if r.is_empty():
+			continue
+		var pw: Vector3 = m.global_transform * Vector3(r["position"])
+		var d := from.distance_to(pw)
+		if d < bd and (pw - from).dot(dir) > 0.0:
+			bd = d
+			best = {"pos": pw, "normal": (m.global_transform.basis * Vector3(r["normal"])).normalized()}
+	return best
 
 ## Дома по периметру и дальний план. Фасады разного типа и оттенка, на разной глубине — силуэт двора не ровная коробка.
 func _houses() -> void:
@@ -347,9 +488,8 @@ func _houses() -> void:
 	# восток: длинный дом вдоль проезда (две хрущёвки), фасадом на запад
 	var e1 := _put("khrushchevka", Vector3(49.0, 0, 6.0), PI, 15.0)
 	_tint(e1, Color(0.98, 0.9, 0.84))
-	# дом с аркой: через неё турнир уходит дальше, в ПОДЗЕМКУ; над аркой — растяжка
+	# дом с аркой: через неё турнир уходит дальше, в ПОДЗЕМКУ (надпись «ТУРНИР 67» — на щите рядом)
 	if _own("g67_house_arch", Vector3(49.6, 0, -15.5), -PI * 0.5, 15.2) != null:
-		_sign("ТУРНИР 67", Vector3(44.55, 5.3, -15.5), -PI * 0.5, Color(1.0, 0.8, 0.2), 0.02, 64)
 		_light(Vector3(45.5, 2.6, -15.5), Color(1.0, 0.8, 0.5), 2.0, 7.0)
 	else:
 		_put("khrushchevka", Vector3(49.5, 0, -15.5), PI, 14.6)
@@ -437,8 +577,12 @@ func _zone_podezd() -> void:
 	_put("bush", Vector3(8.6, 0, 26.2), 1.0, 1.3, false)
 	_drift(Vector3(-8.5, 0.2, 17.5), Vector3(3.0, 0.7, 3.0))
 	if secret_tag:
-		var tag := _sign("ПАХАН + MADK1D\nБЫЛИ ТУТ", Vector3(-6.2, 1.05, 35.55), PI, Color(0.2, 0.5, 0.95, 0.9), 0.0038, 48)
+		var tag := _decal("graffiti_pahan_madk1d", "ПАХАН + MADK1D\nБЫЛИ ТУТ", Vector3(-3.3, 1.7, 36.0), PI, 1.45, Color(0.2, 0.5, 0.95, 0.9), 0.0038, 48)
 		tag.name = "secret_tag"
+		tag.set_meta("max_depth", 0.9)          # на фасаде, не в нише подъезда
+		if tag is Sprite3D:
+			(tag as Sprite3D).shaded = false     # стена в тени фонаря: свежая краска должна читаться и ночью
+			(tag as Sprite3D).modulate = Color(0.78, 0.82, 0.95)
 
 ## B — гаражи: ряд разных гаражей, проезд, фургон, покрышки и бочки у открытого бокса
 func _zone_garages() -> void:
@@ -453,9 +597,9 @@ func _zone_garages() -> void:
 			continue
 		var g := _put("garage", Vector3(-45.6 - back, 0, z), 0.0, 3.0 + [0.0, 0.15, -0.1, 0.2, 0.0, 0.25, -0.05, 0.1][i])
 		_tint(g, tones[i])
-		_sign(str(61 + i), Vector3(-44.0 - back, 2.55, z - 1.7), PI * 0.5, Color(0.9, 0.85, 0.7), 0.005, 48)
-	_sign("МИША ГЛАВНЫЙ", Vector3(-44.15, 1.5, 9.5), PI * 0.5, Color(0.85, 0.63, 0.2), 0.008, 56)
-	_sign("67", Vector3(-44.1, 1.3, -5.5), PI * 0.5, Color(0.95, 0.75, 0.2), 0.02, 64)
+		_house_plate(61 + i, Vector3(-44.0 - back, 2.28, z - 1.7), PI * 0.5)
+	_decal("graffiti_misha_main", "МИША ГЛАВНЫЙ", Vector3(-44.15, 1.5, 9.5), PI * 0.5, 2.4, Color(0.85, 0.63, 0.2), 0.008, 56)
+	_decal("graffiti_67", "67", Vector3(-44.1, 1.3, -5.5), PI * 0.5, 2.0, Color(0.95, 0.75, 0.2), 0.02, 64)
 	var van := _put("old_van", Vector3(-38.6, 0.02, 14.0), PI * 0.5, 2.1)
 	_tint(van, Color(1.0, 0.85, 0.75))
 	_put("tire_stack", Vector3(-42.6, 0.02, 1.4), 0.2, 1.1)
@@ -511,18 +655,20 @@ func _zone_parking() -> void:
 	# шаурмичная «ШАУРМА 67» — у проезда, окном во двор; здесь КРОТ стоит в очереди (встреча 1)
 	if _own("g67_shawarma_kiosk", Vector3(42.3, 0.07, 7.0), -PI * 0.5, 3.2) != null:
 		# настоящая шаурмичная: вертел в окне, полосатый навес, жёлтый световой короб на крыше — на нём название
-		_sign("ШАУРМА 67", Vector3(40.9, 2.46, 7.22), -PI * 0.5, Color(0.5, 0.07, 0.05), 0.0042, 64)
+		_decal("sign_shawarma_box", "ШАУРМА 67", Vector3(40.85, 2.6, 7.22), -PI * 0.5, 2.1, Color(0.5, 0.07, 0.05), 0.0042, 64, true)
 		_light(Vector3(41.5, 1.6, 7.0), Color(1.0, 0.6, 0.25), 2.2, 4.5)            # жар от вертела
 	else:
 		_put("kiosk", Vector3(42.4, 0.07, 7.0), PI, 3.0)
-		_sign("ШАУРМА 67", Vector3(41.2, 3.3, 7.0), -PI * 0.5, Color(1.0, 0.8, 0.2), 0.007, 56)
+		_decal("sign_shawarma_plate", "ШАУРМА 67", Vector3(41.2, 3.3, 7.0), -PI * 0.5, 1.9, Color(1.0, 0.8, 0.2), 0.007, 56)
 	_light(Vector3(40.4, 1.8, 7.0), Color(1.0, 0.82, 0.5), 3.0, 9.0)
 	_queue()
 	_people()
 	_put("bus_stop", Vector3(42.6, 0.07, 19.0), PI, 2.7)
 	_put("transformer_booth", Vector3(19.5, 0, -14.5), -PI * 0.5, 3.4)
-	_sign("НЕ ВЛЕЗАЙ\nУБЬЁТ", Vector3(19.5, 2.2, -12.75), 0.0, Color(0.9, 0.2, 0.15), 0.005, 48)
-	_put("billboard", Vector3(44.0, 0, -19.5), PI * 0.75, 7.0, false)
+	_decal("graffiti_dont_climb", "НЕ ВЛЕЗАЙ\nУБЬЁТ", Vector3(19.62, 1.08, -12.75), 0.0, 0.92, Color(0.9, 0.2, 0.15), 0.005, 48)
+	_put("billboard", Vector3(44.0, 0, -19.5), PI * 0.75, 9.0, false)
+	# «ТУРНИР 67» баллончиком поверх рекламы на щите (лицо щита — по +X модели, после поворота — во двор)
+	_decal("graffiti_tournament", "ТУРНИР 67", Vector3(43.3, 6.2, -20.2), -PI * 0.75, 5.0, Color(1.0, 0.8, 0.2), 0.02, 64)
 	_solid_box(Vector3(44.0, 2.0, -19.5), Vector3(0.6, 4.0, 0.6))
 	_lamp(Vector3(34.3, 0, -10.5), 3.4, true)
 	_lamp(Vector3(34.3, 0, 15.0), 3.2)
@@ -707,8 +853,8 @@ func _zone_sport() -> void:
 	_put("res://assets/golda67/g67_poster_stand.glb", Vector3(-2.4, 0.03, -48.4), 0.0, 2.4)
 	_put("res://assets/golda67/g67_poster_stand.glb", Vector3(5.2, 0.03, -48.7), 0.0, 2.2)
 	_put("barrel", Vector3(3.7, 0.03, -47.9), 0.0, 0.9)
-	_sign("МИША МИНАСЯН", Vector3(2.0, 3.6, -49.25), 0.0, Color(0.95, 0.72, 0.2), 0.016, 64)
-	_sign("ГЛАВНЫЙ АВТОРИТЕТ ДВОРА", Vector3(2.0, 2.85, -49.25), 0.0, Color(0.9, 0.85, 0.75), 0.008, 56)
+	if _decal("graffiti_misha_banner", "МИША МИНАСЯН", Vector3(2.0, 3.25, -49.25), 0.0, 5.2, Color(0.95, 0.72, 0.2), 0.016, 64) is Label3D:
+		_sign("ГЛАВНЫЙ АВТОРИТЕТ ДВОРА", Vector3(2.0, 2.85, -49.25), 0.0, Color(0.9, 0.85, 0.75), 0.008, 56)
 	_light(Vector3(2.0, 3.0, -46.6), Color(1.0, 0.75, 0.3), 3.0, 9.0)
 	# турник и брусья у западного борта — укрытие и его «качалка»
 	for bp in BARS:
