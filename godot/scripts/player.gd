@@ -704,6 +704,8 @@ func _physics_process(dt: float) -> void:
 				if perfect:
 					combat.open("perfect", 0.7)
 					swag = min(100.0, swag + 12.0)
+					if game.run_mods != null:
+						game.run_mods.dodged(game)
 					# идеальный уклон: вышел из переката низко, балон уже отведён для ответа
 					perfect = false
 					rig.play_role_for("perfect_dodge", 0.55, 0.06)
@@ -1006,10 +1008,10 @@ func _board_tick(dt: float) -> void:
 ## Усиления момента складываются (а не перемножаются) и вместе не выше Balance.MOMENT_CAP:
 ## ресурс стиля (заряды скейта, ритм и дисторшн гитары, поток и Freeze Breaker) + Perfect Swap + Tag-бонус.
 ## Раньше они перемножались, а у скейта и гитары Tag-бонус не учитывался вовсе (docs/DAMAGE_BALANCE.md).
-func damage_bonus(a: AttackData) -> float:
+func damage_bonus(a: AttackData, extra_moment := 0.0) -> float:
 	var team: float = game.tag.bonus() if game.tag != null else 1.0
 	var add: float = (_style_bonus(a) - 1.0) + (flow.bonus() - 1.0) + (team - 1.0)
-	return clampf(1.0 + add, 0.1, Balance.MOMENT_CAP)
+	return clampf(1.0 + add + extra_moment, 0.1, Balance.MOMENT_CAP)
 
 func _style_bonus(_a: AttackData) -> float:
 	if hero == "madk1d" and style.id == "skateboard":
@@ -1174,6 +1176,8 @@ func start_roll(dir: Vector3) -> void:
 	game.main.sfx("sfx_roll", -6.0)
 
 func start_rage() -> void:
+	if game.telemetry != null:
+		game.telemetry.use(hero, "system", "rage_burst")
 	state = "rage"
 	t = 0.0
 	rage = 8.0
@@ -1189,9 +1193,16 @@ func start_rage() -> void:
 	game.banner("ПЕРЕГРУЗ!", "урон ×1.6 на 8 секунд", Color(1, 0.4, 0.15))
 	for e in game.enemies:
 		if is_instance_valid(e) and e.alive() and e.global_position.distance_to(global_position) < 5.0:
-			e.take_hit(40.0, (e.global_position - global_position).normalized(), 9.0, true, 6.0)
+			e.take_hit(40.0, (e.global_position - global_position).normalized(), 9.0, true, 6.0, null, "rage_burst", hero)
 
-func take_damage(dmg: float, from: Vector3, attacker = null, unblockable := false) -> void:      # unblockable — захват: блок и парирование не работают
+## context — сведения об источнике урона (телеметрия Endless Survival) или true: захват, блок и парирование не работают
+func take_damage(dmg: float, from: Vector3, attacker = null, context = {}) -> void:
+	var unblockable := false
+	if context is bool:
+		unblockable = context
+		context = {}
+	else:
+		unblockable = bool((context as Dictionary).get("unblockable", false))
 	if state == "dead":
 		return
 	if inv > 0.0:
@@ -1199,7 +1210,9 @@ func take_damage(dmg: float, from: Vector3, attacker = null, unblockable := fals
 			perfect = true
 			game.feedback("perfect_dodge", global_position)
 		return
+	var raw := dmg
 	dmg *= breaker.on_hurt()             # Breaker: во вращении бьют больнее, поток сгорает
+	var survival_block := 1.0
 	var to: Vector3 = from - global_position
 	to.y = 0
 	if state == "block" and not unblockable and aim_dir().angle_to(to.normalized()) < 1.4:
@@ -1211,10 +1224,15 @@ func take_damage(dmg: float, from: Vector3, attacker = null, unblockable := fals
 			combat.open("parry", 0.8)      # окно ответа: следующий удар — контратака
 			game.bark("parry", 5.0)
 			swag = min(100.0, swag + 20.0)
+			if game.run_mods != null:
+				game.run_mods.parried(game)
 			return
 		rig.play_role_for("block_heavy" if dmg >= 18.0 else "block_hit", 0.42 if dmg >= 18.0 else 0.26, 0.03)      # удар пришёл в блок
 		anim_hold = 0.4 if dmg >= 18.0 else 0.24
 		dmg *= 0.2
+		if game.run_mods != null:
+			survival_block = 1.0 - 0.12 * game.run_mods.rank("block")
+			dmg *= survival_block
 		combat.open("block", 0.5)          # принял на блок — можно толкнуть в ответ
 		swag = min(100.0, swag + 3.0)
 		game.feedback("block", global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.5, -to.normalized(), 1.0, Color(0.7, 0.85, 1.0))
@@ -1249,6 +1267,12 @@ func take_damage(dmg: float, from: Vector3, attacker = null, unblockable := fals
 			rig.play_role_for(role, 0.4, 0.06)
 	if rage > 0.0:
 		dmg *= 0.65
+	var ordinary := dmg / survival_block
+	if game.run_mods != null:
+		dmg *= game.run_mods.incoming(game)
+	if game.telemetry != null and dmg > 0.0:
+		var origin: Dictionary = game.telemetry.source(attacker) if context.is_empty() else context
+		game.telemetry.incoming(hero, origin, clampf(dmg, 0.0, maxf(hp, 0.0)), raw, ordinary, dmg, hp <= dmg)
 	hp -= dmg
 	game.damage_flash()
 	if hp > 0.0 and hp < max_hp * 0.4:

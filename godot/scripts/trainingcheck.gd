@@ -56,7 +56,7 @@ func _run() -> void:
 	var names: Array = []
 	for it in mm.ITEMS:
 		names.append(String(it[0]))
-	ok(names == ["CONTINUE", "PLAY", "SETTINGS", "EXTRAS", "EXIT"], "в главном меню PLAY (выбор режима), остальные пункты на месте (%s)" % ", ".join(names))
+	ok(names == ["CONTINUE", "PLAY", "SETTINGS", "EXTRAS", "ROGUELIKE", "EXIT"], "в главном меню PLAY (выбор режима), остальные пункты на месте (%s)" % ", ".join(names))
 	var had_save: bool = mm.has_save
 	ok(mm._enabled(0) == had_save, "CONTINUE доступен так же, как раньше (сохранение есть: %s)" % had_save)
 	await shot("m_menu")

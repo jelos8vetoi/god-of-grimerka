@@ -238,7 +238,10 @@ func tick(dt: float, dir: Vector3) -> void:
 			(p.wbones["board_ride"] as WeaponBones).bump(1.0)      # дека прогнулась под весом
 	# ---- руление и скорость ----
 	var want := dir.length() > 0.2
+	var was_sliding := sliding
 	sliding = p.held("roll") and grounded and speed > 3.0
+	if sliding and not was_sliding:
+		game.measure_use(p.hero, style.id, "sk_slide")
 	var h0 := heading
 	# назад на ходу — торможение хвостом: нос не разворачивается, пока доска не встанет
 	braking = want and grounded and not sliding and speed > 1.5 and fwd().dot(dir.normalized()) < -0.6
@@ -420,6 +423,7 @@ func _hit(a: AttackData, e, dir: Vector3, mul: float) -> void:
 	p.swag = min(100.0, p.swag + 5.0)
 
 func _area(a: AttackData, at: Vector3, mul: float, cone := false) -> int:
+	game.measure_use(p.hero, style.id, a.id)
 	var n := 0
 	for e in game.enemies:
 		if not is_instance_valid(e) or not e.alive():

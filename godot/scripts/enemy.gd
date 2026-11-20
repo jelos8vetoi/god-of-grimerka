@@ -32,6 +32,11 @@ const BOSS_LOOK := {
 
 var game
 var kind := "bot"
+var survival_elite := false
+var telemetry_move := "unclassified"
+var telemetry_phase := 0
+var telemetry_override := {}
+var survival_reinforcement := false
 var skin := ""              # облик из SKINS (приквел): «» — обычный вид типа
 var boss_id := ""
 var boss: Dictionary = {}
@@ -342,6 +347,8 @@ func _physics_process(dt: float) -> void:
 			if t > 1.0:
 				state = "chase"
 				t = 0.0
+				if boss_id != "" and game.telemetry != null:
+					game.telemetry.boss_ready(self)
 		"chase":
 			cool -= dt
 			if train_attack and cool > 1.3:
@@ -537,7 +544,7 @@ func _physics_process(dt: float) -> void:
 			else:
 				var sp := global_position + Vector3(kb.x, 0, kb.z) * dt
 				global_position = Vector3(clampf(sp.x, -lim, lim), global_position.y, clampf(sp.z, -lim, lim))
-				if t > 2.6 and boss_id == "":
+				if t > 2.6 and (boss_id == "" or game.is_survival()):
 					# тело не тонет в полу, а рассыпается дымом с искрами
 					game.fx.poof(global_position, height / 1.7, Color(0.85, 0.8, 0.95))
 					queue_free()
@@ -548,12 +555,19 @@ func _physics_process(dt: float) -> void:
 	body.rotation.y = face
 
 func _wind(clip: String, w: float) -> void:
+	record_ability(move if boss_id != "" else String(amove.get("id", "basic")))
 	state = "wind"
 	t = 0.0
 	ring.visible = not _tell_start()
 	glint = false
 	cfg["wind"] = w
 	rig.play_for(clip, w * 2.0, 0.08)
+
+func record_ability(id: String) -> void:
+	if game.telemetry != null:
+		telemetry_move = id if id != "" else "basic"
+		telemetry_phase = phase
+		game.telemetry.hostile_use(self, telemetry_move)
 
 ## Приём моба: замах с меткой той же формы, что удар (EnemyAI.tell_of); два удара разных врагов не совпадают по времени
 func _start_move(m: Dictionary) -> void:
@@ -691,6 +705,7 @@ func _boss_pick(dist: float) -> void:
 		"charge":
 			_wind(String(cfg["clip"]), 0.55)
 		"tp":
+			record_ability(move)
 			_teleport_near(game.player.global_position, 3.5)
 			cool = 0.5
 		"slam", "shock":
@@ -865,9 +880,10 @@ func _react(dir: Vector3, heavy: bool) -> void:
 	sq_tw = create_tween()
 	sq_tw.tween_property(body, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 
-func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 0.0) -> void:
+func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 0.0, hit: HitInfo = null, source_id := "", source_hero := "") -> void:
 	if not alive():
 		return
+	var raw_damage := dmg
 	if cfg.get("shield", false) and not heavy:
 		var front := Vector3(sin(face), 0, cos(face))
 		if front.dot(-dir) > 0.3:
@@ -888,6 +904,8 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 	var shown := dmg                  # цифра над целью — урон удара, даже если учебная цель его не «приняла»
 	if train_guard and not executed:
 		dmg = minf(dmg, maxf(0.0, hp - maxf(1.0, max_hp * 0.05)))      # учебная цель: здоровье не ниже 5 %
+	if game.telemetry != null:
+		game.telemetry.outgoing(self, clampf(dmg, 0.0, maxf(hp, 0.0)), dmg, hit, source_id, source_hero, raw_damage)
 	hp -= dmg
 	if train_immortal and hp <= 0.0:
 		hp = max_hp                    # манекен арены «убит» (ударом или добиванием) — встаёт заново
@@ -903,6 +921,8 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		var phases: Array = boss["phases"]
 		var np: int = clamp(int(floor((1.0 - hp / max_hp) * phases.size())), 0, phases.size() - 1)
 		if np > phase:
+			if game.telemetry != null:
+				game.telemetry.phase_change(self, np)
 			phase = np
 			game.fx.lightning(global_position, height * 2.2, Color(boss["c"]))
 			game.fx.boss_phase(self)
@@ -953,7 +973,7 @@ func _wall_hit() -> void:
 	game.shake(0.3)
 	game.main.sfx("sfx_thud", -2.0, 0.85)
 	game.popup(global_position + Vector3(0, height + 0.6, 0), "В СТЕНУ", Color(1.0, 0.85, 0.5))
-	take_hit(8.0, -d, 2.5, true)
+	take_hit(8.0, -d, 2.5, true, 0.0, null, "wall_impact")
 	if alive():
 		stun(0.8)
 
@@ -996,7 +1016,7 @@ func take_hit_info(h: HitInfo) -> void:
 	var dmg: float = h.damage * (1.3 if weak_t > 0.0 else 1.0)
 	no_flinch = r == "none"
 	hit_id = h.attack_id
-	take_hit(dmg, h.dir, h.knockback / (m if h.knockback >= 6.0 else max(m, 1.0)), h.heavy, launch)
+	take_hit(dmg, h.dir, h.knockback / (m if h.knockback >= 6.0 else max(m, 1.0)), h.heavy, launch, h)
 	hit_id = ""      # слабый толчок лёгких врагов не разбрасывает: серия ударов должна попадать
 	no_flinch = false
 	if game != null and game.fx != null:
@@ -1139,6 +1159,8 @@ func _die(dir: Vector3, heavy: bool, launch := 0.0, knock := 5.0) -> void:
 	var was_air := state == "air"
 	state = "dead"
 	t = 0.0
+	if survival_elite and has_node("EliteBadge"):
+		get_node("EliteBadge").hide()
 	if hp_bar:
 		hp_bar.visible = false
 	ring.visible = false
@@ -1164,6 +1186,14 @@ func _die(dir: Vector3, heavy: bool, launch := 0.0, knock := 5.0) -> void:
 
 # ---------------- особые приёмы боссов ----------------
 func _at(time: float, what: Callable) -> void:
+	if game.telemetry != null:
+		var context: Dictionary = game.telemetry.source(self, "environment", false)
+		sp_events.append([time, func():
+			var previous := telemetry_override
+			telemetry_override = context
+			what.call()
+			telemetry_override = previous])
+		return
 	sp_events.append([time, what])
 
 ## щит накрутки: пока живы призванные боты, урон по боссу почти не проходит
@@ -1174,6 +1204,7 @@ func shielded() -> bool:
 ## У каждого босса свой приём со своей анимацией: срабатывает раз в 10–13 секунд (в поздних фазах чаще и сильнее).
 ## Пока приём идёт, босс открыт для ударов; оглушение его срывает.
 func _special() -> void:
+	record_ability("signature:" + boss_id)
 	state = "special"
 	sp_lock = false
 	t = 0.0
@@ -1279,7 +1310,10 @@ func _special() -> void:
 					var p := global_position + Vector3(sin(a), 0, cos(a)) * 4.0
 					p.x = clampf(p.x, -13.0, 13.0)
 					p.z = clampf(p.z, -13.0, 13.0)
-					shield_n.append(game._make_enemy("bot", "", Vector3(p.x, 0.05, p.z)))
+					var summon = game._make_enemy("bot", "", Vector3(p.x, 0.05, p.z))
+					if summon == null:
+						break
+					shield_n.append(summon)
 					game.fx.lightning(p, 4.0, col)
 				game.main.sfx("sfx_cast", -3.0, 0.7))
 			sp_dur = 1.6

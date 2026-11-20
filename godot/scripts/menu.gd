@@ -22,10 +22,11 @@ const ITEMS := [
 	["PLAY", "Выбор режима: сюжет, тренировочная арена, гонки на пылесосах.", "ВЫБОР РЕЖИМА · сюжет · арена · гонки"],
 	["SETTINGS", "Настройки изображения, звука и управления."],
 	["EXTRAS", "Дополнительная информация об игре."],
+	["ROGUELIKE", "Выживание против бесконечных волн."],
 	["EXIT", "Выйти из GOD OF GRIMERKA."],
 ]
 const MIRROR := 660.0        # насколько ниже героев лежит их отражение (подобрано под уровень ступней в кадре)
-const SIZES := [84, 64, 46, 43, 40]
+const SIZES := [84, 64, 46, 43, 40, 40]
 
 const BG_SHADER := """
 shader_type canvas_item;
@@ -233,8 +234,8 @@ func _ready() -> void:
 						_panel_activate()
 					else:
 						open_mode(w)
-				"settings", "extras":
-					_select(2 if w == "settings" else 3, false)
+				"settings", "extras", "roguelike":
+					_select(["settings", "extras", "roguelike"].find(w) + 2, false)
 					_activate()
 	main._check_update(func(cb: Callable):
 		update_cb = cb
@@ -539,7 +540,7 @@ func _build_list() -> void:
 	for i in ITEMS.size():
 		var size: int = SIZES[i]
 		var root := Control.new()
-		root.position = Vector2(70 + i * 16, y)
+		root.position = Vector2(70 + i * 14, y)
 		root.mouse_filter = Control.MOUSE_FILTER_STOP
 		root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		list.add_child(root)
@@ -661,6 +662,8 @@ func _activate() -> void:
 			_open_settings()
 		"EXTRAS":
 			_open_extras()
+		"ROGUELIKE":
+			_open_roguelike()
 		"EXIT":
 			get_tree().quit()
 
@@ -813,7 +816,7 @@ func _back_story() -> void:
 ##   [текст или функция текста, действие] — пункт (Enter / ЛКМ),
 ##   [функция текста, null, изменение]    — настройка: A/D или ←/→ меняют значение, Enter — следующее.
 ## Длинные списки прокручиваются, выбранный пункт всегда виден.
-func _open(title: String, lines: Array, actions: Array, start := 0) -> VBoxContainer:
+func _open(title: String, lines: Array, actions: Array, start := 0, title_size := 64) -> VBoxContainer:
 	_close()
 	panel_back = Callable()
 	panel = Control.new()
@@ -834,7 +837,7 @@ func _open(title: String, lines: Array, actions: Array, start := 0) -> VBoxConta
 	edge.width = 2.0
 	edge.default_color = WHITE
 	card.add_child(edge)
-	var head := _text(panel, title, 64, WHITE, Vector2(120, 240), serif, true)
+	var head := _text(panel, title, title_size, WHITE, Vector2(120, 240), serif, true)
 	head.rotation = deg_to_rad(-2.0)
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(126, 334)
@@ -929,6 +932,31 @@ func _close() -> void:
 		info.text = ITEMS[sel][1] if _enabled(sel) else "Сохранения пока нет — начни новую игру."
 		if modes != null and modes.visible:
 			info.text = modes.desc_text.text
+
+func _open_roguelike() -> void:
+	var records := preload("res://scripts/survival_records.gd")
+	var data := records.read()
+	var lines := [
+		"Отбивайся от бесконечных волн врагов. Цель — продержаться как можно дольше.",
+		"ЛИЧНЫЙ РЕКОРД · %s" % (records.format_time(data["best_time"]) if data["completed_runs"] > 0 else "—"),
+	]
+	var actions := [["НАЧАТЬ ЗАБЕГ", Callable(main, &"start_survival")],
+		["ИСТОРИЯ ЗАБЕГОВ", _open_survival_history], ["НАЗАД", _close]]
+	_open("ENDLESS SURVIVAL", lines, actions, 0, 48)
+	info.text = "Enter / Пробел — выбрать · Esc — назад"
+
+func _open_survival_history() -> void:
+	var records := preload("res://scripts/survival_records.gd")
+	var data := records.read()
+	var lines: Array = ["Всего забегов: %d  ·  Рекорд убийств: %d" % [data["completed_runs"], data["best_kills"]]]
+	for run in data["history"]:
+		lines.append("%s  ·  Враги %d  ·  Боссы %d  ·  События %d  ·  Угроза %d%%" % [
+			records.format_time(run["time"]), run["kills"], run["bosses"], run["events"], roundi(run["threat"] * 100.0)])
+	if data["history"].is_empty():
+		lines.append("Завершённых забегов пока нет.")
+	_open("ИСТОРИЯ ЗАБЕГОВ", lines, [["НАЗАД", _open_roguelike]], 0, 42)
+	panel_back = _open_roguelike
+	info.text = "Enter / Пробел — назад · Esc — назад"
 
 func _open_load() -> void:
 	if not has_save:

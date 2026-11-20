@@ -152,6 +152,9 @@ func _free() -> bool:
 	return true
 
 func _begin(en) -> void:
+	if game.telemetry != null:
+		game.telemetry.team_event(p.hero, "duo_attacks")
+	game.measure_use(tag.mate(), "team", "duo_open")
 	e = en
 	hero0 = p.hero
 	air = en.state == "air"
@@ -163,6 +166,8 @@ func _begin(en) -> void:
 	pair = ps + "|" + ms
 	opened = false
 	tag.assist_cd = tag.ASSIST_CD
+	if game.run_mods != null:
+		game.run_mods.duo_started(game)
 	buf_t = -9.0
 	if p.state == "attack":
 		p.combat.interrupt()         # обрываем удар в окне связки: дальше — дуэт
@@ -255,7 +260,7 @@ func _open_hit(o: Dictionary) -> void:
 	if String(o["kind"]) == "throw":
 		return                       # бьют сами бутылки, когда долетят (_bottles_tick)
 	var launch := 4.5 if air else 0.0
-	tag.strike(e, 10.0 * Balance.DUO_OPEN, 0.0, d, 1.5, launch, true, 1, false)      # открытие напарника — balance.gd
+	tag.strike(e, 10.0 * Balance.DUO_OPEN, 0.0, d, 1.5, launch, true, 1, false, "duo_open", tag.mate())      # открытие напарника — balance.gd
 	_stab(float(o["stab"]))
 	tag._boss_window(e)      # босс «ОТКРЫТ»: дуэт продлевает окно (TEAM BREAK), один раз за окно
 	match String(o["kind"]):
@@ -401,6 +406,7 @@ func _ending() -> void:
 	if not is_instance_valid(e) or not e.alive():
 		_done()
 		return
+	game.measure_use(tag.mate(), "team", "duo_finisher")
 	var pr: Dictionary = PAIRS[pair]
 	var col: Color = pr["col"]
 	var d: Vector3 = e.global_position - p.global_position
@@ -411,13 +417,13 @@ func _ending() -> void:
 	var k: float = (0.6 if e.boss_id != "" else 1.0) * Balance.DUO_END      # концовка пары — balance.gd
 	match String(pr["end"]):
 		"knock":
-			tag.strike(e, 18.0 * k, 30.0, d, 14.0, 0.0, true, 2)
+			tag.strike(e, 18.0 * k, 30.0, d, 14.0, 0.0, true, 2, true, "duo_finisher", tag.mate())
 		"launch":
-			tag.strike(e, 16.0 * k, 25.0, d, 2.0, 7.5, true, 2)
+			tag.strike(e, 16.0 * k, 25.0, d, 2.0, 7.5, true, 2, true, "duo_finisher", tag.mate())
 		"down":
-			tag.strike(e, 20.0 * k, 35.0, d, 2.0, -16.0, true, 2)
+			tag.strike(e, 20.0 * k, 35.0, d, 2.0, -16.0, true, 2, true, "duo_finisher", tag.mate())
 		"wall":
-			tag.strike(e, 18.0 * k, 35.0, d, 18.0, 0.0, true, 2)
+			tag.strike(e, 18.0 * k, 35.0, d, 18.0, 0.0, true, 2, true, "duo_finisher", tag.mate())
 	var at: Vector3 = e.global_position + Vector3(0, 0.9, 0)
 	match String(pr["fx"]):
 		"slam":
@@ -532,7 +538,7 @@ func _bottles_tick(dt: float) -> void:
 		if kt >= 1.0:
 			var d: Vector3 = to - from
 			d.y = 0
-			tag.strike(e, 8.0, 0.0, d.normalized(), 2.0, 3.5 if air else 0.0, false, 1, false)
+			tag.strike(e, 8.0, 0.0, d.normalized(), 2.0, 3.5 if air else 0.0, false, 1, false, "duo_open", tag.mate())
 			e.slow(2.0, 0.6)
 			_stab(float(OPEN["bottles"]["stab"]) * 0.5)
 			game.fx.sparks(to, Vector3.UP, 16, Color(0.55, 0.82, 1.0), 0.9, 70.0)

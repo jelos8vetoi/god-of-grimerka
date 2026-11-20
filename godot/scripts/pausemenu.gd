@@ -66,7 +66,7 @@ var card_rows: Array = []       # [{label, text, act, adj}]
 var card_sel := 0
 var hp_text: Label
 var hp_fill: ColorRect
-var xp_text: Label
+var progress_text: Label
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -230,7 +230,8 @@ func _build_panels() -> void:
 		plate.color = WHITE
 		plate.material = worn
 		p.add_child(plate)
-		_text(p, "ЗДОРОВЬЕ" if i == 0 else "ПРОСЛУШИВАНИЯ", 12, INK, Vector2(44, 3), serif)
+		var caption := "ВРАГИ ПОВЕРЖЕНЫ" if game.is_survival() else "ПРОСЛУШИВАНИЯ"
+		_text(p, "ЗДОРОВЬЕ" if i == 0 else caption, 12, INK, Vector2(44, 3), serif)
 		var mark := Polygon2D.new()
 		mark.polygon = PackedVector2Array([Vector2(0, -9), Vector2(9, 0), Vector2(0, 9), Vector2(-9, 0)]) if i == 0 else PackedVector2Array([Vector2(-7, -9), Vector2(9, 0), Vector2(-7, 9)])
 		mark.color = INK
@@ -257,7 +258,7 @@ func _build_panels() -> void:
 			hp_fill.size = Vector2(300, 4)
 			p.add_child(hp_fill)
 		else:
-			xp_text = val
+			progress_text = val
 		_layer(p)
 	var hints := Control.new()
 	hints.position = Vector2(1210, 846)
@@ -455,10 +456,15 @@ func _open_page(i: int) -> void:
 			_bar(top, "ЗДОРОВЬЕ", func(): return game.player.hp / game.player.max_hp, func(): return "%d / %d" % [ceili(game.player.hp), int(game.player.max_hp)])
 			_bar(top, "СВЭГ", func(): return game.player.swag / 100.0, func(): return "%d / 100" % int(game.player.swag))
 			_plate(top, func(): return "ПЕРЕГРУЗ: " + ("идёт, ещё %.0f с" % game.player.rage if game.player.rage > 0.0 else ("готов — [R]" if game.player.swag >= 100.0 else "копится, нужен полный СВЭГ")))
-			_line(top, func(): return "▶  %d прослушиваний" % game.xp, 26, WHITE, serif)
-			_line(top, func(): return "Глава %d · %s" % [game.ch + 1, String(game.chapter()["name"])], 19, SILVER)
+			if not game.is_survival():
+				_line(top, func(): return "▶  %d прослушиваний" % game.xp, 26, WHITE, serif)
+			_line(top, func(): return game.objective() if game.is_survival() else "Глава %d · %s" % [game.ch + 1, String(game.chapter()["name"])], 19, SILVER)
 			_rows([["НАЗАД", _close_card]])
 		1:
+			if game.is_survival():
+				_line(top, func(): return "Выбор улучшений открывается по ходу забега.", 19, SILVER)
+				_rows([["НАЗАД", _close_card]])
+				return
 			_line(top, func(): return "▶  %d" % game.xp, 54, WHITE, serif)
 			_line(top, func(): return "прослушиваний · осталось улучшений: %d из 15" % (15 - int(game.up["hp"]) - int(game.up["dmg"]) - int(game.up["q"])), 17, SILVER)
 			var rows: Array = []
@@ -494,6 +500,13 @@ func _open_page(i: int) -> void:
 			row.add_child(_buddy_portrait())
 			_rows([["НАЗАД", _close_card]])
 		3:
+			if game.is_survival():
+				_big(top, "ENDLESS SURVIVAL", 40)
+				_plate(top, func(): return game.objective())
+				_line(top, func(): return "Враги %d · Боссы %d · События %d" % [
+					game.kills, game.survival.director.bosses_defeated, game.survival.director.events_completed], 18, SILVER)
+				_rows([["НАЗАД", _close_card]])
+				return
 			_line(top, func(): return "ГЛАВА %d" % (game.ch + 1), 18, GREY)
 			_big(top, String(game.chapter()["name"]), 40)
 			_line(top, func(): return String(game.chapter().get("place", "")), 18, SILVER)
@@ -559,7 +572,12 @@ func _tutorial_list() -> void:
 ## Подтверждение выхода в главное меню: прогресс сохранён на начало текущего шага.
 func _confirm_menu() -> void:
 	var top := _card("В МЕНЮ?")
-	_line(top, func(): return "Тренировка не сохраняется — сюжетное сохранение не тронуто." if game.training != null else "Игра сохранена на начало текущего шага главы — «Continue» вернёт сюда.", 18, SILVER)
+	var message := "Игра сохранена на начало текущего шага главы — «Continue» вернёт сюда."
+	if game.is_survival():
+		message = "Текущий забег завершится без сохранения."
+	elif game.training != null:
+		message = "Тренировка не сохраняется. Сюжетное сохранение осталось прежним."
+	_line(top, func(): return message, 18, SILVER)
 	_rows([["ОСТАТЬСЯ", func(): _open_page(5)], ["ВЫЙТИ В ГЛАВНОЕ МЕНЮ", func(): game._to_menu()]])
 
 static func _time(s: float) -> String:
@@ -842,7 +860,7 @@ func _refresh() -> void:
 		return
 	hp_text.text = "%d / %d" % [ceili(game.player.hp), int(game.player.max_hp)]
 	hp_fill.size.x = 300.0 * clampf(game.player.hp / game.player.max_hp, 0.0, 1.0)
-	xp_text.text = str(game.xp)
+	progress_text.text = str(game.kills if game.is_survival() else game.xp)
 	for fn in card_live:
 		(fn as Callable).call()
 	for k in card_rows.size():

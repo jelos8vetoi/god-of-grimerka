@@ -146,7 +146,7 @@ func _run() -> void:
 	var names: Array = []
 	for it in mm.ITEMS:
 		names.append(String(it[0]))
-	ok(names == ["CONTINUE", "PLAY", "SETTINGS", "EXTRAS", "EXIT"], "главный список: %s" % ", ".join(names))
+	ok(names == ["CONTINUE", "PLAY", "SETTINGS", "EXTRAS", "ROGUELIKE", "EXIT"], "главный список: %s" % ", ".join(names))
 	var has_save: bool = mm.has_save
 	ok(mm.sel == (0 if has_save else 1), "по умолчанию выбран %s" % ("CONTINUE" if has_save else "PLAY"))
 	await shot("01_main")
@@ -392,7 +392,7 @@ func _run() -> void:
 	# ================= 12. EXIT =================
 	_restore()
 	print("MODECHECK итог: ошибок %d" % fails)
-	mm._select(4, false)
+	mm._select(names.find("EXIT"), false)
 	exit_pressed = true
 	await key(KEY_ENTER)
 	await wait(3.0)

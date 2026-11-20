@@ -263,6 +263,8 @@ static func strike(e, m: Dictionary, dist: float, dir: Vector3) -> Dictionary:
 				var at2: Vector3 = p.global_position + Vector3(sin(a), 0, cos(a)) * 4.0
 				if g.in_arena(at2, 1.0):
 					var c = g._make_enemy("phantom", "", Vector3(at2.x, 0.05, at2.z))
+					if c == null:
+						break
 					e.spawned.append(c)
 					g.fx.poof(at2, 1.0, col)
 			blink(e, "side")
@@ -373,6 +375,8 @@ static func _summon(e, kinds: Array, n: int, at: Vector3) -> void:
 		if not g.in_arena(pos, 1.0):
 			pos = e.global_position
 		var o = g._make_enemy(String(kinds[i % kinds.size()]), "", Vector3(pos.x, 0.05, pos.z))
+		if o == null:
+			return
 		o.summoned_by = e
 		e.spawned.append(o)
 

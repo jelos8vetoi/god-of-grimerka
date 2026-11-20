@@ -407,6 +407,8 @@ func _show_off(dt: float, hs: float, p) -> void:
 func adlib() -> bool:
 	if cd > 0.0:
 		return false
+	if game.telemetry != null:
+		game.telemetry.use(look, "system", "adlib")
 	cd = cd_max
 	say_t = 2.1
 	rig.play_for("Cheer" if look == "madk1d" else "Rage", 2.0, 0.08)
@@ -421,7 +423,7 @@ func adlib() -> bool:
 	game.bark("adlib", 0.0)
 	for e in game.enemies:
 		if is_instance_valid(e) and e.alive() and e.global_position.distance_to(global_position) < 7.0:
-			e.take_hit(15.0, (e.global_position - global_position).normalized(), 5.0)
+			e.take_hit(15.0, (e.global_position - global_position).normalized(), 5.0, false, 0.0, null, "adlib", look)
 			if e.alive():
 				e.stun(2.0)
 	return true

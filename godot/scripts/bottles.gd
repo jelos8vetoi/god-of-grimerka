@@ -184,7 +184,8 @@ func throw(a: AttackData, power: float) -> void:
 		var node := _make()
 		add_child(node)
 		node.global_position = am[0]
-		flying.append({"node": node, "vel": am[1], "a": a, "power": power, "life": 3.0, "spin": Vector3(randf_range(6, 11), randf_range(-3, 3), randf_range(-4, 4)), "rico": int(a.extra.get("ricochet", 0)), "mul": 1.0})
+		flying.append({"node": node, "vel": am[1], "a": a, "power": power, "life": 3.0, "spin": Vector3(randf_range(6, 11), randf_range(-3, 3), randf_range(-4, 4)), "rico": int(a.extra.get("ricochet", 0)), "mul": 1.0,
+			"telemetry_hero": p.hero, "telemetry_style": p.style.id})
 		if throw_hand == "l":
 			hid_l = true
 		else:
@@ -287,6 +288,10 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 			game.popup(enemy.global_position + Vector3(0, float(enemy.height) + 0.7, 0), "LAST DROP", Color(0.75, 0.92, 1.0))
 			hits_log[hits_log.size() - 1]["last_drop"] = true
 		h.stagger = a.stagger
+		if game.run_mods != null:
+			h.stagger *= 1.0 + 0.18 * game.run_mods.rank("bottles")
+			if game.run_mods.rank("bottles") > 0:
+				h.telemetry_effects.append("bottles")
 		h.dir = flat
 		h.knockback = a.knockback
 		h.stun = a.stun
@@ -294,6 +299,9 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 		h.power = a.power
 		h.attack_id = a.id
 		h.style_id = "bottles"
+		h.telemetry_hero = f.get("telemetry_hero", p.hero)
+		if game.telemetry != null:
+			h.telemetry_style = f.get("telemetry_style", "bottles")
 		if enemy.state == "air":
 			h.stagger *= 1.5              # по цели в воздухе — сбивает сильнее
 			hits_log[hits_log.size() - 1]["air"] = true
@@ -324,7 +332,8 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 				var tm: float = max(0.18, to.length() / 20.0)
 				var seen: Array = (f.get("seen", []) as Array).duplicate()
 				seen.append(enemy)
-				flying.append({"node": node, "vel": to / tm + Vector3(0, 0.5 * GRAVITY * tm, 0), "a": a, "power": power, "life": 2.0, "spin": Vector3(14, 3, 5), "rico": int(f["rico"]) - 1, "mul": float(f.get("mul", 1.0)) * 0.75, "seen": seen, "home": next})
+				flying.append({"node": node, "vel": to / tm + Vector3(0, 0.5 * GRAVITY * tm, 0), "a": a, "power": power, "life": 2.0, "spin": Vector3(14, 3, 5), "rico": int(f["rico"]) - 1, "mul": float(f.get("mul", 1.0)) * 0.75, "seen": seen, "home": next,
+					"telemetry_hero": f.get("telemetry_hero", p.hero), "telemetry_style": f.get("telemetry_style", "bottles")})
 				rico_log.append([enemy, next])
 				game.main.sfx("sfx_parry", -10.0, 1.8)
 	else:
@@ -336,6 +345,8 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 		for e in game.enemies:
 			if is_instance_valid(e) and e.alive() and e != enemy and e.global_position.distance_to(at) <= splash + float(e.radius):
 				e.stagger(a.stagger * 0.4)
+				if game.telemetry != null:
+					game.telemetry.control(f.get("telemetry_hero", p.hero), f.get("telemetry_style", "bottles"), a.id, e, a.stagger * 0.4)
 				if slow_s > 0.0:
 					e.slow(slow_s * 0.7, float(a.extra.get("slow_k", 0.6)))
 				fx.sparks(e.global_position + Vector3(0, float(e.height) * 0.6, 0), Vector3.UP, 5, WATER, 0.5)

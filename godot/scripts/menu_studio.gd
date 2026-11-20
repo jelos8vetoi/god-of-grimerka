@@ -1,5 +1,5 @@
 ## Главное меню «ОБЛАКО-ТВ»: настоящая 3D-сцена ночной телестудии вместо плоского фона и списка слов.
-## Стена из пяти кинескопных телевизоров — по одному на пункт меню (CONTINUE, PLAY, SETTINGS, EXTRAS, EXIT): у каждого
+## Стена из шести кинескопных телевизоров — по одному на пункт меню: у каждого
 ## свой «канал» (шейдер экрана SCREEN_SHADER: запись, цветные полосы, настроечная сетка, телетекст, «нет сигнала»),
 ## название пункта на экране. Выбранный телевизор горит ярко и чуть выдвигается, остальные тускнеют и шумят; камера
 ## мягко доворачивает к нему и плывёт за курсором. Пахан стоит перед стеной экранов спиной к зрителю.
@@ -63,19 +63,23 @@ const TVS := [
 	[1.05, 1.62, 1.55, 1, Color(1.0, 0.3, 0.25)],
 	[2.72, 2.12, 0.95, 2, Color(0.45, 0.75, 1.0)],
 	[2.66, 1.02, 0.9, 3, Color(1.0, 0.85, 0.3)],
+	[1.05, 0.5, 1.02, 4, Color(0.65, 0.8, 1.0)],
 	[-0.42, 0.9, 0.82, 4, Color(0.85, 0.85, 0.9)],
 ]
 
-## Телевизоры владельца (assets/minigames/menu_tv_*.glb, лицом по +Z) — по пункту меню. Стекло экрана в единицах
+## Телевизоры владельца (assets/minigames/menu_tv_*.glb, лицом по +Z) — по названию пункта меню (не по номеру:
+## пункты добавляются). ROGUELIKE — старый телевизор владельца menu_crt_tv (лицом по +X, доворот — MGModels.FRONT). Стекло экрана в единицах
 ## модели (1 = наибольшая сторона, начало — центр основания): центр x, y, ширина, высота, глубина стекла по z, скругление.
 ## Мерка — снимок спереди и луч (tv_screen в проверке не нужен: числа постоянные, пока модель та же).
-const TV_MODELS := ["menu_tv_continue", "menu_tv_play", "menu_tv_settings", "menu_tv_extras", "menu_tv_exit"]
+const TV_MODELS := {"CONTINUE": "menu_tv_continue", "PLAY": "menu_tv_play", "SETTINGS": "menu_tv_settings",
+	"EXTRAS": "menu_tv_extras", "ROGUELIKE": "menu_crt_tv", "EXIT": "menu_tv_exit"}
 const TV_SCREEN := {
 	"menu_tv_continue": [-0.0992, 0.5234, 0.6113, 0.4130, 0.3227, 0.16],
 	"menu_tv_play": [0.0012, 0.5887, 0.7560, 0.5553, 0.4434, 0.10],
 	"menu_tv_settings": [-0.1003, 0.3816, 0.5693, 0.4795, 0.2384, 0.2],
 	"menu_tv_extras": [-0.0035, 0.4237, 0.5927, 0.4702, 0.2458, 0.1],
 	"menu_tv_exit": [-0.0010, 0.4873, 0.5628, 0.4200, 0.4478, 0.1],
+	"menu_crt_tv": [-0.0752, 0.3938, 0.5985, 0.4433, 0.2916, 0.12],
 }
 
 var vp: SubViewport
@@ -126,7 +130,7 @@ func setup(items: Array, font: Font) -> void:
 	_room()
 	for i in items.size():
 		_tv(i, String(items[i][0]), font)
-	if TV_MODELS.all(func(id): return MGModels.has(id)):
+	if items.all(func(it): return MGModels.has(String(TV_MODELS.get(String(it[0]), "")))):
 		for sh in shelves:
 			(sh as Node3D).visible = false
 	_props()
@@ -186,8 +190,11 @@ func _room() -> void:
 	var steel := _mat(Color(0.16, 0.16, 0.18), 0.5, 0.6)
 	for x in [-1.25, 0.2, 1.95, 3.35]:
 		_box(vp, Vector3(x, 1.5, -0.55), Vector3(0.06, 3.0, 0.06), steel)
-	for y in [0.42, 1.42, 2.62]:
-		shelves.append(_box(vp, Vector3(1.05, y - 0.02, -0.4), Vector3(4.8, 0.05, 0.75), steel))
+	# Боковые полки оставляют открытым центр с экранами PLAY и ROGUELIKE (у телевизоров владельца полки свои — эти прячутся)
+	for y in [0.4, 1.4]:
+		for x in [-0.53, 2.63]:
+			shelves.append(_box(vp, Vector3(x, y, -0.4), Vector3(1.64, 0.05, 0.75), steel))
+	shelves.append(_box(vp, Vector3(1.05, 2.6, -0.4), Vector3(4.8, 0.05, 0.75), steel))
 	# вывеска канала
 	var neon := Label3D.new()
 	neon.text = "ОБЛАКО-ТВ"
@@ -237,14 +244,18 @@ func _tv(i: int, title: String, font: Font) -> void:
 	root.rotation.y = clampf((1.05 - float(d[0])) * 0.09, -0.2, 0.2)      # крайние чуть развёрнуты к центру
 	vp.add_child(root)
 	var corner := 0.0
-	var model_id: String = TV_MODELS[i] if i < TV_MODELS.size() else ""
+	var model_id := String(TV_MODELS.get(title, ""))
 	if model_id != "" and MGModels.has(model_id):
 		# настоящий телевизор: вписан в габарит прежней коробки (ширина w + 0,26, высота hh + 0,2), основание — на её
 		# дне; экран и подписи — на стекле модели
 		var sc: Array = TV_SCREEN[model_id]
 		var bb: AABB = MGModels._info(model_id)[1]
 		var mx := maxf(bb.size.x, maxf(bb.size.y, bb.size.z))
-		var k := minf((w + 0.26) / (bb.size.x / mx), (hh + 0.2) / (bb.size.y / mx))      # метров на единицу модели
+		var turn := float(MGModels.FRONT.get(model_id, MGModels.FRONT_DEFAULT))
+		var swap := absf(fmod(absf(turn), PI) - PI * 0.5) < 0.1          # модель довёрнута на 90°: ширина и глубина меняются
+		var bx: float = bb.size.z if swap else bb.size.x
+		var bz: float = bb.size.x if swap else bb.size.z
+		var k := minf((w + 0.26) / (bx / mx), (hh + 0.2) / (bb.size.y / mx))      # метров на единицу модели
 		var bottom := float(d[1]) - (hh + 0.2) * 0.5
 		w = float(sc[2]) * k
 		hh = float(sc[3]) * k
@@ -254,8 +265,8 @@ func _tv(i: int, title: String, font: Font) -> void:
 		tv.name = "model"
 		corner = float(sc[5])
 		# своя полка под телевизором: длинные полки резали бы корпус посередине
-		var pw := bb.size.x / mx * k + 0.16
-		var pd := bb.size.z / mx * k + 0.1
+		var pw := bx / mx * k + 0.16
+		var pd := bz / mx * k + 0.1
 		var plank := _box(vp, Vector3(float(d[0]), bottom - 0.025, -0.35 + 0.075 - float(sc[4]) * k), Vector3(pw, 0.05, pd), _mat(Color(0.16, 0.16, 0.18), 0.5, 0.6))
 		plank.rotation.y = root.rotation.y
 		plank.name = "tv_shelf_%d" % i

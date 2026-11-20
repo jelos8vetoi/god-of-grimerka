@@ -407,6 +407,7 @@ func tick(dt: float, dir: Vector3) -> void:
 				_act("wide")
 			elif p.held("attack") and ready_to_work():
 				mode = "suck"
+				game.measure_use(p.hero, style.id, "tg_suck")
 				mt = 0.0
 				tick_t = 0.0
 				game.main.sfx("sfx_charge", -8.0, 0.7)
@@ -555,7 +556,7 @@ func _suck(dt: float, dir: Vector3) -> void:
 				game.fx.sparks(at, (n - at).normalized(), 14, style.color, 1.2, 30.0)
 				game.popup(at + Vector3(0, 0.8, 0), "ВСОСАЛ", Color(0.8, 0.95, 1.0))
 				game.main.sfx("sfx_wave", -6.0, 1.6)
-				e.take_hit(99999.0, to.normalized() if to.length() > 0.01 else -f, 0.0, true)
+				e.take_hit(99999.0, to.normalized() if to.length() > 0.01 else -f, 0.0, true, 0.0, null, "phantom_capture", "pahan")
 				p.swag = min(100.0, p.swag + 8.0)
 				_heat(8.0)
 				now.erase(e.get_instance_id())
@@ -568,6 +569,7 @@ func _suck(dt: float, dir: Vector3) -> void:
 				h.dir = -to.normalized() if to.length() > 0.01 else f
 				h.attack_id = a.id
 				h.style_id = style.id
+				h.telemetry_hero = "pahan"
 				h.source = p
 				h.pos = e.global_position + Vector3(0, float(e.height) * 0.5, 0)
 				e.take_hit_info(h)
@@ -643,6 +645,7 @@ func _blast(big: bool) -> void:
 	var n := nozzle()
 	var f := fwd()
 	var hits := 0
+	game.measure_use(p.hero, style.id, a.id)
 	var lm := _link_mul(a.id)
 	for e in game.enemies:
 		if not is_instance_valid(e) or not e.alive():
@@ -660,6 +663,10 @@ func _blast(big: bool) -> void:
 		var h := HitInfo.new()
 		h.damage = p.combat.damage_for(a, e) * (float(a.extra.get("caught_mul", 1.0)) if caught.has(e.get_instance_id()) else 1.0) * lm
 		h.stagger = a.stagger
+		if game.run_mods != null:
+			h.stagger *= 1.0 + 0.15 * game.run_mods.rank("tyaga")
+			if game.run_mods.rank("tyaga") > 0:
+				h.telemetry_effects.append("tyaga")
 		h.dir = dn
 		h.knockback = a.knockback
 		h.launch = a.launch
@@ -667,6 +674,7 @@ func _blast(big: bool) -> void:
 		h.power = a.power
 		h.attack_id = a.id
 		h.style_id = style.id
+		h.telemetry_hero = "pahan"
 		h.source = p
 		h.pos = e.global_position + Vector3(0, float(e.height) * 0.55, 0)
 		e.interrupt_weak()
@@ -725,6 +733,7 @@ func _throw() -> void:
 	if best == null:
 		_blast(false)
 		return
+	game.measure_use(p.hero, style.id, a.id)
 	var h := HitInfo.new()
 	h.damage = p.combat.damage_for(a, best) * _link_mul(a.id)
 	h.stagger = a.stagger
@@ -734,6 +743,7 @@ func _throw() -> void:
 	h.power = a.power
 	h.attack_id = a.id
 	h.style_id = style.id
+	h.telemetry_hero = "pahan"
 	h.source = p
 	h.pos = best.global_position + Vector3(0, float(best.height) * 0.5, 0)
 	best.take_hit_info(h)
@@ -778,6 +788,7 @@ func _thrown_tick(dt: float) -> void:
 			h.power = a.power
 			h.attack_id = a.id
 			h.style_id = style.id
+			h.telemetry_hero = "pahan"
 			h.source = p
 			h.pos = e.global_position + Vector3(0, float(e.height) * 0.5, 0)
 			e.interrupt_weak()
@@ -985,6 +996,7 @@ func _ram() -> void:
 			continue
 		ram_cd[e.get_instance_id()] = float(a.extra["cd"])
 		var h := HitInfo.new()
+		game.measure_use(p.hero, style.id, a.id)
 		h.damage = (a.damage + speed * float(a.extra["per_speed"])) * p.combat.damage_for(a, e) / a.damage
 		h.stagger = a.stagger
 		h.dir = (f + d.normalized() * (0.4 if a.id == "tg_ram" else 1.6)).normalized()      # бортом — в сторону от пылесоса
@@ -995,6 +1007,7 @@ func _ram() -> void:
 		h.power = a.power
 		h.attack_id = a.id
 		h.style_id = style.id
+		h.telemetry_hero = "pahan"
 		h.source = p
 		h.pos = e.global_position + Vector3(0, float(e.height) * 0.5, 0)
 		e.interrupt_weak()
@@ -1015,6 +1028,7 @@ func _ram() -> void:
 		events.append(["ram" if a.id == "tg_ram" else ("side" if a.id == "tg_side" else "airram"), e])
 
 func _area_hit(a: AttackData, at: Vector3, tag: String) -> void:
+	game.measure_use(p.hero, style.id, a.id)
 	var hits := 0
 	var lm := _link_mul(a.id)
 	for e in game.enemies:
@@ -1034,6 +1048,7 @@ func _area_hit(a: AttackData, at: Vector3, tag: String) -> void:
 		h.power = a.power
 		h.attack_id = a.id
 		h.style_id = style.id
+		h.telemetry_hero = "pahan"
 		h.source = p
 		h.pos = e.global_position + Vector3(0, float(e.height) * 0.55, 0)
 		e.take_hit_info(h)
@@ -1091,6 +1106,7 @@ func _info(a: AttackData, e, dir: Vector3, mul: float) -> HitInfo:
 	h.power = a.power
 	h.attack_id = a.id
 	h.style_id = style.id
+	h.telemetry_hero = "pahan"
 	h.source = p
 	h.pos = e.global_position + Vector3(0, float(e.height) * 0.55, 0)
 	return h
@@ -1098,6 +1114,7 @@ func _info(a: AttackData, e, dir: Vector3, mul: float) -> HitInfo:
 ## начать приём на ногах: knee, wide, ground, up, point
 func _act(kind: String) -> void:
 	var a: AttackData = style.attack("tg_" + kind)
+	game.measure_use(p.hero, style.id, a.id)
 	act = {"kind": kind, "a": a, "hit": false}
 	mode = "act"
 	mt = 0.0

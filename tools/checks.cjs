@@ -63,6 +63,14 @@ const C = [
   { name: 'mode', key: 'modecheck', ok: /MODECHECK ok\s*$/m, groups: ['modes'] },
   { name: 'training', key: 'trainingcheck', ok: /TRAININGCHECK ok\s*$/m, groups: ['modes'] },
   { name: 'golda67', key: 'golda67check', ok: /GOLDA67CHECK ok\s*$/m, groups: ['modes', 'golda67'] },
+  { name: 'survival', key: 'playtest-survival', ok: /SURVIVALPLAY ok\s*$/m, groups: ['modes', 'survival'], t: 1500 },
+  // Endless Survival и Balance Lab: плейтест клавишами (выше), тесты логики без окна, стенд баланса.
+  // root — тесту нужна своя папка данных игрока (пишет настоящее сохранение кампании в неё); uargs — ключи после «--»
+  ...['director', 'encounters', 'defeat', 'hud', 'telemetry', 'upgrades'].map((n) => (
+    { name: 'sv-' + n, script: `res://tests/survival_${n}_test.gd`, ok: /\b0 failures\s*$/m, groups: ['modes', 'survival'] })),
+  { name: 'balance-int', script: 'res://tests/balance_integration_test.gd', root: true, ok: /integration: 0 failures\s*$/m, groups: ['modes', 'survival', 'balance'] },
+  { name: 'balance-panel', script: 'res://tests/balance_integration_test.gd', root: true, uargs: ['--balance-lab'], ok: /export: 0 failures\s*$/m, groups: ['modes', 'survival', 'balance'] },
+  { name: 'balance-lab', key: 'balance-lab-check', headless: true, ok: /Balance Lab: \d+ samples, \d+ scenario/, groups: ['survival', 'balance'], t: 900 },
   { name: 'trans', key: 'transcheck', ok: /TRANS итог: ошибок 0/, groups: ['modes'] },
   { name: 'death', key: 'deathcheck', ok: /DEATH итог: ошибок 0/, groups: ['modes'] },
   { name: 'race', key: 'racecheck', ok: /RACECHECK ok\s*$/m, groups: ['modes', 'race'] },
@@ -122,6 +130,10 @@ function run(c) {
     let a;
     if (c.script) {
       a = ['--headless', '--path', 'godot', '--script', c.script];
+      if (c.uargs) a.push('--', ...c.uargs);
+    } else if (c.headless) {
+      // стенд баланса: без окна, шаг строго 1/60 с — так его замеры повторяются
+      a = ['--headless', '--disable-render-loop', '--fixed-fps', '60', '--path', 'godot', '--', `--${c.key}=${shots}`];
     } else {
       a = ['--path', 'godot', '--resolution', c.res || '1280x720'];
       if (fast) a.push('--fixed-fps', String(fps), '--disable-vsync');
@@ -133,7 +145,9 @@ function run(c) {
     seed(appdata);
     const log = fs.createWriteStream(path.join(OUT, c.name + '.log'));
     const t0 = Date.now();
-    const p = spawn(G, a, { cwd: ROOT, env: { ...process.env, APPDATA: appdata } });
+    const env = { ...process.env, APPDATA: appdata };
+    if (c.root) env.GRIMERKA_LAB_TEST_ROOT = appdata.split(path.sep).join('/');
+    const p = spawn(G, a, { cwd: ROOT, env });
     let text = '';
     const eat = (d) => { text += d; log.write(d); };
     p.stdout.on('data', eat);

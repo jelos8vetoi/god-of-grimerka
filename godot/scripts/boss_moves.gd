@@ -93,6 +93,7 @@ static func _arena(g, at: Vector3) -> Vector3:
 
 ## Запустить приём. Длительность — sp_dur босса; всё, что бьёт, — с меткой.
 static func start(e, move: String) -> void:
+	e.record_ability(move)
 	var g = e.game
 	var P = g.player
 	var dmg := float(e.cfg["dmg"])
@@ -361,8 +362,13 @@ static func start(e, move: String) -> void:
 				for i in 2:
 					var a := randf() * TAU
 					var at := _arena(g, P.global_position + Vector3(sin(a), 0, cos(a)) * 4.2)
-					clones.append(g._make_enemy("clone", "", Vector3(at.x, 0.05, at.z)))
+					var clone = g._make_enemy("clone", "", Vector3(at.x, 0.05, at.z))
+					if clone == null:
+						break
+					clones.append(clone)
 					g.fx.poof(at, 1.2, col)
+				if clones.is_empty():
+					return
 				# меняется местами с одной копией: видно по вспышке у обоих
 				var c = clones[0]
 				var a2: Vector3 = c.global_position
@@ -377,6 +383,8 @@ static func start(e, move: String) -> void:
 					var a := TAU * i / 3.0 + randf()
 					var at := _arena(g, P.global_position + Vector3(sin(a), 0, cos(a)) * 4.5)
 					var c = g._make_enemy("clone", "", Vector3(at.x, 0.05, at.z))
+					if c == null:
+						break
 					c.cool = 0.4
 				e._teleport_near(P.global_position, 4.5))
 			e.sp_dur = 1.2
@@ -492,6 +500,8 @@ static func _call(e, kinds: Array, r: float) -> void:
 		var a := randf() * TAU
 		var at := _arena(g, e.global_position + Vector3(sin(a), 0, cos(a)) * r)
 		var o = g._make_enemy(String(k), "", Vector3(at.x, 0.05, at.z))
+		if o == null:
+			return
 		o.summoned_by = e
 		e.spawned.append(o)
 		g.fx.lightning(at, 4.0, e.cfg["tint"])

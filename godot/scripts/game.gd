@@ -141,6 +141,29 @@ var combat_hud: CombatHud     # боевой HUD: портреты, полосы
 var ipod
 var bot_acc := 0.0
 var bot_pf := -1
+var run_type: StringName = &"campaign"
+var survival: RefCounted
+var run_mods: RefCounted
+var telemetry: RefCounted
+var survival_hud: Control
+
+func is_survival() -> bool:
+	return run_type == &"survival"
+
+func measure_use(hero: String, style: String, id: String) -> void:
+	if telemetry != null:
+		telemetry.use(hero, style, id)
+
+func begin_survival() -> void:
+	survival = preload("res://scripts/survival_session.gd").new()
+	survival.begin(self)
+	top_label.hide()
+	xp_label.hide()
+	survival_hud = preload("res://scripts/survival_hud.gd").new()
+	survival_hud.game = self
+	hud_root.add_child(survival_hud)
+	survival_hud.modulate.a = 0.0
+	create_tween().tween_property(survival_hud, "modulate:a", 1.0, 0.45).set_delay(1.6 if intro_on else 0.0)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -178,6 +201,9 @@ func _ready() -> void:
 	tutorial = Tutorial.new()
 	add_child(tutorial)
 	tutorial.setup(self)
+	if is_survival():
+		tutorial.on = false
+		tutorial.persist = false
 	# анимации врагов собираем заранее, при запуске: иначе первый враг каждого вида даёт рывок посреди боя
 	for it in [["bot", Poses.bot()], ["clipper", Poses.clipper()], ["hater", Poses.hater()]]:
 		if not Rig._lib_cache.has(it[0]):
@@ -278,7 +304,7 @@ func _intro_camera(rdt: float) -> void:
 		intro_done.emit()
 
 func _save() -> void:
-	if main.testing() != "" or training != null or golda != null:      # арена и приквел сюжетное сохранение не трогают
+	if main.testing() != "" or training != null or golda != null or is_survival():
 		return
 	var f := FileAccess.open(SAVE, FileAccess.WRITE)
 	if f:
@@ -300,23 +326,27 @@ func chapter() -> Dictionary:
 	return story["CH"][ch]
 
 func _load_chapter(show_title: bool, hall := false) -> void:
+	_load_arena("hall" if hall else String(chapter()["th"]["deco"]))
+	if hall:
+		banner("ТОМСК", "подъезд · три часа ночи", Color(1, 0.85, 0.55), 3.0)
+	elif show_title:
+		banner("ГЛАВА %d. %s" % [ch + 1, String(chapter()["name"])], String(chapter()["place"]), Color(1, 0.85, 0.55), 4.0)
+
+func _load_arena(deco: String) -> void:
 	_clear_fight()
 	if world:
 		world.free()
 	world = preload("res://scripts/world.gd").new()
 	add_child(world)
+	var hall := deco == "hall"
 	in_hall = hall
-	world.build("hall" if hall else String(chapter()["th"]["deco"]))
+	world.build(deco)
 	player.global_position = Vector3(0.5, 0.05, 3.2) if hall else Vector3(0, 0.05, 4)
 	player.velocity = Vector3.ZERO
 	buddy.global_position = Vector3(-0.8, 0.05, 3.4) if hall else Vector3(-1.8, 0.05, 4.5)
 	buddy.target = Vector3.ZERO
 	cam_yaw = PI
 	player.face = PI
-	if hall:
-		banner("ТОМСК", "подъезд · три часа ночи", Color(1, 0.85, 0.55), 3.0)
-	elif show_title:
-		banner("ГЛАВА %d. %s" % [ch + 1, String(chapter()["name"])], String(chapter()["place"]), Color(1, 0.85, 0.55), 4.0)
 
 ## разговор закончился: в подъезде дальше надо выйти во двор самому, иначе — следующий шаг сюжета
 func _dlg_done() -> void:
@@ -351,6 +381,8 @@ func chapters() -> int:
 	return all if main.testing() != "" or main.start_ch >= 0 else mini(all, Menu.CHAPTERS)
 
 func next_step() -> void:
+	if is_survival():
+		return
 	step += 1
 	var steps: Array = chapter()["steps"]
 	if step >= steps.size():
@@ -431,6 +463,8 @@ func _update_fight(dt: float) -> void:
 	if squad_t <= 0.0:
 		squad_t = 0.2
 		EnemyAI.squad(self)            # роли в группе 5 раз в секунду, не каждый кадр
+	if is_survival() or run_type == &"balance_lab":
+		return
 	var alive := enemies.filter(func(e): return e.state != "dead").size()
 	if mode == "fight":
 		if spawn_cd > 0.0:
@@ -472,10 +506,18 @@ func _update_fight(dt: float) -> void:
 			if e.alive() and e.boss_id == "" and e.age > auto_kill:
 				e.take_hit(99999.0, Vector3.FORWARD, 2.0, true)
 
-func _make_enemy(kind: String, boss_id: String, pos: Vector3):
+func _make_enemy(kind: String, boss_id: String, pos: Vector3, scheduled := false):
+	var reinforcement := is_survival() and not scheduled
+	if reinforcement:
+		if over or boss_id != "":
+			return null
+		pos = survival.director.reinforcement_position(self, pos)
+		if pos == Vector3.INF:
+			return null
 	var e = preload("res://scripts/enemy.gd").new()
 	e.kind = kind
 	e.boss_id = boss_id
+	e.survival_reinforcement = reinforcement and is_instance_valid(boss_e)
 	e.game = self
 	# место — до add_child: в _ready враг рисует портал появления и пыль у себя под ногами,
 	# а без этого они оказывались в центре арены (красный круг, из которого никто не выходит)
@@ -484,9 +526,15 @@ func _make_enemy(kind: String, boss_id: String, pos: Vector3):
 	e.global_position = pos
 	e.face = atan2(player.global_position.x - pos.x, player.global_position.z - pos.z)
 	enemies.append(e)
+	if telemetry != null:
+		telemetry.spawn(e)
 	return e
 
 func spawn_enemy(kind: String, pos: Vector3) -> void:
+	if is_survival():
+		if is_instance_valid(boss_e):
+			_make_enemy(kind, "", Vector3(pos.x, 0.05, pos.z))
+		return
 	if enemies.size() > 26:
 		return
 	if pos == Vector3.INF or not in_arena(pos, 1.0):
@@ -511,6 +559,8 @@ func in_arena(p: Vector3, margin: float) -> bool:
 	return abs(p.x) < ARENA - margin and abs(p.z) < ARENA - margin
 
 func on_kill(e) -> void:
+	if telemetry != null:
+		telemetry.enemy_defeated(e)
 	kills += 1
 	if golda != null:
 		golda.on_kill(e)             # приквел: свои награды, опыта и сюжета кампании нет
@@ -530,6 +580,12 @@ func on_kill(e) -> void:
 		main.sfx("sfx_boom", 2.0, 0.7)
 		fx.lightning(e.global_position, e.height * 2.4, Color(e.boss["c"]))
 		bark("boss", 3.0)
+		if run_type == &"balance_lab":
+			return
+		if is_survival():
+			survival.director.bosses_defeated += 1
+			banner("БОСС ПОВЕРЖЕН", String(e.boss["n"]), Color(1, 0.85, 0.3), 3.0)
+			return
 		banner("СЕРВЕР ЗАЧИЩЕН", "%s повержен" % String(e.boss["n"]), Color(1, 0.85, 0.3), 3.0)
 		for o in enemies:
 			if o != e and is_instance_valid(o) and o.alive():
@@ -537,21 +593,37 @@ func on_kill(e) -> void:
 				away.y = 0
 				o.take_hit(99999.0, away.normalized() if away.length() > 0.1 else Vector3.FORWARD, 9.0, true, 6.0)
 		step_done_t = 3.2
-	elif mode == "fight" and pending.is_empty():
+	elif not is_survival() and mode == "fight" and pending.is_empty():
 		var left := enemies.filter(func(x): return is_instance_valid(x) and x.state != "dead").size()
 		if left == 0:
 			slowmo(0.6)
+	elif e.survival_elite:
+		player.swag = minf(100.0, player.swag + 12.0)
+		toast("ЭЛИТА ПОВЕРЖЕНА · +12 СВЭГ")
 
 func on_player_dead() -> void:
+	if over:
+		return
 	if golda != null:
 		golda.on_dead()              # приквел: своя гибель, сюжет и постоянное не стираются
 		return
 	if training != null:
 		training.on_dead()           # арена: гибель — не поражение
 		return
+	if survival != null:
+		survival.save_report(self, "defeat")
+		survival.defeat(kills)
+		survival.director.stop.call_deferred(self)
+		for e in enemies:              # метки «ЭЛИТА» светятся сквозь экран итогов и ложатся на его текст
+			if is_instance_valid(e) and e.has_node("EliteBadge"):
+				e.get_node("EliteBadge").hide()
+		if is_instance_valid(boss_e):
+			clear_survival_hazards.call_deferred(boss_e)
 	bark("dead", 3.0)
 	over = true
 	slowmo(1.2)
+	if run_type == &"balance_lab":
+		return
 	if main.testing() != "":            # бот в прогонах сцену не смотрит
 		await get_tree().create_timer(2.2, true, false, true).timeout
 		_retry()
@@ -564,6 +636,10 @@ func on_player_dead() -> void:
 	panel = death
 
 func _retry() -> void:
+	if is_survival():
+		if over:
+			main.restart_survival.call_deferred(self)
+		return
 	_close_panel()
 	over = false
 	player.hp = player.max_hp
@@ -588,6 +664,7 @@ func spawn_bolt(pos: Vector3, vel: Vector3, dmg: float, owner_e, homing := false
 	var n: Node3D = fx.bolt(col, homing)
 	n.global_position = pos
 	bolts.append({"n": n, "v": vel, "dmg": dmg, "life": 3.0 if homing else 2.4, "from": owner_e, "homing": homing, "col": col, "turn": float(extra.get("turn", 1.6)) if float(extra.get("turn", 0.0)) > 0.0 else 1.6, "slow": float(extra.get("slow", 0.0))})
+	_remember_hostile(bolts.back())
 
 func _update_bolts(dt: float) -> void:
 	var pp: Vector3 = player.global_position + Vector3(0, 1.0, 0)
@@ -600,7 +677,7 @@ func _update_bolts(dt: float) -> void:
 		n.global_position += b["v"] * dt
 		if n.global_position.distance_to(pp) < 0.7:
 			var was_inv: bool = player.inv > 0.0
-			player.take_damage(b["dmg"], n.global_position, b["from"] if is_instance_valid(b["from"]) else null)
+			player.take_damage(b["dmg"], n.global_position, b["from"] if is_instance_valid(b["from"]) else null, b.get("telemetry", {}))
 			if float(b["slow"]) > 0.0 and not was_inv:
 				player.slow_t = max(player.slow_t, float(b["slow"]))
 			b["life"] = 0.0
@@ -608,6 +685,28 @@ func _update_bolts(dt: float) -> void:
 			fx.bolt_pop(n.global_position, b["col"])
 			n.queue_free()
 			bolts.erase(b)
+
+func clear_survival_hazards(owner) -> void:
+	for z in zones.duplicate():
+		if (owner == null and z.get("survival_event", false)) or (owner != null and z["from"] == owner):
+			z["n"].queue_free()
+			if is_instance_valid(z.get("safe_n")):
+				z["safe_n"].queue_free()
+			zones.erase(z)
+	if owner != null:
+		for b in bolts.duplicate():
+			if b["from"] == owner:
+				b["n"].queue_free()
+				bolts.erase(b)
+		# Lob props during Survival boss encounters are purely visual boss projectiles.
+		for l in lobs:
+			l["n"].queue_free()
+		lobs.clear()
+
+func _remember_hostile(entry: Dictionary) -> void:
+	if telemetry != null:
+		var fallback := "survival_hazard" if entry.get("survival_event", false) else "environment"
+		entry["telemetry"] = telemetry.source(entry["from"], fallback)
 
 ## круг на земле: через delay секунд бьёт всех внутри радиуса.
 ## extra: "col" — цвет; "chase": сек — до этого момента круг едет за героем (печать); "stamp" — падает плита;
@@ -617,18 +716,24 @@ func telegraph(pos: Vector3, radius: float, delay: float, dmg: float, owner_e, e
 	var z: Dictionary = fx.zone(pos, radius, col)
 	z.merge({"kind": "tele", "t": delay, "t0": delay, "r": radius, "dmg": dmg, "from": owner_e, "col": col})
 	z.merge(extra)
+	_remember_hostile(z)
 	zones.append(z)
 
 ## расходящееся кольцо: бьёт, когда проходит через игрока (перекат спасает)
 func expanding_ring(pos: Vector3, max_r: float, dur: float, dmg: float, owner_e) -> void:
 	var z: Dictionary = fx.wave_ring(pos, Color(1.0, 0.35, 0.15))
 	z.merge({"kind": "ring", "t": dur, "t0": dur, "r": max_r, "dmg": dmg, "from": owner_e, "hit": false})
+	_remember_hostile(z)
 	zones.append(z)
 
 ## лужа: пока стоишь в ней — получаешь урон
-func pool(pos: Vector3, radius: float, dur: float, dmg: float, owner_e, col: Color) -> void:
+func pool(pos: Vector3, radius: float, dur: float, dmg: float, owner_e, col: Color, context := {}) -> void:
 	var z: Dictionary = fx.pool(pos, radius, col)
 	z.merge({"kind": "pool", "t": dur, "t0": dur, "r": radius, "dmg": dmg, "from": owner_e, "tick": 0.3})
+	if context.is_empty():
+		_remember_hostile(z)
+	else:
+		z["telemetry"] = context
 	zones.append(z)
 
 ## луч, который босс водит вокруг себя: сначала тонкий (предупреждение), потом бьёт
@@ -637,11 +742,13 @@ func sweep(owner_e, length: float, dur: float, speed: float, dmg: float, col: Co
 	n.global_position = owner_e.global_position
 	n.rotation.y = a0
 	zones.append({"kind": "sweep", "n": n, "t": dur, "t0": dur, "r": length, "dmg": dmg, "from": owner_e, "a": a0, "w": speed, "warm": 0.9, "cd": 0.0})
+	_remember_hostile(zones.back())
 
 ## вся арена взрывается, кроме безопасного круга
 func wipe(safe: Vector3, radius: float, delay: float, dmg: float, owner_e, col: Color) -> void:
 	var z: Dictionary = fx.wipe(safe, radius, col)
 	z.merge({"kind": "wipe", "t": delay, "t0": delay, "r": radius, "dmg": dmg, "from": owner_e, "col": col})
+	_remember_hostile(z)
 	zones.append(z)
 	toast("В круг!")
 
@@ -679,7 +786,7 @@ func _update_zones(dt: float) -> void:
 				(z["b"] as Node3D).scale = Vector3.ONE * r * 0.84 / 0.42
 				if not z["hit"] and abs(d - r) < 0.55:
 					z["hit"] = true
-					player.take_damage(z["dmg"], n.global_position, src)
+					player.take_damage(z["dmg"], n.global_position, src, z.get("telemetry", {}))
 			"tele":
 				if z.has("chase") and z["t"] > float(z["chase"]):
 					n.global_position = n.global_position.lerp(Vector3(pp.x, 0.0, pp.z), 1.0 - exp(-7.0 * dt))
@@ -704,9 +811,9 @@ func _update_zones(dt: float) -> void:
 						main.sfx("sfx_boom", -6.0, 1.2)
 						shake(0.18)
 					if d < r0:
-						player.take_damage(z["dmg"], n.global_position, src)
+						player.take_damage(z["dmg"], n.global_position, src, z.get("telemetry", {}))
 					if z.has("pool"):
-						pool(n.global_position, r0, float(z["pool"]), float(z["dmg"]) * 0.4, src, col)
+						pool(n.global_position, r0, float(z["pool"]), float(z["dmg"]) * 0.4, src, col, z.get("telemetry", {}))
 			"pool":
 				var a: float = min(1.0, k * 10.0) * min(1.0, float(z["t"]) / 0.7)
 				((z["a"] as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.a = a * (0.45 + 0.12 * sin(clock * 5.0))
@@ -715,7 +822,7 @@ func _update_zones(dt: float) -> void:
 				z["tick"] = float(z["tick"]) - dt
 				if d < r0 and float(z["tick"]) <= 0.0:
 					z["tick"] = 0.6
-					player.take_damage(z["dmg"], n.global_position + Vector3(0.01, 0, 0.01), src)
+					player.take_damage(z["dmg"], n.global_position + Vector3(0.01, 0, 0.01), src, z.get("telemetry", {}))
 					fx.twinkle(pp + Vector3(0, 0.5, 0), 6, ((z["b"] as MeshInstance3D).material_override as StandardMaterial3D).albedo_color, 0.5)
 			"sweep":
 				if src == null or src.state == "dead" or src.state == "stun":
@@ -736,7 +843,7 @@ func _update_zones(dt: float) -> void:
 					var along := to.dot(dir)
 					if not warm and float(z["cd"]) <= 0.0 and along > 0.8 and along < r0 and abs(to.x * dir.z - to.z * dir.x) < 0.75:
 						z["cd"] = 0.7
-						player.take_damage(z["dmg"], src.global_position, src)
+						player.take_damage(z["dmg"], src.global_position, src, z.get("telemetry", {}))
 			"wipe":
 				var sn: Node3D = z["safe_n"]
 				(z["rune"] as Node3D).rotation.y += dt * 2.0
@@ -753,7 +860,7 @@ func _update_zones(dt: float) -> void:
 					shake(0.7)
 					main.sfx("sfx_boom", 2.0, 0.6)
 					if ds > r0:
-						player.take_damage(z["dmg"], Vector3(pp.x, 0, pp.z + 0.5), src)
+						player.take_damage(z["dmg"], Vector3(pp.x, 0, pp.z + 0.5), src, z.get("telemetry", {}))
 					sn.queue_free()
 		if done:
 			if z.has("safe_n") and is_instance_valid(z["safe_n"]):
@@ -857,6 +964,8 @@ func swap_heroes(quiet := false) -> bool:
 	var next := "madk1d" if player.hero == "pahan" else "pahan"
 	buddy.set_look(player.hero)
 	player.set_hero(next)
+	if telemetry != null:
+		telemetry.team_event(next, "switches_in")
 	player.global_position = b
 	player.face = fb
 	player.velocity = Vector3.ZERO
@@ -885,8 +994,16 @@ func hitstop(sec: float) -> void:
 func slowmo(sec: float) -> void:
 	slow_until = max(slow_until, clock + sec)
 
+func _physics_process(_dt: float) -> void:
+	if survival != null and survival.active and mode == "fight" and not over:
+		survival.director.tick(self)
+
 func _process(dt: float) -> void:
 	var rdt: float = dt / max(Engine.time_scale, 0.001)
+	if survival != null and mode == "fight" and not intro_busy() and not over:
+		survival.tick(rdt)
+		if survival.active:
+			telemetry.tick(rdt, player.hero, player.style.id)
 	clock += rdt
 	heat_t = max(0.0, heat_t - rdt)
 	Engine.time_scale = 0.05 if clock < stop_until else (0.3 if clock < slow_until else (0.45 if heat_t > 0.0 else 1.0))
@@ -1011,6 +1128,8 @@ func _process(dt: float) -> void:
 			get_tree().quit()
 	if main.autotest != "" or main.smoke != "":
 		_autotest(rdt)
+	if survival != null and not over:
+		survival.maybe_offer(self)
 
 # ---------------- экранные эффекты ----------------
 const POST := """
@@ -1448,6 +1567,7 @@ func _build_hud() -> void:
 	hud_root.add_child(banner_sub)
 	# полоса босса
 	boss_box = Control.new()
+	boss_box.size = Vector2(600, 46)
 	boss_box.position = Vector2(vs.x / 2 - 300, 54)
 	boss_box.visible = false
 	hud_root.add_child(boss_box)
@@ -1543,6 +1663,10 @@ func set_paused(v: bool) -> void:
 	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE if v or panel != null or (ipod != null and ipod.captures_gameplay_input()) else Input.MOUSE_MODE_CAPTURED)
 
 func _to_menu() -> void:
+	if survival != null:
+		if not survival.finished:
+			survival.save_report(self, "left")
+		survival.finish()
 	get_tree().paused = false
 	Engine.time_scale = 1.0
 	if golda != null:
@@ -1557,7 +1681,7 @@ func _cost(k: String) -> int:
 ## Покупка улучшения из меню паузы: те же цены и эффекты, что в мастерской, но сюжет не двигается и здоровье не лечится
 ## (кроме прибавки от самого улучшения здоровья). Мастерская (_open_shop) по закрытии зовёт next_step — из паузы её звать нельзя.
 func buy_upgrade(k: String) -> bool:
-	if not up.has(k) or int(up[k]) >= 5 or xp < _cost(k):
+	if is_survival() or not up.has(k) or int(up[k]) >= 5 or xp < _cost(k):
 		return false
 	var hp_before: float = player.hp
 	xp -= _cost(k)
@@ -1569,6 +1693,10 @@ func buy_upgrade(k: String) -> bool:
 
 ## Текущая задача простыми словами — для HUD и страницы «Задание».
 func objective() -> String:
+	if is_survival():
+		if is_instance_valid(boss_e) and boss_e.state != "dead":
+			return "Победи босса: %s" % boss_e.boss["n"]
+		return "Снежная арена · время %s" % survival.time_text()
 	var alive := enemies.filter(func(e): return is_instance_valid(e) and e.state != "dead").size()
 	match mode:
 		"fight":
@@ -1651,15 +1779,20 @@ func _update_hud(dt: float) -> void:
 		obj = "   ·   врагов: %d" % (alive + pending.size())
 	if mode == "exit":
 		obj = "   ·   выйди из подъезда во двор"
-	top_label.text = "ГЛАВА %d · %s%s" % [ch + 1, String(chapter()["name"]), obj]
+	if survival_hud != null:
+		survival_hud.refresh()
+	else:
+		top_label.text = "ГЛАВА %d · %s%s" % [ch + 1, String(chapter()["name"]), obj]
 	xp_label.text = "▶ %d" % xp
-	xp_label.visible = training == null and golda == null
+	xp_label.visible = training == null and golda == null and not is_survival()
 	if training != null:
 		top_label.text = training.hud_line()
 	if golda != null:
 		top_label.text = golda.hud_line()
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second()
-	boss_box.visible = (mode == "boss" or training != null or golda != null) and boss_e != null and is_instance_valid(boss_e) and boss_e.state != "dead"
+	boss_box.visible = (mode == "boss" or training != null or golda != null or is_survival()) and boss_e != null and is_instance_valid(boss_e) and boss_e.state != "dead"
+	if is_survival() and boss_box.visible:
+		boss_fill.size.x = 596.0 * clampf(boss_e.hp / boss_e.max_hp, 0.0, 1.0)
 	flash.color.a = max(0.0, flash.color.a - dt * 1.5)
 	banner_t -= dt
 	var a: float = clamp(banner_t / 0.5, 0.0, 1.0)
