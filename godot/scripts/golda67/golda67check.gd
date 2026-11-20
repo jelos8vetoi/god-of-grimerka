@@ -1030,6 +1030,16 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(G.world.gates.any(func(gt): return String(gt["option"]["place"]) == "parking"), "пока встреча 1 не пройдена, одна из дверей ведёт на парковку к ларьку")
 	ok(int(G.run["golda"]) > 0 and int(G.run["respect"]) > 0, "за комнату дали голду (%d) и РЕСПЕКТ (%d)" % [int(G.run["golda"]), int(G.run["respect"])])
 	ok(G.room_state == "open" and G.world.gates.size() == 2, "после боя открылись две двери на выбор (%d)" % G.world.gates.size())
+	ok(G.world.gates.all(func(gt): return gt.get("icon") != null and is_instance_valid(gt["icon"]) and (gt["icon"] as Sprite3D).texture != null),
+		"над каждой дверью — значок типа комнаты (наклейка владельца)")
+	var miss_ic: Array = []
+	for id in G67Icons.ROOM.values() + G67Icons.FIT.values() + ["icon_golda", "icon_respect", "icon_krot_found", "icon_new_talk", "emblem_67", "logo_golda67",
+			"icon_art_cassette_2016", "icon_art_sim", "icon_art_bracelet_67", "icon_art_one_earbud", "icon_art_energy", "icon_art_flash_drive",
+			"icon_art_broken_remote", "icon_art_market_sneakers", "icon_art_platinum_badge", "icon_art_cracked_phone", "icon_art_garlic_aura",
+			"icon_art_hamster_aura", "icon_art_collar_67", "icon_art_beanie", "icon_art_grillz", "icon_art_blue_tape", "icon_art_second_sim", "icon_art_autotune_ring"]:
+		if G67Icons.tex(String(id)) == null:
+			miss_ic.append(id)
+	ok(miss_ic.is_empty(), "все 37 рисованных значков партий 1–2 на месте (нет: %s)" % str(miss_ic))
 	ok(G.world.bounds == null or not is_instance_valid(G.world.bounds), "после боя ограждения убраны — двор свободен")
 	# ворота стоят у входов в следующие зоны: идём к ним по двору настоящими клавишами
 	var gp: Vector3 = G.point("gate1")["pos"]
@@ -1058,6 +1068,9 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await _go(G, P, "gate1")
 	var in_fit: bool = await until(func(): return String(G.room.get("type", "")) == "fit" and g.panel != null, 8.0)
 	ok(in_fit and int(G.run["pos"]) == 1, "дверь «ФИТС» ведёт в комнату выбора фитса")
+	var fit_btns: Array = g.panel.find_children("*", "Button", true, false) if g.panel != null else []
+	ok(fit_btns.size() >= 2 and fit_btns.slice(0, 2).all(func(bt): return (bt as Button).icon != null), "у карточек фитсов — значки фитсов")
+	await shot("22a_fit_icons")
 	await wait(0.5)
 	await shot("22_fit_choice")
 	var opts: Array = G.fit_options(false)

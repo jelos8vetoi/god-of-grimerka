@@ -485,6 +485,10 @@ func add_gates(options: Array) -> void:
 		lbl.no_depth_test = true
 		lbl.position = pos + Vector3(0, 4.2, 0.4)
 		add_child(lbl)
+		var ic := G67Icons.sprite(String(G67Icons.ROOM.get(type, "")), 0.0036)
+		if ic != null:
+			ic.position = pos + Vector3(0, 5.75, 0.4)
+			add_child(ic)
 		# столб света над воротами: их видно через весь двор
 		var beam := MeshInstance3D.new()
 		var cm := CylinderMesh.new()
@@ -502,7 +506,7 @@ func add_gates(options: Array) -> void:
 		beam.position = pos + Vector3(0, 11.0, 0)
 		add_child(beam)
 		_light(pos + Vector3(0, 2.6, 1.6), G67Data.ROOM_COLOR[type], 2.4, 7.0)
-		gates.append({"root": g, "label": lbl, "option": o})
+		gates.append({"root": g, "label": lbl, "option": o, "icon": ic})
 		_point("gate%d" % i, String(G67Data.ROOM_NAMES[type]), String(G67Data.ROOM_HINT[type]), pos + Vector3(0, 0, 1.7))
 
 ## Место отдыха в комнате ПЕРЕДЫШКА: беседка за гаражами
