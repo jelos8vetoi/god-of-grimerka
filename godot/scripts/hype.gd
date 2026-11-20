@@ -79,8 +79,8 @@ func setup(g) -> void:
 # ---------------- накопление ----------------
 ## Начислить за источник. Тот же источник снова в течение FATIGUE секунд даёт вдвое меньше, потом вчетверо…
 func gain(src: String, mul := 1.0) -> float:
-	if on or not GAIN.has(src):
-		return 0.0
+	if on or not GAIN.has(src) or game.madk_locked():
+		return 0.0             # приквел до первой концовки: Team Hype закрыт вместе с madk1d
 	var now: float = game.clock
 	var n := 0
 	if tired.has(src) and now - float(tired[src][0]) < FATIGUE:
@@ -159,6 +159,8 @@ func full() -> bool:
 # ---------------- Overdrive ----------------
 ## Почему сейчас нельзя ("" — можно)
 func block() -> String:
+	if game.madk_locked():
+		return "locked"
 	if on:
 		return "active"
 	if not full():
@@ -179,6 +181,8 @@ func try_start() -> bool:
 	var why := block()
 	if why != "":
 		events.append(["blocked", why])
+		if why == "locked":
+			game.madk_note()
 		if why == "hype" and game.clock - _msg_t > 1.0:
 			_msg_t = game.clock
 			game.popup(p.global_position + Vector3(0, 2.3, 0), "HYPE %d%%" % int(value), Color(0.75, 0.78, 0.85))

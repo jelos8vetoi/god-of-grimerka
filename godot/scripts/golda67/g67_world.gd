@@ -70,13 +70,13 @@ func _put(id: String, pos: Vector3, yaw: float, size: Vector3, fit := "h", solid
 func _point(id: String, title: String, hint: String, pos: Vector3) -> void:
 	points.append({"id": id, "title": title, "hint": hint, "pos": pos})
 
-func _actor(id: String, path: String, height: float, pos: Vector3, yaw: float) -> Rig:
+func _actor(id: String, path: String, height: float, pos: Vector3, yaw: float, clips := {}) -> Rig:
 	if not ResourceLoader.exists(path):
 		missing.append(path)
 		return null
 	var r := Rig.new()
 	add_child(r)
-	r.setup(path, height, Poses.pahan(), true, 1.0, id)
+	r.setup(path, height, clips if not clips.is_empty() else Poses.pahan(), true, 1.0, id + ("_k" if not clips.is_empty() else ""))
 	r.position = pos
 	r.rotation.y = yaw
 	r.play("Idle", 0.0)
@@ -326,7 +326,7 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	var fl := _actor("g67_dj_flurr", G67Models.DIR + "g67_dj_flurr.glb", 1.8, Vector3(-X + 0.42, LAND_Y, -3.55), PI * 0.5)
 	if fl != null:
 		G67Models.sit(fl, 0.47)
-	_point("flurr", "dj flürr", "поговорить", Vector3(-X + 1.3, LAND_Y, -3.55))
+	_point("flurr", "DJ FLÜRR", "поговорить", Vector3(-X + 1.3, LAND_Y, -3.55))
 	# стол улучшений и стойка стилей — вдоль правой стены, между дверью третьей квартиры и решёткой
 	_put("res://assets/minigames/ml_desk.glb", Vector3(X - 0.42, LAND_Y, -2.75), -PI * 0.5, Vector3(1.3, 0.85, 0.8))
 	_point("upgrades", "АВТОРИТЕТ РАЙОНА", "улучшения за РЕСПЕКТ", Vector3(X - 1.3, LAND_Y, -2.75))
@@ -346,6 +346,10 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 var room: Dictionary = {}
 var gates: Array = []          # ворота выбора следующей комнаты: [{root, label, option}]
 var yard: G67Yard
+## Бой Миши (G67Misha.hook_target): за что цепляется цепь — турники и борта коробки, в координатах комнаты
+var hook_points: Array = []
+var hook_rect := Rect2(-14, -14, 28, 28)
+var throne := Vector3(0, 0.03, -10.0)
 
 func build_room(r: Dictionary) -> void:
 	room = r
@@ -396,6 +400,13 @@ func build_room(r: Dictionary) -> void:
 	yard.build()
 	var zc: Vector3 = G67Yard.zone(String(r.get("place", "podezd")))["c"]
 	yard.position = -zc
+	# коробка Миши в координатах комнаты: за что цепляется цепь и где трон
+	hook_points = []
+	for bp in G67Yard.BARS:
+		hook_points.append(Vector3(float(bp[0]), 0, float(bp[1])) - zc)
+	var cr: Rect2 = G67Yard.COURT
+	hook_rect = Rect2(cr.position.x - zc.x + 0.3, cr.position.y - zc.z + 0.3, cr.size.x - 0.6, cr.size.y - 0.6)
+	throne = G67Yard.THRONE - zc
 	missing.append_array(yard.missing)
 	var type := String(r.get("type", "battle"))
 	if type == "battle" or type == "elite" or type == "boss":
@@ -474,6 +485,10 @@ func add_gates(options: Array) -> void:
 		lbl.no_depth_test = true
 		lbl.position = pos + Vector3(0, 4.2, 0.4)
 		add_child(lbl)
+		var ic := G67Icons.sprite(String(G67Icons.ROOM.get(type, "")), 0.0036)
+		if ic != null:
+			ic.position = pos + Vector3(0, 5.75, 0.4)
+			add_child(ic)
 		# столб света над воротами: их видно через весь двор
 		var beam := MeshInstance3D.new()
 		var cm := CylinderMesh.new()
@@ -491,8 +506,17 @@ func add_gates(options: Array) -> void:
 		beam.position = pos + Vector3(0, 11.0, 0)
 		add_child(beam)
 		_light(pos + Vector3(0, 2.6, 1.6), G67Data.ROOM_COLOR[type], 2.4, 7.0)
-		gates.append({"root": g, "label": lbl, "option": o})
+		gates.append({"root": g, "label": lbl, "option": o, "icon": ic})
 		_point("gate%d" % i, String(G67Data.ROOM_NAMES[type]), String(G67Data.ROOM_HINT[type]), pos + Vector3(0, 0, 1.7))
+
+## Дверь подъезда во дворе: вернуться домой посреди забега (забег встаёт на паузу)
+func add_home() -> void:
+	if yard == null:
+		return
+	for pt in points:
+		if String(pt["id"]) == "home":
+			return
+	_point("home", "ПОДЪЕЗД", "домой: забег сохранится, продолжишь отсюда же", yard.position + G67Yard.HOME_DOOR)
 
 ## Место отдыха в комнате ПЕРЕДЫШКА: беседка за гаражами
 func add_rest() -> void:

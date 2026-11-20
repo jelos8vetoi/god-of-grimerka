@@ -1195,7 +1195,14 @@ func start_rage() -> void:
 		if is_instance_valid(e) and e.alive() and e.global_position.distance_to(global_position) < 5.0:
 			e.take_hit(40.0, (e.global_position - global_position).normalized(), 9.0, true, 6.0, null, "rage_burst", hero)
 
-func take_damage(dmg: float, from: Vector3, attacker = null, context := {}) -> void:
+## context — сведения об источнике урона (телеметрия Endless Survival) или true: захват, блок и парирование не работают
+func take_damage(dmg: float, from: Vector3, attacker = null, context = {}) -> void:
+	var unblockable := false
+	if context is bool:
+		unblockable = context
+		context = {}
+	else:
+		unblockable = bool((context as Dictionary).get("unblockable", false))
 	if state == "dead":
 		return
 	if inv > 0.0:
@@ -1208,7 +1215,7 @@ func take_damage(dmg: float, from: Vector3, attacker = null, context := {}) -> v
 	var survival_block := 1.0
 	var to: Vector3 = from - global_position
 	to.y = 0
-	if state == "block" and aim_dir().angle_to(to.normalized()) < 1.4:
+	if state == "block" and not unblockable and aim_dir().angle_to(to.normalized()) < 1.4:
 		if block_t < 0.22 and attacker:
 			attacker.stun(1.6)
 			game.feedback("parry", global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.6, to.normalized(), 1.0, Color(0.5, 0.85, 1.0))

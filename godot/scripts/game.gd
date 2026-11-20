@@ -922,7 +922,9 @@ func _unhandled_input(e: InputEvent) -> void:
 		elif e.is_action_pressed("lock_prev"):
 			lock.cycle(-1)
 	if e.is_action_pressed("adlib") and not get_tree().paused and not paused_story():
-		if not buddy.adlib():
+		if madk_locked():
+			madk_note()
+		elif not buddy.adlib():
 			popup(buddy.global_position + Vector3(0, 2.1, 0), "перезарядка", Color(0.6, 0.7, 0.8))
 
 func shake(a: float) -> void:
@@ -953,7 +955,7 @@ func impact(tier: int, pos: Vector3, mul := 1.0) -> void:
 ## Смена героя (Tab): игрок берёт под управление напарника, прежний герой становится напарником.
 ## Герои меняются местами — управление переходит к тому, кто стоял рядом.
 func swap_heroes(quiet := false) -> bool:
-	if paused_story() or over or player.state == "dead":
+	if paused_story() or over or player.state == "dead" or madk_locked():
 		return false
 	var a: Vector3 = player.global_position
 	var b: Vector3 = buddy.global_position
@@ -1353,6 +1355,15 @@ func _clean(s: String) -> String:
 # ---------------- озвучка ----------------
 ## файл реплики: код говорящего и начало md5 от всей строки «код|текст» — так же называет файлы tools/godot-voice.cjs
 func _voice_path(line: String) -> String:
+	if golda != null:
+		# приквел «ГОЛДА 67»: голоса главы 1 из своего манифеста (golda67/g67_voice.gd); нет — общий голос кампании
+		var gp := G67Voice.path(line)
+		if gp != "":
+			return gp
+		if OS.is_debug_build() or main.voicecheck:
+			var ge: Dictionary = G67Voice.entry(line)
+			if not ge.is_empty():
+				print("VOICE G67 %s (%s): голоса нет — статус %s, файл %s" % [String(ge.get("id", "")), line.left(50), String(ge.get("status", "")), String(ge.get("path", ""))])
 	return "res://assets/voice/%s_%s.mp3" % [line.substr(0, line.find("|")), line.md5_text().substr(0, 10)]
 
 func _say(pl: AudioStreamPlayer, line: String, vol := 0.0) -> bool:
@@ -1386,6 +1397,10 @@ func bark(kind: String, gap := 8.0, chance := 1.0) -> void:
 	if mode == "dlg" or over and kind != "dead" or not barks.has(kind) or clock < float(bark_cd.get(kind, 0.0)) or randf() > chance:
 		return
 	var arr: Array = barks[kind]
+	if madk_locked():
+		arr = arr.filter(func(l): return not String(l).begins_with("M"))      # madk1d до первой концовки не в бою — он не выкрикивает
+		if arr.is_empty():
+			return
 	var line: String = arr[randi() % arr.size()]
 	var pl := bark_m if line.begins_with("M") else (bark_v if line.begins_with("V") else bark_b)
 	if _speaking():
@@ -1430,6 +1445,18 @@ func banner(title: String, sub: String, col: Color, sec := 2.6) -> void:
 	banner_sub.text = sub
 	banner_title.add_theme_color_override("font_color", col)
 	banner_t = sec
+
+## Приквел «ГОЛДА 67» до первой концовки: madk1d закрыт — управлять им и командными приёмами нельзя
+func madk_locked() -> bool:
+	return golda != null and not golda.madk_open()
+
+var _madk_note_t := -9.0
+## Попытка воспользоваться закрытым: объяснить, когда откроется (не чаще раза в 1,5 с)
+func madk_note() -> void:
+	if clock - _madk_note_t < 1.5:
+		return
+	_madk_note_t = clock
+	toast(G67Data.MADK_LOCKED)
 
 func toast(text: String) -> void:
 	toast_label.text = _clean(text)

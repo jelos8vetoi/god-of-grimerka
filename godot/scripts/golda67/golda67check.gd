@@ -16,6 +16,7 @@ func _ready() -> void:
 	for p in KEEP:
 		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
 	AudioServer.set_bus_mute(0, true)
+	G67Save.clean = true          # прогресс игрока в приквеле на проверку не влияет
 	_run()
 
 func ok(cond: bool, text: String) -> void:
@@ -118,6 +119,10 @@ func _run() -> void:
 	await wait(3.0)
 	var g = main.game
 	var G: Golda67 = g.golda
+	if OS.get_cmdline_user_args().has("--g67-real"):
+		await _real_run(g, G)
+		_finish()
+		return
 	ok(g.training == null and g.mode == "golda67", "режим приквела (mode = %s), это не арена" % g.mode)
 	ok(G.place == "hub" and G.world is G67World, "место — подъезд")
 	ok(G.world.missing.is_empty(), "все модели хаба на месте (нет: %s)" % ", ".join(G.world.missing))
@@ -218,7 +223,15 @@ func _run() -> void:
 	var n0 := G.events.size()
 	await key(KEY_E)
 	await wait(0.3)
-	ok(G.events.size() > n0 and G.events[-1] == ["use", "tv"], "клавиша E у телевизора срабатывает")
+	ok(G.events.slice(n0).has(["use", "tv"]), "клавиша E у телевизора срабатывает")
+	ok(G.clip != null and G.clip.id == "V00", "у телевизора впервые — трейлер «ТУРНИР 67»")
+	if G.clip != null:
+		G.clip.skippable = true          # трейлер подробно проверяет раздел роликов; здесь — только запуск
+		G.clip.skip()
+	await until(func(): return G.clip == null, 2.0)
+	var cs: Array = G.meta().get("clips_seen", [])
+	cs.erase("V00")                      # раздел роликов покажет его как впервые
+	G.meta()["clips_seen"] = cs
 	P.global_position = Vector3(-1.0, 0.05, 3.1)
 	await wait(0.3)
 	ok(G.near == "" and not G.prompt.visible, "вдали от предметов подсказки нет")
@@ -243,9 +256,14 @@ func _run() -> void:
 	ok(save_same(), "сохранение кампании не изменилось")
 	ok(not FileAccess.file_exists("user://golda67_save.json") or kept["user://golda67_save.json"] == FileAccess.get_file_as_string("user://golda67_save.json"), "проверка не пишет сохранение приквела игрока")
 	# ================= dj flürr: одиннадцать состояний =================
+	await _madk_check(g, G, P)
+	await _voice_check(g, G, P)
+	await _clip_check(g, G, P)
 	await _flurr_check(g, G, P)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
+	# ================= КРОТ: постановки встреч 4–10 =================
+	await _krot_stage(g, G)
 	# ================= выход =================
 	g._to_menu()
 	var back: bool = await until(func(): return main.menu != null and is_instance_valid(main.menu) and main.game == null, 10.0)
@@ -257,6 +275,549 @@ func _run() -> void:
 	_finish()
 
 ## реплики из авторского документа — тем же правилом, что сборщик данных: посимвольная сверка с данными игры
+## Снимок Миши сбоку-спереди (обычная камера стоит за спиной героя и закрывает его)
+func _side_shot(g, B, nm: String) -> void:
+	var oc := Camera3D.new()
+	g.add_child(oc)
+	var at: Vector3 = B.global_position
+	oc.global_position = at + Vector3(3.6, 2.0, 3.4)
+	oc.look_at(at + Vector3(0, 1.1, 0.6), Vector3.UP)
+	oc.make_current()
+	await wait(0.05)
+	await shot(nm)
+	g.cam.make_current()
+	oc.queue_free()
+
+## Снимок места во дворе: at и from — в координатах двора
+func _yard_shot(g, G: Golda67, at: Vector3, from: Vector3, nm: String) -> void:
+	var off: Vector3 = G.world.yard.position
+	var oc := Camera3D.new()
+	g.add_child(oc)
+	oc.global_position = from + off
+	oc.look_at(at + off, Vector3.UP)
+	oc.make_current()
+	await wait(0.4)
+	await shot(nm)
+	g.cam.make_current()
+	oc.queue_free()
+
+## Жители двора и трибуна: на местах, со скелетом, дышат; сумка бабушки висит вниз
+func _yard_people(g, G: Golda67) -> void:
+	var Y: G67Yard = G.world.yard
+	ok(Y.people.size() == 4, "во дворе четверо фоновых жителей (%s)" % str(Y.people.keys()))
+	var alive := true
+	for id in Y.people:
+		var r: Rig = Y.people[id]
+		if r.skel == null or String(r.cur) == "" or not G.world.blocked(r.global_position):
+			alive = false
+			print("GOLDA67CHECK   житель %s: скелет/клип/место не в порядке" % id)
+	ok(alive, "жители со скелетом, стоят и дышат, сквозь них не пройти")
+	for who in G67Yard.PEOPLE:
+		var p: Vector3 = who["pos"]
+		var yaw := float(who["yaw"])
+		var fw := Vector3(sin(yaw), 0, cos(yaw))
+		await _yard_shot(g, G, p + Vector3(0, float(who["h"]) * 0.55, 0), p + fw * 2.4 + Vector3(-fw.z, 0, fw.x) * float(who.get("shot_side", 1.0)) + Vector3(0, 1.3, 0), "50_" + String(who["id"]).trim_prefix("g67_"))
+	if Y.people.has("g67_npc_babushka"):
+		var b: Rig = Y.people["g67_npc_babushka"]
+		ok(b.skel.find_children("*", "G67Carry", true, false).size() == 1, "у бабушки слой, который держит авоську висящей вниз")
+	var poses := {}
+	var rigged := true
+	for n in Y.fans + Y.queue:
+		if not (n is Rig) or (n as Rig).skel == null:
+			rigged = false
+		else:
+			poses[String((n as Rig).cur)] = true
+	for id in Y.people:
+		poses[String(Y.people[id].cur)] = true
+	ok(rigged and Y.fans.size() >= 5, "зрители и очередь — люди со скелетом, без застывших моделей в T-позе (зрителей %d)" % Y.fans.size())
+	ok(poses.size() >= 7, "позы у жителей разные (%d видов: %s)" % [poses.size(), ", ".join(poses.keys())])
+	var q0: Vector3 = (Y.queue[1] as Node3D).position
+	await _yard_shot(g, G, q0 + Vector3(0, 1.0, 0), q0 + Vector3(-0.6, 1.6, 4.2), "53_queue_poses")
+	ok(Y.tribune != null and G.world.blocked(G67Yard.TRIBUNE + Y.position), "у коробки Миши стоит трибуна")
+	await _yard_shot(g, G, G67Yard.TRIBUNE + Vector3(0, 1.4, 0), G67Yard.TRIBUNE + Vector3(-8.5, 3.2, 5.5), "51_tribune")
+	await _yard_shot(g, G, G67Yard.TRIBUNE + Vector3(0, 1.6, 0), G67Yard.TRIBUNE + Vector3(-5.2, 2.4, 0.4), "54_fans_close")
+	await _yard_shot(g, G, G67Yard.TRIBUNE + Vector3(0, 1.2, 0), G67Yard.TRIBUNE + Vector3(-2.0, 2.0, -7.5), "52_tribune_side")
+
+## Постановки КРОТА для встреч 4–10: их районов ещё нет, поэтому КРОТ снимается на площадке в стороне от всего
+## с простыми заменителями вещей (автомат, кольцевая лампа, сервер, столик с пакетом). Только для оценки поз.
+func _krot_stage(g, G: Golda67) -> void:
+	var root := Node3D.new()
+	root.name = "krot_stage"
+	g.add_child(root)
+	root.global_position = Vector3(300, 0, 300)
+	var floor := MeshInstance3D.new()
+	var fm := BoxMesh.new()
+	fm.size = Vector3(12, 0.1, 12)
+	floor.mesh = fm
+	floor.position = Vector3(0, -0.05, 0)
+	floor.material_override = _mat(Color(0.32, 0.32, 0.34))
+	root.add_child(floor)
+	var wall := MeshInstance3D.new()
+	var wm := BoxMesh.new()
+	wm.size = Vector3(12, 5, 0.2)
+	wall.mesh = wm
+	wall.position = Vector3(0, 2.5, -2.6)
+	wall.material_override = _mat(Color(0.22, 0.24, 0.28))
+	root.add_child(wall)
+	var key := OmniLight3D.new()
+	key.position = Vector3(2.0, 3.0, 3.0)
+	key.omni_range = 14.0
+	key.light_energy = 3.0
+	root.add_child(key)
+	var fill := OmniLight3D.new()
+	fill.position = Vector3(-3.0, 2.0, 1.5)
+	fill.omni_range = 10.0
+	fill.light_energy = 1.2
+	fill.light_color = Color(0.7, 0.8, 1.0)
+	root.add_child(fill)
+	var cam := Camera3D.new()
+	root.add_child(cam)
+	cam.position = Vector3(1.25, 1.2, 2.25)
+	cam.look_at(root.global_position + Vector3(0, 0.72, 0), Vector3.UP)
+	cam.make_current()
+	g.hud_root.visible = false            # кадр только для поз: без интерфейса
+	g.combat_hud.visible = false
+	var kc: Dictionary = Poses.pahan()
+	kc.merge(G67Poses.krot(), true)
+	var stages := [
+		["k04_npc", ["K4"], [0.12, 0.31, 0.7]], ["k05_sober", ["K5", "K5Finger"], [0.3]], ["k06_rizz", ["K6", "K6Pose"], [0.3]],
+		["k07_minecraft", ["K7", "K7Shrug"], [0.3]], ["k08_court", ["K8", "K8Point"], [0.3]], ["k09_air", ["K9", "K9Raise"], [0.35]], ["k10_last", ["K10"], [0.2]],
+	]
+	var made := 0
+	for st in stages:
+		var set_n := Node3D.new()
+		root.add_child(set_n)
+		var seat := _stage_props(set_n, String(st[0]))
+		for clip in st[1]:
+			var r := Rig.new()
+			set_n.add_child(r)
+			r.setup(G67Models.DIR + "g67_krot.glb", 1.62, kc, true, 1.0, "g67_krot_k")
+			r.position = Vector3(0, seat - (G67Poses.SIT_HIP * 1.62 if seat > 0.0 else 0.0), 0)
+			if String(st[0]) == "k04_npc":
+				r.rotation.y = -0.95              # стоит перед автоматом (автомат слева от него)
+			elif String(st[0]) == "k06_rizz":
+				r.rotation.y = -0.45              # вполоборота к лампе
+			elif String(st[0]) == "k09_air":
+				r.position.z = -0.75              # за столиком
+			if String(st[0]) == "k09_air":
+				G67Poses._prop(r, "mixamorig_LeftHand", "bag", G67Poses._box(Vector3(0.24, 0.32, 0.02), Color(0.92, 0.94, 0.96), Color(0.3, 0.3, 0.32)), Vector3(0, 0.2, 0.05))
+			r.play(String(clip), 0.0)
+			for fr in st[2]:
+				if r.player != null:
+					r.player.seek(float(fr) * r.player.current_animation_length, true)
+					r.player.pause()
+				await wait(0.15)
+				await shot("%s_%s_%d" % [String(st[0]), String(clip), int(float(fr) * 100)])
+				made += 1
+			if String(st[0]) == "k10_last":
+				G67Poses.vanish(r)
+				await wait(0.06)
+				await shot("k10_last_vanish_a")
+				await wait(0.3)
+				await shot("k10_last_vanish_b")
+				await wait(0.5)
+				ok(not is_instance_valid(r), "встреча 10: КРОТ проваливается сквозь пол и пропадает (сбой, не бегство)")
+			elif is_instance_valid(r):
+				r.queue_free()
+			await wait(0.05)
+		set_n.queue_free()
+	ok(made >= 12, "постановки КРОТА для встреч 4–10 сняты (%d кадров)" % made)
+	g.cam.make_current()
+	g.hud_root.visible = true
+	g.combat_hud.visible = true
+	root.queue_free()
+
+func _mat(c: Color, glow := 0.0) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	if glow > 0.0:
+		m.emission_enabled = true
+		m.emission = c
+		m.emission_energy_multiplier = glow
+	return m
+
+func _cube(parent: Node3D, size: Vector3, pos: Vector3, c: Color, glow := 0.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.position = pos
+	mi.material_override = _mat(c, glow)
+	parent.add_child(mi)
+	return mi
+
+## Заменители вещей встречи; возвращает высоту сиденья (0 — стоит)
+func _stage_props(n: Node3D, id: String) -> float:
+	match id:
+		"k04_npc", "k05_sober":
+			var mz := -0.55 if id == "k04_npc" else -0.45
+			var mx := -1.05 if id == "k04_npc" else -1.0
+			var mach := Node3D.new()
+			mach.position = Vector3(mx, 0, mz)
+			mach.rotation.y = 0.75 if id == "k04_npc" else 0.35       # лицевой стороной к нему
+			n.add_child(mach)
+			_cube(mach, Vector3(0.9, 1.9, 0.75), Vector3(0, 0.95, 0), Color(0.7, 0.12, 0.1))
+			_cube(mach, Vector3(0.6, 0.9, 0.02), Vector3(0, 1.2, 0.38), Color(0.8, 0.9, 1.0), 0.8)
+		"k06_rizz":
+			var ring := MeshInstance3D.new()
+			var tm := TorusMesh.new()
+			tm.inner_radius = 0.36
+			tm.outer_radius = 0.42
+			ring.mesh = tm
+			ring.rotation.x = PI * 0.5
+			ring.position = Vector3(-0.95, 1.4, 0.75)
+			ring.rotation.y = -0.9
+			ring.material_override = _mat(Color(1, 1, 1), 2.5)
+			n.add_child(ring)
+			_cube(n, Vector3(0.04, 1.4, 0.04), Vector3(-0.95, 0.7, 0.75), Color(0.1, 0.1, 0.1))
+		"k07_minecraft":
+			_cube(n, Vector3(0.42, 0.45, 0.42), Vector3(0, 0.225, -0.05), Color(0.35, 0.3, 0.25))
+			_cube(n, Vector3(0.7, 2.0, 0.8), Vector3(-1.15, 1.0, -0.7), Color(0.08, 0.09, 0.1))
+			for i in 8:
+				_cube(n, Vector3(0.05, 0.03, 0.02), Vector3(-1.0 - (i % 3) * 0.08, 0.4 + i * 0.2, -0.29), Color(0.2, 1.0, 0.4), 2.0)
+			return 0.45
+		"k08_court":
+			_cube(n, Vector3(4.0, 3.0, 0.05), Vector3(0, 1.5, -1.4), Color(0.05, 0.05, 0.06))
+			_cube(n, Vector3(0.7, 0.5, 0.5), Vector3(-1.3, 0.25, -0.6), Color(0.12, 0.12, 0.13))
+			_cube(n, Vector3(0.6, 0.45, 0.45), Vector3(-1.3, 0.72, -0.6), Color(0.15, 0.15, 0.16))
+		"k09_air":
+			_cube(n, Vector3(1.1, 0.75, 0.6), Vector3(0, 0.375, -0.1), Color(0.45, 0.35, 0.25))
+			for i in 4:
+				_cube(n, Vector3(0.18, 0.02, 0.24), Vector3(-0.35 + i * 0.22, 0.76, -0.1), Color(0.93, 0.95, 0.97))
+	return 0.0
+
+## Снимок КРОТА спереди-сбоку крупно; героя и напарника на время снимка убираем из кадра
+func _krot_shot(g, kr, nm: String, dist := 2.0, side := 1.0, front := 1.0) -> void:
+	if kr == null or not is_instance_valid(kr):
+		print("GOLDA67CHECK   снимок %s: КРОТА нет" % nm)
+		return
+	var k: Vector3 = (kr as Node3D).global_position
+	var kf: Vector3 = (kr as Node3D).global_transform.basis.z
+	kf.y = 0.0
+	kf = kf.normalized()
+	var oc := Camera3D.new()
+	g.add_child(oc)
+	oc.global_position = k + kf * dist * front + Vector3(kf.z, 0, -kf.x) * dist * 0.45 * side + Vector3(0, 1.15, 0)
+	oc.look_at(k + Vector3(0, 0.8, 0), Vector3.UP)
+	oc.make_current()
+	var pv: bool = g.player.visible
+	var bv: bool = g.buddy.visible
+	g.player.visible = false
+	g.buddy.visible = false
+	await wait(0.12)
+	await shot(nm)
+	g.player.visible = pv
+	g.buddy.visible = bv
+	g.cam.make_current()
+	oc.queue_free()
+
+## Озвучка главы 1: манифест, реальные разговоры, обрыв при перелистывании и пропуске, пауза, выкрики, отсутствующий файл
+func _voice_check(g, G: Golda67, P) -> void:
+	G67Voice.reload()
+	var d = JSON.parse_string(FileAccess.get_file_as_string(G67Voice.MANIFEST)) if FileAccess.file_exists(G67Voice.MANIFEST) else null
+	if not (d is Dictionary):
+		print("GOLDA67CHECK   озвучка главы 1: манифеста нет — пропуск")
+		return
+	var ready := 0
+	var bad: Array = []
+	var total := 0
+	for e in (d["lines"] as Array):
+		if String(e["status"]) == "obsolete":
+			continue
+		total += 1
+		if String(e["status"]) in ["generated", "validated"]:
+			var line := String(e["code"]) + "|" + String(e["text"])
+			var pth := G67Voice.path(line)
+			var st = load(pth) if pth != "" else null
+			if st is AudioStream and (st as AudioStream).get_length() > 0.2:
+				ready += 1
+			else:
+				bad.append(String(e["id"]))
+	ok(bad.is_empty(), "озвучка главы 1: готовых реплик %d из %d, все находятся игрой и читаются%s" % [ready, total, "" if bad.is_empty() else " (не читаются: %s)" % str(bad)])
+	if ready == 0:
+		return
+	# разговор с DJ FLÜRR: голос главы 1, перелистывание обрывает прежнюю реплику, Tab — пропуск
+	var fl0 = G.meta().get("flurr", -1)
+	var seen0: Array = (G.meta().get("seen", []) as Array).duplicate()
+	G.meta()["seen"] = []
+	G.meta()["flurr"] = -1
+	G.talk_flurr()
+	await wait(0.3)
+	var p1 := String(g.voice.stream.resource_path) if g.voice.stream != null else ""
+	ok(g.voice.playing and p1.begins_with(G67Voice.DIR), "DJ FLÜRR: звучит голос главы 1 (%s)" % p1.get_file())
+	get_tree().paused = true
+	var pos0: float = g.voice.get_playback_position()
+	await wait(0.5)
+	var pos1: float = g.voice.get_playback_position()
+	get_tree().paused = false
+	await wait(0.3)
+	ok(absf(pos1 - pos0) < 0.05 and g.voice.playing, "на паузе голос стоит, после паузы продолжает")
+	g.dlg_chars = 9999.0
+	g._dlg_advance()
+	await wait(0.2)
+	var p2 := String(g.voice.stream.resource_path) if g.voice.stream != null else ""
+	ok(p2 != p1 and g.voice.playing, "следующая реплика: прежняя оборвалась, звучит новая (%s)" % p2.get_file())
+	g._dlg_finish()
+	await wait(0.1)
+	ok(not g.voice.playing, "пропуск разговора (Tab) глушит голос")
+	G.meta()["seen"] = seen0
+	G.meta()["flurr"] = fl0
+	G.flurr_last = -1
+	# выкрики: Пахан — голосом главы 1, madk1d до первой концовки молчит
+	g._hush()
+	g.bark_cd.clear()
+	g.bark("parry", 0.0)
+	await wait(0.1)
+	var bp := String(g.bark_v.stream.resource_path) if g.bark_v.stream != null else ""
+	ok(g.bark_v.playing and bp.begins_with(G67Voice.DIR + "Pahan/"), "выкрик Пахана в приквеле — его голос главы 1 (%s)" % bp.get_file())
+	g._hush()
+	g.bark("worry", 0.0)
+	await wait(0.1)
+	ok(not g.bark_m.playing, "madk1d до первой концовки не выкрикивает (его нет в бою)")
+	# реплики без файла: игра не падает, показывает текст
+	g.start_dialog(["KR|Этой реплики нет в главе 1."], func(): g.mode = "golda67")
+	await wait(0.2)
+	ok(g.mode == "dlg" and String(g.dlg_text.text).contains("Этой реплики нет") and not g.voice.playing, "реплика без голоса показывается текстом, без ошибок")
+	g._dlg_finish()
+	await wait(0.1)
+
+## Ролики главы 1: каждый целиком (снимки каждые 2 с), голоса, субтитры, без пропуска при первом показе,
+## пропуск при повторе, архив и телевизор в подъезде
+func _clip_check(g, G: Golda67, P) -> void:
+	ok(not G.auto_clips, "в проверке ролики не запускаются сами по ходу игры")
+	ok(G.clip_open("V00"), "трейлер V00 открыт с первого входа (телевизор в подъезде)")
+	var all_ok := true
+	for cid in G67Clips.ORDER:
+		var t0 := GameClock.ms()
+		var voiced := false
+		var subs := false
+		G.play_clip(cid)
+		await wait(0.2)
+		if G.clip == null:
+			all_ok = false
+			print("GOLDA67CHECK   ролик %s не открылся" % cid)
+			continue
+		ok(G.scene_busy() and g.intro_busy(), "%s: пока идёт ролик, управление закрыто" % cid) if cid == "STORY01" else null
+		if cid == "STORY01":
+			await key(KEY_ENTER)
+			await wait(0.3)
+			ok(G.clip != null and not G.clip.skipped, "первый показ нельзя пропустить (Enter не действует)")
+		var n := 0
+		var next_shot := 0.6
+		while G.clip != null and GameClock.ms() - t0 < 60000:
+			var el := (GameClock.ms() - t0) / 1000.0
+			if G.clip.voice.playing:
+				voiced = true
+			if G.clip.sub_text.text != "":
+				subs = true
+			if el >= next_shot:
+				await shot("c_%s_%02d" % [cid, n])
+				n += 1
+				next_shot += 2.0
+			await get_tree().process_frame
+		var dur := (GameClock.ms() - t0) / 1000.0
+		var needs_voice: bool = (G67Clips.LINES.get(cid, []) as Array).size() > 0
+		var good: bool = G.clip == null and dur > 5.0 and dur < 40.0 and (voiced or not needs_voice) and subs
+		print("GOLDA67CHECK   ролик %s: %.1f с, голос %s, субтитры %s, кадров %d" % [cid, dur, str(voiced), str(subs), n])
+		if not good:
+			all_ok = false
+		await wait(0.2)
+	ok(all_ok, "все %d роликов главы 1 проигрываются целиком, с голосами и субтитрами" % G67Clips.ORDER.size())
+	ok(G67Clips.ORDER.all(func(cid): return G.clip_seen(cid) and G.clip_open(cid)), "просмотренные ролики отмечены и лежат в архиве")
+	# повтор: пропуск разрешён
+	G.play_clip("STORY01")
+	await wait(0.5)
+	ok(G.clip != null and G.clip.skippable, "повторный показ можно пропустить")
+	await key(KEY_ENTER)
+	ok(await until(func(): return G.clip == null, 2.0), "Enter пропускает уже просмотренный ролик")
+	# телевизор: список открытых роликов
+	G.tv()
+	await wait(0.3)
+	ok(G.clip_menu != null, "телевизор в подъезде открывает архив роликов")
+	await shot("c_tv_menu")
+	G._tv_close()
+	await wait(0.2)
+
+## Поставить Мишу и героя и запустить приём (сам он в это время ничего не выбирает)
+func _misha_set(B, P, move: String, ppos: Vector3, bpos := Vector3(0, 0.05, -2.0)) -> void:
+	B.state = "chase"
+	B.cool = 99.0
+	B.special_cd = 99.0
+	B.guard_until = -1.0
+	B.weak_t = 0.0
+	B.global_position = bpos
+	B.velocity = Vector3.ZERO
+	P.global_position = ppos
+	P.velocity = Vector3.ZERO
+	P.hp = P.max_hp
+	P.inv = 0.0
+	if String(P.state) in ["hurt", "roll", "block"]:
+		P.state = "idle"
+	await wait(0.1)
+	BossMoves.start(B, move)
+
+func _press(action: String, down: bool) -> void:
+	if down:
+		Input.action_press(action)
+	else:
+		Input.action_release(action)
+
+## Бой Миши: ЗАХВАТ, ЗАЩИТНАЯ СТОЙКА, ЗАЦЕП ЦЕПИ — зона, честность, ответы игрока
+func _misha_moves(g, G: Golda67, P, B) -> void:
+	var ph: Array = B.boss["phases"]
+	ok((ph[0] as Array).has("m_grab") and (ph[0] as Array).has("m_hook") and (ph[1] as Array).has("m_guard") and (ph[2] as Array).has("m_guard"),
+		"приёмы Миши по фазам: захват и зацеп с первой, стойка со второй")
+	var dmg := float(B.cfg["dmg"])
+	# --- ЗАХВАТ: блок не спасает
+	await _misha_set(B, P, "m_grab", Vector3(0, 0.05, 0.0))
+	ok(String(B.state) == "special" and B.tell.visible and bool(B.sp_lock), "ЗАХВАТ: подготовка с меткой-сектором на земле")
+	_press("block", true)
+	await wait(0.55)
+	await _side_shot(g, B, "26a_misha_grab")
+	var f0: float = B.face
+	await wait(0.75)
+	_press("block", false)
+	ok(not B.grab_log.is_empty() and String(B.grab_log[-1]) == "hit" and P.max_hp - P.hp > dmg * 1.2, "ЗАХВАТ пробивает блок (урон %.0f, обычный удар в блок дал бы %.0f)" % [P.max_hp - P.hp, dmg * 0.3])
+	# --- ЗАХВАТ: уклонение спасает, Миша хватает воздух и стоит открытым
+	await wait(1.2)
+	await _misha_set(B, P, "m_grab", Vector3(0, 0.05, 0.0))
+	await wait(G67Misha.GRAB_WARN - 0.2)
+	await key(KEY_SHIFT)
+	await wait(0.5)
+	ok(String(B.grab_log[-1]) == "miss" and P.hp == P.max_hp, "ЗАХВАТ: уклонение в момент хватки спасает (здоровье %.0f)" % P.hp)
+	ok(String(B.state) == "special", "после промаха Миша ещё стоит согнувшись — окно для ударов")
+	# --- ЗАХВАТ: зона = рисунок
+	await wait(1.0)
+	await _misha_set(B, P, "m_grab", Vector3(0, 0.05, 2.6))          # 4,6 м — за краем зоны
+	await wait(G67Misha.GRAB_WARN + 0.2)
+	ok(String(B.grab_log[-1]) == "miss" and P.hp == P.max_hp, "ЗАХВАТ: за краем метки не достаёт")
+	var fr := Vector3(sin(B.face), 0, cos(B.face))
+	ok(G67Misha.in_grab(B, B.global_position + fr * (G67Misha.GRAB_R - 0.1)) and not G67Misha.in_grab(B, B.global_position + fr * (G67Misha.GRAB_R + 0.2))
+		and not G67Misha.in_grab(B, B.global_position + fr.rotated(Vector3.UP, G67Misha.GRAB_HALF + 0.15) * 2.0), "зона захвата совпадает с меткой (дальность и угол)")
+	# --- ЗАЩИТНАЯ СТОЙКА
+	await wait(1.2)
+	await _misha_set(B, P, "m_guard", Vector3(0, 0.05, 0.2))
+	await wait(0.5)
+	ok(G67Misha.guarding(B) and B.tell.visible and String(B.rig.cur) == "MGuard", "ЗАЩИТНАЯ СТОЙКА: руки скрещены, золотой сектор спереди (%s, %s, %s)" % [str(G67Misha.guarding(B)), str(B.tell.visible), str(B.rig.cur)])
+	await _side_shot(g, B, "26b_misha_guard")
+	var bh: float = B.hp
+	var h := HitInfo.new()
+	h.damage = 30.0
+	h.dir = (B.global_position - P.global_position).normalized()
+	h.attack_id = "test"
+	B.guard_next = 0.0              # первый удар в стойку — ответ доступен (не зависит от того, что было до проверки)
+	P.inv = 0.0
+	P.global_position = B.global_position + Vector3(sin(B.face), 0, cos(B.face)) * 2.0
+	B.take_hit_info(h)
+	ok(B.hp == bh and String(B.guard_log[-1]) == "return" and P.hp < P.max_hp, "удар в стойку спереди: урона нет, удар вернулся герою (−%.0f; босс %.1f → %.1f, итог %s)" % [P.max_hp - P.hp, bh, B.hp, str(B.guard_log[-1])])
+	var hp_a: float = P.hp
+	P.inv = 0.0
+	B.take_hit_info(h)
+	ok(P.hp == hp_a and String(B.guard_log[-1]) == "absorb", "ответ стойки не чаще раза в %.1f с" % G67Misha.GUARD_GAP)
+	var hb := HitInfo.new()
+	hb.damage = 30.0
+	hb.dir = Vector3(sin(B.face), 0, cos(B.face))                     # удар со спины летит туда же, куда смотрит Миша
+	hb.attack_id = "test"
+	B.take_hit_info(hb)
+	ok(B.hp < bh and String(B.guard_log[-1]) == "broken" and not G67Misha.guarding(B), "удар со спины сбивает стойку и проходит (−%.0f)" % (bh - B.hp))
+	# --- ЗАЦЕП ЦЕПИ: попал — тянет к себе
+	await wait(1.2)
+	await _misha_set(B, P, "m_hook", Vector3(0, 0.05, 4.0))
+	ok(B.tell.visible and bool(B.sp_lock), "ЗАЦЕП ЦЕПИ: полоса на земле, взгляд замер")
+	await wait(0.5)
+	await shot("26c_misha_hook_tell")
+	await wait(G67Misha.HOOK_WARN - 0.5 + 0.2)
+	ok(String(B.hook_log[-1]) == "hit" and P.hp < P.max_hp, "цепь попала по герою на полосе (−%.0f)" % (P.max_hp - P.hp))
+	# --- ЗАЦЕП ЦЕПИ: шаг с полосы — цепь цепляется за борт, Миша открыт
+	await wait(1.4)
+	await _misha_set(B, P, "m_hook", Vector3(0, 0.05, 4.0))
+	f0 = B.face
+	await wait(0.3)
+	P.global_position = Vector3(3.5, 0.05, 4.0)                        # ушёл с полосы
+	await wait(G67Misha.HOOK_WARN - 0.3 + 0.25)
+	ok(absf(angle_difference(f0, B.face)) < 0.01, "полоса не поворачивается за героем — с неё можно уйти")
+	ok(String(B.hook_log[-1]) == "board" and String(B.state) == "stun" and B.weak_t > G67Misha.HOOK_OPEN - 0.5 and P.hp == P.max_hp,
+		"промах: цепь зацепилась за борт, Миша открыт (%.1f с)" % B.weak_t)
+	ok(G.world.get_node_or_null("misha_hook_chain") != null and String(B.rig.cur) == "MStuck", "цепь натянута до борта, Миша её дёргает")
+	await wait(0.3)
+	await shot("26d_misha_hooked")
+	var bh2: float = B.hp
+	var hw := HitInfo.new()
+	hw.damage = 30.0
+	hw.dir = (B.global_position - P.global_position).normalized()
+	hw.attack_id = "test"
+	B.take_hit_info(hw)
+	ok(bh2 - B.hp > 30.0 * 1.25, "по открытому Мише урон выше (−%.0f за удар в 30)" % (bh2 - B.hp))
+	ok(await until(func(): return String(B.state) != "stun" and B.weak_t <= 0.0, 3.0), "через две секунды он снова в бою")
+	await wait(0.5)
+	ok(G.world.get_node_or_null("misha_hook_chain") == null, "цепь убрана")
+	# --- ЗАЦЕП ЦЕПИ: турник ловит цепь
+	var bar: Vector3 = G.world.hook_points[0]
+	var side := Vector3(1, 0, 0) if bar.x < 0.0 else Vector3(-1, 0, 0)
+	await _misha_set(B, P, "m_hook", bar - side * 1.0 + Vector3(0, 0.05, 0), bar + side * 6.0 + Vector3(0, 0.05, 0))
+	await wait(0.3)
+	P.global_position = Vector3(0, 0.05, 6.0)
+	await wait(G67Misha.HOOK_WARN - 0.3 + 0.25)
+	ok(String(B.hook_log[-1]) == "bars", "если полоса идёт мимо турника — цепь цепляется за турник")
+	await wait(0.2)
+	await shot("26e_misha_hook_bars")
+	await wait(2.4)
+	B.global_position = Vector3(0, 0.05, -2.0)
+	P.global_position = Vector3(0, 0.05, 3.0)
+	P.hp = P.max_hp
+	P.inv = 0.0
+
+## madk1d закрыт до первой концовки: Tab, T, G, Q ничего не открывают, в HUD замок; после концовки — всё работает
+func _madk_check(g, G: Golda67, P) -> void:
+	var fl: Dictionary = G.meta().get("flags", {})
+	var had := bool(fl.get(G67Data.MADK_FLAG, false))
+	fl.erase(G67Data.MADK_FLAG)
+	G.meta()["flags"] = fl
+	ok(not G.madk_open() and g.madk_locked(), "новый приквел: madk1d закрыт (флаг первой концовки не стоит)")
+	P.hp = P.max_hp
+	await wait(0.3)
+	g._madk_note_t = -9.0
+	await key(KEY_TAB)
+	await wait(0.5)
+	ok(String(P.hero) == "pahan" and g._madk_note_t > 0.0, "Tab: остаётся Пахан, игроку объяснили, когда откроется madk1d")
+	ok(String(g.toast_label.text).contains("первой концовки"), "подсказка: «%s»" % g.toast_label.text)
+	ok(not g.swap_heroes(true) and String(P.hero) == "pahan", "смена героя кодом тоже закрыта (AIR TAG и прочие пути)")
+	ok(not g.tag.try_assist() and not g.tag.duo.active(), "T: дуэт-атаки нет")
+	g.hype.value = TeamHype.MAX
+	ok(not g.hype.try_start() and not g.hype.active(), "G: Overdrive не запускается даже с полной шкалой")
+	g.hype.value = 0.0
+	ok(g.hype.gain("attack") == 0.0 and g.hype.value == 0.0, "Team Hype не копится")
+	var ab: Array = g.combat_hud.abilities(P)
+	ok(not ab.any(func(x): return String(x[0]) == "Q"), "ромба ад-либа madk1d в HUD нет")
+	var H: CombatHud = g.combat_hud
+	ok(H.madk_lock != null and H.madk_lock.visible and H.tab_lock.visible and not H.hype_text.visible, "в HUD на портрете madk1d и на бирке TAB — замок, шкалы HYPE нет")
+	await shot("08_madk_locked")
+	# после первой концовки — всё открыто
+	fl[G67Data.MADK_FLAG] = true
+	G.meta()["flags"] = fl
+	await wait(0.2)
+	ok(G.madk_open() and not g.madk_locked(), "после первой концовки madk1d открыт")
+	await wait(0.6)
+	g.tag.tag_cd = 0.0
+	await key(KEY_TAB)
+	var sw: bool = await until(func(): return String(P.hero) == "madk1d", 3.0)
+	ok(sw, "Tab: управление переходит к madk1d")
+	ok(not H.madk_lock.visible and H.hype_text.visible, "замок в HUD снят, шкала HYPE на месте")
+	await wait(0.4)
+	await shot("08b_madk_open")
+	await wait(1.4)
+	g.tag.tag_cd = 0.0
+	if String(P.hero) == "madk1d":
+		g.swap_heroes(true)
+	await wait(0.6)
+	ok(String(P.hero) == "pahan", "обратно к Пахану")
+	if not had:
+		fl.erase(G67Data.MADK_FLAG)
+	G.meta()["flags"] = fl
+	G.apply_styles()
+	P.global_position = G.world.spawn_pos
+	await wait(0.3)
+
 func _flurr_from_doc() -> Dictionary:
 	var txt := FileAccess.get_file_as_string("res://docs/golda67/DJ_FLURR_SPEC.md").replace("\r", "")
 	var states: Array = []
@@ -370,10 +931,103 @@ func _flurr_check(g, G: Golda67, P) -> void:
 			break
 		g._dlg_advance()
 		await wait(0.05)
+	# знакомство после уже найденного КРОТА: четыре реплики знакомства, связка, сразу нынешний диалог
+	var arch0: Array = (G.meta().get("archive", []) as Array).duplicate()
+	G.meta()["seen"] = ["krot1", "krot2"]
+	G.meta()["flurr"] = -1
+	G.meta()["archive"] = []
+	G.talk_flurr()
+	await wait(0.1)
+	var alt: Array = (G67Flurr.STATES[0] as Array).slice(0, 4)
+	alt.append("DJ|А ты, я слышал, уже с КРОТОМ пересёкся.")
+	alt.append_array(G67Flurr.STATES[2])
+	ok(g.dlg == alt, "первый разговор после двух встреч: знакомство (4 реплики), связка про КРОТА, диалог состояния 2 — без старых подсказок")
+	for i in 60:
+		if g.mode != "dlg":
+			break
+		g._dlg_advance()
+		await wait(0.05)
+	var ar: Array = G.meta()["archive"]
+	ok(int(G.meta()["flurr"]) == 2 and ar.has("flurr0") and ar.has("flurr1") and ar.has("flurr2"), "пропущенные диалоги записаны в архив (%s)" % str(ar))
+	G.meta()["archive"] = arch0
+	ok(String(pt.get("title", "")) == "DJ FLÜRR", "подпись у лавки — DJ FLÜRR")
+	ok(g.ipod.allowed(g), "iPod в приквеле работает, как в кампании")
 	G.meta()["seen"] = seen0
 	G.meta()["flurr"] = fl0
 	G.flurr_last = -1
 	P.global_position = G.world.spawn_pos
+
+## --g67-real: путь игрока с роликами по ходу (первый показ не пропускается — ждём), чистое сохранение, весь забег
+## до босса. Проверяет, что ролики не ломают игру: двери, комнаты, выход Миши (он на месте и в кадре).
+func _clips_wait(G: Golda67, sec := 120.0) -> void:
+	await wait(0.3)
+	await until(func(): return G.clip == null and G.clip_menu == null, sec)
+	await wait(0.4)
+
+func _real_run(g, G: Golda67) -> void:
+	var P = g.player
+	ok(await until(func(): return G.clip != null, 10.0), "REAL: первые ролики начинаются после того, как подъезд проявился")
+	ok(main.intro_fx == null or not main.intro_fx.busy, "REAL: к началу ролика шторка перехода уже ушла")
+	await _clips_wait(G)
+	ok(G.place == "hub" and G.clip == null, "REAL: после первых роликов — подъезд, управление у игрока (%s)" % str(G.events.filter(func(e): return String(e[0]) == "clip")))
+	await shot("r01_hub")
+	await _go(G, P, "exit")
+	await _clips_wait(G)
+	var started: bool = await until(func(): return G.place == "run", 10.0)
+	await _clips_wait(G)
+	ok(started and G.place == "run", "REAL: выход из подъезда начинает забег (ролики: %s)" % str(G.events.filter(func(e): return String(e[0]) == "clip")))
+	if not started:
+		return
+	var pos := -1
+	for step in 12:
+		await _clips_wait(G, 60.0)
+		if G.room_state == "boss":
+			break
+		if G.room_state == "fight":
+			ok(await _clear_room(g, G, 60.0), "REAL: комната %d (%s) зачищена" % [int(G.run["pos"]) + 1, String(G.room.get("type", ""))])
+		await wait(0.5)
+		if g.panel != null:
+			var fo: Array = G.fit_options(String(G.room.get("type", "")) == "elite")
+			if not fo.is_empty():
+				G.take_fit(String(fo[0]))
+			await wait(0.3)
+		if G.room_state == "rest":
+			await _go(G, P, "rest")
+			await wait(0.4)
+		if G.world.gates.is_empty():
+			await wait(1.0)
+		if G.world.gates.is_empty():
+			ok(false, "REAL: после комнаты %d нет дверей (состояние %s)" % [int(G.run["pos"]) + 1, G.room_state])
+			await shot("r_no_gates")
+			return
+		pos = int(G.run["pos"])
+		await _go(G, P, "gate0")
+		await until(func(): return int(G.run["pos"]) != pos, 8.0)
+	var bossed: bool = await until(func(): return G.room_state == "boss" and g.boss_e != null and is_instance_valid(g.boss_e), 10.0)
+	ok(bossed, "REAL: дошли до босса (комната %s, позиция %d)" % [G.room_state, int(G.run.get("pos", -1))])
+	if not bossed:
+		await shot("r_no_boss")
+		return
+	var B = g.boss_e
+	await wait(1.2)
+	var cam: Camera3D = g.get_viewport().get_camera_3d()
+	var head: Vector3 = B.global_position + Vector3(0, 1.6, 0)
+	var sp: Vector2 = cam.unproject_position(head)
+	var vs: Vector2 = g.get_viewport().get_visible_rect().size
+	var in_frame: bool = not cam.is_position_behind(head) and Rect2(Vector2.ZERO, vs).has_point(sp)
+	ok(B.visible and B.rig != null and B.rig.is_visible_in_tree() and in_frame, "REAL: Миша появился и в кадре (экран %s, видим %s)" % [str(sp.round()), str(B.is_visible_in_tree())])
+	await shot("r02_boss_intro")
+	await until(func(): return not G.scene_busy(), 10.0)
+	await until(func(): return B.alive(), 3.0)
+	await wait(0.5)
+	var cam2: Camera3D = g.get_viewport().get_camera_3d()
+	var bh: Vector3 = B.global_position + Vector3(0, 1.4, 0)
+	var sp2: Vector2 = cam2.unproject_position(bh)
+	ok(not cam2.is_position_behind(bh) and Rect2(Vector2.ZERO, vs).has_point(sp2), "REAL: после постановки Миша в кадре, а не за калиткой (экран %s)" % str(sp2.round()))
+	await shot("r03_boss_fight")
+	print("GOLDA67CHECK   REAL mode=%s panel=%s dlg=%d events=%s" % [g.mode, str(g.panel), g.dlg.size(), str(G.events.slice(-8))])
+	print("GOLDA67CHECK   REAL после постановки: valid=%s alive=%s state=%s hp=%s boss_e==B %s enemies=%d room=%s scene_t=%.2f boss_pos=%s player=%s" % [is_instance_valid(B), B.alive() if is_instance_valid(B) else "-", B.state if is_instance_valid(B) else "-", B.hp if is_instance_valid(B) else "-", g.boss_e == B, g.enemies.size(), G.room_state, G.scene_t, str(B.global_position) if is_instance_valid(B) else "-", str(P.global_position)])
+	ok(is_instance_valid(B) and B.alive() and (g.enemies.has(B) or g.boss_e == B), "REAL: бой с Мишей идёт")
 
 ## убить всех живых врагов (бой проверяют проверки боя; здесь — цикл комнат)
 func _kill_all(g) -> void:
@@ -452,7 +1106,31 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(G.world.gates.any(func(gt): return String(gt["option"]["place"]) == "parking"), "пока встреча 1 не пройдена, одна из дверей ведёт на парковку к ларьку")
 	ok(int(G.run["golda"]) > 0 and int(G.run["respect"]) > 0, "за комнату дали голду (%d) и РЕСПЕКТ (%d)" % [int(G.run["golda"]), int(G.run["respect"])])
 	ok(G.room_state == "open" and G.world.gates.size() == 2, "после боя открылись две двери на выбор (%d)" % G.world.gates.size())
+	ok(G.world.gates.all(func(gt): return gt.get("icon") != null and is_instance_valid(gt["icon"]) and (gt["icon"] as Sprite3D).texture != null),
+		"над каждой дверью — значок типа комнаты (наклейка владельца)")
+	var miss_ic: Array = []
+	for id in G67Icons.ROOM.values() + G67Icons.FIT.values() + ["icon_golda", "icon_respect", "icon_krot_found", "icon_new_talk", "emblem_67", "logo_golda67",
+			"icon_art_cassette_2016", "icon_art_sim", "icon_art_bracelet_67", "icon_art_one_earbud", "icon_art_energy", "icon_art_flash_drive",
+			"icon_art_broken_remote", "icon_art_market_sneakers", "icon_art_platinum_badge", "icon_art_cracked_phone", "icon_art_garlic_aura",
+			"icon_art_hamster_aura", "icon_art_collar_67", "icon_art_beanie", "icon_art_grillz", "icon_art_blue_tape", "icon_art_second_sim", "icon_art_autotune_ring"]:
+		if G67Icons.tex(String(id)) == null:
+			miss_ic.append(id)
+	ok(miss_ic.is_empty(), "все 37 рисованных значков партий 1–2 на месте (нет: %s)" % str(miss_ic))
 	ok(G.world.bounds == null or not is_instance_valid(G.world.bounds), "после боя ограждения убраны — двор свободен")
+	# домой посреди забега: дверь подъезда во дворе → подъезд (забег на паузе) → выход продолжает с той же комнаты
+	ok(not G.point("home").is_empty(), "после боя у двери подъезда можно уйти домой")
+	var g_before := int(G.run["golda"])
+	var pos_before := int(G.run["pos"])
+	P.hp = P.max_hp - 13.0
+	await _go(G, P, "home")
+	ok(await until(func(): return G.place == "hub", 6.0), "дверь подъезда во дворе ведёт домой в подъезд")
+	ok(G.paused_run() and String(g.top_label.text).contains("ПАУЗЕ"), "в подъезде забег на паузе: «%s»" % g.top_label.text)
+	await shot("21c_home_paused")
+	await _go(G, P, "exit")
+	ok(await until(func(): return G.place == "run" and G.room_state == "open", 6.0), "выход во двор продолжает забег")
+	ok(int(G.run["pos"]) == pos_before and int(G.run["golda"]) == g_before and not G.paused_run(), "та же комната и та же голда (%d, %d), пауза снята" % [int(G.run["pos"]), int(G.run["golda"])])
+	ok(G.world.gates.size() == 2 and absf(P.hp - (P.max_hp - 13.0)) < 0.5, "двери снова открыты, здоровье прежнее (%.0f из %.0f)" % [P.hp, P.max_hp])
+	await shot("21d_home_resumed")
 	# ворота стоят у входов в следующие зоны: идём к ним по двору настоящими клавишами
 	var gp: Vector3 = G.point("gate1")["pos"]
 	var d0: float = P.global_position.distance_to(gp)
@@ -480,6 +1158,9 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await _go(G, P, "gate1")
 	var in_fit: bool = await until(func(): return String(G.room.get("type", "")) == "fit" and g.panel != null, 8.0)
 	ok(in_fit and int(G.run["pos"]) == 1, "дверь «ФИТС» ведёт в комнату выбора фитса")
+	var fit_btns: Array = g.panel.find_children("*", "Button", true, false) if g.panel != null else []
+	ok(fit_btns.size() >= 2 and fit_btns.slice(0, 2).all(func(bt): return (bt as Button).icon != null), "у карточек фитсов — значки фитсов")
+	await shot("22a_fit_icons")
 	await wait(0.5)
 	await shot("22_fit_choice")
 	var opts: Array = G.fit_options(false)
@@ -505,8 +1186,10 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await shot("38_krot")
 	g.cam.make_current()
 	oc2.queue_free()
+	ok(G.world.yard.get_node_or_null("secret_tag") == null, "до победы над Мишей секретного граффити нет")
+	await _yard_people(g, G)
 	var qn: Array = G.world.yard.queue
-	ok(qn.size() == 3 and qn.all(func(n): return is_instance_valid(n)), "перед КРОТОМ у окошка очередь из трёх жителей")
+	ok(qn.size() == 4 and qn.all(func(n): return is_instance_valid(n)), "у окошка очередь из трёх человек, ещё один ест в стороне")
 	var kx: float = G.world.actors["g67_krot"].global_position.x
 	ok(qn.all(func(n): return (n as Node3D).global_position.x > kx + 0.5), "КРОТ стоит последним, очередь — между ним и окошком")
 	G.talk_krot()
@@ -525,13 +1208,18 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(String(g.dlg[0]) == "KR|Пахан, брат, я тебе говорил, что у меня знакомые в Forbes?" and String(g.dlg[4]).contains("шаурмой"), "реплики — дословно по ТЗ")
 	await wait(0.6)
 	await shot("39_krot_dialog")
+	await wait(0.2)
+	await _krot_shot(g, G.world.actors.get("g67_krot"), "39b_krot1_forbes", 2.4, -2.0, 0.35)      # сбоку: перед ним очередь
 	for i in 14:
 		if g.mode != "dlg":
 			break
 		g._dlg_advance()
 		await wait(0.15)
+		if g.dlg_i == 2:
+			await wait(0.9)
+			await _krot_shot(g, G.world.actors.get("g67_krot"), "39c_krot1_talk", 2.4, -2.0, 0.35)
 	ok(g.mode == "golda67" and (G.meta()["seen"] as Array).has("krot1"), "встреча 1 засчитана (%s)" % str(G.meta()["seen"]))
-	ok(not G.world.actors.has("g67_krot") and G.point("krot").is_empty(), "КРОТ ушёл")
+	ok(not G.world.actors.has("g67_krot") and G.point("krot").is_empty() and G.world.get_node_or_null("krot_after") != null, "разговор окончен: КРОТ остаётся в своей позе, но говорить больше не о чем")
 	ok(String(G.krot_next().get("id", "")) == "krot2", "следующая встреча — вторая (ЛЮСТРА, в подъезде)")
 	# дверь БОЙ (позиция 4), затем передышка
 	await _go(G, P, "gate1")
@@ -555,11 +1243,21 @@ func _run_dvor(g, G: Golda67, P) -> void:
 		return
 	var B = g.boss_e
 	ok(G.scene_busy() and g.intro_busy(), "выход босса — постановка: управление на это время закрыто")
+	ok(B.global_position.distance_to(G.world.throne) < 0.6 and String(B.rig.cur) == "MSit", "Миша сидит на троне (%.2f м, клип %s)" % [B.global_position.distance_to(G.world.throne), str(B.rig.cur)])
 	await wait(1.0)
-	await shot("25a_boss_intro")
+	await shot("25a_boss_throne")
+	await wait(1.2)
+	await shot("25b_boss_stands")
 	await wait(1.6)
-	await shot("25b_boss_intro")
+	ok(B.global_position.z > G.world.throne.z + 0.6 and G.scene_step == 2, "встал и идёт по ковру к герою")
+	await shot("25c_boss_walks")
+	ok(await until(func(): return G.scene_step >= 3, 4.0), "дошёл и топнул")
+	if G67Voice.path("G1|" + G67Data.BOSS_INTRO) != "":
+		ok(String(g.bark_b.stream.resource_path if g.bark_b.stream != null else "").begins_with(G67Voice.DIR + "Bosses/"), "на выходе Миша говорит своим голосом главы 1 (%s)" % (g.bark_b.stream.resource_path.get_file() if g.bark_b.stream != null else "—"))
+	await wait(0.9)
+	await shot("25d_boss_stomp")
 	ok(await until(func(): return not G.scene_busy(), 8.0), "постановка заканчивается сама, начинается бой")
+	ok(B.global_position.distance_to(Vector3(0, 0.05, -6.6)) < 0.3, "к началу боя Миша на своём месте в коробке")
 	ok(String(B.boss_id) == "g67_misha" and String(g.boss_name.text).begins_with("МИША МИНАСЯН"), "босс — Миша Минасян («%s»)" % g.boss_name.text)
 	ok(String(B.cfg.get("path", "")).ends_with("g67_misha.glb"), "модель босса — своя, не босс кампании")
 	ok(B.rig.skel.find_children("*", "BoneAttachment3D", true, false).size() > 0, "на Мише цепь")
@@ -574,6 +1272,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(acted, "Миша атакует (состояние: %s)" % String(B.state))
 	await wait(0.6)
 	await shot("26_boss_attack")
+	await _misha_moves(g, G, P, B)
 	var hp1: float = B.hp
 	B.take_hit(40.0, Vector3.FORWARD, 0.0, false)
 	ok(B.hp < hp1, "босс получает урон")
@@ -596,17 +1295,8 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await shot("28_hub_after")
 	# КРОТ — встреча 2 «ЛЮСТРА»: стоит в холле подъезда с люстрой в руках
 	if G67Models.has("g67_chandelier"):
-		ok(G.world.actors.has("g67_krot") and G.world.get_node_or_null("krot_item") != null, "КРОТ стоит в подъезде с люстрой (встреча 2)")
-		var k2: Vector3 = G.world.actors["g67_krot"].global_position
-		var oc3 := Camera3D.new()
-		g.add_child(oc3)
-		oc3.global_position = k2 + Vector3(2.3, 1.25, -1.6)
-		oc3.look_at(k2 + Vector3(0, 0.8, 0), Vector3.UP)
-		oc3.make_current()
-		await wait(0.6)
-		await shot("40_krot_chandelier")
-		g.cam.make_current()
-		oc3.queue_free()
+		ok(G.world.actors.has("g67_krot") and G.krot_item != null and is_instance_valid(G.krot_item), "КРОТ стоит в подъезде с люстрой (встреча 2)")
+		await _krot_shot(g, G.world.actors.get("g67_krot"), "40_krot_chandelier", 1.7)
 		await _go(G, P, "krot")
 		ok(g.mode == "dlg" and g.dlg == G67Data.KROT[1]["lines"] and String(g.dlg[3]) == "KR|Она на меня странно смотрела.", "диалог «ЛЮСТРА» — дословно по ТЗ")
 		for i in 14:
@@ -614,7 +1304,13 @@ func _run_dvor(g, G: Golda67, P) -> void:
 				break
 			g._dlg_advance()
 			await wait(0.15)
-		ok((G.meta()["seen"] as Array).has("krot2") and G.world.get_node_or_null("krot_item") == null, "встреча 2 засчитана, КРОТ ушёл с люстрой")
+			if g.dlg_i == 3:
+				await wait(0.9)
+				await _krot_shot(g, G.world.actors.get("g67_krot"), "40a_krot_shows", 1.7)
+		ok((G.meta()["seen"] as Array).has("krot2") and G.world.get_node_or_null("krot_leaving") != null, "встреча 2 засчитана, КРОТ разворачивается и уходит с люстрой в руках")
+		await wait(1.2)
+		await _krot_shot(g, G.world.get_node_or_null("krot_leaving"), "40b_krot_leaves", 1.9, 1.0)
+		ok(await until(func(): return G.world.get_node_or_null("krot_leaving") == null and G.krot_item == null, 5.0), "ушёл и унёс люстру")
 		ok(G.flurr_state() == 2, "DJ FLÜRR теперь в состоянии 2 (подсказка на голубей)")
 	else:
 		print("GOLDA67CHECK   модели люстры нет — встреча 2 ждёт")
@@ -623,6 +1319,8 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await _go(G, P, "exit")
 	ok(await until(func(): return G.place == "run" and G.room_state == "fight", 8.0), "второй забег начался")
 	ok(G.fit_lv("heavy_hand") == 0 and absf(P.dmg_mul - 1.0) < 0.001 and int(G.run["golda"]) == 0, "фитсы и голда прошлого забега не перенеслись")
+	ok(G.world.yard.get_node_or_null("secret_tag") != null, "после победы над Мишей у подъезда появилось граффити «ПАХАН + MADK1D БЫЛИ ТУТ»")
+	ok(String(G67Data.BOSSES["g67_misha"]["barks"][1]) == "Мне даже олимпийка не нужна, чтобы быть главным.", "реплика Миши во второй фазе — утверждённая")
 	# КРОТ — встреча 3 «ГОЛУБИНОЕ ПРАВИТЕЛЬСТВО»: на детской площадке, с голубями
 	if G67Models.has("g67_pigeon") and (G.meta()["seen"] as Array).has("krot2"):
 		ok(await _clear_room(g, G), "второй забег: первая комната зачищена")
@@ -634,16 +1332,15 @@ func _run_dvor(g, G: Golda67, P) -> void:
 			if String(ch.name).begins_with("krot_pigeon"):
 				pig += 1
 		ok(G.world.actors.has("g67_krot") and pig == 5, "КРОТ на площадке среди голубей (%d)" % pig)
-		var k3: Vector3 = G.world.actors["g67_krot"].global_position
-		var oc4 := Camera3D.new()
-		g.add_child(oc4)
-		oc4.global_position = k3 + Vector3(2.4, 1.2, 2.8)
-		oc4.look_at(k3 + Vector3(0, 0.6, 0), Vector3.UP)
-		oc4.make_current()
-		await wait(0.6)
-		await shot("41_krot_pigeons")
-		g.cam.make_current()
-		oc4.queue_free()
+		var pg0: Node3D = G.world.get_node("krot_pigeon0")
+		var seen_rot := {}
+		var pecked := false
+		for i in 80:
+			seen_rot[snappedf(pg0.rotation.y, 0.02)] = true
+			pecked = pecked or pg0.rotation.x > 0.3
+			await wait(0.1)
+		ok(seen_rot.size() > 3 and pecked, "голуби живые: вертятся и клюют")
+		await _krot_shot(g, G.world.actors.get("g67_krot"), "41_krot_pigeons", 2.4)
 		await _go(G, P, "krot")
 		ok(g.mode == "dlg" and g.dlg == G67Data.KROT[2]["lines"] and String(g.dlg[2]).contains("голубь справа"), "диалог «ГОЛУБИНОЕ ПРАВИТЕЛЬСТВО» — дословно по ТЗ")
 		for i in 14:
@@ -651,6 +1348,10 @@ func _run_dvor(g, G: Golda67, P) -> void:
 				break
 			g._dlg_advance()
 			await wait(0.15)
+			if g.dlg_i == 2:
+				await wait(0.9)
+				ok(G.krot_life != null and G.krot_life.cur == "K3Point", "«Нет, голубь справа» — показывает на птицу")
+				await _krot_shot(g, G.world.actors.get("g67_krot"), "41b_krot_points", 2.4)
 		ok((G.meta()["seen"] as Array).has("krot3") and G.krot_next().is_empty(), "встреча 3 засчитана; следующие встречи — в районах, которых ещё нет")
 		await _go(G, P, "gate0")
 		await until(func(): return G.room_state == "fight", 8.0)

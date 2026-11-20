@@ -43,6 +43,7 @@ var desc_title: Label
 var desc_text: Label
 var desc_facts: Label
 var wipe: Polygon2D
+var wipe_tw: Tween
 var lines: Array = []         # полосы скорости у гонок
 var t := 0.0
 var built := false
@@ -486,7 +487,10 @@ func select(i: int, sound := true, force := false, kind := "card") -> void:
 		(c["tag_l"] as Label).add_theme_color_override("font_color", (Menu.WHITE if on else Menu.INK) if ok else Menu.WHITE)
 		(c["tag_l"] as Label).text = _tag(k)
 		var root: Control = c["root"]
+		if c.get("tw") != null and (c["tw"] as Tween).is_valid():
+			(c["tw"] as Tween).kill()
 		var tw := root.create_tween()
+		c["tw"] = tw
 		tw.tween_property(root, "position:x", 62.0 + k * 22.0 + (26.0 if on else 0.0), 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		if on:
 			var band: Polygon2D = c["band"]
@@ -501,29 +505,39 @@ func select(i: int, sound := true, force := false, kind := "card") -> void:
 	desc_text.text = String(m["desc"]) if available(i) else String(m["desc"]) + " " + menu.race_status()
 	desc_facts.text = "\n".join(m["facts"]) if available(i) else "статус: " + _tag(i).to_lower()
 	menu.info.text = desc_text.text
-	# композиция: прежняя уходит влево и гаснет, новая въезжает справа; белая полоса проходит по кадру
+	# композиция: прежняя уходит влево и гаснет, новая въезжает справа; белая полоса проходит по кадру.
+	# Прежняя анимация композиции всегда обрывается: иначе при быстром листании проявление (0,3 с) переживало
+	# угасание (0,2 с) и старые сцены оставались на экране поверх новой.
 	for k in arts.size():
 		var a: Dictionary = arts[k]
 		var r: Control = a["root"]
 		var vp: SubViewport = a["vp"]
+		if a.get("tw") != null and (a["tw"] as Tween).is_valid():
+			(a["tw"] as Tween).kill()
+			a["tw"] = null
 		if k == i:
 			if vp != null:
 				vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 			r.position = ART_POS + Vector2(90, 0)
 			var tw2 := r.create_tween().set_parallel(true)
+			a["tw"] = tw2
 			tw2.tween_property(r, "modulate:a", 1.0, 0.3)
 			tw2.tween_property(r, "position", ART_POS, 0.36).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		elif k == prev or r.modulate.a > 0.0:
 			var tw3 := r.create_tween().set_parallel(true)
+			a["tw"] = tw3
 			tw3.tween_property(r, "modulate:a", 0.0, 0.2)
 			tw3.tween_property(r, "position", ART_POS - Vector2(70, 0), 0.24)
 			if vp != null:
 				tw3.chain().tween_callback(func(): if sel != k: vp.render_target_update_mode = SubViewport.UPDATE_DISABLED)
 	if not force or prev != i:
+		if wipe_tw != null and wipe_tw.is_valid():
+			wipe_tw.kill()
 		wipe.visible = true
 		wipe.position = Vector2(ART_POS.x - 200, 0)
 		wipe.modulate.a = 0.9
 		var tw4 := wipe.create_tween().set_parallel(true)
+		wipe_tw = tw4
 		tw4.tween_property(wipe, "position:x", 1700.0, 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		tw4.tween_property(wipe, "modulate:a", 0.0, 0.32)
 		tw4.chain().tween_callback(func(): wipe.visible = false)

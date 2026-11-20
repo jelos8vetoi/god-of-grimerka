@@ -22,6 +22,7 @@ const EXTRA := {
 	"strike": [["chain_bolt"], ["volt_dash", "storm_grid"], ["thunder_combo", "volt_dash", "storm_grid"]],
 	"botlord": [["guard_bots"], ["attack_bots", "overclock"], ["mine_bots", "overclock", "attack_bots"]],
 	"ghostv": [["mirror_dash"], ["swap", "mirror_dash"], ["true_one", "swap", "mirror_dash"]],
+	"g67_misha": G67Misha.MOVES,      # приквел «ГОЛДА 67»: захват, защитная стойка, зацеп цепи (golda67/g67_misha.gd)
 	"algo": [["grid_lines"], ["beam_cross", "grid_lines"], ["glitch_wipe", "grid_lines"], ["final_compile", "glitch_wipe", "beam_cross"]],
 }
 const TITLES := {
@@ -34,6 +35,7 @@ const TITLES := {
 	"guard_bots": "ОХРАНА", "attack_bots": "НАЛЁТ", "overclock": "РАЗГОН", "mine_bots": "МИНЫ",
 	"mirror_dash": "ОТРАЖЕНИЕ", "swap": "ПОДМЕНА", "true_one": "КТО НАСТОЯЩИЙ?",
 	"grid_lines": "СЕТКА", "glitch_wipe": "СБОЙ", "final_compile": "КОМПИЛЯЦИЯ",
+	"m_grab": "ЗАХВАТ", "m_guard": "ЗАЩИТНАЯ СТОЙКА", "m_hook": "ЗАЦЕП ЦЕПИ",
 	"anti_air": "НЕ ВЗЛЕТИШЬ", "turn_strike": "РАЗВОРОТ", "guard_break": "ПРОБИТИЕ", "close_burst": "НЕ ПОДХОДИ", "far_punish": "ДОСТАНУ",
 }
 
@@ -102,8 +104,11 @@ static func start(e, move: String) -> void:
 	e._tell_end()
 	e.sp_events = []
 	e.sp_dur = 1.5
+	e.sp_lock = false
 	var ph: int = e.phase
 	match move:
+		"m_grab", "m_guard", "m_hook":
+			G67Misha.start(e, move)
 		# ---------------- LIL DREY ----------------
 		"parcel_seek":
 			e.rig.play_for("Throw", 0.5, 0.05)

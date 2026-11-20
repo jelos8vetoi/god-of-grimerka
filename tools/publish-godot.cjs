@@ -93,13 +93,13 @@ try {
   try { run('gh', ['release', 'view', TAG, '--json', 'tagName']); } catch (e) { exists = false; }
   if (!exists) {
     console.log('создаю релиз ' + TAG + '…');
-    run('gh', ['release', 'create', TAG, '--title', title, '--notes-file', notesFile, '--latest=false']);
+    run('gh', ['release', 'create', TAG, '--title', title, '--notes-file', notesFile, '--latest']);
   }
   console.log('заливаю ' + ASSET + ' (' + Math.round(fs.statSync(tmp).size / 1048576) + ' МБ)…');
   run('gh', ['release', 'upload', TAG, tmp, '--clobber']);
   if (fs.existsSync(setupExe)) { console.log('заливаю ' + SETUP + '…'); run('gh', ['release', 'upload', TAG, setupExe, '--clobber']); }
   if (fs.existsSync(launcherExe)) { console.log('заливаю ' + LAUNCHER + '…'); run('gh', ['release', 'upload', TAG, launcherExe, '--clobber']); }
-  run('gh', ['release', 'edit', TAG, '--title', title, '--notes-file', notesFile, '--latest=false']);
+  run('gh', ['release', 'edit', TAG, '--title', title, '--notes-file', notesFile, '--latest']);
   console.log('готово: ' + run('gh', ['release', 'view', TAG, '--json', 'url', '--jq', '.url']).trim());
 } catch (e) {
   fail('GitHub CLI: ' + String(e.stderr || e.message).split('\n').slice(0, 4).join('\n') + '\nПроверь gh auth status и права на запись в репозиторий.');

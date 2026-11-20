@@ -205,6 +205,20 @@ func _run() -> void:
 	await shot("04c_modes_five_nights")
 	await key(KEY_S)
 	ok(ms.sel == 0, "по кругу — снова первый")
+	# быстрое листание (как колесом или зажатой клавишей): прежние композиции не остаются поверх новой
+	for n in 9:
+		await key(KEY_S if n % 3 != 2 else KEY_W)
+		await wait(0.07)
+	await wait(0.6)
+	var ghost: Array = []
+	for k in ms.arts.size():
+		if k != ms.sel and (ms.arts[k]["root"] as Control).modulate.a > 0.02:
+			ghost.append(String(ModeSelect.MODES[k]["id"]))
+	ok(ghost.is_empty() and (ms.arts[ms.sel]["root"] as Control).modulate.a > 0.98, "быстрое листание: видна только выбранная композиция (лишние: %s)" % str(ghost))
+	await shot("04d_modes_fast_switch")
+	while ms.sel != 0:
+		await key(KEY_S)
+		await wait(0.1)
 	# мышь: наведение выбирает, клик открывает
 	await hover(ms.cards[1]["root"])
 	ok(ms.sel == 1, "мышь: наведение на карточку выбирает режим")

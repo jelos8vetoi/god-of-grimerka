@@ -1,0 +1,71 @@
+{
+	"note": "ID моделей Voice Studio Pro по коду говорящего. Пусто — ищется по имени модели.",
+	"models": {
+		"DJ": {
+			"character": "DJ FLÜRR",
+			"id": "fa19dd5b",
+			"voice_name": "dj flurr",
+			"status": "found"
+		},
+		"G1": {
+			"character": "Миша Минасян",
+			"id": "12ff0700",
+			"voice_name": "Миша Минасян",
+			"status": "found"
+		},
+		"KR": {
+			"character": "КРОТ",
+			"id": "96515c67",
+			"voice_name": "КРОТ",
+			"status": "found"
+		},
+		"V": {
+			"character": "Пахан",
+			"id": "d3dddb2a",
+			"voice_name": "ПАШОК",
+			"status": "found"
+		},
+		"AN": {
+			"character": "Ведущий новостей",
+			"id": "preset:narrator",
+			"voice_name": "пресет Narrator (Voice Studio Pro)",
+			"status": "found"
+		},
+		"BS": {
+			"character": "Полковник Бустеренко",
+			"id": "81c90e8e",
+			"voice_name": "Полковник Бустеренко",
+			"status": "found"
+		},
+		"FT": {
+			"character": "FORTUNA 812",
+			"id": "c60ed931",
+			"voice_name": "FORTUNA 812",
+			"status": "found"
+		},
+		"KX": {
+			"character": "Королевский XVII",
+			"id": "477ec948",
+			"voice_name": "королевский",
+			"status": "found"
+		},
+		"M": {
+			"character": "madk1d",
+			"id": "fish:FISH_REF_M",
+			"voice_name": "madk1d (Fish Audio, голос из игры)",
+			"status": "found"
+		},
+		"PH": {
+			"character": "Ведущий подкаста",
+			"id": "preset:casual",
+			"voice_name": "пресет Casual (Voice Studio Pro)",
+			"status": "found"
+		},
+		"WH": {
+			"character": "WHYOUSOLONELY",
+			"id": "dfcf8831",
+			"voice_name": "WHYOUSOLONELY",
+			"status": "found"
+		}
+	}
+}

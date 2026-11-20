@@ -15,6 +15,8 @@ uniform int mode = 0;
 uniform vec3 tint : source_color = vec3(1.0);
 uniform float on = 0.4;
 uniform float seed = 0.0;
+uniform float corner = 0.0;       // скругление углов кинескопа (доля высоты экрана), 0 — прямые углы
+uniform float aspect = 1.33;      // ширина экрана / высота
 float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7)) + seed) * 43758.5453); }
 void fragment() {
 	vec2 uv = UV;
@@ -46,6 +48,11 @@ void fragment() {
 	col *= 0.82 + 0.18 * sin(uv.y * 420.0);                       // строки кинескопа
 	col *= 1.0 - 0.22 * step(0.985, fract(uv.y * 0.9 - t * 0.21)); // бегущая помеха
 	col *= smoothstep(0.75, 0.3, length(c * vec2(1.0, 1.1)));      // затемнение к краям трубки
+	if (corner > 0.0) {         // экран — под стекло телевизора владельца: за скруглёнными углами видно его стекло
+		vec2 rr = vec2(corner / aspect, corner);
+		vec2 q = abs(c) - (vec2(0.5) - rr);
+		if (length(max(q / rr, vec2(0.0))) > 1.0) discard;
+	}
 	ALBEDO = col * (0.5 + 1.5 * on);
 }
 """
@@ -60,6 +67,21 @@ const TVS := [
 	[-0.42, 0.9, 0.82, 4, Color(0.85, 0.85, 0.9)],
 ]
 
+## Телевизоры владельца (assets/minigames/menu_tv_*.glb, лицом по +Z) — по названию пункта меню (не по номеру:
+## пункты добавляются). ROGUELIKE — старый телевизор владельца menu_crt_tv (лицом по +X, доворот — MGModels.FRONT). Стекло экрана в единицах
+## модели (1 = наибольшая сторона, начало — центр основания): центр x, y, ширина, высота, глубина стекла по z, скругление.
+## Мерка — снимок спереди и луч (tv_screen в проверке не нужен: числа постоянные, пока модель та же).
+const TV_MODELS := {"CONTINUE": "menu_tv_continue", "PLAY": "menu_tv_play", "SETTINGS": "menu_tv_settings",
+	"EXTRAS": "menu_tv_extras", "ROGUELIKE": "menu_crt_tv", "EXIT": "menu_tv_exit"}
+const TV_SCREEN := {
+	"menu_tv_continue": [-0.0992, 0.5234, 0.6113, 0.4130, 0.3227, 0.16],
+	"menu_tv_play": [0.0012, 0.5887, 0.7560, 0.5553, 0.4434, 0.10],
+	"menu_tv_settings": [-0.1003, 0.3816, 0.5693, 0.4795, 0.2384, 0.2],
+	"menu_tv_extras": [-0.0035, 0.4237, 0.5927, 0.4702, 0.2458, 0.1],
+	"menu_tv_exit": [-0.0010, 0.4873, 0.5628, 0.4200, 0.4478, 0.1],
+	"menu_crt_tv": [-0.0752, 0.3938, 0.5985, 0.4433, 0.2916, 0.12],
+}
+
 var vp: SubViewport
 var cam: Camera3D
 var tvs: Array = []           # [{root, mat, label, sub, lamp, w, h, on}]
@@ -73,6 +95,7 @@ var cam_home := Vector3(0.55, 1.5, 6.6)
 var look_home := Vector3(0.75, 1.42, 0.0)
 var look := Vector3(0.75, 1.42, 0.0)
 var on_air: StandardMaterial3D
+var shelves: Array = []       # длинные полки стеллажа (под коробки); у телевизоров владельца — своя полка под каждым
 
 func setup(items: Array, font: Font) -> void:
 	stretch = true
@@ -107,6 +130,9 @@ func setup(items: Array, font: Font) -> void:
 	_room()
 	for i in items.size():
 		_tv(i, String(items[i][0]), font)
+	if items.all(func(it): return MGModels.has(String(TV_MODELS.get(String(it[0]), "")))):
+		for sh in shelves:
+			(sh as Node3D).visible = false
 	_props()
 	_pahan()
 	shade = ColorRect.new()
@@ -164,11 +190,11 @@ func _room() -> void:
 	var steel := _mat(Color(0.16, 0.16, 0.18), 0.5, 0.6)
 	for x in [-1.25, 0.2, 1.95, 3.35]:
 		_box(vp, Vector3(x, 1.5, -0.55), Vector3(0.06, 3.0, 0.06), steel)
-	# Боковые полки оставляют открытым центр с экранами PLAY и ROGUELIKE.
+	# Боковые полки оставляют открытым центр с экранами PLAY и ROGUELIKE (у телевизоров владельца полки свои — эти прячутся)
 	for y in [0.4, 1.4]:
 		for x in [-0.53, 2.63]:
-			_box(vp, Vector3(x, y, -0.4), Vector3(1.64, 0.05, 0.75), steel)
-	_box(vp, Vector3(1.05, 2.6, -0.4), Vector3(4.8, 0.05, 0.75), steel)
+			shelves.append(_box(vp, Vector3(x, y, -0.4), Vector3(1.64, 0.05, 0.75), steel))
+	shelves.append(_box(vp, Vector3(1.05, 2.6, -0.4), Vector3(4.8, 0.05, 0.75), steel))
 	# вывеска канала
 	var neon := Label3D.new()
 	neon.text = "ОБЛАКО-ТВ"
@@ -217,18 +243,35 @@ func _tv(i: int, title: String, font: Font) -> void:
 	root.position = Vector3(float(d[0]), float(d[1]), -0.35)
 	root.rotation.y = clampf((1.05 - float(d[0])) * 0.09, -0.2, 0.2)      # крайние чуть развёрнуты к центру
 	vp.add_child(root)
-	var shell := _mat([Color(0.2, 0.19, 0.17), Color(0.1, 0.1, 0.11), Color(0.3, 0.27, 0.22)][i % 3], 0.55)
-	_box(root, Vector3(0, 0, -0.28), Vector3(w + 0.2, hh + 0.2, 0.6), shell)
-	_box(root, Vector3(0, 0, 0.03), Vector3(w + 0.26, hh + 0.26, 0.08), shell)
-	_box(root, Vector3(0, 0, 0.06), Vector3(w + 0.06, hh + 0.06, 0.04), _mat(Color(0.02, 0.02, 0.02), 0.3))
-	# ручки и решётка динамика
-	_cyl(root, Vector3(w * 0.5 + 0.03, hh * 0.3, 0.09), 0.035, 0.05, _mat(Color(0.6, 0.6, 0.62), 0.3, 0.8), Vector3(PI / 2, 0, 0))
-	_cyl(root, Vector3(w * 0.5 + 0.03, hh * 0.12, 0.09), 0.028, 0.05, _mat(Color(0.6, 0.6, 0.62), 0.3, 0.8), Vector3(PI / 2, 0, 0))
-	# антенна-«усы» у верхних
-	if float(d[1]) > 1.8:
-		var am := _mat(Color(0.7, 0.7, 0.72), 0.3, 0.9)
-		_cyl(root, Vector3(-0.12, hh * 0.5 + 0.42, -0.25), 0.008, 0.7, am, Vector3(0, 0, 0.5))
-		_cyl(root, Vector3(0.12, hh * 0.5 + 0.42, -0.25), 0.008, 0.7, am, Vector3(0, 0, -0.5))
+	var corner := 0.0
+	var model_id := String(TV_MODELS.get(title, ""))
+	if model_id != "" and MGModels.has(model_id):
+		# настоящий телевизор: вписан в габарит прежней коробки (ширина w + 0,26, высота hh + 0,2), основание — на её
+		# дне; экран и подписи — на стекле модели
+		var sc: Array = TV_SCREEN[model_id]
+		var bb: AABB = MGModels._info(model_id)[1]
+		var mx := maxf(bb.size.x, maxf(bb.size.y, bb.size.z))
+		var turn := float(MGModels.FRONT.get(model_id, MGModels.FRONT_DEFAULT))
+		var swap := absf(fmod(absf(turn), PI) - PI * 0.5) < 0.1          # модель довёрнута на 90°: ширина и глубина меняются
+		var bx: float = bb.size.z if swap else bb.size.x
+		var bz: float = bb.size.x if swap else bb.size.z
+		var k := minf((w + 0.26) / (bx / mx), (hh + 0.2) / (bb.size.y / mx))      # метров на единицу модели
+		var bottom := float(d[1]) - (hh + 0.2) * 0.5
+		w = float(sc[2]) * k
+		hh = float(sc[3]) * k
+		root.position = Vector3(float(d[0]) + float(sc[0]) * k, bottom + float(sc[1]) * k, -0.35)
+		var tv := MGModels.spawn(model_id, root, Vector3(-float(sc[0]) * k, -float(sc[1]) * k, 0.075 - float(sc[4]) * k), 0.0,
+			Vector3(1000.0, bb.size.y / mx * k, 1000.0), Callable())
+		tv.name = "model"
+		corner = float(sc[5])
+		# своя полка под телевизором: длинные полки резали бы корпус посередине
+		var pw := bx / mx * k + 0.16
+		var pd := bz / mx * k + 0.1
+		var plank := _box(vp, Vector3(float(d[0]), bottom - 0.025, -0.35 + 0.075 - float(sc[4]) * k), Vector3(pw, 0.05, pd), _mat(Color(0.16, 0.16, 0.18), 0.5, 0.6))
+		plank.rotation.y = root.rotation.y
+		plank.name = "tv_shelf_%d" % i
+	else:
+		_box_tv(root, i, w, hh, float(d[1]))
 	var scr := MeshInstance3D.new()
 	var qm := QuadMesh.new()
 	qm.size = Vector2(w, hh)
@@ -240,9 +283,29 @@ func _tv(i: int, title: String, font: Font) -> void:
 	sm.set_shader_parameter("mode", int(d[3]))
 	sm.set_shader_parameter("tint", d[4])
 	sm.set_shader_parameter("seed", float(i) * 3.7)
+	sm.set_shader_parameter("corner", corner)
+	sm.set_shader_parameter("aspect", w / hh)
 	scr.material_override = sm
 	scr.position = Vector3(0, 0, 0.085)
 	root.add_child(scr)
+	_tv_labels(root, i, title, font, w, hh, d, sm)
+
+## Запасной телевизор из коробок (нет файла модели)
+func _box_tv(root: Node3D, i: int, w: float, hh: float, y: float) -> void:
+	var shell := _mat([Color(0.2, 0.19, 0.17), Color(0.1, 0.1, 0.11), Color(0.3, 0.27, 0.22)][i % 3], 0.55)
+	_box(root, Vector3(0, 0, -0.28), Vector3(w + 0.2, hh + 0.2, 0.6), shell)
+	_box(root, Vector3(0, 0, 0.03), Vector3(w + 0.26, hh + 0.26, 0.08), shell)
+	_box(root, Vector3(0, 0, 0.06), Vector3(w + 0.06, hh + 0.06, 0.04), _mat(Color(0.02, 0.02, 0.02), 0.3))
+	# ручки и решётка динамика
+	_cyl(root, Vector3(w * 0.5 + 0.03, hh * 0.3, 0.09), 0.035, 0.05, _mat(Color(0.6, 0.6, 0.62), 0.3, 0.8), Vector3(PI / 2, 0, 0))
+	_cyl(root, Vector3(w * 0.5 + 0.03, hh * 0.12, 0.09), 0.028, 0.05, _mat(Color(0.6, 0.6, 0.62), 0.3, 0.8), Vector3(PI / 2, 0, 0))
+	# антенна-«усы» у верхних
+	if y > 1.8:
+		var am := _mat(Color(0.7, 0.7, 0.72), 0.3, 0.9)
+		_cyl(root, Vector3(-0.12, hh * 0.5 + 0.42, -0.25), 0.008, 0.7, am, Vector3(0, 0, 0.5))
+		_cyl(root, Vector3(0.12, hh * 0.5 + 0.42, -0.25), 0.008, 0.7, am, Vector3(0, 0, -0.5))
+
+func _tv_labels(root: Node3D, i: int, title: String, font: Font, w: float, hh: float, d: Array, sm: ShaderMaterial) -> void:
 	var lab := Label3D.new()
 	lab.text = title
 	lab.font = font

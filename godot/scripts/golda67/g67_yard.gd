@@ -31,6 +31,7 @@ const ZONES := {
 	"sport": {"c": Vector3(2, 0, -38), "name": "коробка"},
 }
 const HALF := 14.6             # полуразмер зоны боя
+const HOME_DOOR := Vector3(0.0, 0.0, 34.2)      # перед дверью подъезда (сама дверь — z 35.2): отсюда домой в хаб
 
 var solids: Array = []         # [центр в координатах двора, радиус] — где нельзя появляться врагам
 var missing: Array = []
@@ -46,14 +47,64 @@ var m_carpet: StandardMaterial3D
 var misha_car: Node3D
 var queue: Array = []          # жители в очереди за шаурмой (узлы)
 ## Очередь у «ШАУРМА 67»: места от окошка назад. Последнее место — за ними — занимает КРОТ (G67Data.KROT, встреча 1).
-const QUEUE_SPOTS := [Vector3(40.35, 0.07, 7.0), Vector3(39.5, 0.07, 7.15), Vector3(38.65, 0.07, 6.95)]
+## Очередь у «ШАУРМА 67»: места от окошка назад, около метра друг от друга, у каждого своё дело:
+## первый наклонился к продавцу и показывает рукой, второй смотрит меню над окошком (и иногда оборачивается
+## к стоящему сзади), третий в телефоне. Последнее место — за ними — занимает КРОТ (G67Data.KROT, встреча 1).
+## Ещё один уже купил и ест в стороне от окошка.
+const QUEUE_SPOTS := [Vector3(40.15, 0.07, 7.0), Vector3(39.05, 0.07, 7.12), Vector3(37.95, 0.07, 6.9)]
+const QUEUE_ROLES := [
+	{"base": "NOrder", "alts": ["NPocketsSide"]},
+	{"base": "NMenu", "alts": ["NTalk"], "poi": Vector3(37.95, 1.5, 6.9)},
+	{"base": "NPhone", "alts": ["NIdleL"]},
+]
+const EATER := {"pos": Vector3(40.1, 0.07, 4.9), "yaw": -0.6, "base": "NEat", "alts": ["NIdleL"]}
 ## Кто может стоять в очереди: модель, рост, со скелетом ли (тогда стоит и покачивается, как живой)
 const QUEUE_PEOPLE := [
 	{"path": "res://assets/minigames/npc_customer.glb", "h": 1.74, "rig": true, "key": "npc_customer"},
 	{"path": "res://assets/minigames/npc_neighbor.glb", "h": 1.58, "rig": true, "key": "npc_neighbor"},
-	{"path": "res://assets/racing/npc_spectator.glb", "h": 1.7, "rig": false, "key": "npc_spectator"},
 ]
-static var crowd_seed := 1     # меняется на каждый забег: очередь каждый раз другая
+var people := {}               # фоновые жители двора: id → Rig
+## Фоновые жители (решение владельца: четверо, без квестов, без толпы): модель, рост, место, поворот, вещь в руке.
+## Стоят там, где им естественно быть; пройти сквозь них нельзя; в бою не участвуют.
+const PEOPLE := [
+	# бабушка у лавки возле подъезда: стоит с авоськой, иногда отдыхает или поправляет платок; голову поворачивает медленно
+	{"id": "g67_npc_babushka", "h": 1.5, "pos": Vector3(4.9, 0.07, 34.1), "yaw": PI + 0.35, "carry": "mixamorig_RightHand",
+		"base": "NBag", "alts": ["NBagRest", "NScarf"], "turn": 1.0, "look_r": 9.0, "poi": Vector3(0, 1.4, 22)},
+	# мужик в ушанке у открытого гаража: руки в карманах; курит, скрещивает руки, переминается; поглядывает на коробку Миши
+	{"id": "g67_npc_ushanka", "h": 1.72, "pos": Vector3(-43.2, 0.02, 1.2), "yaw": PI * 0.5 - 0.6,
+		"base": "NPocketsSide", "alts": ["NSmoke", "NCross", "NIdleL"], "poi": Vector3(2, 1.5, -38)},
+	# школьник на детской площадке: в телефоне; держит рюкзак за лямку, поправляет рюкзак
+	{"id": "g67_npc_schoolboy", "h": 1.28, "pos": Vector3(-5.4, 0.02, -5.0), "yaw": 0.7,
+		"base": "NPhone", "alts": ["NStrap", "NStraps", "NIdleL"], "poi": Vector3(2, 1.5, -38)},
+	# таксист у своей машины на парковке: опёрся на неё спиной; телефон, руки на поясе, поправляет куртку; смотрит на дорогу
+	{"id": "g67_npc_taxi_driver", "h": 1.76, "pos": Vector3(30.2, 0.02, 9.6), "yaw": -PI * 0.5,
+		"base": "NLeanBack", "alts": ["NTaxiPhone", "NHips", "NJacket"], "poi": Vector3(30, 1.4, 22), "shot_side": -1.0},
+]
+var lifes: Array = []          # поведение всех жителей (G67Life): кому смотреть на героя — ставит Golda67
+static var secret_tag := false     # победил Мишу — у подъезда появляется маленькое граффити
+static var crowd_seed := 1
+## Коробка Миши: турники (x, z, поворот, размер), борта и место трона — их читает бой (зацеп цепи) и постановка выхода
+const BARS := [[-8.0, -43.5, 0.2, 2.7], [12.2, -33.0, PI * 0.5, 2.5]]
+const COURT := Rect2(-11.0, -49.5, 26.0, 22.5)
+const THRONE := Vector3(2.0, 0.03, -48.0)
+## Трибуна у восточного борта: место, длина вдоль борта и ряды (сдвиг от центра к площадке и высота — в долях размеров модели)
+const TRIBUNE := Vector3(17.7, 0.02, -38.5)
+const TRIBUNE_LEN := 5.2
+const TRIBUNE_ROWS := [[-0.28, 0.27], [0.0, 0.46], [0.27, 0.64]]
+const ARENA_C := Vector3(2.0, 0, -38.0)
+## Восемь зрителей (ТЗ владельца): ряд и место вдоль трибуны или своё место; excited — как охотно реагирует на удары
+const FANS := [
+	{"row": 0, "z": -1.7, "base": "SLean", "alts": ["SWatch"], "excited": 0.35},                   # наклонился вперёд, смотрит внимательно
+	{"row": 0, "z": 1.4, "base": "SCross", "alts": [], "excited": 0.1},                             # сидит, руки скрещены
+	{"row": 1, "z": -1.0, "base": "SWatch", "alts": ["SLean"], "excited": 0.95},                    # эмоционально реагирует на сильные удары
+	{"row": 1, "z": 0.4, "base": "STalk", "alts": ["SWatch"], "excited": 0.25},                     # разговаривает с соседом
+	{"row": 1, "z": 1.9, "base": "SWatch", "alts": ["SStand"], "excited": 0.4, "alt_hold": Vector2(4.0, 4.0)},     # иногда встаёт и садится
+	{"row": 2, "z": -0.6, "base": "SFilm", "alts": ["SWatch"], "excited": 0.2},                     # снимает на телефон
+	{"row": 2, "z": 1.0, "base": "SWatch", "alts": ["SPoint"], "excited": 0.4},                     # показывает пальцем на площадку
+	{"pos": Vector3(-12.6, 0, -36.0), "base": "NCross", "alts": ["NIdleL"], "excited": 0.15},      # просто стоит у борта и смотрит
+]
+var tribune: Node3D
+var fans: Array = []           # зрители у коробки (Rig)     # меняется на каждый забег: очередь каждый раз другая
 var boss_spot := Vector3(2, 0, -44.5)        # где ждёт Миша (у своей машины, на ковре)
 
 static func zone(id: String) -> Dictionary:
@@ -219,6 +270,44 @@ func _drift(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
 		mi.scale = Vector3(size.x * k.x, size.y * k.y * 1.25, size.z * k.z)
 		root.add_child(mi)
 
+## Рисованная надпись владельца (assets/golda67/decals/<id>.png) — граффити или табличка на стене.
+## width — ширина в метрах; glow — светится сама (световой короб). Нет файла — прежняя надпись текстом.
+func _decal(id: String, text: String, pos: Vector3, yaw: float, width: float, col: Color, px := 0.01, size := 64, glow := false) -> Node3D:
+	var path := "res://assets/golda67/decals/%s.png" % id
+	if not ResourceLoader.exists(path):
+		return _sign(text, pos, yaw, col, px, size)
+	var t: Texture2D = load(path)
+	var sp := Sprite3D.new()
+	sp.texture = t
+	sp.pixel_size = width / float(t.get_width())
+	sp.position = pos
+	sp.rotation.y = yaw
+	sp.double_sided = false
+	sp.shaded = not glow
+	sp.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	sp.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	sp.name = "decal_%s_%d" % [id, get_child_count()]
+	sp.set_meta("decal", id)
+	add_child(sp)
+	return sp
+
+## Номер бокса: своя рисованная табличка (61–63 от владельца), иначе пустая табличка из той же и цифры поверх
+func _house_plate(num: int, pos: Vector3, yaw: float) -> void:
+	if ResourceLoader.exists("res://assets/golda67/decals/sign_house_%d.png" % num):
+		_decal("sign_house_%d" % num, str(num), pos, yaw, 0.42, Color(0.9, 0.85, 0.7), 0.005, 48)
+		return
+	var plate := _decal("sign_house_blank", str(num), pos, yaw, 0.42, Color(0.9, 0.85, 0.7), 0.005, 48)
+	if not (plate is Sprite3D):
+		return
+	var l := _sign(str(num), Vector3(0, -0.005, 0.012), 0.0, Color(0.12, 0.11, 0.1), 0.0045, 48)
+	remove_child(l)
+	plate.add_child(l)
+	var f := SystemFont.new()
+	f.font_names = PackedStringArray(["Impact", "Arial Black", "Arial"])
+	f.font_weight = 800
+	l.font = f
+	l.name = "plate_digits_%d" % num
+
 ## надпись баллончиком или табличка на стене
 func _sign(text: String, pos: Vector3, yaw: float, col: Color, px := 0.01, size := 64) -> Label3D:
 	var l := Label3D.new()
@@ -276,6 +365,109 @@ func build() -> void:
 	_zone_parking()
 	_zone_gazebo()
 	_zone_sport()
+	_stick_decals()
+
+## Рисованные надписи ложатся на стену вплотную: луч от надписи назад по её лицу находит поверхность модели
+## (дом, гараж, будка), надпись встаёт на 5 см перед ней и разворачивается по её нормали. Не нашёл — остаётся как была.
+func _stick_decals() -> void:
+	var meshes: Array = find_children("*", "MeshInstance3D", true, false)
+	for c in get_children():
+		if not (c is Sprite3D) or not c.has_meta("decal"):
+			continue
+		var sp := c as Sprite3D
+		var n := sp.global_transform.basis.z.normalized()
+		var near: Array = meshes.filter(func(m): return (m as MeshInstance3D).global_position.distance_to(sp.global_position) < 25.0 or (m as MeshInstance3D).get_aabb().size.length() > 12.0)
+		var flat := _flat_spot(near, sp, n)
+		if not flat.is_empty():
+			sp.global_position = Vector3(flat["pos"]) + n * 0.055      # гофра гаражей выступает на 4–5 см
+			sp.set_meta("stuck", "flat")
+			continue
+		var hit := _surface_hit(near, sp.global_position + n * 0.7, -n, 5.0)
+		if hit.is_empty():
+			continue
+		var hn: Vector3 = hit["normal"]
+		if hn.dot(n) < 0.0:
+			hn = -hn
+		if absf(hn.y) > 0.5:
+			# скос (верх арки, край крыши): поворот прежний, надпись чуть дальше от поверхности
+			sp.global_position = Vector3(hit["pos"]) + n * 0.12
+		else:
+			sp.rotation.y = atan2(hn.x, hn.z)
+			sp.global_position = Vector3(hit["pos"]) + hn * 0.055      # гофра гаражей выступает на 4–5 см
+		sp.set_meta("stuck", true)
+
+static var _tri := {}
+
+## Ровный кусок стены под надпись: сетка 3×3 лучей по всей её площади должна попасть в одну плоскость (разброс
+## глубины < 10 см, без скосов). Не вышло на месте — надпись сдвигается вдоль стены (до 3 м вбок, до 0,6 м по высоте).
+## Возвращает {pos — центр на поверхности, normal} или пусто.
+func _flat_spot(meshes: Array, sp: Sprite3D, n: Vector3) -> Dictionary:
+	var w := sp.texture.get_width() * sp.pixel_size
+	var h := sp.texture.get_height() * sp.pixel_size
+	var right := Vector3.UP.cross(n).normalized()
+	var offs: Array[Vector2] = []
+	for k in 11:
+		for dx in ([0.0] if k == 0 else [k * 0.3, -k * 0.3]):
+			for dy in [0.0, 0.3, -0.3, 0.6]:
+				offs.append(Vector2(dx, dy))
+	for o in offs:
+		var c: Vector3 = sp.global_position + right * o.x + Vector3.UP * o.y
+		var depths: Array[float] = []
+		var nsum := Vector3.ZERO
+		var ok := true
+		for gx in [-0.45, 0.0, 0.45]:
+			for gy in [-0.4, 0.0, 0.4]:
+				var p: Vector3 = c + right * (w * gx) + Vector3.UP * (h * gy)
+				var hit := _surface_hit(meshes, p + n * 0.7, -n, 5.0)
+				if hit.is_empty():
+					ok = false
+					break
+				var hn: Vector3 = hit["normal"]
+				if hn.dot(n) < 0.0:
+					hn = -hn
+				if absf(hn.y) > 0.4 or hn.dot(n) < 0.8:
+					ok = false
+					break
+				depths.append((Vector3(hit["pos"]) - c).dot(n))
+				nsum += hn
+			if not ok:
+				break
+		if not ok:
+			continue
+		if depths.max() - depths.min() > 0.1 or -float(depths.min()) > float(sp.get_meta("max_depth", 2.5)):
+			continue
+		var fn := Vector3(nsum.x, 0.0, nsum.z).normalized()
+		return {"pos": c + n * float(depths.max()), "normal": fn}
+	return {}
+
+## Ближайшая точка видимой геометрии по лучу: {pos, normal} или пусто
+func _surface_hit(meshes: Array, from: Vector3, dir: Vector3, maxd: float) -> Dictionary:
+	var best := {}
+	var bd := maxd
+	var to := from + dir * maxd
+	for mo in meshes:
+		var m := mo as MeshInstance3D
+		if m == null or m.mesh == null or not m.is_visible_in_tree():
+			continue
+		var gab: AABB = m.global_transform * m.get_aabb()
+		if gab.grow(0.05).intersects_segment(from, to) == null:
+			continue
+		var tm: TriangleMesh = _tri.get(m.mesh)
+		if tm == null:
+			tm = m.mesh.generate_triangle_mesh()
+			_tri[m.mesh] = tm
+		if tm == null:
+			continue
+		var inv := m.global_transform.affine_inverse()
+		var r: Dictionary = tm.intersect_ray(inv * from, (inv.basis * dir).normalized())
+		if r.is_empty():
+			continue
+		var pw: Vector3 = m.global_transform * Vector3(r["position"])
+		var d := from.distance_to(pw)
+		if d < bd and (pw - from).dot(dir) > 0.0:
+			bd = d
+			best = {"pos": pw, "normal": (m.global_transform.basis * Vector3(r["normal"])).normalized()}
+	return best
 
 ## Дома по периметру и дальний план. Фасады разного типа и оттенка, на разной глубине — силуэт двора не ровная коробка.
 func _houses() -> void:
@@ -297,9 +489,8 @@ func _houses() -> void:
 	# восток: длинный дом вдоль проезда (две хрущёвки), фасадом на запад
 	var e1 := _put("khrushchevka", Vector3(49.0, 0, 6.0), PI, 15.0)
 	_tint(e1, Color(0.98, 0.9, 0.84))
-	# дом с аркой: через неё турнир уходит дальше, в ПОДЗЕМКУ; над аркой — растяжка
+	# дом с аркой: через неё турнир уходит дальше, в ПОДЗЕМКУ (надпись «ТУРНИР 67» — на щите рядом)
 	if _own("g67_house_arch", Vector3(49.6, 0, -15.5), -PI * 0.5, 15.2) != null:
-		_sign("ТУРНИР 67", Vector3(44.55, 5.3, -15.5), -PI * 0.5, Color(1.0, 0.8, 0.2), 0.02, 64)
 		_light(Vector3(45.5, 2.6, -15.5), Color(1.0, 0.8, 0.5), 2.0, 7.0)
 	else:
 		_put("khrushchevka", Vector3(49.5, 0, -15.5), PI, 14.6)
@@ -386,7 +577,13 @@ func _zone_podezd() -> void:
 	_put("bush", Vector3(-6.0, 0, 26.3), 0.0, 1.1, false)
 	_put("bush", Vector3(8.6, 0, 26.2), 1.0, 1.3, false)
 	_drift(Vector3(-8.5, 0.2, 17.5), Vector3(3.0, 0.7, 3.0))
-	_sign("ПАХАН + MADK1D\nБЫЛИ ТУТ", Vector3(-6.2, 1.4, 35.55), PI, Color(0.2, 0.5, 0.95, 0.9), 0.006, 48)
+	if secret_tag:
+		var tag := _decal("graffiti_pahan_madk1d", "ПАХАН + MADK1D\nБЫЛИ ТУТ", Vector3(-3.3, 1.7, 36.0), PI, 1.45, Color(0.2, 0.5, 0.95, 0.9), 0.0038, 48)
+		tag.name = "secret_tag"
+		tag.set_meta("max_depth", 0.9)          # на фасаде, не в нише подъезда
+		if tag is Sprite3D:
+			(tag as Sprite3D).shaded = false     # стена в тени фонаря: свежая краска должна читаться и ночью
+			(tag as Sprite3D).modulate = Color(0.78, 0.82, 0.95)
 
 ## B — гаражи: ряд разных гаражей, проезд, фургон, покрышки и бочки у открытого бокса
 func _zone_garages() -> void:
@@ -401,9 +598,9 @@ func _zone_garages() -> void:
 			continue
 		var g := _put("garage", Vector3(-45.6 - back, 0, z), 0.0, 3.0 + [0.0, 0.15, -0.1, 0.2, 0.0, 0.25, -0.05, 0.1][i])
 		_tint(g, tones[i])
-		_sign(str(61 + i), Vector3(-44.0 - back, 2.55, z - 1.7), PI * 0.5, Color(0.9, 0.85, 0.7), 0.005, 48)
-	_sign("МИША ГЛАВНЫЙ", Vector3(-44.15, 1.5, 9.5), PI * 0.5, Color(0.85, 0.63, 0.2), 0.008, 56)
-	_sign("67", Vector3(-44.1, 1.3, -5.5), PI * 0.5, Color(0.95, 0.75, 0.2), 0.02, 64)
+		_house_plate(61 + i, Vector3(-44.0 - back, 2.28, z - 1.7), PI * 0.5)
+	_decal("graffiti_misha_main", "МИША ГЛАВНЫЙ", Vector3(-44.15, 1.5, 9.5), PI * 0.5, 2.4, Color(0.85, 0.63, 0.2), 0.008, 56)
+	_decal("graffiti_67", "67", Vector3(-44.1, 1.3, -5.5), PI * 0.5, 2.0, Color(0.95, 0.75, 0.2), 0.02, 64)
 	var van := _put("old_van", Vector3(-38.6, 0.02, 14.0), PI * 0.5, 2.1)
 	_tint(van, Color(1.0, 0.85, 0.75))
 	_put("tire_stack", Vector3(-42.6, 0.02, 1.4), 0.2, 1.1)
@@ -459,17 +656,20 @@ func _zone_parking() -> void:
 	# шаурмичная «ШАУРМА 67» — у проезда, окном во двор; здесь КРОТ стоит в очереди (встреча 1)
 	if _own("g67_shawarma_kiosk", Vector3(42.3, 0.07, 7.0), -PI * 0.5, 3.2) != null:
 		# настоящая шаурмичная: вертел в окне, полосатый навес, жёлтый световой короб на крыше — на нём название
-		_sign("ШАУРМА 67", Vector3(40.9, 2.46, 7.22), -PI * 0.5, Color(0.5, 0.07, 0.05), 0.0042, 64)
+		_decal("sign_shawarma_box", "ШАУРМА 67", Vector3(40.85, 2.6, 7.22), -PI * 0.5, 2.1, Color(0.5, 0.07, 0.05), 0.0042, 64, true)
 		_light(Vector3(41.5, 1.6, 7.0), Color(1.0, 0.6, 0.25), 2.2, 4.5)            # жар от вертела
 	else:
 		_put("kiosk", Vector3(42.4, 0.07, 7.0), PI, 3.0)
-		_sign("ШАУРМА 67", Vector3(41.2, 3.3, 7.0), -PI * 0.5, Color(1.0, 0.8, 0.2), 0.007, 56)
+		_decal("sign_shawarma_plate", "ШАУРМА 67", Vector3(41.2, 3.3, 7.0), -PI * 0.5, 1.9, Color(1.0, 0.8, 0.2), 0.007, 56)
 	_light(Vector3(40.4, 1.8, 7.0), Color(1.0, 0.82, 0.5), 3.0, 9.0)
 	_queue()
+	_people()
 	_put("bus_stop", Vector3(42.6, 0.07, 19.0), PI, 2.7)
 	_put("transformer_booth", Vector3(19.5, 0, -14.5), -PI * 0.5, 3.4)
-	_sign("НЕ ВЛЕЗАЙ\nУБЬЁТ", Vector3(19.5, 2.2, -12.75), 0.0, Color(0.9, 0.2, 0.15), 0.005, 48)
-	_put("billboard", Vector3(44.0, 0, -19.5), PI * 0.75, 7.0, false)
+	_decal("graffiti_dont_climb", "НЕ ВЛЕЗАЙ\nУБЬЁТ", Vector3(19.62, 1.08, -12.75), 0.0, 0.92, Color(0.9, 0.2, 0.15), 0.005, 48)
+	_put("billboard", Vector3(44.0, 0, -19.5), PI * 0.75, 9.0, false)
+	# «ТУРНИР 67» баллончиком поверх рекламы на щите (лицо щита — по +X модели, после поворота — во двор)
+	_decal("graffiti_tournament", "ТУРНИР 67", Vector3(43.3, 6.2, -20.2), -PI * 0.75, 5.0, Color(1.0, 0.8, 0.2), 0.02, 64)
 	_solid_box(Vector3(44.0, 2.0, -19.5), Vector3(0.6, 4.0, 0.6))
 	_lamp(Vector3(34.3, 0, -10.5), 3.4, true)
 	_lamp(Vector3(34.3, 0, 15.0), 3.2)
@@ -502,23 +702,74 @@ func _queue() -> void:
 		var pos: Vector3 = (QUEUE_SPOTS[i] as Vector3) + Vector3(0, 0, rng.randf_range(-0.08, 0.08))
 		var h: float = float(who["h"]) * rng.randf_range(0.95, 1.06)
 		var yaw := PI * 0.5 + rng.randf_range(-0.18, 0.18)                 # лицом к окошку (на восток)
-		var node: Node3D
-		if bool(who["rig"]):
-			var r := Rig.new()
-			add_child(r)
-			r.setup(String(who["path"]), h, Poses.pahan(), true, 1.0, String(who["key"]))
-			r.position = pos
-			r.rotation.y = yaw
-			r.play("Idle", 0.0)
-			if r.player != null:
-				r.player.seek(rng.randf_range(0.0, 2.0), true)             # не дышат в такт
-			node = r
-		else:
-			node = G67Models.spawn(String(who["path"]), self, pos, yaw - PI * 0.5, Vector3(99, h, 99))      # модель гонок — лицом по +X
+		var node: Node3D = _person(String(who["path"]), String(who["key"]), h, pos, yaw, QUEUE_ROLES[i], 7000 + crowd_seed * 13 + i)
 		_tint(node, tones[rng.randi() % tones.size()])
 		_solid_box(pos + Vector3(0, 0.9, 0), Vector3(0.6, 1.8, 0.6))
 		node.name = "queue%d" % i
 		queue.append(node)
+	# уже купил: ест в стороне от окошка, спиной к очереди
+	var ew: Dictionary = QUEUE_PEOPLE[(crowd_seed + 1) % QUEUE_PEOPLE.size()]
+	if ResourceLoader.exists(String(ew["path"])):
+		var en := _person(String(ew["path"]), String(ew["key"]), float(ew["h"]), EATER["pos"], float(EATER["yaw"]), EATER, 7100 + crowd_seed)
+		_tint(en, tones[(crowd_seed * 3) % tones.size()])
+		_solid_box((EATER["pos"] as Vector3) + Vector3(0, 0.9, 0), Vector3(0.6, 1.8, 0.6))
+		en.name = "queue_eater"
+		queue.append(en)
+
+## Человек со скелетом в своей позе (G67Poses): стоит, дышит; phase — сдвиг, чтобы соседи не двигались в такт
+## Человек со скелетом и своим поведением (G67Life): основная поза, другие позы, взгляд. profile — см. G67Life.attach
+func _person(path: String, key: String, h: float, pos: Vector3, yaw: float, profile: Dictionary, seed_v: int) -> Rig:
+	var r := Rig.new()
+	add_child(r)
+	r.setup(path, h, G67Poses.clips(), true, 1.0, key + "_yd")      # свой ключ: набор клипов жителя, а не героя
+	r.position = pos
+	r.rotation.y = yaw
+	var pf := profile.duplicate()
+	pf["poi_ref"] = self                      # точка интереса — в координатах двора
+	var life := G67Life.attach(r, pf, seed_v)
+	if life != null:
+		lifes.append(life)
+		r.set_meta("life", life)
+	return r
+
+## Реакция зрителей на бой: сильный удар (hit), смена фазы босса (phase), победа (win). Не все сразу и не в такт:
+## каждый со своей вероятностью и задержкой; после реакции — обратно в свою позу.
+func crowd_react(kind: String) -> int:
+	var n := 0
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var pool: Array = {"hit": ["RWow", "RLean"], "phase": ["RWow", "RUp", "RLean"], "win": ["RUp", "RYes"]}.get(kind, ["RLean"])
+	for fan in fans:
+		if not is_instance_valid(fan) or not fan.has_meta("life"):
+			continue
+		var p: float = float(fan.get_meta("excited", 0.3))
+		if kind != "hit":
+			p = minf(1.0, p + 0.35)
+		if rng.randf() > p:
+			continue
+		var life: G67Life = fan.get_meta("life")
+		var clip: String = ("S" if bool(fan.get_meta("seated", false)) else "") + String(pool[rng.randi() % pool.size()])
+		var delay := rng.randf_range(0.05, 0.7)
+		get_tree().create_timer(delay, false).timeout.connect(func():
+			if is_instance_valid(life):
+				life.react(clip))
+		n += 1
+	return n
+
+## Жители двора: по одному каждого вида, со скелетом — стоят и дышат, каждый в своём такте
+func _people() -> void:
+	for i in PEOPLE.size():
+		var who: Dictionary = PEOPLE[i]
+		var id := String(who["id"])
+		if not G67Models.has(id):
+			missing.append(id)
+			continue
+		var r := _person(G67Models.DIR + id + ".glb", id, float(who["h"]), who["pos"], float(who["yaw"]), who, 6000 + i * 31)
+		r.name = id
+		if who.has("carry"):
+			G67Carry.attach(r, String(who["carry"]))
+		_solid_box((who["pos"] as Vector3) + Vector3(0, 0.9, 0), Vector3(0.6, 1.8, 0.6))
+		people[id] = r
 
 ## F — беседка: тихий угол за гаражами, где сидят по вечерам. Здесь передышка перед коробкой.
 func _zone_gazebo() -> void:
@@ -603,12 +854,12 @@ func _zone_sport() -> void:
 	_put("res://assets/golda67/g67_poster_stand.glb", Vector3(-2.4, 0.03, -48.4), 0.0, 2.4)
 	_put("res://assets/golda67/g67_poster_stand.glb", Vector3(5.2, 0.03, -48.7), 0.0, 2.2)
 	_put("barrel", Vector3(3.7, 0.03, -47.9), 0.0, 0.9)
-	_sign("МИША МИНАСЯН", Vector3(2.0, 3.6, -49.25), 0.0, Color(0.95, 0.72, 0.2), 0.016, 64)
-	_sign("ГЛАВНЫЙ АВТОРИТЕТ ДВОРА", Vector3(2.0, 2.85, -49.25), 0.0, Color(0.9, 0.85, 0.75), 0.008, 56)
+	if _decal("graffiti_misha_banner", "МИША МИНАСЯН", Vector3(2.0, 3.25, -49.25), 0.0, 5.2, Color(0.95, 0.72, 0.2), 0.016, 64) is Label3D:
+		_sign("ГЛАВНЫЙ АВТОРИТЕТ ДВОРА", Vector3(2.0, 2.85, -49.25), 0.0, Color(0.9, 0.85, 0.75), 0.008, 56)
 	_light(Vector3(2.0, 3.0, -46.6), Color(1.0, 0.75, 0.3), 3.0, 9.0)
 	# турник и брусья у западного борта — укрытие и его «качалка»
-	_put("res://assets/golda67/g67_workout_bars.glb", Vector3(-8.0, 0.03, -43.5), 0.2, 2.7)
-	_put("res://assets/golda67/g67_workout_bars.glb", Vector3(12.2, 0.03, -33.0), PI * 0.5, 2.5)
+	for bp in BARS:
+		_put("res://assets/golda67/g67_workout_bars.glb", Vector3(bp[0], 0.03, bp[1]), bp[2], bp[3])
 	_put("tire_stack", Vector3(-8.6, 0.03, -31.5), 0.6, 1.0)
 	# мачты с прожекторами по углам — свет на лёд, длинные тени
 	for c in [Vector3(x0 - 0.9, 0, z0 - 0.9), Vector3(x1 + 0.9, 0, z0 - 0.9), Vector3(x0 - 0.9, 0, z1 + 0.9), Vector3(x1 + 0.9, 0, z1 + 0.9)]:
@@ -618,10 +869,36 @@ func _zone_sport() -> void:
 	_light(Vector3(x0 + 3.0, 7.0, z0 + 3.0), Color(1.0, 0.93, 0.8), 4.2, 24.0, true)
 	_light(Vector3(x1 - 3.0, 7.0, z1 - 3.0), Color(1.0, 0.9, 0.75), 3.6, 24.0)
 	_light(Vector3(x1 - 3.0, 7.0, z0 + 3.0), Color(0.95, 0.9, 1.0), 2.4, 20.0)
-	# зрители: лавки вдоль восточного борта снаружи и люди на них
-	for i in 3:
-		_put("bench", Vector3(17.0, 0, -44.0 + i * 5.5), PI, 0.95)
-	for s in [[Vector3(16.6, 0, -44.3), 1.72], [Vector3(16.6, 0, -38.2), 1.66], [Vector3(16.7, 0, -33.4), 1.75], [Vector3(-12.6, 0, -36.0), 1.7]]:
-		_put("npc_spectator", s[0], PI if s[0].x > 0 else 0.0, s[1], false)
+	# зрители: районная трибуна у восточного борта (модель смотрит рядами по +X — развёрнута к площадке) и люди на ней;
+	# пока модели нет — лавки вдоль борта
+	# зрители: районная трибуна у восточного борта (ряды модели смотрят по +X — развёрнута к площадке).
+	# Семеро сидят, у каждого своё поведение (FANS); восьмой стоит у западного борта. Реакции — crowd_react.
+	tribune = _own("g67_tribune", TRIBUNE, PI, TRIBUNE_LEN, "d")
+	var ts: Vector3 = tribune.get_meta("size", Vector3(2.9, 3.2, TRIBUNE_LEN)) if tribune != null else Vector3.ZERO
+	if tribune == null:
+		for i in 3:
+			_put("bench", Vector3(17.0, 0, -44.0 + i * 5.5), PI, 0.95)
+	var fan_tones := [Color(1, 1, 1), Color(0.8, 0.88, 1.0), Color(1.0, 0.84, 0.76), Color(0.84, 1.0, 0.86), Color(0.95, 0.84, 1.0), Color(0.76, 0.78, 0.86)]
+	for i in FANS.size():
+		var f: Dictionary = FANS[i]
+		var who: Dictionary = QUEUE_PEOPLE[i % QUEUE_PEOPLE.size()]
+		if not ResourceLoader.exists(String(who["path"])):
+			continue
+		var h: float = float(who["h"]) * (0.94 if i % 3 == 1 else 1.0)
+		var sp: Vector3
+		if f.has("row"):
+			if tribune == null:
+				continue
+			var row := int(f["row"])
+			# сидит: таз на сиденье ряда
+			sp = TRIBUNE + Vector3(ts.x * float(TRIBUNE_ROWS[row][0]), ts.y * float(TRIBUNE_ROWS[row][1]) - G67Poses.SIT_HIP * h, float(f["z"]))
+		else:
+			sp = f["pos"]
+		var fan := _person(String(who["path"]), String(who["key"]), h, sp, atan2(ARENA_C.x - sp.x, ARENA_C.z - sp.z), f, 8000 + i * 17)
+		_tint(fan, fan_tones[(i * 5 + 2) % fan_tones.size()])
+		fan.name = "fan%d" % i
+		fan.set_meta("seated", f.has("row"))
+		fan.set_meta("excited", float(f.get("excited", 0.3)))
+		fans.append(fan)
 	_drift(Vector3(-13.0, 0.3, -44.0), Vector3(2.0, 1.1, 7.0))
 	_drift(Vector3(8.0, 0.3, -51.2), Vector3(9.0, 1.2, 2.2))

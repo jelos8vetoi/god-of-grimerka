@@ -158,6 +158,8 @@ func _physics_process(dt: float) -> void:
 func tag_block() -> String:
 	if game.paused_story() or game.over:
 		return "story"
+	if game.madk_locked():
+		return "locked"        # приквел до первой концовки: madk1d закрыт
 	if down[mate()]:
 		return "down"
 	if tag_cd > 0.0:
@@ -221,6 +223,8 @@ func context(e) -> String:
 func try_tag() -> bool:
 	var why := tag_block()
 	if why != "":
+		if why == "locked":
+			game.madk_note()
 		if why in ["hurt", "cooldown", "down"] and game.clock - _msg_t > 0.8:
 			_msg_t = game.clock
 			game.popup(p.global_position + Vector3(0, 2.3, 0), {"hurt": "не сейчас", "cooldown": "рано", "down": "напарник выбыл"}[why], Color(0.75, 0.78, 0.85))
@@ -464,6 +468,8 @@ func _boss_window(e) -> void:
 func assist_block() -> String:
 	if game.paused_story() or game.over:
 		return "story"
+	if game.madk_locked():
+		return "locked"
 	if down[mate()]:
 		return "down"
 	if assist_cd > 0.0:
@@ -474,6 +480,10 @@ func assist_block() -> String:
 
 ## [T]: дуэт-атака (duo.gd). Старая простая помощь (CROSS ATTACK, AIR PARTNER COMBO) — try_assist_simple.
 func try_assist() -> bool:
+	if game.madk_locked():
+		game.madk_note()
+		events.append(["assist_blocked", "locked"])
+		return false
 	return duo.try_start()
 
 func try_assist_simple() -> bool:

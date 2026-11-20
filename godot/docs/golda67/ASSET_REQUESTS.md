@@ -28,6 +28,8 @@
 | P2 | WHYOUSOLONELY, ИЗНАНКА, СТУДИЯ, Mogging Challenge, Anime Room | 20 | требуется |
 | P3 | декор | 8 | требуется |
 
+Вне партий получены 2026-11-20: FORTUNA 812, Королевский XVII, Полковник Бустеренко, WHYOUSOLONELY — облегчены (`glbslim`), скелет поставлен (`tools/rig-horror.py`, записи `g67_fortuna`, `g67_korolevsky`, `g67_busterenko`, `g67_whyousolonely`), первые трое играют в ролике V00. WHYOUSOLONELY в главе 1 не показывается (SPEC: только голос и экран).
+
 ## Партия P0 — вертикальный срез (20 моделей)
 
 Максимальная длина промпта в партии — 981 символов (предел 1000). Длина считается скриптом по полному тексту блока, со стилем и пробелами.
@@ -658,6 +660,155 @@ A fat grumpy city pigeon standing on the ground, a self-important little bird. R
 
 ```text
 A small street shawarma kiosk in a post-soviet courtyard at night. A boxy metal stall about 3 metres wide, 2.4 metres deep and 3 metres tall, painted peeling red and yellow, with a wide serving window on the front: inside a vertical rotating meat spit glowing warm orange, a steel counter with sauce bottles, a stack of flatbreads, a cutting board. A striped awning over the window, a blank lightbox sign on the roof, a blank menu board beside the window, a small shelf for customers, a gas cylinder at the side, a tin chimney pipe with a cap, steam vents, snow on the roof, a napkin holder. Front clearly different from the plain back. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+## Партия ДВОР-2 — 2026-11-20: жители, трибуна, событие «ТРЯПКИ! ТРЯПКИ!»
+
+Владелец утвердил четырёх фоновых жителей, трибуну и событие; промпты — до 1000 символов. Персонажи — Text to 3D,
+HD model, T-поза без авторига; пропсы — standard. Файл GLB, один объект.
+
+**Приёмка 2026-11-20.** Все девять получены, облегчены (153 МБ → 21 МБ), импортированы со сжатием и просмотрены с
+четырёх сторон — замечаний нет. Жители: лицом по +Z, T-поза; скелеты поставлены (`tools/rig-horror.py`, записи
+`g67_npc_*`), стоят во дворе (`G67Yard.PEOPLE`). Авоська бабушки привязана к кисти и всегда висит вниз (`G67Carry`),
+ключи таксиста — к тазу. Трибуна: ряды смотрят по +X, стоит у восточного борта коробки (`G67Yard.TRIBUNE`), на ней
+зрители. Кровать, ведро, сирена и тряпки приняты и ждут события «ТРЯПКИ! ТРЯПКИ!» (в игре ещё не стоят).
+
+| № | ID | Что | Файл | Символов | Статус |
+|---|---|---|---|---|---|
+| 1 | G67-N01 | Бабушка с авоськой | `godot/assets/golda67/g67_npc_babushka.glb` | 901 | получена 2026-11-20 |
+| 2 | G67-N02 | Мужик в ушанке | `godot/assets/golda67/g67_npc_ushanka.glb` | 881 | получена 2026-11-20 |
+| 3 | G67-N03 | Школьник | `godot/assets/golda67/g67_npc_schoolboy.glb` | 894 | получена 2026-11-20 |
+| 4 | G67-N04 | Таксист | `godot/assets/golda67/g67_npc_taxi_driver.glb` | 878 | получена 2026-11-20 |
+| 5 | G67-Y14 | Трибуна у коробки Миши | `godot/assets/golda67/g67_tribune.glb` | 843 | получена 2026-11-20 |
+| 6 | G67-S11 | Кровать Пахана | `godot/assets/golda67/g67_event_bed.glb` | 819 | получена 2026-11-20 |
+| 7 | G67-S12 | Ведро с водой | `godot/assets/golda67/g67_event_bucket.glb` | 797 | получена 2026-11-20 |
+| 8 | G67-S13 | Сирена с красным маяком | `godot/assets/golda67/g67_event_siren.glb` | 831 | получена 2026-11-20 |
+| 9 | G67-S14 | Тряпки и швабра | `godot/assets/golda67/g67_event_rags.glb` | 776 | получена 2026-11-20 |
+
+### G67-N01 — Бабушка с авоськой
+
+- **Назначение:** Фоновая жительница: лавочка у подъезда и тропинка к ларьку. Без квестов.
+- **Поза / ракурс:** T-поза, лицом вперёд. Скелет поставлю сам (шаблон Пахана). Формат GLB.
+- **Риг и анимации:** скелет ставлю сам (`tools/rig-horror.py`), клипы — `Poses.pahan()`.
+- **Имя файла:** `g67_npc_babushka.glb`
+- **Путь:** `godot/assets/golda67/g67_npc_babushka.glb`
+- **Статус:** получена 2026-11-20
+- **Промпт (901 символов):**
+
+```text
+A small elderly Russian grandmother, stooped and stout, stern suspicious face with pursed lips. Flowery headscarf tied under the chin, long dark grey quilted winter coat ending at mid-calf and clearly split from the legs, thick brown stockings, felt boots with galoshes, knitted mittens. One hand holds a string shopping bag (avoska) with a loaf of bread and a milk carton, hanging straight down and not touching the leg. Colours: grey, brown, one bright accent in the red flowery scarf. Stylized low-poly 3D game character, chibi proportions (big head, short limbs), bold readable silhouette, hand-painted textures, muted post-soviet colours with one bright accent. Full body, strict T-pose, arms straight out to the sides, legs apart, fingers simplified, clothes not fused to arms or between legs, clean topology for rigging. No readable text. Single character, no ground, no background, game-ready.
+```
+
+### G67-N02 — Мужик в ушанке
+
+- **Назначение:** Фоновый житель: у гаражей и у открытого бокса. Без квестов.
+- **Поза / ракурс:** T-поза, лицом вперёд. Скелет поставлю сам. Формат GLB.
+- **Риг и анимации:** скелет ставлю сам (`tools/rig-horror.py`), клипы — `Poses.pahan()`.
+- **Имя файла:** `g67_npc_ushanka.glb`
+- **Путь:** `godot/assets/golda67/g67_npc_ushanka.glb`
+- **Статус:** получена 2026-11-20
+- **Промпт (881 символов):**
+
+```text
+A stocky middle-aged Russian man from the garages, tired kind face, thick grey moustache, red nose from the cold. Old brown fur ushanka hat with ear flaps tied on top, dark blue padded work jacket with a worn collar, grey scarf, oil-stained grey trousers, heavy black winter boots, thick work gloves. A folded newspaper sticks out of the chest pocket. Big belly, short legs. Colours: dark blue, grey, brown, one bright accent in an orange thermos clipped to the belt. Stylized low-poly 3D game character, chibi proportions (big head, short limbs), bold readable silhouette, hand-painted textures, muted post-soviet colours with one bright accent. Full body, strict T-pose, arms straight out to the sides, legs apart, fingers simplified, clothes not fused to arms or between legs, clean topology for rigging. No readable text. Single character, no ground, no background, game-ready.
+```
+
+### G67-N03 — Школьник
+
+- **Назначение:** Фоновый житель: детская площадка, горка, сугроб. Без квестов.
+- **Поза / ракурс:** T-поза, лицом вперёд. Скелет поставлю сам. Формат GLB.
+- **Риг и анимации:** скелет ставлю сам (`tools/rig-horror.py`), клипы — `Poses.pahan()`.
+- **Имя файла:** `g67_npc_schoolboy.glb`
+- **Путь:** `godot/assets/golda67/g67_npc_schoolboy.glb`
+- **Статус:** получена 2026-11-20
+- **Промпт (894 символов):**
+
+```text
+A ten year old Russian schoolboy in winter, cheeky grin, missing front tooth, rosy cheeks. Oversized puffy bright green winter jacket, knitted hat with a big pompom, long striped scarf wrapped once with short ends that do not hang below the chest, dark snow trousers, chunky winter boots, mittens on a string. A big square school backpack on the back with a blank patch. Smaller and shorter than adult characters. Colours: grey and navy with one bright green accent in the jacket. Stylized low-poly 3D game character, chibi proportions (big head, short limbs), bold readable silhouette, hand-painted textures, muted post-soviet colours with one bright accent. Full body, strict T-pose, arms straight out to the sides, legs apart, fingers simplified, clothes not fused to arms or between legs, clean topology for rigging. No readable text. Single character, no ground, no background, game-ready.
+```
+
+### G67-N04 — Таксист
+
+- **Назначение:** Фоновый житель: парковка у ларька, рядом с машинами. Без квестов.
+- **Поза / ракурс:** T-поза, лицом вперёд. Скелет поставлю сам. Формат GLB.
+- **Риг и анимации:** скелет ставлю сам (`tools/rig-horror.py`), клипы — `Poses.pahan()`.
+- **Имя файла:** `g67_npc_taxi_driver.glb`
+- **Путь:** `godot/assets/golda67/g67_npc_taxi_driver.glb`
+- **Статус:** получена 2026-11-20
+- **Промпт (878 символов):**
+
+```text
+A lean Russian taxi driver in his forties, sly squinting face, dark stubble, thin moustache. Black leather flat cap, short worn black leather jacket open over a grey knitted sweater, dark jeans, pointed black shoes, a small leather waist pouch on the belt, car keys hanging on a short ring from one hand, a yellow checkered taxi band on the sleeve. Thin and slightly slouched, long nose. Colours: black and grey with one bright yellow accent in the checkered band. Stylized low-poly 3D game character, chibi proportions (big head, short limbs), bold readable silhouette, hand-painted textures, muted post-soviet colours with one bright accent. Full body, strict T-pose, arms straight out to the sides, legs apart, fingers simplified, clothes not fused to arms or between legs, clean topology for rigging. No readable text. Single character, no ground, no background, game-ready.
+```
+
+### G67-Y14 — Трибуна у коробки Миши
+
+- **Назначение:** Небольшая районная трибуна у борта хоккейной коробки: на ней стоят зрители боя с Мишей. Не стадион.
+- **Поза / ракурс:** Стоит на земле, вид спереди (лицом к площадке); точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_tribune.glb`
+- **Путь:** `godot/assets/golda67/g67_tribune.glb`
+- **Статус:** получена 2026-11-20
+- **Промпт (843 символов):**
+
+```text
+A small old courtyard spectator stand next to a hockey rink, about 5 metres wide, 2.2 metres deep and 2 metres tall. Three stepped rows of long wooden plank benches on a welded rusty steel frame, the back row highest, a simple pipe railing along the back and both sides, two narrow steps on one side. Peeling blue and white paint on the planks, a few missing planks, snow lying on the benches, a forgotten thermos and a scarf on one seat, a blank tin sign on the back railing. Open underneath, legs visible. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with one bright accent. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-S11 — Кровать Пахана
+
+- **Назначение:** Событие «ТРЯПКИ! ТРЯПКИ!»: Пахан спит на этой кровати.
+- **Поза / ракурс:** Стоит на полу, вид сбоку-спереди; точка опоры — центр основания. Постель без человека. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_event_bed.glb`
+- **Путь:** `godot/assets/golda67/g67_event_bed.glb`
+- **Статус:** получена 2026-11-20
+- **Промпт (819 символов):**
+
+```text
+An old soviet single bed with a metal tube frame and a sagging spring mesh, about 2 metres long. Chipped cream paint on the headboard and footboard bars with round knobs, a thick striped mattress, a crumpled heavy quilted blanket in dark red pushed to one side, one flat pillow in a faded checkered pillowcase with a dent in the middle. A pair of worn slippers under the bed, a sock hanging off the edge. Top surface of the mattress mostly flat and free so a character can lie on it. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with one bright accent. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-S12 — Ведро с водой
+
+- **Назначение:** Событие «ТРЯПКИ! ТРЯПКИ!»: madk1d входит с ведром и обливает Пахана.
+- **Поза / ракурс:** Стоит на полу, вид спереди; точка опоры — центр дна. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_event_bucket.glb`
+- **Путь:** `godot/assets/golda67/g67_event_bucket.glb`
+- **Статус:** получена 2026-11-20
+- **Промпт (797 символов):**
+
+```text
+A dented old galvanized metal bucket, about 35 centimetres tall, full of water almost to the brim. Wire handle with a wooden grip standing upright, a strip of blue painted enamel around the top edge chipped in several places, rust spots near the bottom, a few drops running down the side. The water surface is a simple flat light blue disc with one small highlight. Slightly squashed, thicker than a real bucket. Colours: grey metal with one bright blue accent. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with one bright accent. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-S13 — Сирена с красным маяком
+
+- **Назначение:** Событие «ТРЯПКИ! ТРЯПКИ!»: сигнализация на стене, мигает красным (свет даёт игра).
+- **Поза / ракурс:** Настенная, вид спереди; точка опоры — центр задней плоскости. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_event_siren.glb`
+- **Путь:** `godot/assets/golda67/g67_event_siren.glb`
+- **Статус:** получена 2026-11-20
+- **Промпт (831 символов):**
+
+```text
+An old soviet wall-mounted alarm unit, about 40 centimetres tall. A grey painted metal box with rounded corners and a round speaker grille of horizontal slots in the lower half, on top of it a red glass rotating beacon dome in a metal cage of four bars. A thick black cable in a steel pipe goes down from the bottom, two big bolts in the corners, a small blank warning plate, peeling paint and dust. Flat back so it mounts on a wall. Colours: grey metal with one bright red accent in the beacon. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with one bright accent. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-S14 — Тряпки и швабра
+
+- **Назначение:** Событие «ТРЯПКИ! ТРЯПКИ!»: куча тряпок на полу, вокруг которой бегает madk1d.
+- **Поза / ракурс:** Лежит на полу, вид сверху-спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_event_rags.glb`
+- **Путь:** `godot/assets/golda67/g67_event_rags.glb`
+- **Статус:** получена 2026-11-20
+- **Промпт (776 символов):**
+
+```text
+A messy pile of old cleaning rags on the floor with a wooden mop lying across it, about 1.2 metres long. Five or six thick crumpled rags: a grey floor cloth, a torn striped sailor shirt, a faded towel with fringe, a piece of old burlap, one bright orange rag on top. The mop has a rough wooden handle and a T-shaped head with a wet grey cloth wrapped around it. A small flat puddle shape under one edge. Chunky folds, no thin loose threads. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with one bright accent. No readable text. Single object, centered, no ground, no background, game-ready.
 ```
 
 ## Партии P1–P3 — статус «требуется»
