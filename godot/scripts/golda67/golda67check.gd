@@ -16,6 +16,7 @@ func _ready() -> void:
 	for p in KEEP:
 		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
 	AudioServer.set_bus_mute(0, true)
+	G67Save.clean = true          # прогресс игрока в приквеле на проверку не влияет
 	_run()
 
 func ok(cond: bool, text: String) -> void:
@@ -270,6 +271,56 @@ func _side_shot(g, B, nm: String) -> void:
 	g.cam.make_current()
 	oc.queue_free()
 
+## Снимок места во дворе: at и from — в координатах двора
+func _yard_shot(g, G: Golda67, at: Vector3, from: Vector3, nm: String) -> void:
+	var off: Vector3 = G.world.yard.position
+	var oc := Camera3D.new()
+	g.add_child(oc)
+	oc.global_position = from + off
+	oc.look_at(at + off, Vector3.UP)
+	oc.make_current()
+	await wait(0.4)
+	await shot(nm)
+	g.cam.make_current()
+	oc.queue_free()
+
+## Жители двора и трибуна: на местах, со скелетом, дышат; сумка бабушки висит вниз
+func _yard_people(g, G: Golda67) -> void:
+	var Y: G67Yard = G.world.yard
+	ok(Y.people.size() == 4, "во дворе четверо фоновых жителей (%s)" % str(Y.people.keys()))
+	var alive := true
+	for id in Y.people:
+		var r: Rig = Y.people[id]
+		if r.skel == null or String(r.cur) == "" or not G.world.blocked(r.global_position):
+			alive = false
+			print("GOLDA67CHECK   житель %s: скелет/клип/место не в порядке" % id)
+	ok(alive, "жители со скелетом, стоят и дышат, сквозь них не пройти")
+	for who in G67Yard.PEOPLE:
+		var p: Vector3 = who["pos"]
+		var yaw := float(who["yaw"])
+		var fw := Vector3(sin(yaw), 0, cos(yaw))
+		await _yard_shot(g, G, p + Vector3(0, float(who["h"]) * 0.55, 0), p + fw * 2.6 + Vector3(-fw.z, 0, fw.x) * 1.0 + Vector3(0, 1.3, 0), "50_" + String(who["id"]).trim_prefix("g67_"))
+	if Y.people.has("g67_npc_babushka"):
+		var b: Rig = Y.people["g67_npc_babushka"]
+		ok(b.skel.find_children("*", "G67Carry", true, false).size() == 1, "у бабушки слой, который держит авоську висящей вниз")
+	var poses := {}
+	var rigged := true
+	for n in Y.fans + Y.queue:
+		if not (n is Rig) or (n as Rig).skel == null:
+			rigged = false
+		else:
+			poses[String((n as Rig).cur)] = true
+	for id in Y.people:
+		poses[String(Y.people[id].cur)] = true
+	ok(rigged and Y.fans.size() >= 5, "зрители и очередь — люди со скелетом, без застывших моделей в T-позе (зрителей %d)" % Y.fans.size())
+	ok(poses.size() >= 7, "позы у жителей разные (%d видов: %s)" % [poses.size(), ", ".join(poses.keys())])
+	var q0: Vector3 = (Y.queue[1] as Node3D).position
+	await _yard_shot(g, G, q0 + Vector3(0, 1.0, 0), q0 + Vector3(-0.6, 1.6, 4.2), "53_queue_poses")
+	ok(Y.tribune != null and G.world.blocked(G67Yard.TRIBUNE + Y.position), "у коробки Миши стоит трибуна")
+	await _yard_shot(g, G, G67Yard.TRIBUNE + Vector3(0, 1.4, 0), G67Yard.TRIBUNE + Vector3(-8.5, 3.2, 5.5), "51_tribune")
+	await _yard_shot(g, G, G67Yard.TRIBUNE + Vector3(0, 1.6, 0), G67Yard.TRIBUNE + Vector3(-5.2, 2.4, 0.4), "54_fans_close")
+	await _yard_shot(g, G, G67Yard.TRIBUNE + Vector3(0, 1.2, 0), G67Yard.TRIBUNE + Vector3(-2.0, 2.0, -7.5), "52_tribune_side")
+
 ## Поставить Мишу и героя и запустить приём (сам он в это время ничего не выбирает)
 func _misha_set(B, P, move: String, ppos: Vector3, bpos := Vector3(0, 0.05, -2.0)) -> void:
 	B.state = "chase"
@@ -338,7 +389,7 @@ func _misha_moves(g, G: Golda67, P, B) -> void:
 	h.dir = (B.global_position - P.global_position).normalized()
 	h.attack_id = "test"
 	B.take_hit_info(h)
-	ok(B.hp == bh and String(B.guard_log[-1]) == "return" and P.hp < P.max_hp, "удар в стойку спереди: урона нет, удар вернулся герою (−%.0f)" % (P.max_hp - P.hp))
+	ok(B.hp == bh and String(B.guard_log[-1]) == "return" and P.hp < P.max_hp, "удар в стойку спереди: урона нет, удар вернулся герою (−%.0f; босс %.1f → %.1f, итог %s)" % [P.max_hp - P.hp, bh, B.hp, str(B.guard_log[-1])])
 	var hp_a: float = P.hp
 	P.inv = 0.0
 	B.take_hit_info(h)
@@ -666,6 +717,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	g.cam.make_current()
 	oc2.queue_free()
 	ok(G.world.yard.get_node_or_null("secret_tag") == null, "до победы над Мишей секретного граффити нет")
+	await _yard_people(g, G)
 	var qn: Array = G.world.yard.queue
 	ok(qn.size() == 3 and qn.all(func(n): return is_instance_valid(n)), "перед КРОТОМ у окошка очередь из трёх жителей")
 	var kx: float = G.world.actors["g67_krot"].global_position.x

@@ -11,7 +11,12 @@ const VERSION := 1
 static func blank() -> Dictionary:
 	return {"v": VERSION, "meta": {"visits": 0, "respect": 0, "flags": {}, "seen": [], "archive": []}, "run": {}}
 
+## Проверка приквела начинает с чистого листа и файл игрока не читает (запускалка проверок подкладывает его копию)
+static var clean := false
+
 static func load_all() -> Dictionary:
+	if clean:
+		return blank()
 	for p in [PATH, BAK]:
 		if not FileAccess.file_exists(p):
 			continue
@@ -25,6 +30,8 @@ static func load_all() -> Dictionary:
 	return blank()
 
 static func exists() -> bool:
+	if clean:
+		return false
 	return FileAccess.file_exists(PATH) or FileAccess.file_exists(BAK)
 
 static func save_all(d: Dictionary) -> void:
