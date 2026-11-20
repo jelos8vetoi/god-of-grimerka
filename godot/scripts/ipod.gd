@@ -311,6 +311,18 @@ func next_track_from_pause() -> bool:
 		return false
 	return pause_step_track(1)
 
+## iPod работает только в основной игре (кампания) и на тренировочной арене — это решение владельца (2026-11-20).
+## В меню, гонках и мини-играх («Микрозаймы», «5 ночей») плеера нет: там своя музыка и свои клавиши. Сам плеер
+## создаётся вместе с игрой (game.gd) и уходит вместе с ней; эта проверка — на случай, если игра когда-нибудь
+## окажется рядом с другим режимом (идёт гонка или мини-игра, а объект игры ещё не убран).
+static func allowed(g) -> bool:
+	if g == null or not is_instance_valid(g):
+		return false
+	var m = g.get("main")
+	if m == null:
+		return true
+	return m.get("race") == null and m.get("minigame") == null
+
 func pause_set_volume(v: float) -> void:
 	volume = clampf(v, 0.0, 1.0)
 	_save_settings()
@@ -318,6 +330,8 @@ func pause_set_volume(v: float) -> void:
 
 func _can_toggle() -> bool:
 	if game == null or game.over:
+		return false
+	if not allowed(game):
 		return false
 	if opened:
 		return true

@@ -191,6 +191,7 @@ func _run() -> void:
 	ok(e.day == 1 and e.active().size() == 4 and e.total_debt() >= 40000, "новая неделя: день 1, четыре долга на %s" % MLUI.rub(e.total_debt()))
 	ok(R.pahan != null and R.pahan.model != null, "в комнате настоящий Пахан (pahan.glb)")
 	await shot("m01_morning")
+	await no_ipod_here("«Микрозаймы»")
 	MLSave.persist = true
 	# ================= займ: условия до подписания, сумма возврата =================
 	if e.event_today != "" and not e.event_done:
@@ -463,3 +464,14 @@ func _finish() -> void:
 	AudioServer.set_bus_mute(0, false)
 	print("MICROLOANSCHECK ok" if fails == 0 else "MICROLOANSCHECK ОШИБКА: %d" % fails)
 	get_tree().quit()
+
+## iPod есть только в кампании и на арене: в этом режиме нет ни одного плеера, и стрелка ↑ его не открывает
+func no_ipod_here(where: String) -> void:
+	await key(KEY_UP)
+	await get_tree().process_frame
+	var n := 0
+	for c in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		var sc = c.get_script()
+		if sc != null and String(sc.resource_path).ends_with("/ipod.gd"):
+			n += 1
+	ok(n == 0, "%s: iPod нет, стрелка ↑ его не открывает" % where)

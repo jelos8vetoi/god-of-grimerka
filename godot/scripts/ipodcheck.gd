@@ -119,8 +119,14 @@ func _run() -> void:
 
 	# ---- шины: эффекты iPod не должны задевать голос, эффекты и окружение ----
 	ok(AudioServer.get_bus_index("IPod") >= 0 and AudioServer.get_bus_effect_count(AudioServer.get_bus_index("IPod")) == 4, "шина IPod: фильтр, эквалайзер баса, реверберация, ограничитель")
+	# на SFX стоит только общий ограничитель громкости (audio.gd, ради криков мини-игр) — эффекты iPod её не задевают
 	for b in ["Voice", "SFX", "Ambient"]:
-		ok(AudioServer.get_bus_effect_count(AudioServer.get_bus_index(b)) == 0, "шина %s без эффектов" % b)
+		var bi := AudioServer.get_bus_index(b)
+		var bad := 0
+		for k in AudioServer.get_bus_effect_count(bi):
+			if not (AudioServer.get_bus_effect(bi, k) is AudioEffectHardLimiter):
+				bad += 1
+		ok(bad == 0, "шина %s без эффектов iPod (только ограничитель громкости)" % b)
 	ok(ipod.ui_players[0].bus == "SFX", "щелчки колеса идут мимо баса и реверберации (шина SFX)")
 
 	# ---- диалог ----
