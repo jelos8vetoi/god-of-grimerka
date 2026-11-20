@@ -132,6 +132,22 @@ func _put(id: String, pos: Vector3, yaw: float, h: float, solid := true, wide :=
 		_solid_box(pos + Vector3(0, s.y * 0.5, 0), Vector3(s.x, s.y, s.z), yaw)
 	return n
 
+## Модель приквела (assets/golda67, лицо по +Z): yaw — куда смотрит лицо. fit: "h" — по высоте v, "d" — по длине
+## вдоль Z, "w" — по ширине вдоль X. Нет файла — возвращает null (место остаётся за прежней заменой).
+func _own(id: String, pos: Vector3, yaw: float, v: float, fit := "h", solid := true) -> Node3D:
+	if not G67Models.has(id):
+		return null
+	var size := Vector3(99, v, 99)
+	if fit == "d":
+		size = Vector3(99, 99, v)
+	elif fit == "w":
+		size = Vector3(v, 99, 99)
+	var n := G67Models.spawn(id, self, pos, yaw, size, fit)
+	if solid:
+		var s: Vector3 = n.get_meta("size", Vector3.ONE)
+		_solid_box(pos + Vector3(0, s.y * 0.5, 0), Vector3(s.x, minf(s.y, 4.0), s.z), yaw)
+	return n
+
 ## Оттенок экземпляра: материалы модели копируются и подкрашиваются — одинаковые гаражи и дома перестают быть одинаковыми
 func _tint(n: Node, col: Color) -> void:
 	for mi in n.find_children("*", "MeshInstance3D", true, false):
@@ -162,6 +178,14 @@ func _lamp(pos: Vector3, energy := 3.4, shadow := false) -> void:
 
 ## сугроб: несколько слипшихся наметённых бугров разного размера (у бордюров, под деревьями, куда счищают дворники)
 func _drift(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
+	if G67Models.has("g67_snowdrift"):
+		# модель владельца: длинная ось — Z; кладём вдоль большей стороны, небольшие — покороче
+		var along_x := size.x > size.z
+		var length := maxf(size.x, size.z)
+		var n := G67Models.spawn("g67_snowdrift", self, Vector3(pos.x, -0.08, pos.z), yaw + (PI * 0.5 if along_x else 0.0) + (PI if int(absf(pos.x + pos.z)) % 2 == 0 else 0.0), Vector3(99, 99, length), "d")
+		var wide := minf(size.x, size.z) / maxf(0.01, (n.get_meta("size", Vector3.ONE) as Vector3).x)
+		n.scale = Vector3(clampf(wide, 0.8, 2.2), clampf(size.y * 0.9, 0.7, 1.3), 1.0)
+		return
 	var root := Node3D.new()
 	root.position = Vector3(pos.x, 0.0, pos.z)
 	root.rotation.y = yaw
@@ -206,8 +230,10 @@ func build() -> void:
 	m_curb = _flat(Color(0.5, 0.5, 0.5), 0.9)
 	m_path = _noise_mat(Color(0.42, 0.45, 0.52), Color(0.58, 0.62, 0.7), 0.3, 0.6, 0.95, 11)
 	m_snow = _noise_mat(Color(0.6, 0.66, 0.78), Color(0.92, 0.95, 1.0), 0.035, 0.09, 0.82, 5)
-	m_court = _noise_mat(Color(0.14, 0.17, 0.2), Color(0.2, 0.24, 0.27), 0.12, 0.3, 0.9, 9)
-	m_line = _flat(Color(0.85, 0.85, 0.8), 0.8)
+	# коробку на зиму залили: лёд с намёрзшим снегом, под ним — красная и синяя разметка
+	m_court = _noise_mat(Color(0.5, 0.62, 0.74), Color(0.8, 0.88, 0.95), 0.06, 0.2, 0.16, 9)
+	m_court.metallic = 0.25
+	m_line = _flat(Color(0.75, 0.16, 0.18), 0.4)
 	m_sand = _noise_mat(Color(0.5, 0.36, 0.22), Color(0.62, 0.47, 0.3), 0.3, 0.8, 0.95, 13)
 	m_carpet = _noise_mat(Color(0.42, 0.06, 0.1), Color(0.56, 0.1, 0.14), 0.5, 1.5, 0.95, 17)
 	# земля под снегом (общая, большая) и её твёрдость
@@ -221,6 +247,17 @@ func build() -> void:
 	floor_sb.add_child(fcs)
 	floor_sb.position = Vector3(0, -0.5, 0)
 	add_child(floor_sb)
+	# предел двора: по линии фасадов и гаражей; между домами прохода нет (там сугробы и заборы)
+	for wl in [[Vector3(0, 2, 36.3), Vector3(100, 4, 1)], [Vector3(0, 2, -53.5), Vector3(100, 4, 1)], [Vector3(-47.5, 2, -8), Vector3(1, 4, 100)], [Vector3(44.8, 2, -8), Vector3(1, 4, 100)]]:
+		var wb := StaticBody3D.new()
+		wb.collision_layer = 1 | 8
+		var wcs := CollisionShape3D.new()
+		var wbs := BoxShape3D.new()
+		wbs.size = wl[1]
+		wcs.shape = wbs
+		wb.add_child(wcs)
+		wb.position = wl[0]
+		add_child(wb)
 	_houses()
 	_roads()
 	_zone_podezd()
@@ -238,17 +275,24 @@ func _houses() -> void:
 	_tint(h1, Color(0.95, 0.92, 0.86))
 	_put("res://assets/golda67/g67_podezd_entrance.glb", Vector3(0.0, 0, 34.9), PI, 3.3)
 	# запад дома: торец соседней пятиэтажки, развёрнутой боком
-	var h3 := _put("khrushchevka", Vector3(-41.0, 0, 44.0), 0.0, 14.2)
-	_tint(h3, Color(0.82, 0.86, 0.92))
+	if _own("g67_brick_house", Vector3(-41.5, 0, 45.0), PI * 0.5, 13.6) == null:      # кирпичная «сталинка» на углу
+		var h3 := _put("khrushchevka", Vector3(-41.0, 0, 44.0), 0.0, 14.2)
+		_tint(h3, Color(0.82, 0.86, 0.92))
 	# север: две девятиэтажки и хрущёвка между ними, фасадами на юг
 	var t1 := _put("panel_tower", Vector3(-22.0, 0, -59.0), -PI * 0.5, 27.0)
 	_tint(t1, Color(0.9, 0.94, 1.0))
-	_put("khrushchevka", Vector3(1.5, 0, -60.5), -PI * 0.5, 15.0)
+	if _own("g67_brick_house", Vector3(1.5, 0, -60.0), 0.0, 14.8) == null:            # кирпичный дом за коробкой
+		_put("khrushchevka", Vector3(1.5, 0, -60.5), -PI * 0.5, 15.0)
 	_put("panel_tower", Vector3(25.0, 0, -58.2), -PI * 0.5, 29.5)
 	# восток: длинный дом вдоль проезда (две хрущёвки), фасадом на запад
 	var e1 := _put("khrushchevka", Vector3(49.0, 0, 6.0), PI, 15.0)
 	_tint(e1, Color(0.98, 0.9, 0.84))
-	_put("khrushchevka", Vector3(49.5, 0, -15.5), PI, 14.6)
+	# дом с аркой: через неё турнир уходит дальше, в ПОДЗЕМКУ; над аркой — растяжка
+	if _own("g67_house_arch", Vector3(49.6, 0, -15.5), -PI * 0.5, 15.2) != null:
+		_sign("ТУРНИР 67", Vector3(44.55, 5.3, -15.5), -PI * 0.5, Color(1.0, 0.8, 0.2), 0.02, 64)
+		_light(Vector3(45.5, 2.6, -15.5), Color(1.0, 0.8, 0.5), 2.0, 7.0)
+	else:
+		_put("khrushchevka", Vector3(49.5, 0, -15.5), PI, 14.6)
 	_put("panel_tower", Vector3(50.0, 0, -37.0), PI, 27.0)
 	# дальний план: башни за домами, кран стройки, водонапорная башня за гаражами
 	for f in [[Vector3(-74, 0, -44), 0.3, 31.0, Color(0.6, 0.66, 0.8)], [Vector3(82, 0, 30), PI, 33.0, Color(0.62, 0.66, 0.78)],
@@ -305,7 +349,12 @@ func _zone_podezd() -> void:
 	_put("bench", Vector3(-3.4, 0.07, 34.6), PI * 0.5, 0.95)
 	_put("bench", Vector3(3.4, 0.07, 34.6), PI * 0.5, 0.95)
 	_put("res://assets/golda67/g67_notice_board.glb", Vector3(6.6, 0.07, 35.0), PI, 1.8)
-	_put("barrel", Vector3(-1.9, 0.07, 33.6), 0.0, 0.75)                       # урна у лавки
+	if _own("g67_urn", Vector3(-1.9, 0.07, 33.9), PI, 0.8) == null:             # урна у лавки
+		_put("barrel", Vector3(-1.9, 0.07, 33.6), 0.0, 0.75)
+	# сушилка с бельём на газоне перед домом: бельё замёрзло колом
+	if _own("g67_laundry_lines", Vector3(10.5, 0, 21.0), 0.25, 3.6, "w", false) != null:
+		_solid_box(Vector3(8.8, 1.1, 20.6), Vector3(0.3, 2.2, 0.3))
+		_solid_box(Vector3(12.2, 1.1, 21.4), Vector3(0.3, 2.2, 0.3))
 	_put("res://assets/golda67/g67_poster_stand.glb", Vector3(5.4, 0, 26.0), PI * 0.5, 2.2)      # реклама турнира у дороги
 	_lamp(Vector3(-13.5, 0, 26.4), 3.6, true)
 	_lamp(Vector3(13.5, 0, 26.4), 3.4)
@@ -335,6 +384,11 @@ func _zone_garages() -> void:
 	for i in 8:
 		var z := -15.5 + i * 5.0
 		var back: float = [0.0, 0.25, 0.0, -0.2, 0.3, 0.0, 0.15, -0.1][i]
+		if i == 3 and G67Models.has("g67_garage_open"):
+			# открытый бокс: внутри верстак, покрышки, горит лампочка — кто-то возится допоздна
+			_own("g67_garage_open", Vector3(-45.9, 0, z), PI * 0.5, 3.15)
+			_light(Vector3(-45.6, 1.7, z), Color(1.0, 0.8, 0.5), 2.4, 6.0)
+			continue
 		var g := _put("garage", Vector3(-45.6 - back, 0, z), 0.0, 3.0 + [0.0, 0.15, -0.1, 0.2, 0.0, 0.25, -0.05, 0.1][i])
 		_tint(g, tones[i])
 		_sign(str(61 + i), Vector3(-44.0 - back, 2.55, z - 1.7), PI * 0.5, Color(0.9, 0.85, 0.7), 0.005, 48)
@@ -370,6 +424,9 @@ func _zone_playground() -> void:
 	_solid_box(Vector3(9.8, 0.5, -8.4), Vector3(0.2, 1.0, 14.0))
 	_put("bench", Vector3(-7.4, 0, -6.5), 0.0, 0.95)
 	_put("bench", Vector3(11.4, 0, -10.5), PI, 0.95)
+	_own("g67_urn", Vector3(-7.5, 0, -4.7), PI * 0.5, 0.8)
+	# ковровыбивалка у тропинки к площадке: ковёр висит с осени
+	_own("g67_carpet_rack", Vector3(-7.0, 0, 3.6), 0.2, 2.1)
 	_put("birch_tree", Vector3(-9.5, 0, -1.0), 0.0, 8.5, false)
 	_solid_box(Vector3(-9.5, 1.5, -1.0), Vector3(0.5, 3.0, 0.5))
 	_put("birch_tree", Vector3(-11.0, 0, -4.2), 2.1, 7.2, false)
@@ -400,7 +457,8 @@ func _zone_parking() -> void:
 	_lamp(Vector3(34.3, 0, -10.5), 3.4, true)
 	_lamp(Vector3(34.3, 0, 15.0), 3.2)
 	_put("trash_pile", Vector3(40.4, 0.07, 21.2), 1.0, 0.7, false)
-	_put("barrel", Vector3(40.9, 0.07, 15.4), 0.0, 0.75)
+	if _own("g67_urn", Vector3(40.9, 0.07, 15.4), -PI * 0.5, 0.8) == null:
+		_put("barrel", Vector3(40.9, 0.07, 15.4), 0.0, 0.75)
 	_put("bare_tree", Vector3(22.0, 0, 9.5), 0.8, 7.0, false)
 	_solid_box(Vector3(22.0, 1.5, 9.5), Vector3(0.5, 3.0, 0.5))
 	_put("bush", Vector3(23.5, 0, -5.0), 0.0, 1.2, false)
@@ -442,47 +500,65 @@ func _zone_sport() -> void:
 	tm.outer_radius = 3.02
 	tm.rings = 48
 	ring.mesh = tm
-	ring.material_override = m_line
+	ring.material_override = _flat(Color(0.16, 0.3, 0.7), 0.4)
 	ring.scale = Vector3(1, 0.02, 1)
 	ring.position = Vector3((x0 + x1) * 0.5, 0.04, (z0 + z1) * 0.5)
 	add_child(ring)
-	# борта: секции забора по периметру; ворота — с юга, где ковёр
-	var nx := 5
+	# борта: настоящие борта коробки с сеткой (или секции забора, пока модели нет); калитка — с юга, где ковёр
+	var own_board := G67Models.has("g67_court_board")
+	var nx := 6
+	var gate_x := 2.0
 	for i in nx:
-		var xx := x0 + (float(i) + 0.5) * (x1 - x0) / float(nx)
-		_put("fence_section", Vector3(xx, 0, z0), PI * 0.5, 1.9, false, (x1 - x0) / float(nx) / 1.15)
-		if absf(xx - 2.0) > 3.0:
-			_put("fence_section", Vector3(xx, 0, z1), PI * 0.5, 1.9, false, (x1 - x0) / float(nx) / 1.15)
-	var nz := 4
+		var seg := (x1 - x0) / float(nx)
+		var xx := x0 + (float(i) + 0.5) * seg
+		if own_board:
+			_own("g67_court_board", Vector3(xx, 0, z0), PI * 0.5, seg, "d", false)
+			if absf(xx - gate_x) > 2.3:
+				_own("g67_court_board", Vector3(xx, 0, z1), -PI * 0.5, seg, "d", false)
+		else:
+			_put("fence_section", Vector3(xx, 0, z0), PI * 0.5, 1.9, false, seg / 1.15)
+			if absf(xx - gate_x) > 3.0:
+				_put("fence_section", Vector3(xx, 0, z1), PI * 0.5, 1.9, false, seg / 1.15)
+	var nz := 5
 	for i in nz:
-		var zz := z0 + (float(i) + 0.5) * (z1 - z0) / float(nz)
-		_put("fence_section", Vector3(x0, 0, zz), 0.0, 1.9, false, (z1 - z0) / float(nz) / 1.15)
-		_put("fence_section", Vector3(x1, 0, zz), 0.0, 1.9, false, (z1 - z0) / float(nz) / 1.15)
+		var segz := (z1 - z0) / float(nz)
+		var zz := z0 + (float(i) + 0.5) * segz
+		if own_board:
+			_own("g67_court_board", Vector3(x0, 0, zz), 0.0, segz, "d", false)
+			_own("g67_court_board", Vector3(x1, 0, zz), PI, segz, "d", false)
+		else:
+			_put("fence_section", Vector3(x0, 0, zz), 0.0, 1.9, false, segz / 1.15)
+			_put("fence_section", Vector3(x1, 0, zz), 0.0, 1.9, false, segz / 1.15)
+	_own("g67_court_gate", Vector3(gate_x, 0, z1), 0.0, 4.4, "w", false)
 	_solid_box(Vector3((x0 + x1) * 0.5, 1.0, z0), Vector3(x1 - x0, 2.0, 0.3))
 	_solid_box(Vector3(x0, 1.0, (z0 + z1) * 0.5), Vector3(0.3, 2.0, z1 - z0))
 	_solid_box(Vector3(x1, 1.0, (z0 + z1) * 0.5), Vector3(0.3, 2.0, z1 - z0))
-	_solid_box(Vector3((x0 - 0.6 + (-0.6)) * 0.5, 1.0, z1), Vector3(-0.6 - x0, 2.0, 0.3))
-	_solid_box(Vector3((4.6 + x1) * 0.5, 1.0, z1), Vector3(x1 - 4.6, 2.0, 0.3))
+	_solid_box(Vector3((x0 + gate_x - 1.1) * 0.5, 1.0, z1), Vector3(gate_x - 1.1 - x0, 2.0, 0.3))
+	_solid_box(Vector3((gate_x + 1.1 + x1) * 0.5, 1.0, z1), Vector3(x1 - gate_x - 1.1, 2.0, 0.3))
 	# ковровая дорожка авторитета: от ворот к его месту
 	_slab(1.1, -47.0, 2.9, -26.0, 0.045, m_carpet)
-	# «трон»: машина Миши боком к площадке, покрышки и бочки, стенды турнира по обе стороны
-	misha_car = _put("old_car", Vector3(8.2, 0.03, -46.4), PI * 0.5 + 0.25, 1.7)
-	_tint(misha_car, Color(0.25, 0.22, 0.28))
-	_put("res://assets/golda67/g67_poster_stand.glb", Vector3(-2.0, 0.03, -48.3), 0.0, 2.4)
-	_put("res://assets/golda67/g67_poster_stand.glb", Vector3(5.6, 0.03, -48.6), 0.0, 2.2)
-	_put("tire_stack", Vector3(-0.4, 0.03, -47.6), 0.0, 1.0)
-	_put("barrel", Vector3(4.1, 0.03, -47.8), 0.0, 1.0)
-	_sign("МИША МИНАСЯН", Vector3(2.0, 3.3, -49.3), 0.0, Color(0.95, 0.72, 0.2), 0.016, 64)
-	_sign("ГЛАВНЫЙ АВТОРИТЕТ ДВОРА", Vector3(2.0, 2.5, -49.3), 0.0, Color(0.9, 0.85, 0.75), 0.008, 56)
-	_light(Vector3(2.0, 3.0, -47.0), Color(1.0, 0.75, 0.3), 3.0, 9.0)
+	# «трон» авторитета: кожаное кресло на поддонах в конце ковра, рядом — его машина, по бокам стенды турнира
+	if _own("g67_misha_throne", Vector3(2.0, 0.03, -48.0), 0.0, 1.75) == null:
+		_put("tire_stack", Vector3(-0.4, 0.03, -47.6), 0.0, 1.0)
+	misha_car = _own("g67_misha_car", Vector3(8.6, 0.03, -45.6), -0.7, 4.4, "d")
+	if misha_car == null:
+		misha_car = _put("old_car", Vector3(8.2, 0.03, -46.4), PI * 0.5 + 0.25, 1.7)
+		_tint(misha_car, Color(0.25, 0.22, 0.28))
+	_put("res://assets/golda67/g67_poster_stand.glb", Vector3(-2.4, 0.03, -48.4), 0.0, 2.4)
+	_put("res://assets/golda67/g67_poster_stand.glb", Vector3(5.2, 0.03, -48.7), 0.0, 2.2)
+	_put("barrel", Vector3(3.7, 0.03, -47.9), 0.0, 0.9)
+	_sign("МИША МИНАСЯН", Vector3(2.0, 3.6, -49.25), 0.0, Color(0.95, 0.72, 0.2), 0.016, 64)
+	_sign("ГЛАВНЫЙ АВТОРИТЕТ ДВОРА", Vector3(2.0, 2.85, -49.25), 0.0, Color(0.9, 0.85, 0.75), 0.008, 56)
+	_light(Vector3(2.0, 3.0, -46.6), Color(1.0, 0.75, 0.3), 3.0, 9.0)
 	# турник и брусья у западного борта — укрытие и его «качалка»
 	_put("res://assets/golda67/g67_workout_bars.glb", Vector3(-8.0, 0.03, -43.5), 0.2, 2.7)
 	_put("res://assets/golda67/g67_workout_bars.glb", Vector3(12.2, 0.03, -33.0), PI * 0.5, 2.5)
 	_put("tire_stack", Vector3(-8.6, 0.03, -31.5), 0.6, 1.0)
-	# прожекторы по углам — свет на площадку, длинные тени
-	for c in [Vector3(x0 - 0.6, 0, z0 - 0.6), Vector3(x1 + 0.6, 0, z0 - 0.6), Vector3(x0 - 0.6, 0, z1 + 0.6), Vector3(x1 + 0.6, 0, z1 + 0.6)]:
-		_put("street_lamp", c, 0.0, 7.5, false)
-		_solid_box(c + Vector3(0, 1.5, 0), Vector3(0.3, 3.0, 0.3))
+	# мачты с прожекторами по углам — свет на лёд, длинные тени
+	for c in [Vector3(x0 - 0.9, 0, z0 - 0.9), Vector3(x1 + 0.9, 0, z0 - 0.9), Vector3(x0 - 0.9, 0, z1 + 0.9), Vector3(x1 + 0.9, 0, z1 + 0.9)]:
+		if _own("g67_floodlight_mast", c, atan2(2.0 - c.x, -38.0 - c.z), 8.6, "h", false) == null:
+			_put("street_lamp", c, 0.0, 7.5, false)
+		_solid_box(c + Vector3(0, 1.5, 0), Vector3(0.5, 3.0, 0.5))
 	_light(Vector3(x0 + 3.0, 7.0, z0 + 3.0), Color(1.0, 0.93, 0.8), 4.2, 24.0, true)
 	_light(Vector3(x1 - 3.0, 7.0, z1 - 3.0), Color(1.0, 0.9, 0.75), 3.6, 24.0)
 	_light(Vector3(x1 - 3.0, 7.0, z0 + 3.0), Color(0.95, 0.9, 1.0), 2.4, 20.0)

@@ -416,6 +416,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 		if is_instance_valid(e):
 			skins.append(String(e.skin))
 	ok(not skins.is_empty() and skins.all(func(x): return String(x).begins_with("g67_")), "враги двора — модели приквела (%s)" % ", ".join(skins))
+	ok(G.world.bounds != null and G.world.bounds.get_child_count() > 20, "на время боя площадка огорожена видимыми ограждениями (%d частей)" % (G.world.bounds.get_child_count() if G.world.bounds != null else 0))
 	await wait(1.5)
 	await shot("20_dvor_fight")
 	# обзор двора сверху и с крыш — планировка целиком (своя камера, игровую не трогаем)
@@ -476,12 +477,30 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(String(G.krot_next().get("id", "")) == "krot2", "следующая встреча — вторая (ЛЮСТРА, в подъезде)")
 	ok(int(G.run["golda"]) > 0 and int(G.run["respect"]) > 0, "за комнату дали голду (%d) и РЕСПЕКТ (%d)" % [int(G.run["golda"]), int(G.run["respect"])])
 	ok(G.room_state == "open" and G.world.gates.size() == 2, "после боя открылись две двери на выбор (%d)" % G.world.gates.size())
-	await wait(0.6)
-	P.global_position = Vector3(0, 0.05, -6.0)
+	ok(G.world.bounds == null or not is_instance_valid(G.world.bounds), "после боя ограждения убраны — двор свободен")
+	# ворота стоят у входов в следующие зоны: идём к ним по двору настоящими клавишами
+	var gp: Vector3 = G.point("gate1")["pos"]
+	var d0: float = P.global_position.distance_to(gp)
+	ok(d0 > 6.0, "до ворот нужно дойти (%.0f м)" % d0)
+	P.global_position = Vector3(6.0, 0.05, 0)      # мимо ворот площадки, которые стоят прямо по тропинке
 	P.face = 0.0
 	g.cam_yaw = 0.0
-	await wait(0.8)
+	await wait(0.5)
 	await shot("21_gates")
+	var e3 := InputEventKey.new()
+	e3.keycode = KEY_W
+	e3.physical_keycode = KEY_W
+	e3.pressed = true
+	Input.parse_input_event(e3)
+	await wait(6.5)
+	e3 = InputEventKey.new()
+	e3.keycode = KEY_W
+	e3.physical_keycode = KEY_W
+	e3.pressed = false
+	Input.parse_input_event(e3)
+	await wait(0.3)
+	ok(P.global_position.z < -G67Yard.HALF - 1.0, "за пределы бывшей зоны боя можно выйти (z = %.1f)" % P.global_position.z)
+	await shot("21b_free_walk")
 	# дверь ФИТС
 	await _go(G, P, "gate1")
 	var in_fit: bool = await until(func(): return String(G.room.get("type", "")) == "fit" and g.panel != null, 8.0)
@@ -569,11 +588,66 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await wait(1.2)
 	ok(String(P.style.id) == "bottles", "клавиша 2 включает Водяру")
 	await shot("28_hub_after")
+	# КРОТ — встреча 2 «ЛЮСТРА»: стоит в холле подъезда с люстрой в руках
+	if G67Models.has("g67_chandelier"):
+		ok(G.world.actors.has("g67_krot") and G.world.get_node_or_null("krot_item") != null, "КРОТ стоит в подъезде с люстрой (встреча 2)")
+		var k2: Vector3 = G.world.actors["g67_krot"].global_position
+		var oc3 := Camera3D.new()
+		g.add_child(oc3)
+		oc3.global_position = k2 + Vector3(2.3, 1.25, -1.6)
+		oc3.look_at(k2 + Vector3(0, 0.8, 0), Vector3.UP)
+		oc3.make_current()
+		await wait(0.6)
+		await shot("40_krot_chandelier")
+		g.cam.make_current()
+		oc3.queue_free()
+		await _go(G, P, "krot")
+		ok(g.mode == "dlg" and g.dlg == G67Data.KROT[1]["lines"] and String(g.dlg[3]) == "KR|Она на меня странно смотрела.", "диалог «ЛЮСТРА» — дословно по ТЗ")
+		for i in 14:
+			if g.mode != "dlg":
+				break
+			g._dlg_advance()
+			await wait(0.15)
+		ok((G.meta()["seen"] as Array).has("krot2") and G.world.get_node_or_null("krot_item") == null, "встреча 2 засчитана, КРОТ ушёл с люстрой")
+		ok(G.flurr_state() == 2, "DJ FLÜRR теперь в состоянии 2 (подсказка на голубей)")
+	else:
+		print("GOLDA67CHECK   модели люстры нет — встреча 2 ждёт")
 	# ================= гибель в забеге =================
 	var r0: int = int(G.meta()["respect"])
 	await _go(G, P, "exit")
 	ok(await until(func(): return G.place == "run" and G.room_state == "fight", 8.0), "второй забег начался")
 	ok(G.fit_lv("heavy_hand") == 0 and absf(P.dmg_mul - 1.0) < 0.001 and int(G.run["golda"]) == 0, "фитсы и голда прошлого забега не перенеслись")
+	# КРОТ — встреча 3 «ГОЛУБИНОЕ ПРАВИТЕЛЬСТВО»: на детской площадке, с голубями
+	if G67Models.has("g67_pigeon") and (G.meta()["seen"] as Array).has("krot2"):
+		ok(await _clear_room(g, G), "второй забег: первая комната зачищена")
+		await _go(G, P, "gate1")
+		ok(await until(func(): return String(G.room.get("place", "")) == "playground" and g.panel != null, 8.0), "дверь ведёт на детскую площадку")
+		G.take_fit(G.fit_options(false)[0])
+		var pig := 0
+		for ch in G.world.get_children():
+			if String(ch.name).begins_with("krot_pigeon"):
+				pig += 1
+		ok(G.world.actors.has("g67_krot") and pig == 5, "КРОТ на площадке среди голубей (%d)" % pig)
+		var k3: Vector3 = G.world.actors["g67_krot"].global_position
+		var oc4 := Camera3D.new()
+		g.add_child(oc4)
+		oc4.global_position = k3 + Vector3(2.4, 1.2, 2.8)
+		oc4.look_at(k3 + Vector3(0, 0.6, 0), Vector3.UP)
+		oc4.make_current()
+		await wait(0.6)
+		await shot("41_krot_pigeons")
+		g.cam.make_current()
+		oc4.queue_free()
+		await _go(G, P, "krot")
+		ok(g.mode == "dlg" and g.dlg == G67Data.KROT[2]["lines"] and String(g.dlg[2]).contains("голубь справа"), "диалог «ГОЛУБИНОЕ ПРАВИТЕЛЬСТВО» — дословно по ТЗ")
+		for i in 14:
+			if g.mode != "dlg":
+				break
+			g._dlg_advance()
+			await wait(0.15)
+		ok((G.meta()["seen"] as Array).has("krot3") and G.krot_next().is_empty(), "встреча 3 засчитана; следующие встречи — в районах, которых ещё нет")
+		await _go(G, P, "gate0")
+		await until(func(): return G.room_state == "fight", 8.0)
 	await until(func(): return G.alive() >= 1, 8.0)
 	_kill_all(g)
 	await wait(0.3)

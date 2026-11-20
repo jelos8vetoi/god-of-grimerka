@@ -120,6 +120,25 @@ static func sit(rig: Rig, seat: float) -> void:
 	rig.position.y += seat + 0.06 - hip_h
 	rig.set_meta("sitting", true)
 
+## Поза «держит перед собой»: руки подняты вперёд (КРОТ с люстрой). Берётся поза покоя и замирает.
+static func hold(rig: Rig) -> void:
+	if rig == null or rig.skel == null:
+		return
+	for i in 3:
+		await rig.get_tree().process_frame
+	if not is_instance_valid(rig) or rig.player == null:
+		return
+	rig.player.pause()
+	var sk: Skeleton3D = rig.skel
+	for side in ["Left", "Right"]:
+		for part in [["%sArm", -62.0], ["%sForeArm", -38.0]]:
+			var b := sk.find_bone("mixamorig_" + (String(part[0]) % side))
+			if b < 0:
+				continue
+			var g := sk.get_bone_global_pose(b)
+			g.basis = Basis(Vector3(1, 0, 0), deg_to_rad(float(part[1]))) * g.basis
+			sk.set_bone_global_pose(b, g)
+
 ## Цепь Миши Минасяна на его риге: файл цепи записан в «единицах модели» (1 = наибольшая сторона, начало — центр
 ## основания, tools/golda67-chain.cjs). Вешается на кость груди и идёт за анимацией.
 static func misha_chain(rig: Rig) -> Node3D:
