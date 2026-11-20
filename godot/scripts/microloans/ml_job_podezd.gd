@@ -411,7 +411,19 @@ func _hose_path_len() -> float:
 	return s
 
 ## шланг: цепочка точек (верле), огибает мебель; обмотался — путается
+## Шланг считается постоянным шагом HOSE_H (как провод наушников): раньше затухание и проходы ограничений шли «раз в
+## кадр», и при 60 кадрах в секунду шланг успокаивался медленнее и путался чаще, чем при 144.
+const HOSE_H := 1.0 / 120.0
+var hose_acc := 0.0
+
 func _hose(dt: float) -> void:
+	hose_acc = minf(hose_acc + dt, HOSE_H * 8.0)
+	while hose_acc >= HOSE_H:
+		hose_acc -= HOSE_H
+		_hose_step(HOSE_H)
+	_hose_check()
+
+func _hose_step(dt: float) -> void:
 	var n := hose_pts.size()
 	var seg := hose_len / float(n - 1)
 	for k in range(1, n - 1):
@@ -453,6 +465,8 @@ func _hose(dt: float) -> void:
 					if it == 3:
 						contacts += 1
 			hose_pts[k] = p
+
+func _hose_check() -> void:
 	# запутался: шланг вытянут почти на всю длину и обмотан вокруг мебели (касается её в нескольких точках)
 	var path := _hose_path_len()
 	var need_contacts := 3 + int(cv("tyaga_tangle") * -5.0)

@@ -222,7 +222,11 @@ func _run() -> void:
 	await wait(0.1)
 	var fe = g.enemies.back()
 	ok(fe != null and fe.kind == "clipper" and not fe.train_guard, "«СОЗДАТЬ ВРАГА» — обычный враг выбранного вида")
-	await wait(1.3)
+	# ждём, пока враг появится (после гибели босса идёт замедление, и появление растягивается)
+	var tw0 := GameClock.ms()
+	while fe != null and is_instance_valid(fe) and not fe.alive() and GameClock.ms() - tw0 < 6000:
+		await get_tree().process_frame
+	await wait(0.1)
 	var xp0: int = g.xp
 	fe.take_hit(99999.0, Vector3(0, 0, -1), 2.0, true, 0.0)
 	await wait(0.2)

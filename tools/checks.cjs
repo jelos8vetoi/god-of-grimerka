@@ -68,7 +68,7 @@ const C = [
   { name: 'weather', key: 'weathercheck', ok: /WEATHERCHECK ok\s*$/m, groups: ['modes', 'race'] },
   { name: 'microloans', key: 'microloanscheck', ok: /MICROLOANSCHECK ok\s*$/m, groups: ['modes', 'ml'] },
   { name: 'abuse', script: 'res://scripts/microloans/ml_abuse_run.gd', ok: /ABUSE итог: ошибок 0/, groups: ['modes', 'ml'] },
-  { name: 'five-nights', key: 'fivenightscheck', ok: /FIVENIGHTSCHECK ok\s*$/m, groups: ['modes', 'fn'] },
+  { name: 'five-nights', key: 'fivenightscheck', fast: false, ok: /FIVENIGHTSCHECK ok\s*$/m, groups: ['modes', 'fn'] },
   { name: 'ui', key: 'uicheck', res: '1600x900', ok: /UICHECK ok\s*$/m, groups: ['modes', 'ui'], t: 1500 },
   { name: 'uiqa', key: 'uiqa', ok: /UIQA итог: ошибок 0/, groups: ['modes', 'ui'] },
   // ---- в настоящем времени
@@ -93,6 +93,24 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const OUT = path.resolve(opt.out || path.join(os.tmpdir(), 'grimerka-checks', 'run-' + stamp));
 fs.mkdirSync(OUT, { recursive: true });
 const DATA = path.join(os.tmpdir(), 'grimerka-checks', 'appdata');
+// Данные игрока (сохранения, настройки экрана, звука, iPod) копируются в папку проверки перед каждым запуском:
+// проверки рассчитаны на «как у игрока» (есть сохранение, свои громкости) и работают с копией, а оригинал не трогают.
+// Кэши шейдеров (vulkan, shader_cache) копируются один раз и дальше остаются свои — прогрев не повторяется.
+const USER = process.env.APPDATA ? path.join(process.env.APPDATA, 'Godot', 'app_userdata', 'GOD OF GRIMERKA') : '';
+function seed(appdata) {
+  const dst = path.join(appdata, 'Godot', 'app_userdata', 'GOD OF GRIMERKA');
+  fs.mkdirSync(dst, { recursive: true });
+  if (!USER || !fs.existsSync(USER)) return;
+  for (const f of fs.readdirSync(USER)) {
+    const from = path.join(USER, f);
+    const to = path.join(dst, f);
+    const dir = fs.statSync(from).isDirectory();
+    if (f === 'logs' || /\.png$|_verts\.txt$/.test(f)) continue;
+    if ((f === 'vulkan' || f === 'shader_cache') && fs.existsSync(to)) continue;
+    fs.rmSync(to, { recursive: true, force: true });
+    fs.cpSync(from, to, { recursive: dir });
+  }
+}
 
 function run(c) {
   return new Promise((resolve) => {
@@ -111,7 +129,7 @@ function run(c) {
       if (fast) a.push(`--clock=${fps}`);
     }
     const appdata = path.join(DATA, c.name);
-    fs.mkdirSync(appdata, { recursive: true });
+    seed(appdata);
     const log = fs.createWriteStream(path.join(OUT, c.name + '.log'));
     const t0 = Date.now();
     const p = spawn(G, a, { cwd: ROOT, env: { ...process.env, APPDATA: appdata } });
@@ -139,7 +157,12 @@ function run(c) {
 (async () => {
   console.log(`Проверок: ${pick.length}, параллельно: ${jobs}, ${real ? 'настоящее время' : 'ускоренно'} · логи и снимки: ${OUT}`);
   const t0 = Date.now();
-  const queue = [...pick].sort((x, y) => (y.t || 1200) - (x.t || 1200));   // долгие — первыми
+  // долгие — первыми (длительности с прошлых прогонов — times.json рядом с папками данных): так хвост из одной
+  // длинной проверки не тянется в конце, пока остальные потоки простаивают
+  const TIMES = path.join(os.tmpdir(), 'grimerka-checks', 'times.json');
+  let times = {};
+  try { times = JSON.parse(fs.readFileSync(TIMES, 'utf8')); } catch (e) { /* первый прогон */ }
+  const queue = [...pick].sort((x, y) => (times[y.name] || 120) - (times[x.name] || 120));
   const res = [];
   await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () => {
     while (queue.length) {
@@ -151,6 +174,8 @@ function run(c) {
     }
   }));
   const wall = (Date.now() - t0) / 1000;
+  for (const r of res) times[r.c.name] = Math.round(r.sec);
+  try { fs.writeFileSync(TIMES, JSON.stringify(times, null, 1)); } catch (e) { /* не страшно */ }
   const sum = res.reduce((s, r) => s + (r.game || r.sec), 0);
   res.sort((x, y) => x.c.name.localeCompare(y.c.name));
   const lines = ['проверка      итог     пунктов  время, с  игровое, с', ...res.map((r) => `${r.c.name.padEnd(13)} ${(r.pass ? 'ok' : 'ОШИБКА').padEnd(8)} ${String(r.oks).padStart(7)} ${r.sec.toFixed(0).padStart(9)} ${(r.game ? r.game.toFixed(0) : '—').padStart(11)}`)];

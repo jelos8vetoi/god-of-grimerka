@@ -78,6 +78,7 @@ func pause_case(tag: String) -> void:
 	var g = main.game
 	var pm = g.pause_panel
 	var cam0: Transform3D = g.cam.global_transform
+	var pl0: Vector3 = g.player.global_position
 	var fov0: float = g.cam.fov
 	await key(KEY_ESCAPE)
 	var p0 := snap_pose()
@@ -100,7 +101,10 @@ func pause_case(tag: String) -> void:
 	while get_tree().paused and GameClock.ms() - t0 < 2000:
 		await get_tree().process_frame
 	ok(not get_tree().paused and pm.state == "closed", "%s: игра продолжается" % tag)
-	var back_ok: bool = g.cam.global_position.distance_to(cam0.origin) < 0.05 and absf(g.cam.fov - fov0) < 0.5 and g.cam.h_offset == pm.cam_h
+	# на бегу и в перекате герой после снятия паузы сразу делает шаг, и камера едет за ним: допуск — 5 см плюс то,
+	# на сколько успел сместиться сам герой (раньше проверка проходила, только если успевала до этого кадра)
+	var moved: float = g.player.global_position.distance_to(pl0)
+	var back_ok: bool = g.cam.global_position.distance_to(cam0.origin) < 0.05 + moved and absf(g.cam.fov - fov0) < 0.5 and g.cam.h_offset == pm.cam_h
 	ok(back_ok, "%s: камера вернулась на прежнее место (%.3f м)" % [tag, g.cam.global_position.distance_to(cam0.origin)])
 	ok(g.hud_root.visible, "%s: HUD вернулся" % tag)
 	var p1 := snap_pose()
