@@ -515,6 +515,7 @@ func start_golda67() -> void:
 	game.golda = g67
 	game.add_child(g67)
 	g67.setup(game)
+	g67.auto_clips = golda67check == ""      # проверка показывает ролики в своём разделе, а не по ходу
 	game._apply_upgrades()
 	await g67.begin()
 

@@ -20,6 +20,20 @@ const SPEAKERS := {
 	"KR": {"char": "krot", "name": "КРОТ", "folder": "Krot", "tag": "KROT"},
 	"DJ": {"char": "dj_flurr", "name": "DJ FLÜRR", "folder": "DJ_Flurr", "tag": "DJFLURR"},
 	"G1": {"char": "misha", "name": "Миша Минасян", "folder": "Bosses", "tag": "MISHA"},
+	# ролики главы 1 (G67Clips)
+	"M": {"char": "madk1d", "name": "madk1d", "folder": "Madk1d", "tag": "MADK1D"},
+	"AN": {"char": "news_anchor", "name": "Ведущий новостей", "folder": "NPC", "tag": "ANCHOR"},
+	"PH": {"char": "podcast_host", "name": "Ведущий подкаста", "folder": "NPC", "tag": "HOST"},
+	"WH": {"char": "whyousolonely", "name": "WHYOUSOLONELY", "folder": "NPC", "tag": "WHY"},
+	"FT": {"char": "fortuna812", "name": "FORTUNA 812", "folder": "Bosses", "tag": "FORTUNA"},
+	"KX": {"char": "korolevsky", "name": "Королевский XVII", "folder": "Bosses", "tag": "KOROLEVSKY"},
+	"BS": {"char": "busterenko", "name": "Полковник Бустеренко", "folder": "Bosses", "tag": "BUSTERENKO"},
+}
+## Подача реплик в роликах: [эмоция, темп] по коду говорящего
+const CLIP_DIR := {
+	"G1": ["пафосно, как в рекламе, неторопливо", 0.92], "V": ["раздражённо, коротко", 1.0], "M": ["восторженно, быстро", 1.05],
+	"AN": ["максимально серьёзно, как в новостях", 0.95], "PH": ["бодро, по-подкастерски", 1.0], "WH": ["ровно и спокойно, без эмоций", 0.9],
+	"FT": ["как ведущий телемагазина", 1.05], "KX": ["снисходительно, по-блогерски", 1.0], "BS": ["по-военному, твёрдо", 0.95], "KR": ["абсолютно серьёзно", 0.92],
 }
 ## Боевые выкрики Пахана, которые доходят до приквела (остальные виды — только кампания: глава, босс кампании, гибель)
 const BARK_KINDS := ["heat", "rage", "parry", "hurt", "finish"]
@@ -99,6 +113,14 @@ static func chapter1_lines() -> Array:
 	for i in barks.size():
 		if String(barks[i]) != "":
 			out.append(_mk("misha_phase%d" % (i + 1), 0, "G1|" + String(barks[i]), "Миша переходит в фазу %d" % (i + 1), "самодовольно, с вызовом" if i == 1 else "хладнокровно, давит", 0.92))
+	# --- ролики главы 1 (реплики — G67Clips.LINES, дословно по ТЗ)
+	for cid in G67Clips.ORDER:
+		var cl: Array = G67Clips.LINES.get(cid, [])
+		for i in cl.size():
+			var ln := String(cl[i])
+			var code := ln.get_slice("|", 0)
+			var dr: Array = CLIP_DIR.get(code, ["естественно", 1.0])
+			out.append(_mk("clip_" + cid, i, ln, "ролик %s «%s»" % [cid, G67Clips.title(cid)], _emo(ln, String(dr[0])), float(dr[1])))
 	# --- боевые выкрики Пахана в приквеле
 	var bj = JSON.parse_string(FileAccess.get_file_as_string("res://data/barks.json"))
 	if bj is Dictionary:

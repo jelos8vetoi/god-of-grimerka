@@ -24,6 +24,48 @@
 			"id": "d3dddb2a",
 			"voice_name": "ПАШОК",
 			"status": "found"
+		},
+		"AN": {
+			"character": "Ведущий новостей",
+			"id": "preset:narrator",
+			"voice_name": "пресет Narrator (Voice Studio Pro)",
+			"status": "found"
+		},
+		"BS": {
+			"character": "Полковник Бустеренко",
+			"id": "81c90e8e",
+			"voice_name": "Полковник Бустеренко",
+			"status": "found"
+		},
+		"FT": {
+			"character": "FORTUNA 812",
+			"id": "c60ed931",
+			"voice_name": "FORTUNA 812",
+			"status": "found"
+		},
+		"KX": {
+			"character": "Королевский XVII",
+			"id": "477ec948",
+			"voice_name": "королевский",
+			"status": "found"
+		},
+		"M": {
+			"character": "madk1d",
+			"id": "fish:FISH_REF_M",
+			"voice_name": "madk1d (Fish Audio, голос из игры)",
+			"status": "found"
+		},
+		"PH": {
+			"character": "Ведущий подкаста",
+			"id": "preset:casual",
+			"voice_name": "пресет Casual (Voice Studio Pro)",
+			"status": "found"
+		},
+		"WH": {
+			"character": "WHYOUSOLONELY",
+			"id": "dfcf8831",
+			"voice_name": "WHYOUSOLONELY",
+			"status": "found"
 		}
 	}
 }

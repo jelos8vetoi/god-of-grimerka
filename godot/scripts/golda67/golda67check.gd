@@ -219,7 +219,15 @@ func _run() -> void:
 	var n0 := G.events.size()
 	await key(KEY_E)
 	await wait(0.3)
-	ok(G.events.size() > n0 and G.events[-1] == ["use", "tv"], "клавиша E у телевизора срабатывает")
+	ok(G.events.slice(n0).has(["use", "tv"]), "клавиша E у телевизора срабатывает")
+	ok(G.clip != null and G.clip.id == "V00", "у телевизора впервые — трейлер «ТУРНИР 67»")
+	if G.clip != null:
+		G.clip.skippable = true          # трейлер подробно проверяет раздел роликов; здесь — только запуск
+		G.clip.skip()
+	await until(func(): return G.clip == null, 2.0)
+	var cs: Array = G.meta().get("clips_seen", [])
+	cs.erase("V00")                      # раздел роликов покажет его как впервые
+	G.meta()["clips_seen"] = cs
 	P.global_position = Vector3(-1.0, 0.05, 3.1)
 	await wait(0.3)
 	ok(G.near == "" and not G.prompt.visible, "вдали от предметов подсказки нет")
@@ -246,6 +254,7 @@ func _run() -> void:
 	# ================= dj flürr: одиннадцать состояний =================
 	await _madk_check(g, G, P)
 	await _voice_check(g, G, P)
+	await _clip_check(g, G, P)
 	await _flurr_check(g, G, P)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
@@ -567,6 +576,63 @@ func _voice_check(g, G: Golda67, P) -> void:
 	ok(g.mode == "dlg" and String(g.dlg_text.text).contains("Этой реплики нет") and not g.voice.playing, "реплика без голоса показывается текстом, без ошибок")
 	g._dlg_finish()
 	await wait(0.1)
+
+## Ролики главы 1: каждый целиком (снимки каждые 2 с), голоса, субтитры, без пропуска при первом показе,
+## пропуск при повторе, архив и телевизор в подъезде
+func _clip_check(g, G: Golda67, P) -> void:
+	ok(not G.auto_clips, "в проверке ролики не запускаются сами по ходу игры")
+	ok(G.clip_open("V00"), "трейлер V00 открыт с первого входа (телевизор в подъезде)")
+	var all_ok := true
+	for cid in G67Clips.ORDER:
+		var t0 := GameClock.ms()
+		var voiced := false
+		var subs := false
+		G.play_clip(cid)
+		await wait(0.2)
+		if G.clip == null:
+			all_ok = false
+			print("GOLDA67CHECK   ролик %s не открылся" % cid)
+			continue
+		ok(G.scene_busy() and g.intro_busy(), "%s: пока идёт ролик, управление закрыто" % cid) if cid == "STORY01" else null
+		if cid == "STORY01":
+			await key(KEY_ENTER)
+			await wait(0.3)
+			ok(G.clip != null and not G.clip.skipped, "первый показ нельзя пропустить (Enter не действует)")
+		var n := 0
+		var next_shot := 0.6
+		while G.clip != null and GameClock.ms() - t0 < 60000:
+			var el := (GameClock.ms() - t0) / 1000.0
+			if G.clip.voice.playing:
+				voiced = true
+			if G.clip.sub_text.text != "":
+				subs = true
+			if el >= next_shot:
+				await shot("c_%s_%02d" % [cid, n])
+				n += 1
+				next_shot += 2.0
+			await get_tree().process_frame
+		var dur := (GameClock.ms() - t0) / 1000.0
+		var needs_voice: bool = (G67Clips.LINES.get(cid, []) as Array).size() > 0
+		var good: bool = G.clip == null and dur > 5.0 and dur < 40.0 and (voiced or not needs_voice) and subs
+		print("GOLDA67CHECK   ролик %s: %.1f с, голос %s, субтитры %s, кадров %d" % [cid, dur, str(voiced), str(subs), n])
+		if not good:
+			all_ok = false
+		await wait(0.2)
+	ok(all_ok, "все %d роликов главы 1 проигрываются целиком, с голосами и субтитрами" % G67Clips.ORDER.size())
+	ok(G67Clips.ORDER.all(func(cid): return G.clip_seen(cid) and G.clip_open(cid)), "просмотренные ролики отмечены и лежат в архиве")
+	# повтор: пропуск разрешён
+	G.play_clip("STORY01")
+	await wait(0.5)
+	ok(G.clip != null and G.clip.skippable, "повторный показ можно пропустить")
+	await key(KEY_ENTER)
+	ok(await until(func(): return G.clip == null, 2.0), "Enter пропускает уже просмотренный ролик")
+	# телевизор: список открытых роликов
+	G.tv()
+	await wait(0.3)
+	ok(G.clip_menu != null, "телевизор в подъезде открывает архив роликов")
+	await shot("c_tv_menu")
+	G._tv_close()
+	await wait(0.2)
 
 ## Поставить Мишу и героя и запустить приём (сам он в это время ничего не выбирает)
 func _misha_set(B, P, move: String, ppos: Vector3, bpos := Vector3(0, 0.05, -2.0)) -> void:

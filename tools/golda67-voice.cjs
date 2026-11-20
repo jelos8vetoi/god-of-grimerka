@@ -6,6 +6,7 @@
 //   node tools/golda67-voice.cjs --only=KROT — только один персонаж (тег из G67Voice.SPEAKERS)
 //   node tools/golda67-voice.cjs --docs     — пересобрать документы по манифесту (список реплик, модели, отчёт)
 //   node tools/golda67-voice.cjs --retrim   — переобрезать тишину у готовых файлов (без новой генерации)
+//   node tools/golda67-voice.cjs --dehum=G1 — срезать «хм» перед фразой у персонажа (код говорящего)
 //
 // Идемпотентно: готовые реплики не трогаются. Новая реплика — в очередь; изменился текст — новая реплика (старая
 // помечается obsolete, её файл остаётся); сменилась модель персонажа — перегенерируются только его реплики.
@@ -24,6 +25,17 @@ const args = process.argv.slice(2);
 const ONLY = (args.find(a => a.startsWith('--only=')) || '').slice(7).toUpperCase();
 const PLAN = args.includes('--plan'), RETRY = args.includes('--retry'), DOCS = args.includes('--docs'), RETRIM = args.includes('--retrim');
 const DOCDIR = path.join(ROOT, 'godot/docs/golda67');
+// ключи Fish Audio для madk1d — из .env основной папки или окружения; в вывод не попадают
+(function loadEnv() {
+  for (const f of [path.join(ROOT, '.env'), path.join(ROOT, '..', 'GOD OF CLOUD', '.env')]) {
+    try {
+      for (const ln of fs.readFileSync(f, 'utf8').split('\n')) {
+        const m = /^(FISH_KEY|FISH_REF_M|FISH_MODEL)=(.*)$/.exec(ln.trim());
+        if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
+      }
+    } catch (e) {}
+  }
+})();
 const STEPS = 32;                       // качество диффузии (8 — черновик, 32 — качество)
 const MATCH_OK = 0.62;                  // сходство распознанного текста с исходным, чтобы считать реплику проверенной
 
@@ -113,6 +125,52 @@ function polish(w) {
   for (let i = 0; i < f && i < t.length; i++) { t[i] *= i / f; t[t.length - 1 - i] *= i / f; }
   return { rate, s: t, dur: t.length / rate, speech_db: speech ? 20 * Math.log10(speech * g) : -99, cut_ms: Math.round(a / rate * 1000) };
 }
+// «хм» перед фразой (у модели Миши): короткий звук ≤ 280 мс в самом начале, за ним пауза ≥ 70 мс — срезается до
+// начала следующего звука (минус 25 мс). Возвращает срезанные мс или 0.
+function dehum(e) {
+  if (e.check && e.check.dehum_ms) return -1;            // уже очищено — второй раз не резать
+  const dst = path.join(ROOT, 'godot', e.path.replace('res://', ''));
+  if (!fs.existsSync(dst)) return 0;
+  const r = cp.spawnSync(ffmpeg(), ['-loglevel', 'error', '-i', dst, '-f', 's16le', '-ac', '1', '-ar', '24000', '-'], { maxBuffer: 1 << 28 });
+  if (r.status !== 0) return 0;
+  const n = r.stdout.length / 2, sm = new Float32Array(n);
+  for (let i = 0; i < n; i++) sm[i] = r.stdout.readInt16LE(i * 2) / 32768;
+  const win = 240, env = [];
+  for (let i = 0; i < n; i += win) { let a = 0; for (let k = i; k < Math.min(n, i + win); k++) a += sm[k] * sm[k]; env.push(Math.sqrt(a / win)); }
+  const pk = Math.max(...env);
+  const segs = []; let on = -1, gap = 0;
+  for (let i = 0; i < env.length; i++) {
+    if (env[i] >= pk * 0.1) { if (on < 0) on = i; gap = 0; }
+    else if (on >= 0) { gap++; if (gap >= 6) { segs.push([on, i - gap + 1]); on = -1; gap = 0; } }
+  }
+  if (on >= 0) segs.push([on, env.length]);
+  let cut = -1;
+  if (segs.length >= 2 && segs[0][1] - segs[0][0] <= 28 && segs[1][0] - segs[0][1] >= 7) cut = Math.max(0, segs[1][0] * win - 600);
+  else {
+    // второй случай: громкий короткий звук (≤ 220 мс) в начале, сразу за ним тише — по порогу 25 % пика
+    const s2 = []; let o2 = -1, g2 = 0;
+    for (let i = 0; i < env.length; i++) {
+      if (env[i] >= pk * 0.25) { if (o2 < 0) o2 = i; g2 = 0; }
+      else if (o2 >= 0) { g2++; if (g2 >= 3) { s2.push([o2, i - g2 + 1]); o2 = -1; g2 = 0; } }
+    }
+    if (o2 >= 0) s2.push([o2, env.length]);
+    if (s2.length >= 2 && s2[0][0] <= 15 && s2[0][1] - s2[0][0] <= 22 && s2[1][0] - s2[0][1] >= 3) cut = (s2[0][1] + 1) * win;
+  }
+  if (cut < 0) return 0;
+  const t0 = sm.slice(cut);
+  const f = 240;
+  for (let i = 0; i < f && i < t0.length; i++) t0[i] *= i / f;
+  const t = polish({ rate: 24000, s: t0 }).s;            // без «хм» пик ниже — громкость заново
+  const tmp = path.join(TMP, e.id + '_dh.wav');
+  fs.mkdirSync(TMP, { recursive: true });
+  fs.writeFileSync(tmp, writeWav(24000, t));
+  const r2 = cp.spawnSync(ffmpeg(), ['-y', '-loglevel', 'error', '-i', tmp, '-c:a', 'libvorbis', '-q:a', '6', '-ac', '1', dst], { encoding: 'utf8' });
+  fs.rmSync(tmp, { force: true });
+  if (r2.status !== 0) return 0;
+  const ms = Math.round(cut / 24);
+  e.check = Object.assign({}, e.check, { duration_s: +(t.length / 24000).toFixed(2), bytes: fs.statSync(dst).size, dehum_ms: ms });
+  return ms;
+}
 // уже готовый .ogg: раскодировать, переобрезать, закодировать обратно (без новой генерации)
 function retrim(e) {
   const dst = path.join(ROOT, 'godot', e.path.replace('res://', ''));
@@ -130,6 +188,23 @@ function retrim(e) {
   if (r2.status !== 0) return false;
   e.check = Object.assign({}, e.check, { duration_s: +p.dur.toFixed(2), bytes: fs.statSync(dst).size, trim: `${LEAD_MS}/${TAIL_MS}` });
   return p.cut_ms;
+}
+// madk1d: Fish Audio (тот же голос, что в кампании), mp3 → PCM 24 кГц через ffmpeg
+async function fishWav(text) {
+  const r = await fetch('https://api.fish.audio/v1/tts', { method: 'POST',
+    headers: { Authorization: 'Bearer ' + process.env.FISH_KEY, 'Content-Type': 'application/json', model: process.env.FISH_MODEL || 's1' },
+    body: JSON.stringify({ text, reference_id: process.env.FISH_REF_M, format: 'mp3', mp3_bitrate: 128, normalize: true, latency: 'normal' }) });
+  if (!r.ok) throw new Error('Fish Audio: HTTP ' + r.status);
+  const mp3 = Buffer.from(await r.arrayBuffer());
+  fs.mkdirSync(TMP, { recursive: true });
+  const tmp = path.join(TMP, 'fish_' + Date.now() + '.mp3');
+  fs.writeFileSync(tmp, mp3);
+  const d = cp.spawnSync(ffmpeg(), ['-loglevel', 'error', '-i', tmp, '-f', 's16le', '-ac', '1', '-ar', '24000', '-'], { maxBuffer: 1 << 28 });
+  fs.rmSync(tmp, { force: true });
+  if (d.status !== 0) throw new Error('mp3 не раскодирован');
+  const n = d.stdout.length / 2, s = new Float32Array(n);
+  for (let i = 0; i < n; i++) s[i] = d.stdout.readInt16LE(i * 2) / 32768;
+  return { rate: 24000, s };
 }
 function ffmpeg() {
   const base = path.join(process.env.APPDATA || '', 'VoiceStudioPro', 'media_tools');
@@ -188,7 +263,11 @@ function merge(man, exp) {
 }
 
 // ---------------------------------------------------------------- модели
-const NAME_HINTS = { V: /паш|пахан|pahan/i, KR: /крот|krot/i, DJ: /flurr|flürr|флюр/i, G1: /миша|misha|минасян/i };
+const NAME_HINTS = { V: /паш|пахан|pahan/i, KR: /крот|krot/i, DJ: /flurr|flürr|флюр/i, G1: /миша|misha|минасян/i,
+  WH: /whyousolonely/i, FT: /fortuna/i, KX: /королев|korolev/i, BS: /бустер|buster/i };
+// голоса не из моделей владельца: ведущие — встроенные пресеты Voice Studio Pro (решение владельца), madk1d — Fish Audio
+const FIXED = { AN: { id: 'preset:narrator', name: 'пресет Narrator (Voice Studio Pro)' }, PH: { id: 'preset:casual', name: 'пресет Casual (Voice Studio Pro)' },
+  M: { id: 'fish:FISH_REF_M', name: 'madk1d (Fish Audio, голос из игры)', engine: 'fish' } };
 async function resolveModels(exp) {
   const cfg = loadJson(MODELS, { note: 'ID моделей Voice Studio Pro по коду говорящего. Пусто — ищется по имени модели.', models: {} });
   let voices = [];
@@ -197,8 +276,12 @@ async function resolveModels(exp) {
   for (const code of Object.keys(exp.speakers)) {
     let id = (cfg.models[code] || {}).id || '';
     let v = voices.find(x => x.id === id);
+    if (!v && FIXED[code]) {
+      const f = FIXED[code];
+      v = (f.engine === 'fish' && !(process.env.FISH_KEY && process.env.FISH_REF_M)) ? null : { id: f.id, name: f.name, engine: f.engine };
+    }
     if (!v) v = voices.find(x => !x.is_demo && NAME_HINTS[code] && NAME_HINTS[code].test(x.name));
-    out[code] = v ? { id: v.id, name: v.name } : null;
+    out[code] = v ? { id: v.id, name: v.name, engine: v.engine || 'vsp' } : null;
     cfg.models[code] = { character: exp.speakers[code].name, id: v ? v.id : '', voice_name: v ? v.name : '', status: v ? 'found' : 'voice_model_missing' };
   }
   fs.writeFileSync(MODELS, JSON.stringify(cfg, null, '\t') + '\n');
@@ -210,10 +293,15 @@ async function produce(e, model) {
   fs.mkdirSync(TMP, { recursive: true });
   let best = null;
   for (let attempt = 0; attempt < 3; attempt++) {
-    const r = await tool('generate_speech', { text: e.text, profile_id: model.id, language: 'ru', speed: e.speed || 1.0, steps: STEPS, format: 'wav' });
-    const b64 = r.wav_base64 || r.audio_base64;
-    if (!b64) throw new Error('генератор не вернул звук: ' + JSON.stringify(r).slice(0, 200));
-    const p = polish(readWav(Buffer.from(b64, 'base64')));
+    let raw;
+    if (model.engine === 'fish') raw = await fishWav(e.text);
+    else {
+      const r = await tool('generate_speech', { text: e.text, profile_id: model.id, language: 'ru', speed: e.speed || 1.0, steps: STEPS, format: 'wav' });
+      const b64 = r.wav_base64 || r.audio_base64;
+      if (!b64) throw new Error('генератор не вернул звук: ' + JSON.stringify(r).slice(0, 200));
+      raw = readWav(Buffer.from(b64, 'base64'));
+    }
+    const p = polish(raw);
     const wav = writeWav(p.rate, p.s);
     let heard = '', score = 0;
     try { const tr = await tool('transcribe', { audio_base64: wav.toString('base64'), language: 'ru' }); heard = tr.text || ''; score = similarity(e.text, heard); }
@@ -245,6 +333,25 @@ async function produce(e, model) {
 // ---------------------------------------------------------------- главное
 (async () => {
   if (DOCS) return docs();
+  const DH = (args.find(x => x.startsWith('--dehum=')) || '').slice(8);
+  if (DH) {
+    const man = loadJson(MANIFEST, { lines: [] });
+    await connect();
+    for (const e of man.lines) if (e.code === DH && ['generated', 'validated'].includes(e.status)) {
+      const ms = dehum(e);
+      if (ms < 0) { console.log(`VOICE ${e.id}: уже очищено (${e.check.dehum_ms} мс)`); continue; }
+      if (!ms) { console.log(`VOICE ${e.id}: «хм» не найдено`); continue; }
+      // распознать заново: первое слово должно остаться
+      const dst = path.join(ROOT, 'godot', e.path.replace('res://', ''));
+      const w = cp.spawnSync(ffmpeg(), ['-loglevel', 'error', '-i', dst, '-f', 'wav', '-ac', '1', '-ar', '24000', '-'], { maxBuffer: 1 << 28 });
+      const tr = await tool('transcribe', { audio_base64: w.stdout.toString('base64'), language: 'ru' });
+      const sc = similarity(e.text, tr.text || '');
+      e.check.heard = tr.text || ''; e.check.match = +sc.toFixed(2);
+      console.log(`VOICE ${e.id}: срезано «хм» ${ms} мс → «${(tr.text || '').slice(0, 50)}» (${sc.toFixed(2)})`);
+    }
+    save(man);
+    return;
+  }
   if (RETRIM) {
     const man = loadJson(MANIFEST, { lines: [] });
     let n = 0;
