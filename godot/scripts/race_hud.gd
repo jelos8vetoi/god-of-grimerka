@@ -217,10 +217,12 @@ func _build() -> void:
 	item_vp.add_child(item_pivot)
 	var itex := TextureRect.new()
 	itex.texture = item_vp.get_texture()
-	itex.position = Vector2(10, 2)
-	itex.size = Vector2(150, 92)
+	# сначала режим растяжения, потом размер: иначе размер упирается в кадр сценки (300×200), и предмет уезжает
+	# вправо-вниз на своё название
 	itex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	itex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	itex.position = Vector2(10, 2)
+	itex.size = Vector2(150, 92)
 	itex.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	item_card.add_child(itex)
 	# совет перед стартом: одна строка внизу по центру, гаснет на «ЖМИ»
@@ -362,10 +364,16 @@ func _process(dt: float) -> void:
 				item_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 			else:
 				var I: Dictionary = RaceData.ITEMS[me.item]
-				item_pivot.add_child(RaceItems.model(me.item, 0.82))
+				item_pivot.add_child(RaceItems.model(me.item, 1.2))
 				item_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 				item_name.text = String(I["name"])
 				item_name.add_theme_color_override("font_color", WHITE)
+				# длинное название («ПЫЛЕВОЙ ВЗРЫВ») — мельче, чтобы влезло в карточку
+				var fs := 16
+				var f: Font = item_name.get_theme_font("font")
+				while fs > 11 and f.get_string_size(item_name.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > 156.0:
+					fs -= 1
+				item_name.add_theme_font_size_override("font_size", fs)
 		if me.item != "":
 			item_pivot.rotation.y += dt * 1.8
 			item_pivot.rotation.x = sin(Time.get_ticks_msec() * 0.002) * 0.15

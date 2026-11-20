@@ -84,15 +84,26 @@ static func model(id: String, size := 1.0) -> Node3D:
 	root.scale = Vector3.ONE * size
 	return root
 
+## Границы модели в координатах n (без его собственного масштаба и сдвига): трансформы вложенных узлов glb
+## складываются по пути вниз. Раньше бралась только своя трансформа сетки — у моделей Tripo родительские узлы
+## повёрнуты и масштабированы, центр выходил мимо, и предмет крутился вокруг чужой точки (уезжал из карточки HUD).
 static func _aabb(n: Node3D) -> AABB:
+	var acc: Array = []
+	for c in n.get_children():
+		_walk(c, Transform3D.IDENTITY, acc)
 	var out := AABB()
-	var first := true
-	for mi in n.find_children("*", "MeshInstance3D", true, false):
-		var g := mi as MeshInstance3D
-		var a: AABB = g.global_transform * g.get_aabb() if g.is_inside_tree() else g.transform * g.get_aabb()
-		out = a if first else out.merge(a)
-		first = false
+	for i in acc.size():
+		out = acc[i] if i == 0 else out.merge(acc[i])
 	return out
+
+static func _walk(n: Node, xf: Transform3D, acc: Array) -> void:
+	var x := xf
+	if n is Node3D:
+		x = xf * (n as Node3D).transform
+	if n is MeshInstance3D and (n as MeshInstance3D).mesh != null:
+		acc.append(x * (n as MeshInstance3D).mesh.get_aabb())
+	for c in n.get_children():
+		_walk(c, x, acc)
 
 static func _build(id: String, r: Node3D) -> void:
 	var steel := mat("steel", Color(0.62, 0.64, 0.68), 0.35, 0.8)
