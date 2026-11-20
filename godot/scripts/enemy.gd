@@ -125,6 +125,12 @@ var combo_left := 0         # босс: сколько приёмов подря
 var moves_used := {}        # для проверок: какие приёмы делал
 var tell_until := -1.0      # метка в приёме босса (полоса рывка) видна до этого age
 var tell_sec := 0.5
+var train_guard := false      # учебная цель обучения: не умирает, пока упражнение не сделано (tutorial.gd)
+var train_attack := false     # учебная цель для упражнений защиты: замахивается чаще
+var train_home := Vector3.ZERO      # тренировочная арена: место цели
+var train_immortal := false   # цель арены: урон и добивания настоящие, но вместо смерти встаёт с полным здоровьем
+var train_still := false     # цель арены стоит на своём месте (бить может, ходить — нет)
+var train_leash := 0.0       # босс арены не уходит от своей зоны дальше этого
 var hit_id := ""             # атака, которая сейчас бьёт (take_hit_info) — для записи урона в проверке
 var born_at := Vector3.INF   # где враг был в _ready (там рисуется портал появления) — для проверки
 
@@ -320,6 +326,8 @@ func _physics_process(dt: float) -> void:
 					game.telemetry.boss_ready(self)
 		"chase":
 			cool -= dt
+			if train_attack and cool > 1.3:
+				cool = 1.3                  # учебная цель упражнений защиты: замах — регулярно
 			if boss_id != "":
 				special_cd -= dt
 			face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-8.0 * dt))
@@ -341,6 +349,13 @@ func _physics_process(dt: float) -> void:
 					var sep: float = radius + o.radius + 0.4
 					if d.length() < sep and d.length() > 0.01:
 						mv += d.normalized() * (sep - d.length()) * 1.5
+			if train_still or train_leash > 0.0:
+				var hm: Vector3 = train_home - global_position
+				hm.y = 0.0
+				if train_still:
+					mv = hm.normalized() if hm.length() > 0.4 else Vector3.ZERO
+				elif hm.length() > train_leash:
+					mv = hm.normalized()
 			if p.state == "dead":
 				mv = Vector3.ZERO
 			var wet: float = (slow_k if slow_t > 0.0 else 1.0) * (1.25 if buff_t > 0.0 else 1.0)       # облит водой — медленнее, усилен — быстрее
@@ -861,14 +876,22 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		dmg *= 0.15
 		launch = 0.0
 		game.fx.shield(global_position + Vector3(0, height * 0.6, 0) - dir * radius, -dir, Color(1.0, 0.82, 0.3), 1.6 * height / 1.7)
+	var shown := dmg                  # цифра над целью — урон удара, даже если учебная цель его не «приняла»
+	if train_guard and not executed:
+		dmg = minf(dmg, maxf(0.0, hp - maxf(1.0, max_hp * 0.05)))      # учебная цель: здоровье не ниже 5 %
 	if game.telemetry != null:
 		game.telemetry.outgoing(self, clampf(dmg, 0.0, maxf(hp, 0.0)), dmg, hit, source_id, source_hero, raw_damage)
 	hp -= dmg
+	if train_immortal and hp <= 0.0:
+		hp = max_hp                    # манекен арены «убит» (ударом или добиванием) — встаёт заново
+		executed = false
+		game.popup(global_position + Vector3(0, height + 0.9, 0), "ЗАНОВО", Color(0.6, 1.0, 0.7))
 	if game.dmg_log is Array:
 		game.dmg_log.append([hit_id if hit_id != "" else "other", get_instance_id(), dmg, Engine.get_physics_frames()])
 	kb = dir * knock * (0.25 if boss_id != "" else 1.0)
 	_react(dir, heavy)
-	game.popup(global_position + Vector3(0, height + 0.2, 0), str(int(dmg)), Color(1, 0.9, 0.4) if heavy else Color.WHITE)
+	if game.show_dmg:
+		game.popup(global_position + Vector3(0, height + 0.2, 0), str(int(shown)), Color(1, 0.9, 0.4) if heavy else Color.WHITE)
 	if boss_id != "":
 		var phases: Array = boss["phases"]
 		var np: int = clamp(int(floor((1.0 - hp / max_hp) * phases.size())), 0, phases.size() - 1)
@@ -1053,6 +1076,9 @@ func hold(sec: float) -> void:
 
 ## Снять равновесие. Кончилось — враг сбит: обычный оглушён на секунду (замах прерывается), босс вздрагивает и теряет замах.
 func stagger(v: float) -> bool:
+	if v > 0.0 and alive() and state == "special":
+		poise_t = 0.0             # во время особого приёма равновесие не снимается, но и не восстанавливается под ударами
+		return false
 	if v <= 0.0 or not alive() or state in ["stun", "air", "down", "getup", "spawn", "special"]:
 		return false
 	poise -= v

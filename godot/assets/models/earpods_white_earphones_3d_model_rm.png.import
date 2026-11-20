@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ysc2nvbc34uo"
-path="res://.godot/imported/earpods_white_earphones_3d_model_rm.png-2f04b9192be557ed4db7bf58222b15e2.ctex"
+path.s3tc="res://.godot/imported/earpods_white_earphones_3d_model_rm.png-2f04b9192be557ed4db7bf58222b15e2.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "e195f9a9d4509a62c28de6d3d05118d6"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/earpods_white_earphones_3d_model_rm.png"
-dest_files=["res://.godot/imported/earpods_white_earphones_3d_model_rm.png-2f04b9192be557ed4db7bf58222b15e2.ctex"]
+dest_files=["res://.godot/imported/earpods_white_earphones_3d_model_rm.png-2f04b9192be557ed4db7bf58222b15e2.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=2048
 detect_3d/compress_to=1

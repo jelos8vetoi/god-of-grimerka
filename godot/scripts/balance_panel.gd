@@ -215,4 +215,3 @@ func _process(_dt: float) -> void:
 	set_process(false)
 	slot = 1
 	_loaded(job_dir.path_join("balance_lab.json"))
-

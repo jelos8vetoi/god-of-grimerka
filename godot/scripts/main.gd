@@ -8,7 +8,7 @@ const ACTIONS := {
 	"throw": [KEY_F],
 	"tag": [KEY_TAB], "assist": [KEY_T], "overdrive": [KEY_G],
 	"style1": [KEY_1], "style2": [KEY_2], "style3": [KEY_3],
-	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11],
+	"pause": [KEY_ESCAPE], "fullscreen": [KEY_F11], "tut_skip": [KEY_BACKSPACE], "train_panel": [KEY_F1],
 }
 
 var game: Node
@@ -20,6 +20,24 @@ var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка 
 var transcheck := ""        # --transcheck=<папка>: проверка переходов из меню в игру и паузы (scripts/transcheck.gd)
 var deathcheck := ""        # --deathcheck=<папка>: проверка сцены гибели (scripts/deathcheck.gd)
 var uiqa := ""              # --uiqa=<папка>: сквозная проверка всего интерфейса (scripts/uiqa.gd)
+var soundcheck := ""        # --soundcheck=<папка>: звук как у игрока — меню, кампания, арена (scripts/soundcheck.gd)
+var trainingcheck := ""     # --trainingcheck=<папка>: тренировочная арена из меню (scripts/trainingcheck.gd)
+var golda67check := ""      # --golda67check=<папка>: приквел «ГОЛДА 67» из меню (scripts/golda67/golda67check.gd)
+var modecheck := ""         # --modecheck=<папка>: главное меню и экран выбора режима (scripts/modecheck.gd)
+var racecheck := ""         # --racecheck=<папка>: гонки на пылесосах из меню (scripts/racecheck.gd)
+var racenet := ""           # --race-netcheck=<папка> (хост) / --race-netclient=<папка> (клиент): сетевая гонка (scripts/racenetcheck.gd)
+var weathercheck := ""      # --weathercheck=<папка>: погода и случайные ситуации гонок (scripts/weathercheck.gd)
+var race: Node              # идущая гонка (race.gd) или null
+var minigame: Node          # мини-игра со своей сценой (ПАХАН НАБРАЛ МИКРОЗАЙМОВ, 5 НОЧЕЙ С ПАХАНОМ) или null
+var microloanscheck := ""   # --microloanscheck=<папка>: мини-игра «микрозаймы» (scripts/microloans/microloanscheck.gd)
+var trailermodes := ""      # --trailermodes=<папка>: кадры трейлера режимов (scripts/trailermodes.gd, tools/trailer/compose-modes.html)
+var playtest := ""          # --playtest-race|ml|fn=<папка>: плейтест режима настоящим вводом (scripts/playtest_*.gd); здесь — какой режим
+var playtest_out := ""
+var trailermini := ""       # --trailermini=<папка>: кадры трейлера мини-игр (scripts/trailermini.gd, tools/trailer/compose-mini.html)
+var uicheck := ""           # --uicheck=<папка>: вёрстка интерфейсов мини-игр во всех размерах окна (scripts/mg_uicheck.gd)
+var fivenightscheck := ""   # --fivenightscheck=<папка>: мини-игра «5 ночей» (scripts/five_nights/fivenightscheck.gd)
+var race_net: Node          # сетевая гонка (race_net.gd, /root/Main/RaceNet) или null — тогда игра офлайн
+var net_msg := ""           # почему закончилась сетевая сессия (покажет экран ONLINE RACE)
 var onechapter := false     # --onechapter: и в проверках только доступные игроку главы (проверка концовки первой главы)
 var launcher := ""          # --launcher=<путь>: игру запустил лаунчер, обновление — через него
 var ipodpause := false      # вместе с --ipodcheck: меню паузы и режим наушников (--pause)
@@ -27,6 +45,7 @@ var ipodbuds := false       # вместе с --ipodcheck: только науш
 var ipodhand := false       # вместе с --ipodcheck: только проверка руки и позы (--hand)
 var voicecheck := false   # --voicecheck: пройти диалог главы и напечатать, какие реплики заиграли
 var sfx_pool: Array[AudioStreamPlayer] = []
+var ui_sfx: MenuSfx
 var sfx_cache := {}
 var autotest := ""
 var smoke := ""
@@ -41,6 +60,8 @@ var bottlecheck := ""     # --bottlecheck=<папка>: стиль «Водяр�
 var tyagacheck := ""      # --tyagacheck=<папка>: стиль «ТЯГА-812» (scripts/tyagacheck.gd)
 var madkcheck := ""       # --madkcheck=<папка>: оружие madk1d — доска за спиной, гитара в двух руках (scripts/madkcheck.gd)
 var duocheck := ""        # --duocheck=<папка>: дуэт-атака на [T] (scripts/duocheck.gd)
+var lockcheck := ""       # --lockcheck=<папка>: захват цели (scripts/lockcheck.gd)
+var movementcheck := ""   # --movementcheck=<папка>: рывок в воздухе и движение (scripts/movementcheck.gd)
 var damagecheck := ""     # --damagecheck=<папка>: баланс урона (scripts/damagecheck.gd)
 var balance_lab := ""
 var balance_lab_baseline := ""
@@ -55,6 +76,11 @@ var start_ch := -1
 var auto_len := 45.0
 var font: Font
 
+## ускоренная проверка: сколько игрового времени прошло (tools/checks.cjs сравнивает с настоящим)
+func _exit_tree() -> void:
+	if GameClock.fast():
+		print("GAMECLOCK игра %.1f с, кадров %d" % [GameClock.ms() / 1000.0, Engine.get_process_frames()])
+
 func _ready() -> void:
 	for a in ACTIONS:
 		if not InputMap.has_action(a):
@@ -63,11 +89,22 @@ func _ready() -> void:
 			var e := InputEventKey.new()
 			e.physical_keycode = k
 			InputMap.action_add_event(a, e)
-	for a in [["attack", MOUSE_BUTTON_LEFT], ["heavy", MOUSE_BUTTON_RIGHT]]:
+	# захват цели (lockon.gd): СКМ — взять / отпустить, колесо — следующая / предыдущая цель
+	for a in [["attack", MOUSE_BUTTON_LEFT], ["heavy", MOUSE_BUTTON_RIGHT], ["lock", MOUSE_BUTTON_MIDDLE], ["lock_next", MOUSE_BUTTON_WHEEL_DOWN], ["lock_prev", MOUSE_BUTTON_WHEEL_UP]]:
 		InputMap.add_action(a[0])
 		var m := InputEventMouseButton.new()
 		m.button_index = a[1]
 		InputMap.action_add_event(a[0], m)
+	# геймпад в меню: в Godot 4.7 у ui_accept / ui_cancel нет кнопок геймпада — A выбирает, B — назад
+	for ui in [["ui_accept", JOY_BUTTON_A], ["ui_cancel", JOY_BUTTON_B]]:
+		if not InputMap.action_get_events(ui[0]).any(func(ev): return ev is InputEventJoypadButton):
+			var jb := InputEventJoypadButton.new()
+			jb.button_index = ui[1]
+			InputMap.action_add_event(ui[0], jb)
+	var js := InputEventJoypadButton.new()
+	js.button_index = JOY_BUTTON_RIGHT_STICK            # геймпад: нажатие правого стика — захват
+	InputMap.action_add_event("lock", js)
+	RaceSave.setup_actions()           # гоночные действия race_* — свои, кампанию не трогают
 	font = load("res://assets/fonts/RussoOne-Regular.ttf")
 	Opts.apply(get_window())
 	if "--balance-lab" in OS.get_cmdline_user_args():
@@ -86,6 +123,8 @@ func _ready() -> void:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
 		sfx_pool.append(p)
+	ui_sfx = MenuSfx.new()               # звуки главного меню (синтез при запуске, menu_sfx.gd)
+	add_child(ui_sfx)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--autotest="):
 			autotest = arg.substr(11)
@@ -126,6 +165,10 @@ func _ready() -> void:
 			launcher = arg.substr(11)
 		elif arg.begins_with("--transcheck="):
 			transcheck = arg.substr(13)
+		elif arg.begins_with("--lockcheck="):
+			lockcheck = arg.substr(12)
+		elif arg.begins_with("--movementcheck="):
+			movementcheck = arg.substr(16)
 		elif arg.begins_with("--damagecheck="):
 			damagecheck = arg.substr(14)
 		elif arg.begins_with("--balance-lab-check="):
@@ -146,6 +189,35 @@ func _ready() -> void:
 			deathcheck = arg.substr(13)
 		elif arg.begins_with("--uiqa="):
 			uiqa = arg.substr(7)
+		elif arg.begins_with("--soundcheck="):
+			soundcheck = arg.substr(13)
+		elif arg.begins_with("--trainingcheck="):
+			trainingcheck = arg.substr(16)
+		elif arg.begins_with("--golda67check="):
+			golda67check = arg.substr(15)
+		elif arg.begins_with("--modecheck="):
+			modecheck = arg.substr(12)
+		elif arg.begins_with("--racecheck="):
+			racecheck = arg.substr(12)
+		elif arg.begins_with("--microloanscheck="):
+			microloanscheck = arg.substr(18)
+		elif arg.begins_with("--fivenightscheck="):
+			fivenightscheck = arg.substr(18)
+		elif arg.begins_with("--uicheck="):
+			uicheck = arg.substr(10)
+		elif arg.begins_with("--playtest-"):
+			playtest = arg.substr(11, arg.find("=") - 11)
+			playtest_out = arg.substr(arg.find("=") + 1)
+		elif arg.begins_with("--trailermini="):
+			trailermini = arg.substr(14)
+		elif arg.begins_with("--trailermodes="):
+			trailermodes = arg.substr(15)
+		elif arg.begins_with("--race-netcheck="):
+			racenet = arg.substr(16)
+		elif arg.begins_with("--race-netclient="):
+			racenet = arg.substr(17)
+		elif arg.begins_with("--weathercheck="):
+			weathercheck = arg.substr(15)
 		elif arg == "--onechapter":
 			onechapter = true
 		elif arg == "--pause":
@@ -176,6 +248,11 @@ func _ready() -> void:
 			ps.who = v[1] if v.size() > 1 else ""
 			ps.seq = Array(v.slice(2))
 			add_child(ps)
+			return
+		if arg.begins_with("--propsheet="):
+			var pr = preload("res://scripts/propsheet.gd").new()
+			pr.out = arg.substr(12)
+			add_child(pr)
 			return
 		if arg.begins_with("--animcheck="):
 			var ac = preload("res://scripts/animcheck.gd").new()
@@ -208,6 +285,76 @@ func _ready() -> void:
 			q.main = self
 			q.out = uiqa
 			add_child(q)
+		if soundcheck != "":
+			var snd = preload("res://scripts/soundcheck.gd").new()
+			snd.main = self
+			snd.out = soundcheck
+			add_child(snd)
+		if golda67check != "":
+			var g67c = preload("res://scripts/golda67/golda67check.gd").new()
+			g67c.main = self
+			g67c.out = golda67check
+			add_child(g67c)
+		if trainingcheck != "":
+			var trc = preload("res://scripts/trainingcheck.gd").new()
+			trc.main = self
+			trc.out = trainingcheck
+			add_child(trc)
+		if modecheck != "":
+			var mdc = preload("res://scripts/modecheck.gd").new()
+			mdc.main = self
+			mdc.out = modecheck
+			add_child(mdc)
+		if microloanscheck != "":
+			var mlc = load("res://scripts/microloans/microloanscheck.gd").new()
+			mlc.main = self
+			mlc.out = microloanscheck
+			add_child(mlc)
+		if trailermodes != "":
+			var tmc = load("res://scripts/trailermodes.gd").new()
+			tmc.main = self
+			tmc.out = trailermodes
+			add_child(tmc)
+		if fivenightscheck != "":
+			var fnc = load("res://scripts/five_nights/fivenightscheck.gd").new()
+			fnc.main = self
+			fnc.out = fivenightscheck
+			add_child(fnc)
+		if uicheck != "":
+			var uic = load("res://scripts/mg_uicheck.gd").new()
+			uic.main = self
+			uic.out = uicheck
+			add_child(uic)
+		if playtest != "":
+			var ptn = load("res://scripts/playtest_%s.gd" % playtest).new()
+			ptn.main = self
+			ptn.out = playtest_out
+			add_child(ptn)
+		if trailermini != "":
+			var tmi = load("res://scripts/trailermini.gd").new()
+			tmi.main = self
+			tmi.out = trailermini
+			add_child(tmi)
+		if racecheck != "":
+			var rcc = preload("res://scripts/racecheck.gd").new()
+			rcc.main = self
+			rcc.out = racecheck
+			add_child(rcc)
+		if racenet != "":
+			var rnc = preload("res://scripts/racenetcheck.gd").new()
+			rnc.main = self
+			rnc.out = racenet
+			add_child(rnc)
+		if weathercheck != "":
+			var wc = preload("res://scripts/weathercheck.gd").new()
+			wc.main = self
+			wc.out = weathercheck
+			add_child(wc)
+
+## звук меню: hover, move, confirm, back, open, close, card, value, deny, launch (menu_sfx.gd)
+func ui(kind: String, pitch := 1.0) -> void:
+	if ui_sfx != null:
+		ui_sfx.play(kind, pitch)
 
 func sfx(name: String, vol := 0.0, pitch := 1.0) -> void:
 	if not sfx_cache.has(name):
@@ -228,6 +375,12 @@ func show_menu() -> void:
 	if game:
 		game.queue_free()
 		game = null
+	if race:
+		race.queue_free()
+		race = null
+	if minigame:
+		minigame.queue_free()
+		minigame = null
 	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 	music.volume_db = -6.0
 	if not music.playing:
@@ -300,29 +453,221 @@ func _check_update(on_update: Callable) -> void:
 	http.request(RELEASE_API, PackedStringArray(["User-Agent: god-of-grimerka-game"]))
 
 func testing() -> String:
-	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck + vfxcheck + aicheck + damagecheck + balance_lab
+	return autotest + smoke + trailer + animlab + combatcheck + hudcheck + execcheck + tagcheck + flowcheck + hypecheck + basecheck + bottlecheck + tyagacheck + madkcheck + duocheck + tutorialcheck + vfxcheck + aicheck + damagecheck + movementcheck + lockcheck + balance_lab
 
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
+## Играет человек, а не проверка: только тогда игра пишет его настройки iPod и прочее «на выходе»
+func user_play() -> bool:
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and golda67check == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and playtest == "" and trailermodes == "" and not voicecheck
+
 func tutorial_on() -> bool:
 	if tutorialcheck != "":
 		return true
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and golda67check == "" and modecheck == "" and soundcheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and playtest == "" and trailermodes == "" and not voicecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.
 var intro_fx: IntroFX
+var starting := false       # запуск из меню уже идёт: второй вызов ничего не делает
+## Шторка прошлого перехода ещё открывается (вышли в меню сразу после запуска) — новый запуск ждёт её, а не теряется
+func _intro_ready() -> bool:
+	if intro_fx == null:
+		intro_fx = IntroFX.new()
+		add_child(intro_fx)
+	if starting or game != null:
+		return false
+	starting = true
+	while intro_fx.busy:
+		await get_tree().process_frame
+	return true
 
-func start_survival() -> void:
-	if game != null or menu == null:
+func cinematic_start(from_save: bool, chapter := -1, line := "") -> void:
+	if not await _intro_ready():
+		return
+	await intro_fx.cover("WELCOME BACK" if from_save else "ENTERING THE CLOUD", line)
+	if from_save:
+		var d = JSON.parse_string(FileAccess.get_file_as_string("user://grimerka_save.json")) if FileAccess.file_exists("user://grimerka_save.json") else null
+		if not (d is Dictionary):
+			starting = false
+			await intro_fx.fail("Сохранение не читается — начни новую игру.", show_menu)
+			return
+	start_game(from_save, chapter, true)
+	starting = false
+	for i in 3:
+		await get_tree().process_frame
+	intro_fx.reveal()
+
+## Тренировочная арена из меню: та же шторка, что у NEW GAME, но без сюжета и без сюжетного сохранения
+func cinematic_training(hero: String, style: String) -> void:
+	if not await _intro_ready():
+		return
+	await intro_fx.cover("TRAINING ARENA", "Тренировка · без сюжета и сохранения")
+	await start_training(hero, style)
+	starting = false
+	for i in 3:
+		await get_tree().process_frame
+	intro_fx.reveal()
+
+## «ГОЛДА 67» из меню: та же шторка; игра создаётся как у арены, сюжет кампании не идёт, её сохранение не пишется
+func cinematic_golda67() -> void:
+	if not await _intro_ready():
+		return
+	await intro_fx.cover("ГОЛДА 67", "сюжетный приквел · подъезд")
+	await start_golda67()
+	starting = false
+	for i in 3:
+		await get_tree().process_frame
+	intro_fx.reveal()
+
+func start_golda67() -> void:
+	if menu:
+		menu.queue_free()
+		menu = null
+	if game:
+		game.queue_free()
+	music.volume_db = -16.0
+	if not music.playing:
+		music.play()
+	game = preload("res://scripts/game.gd").new()
+	game.main = self
+	add_child(game)
+	var g67 := Golda67.new()
+	game.golda = g67
+	game.add_child(g67)
+	g67.setup(game)
+	game._apply_upgrades()
+	await g67.begin()
+
+## конец «ГОЛДА 67»: меню → выбор режима на её карточке
+func end_golda67() -> void:
+	show_menu()
+	if menu != null:
+		menu.open_modes(ModeSelect.index_of("golda67"))
+
+## Гонка на пылесосах из меню: та же шторка; сюжет, опыт и сохранение кампании не участвуют
+func cinematic_race(cfg: Dictionary) -> void:
+	if not await _intro_ready():
+		return
+	var mode := String(cfg.get("mode", "single"))
+	await intro_fx.cover("VACUUM RACING", String(RaceData.track(String(cfg.get("track", "")))["name"]) + " · " + {"single": "одиночная гонка", "time": "заезд на время", "online": "сетевая гонка"}.get(mode, ""))
+	start_race(cfg)
+	starting = false
+	for i in 3:
+		await get_tree().process_frame
+	intro_fx.reveal()
+
+## Мини-игра со своей сценой (MINIGAMES): та же шторка, что у режимов; основная игра и гонка не создаются.
+const MINIGAMES := {
+	"microloans": {"scene": "res://scenes/microloans/microloans.tscn", "title": "ПАХАН НАБРАЛ МИКРОЗАЙМОВ", "sub": "неделя долгов · 7 дней · 5 концовок"},
+	"five_nights": {"scene": "res://scenes/five_nights/five_nights.tscn", "title": "5 НОЧЕЙ С ПАХАНОМ", "sub": "«ты просто хотел спокойно отработать смену»"},
+}
+
+func cinematic_minigame(id: String, opt := {}) -> void:
+	if not MINIGAMES.has(id) or not await _intro_ready():
+		return
+	await intro_fx.cover(String(MINIGAMES[id]["title"]), String(MINIGAMES[id]["sub"]))
+	start_minigame(id, opt)
+	starting = false
+	for i in 3:
+		await get_tree().process_frame
+	intro_fx.reveal()
+
+func start_minigame(id: String, opt := {}) -> void:
+	if menu:
+		menu.queue_free()
+		menu = null
+	if game:
+		game.queue_free()
+		game = null
+	if race:
+		race.queue_free()
+		race = null
+	if minigame:
+		minigame.queue_free()
+		minigame = null
+	var ps := load(String(MINIGAMES[id]["scene"])) as PackedScene
+	var mg := ps.instantiate()
+	mg.set("main", self)
+	minigame = mg
+	add_child(mg)
+	if mg.has_method("begin"):
+		mg.begin(bool(opt.get("continue", false)))
+
+## конец мини-игры: меню → выбор режима на её карточке
+func end_minigame(mode_idx: int) -> void:
+	show_menu()
+	if menu != null:
+		menu.open_modes(mode_idx)
+
+func start_race(cfg: Dictionary) -> void:
+	if menu:
+		menu.queue_free()
+		menu = null
+	if game:
+		game.queue_free()
+		game = null
+	if race:
+		race.queue_free()
+		race = null
+	MouseMode.set_to(Input.MOUSE_MODE_HIDDEN)
+	var r := Race.new()
+	race = r
+	add_child(r)
+	r.setup(self, cfg)
+
+## сетевая гонка: хост начал — строим трассу (у всех одинаково)
+func start_online_race(cfg: Dictionary) -> void:
+	if race != null:
 		return
 	if intro_fx == null:
 		intro_fx = IntroFX.new()
 		add_child(intro_fx)
-	if intro_fx.busy:
+	start_race(cfg)
+	if menu:
+		menu.queue_free()
+		menu = null
+
+## конец сетевой гонки или сессии: меню → ONLINE RACE (лобби, если соединение живо; иначе стартовый экран с причиной)
+func end_race_online(reason: String) -> void:
+	net_msg = reason
+	show_menu()
+	if menu != null:
+		menu.open_modes(ModeSelect.index_of("race"))
+		menu.open_online()
+
+## конец гонки: в главное меню или сразу в меню гонок
+func end_race(to_race_menu: bool) -> void:
+	show_menu()
+	if to_race_menu and menu != null:
+		menu.open_modes(ModeSelect.index_of("race"))
+		menu.open_race()
+
+func start_training(hero: String, style: String) -> void:
+	if menu:
+		menu.queue_free()
+		menu = null
+	if game:
+		game.queue_free()
+	music.volume_db = -16.0
+	if not music.playing:
+		music.play()
+	game = preload("res://scripts/game.gd").new()
+	game.main = self
+	add_child(game)
+	var arena := Training.new()
+	game.training = arena
+	game.add_child(arena)
+	arena.setup(game)
+	game._apply_upgrades()
+	await arena.begin(hero, style)
+
+func start_survival() -> void:
+	if menu == null or not await _intro_ready():
 		return
 	menu.launching = true
 	await intro_fx.cover("ENDLESS SURVIVAL", "Снежная арена")
 	start_game(false, -1, true, &"survival")
+	starting = false
 	for i in 3:
 		await get_tree().process_frame
 	intro_fx.reveal()
@@ -330,28 +675,9 @@ func start_survival() -> void:
 func restart_survival(previous: Node) -> void:
 	if not is_instance_valid(previous) or game != previous or not game.is_survival():
 		return
-	game = null
-	previous.free()
 	get_tree().paused = false
 	Engine.time_scale = 1.0
 	start_game(false, -1, false, &"survival")
-
-func cinematic_start(from_save: bool, chapter := -1, line := "") -> void:
-	if intro_fx == null:
-		intro_fx = IntroFX.new()
-		add_child(intro_fx)
-	if intro_fx.busy or game != null:
-		return
-	await intro_fx.cover("WELCOME BACK" if from_save else "ENTERING THE CLOUD", line)
-	if from_save:
-		var d = JSON.parse_string(FileAccess.get_file_as_string("user://grimerka_save.json")) if FileAccess.file_exists("user://grimerka_save.json") else null
-		if not (d is Dictionary):
-			await intro_fx.fail("Сохранение не читается — начни новую игру.", show_menu)
-			return
-	start_game(from_save, chapter, true)
-	for i in 3:
-		await get_tree().process_frame
-	intro_fx.reveal()
 
 func start_game(from_save := false, chapter := -1, cinematic := false, run_type := &"campaign") -> void:
 	if menu:
@@ -436,6 +762,18 @@ func start_game(from_save := false, chapter := -1, cinematic := false, run_type 
 		tgc.out = tyagacheck
 		game.director = tgc
 		game.add_child(tgc)
+	if lockcheck != "":
+		var lkc = preload("res://scripts/lockcheck.gd").new()
+		lkc.game = game
+		lkc.out = lockcheck
+		game.director = lkc
+		game.add_child(lkc)
+	if movementcheck != "":
+		var mvc = preload("res://scripts/movementcheck.gd").new()
+		mvc.game = game
+		mvc.out = movementcheck
+		game.director = mvc
+		game.add_child(mvc)
 	if damagecheck != "":
 		var dmc = preload("res://scripts/damagecheck.gd").new()
 		dmc.game = game

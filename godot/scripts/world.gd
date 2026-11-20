@@ -1,6 +1,7 @@
 ## Локации глав: одна арена 30×30, оформление по стилю главы (deco из сюжета). Отдельно — hall: подъезд, с которого начинается игра.
 ## snow — двор хрущёвок, basement — подвал, neon — неоновая лента, swamp — болото комментов, glass — крыша башни,
 ## grave — кладбище аккаунтов, server — ботоферма, chart — чарты, core — Ядро Алгоритма.
+## training — тренировочная арена (Training): тёмный зал, пять размеченных зон A–E.
 extends Node3D
 
 const ARENA := 15.0
@@ -66,6 +67,8 @@ func _theme(d: String) -> Dictionary:
 	match d:
 		"hall":
 			return {"indoor": true, "sky": [Color(0.02, 0.02, 0.025)], "amb": Color(0.36, 0.37, 0.39), "fog": Color(0.12, 0.125, 0.13), "fog_d": 0.01, "key": Color(1, 1, 1), "key_e": 0.0, "g": [Color(0.3, 0.29, 0.27), Color(0.36, 0.35, 0.32)], "p": "dust"}
+		"training":
+			return {"indoor": true, "sky": [Color(0.02, 0.02, 0.025)], "amb": Color(0.42, 0.42, 0.45), "fog": Color(0.08, 0.08, 0.09), "fog_d": 0.012, "key": Color(1, 0.96, 0.9), "key_e": 0.35, "g": [Color(0.13, 0.13, 0.14), Color(0.22, 0.22, 0.23)], "p": "dust"}
 		"basement":
 			return {"indoor": true, "sky": [Color(0.03, 0.02, 0.02)], "amb": Color(0.35, 0.25, 0.2), "fog": Color(0.18, 0.12, 0.08), "fog_d": 0.03, "key": Color(1, 0.8, 0.6), "key_e": 0.25, "g": [Color(0.18, 0.12, 0.09), Color(0.32, 0.22, 0.15)], "p": "dust"}
 		"neon":
@@ -582,3 +585,34 @@ func _deco_hall(_T: Dictionary) -> void:
 		lb.position = it[1]
 		lb.rotation = Vector3(0, it[2], it[5])
 		add_child(lb)
+
+# ---------- тренировочная арена ----------
+const TRAIN_ZONES := [["A", Vector3(-8, 0, -6), "МАНЕКЕН", Color(0.95, 0.96, 0.97)], ["B", Vector3(8, 0, -6), "ЗАМАХИ", Color(0.95, 0.25, 0.22)],
+	["C", Vector3(-8, 0, 6), "ВОЗДУХ", Color(0.35, 0.8, 1.0)], ["D", Vector3(8, 0, 6), "БОСС", Color(1.0, 0.78, 0.3)], ["E", Vector3(0, 0, 0), "СВОБОДНЫЙ БОЙ", Color(0.7, 0.72, 0.76)]]
+
+func _deco_training(_T: Dictionary) -> void:
+	var wall := _mat(Color(0.2, 0.2, 0.21))
+	for w in [[Vector3(0, 3, -ARENA - 0.6), Vector3(32, 6, 0.6)], [Vector3(0, 3, ARENA + 0.6), Vector3(32, 6, 0.6)], [Vector3(-ARENA - 0.6, 3, 0), Vector3(0.6, 6, 32)], [Vector3(ARENA + 0.6, 3, 0), Vector3(0.6, 6, 32)]]:
+		_box(w[0], w[1], wall)
+	_box(Vector3(0, 6.2, 0), Vector3(32, 0.4, 32), _mat(Color(0.06, 0.06, 0.07)))
+	# полосы по стенам — красная лента, как на плашках меню
+	for w in [[Vector3(0, 1.1, -ARENA - 0.28), Vector3(30, 0.18, 0.05)], [Vector3(0, 1.1, ARENA + 0.28), Vector3(30, 0.18, 0.05)], [Vector3(-ARENA - 0.28, 1.1, 0), Vector3(0.05, 0.18, 30)], [Vector3(ARENA + 0.28, 1.1, 0), Vector3(0.05, 0.18, 30)]]:
+		_box(w[0], w[1], _mat(Color(0.85, 0.12, 0.1), 1.6))
+	for z in TRAIN_ZONES:
+		var at: Vector3 = z[1]
+		var c: Color = z[3]
+		var half := 3.0
+		_box(at + Vector3(0, 0.012, 0), Vector3(half * 2.0, 0.02, half * 2.0), _mat(c.darkened(0.82)))
+		for e in [[Vector3(0, 0, -half), Vector3(half * 2.0, 0.03, 0.12)], [Vector3(0, 0, half), Vector3(half * 2.0, 0.03, 0.12)], [Vector3(-half, 0, 0), Vector3(0.12, 0.03, half * 2.0)], [Vector3(half, 0, 0), Vector3(0.12, 0.03, half * 2.0)]]:
+			_box(at + e[0] + Vector3(0, 0.03, 0), e[1], _mat(c, 2.2))
+		var l := Label3D.new()
+		l.text = "%s · %s" % [z[0], z[2]]
+		l.font_size = 96
+		l.pixel_size = 0.0075
+		l.modulate = c
+		l.outline_size = 0
+		l.rotation.x = -PI / 2.0
+		l.position = at + Vector3(0, 0.05, half + 0.55)
+		add_child(l)
+		_light(at + Vector3(0, 5.4, 0), c.lerp(Color(1, 1, 1), 0.6), 1.8, 9.0)
+		_box(at + Vector3(0, 5.85, 0), Vector3(1.6, 0.12, 0.4), _mat(c.lerp(Color(1, 1, 1), 0.6), 5.0))

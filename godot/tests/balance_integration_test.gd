@@ -102,4 +102,3 @@ func _panel(main) -> void:
 	await process_frame
 	print("Balance panel / child process / export: %d failures" % failures)
 	quit(1 if failures else 0)
-

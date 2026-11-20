@@ -128,6 +128,10 @@ var hype: TeamHype            # общая шкала команды и Team Ove
 var tag_saved: Dictionary = {}      # состояние команды из сохранения: применяется после загрузки главы
 var tag: TagTeam              # Tag Team: здоровье обоих героев, командные приёмы, выбывание (tagteam.gd)
 var dmg_log = null           # --damagecheck: [атака, цель, урон, кадр физики] каждого попадания по врагу; null — не пишем
+var lock: LockOn            # захват цели (lockon.gd)
+var training: Training = null     # тренировочная арена (training.gd); null — обычная игра
+var golda = null                  # «ГОЛДА 67» (golda67/g67_root.gd, Golda67); null — не приквел
+var show_dmg := true          # цифры урона над врагами (в арене — переключатель панели)
 var read: PlayerRead         # что враги знают о поведении игрока (player_read.gd)
 var squad_t := 0.0
 var tutorial: Tutorial       # боевое обучение: карточки механик по ходу боя (tutorial.gd)
@@ -186,6 +190,9 @@ func _ready() -> void:
 	hype = TeamHype.new()
 	add_child(hype)
 	hype.setup(self)
+	lock = LockOn.new()
+	add_child(lock)
+	lock.setup(self)
 	read = PlayerRead.new()
 	add_child(read)
 	read.setup(self)
@@ -208,7 +215,7 @@ func _ready() -> void:
 	ipod = preload("res://scripts/ipod.gd").new()
 	ipod.game = self
 	# в проверках и прогонах бота библиотеку игрока на диске не читаем и не перезаписываем
-	ipod.persistence_enabled = main.testing() == "" and main.ipodcheck == ""
+	ipod.persistence_enabled = main.user_play()      # проверки (и меню-уровня: uiqa, арена, звук) настройки iPod игрока не пишут
 	add_child(ipod)
 	if main.testing() == "":
 		MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
@@ -295,7 +302,7 @@ func _intro_camera(rdt: float) -> void:
 		intro_done.emit()
 
 func _save() -> void:
-	if is_survival() or main.testing() != "":
+	if main.testing() != "" or training != null or golda != null or is_survival():
 		return
 	var f := FileAccess.open(SAVE, FileAccess.WRITE)
 	if f:
@@ -481,7 +488,7 @@ func _update_fight(dt: float) -> void:
 						toast("Волна %d / %d" % [wave_i + 1, waves.size()])
 					main.sfx("sfx_wave", -8.0)
 					wave_wait = 1.6
-	elif mode == "boss":
+	elif mode == "boss" or training != null:
 		if boss_e and is_instance_valid(boss_e):
 			boss_fill.size.x = 596.0 * clamp(boss_e.hp / boss_e.max_hp, 0.0, 1.0)
 			if auto_kill > 0.0 and boss_e.alive() and boss_e.age > 5.0:
@@ -553,6 +560,12 @@ func on_kill(e) -> void:
 	if telemetry != null:
 		telemetry.enemy_defeated(e)
 	kills += 1
+	if golda != null:
+		golda.on_kill(e)             # приквел: свои награды, опыта и сюжета кампании нет
+		return
+	if training != null:
+		training.on_kill(e)          # арена: без опыта, без сюжета
+		return
 	if e.fly:
 		bark("cheer", 16.0, 0.25)
 	xp += int(e.cfg.get("xp", 10))
@@ -588,6 +601,12 @@ func on_kill(e) -> void:
 
 func on_player_dead() -> void:
 	if over:
+		return
+	if golda != null:
+		golda.on_dead()              # приквел: своя гибель, сюжет и постоянное не стираются
+		return
+	if training != null:
+		training.on_dead()           # арена: гибель — не поражение
 		return
 	if survival != null:
 		survival.save_report(self, "defeat")
@@ -890,6 +909,13 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if e.is_action_pressed("pause") and panel == null and not get_tree().paused:
 		set_paused(true)      # закрывает паузу само меню: пока игра стоит, этот узел ввода не получает
+	if lock != null and lock.usable():
+		if e.is_action_pressed("lock"):
+			lock.toggle()
+		elif e.is_action_pressed("lock_next"):
+			lock.cycle(1)
+		elif e.is_action_pressed("lock_prev"):
+			lock.cycle(-1)
 	if e.is_action_pressed("adlib") and not get_tree().paused and not paused_story():
 		if not buddy.adlib():
 			popup(buddy.global_position + Vector3(0, 2.1, 0), "перезарядка", Color(0.6, 0.7, 0.8))
@@ -978,6 +1004,8 @@ func _process(dt: float) -> void:
 		Engine.time_scale *= director.slow
 	if director:
 		director.frame(rdt)
+	if lock != null:
+		lock.camera_tick(rdt)          # захват цели мягко ведёт cam_yaw / cam_pitch (если камерой никто другой не владеет)
 	var target: Vector3 = player.vis_pos() + Vector3(0, 1.55, 0)      # плавное положение: без дрожи между шагами физики
 	var want_len := 4.6
 	var yaw := cam_yaw
@@ -1267,6 +1295,7 @@ func _dlg_advance() -> void:
 		dlg_chars = 9999.0
 		return
 	voice.stop()
+	_hush()
 	dlg_i += 1
 	if dlg_i >= dlg.size():
 		_dlg_finish()
@@ -1329,6 +1358,16 @@ func _say(pl: AudioStreamPlayer, line: String, vol := 0.0) -> bool:
 		print("VOICE play %s len=%.2f playing=%s bus=%s vol=%.1f master=%.1f mute=%s" % [path.get_file(), pl.stream.get_length(), pl.playing, pl.bus, pl.volume_db, AudioServer.get_bus_volume_db(0), AudioServer.is_bus_mute(0)])
 	return true
 
+## Говорит кто-то один: пока звучит реплика диалога или чей-то выкрик, новый выкрик не начинается (Пахан получил
+## удар и вскрикнул — madk1d не причитает поверх него). Предсмертный крик и фраза босса на смене фазы важнее:
+## они обрывают прежний выкрик. С началом диалога выкрики смолкают.
+func _speaking() -> bool:
+	return voice.playing or bark_v.playing or bark_m.playing or bark_b.playing
+
+func _hush() -> void:
+	for p in [bark_v, bark_m, bark_b]:
+		(p as AudioStreamPlayer).stop()
+
 ## Боевой выкрик из data/barks.json: не поверх диалога, не чаще раза в gap секунд на вид, с вероятностью chance.
 func bark(kind: String, gap := 8.0, chance := 1.0) -> void:
 	if mode == "dlg" or over and kind != "dead" or not barks.has(kind) or clock < float(bark_cd.get(kind, 0.0)) or randf() > chance:
@@ -1336,8 +1375,10 @@ func bark(kind: String, gap := 8.0, chance := 1.0) -> void:
 	var arr: Array = barks[kind]
 	var line: String = arr[randi() % arr.size()]
 	var pl := bark_m if line.begins_with("M") else (bark_v if line.begins_with("V") else bark_b)
-	if pl.playing:
-		return
+	if _speaking():
+		if kind != "dead":
+			return
+		_hush()
 	if _say(pl, line, 2.0):
 		bark_cd[kind] = clock + gap
 
@@ -1383,6 +1424,7 @@ func toast(text: String) -> void:
 
 func boss_bark(who: String, text: String, col: Color, sp := "") -> void:
 	if sp != "":
+		_hush()
 		_say(bark_b, sp + "|" + text, 3.0)
 	banner(text, who, col, 2.8)
 	main.sfx("sfx_rage", -6.0, 1.2)
@@ -1587,6 +1629,9 @@ func _to_menu() -> void:
 		survival.finish()
 	get_tree().paused = false
 	Engine.time_scale = 1.0
+	if golda != null:
+		main.end_golda67()           # из приквела — на его карточку в выборе режима
+		return
 	main.show_menu()
 
 # ---------------- прокачка, выбор, финал ----------------
@@ -1699,8 +1744,13 @@ func _update_hud(dt: float) -> void:
 	else:
 		top_label.text = "ГЛАВА %d · %s%s" % [ch + 1, String(chapter()["name"]), obj]
 	xp_label.text = "▶ %d" % xp
+	xp_label.visible = training == null and golda == null and not is_survival()
+	if training != null:
+		top_label.text = training.hud_line()
+	if golda != null:
+		top_label.text = golda.hud_line()
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second()
-	boss_box.visible = (mode == "boss" or is_survival()) and is_instance_valid(boss_e) and boss_e.state != "dead"
+	boss_box.visible = (mode == "boss" or training != null or is_survival()) and is_instance_valid(boss_e) and boss_e.state != "dead"
 	if is_survival() and boss_box.visible:
 		boss_fill.size.x = 596.0 * clampf(boss_e.hp / boss_e.max_hp, 0.0, 1.0)
 	flash.color.a = max(0.0, flash.color.a - dt * 1.5)

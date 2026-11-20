@@ -1,0 +1,330 @@
+{
+  "style": "Stylized low-poly 3D game asset in a gritty post-soviet Russian courtyard style: chunky slightly exaggerated proportions, bold readable silhouette, clean low-poly faces with hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright red accents, game-ready, single object centered on its own, no ground, no background.",
+  "models": {
+    "garage": {
+      "prompt": "A single soviet metal garage box: corrugated steel walls, flat slightly sloped roof, wide rusty double swing door at the front with a padlock, spray-paint graffiti tags on the side walls.",
+      "size": [
+        3.6,
+        2.8,
+        5
+      ],
+      "task": "4f7f3f22-1ffb-4dfd-9a27-41c7a56b100a",
+      "credits": 30,
+      "bytes": 3428880,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "panel_tower": {
+      "prompt": "A tall nine-storey soviet concrete panel residential tower: repeating window grid, glazed balconies of different colors, rooftop elevator box, faded mural stripe on the end wall.",
+      "size": [
+        14,
+        26,
+        12
+      ],
+      "task": "473a5acc-7dfe-432d-acc3-806dd7379ad8",
+      "credits": 30,
+      "bytes": 3622960,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "factory_hall": {
+      "prompt": "A small soviet industrial factory hall: brick and concrete walls, sawtooth roof with skylights, one tall brick chimney, big rusty sliding gate, pipes running along the wall.",
+      "size": [
+        20,
+        10,
+        14
+      ],
+      "task": "c0a7fb68-5e8a-42fb-ba8f-b4ede1742a6b",
+      "credits": 30,
+      "bytes": 3572616,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "khrushchevka": {
+      "prompt": "A five-storey soviet panel apartment building (khrushchevka) as one long block: grid of small windows, some lit warm yellow, small balconies with clutter, two entrance doors with concrete canopies, flat roof with antennas.",
+      "size": [
+        24,
+        14,
+        10
+      ],
+      "task": "bf4c5ae8-0c09-4c51-b22f-a6cc8bde95ef",
+      "credits": 30,
+      "bytes": 3050436,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "pipe_bridge": {
+      "prompt": "An overhead industrial pipeline bridge arch: two thick insulated pipes carried high over a road by two steel support frames on both ends, rusty and dented, a red warning band in the middle.",
+      "size": [
+        16,
+        7,
+        2
+      ],
+      "task": "8151f922-8630-4be9-9ae1-1c4b3f71ed50",
+      "credits": 30,
+      "bytes": 3639188,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "water_tank": {
+      "prompt": "An industrial cylindrical steel water tank on a short concrete base with a ladder, rusty rivets, faded red stripe and pipes coming out at the bottom.",
+      "size": [
+        5,
+        8,
+        5
+      ],
+      "task": "d9f1330d-bab3-4f8f-b13d-3f8ef9ed4bbb",
+      "credits": 30,
+      "bytes": 3258216,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "dumpster": {
+      "prompt": "A green soviet metal trash container (dumpster) with dents, rust and a few garbage bags sticking out of the open lid.",
+      "size": [
+        1.9,
+        1.4,
+        1.3
+      ],
+      "task": "927b00ab-379f-4b77-b91d-860523466538",
+      "credits": 30,
+      "bytes": 2390164,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "street_lamp": {
+      "prompt": "A soviet street lamp: tall tapered concrete pole with a curved metal arm and a cobra-head lamp glowing warm orange.",
+      "size": [
+        1.2,
+        6,
+        1.5
+      ],
+      "task": "22c2cc62-5775-4cc3-8718-7c0254de6a2c",
+      "credits": 30,
+      "bytes": 3529172,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "fence_section": {
+      "prompt": "A modular straight section of an old concrete panel fence with a decorative diamond pattern, cracked, with spray-paint graffiti, ends designed to tile seamlessly.",
+      "size": [
+        6,
+        2.2,
+        0.3
+      ],
+      "task": "a727f76e-8c13-4ab5-a3b6-a095299ee6d9",
+      "credits": 30,
+      "bytes": 3974212,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "trash_pile": {
+      "prompt": "A pile of black garbage bags, cardboard boxes, an old tire and a broken chair heaped together on the street.",
+      "size": [
+        3,
+        1.2,
+        2.5
+      ],
+      "task": "21e1ceb3-d0ca-428b-8998-59b748d3eeca",
+      "credits": 30,
+      "bytes": 2935524,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "traffic_cone": {
+      "prompt": "A scuffed orange traffic cone with two reflective white stripes and a square black base.",
+      "size": [
+        0.5,
+        0.75,
+        0.5
+      ],
+      "task": "f4b0b198-defa-4a76-9e64-a7052f9d9460",
+      "credits": 30,
+      "bytes": 1533468,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "barrel": {
+      "prompt": "A rusty steel oil barrel with dents and a faded red band, slightly tilted lid.",
+      "size": [
+        0.8,
+        1.1,
+        0.8
+      ],
+      "task": "6db40028-4b17-49ca-9838-4e6f63918eb5",
+      "credits": 30,
+      "bytes": 2827908,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "tire_stack": {
+      "prompt": "A stack of four old worn car tires piled on top of each other, one with a red painted stripe, used as a race track barrier.",
+      "size": [
+        1.2,
+        1.4,
+        1.2
+      ],
+      "task": "98708e67-03ca-4d7b-8476-9ad8e826569d",
+      "credits": 30,
+      "bytes": 3056968,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "billboard": {
+      "prompt": "A roadside billboard on two steel legs with a blank white poster panel, catwalk and two small floodlights on top, rusty frame.",
+      "size": [
+        8,
+        6,
+        1
+      ],
+      "task": "7cbc8e0a-0fd4-4261-83cc-571c6f931de4",
+      "credits": 30,
+      "bytes": 2805320,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "bare_tree": {
+      "prompt": "A bare late-autumn poplar tree with a thick dark trunk, twisted branches and only a few dry brown leaves left.",
+      "size": [
+        5,
+        7,
+        5
+      ],
+      "task": "1fb91b75-ddd5-48d5-b930-ebf5c028cab3",
+      "credits": 30,
+      "bytes": 3044672,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "birch_tree": {
+      "prompt": "An autumn birch tree: white bark with black marks, slightly bent trunk, chunky low-poly clusters of yellow and orange leaves.",
+      "size": [
+        4,
+        8,
+        4
+      ],
+      "task": "42de6571-f39a-460f-8d9a-ad32f4c64e0f",
+      "credits": 30,
+      "bytes": 2848480,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "bush": {
+      "prompt": "A clump of overgrown courtyard bushes, dark green and yellowing leaves, a crushed plastic bottle inside.",
+      "size": [
+        2.5,
+        1.4,
+        2
+      ],
+      "task": "67fb19d2-a251-4de1-93d8-3d233d04666b",
+      "credits": 30,
+      "bytes": 2835984,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "playground": {
+      "prompt": "An old soviet courtyard playground: a metal rocket-shaped climbing frame with a slide, a swing set and a sandbox, peeling red and blue paint.",
+      "size": [
+        8,
+        4.5,
+        6
+      ],
+      "task": "4f120c87-0ed2-436b-952b-93806b736471",
+      "credits": 30,
+      "bytes": 3286952,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "power_pole": {
+      "prompt": "A wooden electric power pole with a crossbar, glass insulators and a lamp, slightly leaning, wires cut short at both sides.",
+      "size": [
+        1.6,
+        8,
+        0.6
+      ],
+      "task": "ef152ed7-c381-48a2-9d11-e2e481d2eee7",
+      "credits": 30,
+      "bytes": 3636964,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "heating_pipe": {
+      "prompt": "A modular straight segment of an above-ground district heating pipeline: two thick pipes wrapped in torn silver insulation on short concrete supports, ends designed to join seamlessly.",
+      "size": [
+        10,
+        2,
+        1.2
+      ],
+      "task": "b1d3b3ca-425e-429c-a2a7-c355dda4fdf0",
+      "credits": 30,
+      "bytes": 3590640,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "bench": {
+      "prompt": "A soviet courtyard bench with wooden slats on concrete legs and a small metal trash bin next to it, worn paint.",
+      "size": [
+        2,
+        1,
+        0.8
+      ],
+      "task": "f332ef86-0710-45eb-bf74-a9be2365e148",
+      "credits": 30,
+      "bytes": 2904900,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "transformer_booth": {
+      "prompt": "A small brick transformer booth with a metal door, a yellow high-voltage warning sign without text, rusty roof edge and graffiti.",
+      "size": [
+        3.5,
+        3.5,
+        3
+      ],
+      "task": "94c7bbbc-4477-4f03-8c56-19896d9f18c1",
+      "credits": 30,
+      "bytes": 2745596,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "tower_crane": {
+      "prompt": "A tall yellow construction tower crane with a lattice mast, long horizontal jib, counterweight and operator cabin, slightly rusty.",
+      "size": [
+        12,
+        32,
+        4
+      ],
+      "task": "727bc1b5-80c0-41fe-9b20-f002af62d7fa",
+      "credits": 30,
+      "bytes": 3378580,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "old_van": {
+      "prompt": "An old rounded soviet-style minivan (bread loaf shape), faded green paint, rust, one flat tire, no logos.",
+      "size": [
+        2,
+        2.2,
+        4.4
+      ],
+      "task": "ffc31127-13d3-4e01-8b58-e8595b2c666d",
+      "credits": 30,
+      "bytes": 3357612,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    },
+    "gazebo": {
+      "prompt": "A small wooden courtyard gazebo with a pointed roof, benches inside, peeling green paint and graffiti.",
+      "size": [
+        4,
+        3.2,
+        4
+      ],
+      "task": "4b3a7738-36bb-475f-8d34-9b2155bd4212",
+      "credits": 30,
+      "bytes": 2812932,
+      "model": "v3.1-20260211",
+      "date": "2026-11-18"
+    }
+  }
+}

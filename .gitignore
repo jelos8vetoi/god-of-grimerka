@@ -11,3 +11,10 @@ godot/.godot/
 
 # метка сборки: её пишет tools/publish-godot.cjs перед экспортом
 godot/data/build.json
+
+# локальные ключи (Tripo AI и др.) — только на этом компьютере
+.env
+.env.*
+
+# превью моделей Tripo (только для просмотра при генерации)
+godot/assets/racing/preview/

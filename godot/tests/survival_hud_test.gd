@@ -15,15 +15,25 @@ func _run() -> void:
 	create_timer(25.0, true, false, true).timeout.connect(func(): quit(1))
 	var main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
-	main.menu._open_roguelike()
+	var item := -1
+	for i in main.menu.ITEMS.size():
+		if main.menu.ITEMS[i][0] == "ROGUELIKE":
+			item = i
+	if item < 0 or main.menu.studio.tvs.size() != main.menu.ITEMS.size():
+		push_error("ROGUELIKE is missing from the main menu studio")
+		quit(1)
+		return
+	main.menu._select(item, false)
+	main.menu._activate()
+	_expect(main.menu.panel_rows[0]["text"] == "НАЧАТЬ ЗАБЕГ", "ROGUELIKE did not open the run screen")
 	main.menu._panel_select(1)
 	main.menu._panel_activate()
-	_expect(main.menu.survival_history_open, "History navigation failed")
+	_expect(main.menu.panel_rows[0]["text"] == "НАЗАД", "History navigation failed")
 	var key := InputEventKey.new()
 	key.physical_keycode = KEY_ESCAPE
 	key.pressed = true
 	main.menu._unhandled_input(key)
-	_expect(not main.menu.survival_history_open and is_instance_valid(main.menu.panel), "Escape did not return to mode screen")
+	_expect(is_instance_valid(main.menu.panel) and main.menu.panel_rows[0]["text"] == "НАЧАТЬ ЗАБЕГ", "Escape did not return to mode screen")
 	main.start_game(false, -1, false, &"survival")
 	var game = main.game
 	var run = game.survival
@@ -38,6 +48,7 @@ func _run() -> void:
 		await process_frame
 		await process_frame
 		hud.refresh()
+		_expect(not game.xp_label.visible, "Survival displayed campaign XP")
 		var screen := Rect2(Vector2.ZERO, Vector2(resolution))
 		_expect(get_root().get_visible_rect().size == Vector2(resolution), "Viewport did not resize")
 		_expect(screen.encloses(hud.get_global_rect()) and not hud.get_global_rect().intersects(game.boss_box.get_global_rect()), "HUD outside safe area: %s" % resolution)

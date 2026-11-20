@@ -1,0 +1,226 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>trailer modes</title>
+<!-- Трейлер режимов GOD OF GRIMERKA: кадры из --trailermodes, голоса Пахана и madk1d — Fish Audio (fish-modes.cjs),
+     музыка — стемы игры (godot/assets/music), звуки ночей — sfx_*.wav. Сервер: tools/trailer/serve-modes.cjs.
+     record() — записать MP4 (MediaRecorder) и сохранить на сервер; drawAt(t) — один кадр для проверки. -->
+<style>@font-face{font-family:"Russo One";src:url(RussoOne-Regular.ttf)}html,body{margin:0;background:#000}canvas{display:block}</style></head>
+<body><canvas id="v" width="1280" height="720"></canvas>
+<script>
+const W = 1280, H = 720, FPS = 30, LEN = 45.5;
+// планы: p — префикс кадров, from — с какого кадра, sp — скорость (1 — как снято), scare — скример (вспышка, тряска)
+const SHOTS = [
+  { t0: 0.0, t1: 3.0, p: 'F1_', from: 0, sp: 0.6 },
+  { t0: 4.2, t1: 6.6, p: 'R1_', from: 10 },
+  { t0: 6.6, t1: 9.6, p: 'R2_', from: 20 },
+  { t0: 9.6, t1: 11.8, p: 'R3_', from: 20 },
+  { t0: 11.8, t1: 14.4, p: 'M1_', from: 0, sp: 0.9 },
+  { t0: 14.4, t1: 17.6, p: 'M2_', from: 0, sp: 0.9 },
+  { t0: 17.6, t1: 21.0, p: 'M3_', from: 3, sp: 0.85 },
+  { t0: 22.0, t1: 24.0, p: 'F2_', from: 0 },
+  { t0: 24.0, t1: 26.6, p: 'F3_', from: 0, sp: 0.75 },
+  { t0: 26.6, t1: 29.6, p: 'F4_', from: 0, sp: 0.65 },
+  { t0: 30.6, t1: 31.5, p: 'S1_', from: 16, scare: 1 },
+  { t0: 31.5, t1: 32.3, p: 'S2_', from: 18, scare: 1 },
+  { t0: 32.3, t1: 33.2, p: 'S3_', from: 18, scare: 1 },
+  { t0: 33.2, t1: 34.0, p: 'S4_', from: 14, scare: 1 },
+  { t0: 34.0, t1: 34.8, p: 'S5_', from: 16, scare: 1 },
+  { t0: 35.6, t1: 37.4, p: 'S6_', from: 10, scare: 1, sp: 0.9 },
+];
+// титры: slam — удар по центру, lower — внизу слева (заголовок + строка), logo — финал
+const TEXT = [
+  [0.4, 2.9, 'lower', 'GOD OF GRIMERKA', 'охранная система «ОБЛАКО» · запись 00:00'],
+  [3.05, 4.15, 'slam', 'НОВЫЕ РЕЖИМЫ'],
+  [4.3, 6.5, 'slam', 'VACUUM RACING'],
+  [6.7, 11.7, 'lower', 'ГОНКИ НА ПЫЛЕСОСАХ ТЯГА-812', 'погода · случайные ситуации · онлайн до 8 друзей'],
+  [11.9, 14.3, 'slam', 'ПАХАН НАБРАЛ МИКРОЗАЙМОВ'],
+  [14.5, 20.9, 'lower', 'НЕДЕЛЯ В ДОЛГАХ', 'проценты · мелкий шрифт · коллекторы · пять концовок'],
+  [22.1, 23.9, 'slam', '5 НОЧЕЙ С ПАХАНОМ'],
+  [24.1, 29.5, 'lower', 'ТЫ ПРОСТО ХОТЕЛ СПОКОЙНО ОТРАБОТАТЬ СМЕНУ', 'камеры · двери · энергия · до шести утра'],
+  [38.2, 45.5, 'logo', 'GOD OF GRIMERKA', 'VACUUM RACING · ONLINE RACE · MICROLOANS · FIVE NIGHTS'],
+];
+// голоса Пахана и madk1d для трейлера — Fish Audio (tools/trailer/fish-modes.cjs, реплики — vo-modes.json)
+const VO = [
+  ['vo01', 0.5],   // Облако обновилось.
+  ['vo02', 2.0],   // пахан... там новые режимы
+  ['vo05', 4.35],  // ПОЕХАЛИ! на пылесосах!
+  ['vo06', 7.2],   // Тяга восемьсот двенадцать. Держись в повороте.
+  ['vo07', 12.0],  // Это не твой долг.
+  ['vo08', 13.4],  // а чей??
+  ['vo09', 14.6],  // Семь дней. Четыре конторы. Один Пахан.
+  ['vo10', 18.4],  // пахан, коллекторы звонят
+  ['vo11', 20.25], // Не бери.
+  ['vo12', 22.2],  // пахан... а кто сидит на камерах?
+  ['vo13', 25.0],  // Я. До шести утра.
+  ['vo14', 26.8],  // они... шевелятся
+  ['vo15', 28.85], // Закрой дверь.
+  ['vo16', 38.6],  // Я просто пройду. Через всё.
+  ['vo17', 42.4],  // пахан, красиво
+];
+// музыка: [файл, начало в трейлере, длительность, громкость, нарастание, затухание, смещение в файле]
+const MUSIC = [
+  ['frames/sfx_hum.wav', 0, 4.2, .9, .3, .4, 0],
+  ['music/boss_algo_intro.wav', 3.0, 1.4, .9, .01, .3, 0],
+  ['music/loc_race_base.wav', 4.2, 7.6, .85, .02, .3, 0],
+  ['music/loc_race_drive.wav', 4.2, 7.6, .85, .02, .3, 0],
+  ['music/loc_hall_base.wav', 11.8, 9.4, .7, .2, .6, 3],
+  ['frames/sfx_hum.wav', 21.6, 9.0, 1.0, 1.0, .1, 0],
+  ['frames/sfx_music_box_air.wav', 25.8, 4.6, .9, .8, .05, 0],
+  ['music/boss_algo_win.wav', 38.1, 7.4, .9, .02, 1.5, 0],
+];
+// эффекты: [файл, когда, громкость]
+const SFX = [
+  ['frames/sfx_static.wav', 0.0, .35], ['frames/sfx_cam', 2.95, .8], ['frames/sfx_door_down', 4.15, .9],
+  ['frames/sfx_cam', 11.75, .7], ['frames/sfx_power_down', 21.0, .8], ['frames/sfx_vent_bang', 26.0, .9],
+  ['frames/sfx_heart', 29.8, .9], ['frames/sfx_scream_balon', 30.62, 1], ['frames/sfx_scream_clipper', 31.52, 1],
+  ['frames/sfx_scream_ghost', 32.32, 1], ['frames/sfx_scream_madk1d', 33.22, 1], ['frames/sfx_scream_bot', 34.02, 1],
+  ['frames/sfx_whisper', 34.8, .8], ['frames/sfx_scream_pahan', 36.25, 1.1], ['frames/sfx_static', 37.4, .7],
+];
+const HITS = [3.05, 4.2, 6.6, 9.6, 11.8, 14.4, 17.6, 22.0, 30.6, 31.5, 32.3, 33.2, 34.0, 36.25, 38.2];
+const c = document.getElementById('v'), x = c.getContext('2d');
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v, ease = k => 1 - Math.pow(1 - clamp(k, 0, 1), 3);
+const blobs = {}, bmp = {}, pend = {};
+let grain, lastBmp = null;
+
+function shot(t) { for (const q of SHOTS) if (t >= q.t0 && t < q.t1) return q; return null; }
+function key(t) {
+  const s = shot(t); if (!s) return null;
+  const i = Math.max(0, (s.from || 0) + Math.floor((t - s.t0) * FPS * (s.sp || 1)));
+  return s.p + String(i).padStart(3, '0');
+}
+function want(t) {
+  const need = new Set(); for (let d = 0; d < 1.0; d += 1 / FPS) { const k = key(t + d); if (k) need.add(k); }
+  for (const k of need) if (!bmp[k] && !pend[k] && blobs[k]) pend[k] = createImageBitmap(blobs[k]).then(b => { bmp[k] = b; delete pend[k]; });
+  for (const k in bmp) if (!need.has(k) && k !== lastBmp) { bmp[k].close(); delete bmp[k]; }
+}
+function txt(s, size, X, Y, o) {
+  o = o || {}; x.font = `${size}px "Russo One"`; x.textAlign = o.align || 'left'; x.textBaseline = 'alphabetic';
+  if (o.shadow !== false) { x.fillStyle = 'rgba(0,0,0,.75)'; x.fillText(s, X + 3, Y + 3); }
+  x.fillStyle = o.col || '#efeae0'; x.fillText(s, X, Y);
+}
+function hitK(t) { let k = 0; for (const h of HITS) { const d = t - h; if (d >= 0 && d < .35) k = Math.max(k, 1 - d / .35); } return k; }
+
+function draw(t) {
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+  const s = shot(t), hk = hitK(t);
+  let sx = 0, sy = 0, z = 1;
+  if (s) {
+    const k = key(t); let b = bmp[k];
+    if (!b && lastBmp && bmp[lastBmp]) b = bmp[lastBmp]; else if (b) lastBmp = k;
+    const u = (t - s.t0) / (s.t1 - s.t0);
+    z = 1.04 + u * 0.05 + (s.scare ? hk * 0.12 : hk * 0.03);
+    if (s.scare || hk > 0) { sx = (Math.random() - .5) * 26 * (s.scare ? 1 : .4) * Math.max(hk, s.scare ? .25 : 0); sy = (Math.random() - .5) * 18 * (s.scare ? 1 : .4) * Math.max(hk, s.scare ? .25 : 0); }
+    if (b) {
+      x.save(); x.translate(W / 2 + sx, H / 2 + sy); x.scale(z, z);
+      x.filter = s.scare ? 'contrast(1.35) saturate(1.3)' : 'contrast(1.12) saturate(1.05)';
+      x.drawImage(b, -W / 2, -H / 2, W, H); x.restore(); x.filter = 'none';
+      if (s.scare && Math.random() < .35) { // рвётся строка кадра
+        const yy = Math.random() * H, hh = 8 + Math.random() * 40;
+        x.drawImage(c, 0, yy, W, hh, (Math.random() - .5) * 60, yy, W, hh);
+      }
+    }
+  }
+  // вспышка на склейке
+  if (hk > 0) { x.fillStyle = `rgba(255,255,255,${hk * (s && s.scare ? .55 : .22)})`; x.fillRect(0, 0, W, H); }
+  // зерно и виньетка
+  if (grain) { x.globalAlpha = .07; x.drawImage(grain, -Math.random() * 200, -Math.random() * 200); x.globalAlpha = 1; }
+  const g = x.createRadialGradient(W / 2, H / 2, H * .35, W / 2, H / 2, H * .9); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.65)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  // кинорамка
+  x.fillStyle = '#000'; x.fillRect(0, 0, W, 44); x.fillRect(0, H - 44, W, 44);
+  for (const [a, b2, kind, s1, s2] of TEXT) {
+    if (t < a || t > b2) continue;
+    const k = ease((t - a) / .25), out = clamp((b2 - t) / .25, 0, 1), al = Math.min(k, out);
+    x.globalAlpha = al;
+    if (kind === 'slam') {
+      const sc = 1 + (1 - k) * .6; x.save(); x.translate(W / 2, H / 2 + 20); x.scale(sc, sc); x.rotate(-.03);
+      x.fillStyle = '#c4100c'; x.fillRect(-W * .42, -58, W * .84, 84);
+      txt(s1, s1.length > 16 ? 50 : 70, 0, 6, { align: 'center', col: '#f4efe6' }); x.restore();
+    } else if (kind === 'lower') {
+      const ox = (1 - k) * -60;
+      x.fillStyle = '#c4100c'; x.fillRect(60 + ox, H - 150, 8, 70);
+      txt(s1, 34, 84 + ox, H - 112); txt(s2, 18, 86 + ox, H - 86, { col: '#b9b4aa' });
+    } else if (kind === 'logo') {
+      const sc = 1.15 - ease((t - a) / 1.2) * .15;
+      x.save(); x.translate(W / 2, H / 2 - 20); x.scale(sc, sc);
+      x.fillStyle = '#c4100c'; x.fillRect(-470, 18, 940, 10);
+      txt(s1, 96, 0, 0, { align: 'center', col: '#f4efe6' }); x.restore();
+      if (t > a + .8) { x.globalAlpha = al * clamp((t - a - .8) / .5, 0, 1); txt(s2, 20, W / 2, H / 2 + 70, { align: 'center', col: '#b9b4aa' }); }
+      if (t > a + 2.0) { x.globalAlpha = al * clamp((t - a - 2.0) / .5, 0, 1); txt('ИГРАЙ СЕЙЧАС', 28, W / 2, H / 2 + 130, { align: 'center', col: '#e8332c' }); }
+    }
+    x.globalAlpha = 1;
+  }
+}
+
+async function load() {
+  await document.fonts.load('40px "Russo One"');
+  grain = document.createElement('canvas'); grain.width = grain.height = W + 256;
+  { const gg = grain.getContext('2d'), d = gg.createImageData(grain.width, grain.height); for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } gg.putImageData(d, 0, 0); }
+  const keys = new Set(); for (let t = 0; t < LEN; t += 1 / FPS) { const k = key(t); if (k) keys.add(k); }
+  const jobs = []; for (const k of keys) jobs.push(fetch('frames/' + k + '.jpg').then(r => r.ok ? r.blob() : null).then(b => { if (b) blobs[k] = b; }));
+  await Promise.all(jobs);
+  return { frames: keys.size, loaded: Object.keys(blobs).length };
+}
+async function drawAt(t) { if (!grain) await load(); want(t); await Promise.all(Object.values(pend)); want(t); await Promise.all(Object.values(pend)); draw(t); return key(t); }
+window.drawAt = drawAt;
+
+async function record() {
+  const info = await load();
+  const ac = new AudioContext({ sampleRate: 48000 }), dest = ac.createMediaStreamDestination();
+  const dec = async u => { const r = await fetch(u); if (!r.ok) throw new Error('нет ' + u); return ac.decodeAudioData(await r.arrayBuffer()); };
+  const master = ac.createDynamicsCompressor(); master.threshold.value = -6; master.ratio.value = 10; master.attack.value = .003; master.release.value = .2;
+  const out = ac.createGain(); out.gain.value = .95; master.connect(out); out.connect(dest);
+  // голос: тёплый низ, присутствие, компрессия, немного зала
+  const vin = ac.createGain(); vin.gain.value = 1.7;
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 80;
+  const low = ac.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 220; low.gain.value = 4;
+  const pres = ac.createBiquadFilter(); pres.type = 'peaking'; pres.frequency.value = 3200; pres.gain.value = 3;
+  const comp = ac.createDynamicsCompressor(); comp.threshold.value = -24; comp.ratio.value = 4;
+  const conv = ac.createConvolver(); { const n = ac.sampleRate * 1.2, ir = ac.createBuffer(2, n, ac.sampleRate); for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3); } conv.buffer = ir; }
+  const wet = ac.createGain(); wet.gain.value = .14;
+  vin.connect(hp); hp.connect(low); low.connect(pres); pres.connect(comp); comp.connect(master); comp.connect(conv); conv.connect(wet); wet.connect(master);
+  const mus = ac.createGain(); mus.gain.value = 1; mus.connect(master);
+  const T0 = ac.currentTime + .5;
+  for (const [f, at, dur, vol, fi, fo, off] of MUSIC) {
+    const b = await dec(f), src = ac.createBufferSource(), g = ac.createGain();
+    src.buffer = b; src.loop = true; src.connect(g); g.connect(mus);
+    g.gain.setValueAtTime(0, T0 + at); g.gain.linearRampToValueAtTime(vol, T0 + at + fi);
+    g.gain.setValueAtTime(vol, T0 + at + dur - fo); g.gain.linearRampToValueAtTime(0, T0 + at + dur);
+    src.start(T0 + at, off || 0); src.stop(T0 + at + dur + .05);
+  }
+  for (const [f, at, vol] of SFX) {
+    const b = await dec(f.endsWith('.wav') ? f : f + '.wav'), src = ac.createBufferSource(), g = ac.createGain();
+    src.buffer = b; g.gain.value = vol; src.connect(g); g.connect(master); src.start(T0 + at);
+  }
+  for (const [n, at] of VO) {
+    const b = await dec('frames/' + n + '.wav'), src = ac.createBufferSource(); src.buffer = b; src.connect(vin); src.start(T0 + at);
+    mus.gain.setTargetAtTime(.45, T0 + at - .05, .05); mus.gain.setTargetAtTime(1, T0 + at + b.duration + .1, .25);
+  }
+  const vtrack = c.captureStream(0).getVideoTracks()[0];
+  const stream = new MediaStream([vtrack, dest.stream.getAudioTracks()[0]]);
+  const mime = ['video/mp4;codecs=avc1.640028,mp4a.40.2', 'video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m));
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 10e6, audioBitsPerSecond: 192000 }), chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  const done = new Promise(r => rec.onstop = r);
+  let frames = 0, missing = 0, lastF = -1;
+  rec.start(1000);
+  await new Promise(res0 => {
+    let res = res0;
+    const loop = () => {
+      const t = ac.currentTime - T0;
+      if (t >= LEN + .1) { res(); return; }
+      if (t >= 0) { const fi = Math.floor(t * FPS); if (fi !== lastF) { lastF = fi; want(t); const k = key(t); if (k && !bmp[k]) missing++; draw(t); vtrack.requestFrame(); frames++; } else want(t); }
+      else { x.fillStyle = '#000'; x.fillRect(0, 0, W, H); want(0); }
+    };
+    const tick = ac.createScriptProcessor(512, 1, 1); tick.onaudioprocess = () => { if (!tick.done) loop(); };
+    const zg = ac.createGain(); zg.gain.value = 0; tick.connect(zg); zg.connect(ac.destination);
+    const _res = res; res = () => { tick.done = 1; tick.disconnect(); _res(); };
+    loop();
+  });
+  rec.stop(); await done;
+  const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
+  const blob = new Blob(chunks, { type: mime });
+  const r = await fetch('/__save?name=trailer-modes-raw.' + ext, { method: 'PUT', body: blob });
+  return { info, mime, frames, missing, mb: +(blob.size / 1048576).toFixed(1), saved: await r.text() };
+}
+window.record = record;
+</script></body></html>

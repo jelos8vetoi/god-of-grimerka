@@ -1,0 +1,462 @@
+## Враги «5 НОЧЕЙ С ПАХАНОМ» на сцене: настоящие модели игры (Rig + клипы FNPoses), по одному ригу на врага —
+## он переезжает между комнатами, нишами у дверей и углом офиса. На голове у каждого — свои глаза (светятся)
+## и пасть, которая раскрывается в скримере. БАЛОН — маскот: высокое тело бота в грязно-белом, за спиной
+## огромный балон VOZDUH, вентиль торчит над головой. MADK1D ползает (риг лицом вниз) и висит вниз головой.
+## CLIPPER — с катаной. GHOST — полупрозрачный хейтер. MOD — бот в синем.
+class_name FNActors
+extends Node3D
+
+var LOOK := {
+	"balon": {"model": "bot", "h": 2.3, "tint": Color(0.88, 0.85, 0.78), "eye": "eye", "sep": 0.22},
+	"madk1d": {"model": "madk1d", "h": 1.75, "tint": Color(0.7, 0.7, 0.72), "eye": "eye_red", "sep": 0.18},
+	"bot": {"model": "bot", "h": 1.8, "tint": Color(0.55, 0.56, 0.58), "eye": "eye_red", "sep": 0.2},
+	"clipper": {"model": "clipper", "h": 1.82, "tint": Color(0.5, 0.5, 0.52), "eye": "eye", "sep": 0.16},
+	"ghost": {"model": "hater", "h": 1.85, "tint": Color(0.78, 0.72, 1.0), "alpha": 0.5, "emit": 0.5, "eye": "eye", "sep": 0.2},
+	"mod": {"model": "bot", "h": 1.9, "tint": Color(0.45, 0.6, 1.0), "emit": 0.12, "eye": "eye_red", "sep": 0.2},
+}
+
+var office: FNOffice
+var fac: FNFacility
+var rigs := {}                     # id → Rig
+var face := {}                     # id → {eyes, maw}
+var place_key := {}                # id → где поставлен (чтобы не переставлять каждый кадр)
+var t := 0.0
+var mode := {}                     # id → "approach" / "retreat" / "" — что делает в коридоре
+var creep := {}                    # id → на сколько подполз к офису, пока стоит в коридоре (м)
+var stare := {}                    # id → точка, к которой медленно поворачивается (аномалия «stare»)
+var dart := {}                     # id → [время до следующего движения глаз, сколько ещё смотрят вбок]
+var lunge_t := {}                  # id → у двери играет FNLunge (вот-вот войдёт)
+const HORROR_DIR := "res://assets/minigames/fn_horror_%s.glb"   # модель владельца с костями Mixamo — встанет вместо обычной
+## Модели владельца (скелет им ставит tools/rig-horror.py): рост в метрах и лицо. Точки лица — в единицах модели
+## (1 = рост, начало — центр основания, +Z — лицо): eye — середина между глазами, sep — расстояние между ними,
+## r — радиус светящегося зрачка, maw — центр пасти, ms — её ширина. Светящиеся глаза и пасть скримера садятся
+## на настоящее лицо модели (экран BOT, линза CLIPPER, глазницы GHOST).
+const OWN := {
+	"balon": {"h": 2.0, "eye": Vector3(0.013, 0.586, 0.17), "sep": 0.145, "r": 0.018, "maw": Vector3(0.013, 0.49, 0.18), "ms": 0.13},
+	"madk1d": {"h": 1.62, "eye": Vector3(-0.004, 0.66, 0.175), "sep": 0.18, "r": 0.02, "maw": Vector3(0.0, 0.535, 0.2), "ms": 0.13},
+	"bot": {"h": 1.85, "eye": Vector3(-0.02, 0.672, 0.16), "sep": 0.117, "r": 0.016, "maw": Vector3(-0.02, 0.6, 0.165), "ms": 0.1},
+	"clipper": {"h": 1.75, "eye": Vector3(0.0, 0.867, 0.275), "sep": 0.0, "r": 0.034, "maw": Vector3(0.0, 0.79, 0.265), "ms": 0.07},
+	"ghost": {"h": 1.85, "eye": Vector3(0.0, 0.81, 0.11), "sep": 0.088, "r": 0.012, "maw": Vector3(0.0, 0.745, 0.125), "ms": 0.075, "alpha": 0.72, "emit": 0.18},
+	"mod": {"h": 1.7, "eye": Vector3(0.059, 0.578, 0.315), "sep": 0.258, "r": 0.028, "maw": Vector3(0.0625, 0.5, 0.3), "ms": 0.11},
+}
+var owned := {}                    # id → true: у врага модель владельца
+var model_home := {}               # id → обычное место модели в риге (в скримере FNScare подводит лицо к камере)
+
+func build(o: FNOffice, f: FNFacility) -> void:
+	office = o
+	fac = f
+	for id in FNData.ORDER:
+		_make(id)
+
+## Пахан-копия: строится один раз, когда понадобится (секретный двойник, конец шестой ночи)
+func pahan_copy() -> Rig:
+	if rigs.has("pahan"):
+		return rigs["pahan"]
+	var r := Rig.new()
+	add_child(r)
+	r.setup("res://assets/models/pahan.glb", 1.85, FNPoses.pahan_copy(), true, -1.0, "fn_pahan")
+	LOOK["pahan"] = {"h": 1.85, "eye": "eye", "sep": 0.2}
+	_face("pahan", r)
+	rigs["pahan"] = r
+	r.visible = false
+	return r
+
+func _make(id: String) -> void:
+	var L: Dictionary = LOOK[id]
+	var r := Rig.new()
+	add_child(r)
+	var own := ResourceLoader.exists(HORROR_DIR % id) and OWN.has(id)
+	r.setup(HORROR_DIR % id if own else "res://assets/models/%s.glb" % L["model"], float(OWN[id]["h"]) if own else float(L["h"]), FNPoses.set_for(id), true, 1.0, "fn_" + id)
+	if own:
+		owned[id] = true
+		_own_look(r, float(OWN[id].get("alpha", 1.0)), float(OWN[id].get("emit", 0.0)))
+		model_home[id] = r.model.position
+	else:
+		_tint(r, L["tint"], float(L.get("alpha", 1.0)), float(L.get("emit", 0.0)))
+	if id == "clipper" and not own:                       # у своей модели лезвия — часть руки
+		r.attach("res://assets/models/katana.glb", "r", {"axis": "z", "from": -48.8, "to": 48.8, "grip": 0.15, "edge": true, "length": 0.62, "part": func(y): return y > 13.0, "shadow": true})
+	rigs[id] = r
+	_face(id, r)
+	if id == "balon" and not own:
+		_balon_costume(r)
+	if own:
+		(face[id]["maw"] as Node3D).visible = false       # у своей модели пасть появляется только в скримере
+	if not own:
+		_horror(id, r)
+	r.visible = false
+	r.position = Vector3(0, -60, 0)
+
+## модель владельца: свои текстуры без перекраски; чуть светится своим цветом (в тёмном коридоре иначе чёрное на
+## чёрном), GHOST — ещё и полупрозрачный
+func _own_look(r: Rig, alpha: float, emit: float) -> void:
+	for mi in r.model.find_children("*", "MeshInstance3D", true, false):
+		var inst := mi as MeshInstance3D
+		for s in inst.mesh.get_surface_count():
+			var src := inst.get_active_material(s) as BaseMaterial3D
+			if src == null:
+				continue
+			var mat := src.duplicate() as BaseMaterial3D
+			mat.emission_enabled = true
+			mat.emission = Color(1, 1, 1)
+			mat.emission_texture = mat.albedo_texture
+			mat.emission_energy_multiplier = 0.035 + emit
+			if alpha < 1.0:
+				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+				mat.albedo_color.a = alpha
+			inst.set_surface_override_material(s, mat)
+
+func _tint(r: Rig, c: Color, alpha: float, emit: float) -> void:
+	for mi in r.model.find_children("*", "MeshInstance3D", true, false):
+		var inst := mi as MeshInstance3D
+		for s in inst.mesh.get_surface_count():
+			var src := inst.get_active_material(s)
+			if not (src is StandardMaterial3D):
+				continue
+			var mat := (src as StandardMaterial3D).duplicate() as StandardMaterial3D
+			mat.albedo_color = Color.WHITE.lerp(c, 0.55)
+			mat.roughness = 0.9
+			if alpha < 1.0:
+				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+				mat.albedo_color.a = alpha
+			if emit > 0.0:
+				mat.emission_enabled = true
+				mat.emission = c
+				mat.emission_energy_multiplier = emit
+			inst.set_surface_override_material(s, mat)
+
+## глаза и пасть: крепятся к кости головы, место считается от позы привязки (рост головы — от кости до макушки)
+func _face(id: String, r: Rig) -> void:
+	var hb: int = r.bone["head"]
+	if hb < 0:
+		return
+	var skel := r.skel
+	var att := BoneAttachment3D.new()
+	att.bone_name = skel.get_bone_name(hb)
+	skel.add_child(att)
+	var rest_g: Transform3D = skel.global_transform * skel.get_bone_global_rest(hb)
+	var top: float = float(LOOK[id]["h"])
+	var hy: float = rest_g.origin.y - r.global_position.y
+	var hs: float = maxf(0.18, top - hy)
+	var center := r.global_position + Vector3(0, hy + 0.42 * hs, 0) + Vector3(0, 0, 1) * 0.42 * hs
+	var sep: float = float(LOOK[id]["sep"]) * hs
+	var eye_r := 0.055 * hs
+	var eye_z := 0.02 * hs
+	var maw_at := Vector3(0, -0.3 * hs, 0.0)
+	if owned.has(id):
+		# лицо своей модели: точки заданы на самой модели (OWN), пересчитываются в мир через её узел
+		var O: Dictionary = OWN[id]
+		var mx: Transform3D = r.model.global_transform
+		var u: float = mx.basis.get_scale().y
+		center = mx * (O["eye"] as Vector3)
+		sep = float(O["sep"]) * u
+		eye_r = float(O["r"]) * u
+		eye_z = 0.0
+		hs = float(O["ms"]) * u / 0.44                    # пасть шириной ms: её детали заданы в долях hs
+		maw_at = mx * (O["maw"] as Vector3) - center
+	var anchor := Node3D.new()
+	att.add_child(anchor)
+	anchor.transform = rest_g.affine_inverse() * Transform3D(Basis(), center)
+	var eyes := Node3D.new()
+	anchor.add_child(eyes)
+	for sx in ([-1.0, 1.0] if sep > 0.0 else [0.0]):
+		var e := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = eye_r
+		sm.height = eye_r * 2.0
+		e.mesh = sm
+		e.material_override = office.mats[LOOK[id]["eye"]]
+		e.position = Vector3(sx * sep * 0.5, 0, eye_z)
+		eyes.add_child(e)
+	# пасть: чёрный провал с красной глубиной и зубами; закрыта — щель (scale.y маленький)
+	var maw := Node3D.new()
+	maw.position = maw_at
+	anchor.add_child(maw)
+	office.box(Vector3.ZERO, Vector3(0.44 * hs, 0.3 * hs, 0.06 * hs), office.mats["black"], maw)
+	office.box(Vector3(0, 0, -0.02 * hs), Vector3(0.36 * hs, 0.22 * hs, 0.02 * hs), office._glow(Color(0.5, 0.0, 0.0), 1.2), maw)
+	for k in 7:
+		var tx := -0.18 * hs + float(k) * 0.06 * hs
+		office.box(Vector3(tx, 0.13 * hs, 0.035 * hs), Vector3(0.035 * hs, 0.07 * hs, 0.02 * hs), office.mats["paper"], maw)
+		office.box(Vector3(tx + 0.03 * hs, -0.13 * hs, 0.035 * hs), Vector3(0.035 * hs, 0.07 * hs, 0.02 * hs), office.mats["paper"], maw)
+	maw.scale = Vector3(1, 0.08, 1)
+	face[id] = {"eyes": eyes, "maw": maw, "hs": hs}
+
+## БАЛОН: огромный балон VOZDUH за спиной, вентиль над головой, надпись на груди
+func _balon_costume(r: Rig) -> void:
+	var sb: int = r.bone["spine2"] if r.bone["spine2"] >= 0 else r.bone["spine"]
+	var att := BoneAttachment3D.new()
+	att.bone_name = r.skel.get_bone_name(sb)
+	r.skel.add_child(att)
+	var rest_g: Transform3D = r.skel.global_transform * r.skel.get_bone_global_rest(sb)
+	var holder := Node3D.new()
+	att.add_child(holder)
+	var back := r.global_position + Vector3(0, rest_g.origin.y - r.global_position.y + 0.25, -0.32)
+	holder.transform = rest_g.affine_inverse() * Transform3D(Basis(), back)
+	var ps := load("res://assets/models/balon.glb") as PackedScene
+	if ps != null:
+		var b := ps.instantiate() as Node3D
+		holder.add_child(b)
+		# в файле балон лежит вдоль Y примерно на 0.98 единицы — растягиваем до 1.5 м
+		b.scale = Vector3.ONE * 1.5
+		b.position = Vector3(0, -0.55, 0)
+	var chest := r.global_position + Vector3(0, rest_g.origin.y - r.global_position.y - 0.05, 0.42)
+	var lab := Label3D.new()
+	lab.text = "VOZDUH"
+	lab.font = office.font
+	lab.font_size = 80
+	lab.pixel_size = 0.0014
+	lab.modulate = Color(0.75, 0.04, 0.04)
+	holder.get_parent().add_child(lab)
+	lab.transform = rest_g.affine_inverse() * Transform3D(Basis(), chest)
+
+# ---------------- каждый кадр: где стоит и что делает ----------------
+func tick(st: FNNight, dt: float) -> void:
+	t += dt
+	if rigs.has("pahan"):
+		(rigs["pahan"] as Rig).visible = false
+	for id in FNData.ORDER:
+		var e: FNEnemy = st.enemies[id]
+		var r: Rig = rigs[id]
+		if e.level <= 0 and id != "balon":
+			r.visible = false
+			continue
+		var key := "%s|%d|%s" % [e.spot, e.pose, str(e.look)]
+		if id == "ghost":
+			key += "|" + str((e as FNGhost).flicker)
+		if place_key.get(id, "") != key:
+			place_key[id] = key
+			stare.erase(id)
+			_place(id, e, r)
+		_live(id, e, r, dt)
+		# мерцание глаз; у GHOST — растёт с одержимостью
+		var f: Dictionary = face.get(id, {})
+		if not f.is_empty():
+			(f["eyes"] as Node3D).visible = not (id == "balon" and fposmod(t + 0.7, 6.3) < 0.12)
+	if st.power_out:
+		for id in FNData.ORDER:
+			if (st.enemies[id] as FNEnemy).spot in ["door_l", "door_r"]:
+				(rigs[id] as Rig).visible = false
+
+func _place(id: String, e: FNEnemy, r: Rig) -> void:
+	var sp: String = e.spot
+	r.rotation = Vector3.ZERO
+	r.visible = true
+	var cam_p := Vector3.ZERO
+	match sp:
+		"away", "duct_l", "duct_t", "office", "vent_t":
+			r.visible = false
+			return
+		"door_l", "door_r":
+			var p := FNOffice.point(sp)
+			r.position = p
+			r.rotation.y = PI / 2 if sp == "door_l" else -PI / 2
+			lunge_t[id] = false
+			r.play("FNPeek" if e.pose != 1 else "FNStill", 0.0)
+			return
+		"vent_l":
+			# лицо за решёткой: лежит в шахте головой к решётке
+			r.position = Vector3(-1.62, 0.05, -2.75)
+			r.rotation = Vector3(deg_to_rad(80.0), 0, 0)
+			r.play("FNCrawl", 0.0, 0.0)
+			return
+		"corner":
+			r.position = FNOffice.point("corner")
+			r.rotation.y = deg_to_rad(150.0)
+			r.play("FNStill", 0.0)
+			return
+		"vent":
+			var xf := fac.spot("vent", 0)
+			r.global_transform = xf
+			r.rotation.x = deg_to_rad(80.0)
+			r.position.y = 0.25
+			r.play("FNCrawl", 0.0, 0.6)
+			return
+	var room := sp
+	if id == "ghost":
+		room = "ghost_" + sp if fac.spots.has("ghost_" + sp) else sp
+	var xf2 := fac.spot(room, e.pose)
+	r.global_transform = xf2
+	cam_p = (fac.cams.get(sp, {}) as Dictionary).get("pos", r.position + Vector3(0, 0, 3))
+	if e.look:
+		var to := cam_p - r.global_position
+		r.rotation.y = atan2(to.x, to.z)
+		r.play("FNStare", 0.0)
+	elif sp in ["hall_l", "hall_r"]:
+		r.rotation.y = 0.0
+		# пришёл от двери — пятится, не сводя глаз; идёт к офису — приближается рывками и сам подползает ближе
+		mode[id] = "retreat" if e.prev in ["door_l", "door_r"] else "approach"
+		creep[id] = 0.0
+		r.set_meta("hall_z", r.position.z)
+		r.play("FNRetreat" if mode[id] == "retreat" else ("FNApproach" if id != "clipper" else "FNWalk"), 0.0, 1.0 if id != "clipper" else 0.18)
+	else:
+		r.play("FNStill" if e.pose != 2 else "Idle", 0.0)
+
+## живое между переездами: подползает по коридору, у двери подаётся вперёд перед входом, глаза бегают,
+## поворот к камере (аномалия «stare»)
+func _live(id: String, e: FNEnemy, r: Rig, dt: float) -> void:
+	if not r.visible:
+		return
+	if e.spot in ["hall_l", "hall_r"] and String(mode.get(id, "")) == "approach":
+		creep[id] = minf(1.1, float(creep.get(id, 0.0)) + dt * 0.05)
+		r.position.z = float(r.get_meta("hall_z", r.position.z)) + float(creep[id])
+	if e.spot in ["door_l", "door_r"] and e.linger > 0.0:
+		var near: bool = e.door_t > e.linger * 0.7
+		if near != bool(lunge_t.get(id, false)):
+			lunge_t[id] = near
+			r.play("FNLunge" if near else "FNPeek", 0.25)
+	if stare.has(id):
+		var to: Vector3 = (stare[id] as Vector3) - r.global_position
+		r.rotation.y = rotate_toward(r.rotation.y, atan2(to.x, to.z), dt * 0.45)
+	var f: Dictionary = face.get(id, {})
+	if f.is_empty():
+		return
+	var d: Array = dart.get(id, [randf_range(2.0, 5.0), 0.0])
+	d[0] -= dt
+	if d[0] <= 0.0:
+		d[0] = randf_range(2.5, 6.0)
+		d[1] = randf_range(0.25, 0.6)
+		(f["eyes"] as Node3D).position.x = randf_range(-1.0, 1.0) * 0.035 * float(f["hs"])
+	if d[1] > 0.0:
+		d[1] -= dt
+		if d[1] <= 0.0:
+			(f["eyes"] as Node3D).position.x = 0.0
+	dart[id] = d
+
+## аномалия камеры: враг медленно поворачивается к ней всем телом
+func stare_at(id: String, cam_pos: Vector3) -> void:
+	if id != "":
+		stare[id] = cam_pos
+
+## хоррор-детали на обычной модели (пока нет своей модели владельца): у каждого врага своё
+func _horror(id: String, r: Rig) -> void:
+	var hb: int = r.bone["head"]
+	var hs: float = float((face.get(id, {"hs": 0.4}) as Dictionary)["hs"])
+	match id:
+		"bot":
+			# вместо лица — экран кинескопа со смайлом, который «плывёт» помехами
+			if hb >= 0:
+				var n := _on_bone(r, hb, Vector3(0, 0.42 * hs, 0.47 * hs))
+				var scr := MGProps.screen_mat(Color(0.8, 0.95, 0.85), 3.0, 2.0, 1.6)
+				MGProps.quad(n, Vector3.ZERO, Vector2(0.5 * hs, 0.4 * hs), scr)
+		"madk1d":
+			# очки: одна линза треснула и светится красным
+			if hb >= 0:
+				var n := _on_bone(r, hb, Vector3(0, 0.44 * hs, 0.46 * hs))
+				MGProps.box(n, Vector3(-0.12 * hs, 0, 0), Vector3(0.18 * hs, 0.12 * hs, 0.01), MGProps.mat("black"))
+				MGProps.box(n, Vector3(0.12 * hs, 0, 0), Vector3(0.18 * hs, 0.12 * hs, 0.01), MGProps.glow(Color(0.9, 0.05, 0.05), 2.4))
+				MGProps.box(n, Vector3(0.12 * hs, 0, 0.007), Vector3(0.2 * hs, 0.012, 0.002), MGProps.mat("paper"), Vector3(0, 0, 0.7))
+		"clipper":
+			# красные кабели свисают с плеч, как вены
+			for k in ["rarm", "larm"]:
+				var b: int = r.bone[k]
+				if b < 0:
+					continue
+				var n := _on_bone(r, b, Vector3.ZERO)
+				MGProps.cable(n, Vector3(0, 0.0, 0.04), Vector3(0.02, -0.45, 0.08), 0.06, 0.008, MGProps.mat("red"))
+				MGProps.cable(n, Vector3(0, 0.02, -0.03), Vector3(-0.03, -0.38, -0.05), 0.05, 0.006, MGProps.mat("red_dark"))
+		"mod":
+			# огромный резиновый молоток бана в правой руке
+			var hb2: int = r.bone["rhand"]
+			if hb2 >= 0:
+				var n := _on_bone(r, hb2, Vector3(0, -0.05, 0.0))
+				MGProps.cyl(n, Vector3(0, -0.2, 0), 0.02, 0.02, 0.5, MGProps.mat("black"))
+				MGProps.cyl(n, Vector3(0, -0.48, 0), 0.09, 0.09, 0.26, MGProps.mat("red"), Vector3(0, 0, PI / 2))
+				MGProps.text(n, "BAN", Vector3(0, -0.48, 0.095), 40, Color(0.95, 0.9, 0.85))
+		"balon":
+			# вентиль на затылке иногда «дышит» паром — тонкий конус
+			if hb >= 0:
+				var n := _on_bone(r, hb, Vector3(0, 0.9 * hs, -0.2 * hs))
+				var steam := MGProps.cyl(n, Vector3(0, 0.12, 0), 0.06, 0.005, 0.22, MGProps.glow(Color(0.85, 0.88, 0.9), 0.4))
+				steam.set_meta("steam", true)
+				steam.name = "steam"
+
+## узел, привязанный к кости, со сдвигом от неё в осях героя (вверх, вперёд)
+func _on_bone(r: Rig, b: int, off: Vector3) -> Node3D:
+	var att := BoneAttachment3D.new()
+	att.bone_name = r.skel.get_bone_name(b)
+	r.skel.add_child(att)
+	var rest_g: Transform3D = r.skel.global_transform * r.skel.get_bone_global_rest(b)
+	var n := Node3D.new()
+	att.add_child(n)
+	n.transform = rest_g.affine_inverse() * Transform3D(Basis(), rest_g.origin + off)
+	return n
+
+## пасть: 0 — закрыта, 1 — раскрыта
+func maw(id: String, k: float) -> void:
+	var f: Dictionary = face.get(id, {})
+	if f.is_empty():
+		return
+	(f["maw"] as Node3D).scale = Vector3(1.0 + k * 0.25, lerpf(0.08, 1.15, k), 1.0)
+	if owned.has(id):
+		(f["maw"] as Node3D).visible = k > 0.03
+
+func hide_all() -> void:
+	for id in rigs:
+		(rigs[id] as Rig).visible = false
+		scare_pose(String(id), false)
+	place_key.clear()
+
+## после скримера: модель возвращается на своё место в риге
+func scare_pose(id: String, _on: bool) -> void:
+	if model_home.has(id):
+		var m: Node3D = (rigs[id] as Rig).model
+		m.transform = Transform3D(Basis().scaled(m.scale), model_home[id])
+
+## где сейчас лицо врага (середина между глазами) — в мире
+func face_pos(id: String) -> Vector3:
+	var f: Dictionary = face.get(id, {})
+	if f.is_empty():
+		var r: Rig = rigs[id]
+		return r.skel.global_transform * r.skel.get_bone_global_pose(r.bone["head"]).origin
+	return (f["eyes"] as Node3D).global_position
+
+## маскот БАЛОН для превью в меню режимов (без будки): тот же риг, тон, балон за спиной и светящиеся глаза
+static func preview_balon(parent: Node) -> Rig:
+	var r := Rig.new()
+	parent.add_child(r)
+	r.setup("res://assets/models/bot.glb", 2.3, FNPoses.balon(), false, 1.0, "fn_balon")
+	for mi in r.model.find_children("*", "MeshInstance3D", true, false):
+		var inst := mi as MeshInstance3D
+		for s in inst.mesh.get_surface_count():
+			var src := inst.get_active_material(s)
+			if src is StandardMaterial3D:
+				var mat := (src as StandardMaterial3D).duplicate() as StandardMaterial3D
+				mat.albedo_color = Color.WHITE.lerp(Color(0.88, 0.85, 0.78), 0.55)
+				inst.set_surface_override_material(s, mat)
+	var sb: int = r.bone["spine2"] if r.bone["spine2"] >= 0 else r.bone["spine"]
+	var att := BoneAttachment3D.new()
+	att.bone_name = r.skel.get_bone_name(sb)
+	r.skel.add_child(att)
+	var rest_g: Transform3D = r.skel.global_transform * r.skel.get_bone_global_rest(sb)
+	var holder := Node3D.new()
+	att.add_child(holder)
+	holder.transform = rest_g.affine_inverse() * Transform3D(Basis(), r.global_position + Vector3(0, rest_g.origin.y - r.global_position.y + 0.25, -0.32))
+	var ps := load("res://assets/models/balon.glb") as PackedScene
+	if ps != null:
+		var b := ps.instantiate() as Node3D
+		holder.add_child(b)
+		b.scale = Vector3.ONE * 1.5
+		b.position = Vector3(0, -0.55, 0)
+	var hb: int = r.bone["head"]
+	if hb >= 0:
+		var ha := BoneAttachment3D.new()
+		ha.bone_name = r.skel.get_bone_name(hb)
+		r.skel.add_child(ha)
+		var hg: Transform3D = r.skel.global_transform * r.skel.get_bone_global_rest(hb)
+		var hs: float = maxf(0.18, 2.3 - (hg.origin.y - r.global_position.y))
+		var em := StandardMaterial3D.new()
+		em.albedo_color = Color(1.0, 0.95, 0.9)
+		em.emission_enabled = true
+		em.emission = Color(1.0, 0.95, 0.9)
+		em.emission_energy_multiplier = 6.0
+		em.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		for sx in [-1.0, 1.0]:
+			var e := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = 0.055 * hs
+			sm.height = 0.11 * hs
+			e.mesh = sm
+			e.material_override = em
+			ha.add_child(e)
+			e.transform = hg.affine_inverse() * Transform3D(Basis(), r.global_position + Vector3(sx * 0.11 * hs, hg.origin.y - r.global_position.y + 0.42 * hs, 0.44 * hs))
+	r.play("FNStare", 0.0)
+	return r

@@ -64,16 +64,16 @@ func shot(name: String) -> void:
 ## Один цикл паузы: открыть, показать страницу, закрыть — с ожиданием по состоянию, а не по часам.
 func cycle(pm, page: int) -> void:
 	await key(KEY_ESCAPE)
-	var t0 := Time.get_ticks_msec()
-	while not (pm.is_open and get_tree().paused) and Time.get_ticks_msec() - t0 < 3000:
+	var t0 := GameClock.ms()
+	while not (pm.is_open and get_tree().paused) and GameClock.ms() - t0 < 3000:
 		await get_tree().process_frame
 	await wait(0.7)
 	pm._open_page(page)
 	await wait(0.1)
 	pm._close_card()
 	await key(KEY_ESCAPE)
-	t0 = Time.get_ticks_msec()
-	while (get_tree().paused or pm.is_open) and Time.get_ticks_msec() - t0 < 3000:
+	t0 = GameClock.ms()
+	while (get_tree().paused or pm.is_open) and GameClock.ms() - t0 < 3000:
 		await get_tree().process_frame
 	await wait(0.15)
 
@@ -100,16 +100,35 @@ func _run() -> void:
 	var has_save: bool = mm.has_save
 	var s0: int = mm.sel
 	await key(KEY_S)
-	ok(mm.sel == (s0 + 1) % 6, "меню: S — вниз")
+	ok(mm.sel == (s0 + 1) % mm.ITEMS.size(), "меню: S — вниз")
 	await key(KEY_W)
 	ok(mm.sel == s0, "меню: W — вверх")
 	await key(KEY_DOWN)
 	await key(KEY_UP)
 	ok(mm.sel == s0, "меню: стрелки работают")
 	moves += 4
-	for it in [[1, "new"], [2, "load"], [3, "settings"], [4, "extras"]]:
-		if int(it[0]) == 1 and not has_save:
-			continue
+	# PLAY → экран выбора режима: у каждого режима свой экран, Esc — назад
+	mm._select(1, false)
+	await key(KEY_ENTER)
+	await wait(0.5)
+	ok(mm.modes.visible, "меню: PLAY открывает экран выбора режима")
+	await shot("menu_modes")
+	for k in ModeSelect.MODES.size():
+		mm.modes.select(k, false)
+		await wait(0.4)
+		await key(KEY_ENTER)
+		await wait(0.3)
+		ok(mm.panel != null, "режим «%s»: Enter открывает экран" % ModeSelect.MODES[k]["title"])
+		await shot("menu_mode_" + String(ModeSelect.MODES[k]["id"]))
+		buttons += mm.panel_rows.size()
+		await key(KEY_ESCAPE)
+		await wait(0.2)
+		ok(mm.panel == null and mm.modes.visible and main.game == null, "режим «%s»: Esc — назад к режимам" % ModeSelect.MODES[k]["title"])
+		moves += 3
+	await key(KEY_ESCAPE)
+	await wait(0.3)
+	ok(not mm.modes.visible, "экран режимов: Esc — назад на главный список")
+	for it in [[2, "settings"], [3, "extras"]]:
 		mm._select(int(it[0]), false)
 		await key(KEY_ENTER)
 		await wait(0.3)
@@ -126,15 +145,23 @@ func _run() -> void:
 		moves += 3
 	# подтверждение новой игры: Enter по умолчанию — «Отмена», сохранение цело
 	if has_save:
-		mm._select(1, false)
+		mm.open_modes(0)
+		await wait(0.3)
+		await key(KEY_ENTER)
+		await wait(0.2)
+		mm._panel_select(1, false)            # STORY MODE: CONTINUE, NEW GAME, LOAD GAME, НАЗАД
 		await key(KEY_ENTER)
 		await wait(0.2)
 		await key(KEY_ENTER)
 		await wait(0.2)
-		ok(mm.panel == null and main.game == null and FileAccess.get_file_as_string(KEEP[0]) == kept[KEEP[0]], "новая игра: «Отмена» по умолчанию, сохранение не тронуто")
+		ok(mm.panel != null and String(mm.panel_rows[0]["text"]) == "CONTINUE" and main.game == null and FileAccess.get_file_as_string(KEEP[0]) == kept[KEEP[0]], "новая игра: «Отмена» по умолчанию — назад к сюжету, сохранение не тронуто")
+		await key(KEY_ESCAPE)
+		await wait(0.2)
+		await key(KEY_ESCAPE)
+		await wait(0.3)
 		moves += 2
 	# настройки: каждая строка меняется и возвращается
-	mm._select(3, false)
+	mm._select(2, false)
 	await key(KEY_ENTER)
 	await wait(0.3)
 	var changed := 0
@@ -182,21 +209,32 @@ func _run() -> void:
 	await key(KEY_ESCAPE)
 	await wait(0.2)
 	# мышь: наведение выбирает, клик открывает
-	var row: Control = mm.rows[2]["root"]
+	var row: Control = mm.rows[1]["root"]
 	await click(centre(row))
+	await wait(0.4)
+	ok(mm.sel == 1 and mm.modes.visible, "меню: клик мышью по PLAY открывает выбор режима")
+	await click(centre(mm.modes.cards[0]["root"]))
 	await wait(0.3)
-	ok(mm.sel == 2 and mm.panel != null, "меню: клик мышью по LOAD GAME открывает экран")
+	ok(mm.panel != null, "мышь: клик по STORY MODE открывает экран сюжета")
+	await key(KEY_ESCAPE)
+	await wait(0.2)
+	await key(KEY_ESCAPE)
+	await wait(0.3)
+	ok(not mm.modes.visible, "Esc, Esc — назад на главный список")
 	buttons += 6
 	await key(KEY_ESCAPE)
 	await wait(0.2)
 	# ================= игра =================
 	mm._select(0 if has_save else 1, false)
-	await key(KEY_ENTER)
+	if has_save:
+		await key(KEY_ENTER)
+	else:
+		mm.launch(false, 0)
 	await wait(2.5)
 	var game = main.game
 	# запуск из меню идёт через кинематографичный переход: ждём, пока камера займёт место и откроется ввод
-	var tq := Time.get_ticks_msec()
-	while game != null and (game.intro_busy() or (main.intro_fx != null and main.intro_fx.busy)) and Time.get_ticks_msec() - tq < 10000:
+	var tq := GameClock.ms()
+	while game != null and (game.intro_busy() or (main.intro_fx != null and main.intro_fx.busy)) and GameClock.ms() - tq < 10000:
 		await get_tree().process_frame
 	ok(game != null and not game.intro_busy(), "переход из меню завершился, управление отдано")
 	ok(game != null and main.menu == null, "%s запускает игру, меню убрано" % ("Continue" if has_save else "New Game"))
@@ -218,8 +256,8 @@ func _run() -> void:
 	var f_game := await fps(1.5)
 	# iPod: Esc работает внутри него, паузу не открывает
 	await key(KEY_UP)
-	var t_ip := Time.get_ticks_msec()
-	while not game.player.pod.buds_in() and Time.get_ticks_msec() - t_ip < 12000:
+	var t_ip := GameClock.ms()
+	while not game.player.pod.buds_in() and GameClock.ms() - t_ip < 12000:
 		await get_tree().process_frame
 	await wait(1.2)
 	ok(game.ipod.opened, "↑ открывает iPod")

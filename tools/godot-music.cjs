@@ -162,6 +162,9 @@ const LOCS = {
   server: { bpm: 128, root: N.G - 12, scale: 'minor', prog: [0, 0, 3, 5], seed: 87, pad: 'dark', lead: 'pluck', drums: 'four', bass: 'acid', arp: 1, dens: .4, rev: .25, lo: 1 },        // ботоферма: механичное техно
   chart: { bpm: 150, root: N.C, scale: 'major', prog: [0, 4, 5, 3], seed: 98, pad: 'saw', lead: 'saw', drums: 'stomp', bass: 'off', dens: .55, rev: .4, lo: 1 },                       // чарты: победный стадионный бит
   core: { bpm: 100, root: N.E - 12, scale: 'phryg', prog: [0, 1, 0, 5], seed: 109, pad: 'choir', lead: 'bell', drums: 'ticks', bass: 'sub', dens: .3, rev: .55, size: 1.8, lo: 1 },       // ядро: холодный минимал, хор
+  ml: { bpm: 82, root: N.F, scale: 'dorian', prog: [0, 3, 5, 4], seed: 141, pad: 'dark', lead: 'keys', drums: 'boombap', bass: 'sub', sw: .3, dens: .3, rev: .35, lo: 1 }, // «микрозаймы»: тёплый лоу-фай комнаты (base — планирование), бит и бас — когда горит срок (drive)
+  fn: { bpm: 52, root: N.Cs - 12, scale: 'phryg', prog: [0, 1, 0, 5], seed: 151, pad: 'choir', lead: 'bell', dens: .12, rev: .6, size: 1.9, dly: .35, lo: 1, bars: 8 }, // «5 ночей», терминал: холодный хор и редкие колокольчики
+  race: { bpm: 168, root: N.A - 12, scale: 'minor', prog: [0, 5, 3, 4], seed: 131, pad: 'saw', lead: 'pluck', drums: 'hyper', bass: '808', arp: 2, dens: .6, rev: .25, dly: .2, lo: 1 }, // гонки на пылесосах: быстрый драйв, тот же лад, что в Томске
 };
 const BOSSES = {
   courier: { bpm: 142, root: N.A - 12, scale: 'harm', prog: [0, 0, 5, 4], seed: 201, pad: 'dark', lead: 'bell', drums: 'drill', bass: '808', dens: .5, rev: .3, lo: 1 },                 // Лил Дрей: сухой дрилл
@@ -190,6 +193,7 @@ function ambient(kind) {
     case 'grave': wind(380, .6, 1.5, .09); for (let i = 0; i < n; i++) if (R() < .0006) b[i] += white() * .15; break;
     case 'server': wind(2200, .05, .6, .02); hum(100, .03); for (let k = 0; k < 96; k++) rim(b, k * .125, .03); break;
     case 'chart': wind(700, .4, 1.6, .21); wind(1500, .5, .8, .33); break;
+    case 'ml': hum(50, .03); wind(420, .25, .7, .05); for (let i = 0; i < n; i++) if (R() < .00025) b[i] += white() * .1; break;   // комната: холодильник, улица за окном, редкий треск
     case 'core': hum(41, .09); wind(3200, .3, .2, .11); for (let k = 0; k < 6; k++) note(b, k * 2, 82, 1.2, { w: 'sin', v: .1, a: .3, r: .8 }); break;
   }
   const x = SR; for (let i = 0; i < x; i++) { const k = i / x; b[i] = b[i] * k + b[n - x + i] * (1 - k); } // стык петли: конец вливается в начало

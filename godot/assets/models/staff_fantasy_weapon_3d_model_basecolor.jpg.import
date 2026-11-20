@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cl4scqq2h7no3"
-path="res://.godot/imported/staff_fantasy_weapon_3d_model_basecolor.jpg-6f4260b7f2623074d98afb88a72fc0ae.ctex"
+path.s3tc="res://.godot/imported/staff_fantasy_weapon_3d_model_basecolor.jpg-6f4260b7f2623074d98afb88a72fc0ae.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "9e26650e0a9eb0c5f718127c318b2b5f"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/staff_fantasy_weapon_3d_model_basecolor.jpg"
-dest_files=["res://.godot/imported/staff_fantasy_weapon_3d_model_basecolor.jpg-6f4260b7f2623074d98afb88a72fc0ae.ctex"]
+dest_files=["res://.godot/imported/staff_fantasy_weapon_3d_model_basecolor.jpg-6f4260b7f2623074d98afb88a72fc0ae.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=2048
 detect_3d/compress_to=1

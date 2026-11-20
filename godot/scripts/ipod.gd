@@ -44,6 +44,9 @@ var focus_amount := 0.0
 var motion_amount := 0.0
 var player: AudioStreamPlayer
 var file_dialog: FileDialog
+var importer: AudioImport        # импорт форматов в своём потоке (audio_import.gd)
+var import_first := -1           # индекс первого трека из текущего импорта
+var import_errors: Array = []     # [имя, причина] — что не взяли в последнем импорте
 var tracks: Array[Dictionary] = []
 var track_index := -1
 var volume := 0.7
@@ -308,6 +311,18 @@ func next_track_from_pause() -> bool:
 		return false
 	return pause_step_track(1)
 
+## iPod работает только в основной игре (кампания) и на тренировочной арене — это решение владельца (2026-11-20).
+## В меню, гонках и мини-играх («Микрозаймы», «5 ночей») плеера нет: там своя музыка и свои клавиши. Сам плеер
+## создаётся вместе с игрой (game.gd) и уходит вместе с ней; эта проверка — на случай, если игра когда-нибудь
+## окажется рядом с другим режимом (идёт гонка или мини-игра, а объект игры ещё не убран).
+static func allowed(g) -> bool:
+	if g == null or not is_instance_valid(g):
+		return false
+	var m = g.get("main")
+	if m == null:
+		return true
+	return m.get("race") == null and m.get("minigame") == null
+
 func pause_set_volume(v: float) -> void:
 	volume = clampf(v, 0.0, 1.0)
 	_save_settings()
@@ -315,6 +330,8 @@ func pause_set_volume(v: float) -> void:
 
 func _can_toggle() -> bool:
 	if game == null or game.over:
+		return false
+	if not allowed(game):
 		return false
 	if opened:
 		return true
@@ -774,7 +791,7 @@ func _synth_click(duration_ms: float, frequency: float, amplitude: float, double
 func _play_ui_sound(kind: String) -> bool:
 	if not button_sounds_enabled or button_sounds_volume <= 0.001 or not ui_streams.has(kind):
 		return false
-	var now := Time.get_ticks_msec()
+	var now := GameClock.ms()
 	var minimum_gap := 28 if kind == "navigate" else 34
 	if now - last_ui_sound_ms < minimum_gap:
 		return false
@@ -806,9 +823,26 @@ func _build_file_dialog() -> void:
 	file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES
 	file_dialog.access = FileDialog.ACCESS_FILESYSTEM
 	file_dialog.use_native_dialog = true
-	file_dialog.filters = PackedStringArray(["*.mp3 ; MP3", "*.ogg ; Ogg Vorbis", "*.wav ; WAV"])
+	file_dialog.filters = AudioImport.filters()
 	file_dialog.files_selected.connect(_import_files)
 	add_child(file_dialog)
+	importer = AudioImport.new()
+	importer.name = "AudioImport"
+	add_child(importer)
+	importer.progress.connect(func(done: int, total: int, file: String):
+		if total > 1 and game != null:
+			game.toast("Импорт %d / %d: %s" % [done + 1, total, file]))
+	importer.track_ready.connect(func(t: Dictionary):
+		if import_first < 0:
+			import_first = tracks.size()
+		tracks.append(t)
+		_save_settings()
+		_refresh())
+	importer.track_failed.connect(func(file: String, why: String):
+		import_errors.append([file, why])
+		if game != null:
+			game.toast("%s — %s" % [file, why]))
+	importer.finished.connect(_import_finished)
 
 
 func _load_settings() -> void:
@@ -924,51 +958,32 @@ func _select_track(index: int, play_now := true, from_time := 0.0) -> void:
 	_save_settings()
 
 
+## Импорт: MP3, M4A (AAC, ALAC), M4B, AIFF, WAV, Ogg Vorbis, FLAC — в отдельном потоке (AudioImport), игра не замирает.
+## Защищённые (M4P, Audible), WMA, Opus и прочее — отказ с понятной причиной. Оригиналы не меняются.
 func _import_files(paths: PackedStringArray) -> void:
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(USER_MUSIC_DIR))
-	var added := 0
-	for source in paths:
-		var ext := source.get_extension().to_lower()
-		if ext not in ["mp3", "ogg", "wav"]:
-			continue
-		var id := "%d_%d" % [Time.get_unix_time_from_system(), randi()]
-		var destination := USER_MUSIC_DIR.path_join(id + "." + ext)
-		var input := FileAccess.open(source, FileAccess.READ)
-		if input == null:
-			continue
-		var bytes := input.get_buffer(input.get_length())
-		input.close()
-		var output := FileAccess.open(destination, FileAccess.WRITE)
-		if output == null:
-			continue
-		output.store_buffer(bytes)
-		output.close()
-		var metadata: Dictionary = ID3.read(destination) if ext == "mp3" else {}
-		var cover_path := ""
-		var cover_bytes: PackedByteArray = metadata.get("cover_bytes", PackedByteArray())
-		var cover_ext := String(metadata.get("cover_ext", ""))
-		if not cover_bytes.is_empty() and cover_ext in ["jpg", "png"]:
-			cover_path = USER_MUSIC_DIR.path_join(id + "_cover." + cover_ext)
-			var cover_file := FileAccess.open(cover_path, FileAccess.WRITE)
-			if cover_file != null:
-				cover_file.store_buffer(cover_bytes)
-				cover_file.close()
-			else:
-				cover_path = ""
-		var metadata_title := String(metadata.get("title", "")).strip_edges()
-		var metadata_artist := String(metadata.get("artist", "")).strip_edges()
-		tracks.append({"id": id,
-			"title": metadata_title if metadata_title != "" else source.get_file().get_basename(),
-			"artist": metadata_artist if metadata_artist != "" else "Моя музыка",
-			"album": String(metadata.get("album", "")).strip_edges(), "cover": cover_path,
-			"path": destination, "local": true})
-		added += 1
+	if paths.is_empty():
+		return
+	if not importer.busy:
+		import_first = -1
+		import_errors = []
+	if game != null:
+		game.toast("Импорт: %d %s…" % [paths.size(), "файл" if paths.size() == 1 else "файла" if paths.size() < 5 else "файлов"])
+	importer.start(paths)
+
+func importing() -> bool:
+	return importer != null and importer.busy
+
+func _import_finished(added: int, failed: int) -> void:
 	_save_settings()
-	if added > 0:
-		game.toast("Добавлено треков: %d" % added)
-		_select_track(tracks.size() - added)
-	else:
-		game.toast("Не удалось добавить музыку")
+	if game != null:
+		if added > 0:
+			game.toast("Добавлено треков: %d" % added + ("   ·   не взято: %d" % failed if failed > 0 else ""))
+		elif failed == 1 and not import_errors.is_empty():
+			game.toast("%s — %s" % import_errors[0])
+		else:
+			game.toast("Не удалось добавить музыку")
+	if added > 0 and import_first >= 0 and import_first < tracks.size():
+		_select_track(import_first)
 
 
 func _remove_current() -> void:
@@ -1811,6 +1826,8 @@ func _motion_label() -> String:
 
 
 func _exit_tree() -> void:
+	if importer != null:
+		importer.stop()
 	_save_settings()
 	if game != null and game.has_method("set_ipod_visual_focus"):
 		game.set_ipod_visual_focus(0.0, 0.0)

@@ -1224,7 +1224,7 @@ func _hum(level: float) -> void:
 	hum.pitch_scale = lerpf(hum.pitch_scale, pitch, 0.15)
 
 ## гул мотора: пила с биением и шум, зацикленный (записи пылесоса в проекте нет)
-func _synth_hum() -> AudioStreamWAV:
+static func _synth_hum() -> AudioStreamWAV:      # static: тот же гул мотора берут гонщики (race_rider.gd)
 	var rate := 22050
 	var n := rate
 	var data := PackedByteArray()

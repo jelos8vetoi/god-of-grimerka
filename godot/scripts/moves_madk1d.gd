@@ -41,6 +41,14 @@ static func all() -> Dictionary:
 		[1.0, Poses.mk({"lift": 0.15, "spine": {"x": -0.1}, "rarm": {"x": -2.2}, "larm": {"x": -2.2}, "rup": {"x": -0.5}, "rleg": {"x": 0.8}, "lup": {"x": -0.2}, "lleg": {"x": 0.5}}), "in"]]}
 	A["Fall"] = {"d": 0.6, "loop": true, "ease": "io", "k": [[0.0, Poses.mk({"rup": {"x": -0.5}, "rleg": {"x": 0.7}, "lup": {"x": -0.2}, "lleg": {"x": 0.4}, "rarm": {"z": -0.5}, "larm": {"z": 0.5}})],
 		[0.5, Poses.mk({"rup": {"x": -0.3}, "rleg": {"x": 0.5}, "lup": {"x": -0.4}, "lleg": {"x": 0.6}, "rarm": {"z": -0.6}, "larm": {"z": 0.6}})], [1.0, Poses.mk({"rup": {"x": -0.5}, "rleg": {"x": 0.7}, "lup": {"x": -0.2}, "lleg": {"x": 0.4}, "rarm": {"z": -0.5}, "larm": {"z": 0.5}})]]}
+	# рывок в воздухе: резкий группированный бросок (бочку крутит контроллер — player._air_dash_tick)
+	A["AirDash"] = {"d": 1.0, "k": [[0.0, Poses.mk({"spine": {"x": 0.3}, "rup": {"x": -0.7}, "rleg": {"x": 1.0}, "lup": {"x": -0.5}, "lleg": {"x": 0.8}})],
+		[0.2, Poses.mk({"spine": {"x": 0.65}, "head": {"x": -0.25}, "rup": {"x": -1.3}, "rleg": {"x": 1.8}, "lup": {"x": -1.2}, "lleg": {"x": 1.7}, "rarm": {"x": 0.9, "z": -0.4}, "larm": {"x": 0.9, "z": 0.4}}), "out"],
+		[0.85, Poses.mk({"spine": {"x": 0.3}, "rup": {"x": -0.7}, "rleg": {"x": 0.9}, "lup": {"x": -0.3}, "lleg": {"x": 0.6}, "rarm": {"z": -0.7}, "larm": {"z": 0.7}}), "io"],
+		[1.0, Poses.mk({"rup": {"x": -0.5}, "rleg": {"x": 0.7}, "lup": {"x": -0.2}, "lleg": {"x": 0.4}, "rarm": {"z": -0.5}, "larm": {"z": 0.5}}), "io"]]}
+	# скольжение: низко на одной ноге, вторая вытянута вперёд, руки в стороны — готов выпрыгнуть
+	var sl := Poses.mk({"spine": {"x": -0.35}, "head": {"x": 0.3}, "lup": {"x": -1.45}, "lleg": {"x": 0.1}, "rup": {"x": 0.35}, "rleg": {"x": 1.75}, "larm": {"z": 1.0, "x": -0.3}, "rarm": {"z": -0.9}, "drop": 0.5})
+	A["Slide"] = {"d": 1.0, "k": [[0.0, Poses.mk(Poses.add(squat, {"spine": {"x": 0.2}}))], [0.15, sl, "out"], [0.8, sl], [1.0, Poses.mk(squat), "io"]]}
 	A["Land"] = {"d": 1.0, "ground": true, "ev": {"land": 0.05}, "k": [[0.0, Poses.mk(sq)], [0.25, MadkClips.mg(Poses.add(squat, {"spine": {"x": 0.3}})), "out"], [1.0, g, "io"]]}
 	# ---------- удары: двойка руками и удар ногой с разворота ----------
 	A["Cross"] = {"d": 1.0, "ground": true, "ev": {"hit": 0.4}, "k": [[0.0, g], [0.2, MadkClips.mg({"spine": {"y": -0.2}, "rarm": {"x": 0.2}}), "out"],

@@ -125,8 +125,8 @@ func foe(dist := 3.5, hp := 9999.0):
 	return e
 
 func wait_card(limit := 4.0) -> bool:
-	var t0 := Time.get_ticks_msec()
-	while TU.card == null and Time.get_ticks_msec() - t0 < int(limit * 1000.0):
+	var t0 := GameClock.ms()
+	while TU.card == null and GameClock.ms() - t0 < int(limit * 1000.0):
 		await frames(1)
 	return TU.card != null
 
@@ -137,6 +137,7 @@ func close_enter() -> void:
 
 func _run() -> void:
 	await stage()
+	TU.force = 0                     # разделы 1–11 — карточки (как в паузе); практика — раздел 12
 	ok(TU.on, "обучение включено в проверке")
 	TU.reset()
 	var e = foe()
@@ -315,13 +316,236 @@ func _run() -> void:
 	TU.show_card("heavy")
 	await close_enter()
 	var d = JSON.parse_string(FileAccess.get_file_as_string(sp))
-	ok(d is Dictionary and (d["tut"] as Array).has("light") and (d["tut"] as Array).has("heavy") and int(d["step"]) == 3 and int(d["xp"]) == 7, "увиденные карточки дописаны в сохранение, остальное не тронуто")
+	ok(d is Dictionary and (d["tut"] as Dictionary).has("light") and (d["tut"] as Dictionary).has("heavy") and int(d["step"]) == 3 and int(d["xp"]) == 7, "увиденные карточки дописаны в сохранение, остальное не тронуто")
 	TU.persist = false
 	TU.load_data(["light", "style_guitar", "нет_такой"])
 	ok(TU.seen.size() == 2 and TU.seen.has("style_guitar"), "загрузка: известные карточки, лишнее отброшено")
 	TU.load_data(({"ch": 1} as Dictionary).get("tut", []))
 	ok(TU.seen.is_empty(), "старое сохранение без ключа — обучение с начала")
-	ok(game.tutorial.save_data() is Array, "save_data — список для JSON")
+	ok(game.tutorial.save_data() is Dictionary, "save_data — состояния для JSON")
+	TU.load_data({"light": "completed", "heavy": "skipped", "dodge": "introduced", "плохой": "completed", "combo": "чушь"})
+	ok(TU.state_of("light") == "completed" and TU.state_of("heavy") == "skipped" and TU.state_of("dodge") == "introduced" and not TU.seen.has("плохой") and not TU.seen.has("combo"), "загрузка состояний: сделано / пропущено / показано, мусор отброшен")
+	await practice_block()
 	ok(not get_tree().paused, "в конце игра не на паузе")
 	print("TUTORIALCHECK ok" if fails == 0 else "TUTORIALCHECK ОШИБОК: %d" % fails)
 	get_tree().quit()
+
+# ---------------- 12. практика ----------------
+func practice_block() -> void:
+	await stage()
+	TU.reset()
+	TU.force = 1
+	TU.on = true
+	TU.since = 99.0
+	var e = game._make_enemy("bot", "", P.global_position + Vector3(0, 0, -1.6))
+	e.cool = 999.0
+	await frames(80)
+	var t0 := GameClock.ms()
+	while TU.drill_id == "" and GameClock.ms() - t0 < 4000:
+		await frames(1)
+	ok(TU.drill_id == "light" and TU.drill != null and TU.drill.visible, "практика: в первом бою — упражнение «лёгкая атака», панель справа сверху (%s)" % TU.drill_id)
+	ok(not get_tree().paused and TU.card == null, "практика: игра не на паузе, карточки нет")
+	ok(TU.state_of("light") == "introduced", "показ — только «introduced», не «сделано»")
+	await real(0.3)
+	await shot("t12_drill.png")
+	ok(TU.guard_e == e and e.train_guard, "учебная цель назначена и защищена")
+	# цель не умирает и реагирует
+	var hp0: float = e.hp
+	e.take_hit(9999.0, Vector3(0, 0, -1), 4.0, true, 0.0)
+	await frames(3)
+	ok(e.alive() and e.hp >= e.max_hp * 0.05 - 0.01 and e.hp < hp0, "учебная цель не умирает (%.1f из %.0f), но урон получает" % [e.hp, e.max_hp])
+	ok(e.state in ["hurt", "stun", "air", "down"] or e.react != "normal", "учебная цель реагирует на удар (%s / %s)" % [e.state, e.react])
+	await frames(40)
+	e.global_position = P.global_position + Vector3(0, 0, -1.6)
+	e.state = "chase"
+	# неправильное действие не засчитывается
+	P.auto_input = {"heavy": "press"}
+	await frames(1)
+	P.auto_input = {}
+	await frames(70)
+	ok(TU.drill_id == "light" and TU.drill_n == 0, "тяжёлый удар не засчитан за лёгкий (%d)" % TU.drill_n)
+	# правильное — засчитывается по попаданию
+	for i in 40:
+		if TU.drill_id != "light":
+			break
+		e.global_position = P.global_position + Vector3(sin(P.face), 0, cos(P.face)) * 1.6
+		e.state = "chase"
+		P.auto_input = {"attack": "press"}
+		await frames(1)
+		P.auto_input = {}
+		await frames(28)
+	ok(TU.state_of("light") == "completed", "три попадания лёгкой атакой — упражнение выполнено (%s)" % TU.state_of("light"))
+	await frames(10)
+	await shot("t13_done.png")
+	ok(not e.train_guard, "после упражнения защита с цели снята")
+	await frames(90)
+	# пропуск и неповтор
+	TU.start_drill("heavy")
+	await frames(3)
+	var kb := InputEventKey.new()
+	kb.physical_keycode = KEY_BACKSPACE
+	kb.keycode = KEY_BACKSPACE
+	kb.pressed = true
+	Input.parse_input_event(kb)
+	await frames(2)
+	var ku := kb.duplicate() as InputEventKey
+	ku.pressed = false
+	Input.parse_input_event(ku)
+	await frames(2)
+	ok(TU.state_of("heavy") == "skipped" and TU.drill_id == "", "Backspace — упражнение пропущено (%s)" % TU.state_of("heavy"))
+	var again := false
+	for i in 20:
+		if TU.pick_drill() == "heavy":
+			again = true
+	ok(not again and TU.done("light") and TU.done("heavy"), "сделанное и пропущенное не повторяются")
+	# уклонение от настоящего замаха
+	TU.seen["combo"] = "completed"
+	if not is_instance_valid(e) or not e.alive():
+		e = game._make_enemy("bot", "", P.global_position + Vector3(0, 0, -2.0))     # прежнюю цель могли добить после упражнения
+		await real(1.4)
+	e.global_position = P.global_position + Vector3(0, 0, -2.0)
+	TU.start_drill("dodge")
+	await frames(3)
+	ok(TU.guard_e != null and TU.guard_e.train_attack, "упражнение защиты: цель замахивается регулярно")
+	var foe = TU.guard_e
+	foe.cool = 0.2
+	foe.global_position = P.global_position + Vector3(0, 0, -1.8)
+	var dodged := false
+	P.combat.clear_buffer()
+	for i in 400:
+		await frames(1)
+		if foe.state == "wind" and P.state == "move":
+			# жмём, пока герой не ушёл в перекат (кадр нажатия может прийтись на конец прошлого действия)
+			for k in 6:
+				P.auto_input = {"move": Vector2(1, 0), "roll": "press"}
+				await frames(1)
+				P.auto_input = {}
+				await frames(1)
+				if P.state == "roll":
+					dodged = true
+					break
+			if dodged:
+				break
+	await frames(20)
+	ok(dodged and TU.ev_log.has("dodge_wind") and TU.drill_step >= 1, "уклонение от настоящего замаха засчитано (шаг %d)" % TU.drill_step)
+	TU.finish_drill("skipped")
+	# клавиши из InputMap
+	TU.start_drill("light")
+	var old_ev: Array = InputMap.action_get_events("attack")
+	InputMap.action_erase_events("attack")
+	var kx := InputEventKey.new()
+	kx.physical_keycode = KEY_J
+	InputMap.action_add_event("attack", kx)
+	TU.drill.call("show_step", "light", 0, 0, false)
+	await frames(2)
+	var kl: Node = TU.drill.find_child("Key_attack", true, false)
+	ok(kl != null and (kl as Label).text == "J", "панель: после переназначения — новая клавиша (%s)" % ((kl as Label).text if kl != null else "—"))
+	InputMap.action_erase_events("attack")
+	for ev in old_ev:
+		InputMap.action_add_event("attack", ev)
+	TU.finish_drill("skipped")
+	# диалог: панели нет, новое упражнение не начинается
+	TU.seen = {}
+	TU.since = 99.0
+	game.mode = "dlg"
+	await frames(30)
+	ok(TU.drill_id == "", "в диалоге упражнение не начинается")
+	game.mode = "fight"
+	# все шесть стилей
+	var all6 := true
+	for sid in Styles.ORDER:
+		if TU.steps_of("style_" + String(sid)).is_empty():
+			all6 = false
+	ok(all6 and TU._resolve_drill("style_cur") == "style_" + String(P.style.id), "у всех шести стилей есть упражнения; текущий стиль определяется (%s)" % TU._resolve_drill("style_cur"))
+	# ---- защита цели: только в упражнениях на попадание и не дольше GUARD_MAX ----
+	for en in game.enemies:
+		if is_instance_valid(en):
+			en.queue_free()
+	await frames(5)
+	var g1 = game._make_enemy("bot", "", P.global_position + Vector3(0, 0, -2.0))
+	await real(1.4)                  # враг выходит из портала около секунды
+	TU.start_drill("rage")
+	await frames(5)
+	ok(TU.guard_e == null and not g1.train_guard, "упражнение без ударов («ПЕРЕГРУЗ») врага не держит — он умирает как обычно")
+	TU.finish_drill("skipped")
+	TU.start_drill("heavy")
+	await frames(5)
+	ok(g1.train_guard, "упражнение на удары держит цель")
+	TU.guard_t = TU.GUARD_MAX
+	await frames(3)
+	ok(not g1.train_guard and TU.guard_e == null, "через %d с защита снимается сама — волна не застревает" % int(TU.GUARD_MAX))
+	TU.finish_drill("skipped")
+	g1.queue_free()
+	await frames(5)
+	# ---- «БОСС ОТКРЫТ» в настоящем бою: тяжёлыми сбить равновесие → «ОТКРЫТ» → удар; босса не держим ----
+	for k in ["light", "style_" + String(P.style.id), "finisher", "air"]:
+		TU.seen[k] = "completed"
+	var bid: String = String(game.chapter()["steps"].filter(func(x): return String(x["t"]) == "boss")[0]["id"])
+	var boss = game._make_enemy("", bid, P.global_position + Vector3(0, 0, -2.2))
+	game.boss_e = boss
+	game.mode = "boss"
+	await real(1.3)
+	boss.max_hp = 100000.0              # проверяем путь «открыть», а не «убить»: здоровья с запасом
+	boss.hp = boss.max_hp
+	TU.since = 99.0
+	var started: bool = false
+	for i in 300:
+		await frames(1)
+		if TU.drill_id == "boss_open":
+			started = true
+			break
+	ok(started, "с боссом начинается задание «БОСС ОТКРЫТ» (%s)" % TU.drill_id)
+	await real(0.3)
+	await shot("t14_boss_open.png")
+	var guarded := false
+	var opened := false
+	var t_b := GameClock.ms()
+	var combo_i := 0
+	while TU.drill_id == "boss_open" and GameClock.ms() - t_b < 90000:
+		guarded = guarded or boss.train_guard
+		P.inv = 1.0
+		P.hp = P.max_hp
+		var to: Vector3 = boss.global_position - P.global_position
+		to.y = 0
+		if to.length() > 2.6 or to.length() < 1.2:
+			P.global_position = boss.global_position - (to.normalized() if to.length() > 0.1 else Vector3(0, 0, -1)) * 1.9
+			to = boss.global_position - P.global_position
+		P.face = atan2(to.x, to.z)
+		# как живой игрок: серия лёгких с тяжёлым в конце, нажатия попадают в буфер связки — без пауз
+		combo_i += 1
+		P.auto_input = {"heavy": "press"} if combo_i % 4 == 0 or TU.drill_step == 1 else {"attack": "press"}
+		await frames(1)
+		P.auto_input = {}
+		await frames(9)
+		opened = opened or float(boss.weak_t) > 0.0
+	print("TUT босс: шаг %d, открыт был %s, лог %s" % [TU.drill_step, opened, str(TU.ev_log.slice(-6))])
+	ok(opened and TU.state_of("boss_open") == "completed", "настоящими ударами босс открыт и задание выполнено (%s)" % TU.state_of("boss_open"))
+	ok(not guarded and not boss.train_guard, "босс ни разу не был «учебной целью» — его можно убить")
+	boss.take_hit(9999999.0, Vector3(0, 0, -1), 0.0, true, 0.0)
+	await frames(5)
+	ok(not boss.alive(), "после задания босс умирает")
+	# босса убили раньше, чем открыли: задание снимается, а не висит
+	TU.seen.erase("boss_open")
+	var boss2 = game._make_enemy("", bid, P.global_position + Vector3(0, 0, -2.5))
+	game.boss_e = boss2
+	game.mode = "boss"
+	TU.since = 99.0
+	await real(1.5)
+	for i in 200:
+		if TU.drill_id == "boss_open":
+			break
+		await frames(1)
+	boss2.take_hit(9999999.0, Vector3(0, 0, -1), 0.0, true, 0.0)
+	await real(0.3)
+	ok(TU.drill_id != "boss_open" and TU.state_of("boss_open") == "introduced", "босс убит до «ОТКРЫТ» — задание снято и будет у следующего босса (%s)" % TU.state_of("boss_open"))
+	game.mode = "fight"
+	# обычный враг кампании умирает как раньше
+	TU.on = false                    # карточки и упражнения больше не нужны: проверяем только врага
+	TU.force = 0
+	TU._release_guard()
+	var plain = game._make_enemy("bot", "", P.global_position + Vector3(2, 0, -2))
+	await frames(80)
+	plain.take_hit(9999.0, Vector3(0, 0, -1), 2.0, true, 0.0)
+	await frames(3)
+	ok(not plain.alive(), "обычный враг кампании умирает штатно")
+	TU.force = -1

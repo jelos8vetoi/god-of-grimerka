@@ -358,14 +358,148 @@ func input_dir() -> Vector3:
 
 ## прыжок с места и на бегу: в воздухе герой управляется и может бить и бросать
 const JUMP_V := {"pahan": 7.2, "madk1d": 8.4}
+## Движение (docs/MOVEMENT_SYSTEM.md): рывок в воздухе — один за прыжок, скольжение из спринта, прыжок с разгона,
+## отскок от стены. Пахан тяжёлый — рывок длиннее и медленнее, его тянет вниз; madk1d — короткий резкий рывок
+## с переворотом, почти без падения. carry — перенос импульса после рывка, скольжения и прыжка с разгона: добавляется
+## к скорости бега и гаснет (на земле быстро, в воздухе медленно), не больше CARRY_MAX.
+const MOVE := {
+	"pahan": {"dash_v": 12.5, "dash_t": 0.26, "dash_lift": 1.6, "dash_grav": 0.45, "dash_keep": 0.45,
+		"slide_v": 9.5, "slide_t": 0.55, "slide_end": 3.5, "slide_jump": 0.0, "slide_keep": 0.55,
+		"mom_k": 0.4, "mom_max": 3.5, "wall_v": 6.5, "wall_up": 6.2},
+	"madk1d": {"dash_v": 15.5, "dash_t": 0.18, "dash_lift": 2.8, "dash_grav": 0.0, "dash_keep": 0.6,
+		"slide_v": 11.0, "slide_t": 0.4, "slide_end": 4.5, "slide_jump": 1.6, "slide_keep": 0.7,
+		"mom_k": 0.55, "mom_max": 5.0, "wall_v": 7.5, "wall_up": 7.4},
+}
+const CARRY_MAX := 9.0
+const WALL_JUMPS := 2           # отскоков от стены за один полёт (рывок они не возвращают)
+var air_dash_ready := true      # рывок в воздухе доступен: тратится рывком, возвращается только касанием земли
+var dash_dir := Vector3.ZERO
+var carry := Vector3.ZERO
+var slide_dir := Vector3.ZERO
+var wall_jumps := 0
+var dash_spin := false          # madk1d крутит бочку в рывке: вернуть поворот, если рывок оборвали
+var moves_log: Array = []       # для проверок: ["dash", …], ["slide", …], ["wall", …], ["mjump", …]
 
 func start_jump() -> void:
 	velocity.y = float(JUMP_V.get(hero, 7.5))
+	# прыжок с разгона: часть скорости бега переносится в полёт (не больше mom_max)
+	var M: Dictionary = MOVE[hero]
+	var hv := Vector3(velocity.x, 0, velocity.z)
+	if hv.length() > 5.8:
+		var add: Vector3 = hv * float(M["mom_k"])
+		if add.length() > float(M["mom_max"]):
+			add = add.normalized() * float(M["mom_max"])
+		carry = (carry + add).limit_length(CARRY_MAX)
+		moves_log.append(["mjump", snappedf(add.length(), 0.01)])
 	anim_hold = 0.0
 	turn_to = NAN
 	anim.jump()
 	game.fx.dust(global_position + Vector3(0, 0.1, 0), 4, game.fx.DUST, 0.5)
 	game.feedback("step", global_position, Vector3.UP, 1.0, Color.WHITE)
+
+## Рывок в воздухе (Shift в прыжке): один за прыжок, по направлению ввода от камеры; без ввода — куда несёт или куда смотрит.
+## Не неуязвимость: это перемещение, а не второй Perfect Dodge.
+func start_air_dash(dir: Vector3) -> void:
+	var M: Dictionary = MOVE[hero]
+	air_dash_ready = false
+	var hv := Vector3(velocity.x, 0, velocity.z)
+	dash_dir = dir.normalized() if dir.length() > 0.2 else (hv.normalized() if hv.length() > 1.0 else Vector3(sin(face), 0, cos(face)))
+	state = "airdash"
+	t = 0.0
+	carry = Vector3.ZERO
+	velocity.y = maxf(velocity.y * 0.3, float(M["dash_lift"]))
+	face = atan2(dash_dir.x, dash_dir.z)
+	anim_hold = 0.0
+	rig.play_for("AirDash", float(M["dash_t"]) + 0.12, 0.04)
+	var at: Vector3 = global_position + Vector3(0, 1.0, 0)
+	game.fx.streaks(at, -dash_dir, 16 if hero == "pahan" else 22, Color(0.85, 0.92, 1.0, 0.7))
+	game.fx.ring(at - dash_dir * 0.4, 1.4 if hero == "pahan" else 1.0, Color(0.9, 0.95, 1.0, 0.5), 0.18)
+	game.main.sfx("sfx_roll", -6.0, 0.8 if hero == "pahan" else 1.35)
+	game.fov_kick = max(float(game.fov_kick), 2.5 if hero == "pahan" else 3.5)
+	game.shake(0.12 if hero == "pahan" else 0.06)
+	moves_log.append(["dash", hero, snappedf(dash_dir.x, 0.01), snappedf(dash_dir.z, 0.01)])
+
+func _air_dash_tick(dt: float) -> void:
+	var M: Dictionary = MOVE[hero]
+	var dur: float = float(M["dash_t"])
+	var k: float = clampf(t / dur, 0.0, 1.0)
+	var sp: float = float(M["dash_v"]) * (1.0 - 0.35 * k * k)
+	velocity.x = dash_dir.x * sp
+	velocity.z = dash_dir.z * sp
+	velocity.y += 20.0 * dt * (1.0 - float(M["dash_grav"]))      # ниже обычная гравитация гасится частично
+	if hero == "madk1d":
+		dash_spin = true
+		spin.rotation.z = -TAU * (k * k * (3.0 - 2.0 * k))          # madk1d в рывке крутит бочку
+	var early: bool = k > 0.5 and combat.buffered() != ""           # удар в рывке: выход в воздушную атаку
+	if k >= 1.0 or early or is_on_floor() or is_on_wall():
+		_end_air_dash(sp)
+		if early:
+			combat.try_start()
+
+func _end_air_dash(sp: float) -> void:
+	spin.rotation.z = 0.0
+	state = "move"
+	t = 0.0
+	carry = (dash_dir * sp * float(MOVE[hero]["dash_keep"])).limit_length(CARRY_MAX)
+
+## Скольжение из спринта (Shift на бегу с рывком): низко проскальзывает вперёд, выход — прыжком или ударом
+func start_slide(dir: Vector3) -> void:
+	var M: Dictionary = MOVE[hero]
+	slide_dir = dir.normalized()
+	state = "slide"
+	t = 0.0
+	carry = Vector3.ZERO
+	face = atan2(slide_dir.x, slide_dir.z)
+	anim_hold = 0.0
+	rig.play_for("Slide", float(M["slide_t"]) + 0.1, 0.05)
+	game.fx.dust(global_position + Vector3(0, 0.1, 0), 8, game.fx.DUST, 1.0)
+	game.main.sfx("sfx_roll", -5.0, 0.7 if hero == "pahan" else 1.1)
+	moves_log.append(["slide", hero])
+
+func _slide_tick(dt: float, _dir: Vector3) -> void:
+	var M: Dictionary = MOVE[hero]
+	var k: float = clampf(t / float(M["slide_t"]), 0.0, 1.0)
+	var v: float = lerpf(float(M["slide_v"]), float(M["slide_end"]), k * k)
+	velocity.x = slide_dir.x * v
+	velocity.z = slide_dir.z * v
+	if Engine.get_physics_frames() % 4 == 0:
+		game.fx.dust(global_position + Vector3(0, 0.08, 0), 2, game.fx.DUST, 0.5)
+	if pressed("jump") and is_on_floor():
+		# выход в прыжок: скорость скольжения уходит в полёт; madk1d выпрыгивает выше
+		state = "move"
+		carry = (slide_dir * v * float(M["slide_keep"])).limit_length(CARRY_MAX)
+		start_jump()
+		velocity.y += float(M["slide_jump"])
+		moves_log.append(["slide_jump", hero])
+		return
+	if combat.buffered() != "" or pressed("attack") or pressed("heavy"):
+		state = "move"
+		carry = slide_dir * v * 0.3
+		combat.open("sprint", 0.2)          # удар со скольжения — как удар с разгона
+		combat.try_start()
+		return
+	if k >= 1.0 or not is_on_floor():
+		state = "move"
+		t = 0.0
+		carry = (slide_dir * v * 0.5).limit_length(CARRY_MAX)
+
+## Отскок от стены: в воздухе у стены (столкновение после move_and_slide), не больше WALL_JUMPS за полёт
+func can_wall_rebound() -> bool:
+	return is_on_wall() and wall_jumps < WALL_JUMPS and get_wall_normal().y < 0.4
+
+func wall_rebound() -> void:
+	var M: Dictionary = MOVE[hero]
+	var n: Vector3 = get_wall_normal()
+	n.y = 0
+	n = n.normalized() if n.length() > 0.1 else -Vector3(sin(face), 0, cos(face))
+	wall_jumps += 1
+	velocity.y = float(M["wall_up"])
+	carry = (n * float(M["wall_v"])).limit_length(CARRY_MAX)
+	face = atan2(n.x, n.z)
+	anim.jump()
+	game.fx.dust(global_position + Vector3(0, 0.9, 0) - n * 0.3, 6, game.fx.DUST, 0.8)
+	game.main.sfx("sfx_thud", -8.0, 1.2)
+	moves_log.append(["wall", hero, wall_jumps])
 
 func aim_dir() -> Vector3:
 	var yaw: float = game.cam_yaw
@@ -399,6 +533,14 @@ func _physics_process(dt: float) -> void:
 		return
 	if rage > 0.0:
 		rage = max(0.0, rage - dt)
+	if dash_spin and state != "airdash":
+		dash_spin = false
+		spin.rotation.z = 0.0          # рывок оборвали (удар, смена героя) — бочка не застревает
+	if not state in ["move", "block", "airdash", "slide"]:
+		carry = Vector3.ZERO           # удар, перекат, приём — перенос импульса не копится на потом
+	if is_on_floor() and state != "airdash":
+		air_dash_ready = true      # рывок возвращает только земля: не смена стиля, не удар в воздухе, не стена
+		wall_jumps = 0
 	var dir := input_dir()
 	# нажатия ударов помнит буфер ядра боя: сработают, когда откроется окно
 	combat.tick(dt)
@@ -447,9 +589,14 @@ func _physics_process(dt: float) -> void:
 				face = lerp_angle(face, atan2(aim_dir().x, aim_dir().z), 1.0 - exp(-14.0 * dt))
 				if anim_hold <= 0.0:
 					rig.play_role("block", 0.1)
-			velocity.x = dir.x * spd
-			velocity.z = dir.z * spd
+			velocity.x = dir.x * spd + carry.x
+			velocity.z = dir.z * spd + carry.z
+			carry = carry.lerp(Vector3.ZERO, 1.0 - exp(-(9.0 if is_on_floor() else 1.4) * dt))
 			if state == "move":
+				# захват цели: стоя — лицом к цели (на бегу — по ходу: своих анимаций бокового шага нет)
+				var lf: float = game.lock.face_to(global_position, 14.0) if game.lock != null else NAN
+				if dir.length() <= 0.1 and not is_nan(lf) and anim_hold <= 0.0:
+					face = lerp_angle(face, lf, 1.0 - exp(-10.0 * dt))
 				if dir.length() > 0.1:
 					# тяжёлый: на старте разворачивается медленнее, чем на бегу
 					face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-(6.0 if anim.state == "start" else 12.0) * dt))
@@ -484,9 +631,17 @@ func _physics_process(dt: float) -> void:
 					var hs := Vector2(velocity.x, velocity.z).length() if dir.length() > 0.1 else 0.0
 					anim.tick(dt, hs, turn, is_on_floor(), velocity.y, enemies_near(), held("sprint") or rage > 0.0)
 			if pressed("roll") and is_on_floor():
-				start_roll(dir)
+				if state == "move" and held("sprint") and dir.length() > 0.5 and Vector2(velocity.x, velocity.z).length() > 5.5:
+					start_slide(dir)        # Shift на бегу с рывком — скольжение (без неуязвимости)
+				else:
+					start_roll(dir)
+			elif pressed("roll") and not is_on_floor() and state == "move":
+				if air_dash_ready:
+					start_air_dash(dir)
 			elif pressed("jump") and is_on_floor() and state == "move":
 				start_jump()
+			elif pressed("jump") and not is_on_floor() and state == "move" and can_wall_rebound():
+				wall_rebound()
 			elif combat.try_start():
 				pass
 			elif pressed("heat"):
@@ -531,6 +686,10 @@ func _physics_process(dt: float) -> void:
 			combat.tick_attack(dt, dir)
 		"charge":
 			combat.tick_charge(dt, dir)
+		"airdash":
+			_air_dash_tick(dt)
+		"slide":
+			_slide_tick(dt, dir)
 		"roll":
 			var k := t / 0.5
 			velocity.x = roll_dir.x * 8.8 * (1.0 - k * 0.5)

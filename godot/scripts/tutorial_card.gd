@@ -62,6 +62,8 @@ static func key_name(action: String) -> String:
 				MOUSE_BUTTON_LEFT: return "ЛКМ"
 				MOUSE_BUTTON_RIGHT: return "ПКМ"
 				MOUSE_BUTTON_MIDDLE: return "СКМ"
+				MOUSE_BUTTON_WHEEL_UP: return "КОЛЕСО ↑"
+				MOUSE_BUTTON_WHEEL_DOWN: return "КОЛЕСО ↓"
 				_: return "МЫШЬ %d" % (e as InputEventMouseButton).button_index
 		if e is InputEventKey:
 			var k := e as InputEventKey
@@ -112,7 +114,7 @@ func _ready() -> void:
 	_build()
 	_fit()
 	get_viewport().size_changed.connect(_fit)
-	opened_ms = Time.get_ticks_msec()
+	opened_ms = GameClock.ms()
 	# появление: лист въезжает слева с лёгким поворотом, полоса — справа; время реальное (стоп-кадр и пауза не мешают)
 	modulate.a = 0.0
 	var tw := create_tween().set_parallel(true).set_ignore_time_scale(true)
@@ -136,7 +138,7 @@ func _fit() -> void:
 	root.position = (vs - STAGE * k) * 0.5
 
 func locked() -> bool:
-	return Time.get_ticks_msec() - opened_ms < int(LOCK * 1000.0)
+	return GameClock.ms() - opened_ms < int(LOCK * 1000.0)
 
 # ---------------- сборка ----------------
 func _build() -> void:
@@ -417,3 +419,244 @@ func close() -> void:
 	tw.tween_callback(func():
 		closed.emit()
 		queue_free())
+
+
+# ---------------- панель упражнения (практика) ----------------
+## Панель упражнения справа сверху — как активное задание: «ОБУЧЕНИЕ / КОМБО — ШАГ 2/3 / что сделать / клавиши / ПРОПУСТИТЬ».
+## Игра не останавливается. Клавиши — из InputMap (fill, key_name). Выполнено — «✓ ВЫПОЛНЕНО» и панель уезжает вправо.
+## Кнопка «ПРОПУСТИТЬ» — мышью (когда курсор виден) или Backspace (действие tut_skip, его ловит tutorial.gd).
+class Drill extends Control:
+	signal skip_pressed
+
+	const PW := 440.0
+	var root: Control
+	var sheet: Node2D
+	var body: Node2D
+	var plate: Polygon2D
+	var edge: Line2D
+	var skip_btn: Control
+	var skip_fill: Polygon2D
+	var skip_l: Label
+	var serif: SystemFont
+	var tech: SystemFont
+	var tech_b: SystemFont
+	var data: Dictionary = {}
+	var steps: Array = []
+	var cur_id := ""
+	var flash_t := 0.0
+	var leave_t := -1.0
+	var tw: Tween
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		serif = SystemFont.new()
+		serif.font_names = PackedStringArray(["Bodoni MT Black", "Bodoni MT", "Playfair Display Black", "Playfair Display", "Georgia", "Times New Roman", "serif"])
+		serif.font_weight = 900
+		tech = SystemFont.new()
+		tech.font_names = PackedStringArray(["Bahnschrift", "Segoe UI", "Arial", "sans-serif"])
+		tech_b = SystemFont.new()
+		tech_b.font_names = tech.font_names
+		tech_b.font_weight = 700
+		root = Control.new()
+		root.size = TutorialCard.STAGE
+		root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(root)
+		sheet = Node2D.new()
+		root.add_child(sheet)
+		plate = Polygon2D.new()
+		plate.color = Color(0.04, 0.04, 0.05, 0.9)
+		sheet.add_child(plate)
+		edge = Line2D.new()
+		edge.width = 1.6
+		edge.default_color = TutorialCard.WHITE
+		edge.closed = true
+		sheet.add_child(edge)
+		body = Node2D.new()
+		sheet.add_child(body)
+		var holder := Control.new()
+		holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		holder.size = TutorialCard.STAGE
+		sheet.add_child(holder)
+		skip_btn = Control.new()
+		skip_btn.size = Vector2(196, 30)
+		skip_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+		skip_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		holder.add_child(skip_btn)
+		skip_fill = Polygon2D.new()
+		skip_fill.polygon = TutorialCard._para(196, 30, 8)
+		skip_fill.color = Color(0, 0, 0, 0.0)
+		skip_btn.add_child(skip_fill)
+		var sl := Line2D.new()
+		sl.points = TutorialCard._para(196, 30, 8)
+		sl.closed = true
+		sl.width = 1.4
+		sl.default_color = TutorialCard.RED
+		skip_btn.add_child(sl)
+		skip_l = _lab("", tech_b, 14, TutorialCard.WHITE)
+		skip_l.size = skip_btn.size
+		skip_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		skip_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		skip_btn.add_child(skip_l)
+		skip_btn.mouse_entered.connect(func(): skip_fill.color = Color(TutorialCard.RED.r, TutorialCard.RED.g, TutorialCard.RED.b, 0.6))
+		skip_btn.mouse_exited.connect(func(): skip_fill.color = Color(0, 0, 0, 0.0))
+		skip_btn.gui_input.connect(func(e: InputEvent):
+			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+				skip_btn.accept_event()
+				skip_pressed.emit())
+		visible = false
+		_fit()
+		get_viewport().size_changed.connect(_fit)
+
+	func _fit() -> void:
+		var vs := get_viewport_rect().size
+		position = Vector2.ZERO
+		size = vs
+		var k: float = minf(vs.x / TutorialCard.STAGE.x, vs.y / TutorialCard.STAGE.y)
+		root.scale = Vector2.ONE * k
+		root.position = (vs - TutorialCard.STAGE * k) * 0.5
+
+	func _lab(t: String, f: Font, fs: int, col: Color) -> Label:
+		var l := Label.new()
+		l.text = t
+		l.add_theme_font_override("font", f)
+		l.add_theme_font_size_override("font_size", fs)
+		l.add_theme_color_override("font_color", col)
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return l
+
+	## занята анимацией (успех / уход) — tutorial.gd держит её видимой
+	func busy() -> bool:
+		return leave_t >= 0.0
+
+	func open(id: String, d: Dictionary, st: Array) -> void:
+		cur_id = id
+		data = d
+		steps = st
+		leave_t = -1.0
+		visible = true
+		modulate.a = 0.0
+		sheet.position.x = 60.0
+		if tw != null:
+			tw.kill()
+		tw = create_tween().set_parallel(true)
+		tw.tween_property(self, "modulate:a", 1.0, 0.18)
+		tw.tween_property(sheet, "position:x", 0.0, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+	## Шаг упражнения: заголовок «ИМЯ — ШАГ i/n», что сделать, клавиши, счётчик повторов
+	func show_step(_id: String, step: int, n: int, _flash: bool) -> void:
+		for c in body.get_children():
+			body.remove_child(c)          # сразу из дерева: новые плашки получают свои имена (Key_<действие>)
+			c.queue_free()
+		if step >= steps.size():
+			return
+		var st: Dictionary = steps[step]
+		var x0: float = TutorialCard.STAGE.x - PW - 26.0
+		var y := 74.0
+		var chip := Polygon2D.new()
+		chip.polygon = TutorialCard._para(118, 24, 8)
+		chip.color = TutorialCard.RED
+		chip.position = Vector2(x0 + 18, y)
+		body.add_child(chip)
+		var tl := _lab("ОБУЧЕНИЕ", tech_b, 14, TutorialCard.WHITE)
+		tl.position = Vector2(x0 + 30, y + 3)
+		body.add_child(tl)
+		y += 30.0
+		var name: String = TutorialCard.fill(String(data.get("title", cur_id)))
+		var head := _lab("%s — ШАГ %d/%d" % [name, step + 1, steps.size()] if steps.size() > 1 else name, serif, 26, TutorialCard.WHITE)
+		head.position = Vector2(x0 + 18, y)
+		head.size = Vector2(PW - 36, 30)
+		head.clip_text = true
+		body.add_child(head)
+		y += 36.0
+		var bar := Polygon2D.new()
+		bar.polygon = PackedVector2Array([Vector2(0, 0), Vector2(PW - 60, -3), Vector2(PW - 63, 2), Vector2(-2, 5)])
+		bar.color = TutorialCard.RED
+		bar.position = Vector2(x0 + 18, y)
+		body.add_child(bar)
+		y += 12.0
+		var txt := _lab(TutorialCard.fill(String(st.get("t", ""))), tech, 18, TutorialCard.SILVER)
+		txt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		txt.position = Vector2(x0 + 18, y)
+		txt.size = Vector2(PW - 36, 10)
+		body.add_child(txt)
+		y += tech.get_multiline_string_size(txt.text, HORIZONTAL_ALIGNMENT_LEFT, PW - 36, 18).y + 8.0
+		# клавиши
+		var kx := x0 + 18.0
+		for k in st.get("keys", []):
+			var acts: Array = k[0]
+			for i in acts.size():
+				if i > 0:
+					var sl := _lab("/", tech_b, 18, TutorialCard.GREY)
+					sl.position = Vector2(kx, y + 3)
+					body.add_child(sl)
+					kx += 14.0
+				var nm := TutorialCard.key_name(String(acts[i]))
+				var w: float = maxf(42.0, tech_b.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x + 22.0)
+				var p := Polygon2D.new()
+				p.polygon = TutorialCard._para(w, 30, 7)
+				p.color = TutorialCard.WHITE
+				p.position = Vector2(kx, y)
+				body.add_child(p)
+				var kl := _lab(nm, tech_b, 18, TutorialCard.INK)
+				kl.position = Vector2(kx, y + 3)
+				kl.size = Vector2(w, 24)
+				kl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				kl.name = "Key_" + String(acts[i])
+				body.add_child(kl)
+				kx += w + 6.0
+			if k.size() > 1:
+				var cap := _lab(TutorialCard.fill(String(k[1])), tech, 14, TutorialCard.GREY)
+				cap.position = Vector2(kx + 2, y + 6)
+				body.add_child(cap)
+				kx += tech.get_string_size(cap.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 16.0
+		var need: int = int(st.get("n", 1))
+		if need > 1:
+			var pr := _lab("%d/%d" % [n, need], serif, 24, TutorialCard.RED)
+			pr.position = Vector2(x0 + PW - 70, y)
+			body.add_child(pr)
+		y += 40.0
+		skip_btn.position = Vector2(x0 + PW - 214, y)
+		skip_l.text = "ПРОПУСТИТЬ · " + TutorialCard.key_name("tut_skip")
+		y += 40.0
+		var poly := PackedVector2Array([Vector2(x0, 62), Vector2(x0 + PW, 62), Vector2(x0 + PW - 10, y), Vector2(x0 + 6, y)])
+		plate.polygon = poly
+		edge.points = poly
+		if step > 0 or n > 0:
+			# шаг засчитан — короткая вспышка
+			var f := create_tween()
+			body.modulate = Color(1.6, 1.6, 1.6)
+			f.tween_property(body, "modulate", Color.WHITE, 0.25)
+
+	## Конец упражнения: «✓ ВЫПОЛНЕНО» (или «ПРОПУЩЕНО») и панель уезжает вправо
+	func finish(state: String) -> void:
+		leave_t = 0.0
+		for c in body.get_children():
+			body.remove_child(c)
+			c.queue_free()
+		var x0: float = TutorialCard.STAGE.x - PW - 26.0
+		var ok := state == "completed"
+		var chip := Polygon2D.new()
+		chip.polygon = TutorialCard._para(PW - 36, 56, 14)
+		chip.color = TutorialCard.RED if ok else Color(0.2, 0.2, 0.22)
+		chip.position = Vector2(x0 + 18, 82)
+		body.add_child(chip)
+		var l := _lab(("✓ ВЫПОЛНЕНО" if ok else "ПРОПУЩЕНО"), serif, 34, TutorialCard.WHITE)
+		l.position = Vector2(x0 + 18, 86)
+		l.size = Vector2(PW - 36, 48)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.name = "Done"
+		body.add_child(l)
+		skip_btn.position = Vector2(-999, -999)
+		var poly := PackedVector2Array([Vector2(x0, 62), Vector2(x0 + PW, 62), Vector2(x0 + PW - 10, 156), Vector2(x0 + 6, 156)])
+		plate.polygon = poly
+		edge.points = poly
+		if tw != null:
+			tw.kill()
+		tw = create_tween()
+		tw.tween_interval(1.0 if ok else 0.35)
+		tw.tween_property(sheet, "position:x", 80.0, 0.25).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		tw.parallel().tween_property(self, "modulate:a", 0.0, 0.25)
+		tw.tween_callback(func():
+			leave_t = -1.0
+			visible = false
+			sheet.position.x = 0.0)
