@@ -20,11 +20,15 @@ var info_l: Label
 var info_t: Label
 var info_p: PanelContainer
 var hold_node: Node3D
+var stash_idx := 0              # что лежит в тайнике (вещь из MLData.JUNK ценой около 900 ₽)
+var stash_found := 0
+var stash_lost := 0
+var shakes := 0
 
 func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	rng.seed = seed_v
 	rng_bot.seed = seed_v + 9
-	keys = [["ЛКМ", "поднять"], ["1", "продать"], ["2", "разобрать"], ["3", "оставить"], ["4", "положить"]]
+	keys = [["ЛКМ", "поднять"], ["1", "продать"], ["2", "разобрать"], ["3", "оставить"], ["4", "положить"], ["F", "потрясти"]]
 	base_setup(f, sf, stress, "РАЗБОР ХЛАМА", "", 45.0 + tier * 5.0)
 	setup_3d(Color(0.06, 0.05, 0.045), Color(0.6, 0.55, 0.5), 0.55)
 	cap = 3 + int(cv("junk_cap"))
@@ -114,6 +118,38 @@ func _items() -> void:
 		var spread := clampf(0.6 - cv("junk_eval") * 0.5, 0.05, 0.6)
 		items.append({"body": body, "idx": idx, "cond": cond, "rare": rare, "value": true_v, "lo": int(true_v * (1.0 - spread)), "hi": int(true_v * (1.0 + spread) + 50), "decided": false})
 
+	# тайники: в одной-двух вещах что-то спрятано. Узнать — потрясти [F] (стоит времени). Разобрал такую — нашёл
+	# заначку; продал целиком — она ушла скупщику. Тайник кладётся в вещи, которые выгоднее продать: вот и выбор.
+	var bd := INF
+	for k in MLData.JUNK.size():
+		var dv := absf(float(MLData.JUNK[k][2]) - 900.0)
+		if dv < bd:
+			bd = dv
+			stash_idx = k
+	var cand := items.filter(func(i): return int(MLData.JUNK[int(i["idx"])][2]) > int(MLData.JUNK[int(i["idx"])][4]))
+	for k in mini(cand.size(), 2 if tier >= 3 else 1):
+		cand[(k * 3 + rng.randi() % 3) % cand.size()]["stash"] = true
+
+## потрясти вещь в руках: гремит — внутри тайник
+func shake() -> void:
+	if held < 0 or done:
+		return
+	var I: Dictionary = items[held]
+	if I.has("shaken"):
+		return
+	I["shaken"] = true
+	shakes += 1
+	time_left -= 1.2
+	var b: RigidBody3D = I["body"]
+	var tw := b.create_tween()
+	for q in 4:
+		tw.tween_property(b, "rotation:z", 0.35 if q % 2 == 0 else -0.35, 0.07)
+	tw.tween_property(b, "rotation:z", 0.0, 0.07)
+	var has: bool = I.has("stash")
+	sfx("keys" if has else "tick", 0.8 if has else 0.6)
+	pop("ГРЕМИТ!" if has else "пусто", b.global_position + Vector3(0, 0.35, 0), MGUI.GOLD if has else GREY)
+	info_l.text += "\n" + ("Внутри что-то гремит — разбери!" if has else "Внутри пусто.")
+
 func _update_task() -> void:
 	var left := items.filter(func(i): return not bool(i["decided"])).size()
 	task_l.text = "Осталось вещей: %d · места для себя: %d" % [left, cap - kept]
@@ -170,6 +206,8 @@ func _unhandled_input(e: InputEvent) -> void:
 			decide("keep")
 		KEY_4:
 			drop()
+		KEY_F:
+			shake()
 
 ## поднять вещь: всплывает перед камерой, видно что это и сколько может стоить
 func pick(k: int) -> void:
@@ -212,6 +250,14 @@ func decide(kind: String) -> void:
 	picks.append([int(I["idx"]), kind])
 	if kind == "sell" and bool(I["rare"]):
 		picks.append([int(I["idx"]), "sell"])          # редкая: коллекционер платит вдвое
+	if I.has("stash"):
+		if kind == "scrap":
+			stash_found += 1
+			picks.append([stash_idx, "sell"])          # заначка из корпуса — отдельной вещью скупщику
+			sfx("coins", 1.5)
+			pop("ТАЙНИК! +%s" % MGUI.rub(int(MLData.JUNK[stash_idx][2])), (I["body"] as Node3D).global_position + Vector3(0, 0.7, 0), MGUI.GOLD)
+		else:
+			stash_lost += 1
 	var b: RigidBody3D = I["body"]
 	b.freeze = false
 	var to: Vector3 = bins[kind]
@@ -247,6 +293,11 @@ func _bot(dt: float) -> void:
 		kind = "keep"
 	if rng_bot.randf() > bot:
 		kind = ["sell", "scrap"][rng_bot.randi() % 2]
+	elif kind == "sell" and not I.has("shaken"):
+		shake()                                      # внимательный игрок трясёт то, что собрался продать целиком
+		return
+	elif I.has("stash"):
+		kind = "scrap"
 	decide(kind)
 
 func _end() -> void:
@@ -256,4 +307,4 @@ func _end() -> void:
 	var scr := picks.filter(func(p): return p[1] == "scrap").size()
 	show_result(1.0, ["Разобрано вещей: %d из %d" % [items.filter(func(i): return bool(i["decided"])).size(), items.size()],
 		"Продать: %d · на запчасти: %d · себе: %d" % [sold, scr, kept],
-		"Деньги посчитает скупщик — смотри уведомление"], picks)
+		("Тайники: найдено %d, ушло скупщику %d" % [stash_found, stash_lost]) if stash_found + stash_lost > 0 else "Деньги посчитает скупщик — смотри уведомление"], picks)

@@ -16,7 +16,7 @@ const DEVICES := [
 	{"name": "НОУТБУК", "parts": ["ВИДЕОЧИП", "МАТРИЦА", "КЛАВИАТУРА", "SSD"], "sym": ["полосы на экране", "экран тёмный, подсветка мигает", "не печатаются буквы", "пишет «нет загрузочного диска»"], "screws": 6},
 	{"name": "УМНЫЙ ЧАЙНИК", "parts": ["ТЭН", "ПЛАТА WI-FI", "ДАТЧИК", "КНОПКА"], "sym": ["не греет", "не подключается к телефону", "кипит без остановки", "не нажимается"], "screws": 4},
 ]
-const TOOLS := ["ОТВЁРТКА", "ТЕСТЕР", "ПИНЦЕТ"]
+const TOOLS := ["ОТВЁРТКА", "ТЕСТЕР", "ПИНЦЕТ", "ПРОДУВКА"]
 
 var rng := RandomNumberGenerator.new()
 var rng_bot := RandomNumberGenerator.new()
@@ -48,7 +48,7 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	rng_bot.seed = seed_v + 5
 	D = DEVICES[clampi(tier - 1, 0, DEVICES.size() - 1)]
 	broken = rng.randi() % (D["parts"] as Array).size()
-	keys = [["A/D", "вращать"], ["1", "отвёртка"], ["2", "тестер"], ["3", "пинцет"], ["ЛКМ", "действие"]]
+	keys = [["A/D", "вращать"], ["1", "отвёртка"], ["2", "тестер"], ["3", "пинцет"], ["4", "продувка"], ["ЛКМ", "действие"]]
 	base_setup(f, sf, stress, "РЕМОНТ · %s" % D["name"], "", 55.0 + tier * 5.0)
 	setup_3d(Color(0.04, 0.035, 0.03), Color(0.55, 0.5, 0.45), 0.5)
 	_desk()
@@ -57,7 +57,7 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	cam.fov = 40.0
 	cam.look_at_from_position(Vector3(0, 1.75, 0.95), Vector3(0, 0.82, -0.05), Vector3.UP)
 	right_box.add_child(MGUI.label("ИНСТРУМЕНТ", "caps"))
-	for k in 3:
+	for k in TOOLS.size():
 		var l := MGUI.label("%d  %s" % [k + 1, String(TOOLS[k]).capitalize()], "small")
 		right_box.add_child(l)
 		tool_ls.append(l)
@@ -94,7 +94,19 @@ func _device() -> void:
 		var c := MGProps.box(dev, p, Vector3(w * 0.3, 0.02, d * 0.28), m)
 		if k == broken:
 			MGProps.ball(c, Vector3(0.0, 0.011, 0.0), 0.012, MGProps.mat("black"), Vector3(1.8, 0.2, 1.2))   # нагар
-		comps.append({"node": c, "name": names[k], "tested": false, "bad": k == broken, "mat": m})
+		comps.append({"node": c, "name": names[k], "tested": false, "bad": k == broken, "mat": m, "dust": false})
+	# пыль: со второго уровня заказа одна-две детали забиты пылью — тестер по ним врёт, сначала продуть [4]
+	if tier >= 2:
+		for q in (2 if tier >= 4 else 1):
+			var dc: Dictionary = comps[rng.randi() % comps.size()]
+			if bool(dc["dust"]):
+				continue
+			dc["dust"] = true
+			var holder := Node3D.new()
+			holder.name = "dust"
+			(dc["node"] as Node3D).add_child(holder)
+			for b in 7:
+				MGProps.ball(holder, Vector3(rng.randf_range(-0.04, 0.04), 0.013, rng.randf_range(-0.025, 0.025)), rng.randf_range(0.008, 0.016), MGProps.mat("card"), Vector3(1.3, 0.5, 1.2))
 	cover = at(Vector3(0, 0.043, 0), 0.0, dev)
 	MGProps.box(cover, Vector3(0, 0.006, 0), Vector3(w, 0.012, d), body_m)
 	MGProps.box(cover, Vector3(w * 0.2, 0.013, 0), Vector3(w * 0.25, 0.002, d * 0.3), MGProps.mat("red"))
@@ -155,7 +167,7 @@ func _process(dt: float) -> void:
 	elif not drag:
 		rot += axis().x * dt * 2.0
 	dev.rotation.y = lerp_angle(dev.rotation.y, rot, 1.0 - exp(-8.0 * dt))
-	for k in 3:
+	for k in TOOLS.size():
 		(tool_ls[k] as Label).add_theme_color_override("font_color", MGUI.GOLD if tool == k else MGUI.TEXT_3)
 	# лупа: неисправное подсвечено (снаряжение 2+), когда крышка снята
 	if eq("repair") >= 2 and phase in ["test", "swap"]:
@@ -193,7 +205,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	if done or bot >= 0.0 or not (e is InputEventKey) or not e.pressed or e.echo:
 		return
 	match e.physical_keycode:
-		KEY_1, KEY_2, KEY_3:
+		KEY_1, KEY_2, KEY_3, KEY_4:
 			pick_tool(e.physical_keycode - KEY_1)
 		KEY_SPACE:
 			boot()
@@ -252,8 +264,19 @@ func act(kind: String, o: Dictionary) -> void:
 					_phase("boot")
 		"comp":
 			if phase == "test":
+				if tool == 3:
+					blow(o)
+					return
 				if tool != 1:
 					_wrong()
+					return
+				if bool(o["dust"]):
+					tests += 1                            # замер впустую
+					dust_miss += 1
+					time_left -= 1.0
+					sfx("fail", 0.8)
+					pop("ПЫЛЬ — НЕ ЧИТАЕТСЯ", (o["node"] as Node3D).global_position + Vector3(0, 0.05, 0), MGUI.GOLD)
+					tip_l.text = "Тестер врёт по пыльной детали — продуй её [4]"
 					return
 				_test(o)
 			elif phase == "swap":
@@ -296,6 +319,20 @@ func act(kind: String, o: Dictionary) -> void:
 				sfx("fail")
 				pop("НЕ ПОДХОДИТ", (o["node"] as Node3D).global_position + Vector3(0, 0.05, 0), RED)
 
+## продувка: сдуть пыль с детали, чтобы тестер читал
+func blow(c: Dictionary) -> void:
+	sfx("whoosh", 1.6)
+	var n: Node3D = c["node"]
+	puff(n.global_position + Vector3(0, 0.03, 0), Color(0.7, 0.66, 0.58), 5, 0.25)
+	if bool(c["dust"]):
+		c["dust"] = false
+		var h := n.get_node_or_null("dust")
+		if h != null:
+			h.queue_free()
+		pop("ЧИСТО", n.global_position + Vector3(0, 0.05, 0), GREEN)
+
+var dust_miss := 0
+
 func _wrong() -> void:
 	wrong_tool += 1
 	time_left -= 1.5
@@ -325,7 +362,7 @@ func _open(open_it: bool) -> void:
 		_phase("close")
 
 func _test(c: Dictionary) -> void:
-	if bool(c["tested"]):
+	if bool(c["tested"]) or bool(c["dust"]):
 		return
 	c["tested"] = true
 	tests += 1
@@ -374,12 +411,15 @@ func _bot(dt: float) -> void:
 					act("screw", s)
 					return
 		"test":
-			if tool != 1:
-				pick_tool(1)
-				return
 			var order := comps.filter(func(c): return not bool(c["tested"]))
-			if not order.is_empty():
-				act("comp", order[0] if slip or eq("repair") < 2 else comps[broken])
+			if order.is_empty():
+				return
+			var tc: Dictionary = order[0] if slip or eq("repair") < 2 else comps[broken]
+			var want_tool := 3 if bool(tc["dust"]) and not slip else 1
+			if tool != want_tool:
+				pick_tool(want_tool)
+				return
+			act("comp", tc)
 		"swap":
 			if tool != 2:
 				pick_tool(2)
@@ -410,5 +450,5 @@ func _end() -> void:
 	var time_b := clampf(time_left / time_max, 0.0, 1.0) * 0.2 if boot_ok else 0.0
 	var score := clampf(base * q + time_b, 0.0, 1.0)
 	show_result(score, ["%s: «%s» — %s" % [D["name"], D["sym"][broken], D["parts"][broken]],
-		"Включился: %s · тестов: %d · не тот инструмент: %d · не та деталь: %d" % ["да" if boot_ok else "нет", tests, wrong_tool, wrong_part],
+		"Включился: %s · тестов: %d%s · не тот инструмент: %d · не та деталь: %d" % ["да" if boot_ok else "нет", tests, " (по пыли впустую: %d)" % dust_miss if dust_miss > 0 else "", wrong_tool, wrong_part],
 		("Запчасти мимо: −%d ₽ из оплаты" % parts_cost) if parts_cost > 0 else "Ремонт чистый — заказчик доволен"])
