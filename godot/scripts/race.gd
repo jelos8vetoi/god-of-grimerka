@@ -276,8 +276,8 @@ func _bumps() -> void:
 				ra.side_v -= n * float(RaceData.PHYS["bump_push"]) * (0.4 + over)
 				rb.side_v += n * float(RaceData.PHYS["bump_push"]) * (0.4 + over)
 				var key := "%d_%d" % [a, b]
-				if Time.get_ticks_msec() - int(bump_cd.get(key, -9999)) > 500:
-					bump_cd[key] = Time.get_ticks_msec()
+				if GameClock.ms() - int(bump_cd.get(key, -9999)) > 500:
+					bump_cd[key] = GameClock.ms()
 					if ra.speed > rb.speed:
 						ra.speed *= 0.9
 					else:

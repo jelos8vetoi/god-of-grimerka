@@ -34,8 +34,8 @@ func wait(t: float) -> void:
 	await get_tree().create_timer(t, true, false, true).timeout
 
 func until(cond: Callable, sec: float) -> bool:
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
+	var t0 := GameClock.ms()
+	while GameClock.ms() - t0 < int(sec * 1000.0):
 		if cond.call():
 			return true
 		await get_tree().process_frame
@@ -175,8 +175,8 @@ func _ui_part() -> void:
 	ok(said and not R.call_voice.playing and R.ring_t > 0.0, "первым говорит Пахан — голосом; телефон ещё не звонил")
 	var overlap := 0
 	var spoke_boss := false
-	var t_end := Time.get_ticks_msec() + 16000
-	while Time.get_ticks_msec() < t_end and not spoke_boss:
+	var t_end := GameClock.ms() + 16000
+	while GameClock.ms() < t_end and not spoke_boss:
 		if R.pahan_voice.playing and R.call_voice.playing:
 			overlap += 1
 		spoke_boss = R.call_voice.playing
@@ -579,7 +579,7 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 	var hor_bus := AudioServer.get_bus_index("Horror")
 	var amb_before := AudioServer.get_bus_volume_db(amb_bus)
 	st.attack(eid, {"balon": "door_l", "madk1d": "vent_t", "bot": "door_r", "clipper": "door_l", "ghost": "stage", "mod": "door_r"}[eid])
-	var t0 := Time.get_ticks_msec()
+	var t0 := GameClock.ms()
 	await until(func(): return R.state == "scare", 2.0)
 	# момент тишины: фон пропал сразу (если тишина — «мёртвая» или «гул»)
 	var amb_silent := 0.0
@@ -589,7 +589,7 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 		amb_silent = AudioServer.get_bus_volume_db(amb_bus)
 	# середина скримера: враг в кадре вплотную
 	await until(func(): return R.office.shake > 0.8, 3.0)
-	var hit_ms := Time.get_ticks_msec()
+	var hit_ms := GameClock.ms()
 	var gap_ms: int = R.scream_at - R.scare.hush_t0 if hush_want != "none" else 0
 	var sync_ms: int = absi(hit_ms - R.scream_at)
 	var peak := -200.0
@@ -619,7 +619,7 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 	print("FIVENIGHTSCHECK   %s: голова %s, камера %s, голова в кадре %s" % [eid, str(head.snapped(Vector3.ONE * 0.01)), str(R.office.cam.global_position.snapped(Vector3.ONE * 0.01)), str(in_view)])
 	close = close and in_view
 	await until(func(): return R.state == "dead", 6.0)
-	var dur := (Time.get_ticks_msec() - t0) / 1000.0
+	var dur := (GameClock.ms() - t0) / 1000.0
 	ok(close and R.state == "dead", "скример %s: в 3D вплотную, затем экран гибели (%.1f с)" % [FNData.ENEMIES[eid]["name"], dur])
 	# после скримера фон возвращается сам и плавно: тишина не «зависает»
 	await wait(2.6)

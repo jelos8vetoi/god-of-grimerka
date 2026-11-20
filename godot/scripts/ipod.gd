@@ -777,7 +777,7 @@ func _synth_click(duration_ms: float, frequency: float, amplitude: float, double
 func _play_ui_sound(kind: String) -> bool:
 	if not button_sounds_enabled or button_sounds_volume <= 0.001 or not ui_streams.has(kind):
 		return false
-	var now := Time.get_ticks_msec()
+	var now := GameClock.ms()
 	var minimum_gap := 28 if kind == "navigate" else 34
 	if now - last_ui_sound_ms < minimum_gap:
 		return false

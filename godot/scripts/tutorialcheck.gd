@@ -125,8 +125,8 @@ func foe(dist := 3.5, hp := 9999.0):
 	return e
 
 func wait_card(limit := 4.0) -> bool:
-	var t0 := Time.get_ticks_msec()
-	while TU.card == null and Time.get_ticks_msec() - t0 < int(limit * 1000.0):
+	var t0 := GameClock.ms()
+	while TU.card == null and GameClock.ms() - t0 < int(limit * 1000.0):
 		await frames(1)
 	return TU.card != null
 
@@ -340,8 +340,8 @@ func practice_block() -> void:
 	var e = game._make_enemy("bot", "", P.global_position + Vector3(0, 0, -1.6))
 	e.cool = 999.0
 	await frames(80)
-	var t0 := Time.get_ticks_msec()
-	while TU.drill_id == "" and Time.get_ticks_msec() - t0 < 4000:
+	var t0 := GameClock.ms()
+	while TU.drill_id == "" and GameClock.ms() - t0 < 4000:
 		await frames(1)
 	ok(TU.drill_id == "light" and TU.drill != null and TU.drill.visible, "практика: в первом бою — упражнение «лёгкая атака», панель справа сверху (%s)" % TU.drill_id)
 	ok(not get_tree().paused and TU.card == null, "практика: игра не на паузе, карточки нет")
@@ -499,9 +499,9 @@ func practice_block() -> void:
 	await shot("t14_boss_open.png")
 	var guarded := false
 	var opened := false
-	var t_b := Time.get_ticks_msec()
+	var t_b := GameClock.ms()
 	var combo_i := 0
-	while TU.drill_id == "boss_open" and Time.get_ticks_msec() - t_b < 90000:
+	while TU.drill_id == "boss_open" and GameClock.ms() - t_b < 90000:
 		guarded = guarded or boss.train_guard
 		P.inv = 1.0
 		P.hp = P.max_hp

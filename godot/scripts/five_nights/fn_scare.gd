@@ -54,7 +54,7 @@ func _lead(sec: float) -> void:
 	var cut := hush_len if hush != "none" else 0.0
 	await _wait(maxf(0.0, sec - cut))
 	if hush != "none":
-		hush_t0 = Time.get_ticks_msec()
+		hush_t0 = GameClock.ms()
 		root.hush_begin(hush)
 		await _wait(cut)
 
@@ -160,7 +160,7 @@ func _maw_open(id: String, dur: float) -> void:
 	tw.tween_method(func(k: float): actors.maw(id, k), 0.0, 1.0, dur).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _shake_loop(sec: float, k: float) -> void:
-	var t0 := Time.get_ticks_msec()
+	var t0 := GameClock.ms()
 	await get_tree().create_timer(0.14, true, false, true).timeout       # рывок взгляда к лицу успевает закончиться
 	# поза рывка держится до конца крика: клип дальше почти стоит (иначе корпус продолжает клониться и лицо уходит
 	# из кадра — у Балона была видна макушка баллона). У BOT клип дёргается своим кодом — его не трогаем.
@@ -169,8 +169,8 @@ func _shake_loop(sec: float, k: float) -> void:
 		rig.player.speed_scale = 0.08
 	# тряска — вокруг одного взгляда, а не случайным блужданием: лицо остаётся в кадре до конца крика
 	var base: Vector3 = office.cam.rotation
-	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
-		var fade := 1.0 - 0.5 * clampf(float(Time.get_ticks_msec() - t0) / (sec * 1000.0), 0.0, 1.0)
+	while GameClock.ms() - t0 < int(sec * 1000.0):
+		var fade := 1.0 - 0.5 * clampf(float(GameClock.ms() - t0) / (sec * 1000.0), 0.0, 1.0)
 		office.shake = maxf(office.shake, k * fade)
 		office.scare_light.light_energy = randf_range(2.2, 5.0) if randf() > 0.12 else 0.4     # свет бьётся
 		office.cam.rotation = base + Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.03 * k * fade

@@ -193,7 +193,7 @@ var scream_var := 0
 var scream_at := 0                 # когда запущен последний крик (мс) — для проверки синхронности
 func scream(kind: String, vol := 0.0) -> float:
 	scream_kind = kind
-	scream_at = Time.get_ticks_msec()
+	scream_at = GameClock.ms()
 	var pick := FNSound.scream_pick(kind)
 	scream_var = int(pick[1])
 	if scream_p == null:

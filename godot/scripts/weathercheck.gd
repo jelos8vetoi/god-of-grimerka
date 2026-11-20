@@ -31,8 +31,8 @@ func phys(n: int) -> void:
 		await get_tree().physics_frame
 
 func until(cond: Callable, sec: float) -> bool:
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
+	var t0 := GameClock.ms()
+	while GameClock.ms() - t0 < int(sec * 1000.0):
 		if cond.call():
 			return true
 		await get_tree().process_frame
@@ -81,8 +81,8 @@ func brake_dist(race: Race) -> float:
 	L.speed = 20.0
 	var p0 := L.global_position
 	L.set_meta("auto", inp(0.0, 1.0))
-	var t0 := Time.get_ticks_msec()
-	while L.speed > 0.5 and Time.get_ticks_msec() - t0 < 5000:
+	var t0 := GameClock.ms()
+	while L.speed > 0.5 and GameClock.ms() - t0 < 5000:
 		await get_tree().physics_frame
 	return L.global_position.distance_to(p0)
 
@@ -95,9 +95,9 @@ func charge_time(race: Race) -> float:
 	await phys(3)
 	L.set_meta("auto", inp(1.0, 0.0, 0.8, true))
 	await phys(3)
-	var t0 := Time.get_ticks_msec()
+	var t0 := GameClock.ms()
 	var f0 := Engine.get_physics_frames()
-	while L.drift_lvl < 1 and L.drifting and Time.get_ticks_msec() - t0 < 4000:
+	while L.drift_lvl < 1 and L.drifting and GameClock.ms() - t0 < 4000:
 		var tg: Vector3 = tr.point(L.s + 14.0)
 		var to := tg - L.global_position
 		L.set_meta("auto", inp(1.0, 0.0, L.steer_for_rate(-angle_difference(atan2(L.vdir.x, L.vdir.z), atan2(to.x, to.z)) * 2.2), true))
@@ -200,8 +200,8 @@ func _run() -> void:
 	put(L3, s0 - 20.0, 0.0, 16.0)
 	L3.set_meta("auto", inp(1.0))
 	var max_air := 0.0
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < 3000:
+	var t0 := GameClock.ms()
+	while GameClock.ms() - t0 < 3000:
 		max_air = maxf(max_air, L3.air_t)
 		await get_tree().physics_frame
 	ok(L3.events.any(func(e): return e[0] == "steam") and max_air > 0.6, "ТЕПЛОТРАССА подбрасывает (в воздухе %.2f с)" % max_air)

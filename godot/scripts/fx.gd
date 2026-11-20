@@ -1007,7 +1007,7 @@ var _last := {}
 
 ## прошло ли ms миллисекунд с прошлого такого примитива (и отметить)
 func _gap(kind: String, ms: int) -> bool:
-	var now := Time.get_ticks_msec()
+	var now := GameClock.ms()
 	if now - int(_last.get(kind, -100000)) < ms:
 		stats["throttled"] = int(stats.get("throttled", 0)) + 1
 		return false

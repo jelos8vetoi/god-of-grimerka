@@ -68,8 +68,8 @@ func die_by_enemy(sec: float) -> bool:
 	var g = main.game
 	g.player.hp = 1.0
 	g.player.inv = 0.0
-	var t0 := Time.get_ticks_msec()
-	while g.player.state != "dead" and Time.get_ticks_msec() - t0 < int(sec * 1000.0):
+	var t0 := GameClock.ms()
+	while g.player.state != "dead" and GameClock.ms() - t0 < int(sec * 1000.0):
 		await get_tree().process_frame
 		g.player.hp = minf(g.player.hp, 1.0)
 	if g.player.state == "dead":
@@ -94,9 +94,9 @@ func watch(tag: String) -> void:
 	cam_fresh = true
 	cam_step = 0.0
 	cam_watch = true
-	var t0 := Time.get_ticks_msec()
+	var t0 := GameClock.ms()
 	var mid := false
-	while d.t < d.T_RISE1 and Time.get_ticks_msec() - t0 < 9000:
+	while d.t < d.T_RISE1 and GameClock.ms() - t0 < 9000:
 		await get_tree().process_frame
 		if not mid and d.t > 3.0:
 			mid = true

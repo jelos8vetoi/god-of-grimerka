@@ -75,8 +75,8 @@ func shot(name: String) -> void:
 	img.save_png(out.path_join("%s_%dx%d.png" % [name, img.get_width(), img.get_height()]))
 
 func until(cond: Callable, sec: float) -> bool:
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
+	var t0 := GameClock.ms()
+	while GameClock.ms() - t0 < int(sec * 1000.0):
 		if cond.call():
 			return true
 		await get_tree().process_frame

@@ -48,8 +48,8 @@ func shot(name: String) -> void:
 	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
 
 func until(cond: Callable, sec: float) -> bool:
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
+	var t0 := GameClock.ms()
+	while GameClock.ms() - t0 < int(sec * 1000.0):
 		if cond.call():
 			return true
 		await get_tree().process_frame
@@ -293,9 +293,9 @@ func _run() -> void:
 	ok(L.drifting and L.drift_dir > 0.0, "занос: Shift с рулём на скорости — несёт боком")
 	var max_drift_v := 0.0
 	var walls0 := count_ev(L, "wall", e0)
-	var t0 := Time.get_ticks_msec()
+	var t0 := GameClock.ms()
 	var shot_done := false
-	while Time.get_ticks_msec() - t0 < 5000 and L.drifting and L.drift_lvl < 3:
+	while GameClock.ms() - t0 < 5000 and L.drifting and L.drift_lvl < 3:
 		max_drift_v = maxf(max_drift_v, L.speed)
 		L.set_meta("auto", inp(1.0, 0.0, follow(L), true))
 		if not shot_done and L.drift_lvl >= 2:
@@ -317,8 +317,8 @@ func _run() -> void:
 		await phys(3)
 		L.set_meta("auto", inp(1.0, 0.0, 0.8, true))
 		await phys(3)
-		var tl := Time.get_ticks_msec()
-		while L.drift_lvl < lv and Time.get_ticks_msec() - tl < 5000:
+		var tl := GameClock.ms()
+		while L.drift_lvl < lv and GameClock.ms() - tl < 5000:
 			L.set_meta("auto", inp(1.0, 0.0, follow(L), true))
 			await get_tree().physics_frame
 		L.set_meta("auto", inp(1.0))
@@ -348,8 +348,8 @@ func _run() -> void:
 	e0 = L.events.size()
 	var max_air := 0.0
 	var max_y := 0.0
-	t0 = Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < 3000:
+	t0 = GameClock.ms()
+	while GameClock.ms() - t0 < 3000:
 		max_air = maxf(max_air, L.air_t)
 		max_y = maxf(max_y, L.global_position.y)
 		if L.air_t > 0.3 and max_air < 0.35:
@@ -365,8 +365,8 @@ func _run() -> void:
 	e0 = L.events.size()
 	L.set_meta("auto", inp(1.0))
 	var max_lat := 0.0
-	t0 = Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < 1200:
+	t0 = GameClock.ms()
+	while GameClock.ms() - t0 < 1200:
 		max_lat = maxf(max_lat, absf(float(race.track.project(L.global_position, L.proj)["lat"])))
 		await get_tree().physics_frame
 	ok(had(L, "wall", e0), "удар о стену засчитан")
@@ -376,8 +376,8 @@ func _run() -> void:
 	put(L, gs, 0.0, 0.9, 21.0)
 	e0 = L.events.size()
 	var vmin := 99.0
-	t0 = Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < 800:
+	t0 = GameClock.ms()
+	while GameClock.ms() - t0 < 800:
 		vmin = minf(vmin, L.speed)
 		await get_tree().physics_frame
 	ok(had(L, "wall", e0) and vmin < 17.0, "в узком проезде стена гасит скорость (до %.1f м/с)" % vmin)
@@ -727,8 +727,8 @@ func _run() -> void:
 	var music_peak := -200.0
 	var sfx_peak := -200.0
 	var cams := 0
-	t0 = Time.get_ticks_msec()
-	while race.state != "results" and Time.get_ticks_msec() - t0 < 90000:
+	t0 = GameClock.ms()
+	while race.state != "results" and GameClock.ms() - t0 < 90000:
 		music_peak = maxf(music_peak, peak("Music"))
 		sfx_peak = maxf(sfx_peak, peak("SFX"))
 		if cams < 4 and race.t > 20.0 + cams * 25.0:

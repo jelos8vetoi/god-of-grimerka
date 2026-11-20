@@ -71,6 +71,11 @@ var start_ch := -1
 var auto_len := 45.0
 var font: Font
 
+## ускоренная проверка: сколько игрового времени прошло (tools/checks.cjs сравнивает с настоящим)
+func _exit_tree() -> void:
+	if GameClock.fast():
+		print("GAMECLOCK игра %.1f с, кадров %d" % [GameClock.ms() / 1000.0, Engine.get_process_frames()])
+
 func _ready() -> void:
 	for a in ACTIONS:
 		if not InputMap.has_action(a):
