@@ -423,7 +423,7 @@ func _scene_tick(dt: float) -> void:
 		scene_said = true
 		var bd: Dictionary = game.story["BOSS"][String(scene_boss.boss_id)]
 		game.banner(String(bd["n"]), String(bd["sub"]), Color(bd["c"]), 3.4)
-		game.boss_bark(String(bd["n"]), "На этом районе уважают только сильнейших.", Color(bd["c"]), String(bd["sp"]))
+		game.boss_bark(String(bd["n"]), G67Data.BOSS_INTRO, Color(bd["c"]), String(bd["sp"]))
 		game.main.sfx("sfx_rage", -4.0, 0.7)
 	if scene_t >= SCENE_LEN:
 		_scene_end()

@@ -1236,6 +1236,15 @@ func _clean(s: String) -> String:
 # ---------------- озвучка ----------------
 ## файл реплики: код говорящего и начало md5 от всей строки «код|текст» — так же называет файлы tools/godot-voice.cjs
 func _voice_path(line: String) -> String:
+	if golda != null:
+		# приквел «ГОЛДА 67»: голоса главы 1 из своего манифеста (golda67/g67_voice.gd); нет — общий голос кампании
+		var gp := G67Voice.path(line)
+		if gp != "":
+			return gp
+		if OS.is_debug_build() or main.voicecheck:
+			var ge: Dictionary = G67Voice.entry(line)
+			if not ge.is_empty():
+				print("VOICE G67 %s (%s): голоса нет — статус %s, файл %s" % [String(ge.get("id", "")), line.left(50), String(ge.get("status", "")), String(ge.get("path", ""))])
 	return "res://assets/voice/%s_%s.mp3" % [line.substr(0, line.find("|")), line.md5_text().substr(0, 10)]
 
 func _say(pl: AudioStreamPlayer, line: String, vol := 0.0) -> bool:
@@ -1269,6 +1278,10 @@ func bark(kind: String, gap := 8.0, chance := 1.0) -> void:
 	if mode == "dlg" or over and kind != "dead" or not barks.has(kind) or clock < float(bark_cd.get(kind, 0.0)) or randf() > chance:
 		return
 	var arr: Array = barks[kind]
+	if madk_locked():
+		arr = arr.filter(func(l): return not String(l).begins_with("M"))      # madk1d до первой концовки не в бою — он не выкрикивает
+		if arr.is_empty():
+			return
 	var line: String = arr[randi() % arr.size()]
 	var pl := bark_m if line.begins_with("M") else (bark_v if line.begins_with("V") else bark_b)
 	if _speaking():

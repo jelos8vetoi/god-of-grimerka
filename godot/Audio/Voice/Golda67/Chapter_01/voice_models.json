@@ -1,0 +1,29 @@
+{
+	"note": "ID моделей Voice Studio Pro по коду говорящего. Пусто — ищется по имени модели.",
+	"models": {
+		"DJ": {
+			"character": "DJ FLÜRR",
+			"id": "fa19dd5b",
+			"voice_name": "dj flurr",
+			"status": "found"
+		},
+		"G1": {
+			"character": "Миша Минасян",
+			"id": "12ff0700",
+			"voice_name": "Миша Минасян",
+			"status": "found"
+		},
+		"KR": {
+			"character": "КРОТ",
+			"id": "96515c67",
+			"voice_name": "КРОТ",
+			"status": "found"
+		},
+		"V": {
+			"character": "Пахан",
+			"id": "d3dddb2a",
+			"voice_name": "ПАШОК",
+			"status": "found"
+		}
+	}
+}
