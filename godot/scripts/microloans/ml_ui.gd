@@ -15,6 +15,7 @@ const STAGE := Vector2(1600, 900)
 
 var root                       # MicroloansRoot
 var stage: Control
+var hints: MGHints
 var font: Font
 var serif: SystemFont
 var hud := {}
@@ -45,6 +46,10 @@ func _ready() -> void:
 	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	r.add_child(stage)
 	_hud()
+	# подсказки комнаты — справа снизу (слева меню, справа сверху уведомления); на полноэкранных экранах и во
+	# время подработки или звонка — молчат (у подработок свои)
+	hints = MGHints.new().setup("ml", MGHintsData.ML, "right", 0.8)
+	stage.add_child(hints)
 	get_viewport().size_changed.connect(_fit)
 	_fit()
 
@@ -251,6 +256,8 @@ var due_hot := false
 func _process(dt: float) -> void:
 	if hud.is_empty():
 		return
+	if hints != null:
+		hints.hold(overlay != null or screen == "flow")
 	for key in ["money", "debt"]:
 		var cur := float(shown[key])
 		var tg := float(target[key])
@@ -712,6 +719,8 @@ func _sv(v) -> String:
 
 # ---------------- фазы ----------------
 func intro() -> void:
+	for id in ["goal", "money", "actions"]:
+		hints.tip(id)
 	notify("Пахан, твои займы на %s. Через 7 дней приходят коллекторы." % rub(econ().total_debt()), "bad")
 
 var last_phase := ""
@@ -766,6 +775,9 @@ func _morning() -> void:
 	open("УТРО · ДЕНЬ %d" % e.day, lines, items)
 
 func _evening() -> void:
+	hints.tip("evening")
+	if econ().day >= MLData.DAYS - 1:
+		hints.tip("week")
 	var e := econ()
 	var calls := e.callers()
 	var lines: Array = ["Вечер. Звонят те, у кого срок завтра или уже прошёл."] if not calls.is_empty() else ["Вечер. Телефон молчит — подозрительно."]
@@ -803,6 +815,7 @@ const FLOW_BOTTOM := 66.0        # полоса с деньгами
 var flow_side: VBoxContainer
 
 func debt_flow() -> void:
+	hints.tip("debt_map")
 	screen = "flow"
 	close_panel()
 	panel = Control.new()
@@ -1113,6 +1126,7 @@ func _flow_keys(k: int) -> bool:
 
 # ---------------- переговоры ----------------
 func negotiate(id: int, after: Callable) -> MLNegotiation:
+	hints.tip("call")
 	var N := MLNegotiation.new()
 	stage.add_child(N)
 	N.voice_on = not root.snd.muted
@@ -1133,6 +1147,10 @@ func negotiate(id: int, after: Callable) -> MLNegotiation:
 	return N
 
 func _day() -> void:
+	if econ().stress >= 60:
+		hints.tip("stress")
+	if econ().day >= 2:
+		hints.tip("skills")
 	var e := econ()
 	var C: MLCareer = e.career
 	var no_act := func(): return "действий нет" if e.actions <= 0 else ""
@@ -1158,6 +1176,7 @@ func _day() -> void:
 ## РАЗВИТИЕ ПАХАНА — дерево навыков (ml_tree_ui.gd)
 var tree_ui: MLTreeUI
 func dev_tree() -> void:
+	hints.tip("skills")
 	if econ().career == null:
 		return
 	screen = "tree"
@@ -1174,6 +1193,7 @@ func dev_tree() -> void:
 
 ## БИЗНЕС: карточки пяти бизнесов — купить, поднять уровень, нанять, обслужить; итог дня и график дохода
 func biz_screen() -> void:
+	hints.tip("business")
 	screen = "biz"
 	var e := econ()
 	var C: MLCareer = e.career
@@ -1269,6 +1289,7 @@ func _confirm_prestige() -> void:
 
 # ---------------- займы ----------------
 func offers() -> void:
+	hints.tip("offers")
 	screen = "offers"
 	var e := econ()
 	var lines: Array = ["Условия видно сразу, мелкий шрифт — если прочитать договор."]
@@ -1297,6 +1318,7 @@ func offers() -> void:
 
 # ---------------- подработки ----------------
 func jobs() -> void:
+	hints.tip("jobs")
 	screen = "jobs"
 	var e := econ()
 	var C: MLCareer = e.career
@@ -1377,6 +1399,7 @@ func run_job(jid: String, bot := -1.0) -> MLJob:
 
 # ---------------- вещи и магазин ----------------
 func items_screen() -> void:
+	hints.tip("items")
 	screen = "items"
 	var e := econ()
 	var items: Array = []
@@ -1398,6 +1421,7 @@ func items_screen() -> void:
 	open("ВЕЩИ", ["Оставленное из хлама. Продать, отдать «Решим вопрос» в счёт долга (Гена берёт не всё) или держать до лучшей цены."] if not e.inventory.is_empty() else ["Пусто. Вещи появляются, если в разборе хлама выбрать «ОСТАВИТЬ»."], items, 0.0, "grid")
 
 func shop() -> void:
+	hints.tip("items")
 	screen = "shop"
 	var e := econ()
 	var items: Array = []

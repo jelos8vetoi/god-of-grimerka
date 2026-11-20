@@ -59,6 +59,11 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	_recipients()
 	if weather in ["rain", "snow"]:
 		_precip()
+	hints_on("ml_deliv", MGHintsData.DELIV)
+	if urgent_all > 0:
+		hint("urgent")
+	if not puddles.is_empty():
+		hint("puddle")
 
 # ---------------- двор ----------------
 func _yard() -> void:
@@ -341,6 +346,10 @@ func _process(dt: float) -> void:
 			_deliver()
 	progress(float(n_done) / float(maxi(1, parcels.size())))
 	MGUI.set_bar(stam_bar, stamina, MGUI.GOOD if stamina > 0.3 else MGUI.RED)
+	if stamina < 0.15:
+		hint("stamina")
+	if chain >= 2:
+		hint("chain")
 	combo_l.text = "цепочка ×%d" % chain if chain >= 2 else ""
 	combo_l.visible = chain >= 2
 	# камера: сзади-сверху за Паханом
@@ -375,6 +384,7 @@ func _collide(np: Vector3, v: float) -> Vector3:
 	return Vector3(p.x, 0, p.y)
 
 func _bump(k: float) -> void:
+	hint("fragile")
 	if stumble_t > 0.0 or cur >= parcels.size():
 		return
 	var P: Dictionary = parcels[cur]

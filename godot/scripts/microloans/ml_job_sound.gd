@@ -57,6 +57,7 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	cam.fov = 46.0
 	MGUI.style_label(tip_l, "mono", MGUI.TEXT)
 	cam.look_at_from_position(Vector3(0, 1.9, 1.35), Vector3(0, 0.85, -0.15), Vector3.UP)
+	hints_on("ml_sound", MGHintsData.SOUND)
 	_part1()
 
 func _stage() -> void:
@@ -107,17 +108,20 @@ func _stage() -> void:
 
 func _part1() -> void:
 	part = 1
+	hint("patch")
 	task_l.text = "Подключи по схеме: выход → вход микшера"
 	_keys([["ЛКМ", "выход, потом вход"]])
 
 func _part2() -> void:
 	part = 2
+	hint("levels")
 	task_l.text = "Держи каналы в зелёной зоне"
 	_keys([["A/D", "канал"], ["W/S", "фейдер"], ["G", "убрать фон"]])
 	sfx("phase")
 
 func _part3() -> void:
 	part = 3
+	hint("beat")
 	task_l.text = "Туса началась — бей в бит"
 	_keys([["Пробел", "в бит"]])
 	for ph in PHRASES:
@@ -262,6 +266,8 @@ func _levels(dt: float) -> void:
 	hum_t -= dt
 	if hum_t <= 0.0 and not hum_on:
 		hum_on = rng.randf() < 0.7 - 0.2 * eq("sound")
+		if hum_on:
+			hint("hum")
 		hum_t = rng.randf_range(4.0, 8.0)
 		if hum_on:
 			sfx("zap", 0.5)

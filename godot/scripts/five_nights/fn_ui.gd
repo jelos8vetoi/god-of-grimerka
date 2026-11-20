@@ -109,6 +109,7 @@ const DEVICES := [
 ]
 const DECK_H := 62.0
 var deck: HBoxContainer
+var tips: MGHints                  # подсказки и справка (H) — mg_hints.gd
 var deck_rows := {}                 # id → {panel, sb, name, state}
 var tip_box: PanelContainer
 var tip_l: Label
@@ -142,6 +143,10 @@ func setup(r) -> void:
 	hud.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hud)
+	# подсказки смены — слева посередине (энергия — слева снизу, пульт — внизу); молчат вне ночи и в скримере
+	tips = MGHints.new().setup("fn", MGHintsData.FN, "left", 0.42)
+	tips.hold_fn = func(): return root == null or root.state != "night" or (root.scare != null and root.scare.busy) or root.intro_t > 0.0
+	add_child(tips)
 	# часы: ночь мелко, время крупно — справа сверху
 	clock_box = MGUI.vbox(0)
 	hud.add_child(clock_box)

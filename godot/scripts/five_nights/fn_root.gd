@@ -395,6 +395,17 @@ func start_night(n: int, lv := {}) -> void:
 	call_t = 0.0
 	hint_t = 45.0 if n == 0 else 0.0
 	ui.hints("")
+	# подсказки смены: основы, потом каждый обитатель, который ходит этой ночью (впервые — один раз)
+	for id in ["start", "doors", "light", "cams"]:
+		ui.tips.tip(id)
+	for id in FNData.ORDER:
+		var en = st.enemies.get(id)
+		if en != null and int(en.level) > 0:
+			if id == "madk1d":
+				ui.tips.tip("vents")
+			if id == "mod":
+				ui.tips.tip("reset")
+			ui.tips.tip(id)
 	get_tree().create_timer(4.0, true, false, true).timeout.connect(func():
 		if state == "night" and n < FNData.PAHAN["start"].size():
 			pahan_say(String(FNData.PAHAN["start"][n]), 3.5))
@@ -425,6 +436,8 @@ func set_paused(on: bool) -> void:
 		(actors.rigs[id] as Rig).player.speed_scale = 0.0 if on else 1.0
 
 func _process(dt: float) -> void:
+	if state == "night" and st != null and st.power < 25.0 and not st.power_out:
+		ui.tips.tip("power")
 	_amb_tick(dt)
 	_fear_tick(dt)
 	match state:
@@ -546,6 +559,12 @@ func msg_hour() -> void:
 
 func _on_event(k: String, d: Dictionary) -> void:
 	match k:
+		"ping":
+			ui.tips.tip("bot")
+		"scrape":
+			ui.tips.tip("clipper")
+		"power_out":
+			ui.tips.tip("dark")
 		"hour":
 			_hour_event(int(d["h"]))
 		"adapt":

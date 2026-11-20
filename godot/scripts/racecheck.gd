@@ -267,6 +267,7 @@ func _run() -> void:
 	ok(v1 > 15.0, "разгон: за 2,2 с — %.1f м/с" % v1)
 	await shot("r02_accel")
 	await no_ipod_here("гонка")
+	await hints_here(main.race.hud.tips, "гонка", "start", main.race.hud)
 	# --- 4. торможение ---
 	race.local.set_meta("auto", inp(0.0, 1.0))
 	await wait(0.4)
@@ -842,3 +843,37 @@ func no_ipod_here(where: String) -> void:
 		if sc != null and String(sc.resource_path).ends_with("/ipod.gd"):
 			n += 1
 	ok(n == 0, "%s: iPod нет, стрелка ↑ его не открывает" % where)
+
+## подсказки сбоку (mg_hints.gd): всплыла нужная, не перекрывает надписи игры, мышь не ловит; H — справка и обратно
+func hints_here(h, where: String, want: String, ui_root: Node) -> void:
+	var t0 := GameClock.ms()
+	while h != null and not h.shown_log.has(want) and GameClock.ms() - t0 < 12000:
+		await get_tree().process_frame
+	ok(h != null and h.shown_log.has(want), "%s: подсказка «%s» всплыла сбоку" % [where, want])
+	if h == null:
+		return
+	await get_tree().process_frame
+	if h.card != null and h.card.visible and h.card.modulate.a > 0.3:
+		var cr: Rect2 = h.card.get_global_rect()
+		var hit := ""
+		var labels: Array = []
+		MGUI._collect(ui_root, labels)
+		for l in labels:
+			if not h.is_ancestor_of(l) and (l as Control).get_global_rect().intersects(cr.grow(-2.0)):
+				hit = (l as Label).text if l is Label else (l as Button).text
+				break
+		ok(hit == "", "%s: карточка подсказки не закрывает надписи игры%s" % [where, "" if hit == "" else " (закрыла «%s»)" % hit.left(30)])
+		ok(h.card.mouse_filter == Control.MOUSE_FILTER_IGNORE and h.mouse_filter == Control.MOUSE_FILTER_IGNORE, "%s: подсказка не ловит мышь" % where)
+	await key(KEY_H)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	ok(h.guide != null and h.guide.visible and h.guide.get_child(0).get_child_count() > 4, "%s: H — справка «что что делает» сбоку" % where)
+	await shot("hints_" + where.replace("«", "").replace("»", "").replace(" ", "_"))
+	var n_pages: int = h.pages()
+	for i in n_pages - 1:
+		await key(KEY_H)
+		await get_tree().process_frame
+	ok(h.guide != null and h.page == n_pages - 1, "%s: H листает справку (%d стр.)" % [where, n_pages])
+	await key(KEY_H)
+	await get_tree().process_frame
+	ok(h.guide == null and h.page == -1, "%s: H после последней страницы — справка убрана" % where)

@@ -103,6 +103,11 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	if bot < 0.0:
 		hum.play()
 	task_l.text = TASKS[task]
+	hints_on("ml_podezd", MGHintsData.PODEZD)
+	if task == "valuables" or tier >= 4:
+		hint("valuable")
+	if task == "cables" or cables.size() >= 5:
+		hint("cable")
 
 # ---------------- уровень ----------------
 func _level() -> void:
@@ -474,12 +479,15 @@ func _hose_check() -> void:
 		tangle_cd = 2.5
 		stuck_t = 1.0
 		tangles += 1
+		hint("tangle")
 		if bot >= 0.0 and bot_target >= 0:
 			bot_skip[bot_target] = true                  # бот: туда шланг не достаёт — бросает цель и сдаёт назад
 			bot_target = -1
 			bot_back = 0.8
 		sfx("zap")
 		pop("ШЛАНГ ЗАПУТАЛСЯ!", pos + Vector3(0, 1.2, 0), RED)
+	if tension > 0.92:
+		hint("hose")
 	hose_mat.albedo_color = Color(0.12, 0.12, 0.13).lerp(Color(0.8, 0.1, 0.08), clampf((tension - 0.85) * 6.0, 0.0, 1.0))
 	_draw_hose()
 
@@ -552,6 +560,8 @@ func _wash(dt: float, fwd: Vector3) -> void:
 		var tp: Vector3 = (t["node"] as Node3D).position
 		if Vector2(tp.x - nozzle.x, tp.z - nozzle.z).length() > float(t["r"]) + 0.3:
 			continue
+		if not wash:
+			hint("stain")
 		var slow := clampf(1.35 - absf(speed) / 3.2, 0.3, 1.0)          # медленнее — чище
 		t["hp"] = float(t["hp"]) - dt * (1.0 + cv("tyaga_power")) * (1.0 if wash else 0.25) * slow / 0.8
 		(t["mat"] as StandardMaterial3D).albedo_color.a = clampf(float(t["hp"]), 0.0, 1.0) * 0.88
@@ -619,6 +629,7 @@ func _suck(dt: float, fwd: Vector3) -> void:
 				pop("серия ×%d" % combo, tp + Vector3(0, 0.6, 0), Color(1.0, 0.8, 0.3))
 			if load >= cap:
 				sfx("alert")
+				hint("full")
 
 ## у ведра контейнер выгружается сам
 func _unload() -> void:
