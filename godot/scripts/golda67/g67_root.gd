@@ -74,6 +74,10 @@ func begin(_cont := false) -> void:
 	save()
 	base_hp = game.player.max_hp
 	await enter_hub()
+	unlock_clip("V00")                       # трейлер — на телевизоре в подъезде с первого входа
+	if auto_clips and not clip_seen("STORY01"):
+		await play_clip("STORY01")           # регистрация — до первого забега
+		await play_clip("STORY05")           # первое обращение организатора
 
 func _swap_world(build: Callable) -> void:
 	game._clear_fight()
@@ -167,6 +171,7 @@ func start_run(district_id := "dvor") -> void:
 	game.buddy.visible = false
 	game.buddy.global_position = Vector3(0, -50, 0)
 	events.append(["run", district_id])
+	unlock_clip("CL01")                      # «КАК ЗАЙТИ ВО ДВОР» — в архив после входа во ДВОР
 	var d := G67Data.district(district_id)
 	await enter_room((d["route"] as Array)[0][0])
 
@@ -373,7 +378,7 @@ func _boss_intro(b) -> void:
 	events.append(["boss_intro"])
 
 func scene_busy() -> bool:
-	return scene_t >= 0.0
+	return scene_t >= 0.0 or clip != null or clip_menu != null
 
 func owns_camera() -> bool:
 	return scene_t >= 0.0 and scene_boss != null and is_instance_valid(scene_boss)
@@ -599,6 +604,8 @@ func _krot_done(id: String) -> void:
 	meta()["archive"] = arch
 	save()
 	events.append(["krot_seen", id])
+	if id == "krot3":
+		unlock_clip("EXTRA01")               # «КРОТ НА ПОДКАСТЕ» — в архив после третьей встречи
 	# КРОТ уходит по своим делам: без объяснений
 	world.points = world.points.filter(func(pt): return String(pt["id"]) != "krot")
 	var kr = world.actors.get("g67_krot")
@@ -820,6 +827,10 @@ func _finish_run(won: bool, delay: float) -> void:
 	p.rig.play("Idle", 0.1)
 	await enter_hub()
 	game.toast("РЕСПЕКТ +%d" % got)
+	if won and bool((meta().get("flags", {}) as Dictionary).get("boss_misha", false)):
+		unlock_clip("NEWS01")
+		if auto_clips and not clip_seen("NEWS01"):
+			await play_clip("NEWS01")        # «РАЙОННЫЙ ВЕСТНИК 67» после первой победы над Мишей
 
 # ---------------------------------------------------------------- HUD и взаимодействие
 ## Строка вверху экрана вместо главы и задания кампании
@@ -889,7 +900,11 @@ func use(id: String) -> void:
 		return
 	events.append(["use", id])
 	if id == "exit":
+		if auto_clips and not clip_seen("AD01"):
+			await play_clip("AD01")          # реклама турнира — перед первым выходом во ДВОР
 		start_run("dvor")
+	elif id == "tv":
+		tv()
 	elif id == "rest":
 		rest()
 	elif id == "krot":
@@ -933,3 +948,107 @@ func _crowd_tick() -> void:
 	if crowd_phase >= 0 and int(b.phase) != crowd_phase:
 		_crowd("phase")
 	crowd_phase = int(b.phase)
+
+# ---------------------------------------------------------------- ролики главы 1 (G67Clips, G67ClipPlayer)
+var clip: G67ClipPlayer = null
+var clip_menu: CanvasLayer = null
+## Ролики сами по ходу игры (в проверке выключено: она запускает их в своём разделе)
+var auto_clips := true
+
+func clip_seen(cid: String) -> bool:
+	return (meta().get("clips_seen", []) as Array).has(cid)
+
+func clip_open(cid: String) -> bool:
+	return (meta().get("archive", []) as Array).has("clip_" + cid)
+
+func unlock_clip(cid: String) -> void:
+	var arch: Array = meta().get("archive", [])
+	if not arch.has("clip_" + cid):
+		arch.append("clip_" + cid)
+		meta()["archive"] = arch
+		save()
+		events.append(["clip_open", cid])
+
+## Показать ролик; ждать конца. Первый показ — без пропуска; после — отмечен просмотренным
+func play_clip(cid: String) -> void:
+	if clip != null:
+		return
+	unlock_clip(cid)
+	game.player.velocity = Vector3.ZERO
+	if prompt != null:
+		prompt.visible = false
+	game.voice.stop()
+	game._hush()
+	clip = G67ClipPlayer.open(game, cid, clip_seen(cid))
+	events.append(["clip", cid])
+	await clip.finished
+	clip = null
+	var seen: Array = meta().get("clips_seen", [])
+	if not seen.has(cid):
+		seen.append(cid)
+		meta()["clips_seen"] = seen
+		save()
+
+## Телевизор в подъезде: впервые — трейлер; потом — список открытых роликов (пересмотр)
+func tv() -> void:
+	if not clip_seen("V00"):
+		await play_clip("V00")
+		return
+	_tv_menu()
+
+func _tv_menu() -> void:
+	if clip_menu != null:
+		return
+	clip_menu = CanvasLayer.new()
+	clip_menu.layer = 55
+	game.add_child(clip_menu)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	clip_menu.add_child(root)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.72)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(dim)
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	box.custom_minimum_size = Vector2(560, 0)
+	box.position = Vector2(-280, -260)
+	box.add_theme_constant_override("separation", 10)
+	root.add_child(box)
+	var head := Label.new()
+	head.text = "ОБЛАКО LIVE · АРХИВ ПИЗДЕЦА"
+	head.add_theme_font_override("font", game.main.font)
+	head.add_theme_font_size_override("font_size", 30)
+	head.add_theme_color_override("font_color", Color(1.0, 0.8, 0.25))
+	box.add_child(head)
+	var first: Button = null
+	for cid in G67Clips.ORDER:
+		if not clip_open(cid):
+			continue
+		var b := Button.new()
+		b.text = "%s   %s" % [G67Clips.title(cid), "" if clip_seen(cid) else "· новое"]
+		b.add_theme_font_override("font", game.main.font)
+		b.add_theme_font_size_override("font_size", 22)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.pressed.connect(func():
+			_tv_close()
+			play_clip(cid))
+		box.add_child(b)
+		if first == null:
+			first = b
+	var close := Button.new()
+	close.text = "ЗАКРЫТЬ"
+	close.add_theme_font_override("font", game.main.font)
+	close.add_theme_font_size_override("font_size", 20)
+	close.pressed.connect(_tv_close)
+	box.add_child(close)
+	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
+	if first != null:
+		first.grab_focus()
+	events.append(["tv_menu"])
+
+func _tv_close() -> void:
+	if clip_menu != null:
+		clip_menu.queue_free()
+		clip_menu = null
+		MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
