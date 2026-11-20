@@ -251,9 +251,9 @@ func _desk() -> void:
 	var po := Vector3(0.77, -0.027, -0.04) if desk_model != null else Vector3.ZERO
 	var panel := box(Vector3(-0.72, 0.84, -0.78) + po, Vector3(0.6, 0.06, 0.28), mats["black"])
 	panel.rotation.x = deg_to_rad(-12.0)
-	_button("seal_l", Vector3(-0.88, 0.885, -0.75) + po, mats["metal"], 0.06, "ЗАСЛ. Л")
-	_button("seal_t", Vector3(-0.68, 0.885, -0.75) + po, mats["metal"], 0.06, "ЛЮК")
-	_button("reset", Vector3(-0.48, 0.885, -0.75) + po, mats["red"], 0.06, "СБРОС")
+	_button("seal_l", Vector3(-0.88, 0.885, -0.75) + po, mats["metal"], 0.06, "ВЕНТ. Z")
+	_button("seal_t", Vector3(-0.68, 0.885, -0.75) + po, mats["metal"], 0.06, "ЛЮК X")
+	_button("reset", Vector3(-0.48, 0.885, -0.75) + po, mats["red"], 0.06, "СБРОС R")
 	_led("seal_l", Vector3(-0.88, 0.88, -0.86) + po)
 	_led("seal_t", Vector3(-0.68, 0.88, -0.86) + po)
 	_led("ping", Vector3(-0.48, 0.88, -0.86) + po)
@@ -347,7 +347,9 @@ func _button(id: String, p: Vector3, m: Material, r: float, text := "", parent: 
 	parent.add_child(b)
 	buttons[id] = {"node": b, "r": r}
 	if text != "":
-		label(text, p + Vector3(0, 0.02, 0.05), 14, Color(0.85, 0.82, 0.75), Vector3(deg_to_rad(-90), 0, 0))
+		var bl := label(text, p + Vector3(0, 0.02, 0.062), 22, Color(0.96, 0.94, 0.88), Vector3(deg_to_rad(-90), 0, 0))
+		bl.outline_size = 6
+		bl.outline_modulate = Color(0, 0, 0, 0.9)
 	return b
 
 func _led(id: String, p: Vector3) -> void:
@@ -377,8 +379,12 @@ func _doors() -> void:
 		box(Vector3(x - s * 0.04, 1.2, pz), Vector3(0.04, 0.62, 0.3), mats["black"])
 		_button("door_" + side, Vector3(x - s * 0.08, 1.36, pz), mats["red"], 0.13, "", self).rotation.z = deg_to_rad(90) * s
 		_button("light_" + side, Vector3(x - s * 0.08, 1.06, pz), mats["paper"], 0.12, "", self).rotation.z = deg_to_rad(90) * s
-		label("ДВЕРЬ", Vector3(x - s * 0.065, 1.5, pz), 16, Color(0.9, 0.85, 0.8), Vector3(0, -deg_to_rad(90) * s, 0))
-		label("СВЕТ", Vector3(x - s * 0.065, 0.92, pz), 16, Color(0.9, 0.85, 0.8), Vector3(0, -deg_to_rad(90) * s, 0))
+		# подписи у кнопок проёма: крупно, с обводкой и клавишей — читаются с места охранника
+		for pair in [["ДВЕРЬ · %s" % ("A" if s < 0 else "D"), 1.52], ["СВЕТ · %s" % ("Q" if s < 0 else "E"), 0.9]]:
+			var dl := label(String(pair[0]), Vector3(x - s * 0.065, float(pair[1]), pz), 34, Color(0.97, 0.95, 0.9), Vector3(0, -deg_to_rad(90) * s, 0))
+			dl.outline_size = 10
+			dl.outline_modulate = Color(0, 0, 0, 0.95)
+			dl.shaded = false
 		_led("door_" + side, Vector3(x - s * 0.07, 1.62, pz))
 
 # ---------------- вентиляция ----------------

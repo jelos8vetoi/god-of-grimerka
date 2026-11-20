@@ -138,7 +138,33 @@ func _run() -> void:
 		var tx = row["text"]
 		names.append(String(tx.call()) if tx is Callable else String(tx))
 	ok(mm.panel != null and names.has("SINGLE RACE") and names.has("TIME TRIAL") and names.has("ONLINE RACE") and names.back() == "НАЗАД", "меню гонок: %s" % ", ".join(names))
-	ok(String(names[0]).contains("ТОМСК: ПЫЛЬНЫЙ ЗАЕЗД") and RaceData.TRACK_ORDER.size() == 1, "трасса одна и готовая: «ТОМСК: ПЫЛЬНЫЙ ЗАЕЗД» (будущих в списке нет)")
+	RaceSave.v("track")
+	RaceSave.persist = false
+	RaceSave.data["track"] = "tomsk_dust"             # проверка едет по первой трассе, какую бы ни выбрал игрок
+	var track_ok := true
+	var track_txt: Array = []
+	for tid in RaceData.TRACK_ORDER:
+		var D: Dictionary = RaceData.track(String(tid))
+		var tr0 := RaceTrack.new()
+		add_child(tr0)
+		tr0.visible = false
+		tr0.build(String(tid))
+		var gap0 := 9999.0
+		for gk in tr0.gates.size():
+			var ga: float = tr0.from_start(float(tr0.gates[gk]["s"]))
+			var gb: float = tr0.from_start(float(tr0.gates[gk + 1]["s"])) if gk + 1 < tr0.gates.size() else tr0.L
+			gap0 = minf(gap0, gb - ga)
+		# дорога не пересекает сама себя: точки, далёкие по пути, не подходят ближе ширины дороги
+		var cross := 9999.0
+		for a in range(0, tr0.P.size(), 6):
+			for b in range(a + 60, tr0.P.size(), 6):
+				if tr0.P.size() - b + a > 60:
+					cross = minf(cross, tr0.P[a].distance_to(tr0.P[b]) - (tr0.W[a] + tr0.W[b]) * 0.5)
+		if gap0 < RaceTrack.GATE_GAP or tr0.L < 500.0 or tr0.L > 1200.0 or tr0.boxes.size() < 6 or tr0.rings.size() < 2 or tr0.ramps.is_empty() or cross < 2.0 or int(D["laps"]) != 3:
+			track_ok = false
+		track_txt.append("«%s» — круг %.0f м, точек %d, трамплинов %d, колец %d, коробок %d" % [D["name"], tr0.L, tr0.gates.size(), tr0.ramps.size(), tr0.rings.size(), tr0.boxes.size()])
+		tr0.free()
+	ok(String(names[0]).contains("ТОМСК: ПЫЛЬНЫЙ ЗАЕЗД") and RaceData.TRACK_ORDER.size() >= 2 and track_ok, "трасс %d, у каждой три круга, свои трамплины, кольца и коробки, дорога себя не пересекает: %s" % [RaceData.TRACK_ORDER.size(), "; ".join(track_txt)])
 	await shot("m01_race_menu")
 	RaceSave.persist = false                          # проверка не пишет настройки и рекорды игрока
 	RaceSave.v("weather")
@@ -193,7 +219,12 @@ func _run() -> void:
 	var race: Race = main.race
 	ok(race.riders.size() == 6 and race.local != null and race.local.rider_id == "pahan", "6 участников: Пахан и пять соперников (%s)" % ", ".join(race.riders.map(func(r): return r.title)))
 	ok(main.game == null, "сюжетная игра не создана — отдельный режим")
-	ok(race.track.gates.size() == 10 and race.track.L > 400.0, "трасса: круг %.0f м, контрольных точек %d" % [race.track.L, race.track.gates.size()])
+	var gate_gap := 9999.0
+	for gk in race.track.gates.size():
+		var g_a: float = race.track.from_start(float(race.track.gates[gk]["s"]))
+		var g_b: float = race.track.from_start(float(race.track.gates[gk + 1]["s"])) if gk + 1 < race.track.gates.size() else race.track.L
+		gate_gap = minf(gate_gap, g_b - g_a)
+	ok(race.track.gates.size() >= 6 and race.track.L > 400.0 and gate_gap >= RaceTrack.GATE_GAP, "трасса: круг %.0f м, контрольных точек %d, все на разных местах (самые близкие — через %.0f м)" % [race.track.L, race.track.gates.size(), gate_gap])
 	var p0: Vector3 = race.local.global_position
 	await until(func(): return race.state == "countdown", 6.0)
 	await shot("r01_countdown")
@@ -299,8 +330,8 @@ func _run() -> void:
 	L.boost_t = 0.0
 	L.set_meta("auto", inp(1.0, 0.0, 0.0, false, true))
 	await wait(0.8)
-	ok(L.turbo_on and L.turbo < 70.0 and L.speed > float(RaceData.PHYS["vmax"]) + 1.0, "турбо: заряд тратится (%.0f), скорость %.1f" % [L.turbo, L.speed])
-	await wait(1.4)
+	ok(L.turbo_on and L.turbo < 85.0 and L.speed > float(RaceData.PHYS["vmax"]) + 1.0, "турбо: заряд тратится (%.0f), скорость %.1f" % [L.turbo, L.speed])
+	await wait(100.0 / float(RaceData.PHYS["turbo_use"]) - 0.5)
 	ok(not L.turbo_on and L.turbo < float(RaceData.PHYS["turbo_min"]), "турбо не бесконечное: кончилось (заряд %.0f)" % L.turbo)
 	# --- 8–9. прыжок и трамплин ---
 	put(L, race.track.start_s + 30.0, 0.0, 0.0, 15.0)
@@ -386,7 +417,7 @@ func _run() -> void:
 	for k in 300:
 		L.rank = 1 + k % 6                              # из коробки на разных местах
 		seen[race.roll_item(L)] = true
-	ok(seen.size() == 6, "из коробок выпадают все шесть предметов (%d)" % seen.size())
+	ok(seen.size() == RaceData.ITEM_IDS.size(), "из коробок выпадают все предметы (%d из %d)" % [seen.size(), RaceData.ITEM_IDS.size()])
 	# турбо-баллон
 	put(L, race.track.start_s + 30.0, 0.0, 0.0, 15.0)
 	L.item = "turbo_balloon"
@@ -463,6 +494,173 @@ func _run() -> void:
 	ok(not had(L, "item_use", e1), "без предмета использовать нечего")
 	B.remove_meta("auto")
 	B.set_meta("auto", RaceInput.new())
+	# ================= езда после переделки: разгон, турбо, тормоз, мешок, трюки, новые предметы =================
+	var VM: float = float(RaceData.PHYS["vmax"])
+	var DT := 1.0 / float(Engine.physics_ticks_per_second)
+	# кривая разгона: половина предела набирается быстро, последние 5 % — долго
+	put(L, race.track.start_s + 68.0, 0.0, 0.0, 0.0)
+	L.turbo = 0.0
+	L.boost_t = 0.0
+	L.item = ""
+	var t_half := -1.0
+	var t_95 := -1.0
+	var tt := 0.0
+	while tt < 7.0 and t_95 < 0.0:
+		L.set_meta("auto", inp(1.0, 0.0, follow(L)))
+		await get_tree().physics_frame
+		tt += DT
+		if t_half < 0.0 and L.speed >= VM * 0.5:
+			t_half = tt
+		if L.speed >= VM * 0.95 and not L.boosting():
+			t_95 = tt
+	ok(t_half > 0.25 and t_half < 1.0 and t_95 > t_half * 2.5 and t_95 < 6.0, "кривая разгона: половина предела за %.2f с, 95 %% — за %.2f с (быстро с места, долго у предела)" % [t_half, t_95])
+	# турбо без газа ничего не даёт и заряд не тратит
+	put(L, race.track.start_s + 68.0, 0.0, 0.0, 0.0)
+	L.turbo = 100.0
+	L.set_meta("auto", inp(0.0, 0.0, 0.0, false, true))
+	await wait(0.6)
+	ok(absf(L.speed) < 0.5 and L.turbo >= 99.0 and not L.turbo_on, "турбо без газа не разгоняет и не тратится (скорость %.1f, заряд %.0f)" % [L.speed, L.turbo])
+	# тормоз: остановка без мгновенного заднего хода, задний ход — после паузы
+	put(L, race.track.start_s + 68.0, 0.0, 0.0, 20.0)
+	L.set_meta("auto", inp(0.0, 1.0))
+	var t_stop := 0.0
+	while L.speed > 0.5 and t_stop < 3.0:
+		await get_tree().physics_frame
+		t_stop += DT
+	await phys(6)
+	var v_just: float = L.speed
+	await wait(1.0)
+	ok(t_stop > 0.6 and t_stop < 1.6 and v_just > -0.3 and L.speed < -1.0, "тормоз: 20 м/с → стоп за %.2f с, сразу назад не едет (%.1f), через секунду — задний ход (%.1f)" % [t_stop, v_just, L.speed])
+	# воздушный мешок: держишься за соперником — тянет
+	put(B, race.track.start_s + 78.0, 0.0, 0.0, 18.0)
+	put(L, race.track.start_s + 70.0, 0.0, 0.0, 18.0)
+	L.draft = 0.0
+	L.draft_t = 0.0
+	e0 = L.events.size()
+	var td := 0.0
+	while td < 1.6:
+		B.set_meta("auto", inp(0.75, 0.0, follow(B)))
+		L.set_meta("auto", inp(0.72, 0.0, follow(L)))
+		await get_tree().physics_frame
+		td += DT
+	ok(L.draft > 0.5 and had(L, "draft", e0), "воздушный мешок: за соперником тянет (%.2f)" % L.draft)
+	B.set_meta("auto", RaceInput.new())
+	put(B, race.track.start_s - 40.0, 0.0, 0.0, 0.0)
+	# трюк с трамплина: пробел в воздухе, докрутил — ускорение, заряд и комбо
+	var rmp: Dictionary = race.track.ramps[0]
+	put(L, float(rmp["s0"]) - 26.0, 0.0, 0.0, 21.0)
+	L.turbo = 10.0
+	L.combo = 0
+	e0 = L.events.size()
+	var tr_t := 0.0
+	var pressed := false
+	while tr_t < 4.0 and not had(L, "land", e0):
+		var a2 := inp(1.0, 0.0, follow(L))
+		if not pressed and L.ramp_air and L.air_t > 0.1:
+			a2.jump = true
+			pressed = true
+		L.set_meta("auto", a2)
+		await get_tree().physics_frame
+		tr_t += DT
+	ok(had(L, "trick", e0) and had(L, "trick_land", e0) and L.boost_t > 0.2 and L.turbo > 20.0 and L.combo >= 1, "трюк с трамплина: докрутил — ускорение %.2f с, заряд %.0f, комбо ×%d" % [L.boost_t, L.turbo, L.combo])
+	ok(race.track.rings.size() >= 2 and had(L, "ring", e0), "кольцо над трамплином: пролетел сквозь — засчитано (колец на трассе %d)" % race.track.rings.size())
+	ok(race.crowd != null and race.crowd.people.size() >= 6, "зрители у трассы: %d (у старта и трамплинов)" % (race.crowd.people.size() if race.crowd != null else 0))
+	# трюк слишком поздно: не докрутил — шлёпнулся, скорость упала
+	put(L, float(rmp["s0"]) - 26.0, 0.0, 0.0, 21.0)
+	e0 = L.events.size()
+	tr_t = 0.0
+	pressed = false
+	var v_air := 0.0
+	while tr_t < 4.0 and not had(L, "land", e0):
+		var a3 := inp(1.0, 0.0, follow(L))
+		if not pressed and L.ramp_air and L.velocity.y < -5.0:
+			a3.jump = true
+			pressed = true
+			v_air = L.speed
+		L.set_meta("auto", a3)
+		await get_tree().physics_frame
+		tr_t += DT
+	ok(had(L, "trick_fail", e0) and L.combo == 0, "трюк у самой земли: не докрутил — комбо сброшено, скорость %.1f → %.1f" % [v_air, L.speed])
+	# простой прыжок на ровном — не трюк: второй пробел ничего не крутит
+	put(L, race.track.start_s + 68.0, 0.0, 0.0, 15.0)
+	L.set_meta("auto", inp(1.0))
+	await phys(5)
+	e0 = L.events.size()
+	await once(L, inp(1.0, 0.0, 0.0, false, false, true), inp(1.0))
+	await phys(6)
+	await once(L, inp(1.0, 0.0, 0.0, false, false, true), inp(1.0))
+	await wait(0.6)
+	ok(not had(L, "trick", e0), "на ровном второй пробел в прыжке трюк не запускает (только с трамплина)")
+	# ЖЕЛЕЗЯКА: летит по трассе, разворачивает соперника впереди; фильтр её съедает
+	put(B, race.track.start_s + 95.0, 1.5, 0.0, 0.0)
+	put(L, race.track.start_s + 68.0, -1.0, 0.0, 0.0)
+	B.shield_t = 0.0
+	L.set_meta("auto", RaceInput.new())
+	L.item = "missile"
+	L.item_cd = 0.0
+	e0 = B.events.size()
+	race.use_item(L)
+	await wait(0.15)
+	ok(race.missiles.size() == 1 and is_instance_valid(race.missiles[0]["node"]), "ЖЕЛЕЗЯКА вылетела: модель в полёте")
+	await wait(1.4)
+	ok(had(B, "spin", e0) and race.missiles.is_empty(), "ЖЕЛЕЗЯКА догнала соперника впереди и развернула его")
+	B.spin_t = 0.0
+	put(B, race.track.start_s + 95.0, 1.5, 0.0, 0.0)
+	B.shield_t = 5.0
+	L.item = "missile"
+	L.item_cd = 0.0
+	e0 = B.events.size()
+	race.use_item(L)
+	await wait(1.5)
+	ok(had(B, "blocked", e0) and not had(B, "spin", e0), "ЗАЩИТНЫЙ ФИЛЬТР съедает ЖЕЛЕЗЯКУ")
+	put(B, race.track.start_s - 40.0, 0.0, 0.0, 0.0)
+	# РАЗГОН МОТОРА: предел выше, пока действует
+	put(L, race.track.start_s + 68.0, 0.0, 0.0, 20.0)
+	L.item = "overclock"
+	L.item_cd = 0.0
+	L.turbo = 0.0
+	L.boost_t = 0.0
+	await once(L, inp(1.0, 0.0, 0.0, false, false, false, true), inp(1.0))
+	var t_oc := 0.0
+	while t_oc < 2.2:
+		L.set_meta("auto", inp(1.0, 0.0, follow(L)))
+		await get_tree().physics_frame
+		t_oc += DT
+	ok(L.overclock_t > 2.0 and L.speed > VM + 1.5 and L.turbo > 10.0, "РАЗГОН МОТОРА: скорость %.1f м/с выше предела %.1f, турбо копится (%.0f)" % [L.speed, VM, L.turbo])
+	L.overclock_t = 0.0
+	# у каждого предмета своя модель из деталей — не куб, силуэты разные; в руках висит над гонщиком, в HUD — модель
+	var shapes := {}
+	var parts_min := 99
+	for id in RaceData.ITEM_IDS:
+		var mdl := RaceItems.model(String(id))
+		var meshes := mdl.find_children("*", "MeshInstance3D", true, false)
+		parts_min = mini(parts_min, meshes.size())
+		var kinds := {}
+		var bb := AABB()
+		for q in meshes.size():
+			var g := meshes[q] as MeshInstance3D
+			kinds[g.mesh.get_class()] = true
+			var ab: AABB = g.transform * g.get_aabb()
+			bb = ab if q == 0 else bb.merge(ab)
+		shapes["%d|%.1f|%.1f|%.1f" % [meshes.size(), bb.size.x, bb.size.y, bb.size.z]] = true
+		if kinds.size() < 2 and not mdl.has_meta("glb"):
+			parts_min = 0
+		mdl.free()
+	ok(parts_min >= 6 and shapes.size() == RaceData.ITEM_IDS.size(), "у каждого из %d предметов своя модель: деталей не меньше %d, силуэты разные (%d)" % [RaceData.ITEM_IDS.size(), parts_min, shapes.size()])
+	L.item = "soap"
+	await wait(0.3)
+	ok(L.item_node != null and is_instance_valid(L.item_node) and race.hud.item_pivot.get_child_count() == 1, "предмет в руках: модель над гонщиком и в карточке HUD")
+	L.item = ""
+	await wait(0.2)
+	ok(L.item_node == null and race.hud.item_pivot.get_child_count() == 0, "предмет использован — модель убрана")
+	# HUD: LAP 1 / 3 → FINAL LAP
+	L.lap = 0
+	await phys(3)
+	var lap_a: String = race.hud.lap_l.text
+	L.lap = race.laps - 1
+	await phys(3)
+	ok(lap_a == "LAP 1 / 3" and race.hud.lap_l.text == "FINAL LAP" and race.laps == 3, "HUD: «%s», на последнем круге — «%s»; кругов %d" % [lap_a, race.hud.lap_l.text, race.laps])
+	L.lap = 0
 	# ================= 13–14. контрольные точки =================
 	put(L, race.track.start_s - 3.0, 0.0, 0.0, 10.0)
 	L.lap = 0
@@ -484,14 +682,23 @@ func _run() -> void:
 	ai.setup(L, race, "hard", 3)
 	L.ai = ai
 	e0 = L.events.size()
+	var lap_path := [0.0, L.global_position]
+	var lap_meter := func():
+		lap_path[0] = float(lap_path[0]) + Vector2(L.global_position.x - (lap_path[1] as Vector3).x, L.global_position.z - (lap_path[1] as Vector3).z).length()
+		lap_path[1] = L.global_position
+	get_tree().physics_frame.connect(lap_meter)
 	Engine.time_scale = 3.0
 	await until(func(): return L.lap >= 1, 30.0)
 	Engine.time_scale = 1.0
+	get_tree().physics_frame.disconnect(lap_meter)
 	var gates_seen: Array = []
 	for i in range(e0, L.events.size()):
 		if String(L.events[i][0]) == "gate":
 			gates_seen.append(int(L.events[i][1]))
-	ok(L.lap == 1 and gates_seen == [1, 2, 3, 4, 5, 6, 7, 8, 9, 0], "полный круг: контрольные точки по порядку %s" % str(gates_seen))
+	var gates_want: Array = range(1, race.track.gates.size())
+	gates_want.append(0)
+	ok(L.lap == 1 and gates_seen == gates_want, "полный круг: контрольные точки по порядку %s" % str(gates_seen))
+	ok(float(lap_path[0]) < race.track.L * 1.25, "круг засчитан за один проезд трассы: проехано %.0f м при круге %.0f м" % [float(lap_path[0]), race.track.L])
 	ok(count_ev(L, "respawn", e0) == 0, "бот проехал круг без падений и застреваний")
 	# ================= пауза =================
 	await key(KEY_ESCAPE)

@@ -30,6 +30,8 @@ var race: Node              # идущая гонка (race.gd) или null
 var minigame: Node          # мини-игра со своей сценой (ПАХАН НАБРАЛ МИКРОЗАЙМОВ, 5 НОЧЕЙ С ПАХАНОМ) или null
 var microloanscheck := ""   # --microloanscheck=<папка>: мини-игра «микрозаймы» (scripts/microloans/microloanscheck.gd)
 var trailermodes := ""      # --trailermodes=<папка>: кадры трейлера режимов (scripts/trailermodes.gd, tools/trailer/compose-modes.html)
+var playtest := ""          # --playtest-race|ml|fn=<папка>: плейтест режима настоящим вводом (scripts/playtest_*.gd); здесь — какой режим
+var playtest_out := ""
 var trailermini := ""       # --trailermini=<папка>: кадры трейлера мини-игр (scripts/trailermini.gd, tools/trailer/compose-mini.html)
 var uicheck := ""           # --uicheck=<папка>: вёрстка интерфейсов мини-игр во всех размерах окна (scripts/mg_uicheck.gd)
 var fivenightscheck := ""   # --fivenightscheck=<папка>: мини-игра «5 ночей» (scripts/five_nights/fivenightscheck.gd)
@@ -180,6 +182,9 @@ func _ready() -> void:
 			fivenightscheck = arg.substr(18)
 		elif arg.begins_with("--uicheck="):
 			uicheck = arg.substr(10)
+		elif arg.begins_with("--playtest-"):
+			playtest = arg.substr(11, arg.find("=") - 11)
+			playtest_out = arg.substr(arg.find("=") + 1)
 		elif arg.begins_with("--trailermini="):
 			trailermini = arg.substr(14)
 		elif arg.begins_with("--trailermodes="):
@@ -287,6 +292,11 @@ func _ready() -> void:
 			uic.main = self
 			uic.out = uicheck
 			add_child(uic)
+		if playtest != "":
+			var ptn = load("res://scripts/playtest_%s.gd" % playtest).new()
+			ptn.main = self
+			ptn.out = playtest_out
+			add_child(ptn)
 		if trailermini != "":
 			var tmi = load("res://scripts/trailermini.gd").new()
 			tmi.main = self
@@ -415,12 +425,12 @@ func testing() -> String:
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 ## Играет человек, а не проверка: только тогда игра пишет его настройки iPod и прочее «на выходе»
 func user_play() -> bool:
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and trailermodes == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and playtest == "" and trailermodes == "" and not voicecheck
 
 func tutorial_on() -> bool:
 	if tutorialcheck != "":
 		return true
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and trailermodes == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and modecheck == "" and soundcheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and playtest == "" and trailermodes == "" and not voicecheck
 
 ## Кинематографичный запуск из меню (NEW GAME, CONTINUE, LOAD GAME): шторка → игра создаётся за ней → мир проявляется,
 ## камера облетает Пахана, HUD появляется по очереди, потом управление и сюжет. Повторный вызов во время перехода игнорируется.

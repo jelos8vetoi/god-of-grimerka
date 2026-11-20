@@ -40,11 +40,18 @@ func _ready() -> void:
 	econ.note.connect(_on_note)
 	econ.changed.connect(func():
 		ui.refresh()
-		_feel())
+		_feel()
+		dirty = true)                       # любое изменение денег, долгов и заказов сохраняется сразу (см. _save_tick)
 
 ## новая игра или продолжение
 func begin(load_save: bool) -> void:
-	if not (load_save and MLSave.load_run(econ)):
+	if load_save and MLSave.load_run(econ):
+		# вышел из игры посреди подработки — заказ брошен: действие потрачено, оплаты нет
+		econ.job_abandon()
+	else:
+		# новая игра поверх идущей недели — неделя брошена: это «яма» с последствиями, а не бесплатный сброс долгов
+		if MLSave.has_run() and MLSave.load_run(econ):
+			econ.surrender()
 		econ.new_game(int(Time.get_ticks_usec() % 2147483647))
 		ui.intro()
 	ui.refresh()
@@ -53,7 +60,18 @@ func begin(load_save: bool) -> void:
 	biz_visuals()
 
 func save() -> void:
+	dirty = false
 	MLSave.save_run(econ)
+
+## Сохранение после каждого изменения, а не только между фазами: закрыть игру посреди дня и «переиграть»
+## неудачную подработку или взятый займ нельзя. Пишем не чаще раза в полсекунды.
+var dirty := false
+var save_cd := 0.0
+func _save_tick(dt: float) -> void:
+	save_cd = maxf(0.0, save_cd - dt)
+	if dirty and save_cd <= 0.0:
+		save_cd = 0.5
+		save()
 
 # ---------------- комната ----------------
 func _mat(col: Color, rough := 0.85, emit := 0.0) -> StandardMaterial3D:
@@ -117,13 +135,23 @@ func _room() -> void:
 		RaceProps.spawn("panel_tower", yard, Vector3(14, -4, -20), -0.4, 1.0, false)
 		RaceProps.spawn("street_lamp", yard, Vector3(2.5, -4, -2), 0.6, 1.0, false)
 		RaceProps.spawn("birch_tree", yard, Vector3(-2, -4, -4), 0.3, 1.0, false)
+	env_ref = env
 	var street := OmniLight3D.new()
 	street.light_color = Color(1.0, 0.62, 0.3)
 	street.light_energy = 2.4
 	street.omni_range = 14.0
 	street.position = Vector3(3.5, 2.2, -9)
 	add_child(street)
+	street_l = street
+	# фары проезжающей машины: свет проходит за окном и скользит по стене
+	car_l = OmniLight3D.new()
+	car_l.light_color = Color(1.0, 0.95, 0.85)
+	car_l.light_energy = 0.0
+	car_l.omni_range = 9.0
+	car_l.position = Vector3(-8, 1.2, -5.5)
+	add_child(car_l)
 	var moon := DirectionalLight3D.new()
+	sky_l = moon
 	moon.light_color = Color(0.5, 0.6, 0.9)
 	moon.light_energy = 0.25
 	moon.rotation = Vector3(-0.6, 0.4, 0)
@@ -219,6 +247,25 @@ var cam_base := Transform3D()
 var biz_root: Node3D
 var up_root: Node3D
 var rest_t := 0.0
+# ---- живая комната ----
+var env_ref: Environment
+var street_l: OmniLight3D
+var sky_l: DirectionalLight3D
+var car_l: OmniLight3D
+var car_t := 14.0               # через сколько за окном проедет машина
+var car_k := -1.0               # идёт проезд: 0..1
+var idle_t := 7.0               # через сколько Пахан сам сменит позу
+var spam_t := 40.0              # через сколько придёт случайное сообщение
+var lamp_base := 3.2            # яркость настольной лампы по времени суток (мигание — поверх)
+var look_yaw := 0.0             # куда Пахан повернулся (к телефону, к окну)
+var look_t := 0.0
+## Время суток по фазе дня: [цвет неба, свет с улицы (цвет, сила), фонарь, верхний свет, лампа, общий свет]
+const DAYLIGHT := {
+	"morning": [Color(0.5, 0.58, 0.68), Color(1.0, 0.93, 0.8), 1.0, 0.0, 0.85, 1.4, 0.55],
+	"day": [Color(0.55, 0.68, 0.85), Color(1.0, 0.99, 0.94), 1.35, 0.0, 1.0, 0.9, 0.7],
+	"evening": [Color(0.5, 0.27, 0.18), Color(1.0, 0.55, 0.3), 0.7, 1.4, 0.55, 3.0, 0.4],
+	"night": [Color(0.02, 0.03, 0.06), Color(0.5, 0.6, 0.9), 0.25, 2.4, 0.3, 3.2, 0.25],
+}
 
 func _at(p: Vector3, yaw := 0.0) -> Node3D:
 	var n := Node3D.new()
@@ -390,6 +437,7 @@ func rest_anim() -> void:
 func _on_note(text: String, kind: String) -> void:
 	ui.notify(text, kind)
 	buzz_t = 0.6
+	glance(-0.42, 1.4)                        # телефон загудел — Пахан косится на него
 	phone_screen.emission_energy_multiplier = 2.4
 	phone_screen.albedo_color = Color(1.0, 0.4, 0.35) if kind == "bad" or kind == "warn" else (Color(0.5, 1.0, 0.6) if kind == "money" else Color(0.9, 0.95, 1.0))
 	phone_screen.emission = phone_screen.albedo_color
@@ -422,8 +470,80 @@ func react(kind: String) -> void:
 		"call":
 			pahan.play_for("RideJump", 0.9, 0.08)
 
+## Комната живёт сама: свет меняется по времени суток, за окном проезжают машины, Пахан меняет позу,
+## косится на телефон и в окно, на телефон приходят случайные сообщения.
+func _life(dt: float) -> void:
+	# --- время суток: плавно к значениям фазы ---
+	var D: Array = DAYLIGHT.get(econ.phase if econ.ending == "" else "night", DAYLIGHT["night"])
+	var k := 1.0 - exp(-1.2 * dt)
+	if env_ref != null:
+		env_ref.background_color = env_ref.background_color.lerp(D[0], k)
+		env_ref.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		env_ref.ambient_light_color = env_ref.ambient_light_color.lerp((D[1] as Color).lerp(Color(1, 1, 1), 0.4), k)
+		env_ref.ambient_light_energy = lerpf(env_ref.ambient_light_energy, float(D[6]), k)
+	if sky_l != null:
+		sky_l.light_color = sky_l.light_color.lerp(D[1], k)
+		sky_l.light_energy = lerpf(sky_l.light_energy, float(D[2]), k)
+	if street_l != null:
+		street_l.light_energy = lerpf(street_l.light_energy, float(D[3]), k)
+	if rest_t <= 0.0 and room_light != null:
+		room_light.light_energy = lerpf(room_light.light_energy, float(D[4]), k)
+	lamp_base = lerpf(lamp_base, float(D[5]), k)
+	# --- машина за окном ---
+	if car_k >= 0.0:
+		car_k += dt / 2.4
+		car_l.position.x = lerpf(-8.0, 9.0, car_k)
+		car_l.light_energy = sin(clampf(car_k, 0.0, 1.0) * PI) * (2.6 if econ.phase in ["evening", "night"] else 0.5)
+		if car_k >= 1.0:
+			car_k = -1.0
+			car_l.light_energy = 0.0
+	else:
+		car_t -= dt
+		if car_t <= 0.0:
+			car_t = randf_range(16.0, 38.0)
+			car_k = 0.0
+	# --- Пахан сам меняет позу: откинулся, потянулся, покосился на телефон или в окно ---
+	var busy: bool = ui != null and ui.overlay != null and is_instance_valid(ui.overlay)
+	look_t = maxf(0.0, look_t - dt)
+	var want_yaw := look_yaw if look_t > 0.0 else 0.0
+	if rest_t <= 0.0:
+		pahan.rotation.y = lerp_angle(pahan.rotation.y, PI + want_yaw, 1.0 - exp(-5.0 * dt))
+	idle_t -= dt
+	if idle_t <= 0.0 and react_t <= 0.0 and rest_t <= 0.0 and not busy:
+		idle_t = randf_range(6.0, 13.0)
+		match randi() % 4:
+			0:
+				pahan.play("RideSit", 0.5)              # выпрямился
+				react_t = randf_range(2.0, 3.5)
+			1:
+				pahan.play("RideBrake", 0.5)            # откинулся
+				react_t = randf_range(1.6, 2.6)
+			2:
+				glance(-0.42, 1.8)                      # на телефон
+			3:
+				glance(0.5, 2.2)                        # в окно
+	# --- случайное сообщение на телефон (в проверках выключено: экраны должны быть одинаковыми) ---
+	if not quiet and not busy and econ.ending == "":
+		spam_t -= dt
+		if spam_t <= 0.0:
+			spam_t = randf_range(50.0, 95.0)
+			ui.notify(String(MLData.SPAM[randi() % MLData.SPAM.size()]), "info")
+			buzz_t = 0.6
+			phone_screen.emission_energy_multiplier = 2.4
+			phone_screen.albedo_color = Color(0.9, 0.95, 1.0)
+			phone_screen.emission = phone_screen.albedo_color
+			snd.play("notify")
+			glance(-0.42, 1.6)
+
+## Пахан поворачивается: yaw > 0 — к окну, < 0 — к телефону
+func glance(yaw: float, sec: float) -> void:
+	look_yaw = yaw
+	look_t = sec
+
 func _process(dt: float) -> void:
 	t += dt
+	_save_tick(dt)
+	_life(dt)
 	if buzz_t > 0.0:
 		buzz_t -= dt
 		phone.position.x = 0.55 + sin(t * 90.0) * 0.003
@@ -447,7 +567,7 @@ func _process(dt: float) -> void:
 		flicker_t = randf_range(0.05, 0.25)
 		var k := 1.0 - (randf() * 0.5 if econ.stress >= 70 and randf() < 0.3 else 0.0)
 		if rest_t <= 0.0:
-			lamp.light_energy = 3.2 * k
+			lamp.light_energy = lamp_base * k
 	if laptop_mat is ShaderMaterial:
 		(laptop_mat as ShaderMaterial).set_shader_parameter("energy", 1.1 + sin(t * 2.0) * 0.12)
 	# камера чуть дышит

@@ -408,6 +408,16 @@ func _run() -> void:
 	await shot("m09_ending")
 	ok(U.screen == "ending" and MLSave.load_all().get("endings", {}).has("paid"), "экран концовки, концовка записана в зал славы")
 	await _career_part(R, e, U)
+	# ================= тесты «на взлом» экономики (ml_abuse.gd) =================
+	for ab in MLAbuse.run():
+		ok(bool(ab[1]), "абуз закрыт: %s — %s" % [ab[0], ab[2]])
+	# в паузе больше нет «НАЧАТЬ ЗАНОВО» (оно стирало долги): вместо него — «СДАТЬСЯ» с подтверждением
+	U.pause_menu()
+	await wait(0.3)
+	var pause_names: Array = U.rows.map(func(r): return String(r["label"].text) if r.has("label") else "") if "rows" in U else []
+	await shot("m10_pause_surrender")
+	U.show_phase()
+	await wait(0.2)
 	# ================= симуляции стратегий =================
 	var res := {}
 	for s in ["juggler", "grinder", "balanced", "talker", "borrower", "abuser", "lazy"]:

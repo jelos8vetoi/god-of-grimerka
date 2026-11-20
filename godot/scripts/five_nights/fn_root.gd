@@ -432,6 +432,8 @@ func _night_tick(dt: float) -> void:
 	if hint_t > 0.0:
 		hint_t -= dt
 		ui.hints("office" if hint_t > 0.0 and not st.monitor else "")
+	# мышь над кнопкой в самой будке — подсказка, что это за кнопка (та же, что у плашки пульта)
+	ui.tip_3d = office.pick(get_viewport().get_mouse_position()) if not st.monitor and not paused and not quiet else ""
 	if st.power_out:
 		ui.show_dark(not st.emergency_used, st.crank_p / 6.0)
 	else:
@@ -792,6 +794,20 @@ func shards(at: Vector3) -> void:
 func pick_cam(id: String) -> void:
 	if state == "night" and st.monitor and not paused:
 		st.set_cam(id)
+
+## нажатие плашки пульта мышью: то же, что клавиша (свет — пока держишь)
+func deck_press(id: String, down: bool) -> void:
+	if paused or st == null or st.outcome != "" or st.power_out:
+		return
+	if id.begins_with("light_"):
+		light_hold[id.substr(6)] = down
+		return
+	if not down:
+		return
+	if id == "monitor":
+		st.set_monitor(not st.monitor)
+	else:
+		_toggle(id)
 
 func _toggle(what: String) -> void:
 	match what:

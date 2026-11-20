@@ -44,6 +44,16 @@ var pause_panel: Control
 var menu_rows: Array = []      # [Label, Callable] — пункты открытого экрана (результаты или пауза)
 var menu_sel := 0
 var item_seen := ""
+var item_vp: SubViewport       # предмет в карточке — настоящая модель, крутится
+var item_pivot: Node3D
+var lap_plate: Polygon2D
+var final_on := false
+var trick_l: Label
+var combo_l: Label
+var combo_bar: ColorRect
+var boost_l: Label
+var tip_l: Label               # совет перед стартом (облёт и отсчёт)
+static var tip_n := -1         # какой совет показать: каждый заезд — следующий
 var weather_l: Label
 var happen_l: Label
 var happen_sub: Label
@@ -133,7 +143,8 @@ func _build() -> void:
 	red.position = Vector2(40, 182)
 	red.rotation = deg_to_rad(-3.0)
 	stage.add_child(red)
-	lap_l = _text(red, "КРУГ 1/3", 24, WHITE, Vector2(14, 0), serif)
+	lap_plate = red
+	lap_l = _text(red, "LAP 1 / 3", 24, WHITE, Vector2(14, 0), serif)
 	# сверху по центру: время
 	time_l = _text(stage, "00:00.00", 40, WHITE, Vector2(680, 22), serif)
 	time_l.size = Vector2(240, 50)
@@ -169,6 +180,73 @@ func _build() -> void:
 	shield_l = _text(stage, "", 18, Color(0.6, 1.0, 0.7), Vector2(1390, 214), serif)
 	shield_l.size = Vector2(190, 24)
 	shield_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boost_l = _text(stage, "", 18, Color(0.4, 0.9, 1.0), Vector2(1390, 238), serif)
+	boost_l.size = Vector2(190, 24)
+	boost_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# предмет — своя маленькая сцена: модель крутится в карточке (значок-символ остаётся запасным)
+	item_vp = SubViewport.new()
+	item_vp.size = Vector2i(300, 200)
+	item_vp.transparent_bg = true
+	item_vp.own_world_3d = true
+	item_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(item_vp)
+	var icam := Camera3D.new()
+	icam.fov = 30.0
+	icam.position = Vector3(0, 0.25, 2.3)
+	item_vp.add_child(icam)
+	icam.look_at(Vector3.ZERO, Vector3.UP)
+	var ilight := DirectionalLight3D.new()
+	ilight.rotation = Vector3(-0.8, 0.6, 0)
+	ilight.light_energy = 1.6
+	item_vp.add_child(ilight)
+	var ienv := WorldEnvironment.new()
+	var ie := Environment.new()
+	ie.background_mode = Environment.BG_COLOR
+	ie.background_color = Color(0, 0, 0, 0)
+	ie.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	ie.ambient_light_color = Color(0.75, 0.75, 0.8)
+	ie.ambient_light_energy = 0.9
+	ienv.environment = ie
+	item_vp.add_child(ienv)
+	item_pivot = Node3D.new()
+	item_vp.add_child(item_pivot)
+	var itex := TextureRect.new()
+	itex.texture = item_vp.get_texture()
+	itex.position = Vector2(10, 2)
+	itex.size = Vector2(150, 92)
+	itex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	itex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	itex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	item_card.add_child(itex)
+	# совет перед стартом: одна строка внизу по центру, гаснет на «ЖМИ»
+	tip_l = _text(stage, "", 22, WHITE, Vector2(200, 800))
+	tip_l.size = Vector2(STAGE.x - 400, 60)
+	tip_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tip_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tip_l.add_theme_constant_override("outline_size", 8)
+	var tips: Array = RaceData.TIPS
+	if tip_n < 0:
+		tip_n = randi() % tips.size()
+	tip_n += 1
+	var tip: String = tips[tip_n % tips.size()]
+	for a in ["race_drift", "race_jump", "race_boost"]:
+		tip = tip.replace("{%s}" % a, "[%s]" % " / ".join(RaceSave.keys_of(a)))
+	tip_l.text = tip
+	# трюки и комбо — над спидометром и по центру снизу
+	trick_l = _text(stage, "", 44, Color(1.0, 0.85, 0.25), Vector2(0, 560), serif)
+	trick_l.size = Vector2(STAGE.x, 56)
+	trick_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	trick_l.add_theme_constant_override("outline_size", 12)
+	trick_l.modulate.a = 0.0
+	combo_l = _text(stage, "", 30, Color(1.0, 0.85, 0.25), Vector2(1290, 668), serif)
+	combo_l.size = Vector2(270, 36)
+	combo_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	combo_bar = ColorRect.new()
+	combo_bar.position = Vector2(1350, 706)
+	combo_bar.size = Vector2(0, 5)
+	combo_bar.color = Color(1.0, 0.85, 0.25)
+	combo_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stage.add_child(combo_bar)
 	# справа снизу: скорость, занос, турбо
 	var sc := Polygon2D.new()
 	sc.polygon = _torn(300, 150, 21)
@@ -232,7 +310,7 @@ func _build() -> void:
 	happen_sub.size = Vector2(STAGE.x, 26)
 	happen_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	feed_box = VBoxContainer.new()
-	feed_box.position = Vector2(560, 128)
+	feed_box.position = Vector2(560, 150)
 	feed_box.size = Vector2(480, 120)
 	feed_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(feed_box)
@@ -247,7 +325,16 @@ func _process(dt: float) -> void:
 		pos_l.text = str(me.rank)
 		pos_of.text = "/%d" % n
 		pos_of.position.x = 30.0 + pos_l.get_minimum_size().x
-		lap_l.text = "КРУГ %d/%d" % [mini(me.lap + 1, race.laps), race.laps] if not me.finished else "ФИНИШ"
+		var last_lap: bool = me.lap + 1 >= race.laps and race.laps > 1 and not me.finished
+		lap_l.text = ("FINAL LAP" if last_lap else "LAP %d / %d" % [mini(me.lap + 1, race.laps), race.laps]) if not me.finished else "ФИНИШ"
+		if final_on and last_lap:
+			# последний круг — плашка бьётся, как пульс
+			var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012)
+			lap_plate.color = RED.lerp(Color(1.0, 0.55, 0.2), pulse * (0.0 if float(Opts.v("shake")) <= 0.0 else 1.0))
+			lap_plate.scale = Vector2.ONE * (1.0 + 0.05 * pulse)
+		else:
+			lap_plate.color = RED
+			lap_plate.scale = Vector2.ONE
 		var lt: float = race.t - me.lap_t0 if race.go and not me.finished else 0.0
 		lap_time_l.text = ("КРУГ  " + fmt(lt)) if race.go and not me.finished else ""
 		var best: float = me.best_lap
@@ -261,20 +348,30 @@ func _process(dt: float) -> void:
 		turbo_bar.color = RED if me.turbo_on else (WHITE if me.turbo >= float(RaceData.PHYS["turbo_min"]) else GREY)
 		if me.item != item_seen:
 			item_seen = me.item
+			for c in item_pivot.get_children():
+				c.queue_free()
+			item_icon.text = ""
 			if me.item == "":
-				item_icon.text = ""
 				item_name.text = "ПУСТО"
 				item_name.add_theme_color_override("font_color", GREY)
+				item_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 			else:
 				var I: Dictionary = RaceData.ITEMS[me.item]
-				item_icon.text = String(I["icon"])
-				item_icon.add_theme_color_override("font_color", I["col"])
+				item_pivot.add_child(RaceItems.model(me.item, 0.82))
+				item_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 				item_name.text = String(I["name"])
 				item_name.add_theme_color_override("font_color", WHITE)
+		if me.item != "":
+			item_pivot.rotation.y += dt * 1.8
+			item_pivot.rotation.x = sin(Time.get_ticks_msec() * 0.002) * 0.15
 		item_key.text = ("[%s] ИСПОЛЬЗОВАТЬ" % " / ".join(RaceSave.keys_of("race_item"))) if me.item != "" else ""
 		item_card.visible = String(race.cfg.get("mode", "single")) != "time"
 		shield_l.text = "ФИЛЬТР %.0f с" % me.shield_t if me.shield_t > 0.0 else ""
+		boost_l.text = "РАЗГОН МОТОРА %.0f с" % me.overclock_t if me.overclock_t > 0.0 else ("ВОЗДУШНЫЙ МЕШОК" if me.draft > 0.5 else "")
+		combo_l.text = "КОМБО ×%d" % me.combo if me.combo >= 2 else ""
+		combo_bar.size.x = 200.0 * clampf(me.combo_t / float(RaceData.PHYS["combo_t"]), 0.0, 1.0) if me.combo >= 2 else 0.0
 		wrong_l.visible = me.wrong_t > float(RaceData.PHYS["wrong_way"]) and not me.finished and int(Time.get_ticks_msec() / 300) % 2 == 0
+	tip_l.modulate.a = move_toward(tip_l.modulate.a, 1.0 if race.state in ["intro", "countdown"] else 0.0, dt * 3.0)
 	time_l.text = fmt(race.t)
 	if race.weather != null:
 		var Wd: Dictionary = race.weather.W
@@ -358,6 +455,28 @@ func happening(title: String, sub: String) -> void:
 	tw.tween_property(happen_l, "modulate:a", 0.0, 0.6).set_delay(3.0)
 	tw.tween_property(happen_sub, "modulate:a", 0.0, 0.6).set_delay(3.0)
 	feed(title + " — " + sub, true)
+
+## последний круг: плашка круга начинает биться
+func final_lap() -> void:
+	final_on = true
+
+## трюк, мешок: короткая надпись над дорогой (bad — красная)
+func trick_text(s: String, bad := false) -> void:
+	trick_l.text = s
+	trick_l.add_theme_color_override("font_color", RED if bad else Color(1.0, 0.85, 0.25))
+	trick_l.modulate.a = 1.0
+	trick_l.pivot_offset = trick_l.size * 0.5
+	trick_l.scale = Vector2(1.35, 1.35)
+	var tw := trick_l.create_tween().set_parallel(true)
+	tw.tween_property(trick_l, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(trick_l, "modulate:a", 0.0, 0.4).set_delay(0.9)
+
+## комбо выросло: надпись подпрыгивает
+func combo(n: int) -> void:
+	if n >= 2:
+		combo_l.pivot_offset = Vector2(combo_l.size.x, combo_l.size.y * 0.5)
+		combo_l.scale = Vector2(1.4, 1.4)
+		combo_l.create_tween().tween_property(combo_l, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func item_got(id: String) -> void:
 	item_card.scale = Vector2(1.25, 1.25)

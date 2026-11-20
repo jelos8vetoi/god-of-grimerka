@@ -328,7 +328,23 @@ func notify(text: String, kind: String) -> void:
 		c.queue_free()
 
 ## крупная строка по центру — только для редких событий (новый уровень, веха); 2 секунды
+## Крупная надпись по центру (уровень, веха). По одной: если пришло несколько сразу, они идут по очереди,
+## а не ложатся друг на друга.
+var banner_q: Array = []
+var banner_on := false
 func _banner(text: String, col: Color) -> void:
+	banner_q.append([text, col])
+	if not banner_on:
+		_banner_next()
+
+func _banner_next() -> void:
+	if banner_q.is_empty():
+		banner_on = false
+		return
+	banner_on = true
+	var text: String = banner_q[0][0]
+	var col: Color = banner_q[0][1]
+	banner_q.remove_at(0)
 	var b := MGUI.label_3d(text, "h1", col)
 	b.set_meta("audit_skip", true)
 	b.position = Vector2(0, 400)
@@ -338,9 +354,10 @@ func _banner(text: String, col: Color) -> void:
 	b.modulate.a = 0.0
 	var tw := b.create_tween()
 	tw.tween_property(b, "modulate:a", 1.0, 0.2)
-	tw.tween_interval(1.6)
-	tw.tween_property(b, "modulate:a", 0.0, 0.4)
+	tw.tween_interval(1.6 if banner_q.is_empty() else 0.9)
+	tw.tween_property(b, "modulate:a", 0.0, 0.3)
 	tw.tween_callback(b.queue_free)
+	tw.tween_callback(_banner_next)
 	root.snd.play("cheer")
 
 # ---------------- 3D-превью предметов (для карточек) ----------------
@@ -1186,7 +1203,8 @@ func biz_screen() -> void:
 				if hc > 0:
 					e.money -= hc
 					e.say("%s: новый сотрудник (зарплата %d ₽/день)" % [B["name"], int(B["wage"])], "info")
-					e.xp(15)
+					if C.hire_first(b):
+						e.xp(15)
 					root.biz_visuals()
 					e.changed.emit()
 				biz_screen(), func(): return C.hire_why(b, e.money), {"icon": "worker", "sub": "+%d %% выручки у первого, дальше меньше · %d ₽ в день" % [int(float(B["k"]) * 100.0), int(B["wage"])], "value": rub(int(B["hire"])), "tag": "найм", "col": Color(0.55, 0.85, 1.0)}])
@@ -1332,6 +1350,14 @@ func run_job(jid: String, bot := -1.0) -> MLJob:
 			J = MLJobDeliv.new()
 		_:
 			J = MLJobJunk.new()
+	# заказ взят: действие списано сейчас, у прохождения свой номер — оплата придёт по нему и только раз
+	var ticket := e.job_begin(jid, job_tier(jid))
+	if ticket <= 0:
+		J.free()
+		notify("заказ взять нельзя", "bad")
+		show_phase()
+		return null
+	root.save()
 	J.bot = bot
 	J.career = e.career
 	J.tier = job_tier(jid)
@@ -1343,10 +1369,8 @@ func run_job(jid: String, bot := -1.0) -> MLJob:
 	J.finished.connect(func(score: float, extra: Array):
 		overlay = null
 		J.queue_free()
-		if jid == "junk":
-			e.junk_done(extra)
-		else:
-			e.job_done(jid, score, J.tier)
+		e.job_finish(ticket, score, extra)
+		root.save()
 		root.react("money" if score > 0.5 else "bad")
 		show_phase())
 	return J
@@ -1390,13 +1414,22 @@ func shop() -> void:
 
 # ---------------- пауза и концовка ----------------
 func pause_menu() -> void:
-	open("ПАУЗА", ["Игра сохраняется сама после каждой фазы."], [
+	open("ПАУЗА", ["Игра сохраняется сама после каждого действия."], [
 		["ПРОДОЛЖИТЬ", func(): show_phase(), Callable(), {"icon": "check", "sub": "вернуться к делам", "value": ""}],
-		["НАЧАТЬ ЗАНОВО", func():
-			econ().new_game(int(Time.get_ticks_usec() % 2147483647))
-			show_phase(), Callable(), {"icon": "sun", "sub": "новая неделя с новыми долгами; развитие Пахана остаётся", "value": "", "col": MGUI.WARN}],
+		["СДАТЬСЯ", func(): _confirm_surrender(), Callable(), {"icon": "cross", "sub": "бросить неделю: это «яма» — долги не исчезнут", "value": "", "col": MGUI.WARN}],
 		["В МЕНЮ РЕЖИМОВ", func(): root.quit_to_menu(), Callable(), {"icon": "back", "sub": "выйти из «Микрозаймов»; прогресс сохранён", "value": "", "col": GREY}]])
 	screen = "pause"
+
+## Сдаться: неделя кончается «ямой». Раньше здесь было «НАЧАТЬ ЗАНОВО», которое просто стирало долги.
+func _confirm_surrender() -> void:
+	var e := econ()
+	open("БРОСИТЬ НЕДЕЛЮ?", ["Неделя закончится «финансовой ямой». Коллекторы заберут наличные, потом — имущество бизнесов за полцены, а %d %% остатка долга перейдёт на следующую неделю. Сейчас долг: %s." % [int(MLEconomy.TAIL_K * 100.0), rub(e.total_debt())]], [
+		["НЕТ, ВЕРНУТЬСЯ", func(): pause_menu(), Callable(), {"icon": "back", "sub": "ничего не изменится", "value": ""}],
+		["ДА, СДАТЬСЯ", func():
+			e.surrender()
+			root.save()
+			show_phase(), Callable(), {"icon": "cross", "sub": "это нельзя отменить", "value": "", "col": RED}]])
+	screen = "surrender"
 
 func ending() -> void:
 	screen = "ending"
@@ -1406,6 +1439,8 @@ func ending() -> void:
 	var lines: Array = [String(E[1]), "День %d · деньги %s · долг %s" % [e.day, rub(e.money), rub(e.total_debt())],
 		"Займов взято: %d · закрыто: %d (переговорами: %d) · подработок: %d" % [int(e.stats["taken"]), int(e.stats["closed"]), int(e.stats["talk_closed"]), int(e.stats["jobs"])],
 		"Переплачено процентами %s, штрафами и комиссиями %s" % [rub(int(e.stats["interest"])), rub(int(e.stats["fines"]))]]
+	for wl in e.week_report:
+		lines.append(String(wl))
 	var all: Dictionary = MLSave.load_all().get("endings", {})
 	lines.append("Открыто концовок: %d из %d" % [all.size(), MLData.ENDINGS.size()])
 	if e.career != null and e.career.prestige_ready():

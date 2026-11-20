@@ -6,6 +6,7 @@ class_name RaceVisual
 extends Node3D
 
 const HEIGHT := 1.85          # все гонщики одного роста: рука на трубе, таз на сиденье (клипы посчитаны под Пахана)
+const VAC_LEN := 1.6          # длина пылесоса соперника из своего файла, м
 ## Кто ездит: модель, имя на табло, сторона оружия рига, цвет корпуса пылесоса (у Пахана — родной)
 const RIDERS := {
 	"pahan": {"model": "pahan", "name": "ПАХАН", "wsign": -1.0, "tint": Color(1, 1, 1), "own": true},
@@ -41,14 +42,24 @@ func setup(rider: String, shadows := true) -> void:
 	add_child(unit)
 	rock = Node3D.new()
 	unit.add_child(rock)
-	var m: Node3D = (load(Tyaga.MODEL) as PackedScene).instantiate()
-	m.rotation.y = PI * 0.5
-	m.scale = Vector3.ONE * TyagaClips.K
+	# у соперника может быть свой пылесос: godot/assets/racing/vac_<гонщик>.glb (промпты — TRIPO_PROMPTS_GAMEPLAY.md).
+	# Модели с сайта Tripo смотрят вперёд по +Z; вписываем по длине в габарит ТЯГИ-812. Нет файла — ТЯГА-812 в своём цвете.
+	var own_file := "res://assets/racing/vac_%s.glb" % id
+	var custom: bool = not bool(cfg.get("own", false)) and ResourceLoader.exists(own_file)
+	var m: Node3D = (load(own_file if custom else Tyaga.MODEL) as PackedScene).instantiate()
+	if custom:
+		var bb := RaceItems._aabb(m)
+		var k: float = VAC_LEN / maxf(0.1, maxf(bb.size.x, bb.size.z))
+		m.scale = Vector3.ONE * k
+		m.position = Vector3(-bb.get_center().x * k, -bb.position.y * k - TyagaClips.V_RIDE.y, -bb.get_center().z * k)
+	else:
+		m.rotation.y = PI * 0.5
+		m.scale = Vector3.ONE * TyagaClips.K
 	rock.add_child(m)
 	for mi in m.find_children("*", "MeshInstance3D", true, false):
 		var g := mi as MeshInstance3D
 		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		if not cfg.get("own", false) and g.mesh != null:
+		if not cfg.get("own", false) and not custom and g.mesh != null:
 			for si in g.mesh.get_surface_count():
 				var src := g.mesh.surface_get_material(si)
 				if src is StandardMaterial3D:

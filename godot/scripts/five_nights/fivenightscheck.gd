@@ -237,6 +237,74 @@ func _ui_part() -> void:
 	await key(KEY_D)
 	await wait(0.6)
 	ok(not st.door["l"] and not st.door["r"] and R.office.door_y["l"] > 0.9, "двери открылись")
+	# ---- ПУЛЬТ: у каждого устройства видно клавишу, название и состояние ----
+	var UI: FNUI = R.ui
+	var deck_names_ok := true
+	var deck_txt: Array = []
+	var deck_screen := Rect2(Vector2.ZERO, UI._vs())
+	var deck_prev := Rect2()
+	var deck_overlap := false
+	var deck_off := false
+	for D in FNUI.DEVICES:
+		var row: Dictionary = UI.deck_rows[D["id"]]
+		var nm: Label = row["name"]
+		var stl: Label = row["state"]
+		var pr: Rect2 = (row["panel"] as Control).get_global_rect()
+		if nm.text != String(D["name"]) or stl.text == "" or not (row["panel"] as Control).is_visible_in_tree() or nm.get_minimum_size().x > nm.size.x + 1.0 or stl.get_minimum_size().x > stl.size.x + 1.0:
+			deck_names_ok = false
+		if deck_prev.size.x > 0.0 and pr.intersects(deck_prev):
+			deck_overlap = true
+		if not deck_screen.encloses(pr):
+			deck_off = true
+		deck_prev = pr
+		deck_txt.append("[%s] %s — %s" % [D["key"], nm.text, stl.text])
+	ok(UI.deck.visible and UI.deck_rows.size() == 8 and deck_names_ok, "пульт: 8 устройств, у каждого клавиша, название и состояние — %s" % "; ".join(deck_txt))
+	ok(not deck_overlap and not deck_off, "пульт: плашки не перекрываются и целиком на экране")
+	var deck_keys := {}
+	for D in FNUI.DEVICES:
+		deck_keys[D["key"]] = true
+	ok(deck_keys.size() == FNUI.DEVICES.size(), "пульт: у каждого устройства своя клавиша (%d разных)" % deck_keys.size())
+	# состояние и подсказка меняются вместе с устройством: «ЛЕВАЯ ДВЕРЬ — ЗАКРЫТЬ» → закрыта → «…— ОТКРЫТЬ»
+	var tip_a := UI.dev_tip(st, "door_l")
+	R.deck_press("door_l", true)
+	await wait(0.3)
+	var st_closed: String = (UI.deck_rows["door_l"]["state"] as Label).text
+	var tip_b := UI.dev_tip(st, "door_l")
+	ok(st.door["l"] and st_closed == "ЗАКРЫТА" and tip_a.begins_with("ЛЕВАЯ ДВЕРЬ — ЗАКРЫТЬ") and tip_b.begins_with("ЛЕВАЯ ДВЕРЬ — ОТКРЫТЬ"), "плашка мышью закрывает дверь; подсказка «%s» → «%s»" % [tip_a.get_slice("\n", 0), tip_b.get_slice("\n", 0)])
+	UI.tip_id = "door_l"
+	await wait(0.3)
+	ok(UI.tip_box.visible and UI.tip_l.text.contains("тратит энергию"), "наведение на плашку показывает, что делает устройство и чего стоит")
+	await shot("f05b_deck_tip")
+	UI.tip_id = ""
+	R.deck_press("door_l", true)
+	await wait(0.3)
+	# свет — пока держишь плашку
+	R.deck_press("light_l", true)
+	await wait(0.3)
+	var lit: bool = st.light["l"]
+	var lit_txt: String = (UI.deck_rows["light_l"]["state"] as Label).text
+	R.deck_press("light_l", false)
+	await wait(0.3)
+	ok(lit and lit_txt == "ГОРИТ" and not st.light["l"], "свет горит, пока держишь плашку («%s»), отпустил — погас" % lit_txt)
+	# заслонки и сброс — на пульте, со своими клавишами
+	await key(KEY_Z)
+	await key(KEY_X)
+	await wait(0.3)
+	ok(st.seal["l"] and st.seal["t"] and (UI.deck_rows["seal_l"]["state"] as Label).text == "ЗАКРЫТА" and (UI.deck_rows["seal_t"]["state"] as Label).text == "ЗАКРЫТА", "Z и X закрывают заслонки — пульт показывает «ЗАКРЫТА»")
+	await key(KEY_Z)
+	await key(KEY_X)
+	await wait(0.2)
+	# недоступное состояние: мало энергии — сброс серый; сбой MOD — индикатор двери честно пишет «НЕТ ДАННЫХ»
+	var pw: float = st.power
+	st.power = 2.0
+	await wait(0.2)
+	var rs := UI.dev_state(st, "reset")
+	st.power = pw
+	st.add_glitch("leds_off")
+	await wait(0.2)
+	var led_txt: String = (UI.deck_rows["door_l"]["state"] as Label).text
+	st.glitches.erase("leds_off")
+	ok(String(rs[0]) == "МАЛО ЭНЕРГИИ" and bool(rs[3]) and led_txt == "НЕТ ДАННЫХ", "недоступное видно: сброс «%s», при сбое индикаторов дверь «%s»" % [rs[0], led_txt])
 	# свет держится, пока держишь
 	var q := InputEventKey.new()
 	q.keycode = KEY_Q

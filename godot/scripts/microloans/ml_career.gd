@@ -17,7 +17,7 @@ func _init() -> void:
 	d = fresh()
 
 static func fresh() -> Dictionary:
-	return {"xp": 0, "level": 1, "points": 1, "nodes": {}, "biz": {}, "trust": {}, "ms": {}, "week": 1, "bank": 0,
+	return {"xp": 0, "level": 1, "points": 1, "nodes": {}, "biz": {}, "trust": {}, "ms": {}, "week": 1, "bank": 0, "carry_debt": 0, "ms_cycle": 0,
 		"stats": {"jobs": 0, "closed": 0, "earned": 0, "weeks": 0, "talks": 0, "perfect": 0},
 		"legend": {"points": 0, "perks": {}, "cycles": 0}, "income": [], "cushion_week": 0, "log": []}
 
@@ -242,6 +242,54 @@ func hire(id: String, money: int) -> int:
 	d["biz"][id]["staff"] = int(biz(id)["staff"]) + 1
 	return int(MLTree.BUSINESSES[id]["hire"])
 
+## первый раз на это место: опыт за найм даётся только тогда (уволил-нанял заново — опыта нет)
+func hire_first(id: String) -> bool:
+	var b: Dictionary = d["biz"][id]
+	if int(b["staff"]) > int(b.get("staff_max", 0)):
+		b["staff_max"] = int(b["staff"])
+		return true
+	return false
+
+## сколько вложено в бизнес: покупка, уровни и найм
+func biz_value(id: String) -> int:
+	var lv := biz_level(id)
+	if lv <= 0:
+		return 0
+	var B: Dictionary = MLTree.BUSINESSES[id]
+	var v := int(B["buy"])
+	for k in lv - 1:
+		v += int(B["up"][k])
+	return v + int(B["hire"]) * int(biz(id).get("staff", 0))
+
+## коллекторы забирают имущество в счёт долга (конец недели в «яме»): сначала увольняют сотрудников, потом
+## снимают уровни — всё уходит за полцены. Возвращает, сколько долга это покрыло, и что забрали.
+func seize(amount: int) -> Dictionary:
+	var got := 0
+	var lines: Array = []
+	var ids: Array = MLTree.BUSINESS_ORDER.duplicate()
+	ids.sort_custom(func(a, b): return biz_value(String(a)) > biz_value(String(b)))
+	for id0 in ids:
+		var id := String(id0)
+		var B: Dictionary = MLTree.BUSINESSES[id]
+		while got < amount and biz_level(id) > 0:
+			var b: Dictionary = d["biz"][id]
+			var lv := int(b["lv"])
+			if int(b.get("staff", 0)) > 0:
+				b["staff"] = int(b["staff"]) - 1
+				got += int(B["hire"]) / 2
+				lines.append("%s: уволен сотрудник (в счёт долга %d ₽)" % [B["name"], int(B["hire"]) / 2])
+			else:
+				var cost := int(B["buy"]) if lv == 1 else int(B["up"][lv - 2])
+				b["lv"] = lv - 1
+				got += cost / 2
+				lines.append("%s: %s (в счёт долга %d ₽)" % [B["name"], "бизнес отобран" if lv == 1 else "уровень %d → %d" % [lv, lv - 1], cost / 2])
+				if lv == 1:
+					(d["biz"] as Dictionary).erase(id)
+	if not lines.is_empty():
+		cache.clear()
+		_log("Коллекторы забрали имущество на %d ₽" % got)
+	return {"got": mini(got, amount), "lines": lines}
+
 func fire(id: String) -> bool:
 	if int(biz(id).get("staff", 0)) <= 0:
 		return false
@@ -349,6 +397,7 @@ func check_milestones() -> Array:
 			continue
 		if stat(String(m["stat"])) >= int(m["need"]):
 			d["ms"][id] = int(d["week"])
+			d["ms_cycle"] = int(d.get("ms_cycle", 0)) + 1
 			d["points"] = int(d["points"]) + int(m["points"])
 			add_xp(int(m["xp"]))
 			got.append(m)
@@ -389,7 +438,8 @@ func prestige_ready() -> bool:
 
 ## сколько АВТОРИТЕТА даст престиж сейчас
 func prestige_points() -> int:
-	return int(floor(sqrt(float(stat("earned")) / 25000.0))) + int(d["level"]) / 3 + (d["ms"] as Dictionary).size() / 2
+	# вехи считаются только за этот цикл: старые сохраняются, но АВТОРИТЕТА второй раз не дают
+	return int(floor(sqrt(float(stat("earned")) / 25000.0))) + int(d["level"]) / 3 + int(d.get("ms_cycle", 0)) / 2
 
 ## что потеряется / сохранится — для экрана подтверждения
 func prestige_preview() -> Dictionary:
@@ -449,8 +499,10 @@ func from_dict(src: Dictionary) -> void:
 	for k in f:
 		if src.has(k) and typeof(src[k]) == typeof(f[k]) or (src.has(k) and typeof(f[k]) == TYPE_INT and typeof(src[k]) == TYPE_FLOAT):
 			f[k] = src[k]
-	for k in ["xp", "level", "points", "week", "bank", "cushion_week"]:
+	for k in ["xp", "level", "points", "week", "bank", "cushion_week", "carry_debt", "ms_cycle"]:
 		f[k] = int(f[k])
+	if not src.has("ms_cycle"):
+		f["ms_cycle"] = (f["ms"] as Dictionary).size()      # старое сохранение: вехи этого цикла — все, что есть
 	for k in f["nodes"]:
 		f["nodes"][k] = int(f["nodes"][k])
 	for k in f["stats"]:
@@ -465,6 +517,7 @@ func from_dict(src: Dictionary) -> void:
 		b["cond"] = float(b.get("cond", 1.0))
 		b["days"] = int(b.get("days", 0))
 		b["earned"] = int(b.get("earned", 0))
+		b["staff_max"] = int(b.get("staff_max", b["staff"]))
 	var lg: Dictionary = f["legend"]
 	lg["points"] = int(lg.get("points", 0))
 	lg["cycles"] = int(lg.get("cycles", 0))

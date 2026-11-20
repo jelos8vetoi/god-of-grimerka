@@ -51,6 +51,24 @@ var wall_cd := 0.0
 var stuck_t := 0.0
 var wrong_t := 0.0
 var pace := 1.0                # множитель предела скорости (догоняющий механизм ботов)
+var rev_t := 0.0               # сколько держит тормоз стоя (задний ход — не сразу)
+var draft := 0.0               # 0..1: воздушный мешок за соперником (считает гонка)
+var draft_t := 0.0
+var overclock_t := 0.0         # РАЗГОН МОТОРА
+var ramp_air := false          # в воздухе после трамплина или пара — можно крутить трюк
+var trick_t := 0.0             # идёт трюк
+var trick_n := 0               # сколько трюков за этот прыжок
+var trick_dir := 1.0
+var trick_spin := 0.0          # видимый оборот (рад)
+var combo := 0                 # множитель комбо: трюки и заносы подряд
+var combo_t := 0.0
+var score := 0                 # очки стиля за гонку (трюки, заносы, мешок)
+# ---- вид предметов ----
+var item_shown := ""           # какой предмет сейчас висит над гонщиком
+var item_node: Node3D
+var aura_shield: Node3D        # три шестигранника фильтра вокруг гонщика
+var aura_oc: Node3D            # кольца РАЗГОНА МОТОРА
+var flame: Node3D              # пламя сзади при ускорении
 var steer_vis := 0.0
 var brake_vis := false
 var lean := 0.0
@@ -124,6 +142,13 @@ func place(xf: Transform3D) -> void:
 	side_v = Vector3.ZERO
 	drifting = false
 	spin_t = 0.0
+	floor_n = Vector3.UP                       # после перестановки пол считается ровным, трюк и полёт — сброшены
+	ramp_air = false
+	trick_t = 0.0
+	trick_n = 0
+	air_t = 0.0
+	was_floor = true
+	rev_t = 0.0
 	prev_xf = _vis_xf()
 	cur_xf = prev_xf
 	smooth.global_transform = cur_xf
@@ -150,6 +175,19 @@ func add_slow(src: String, mul: float, t: float) -> void:
 func boosting() -> bool:
 	return boost_t > 0.0 or item_boost_t > 0.0 or turbo_on
 
+## трюк или занос удался: комбо растёт, пока между ними не больше combo_t секунд
+func combo_add(points: int) -> float:
+	var P := RaceData.PHYS
+	combo = mini(combo + 1, int(P["combo_max"]))
+	combo_t = float(P["combo_t"])
+	var mul := 1.0 + 0.25 * float(combo - 1)
+	score += int(float(points) * mul)
+	ev("combo", combo)
+	return mul
+
+func gain_turbo(n: float) -> void:
+	turbo = minf(float(RaceData.PHYS["turbo_max"]), turbo + n)
+
 func drift_level() -> int:
 	return drift_lvl
 
@@ -171,6 +209,12 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 	shield_t = maxf(0.0, shield_t - dt)
 	boost_t = maxf(0.0, boost_t - dt)
 	item_boost_t = maxf(0.0, item_boost_t - dt)
+	overclock_t = maxf(0.0, overclock_t - dt)
+	if combo_t > 0.0:
+		combo_t -= dt
+		if combo_t <= 0.0 and combo > 0:
+			combo = 0
+			ev("combo", 0)
 	for k in slows.keys():
 		slows[k][1] = float(slows[k][1]) - dt
 		if float(slows[k][1]) <= 0.0:
@@ -191,39 +235,63 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 		vlim *= float(P["shoulder_slow"])
 	if drifting:
 		vlim *= float(P["drift_slow"])
-	var add := 0.0
-	if boost_t > 0.0 or turbo_on:
-		add = float(P["boost_add"])
-	if item_boost_t > 0.0:
-		add = maxf(add, float(P["item_add"]))
-	vlim += add
-	# турбо: держишь — расходуется, сам копится медленно, в воздухе и заносом быстрее
-	var want_turbo: bool = inp.boost and go and spin_t <= 0.0
+	if overclock_t > 0.0:
+		vlim += float(RaceData.ITEMS["overclock"]["add"])
+	vlim += float(P["draft_add"]) * draft                      # воздушный мешок за соперником
+	# турбо: только с газом — оно усиливает тягу и поднимает предел, а не «ставит» скорость.
+	# Держишь — расходуется; копится понемногу само, в воздухе, в мешке, заносами и трюками.
+	var want_turbo: bool = inp.boost and go and spin_t <= 0.0 and inp.throttle > 0.05 and speed > -0.5
 	turbo_on = want_turbo and (turbo > (0.5 if turbo_on else float(P["turbo_min"])))
 	if turbo_on:
 		turbo = maxf(0.0, turbo - float(P["turbo_use"]) * dt)
 		if turbo <= 0.0:
 			turbo_on = false
 	elif go:
-		turbo = minf(float(P["turbo_max"]), turbo + float(P["turbo_regen"]) * dt + (float(P["turbo_air"]) * dt if not floor else 0.0))
-	# газ и тормоз
-	if boosting():
-		speed = move_toward(speed, vlim, 40.0 * dt)
-	elif inp.throttle > 0.05 and speed > -0.5:
-		var acc: float = (float(P["accel_low"]) if speed < 8.0 else float(P["accel"])) * (wx.mod("accel") if wx != null else 1.0)
-		if speed > vlim * inp.throttle:
-			speed = move_toward(speed, vlim * inp.throttle, 9.0 * dt)
+		var regen: float = float(P["turbo_regen"]) + (float(P["turbo_air"]) if not floor else 0.0) + float(P["draft_turbo"]) * draft
+		if overclock_t > 0.0:
+			regen *= float(RaceData.ITEMS["overclock"]["regen"])
+		gain_turbo(regen * dt)
+	var base_lim := vlim                                       # предел без ускорений — по нему считается кривая тяги
+	var add := 0.0
+	if boost_t > 0.0 or turbo_on:
+		add = float(P["boost_add"])
+	if item_boost_t > 0.0:
+		add = maxf(add, float(P["item_add"]))
+	vlim += add
+	# газ и тормоз. Толчок от заноса, трюка и ТУРБО-БАЛЛОНА тянет сам, даже если газ отпущен.
+	var thr := inp.throttle
+	if (boost_t > 0.0 or item_boost_t > 0.0) and speed > -0.5 and inp.brake <= 0.05:
+		thr = 1.0
+	if thr > 0.05 and speed > -0.5:
+		rev_t = 0.0
+		var top := vlim * thr
+		if speed > top:
+			speed = move_toward(speed, top, float(P["over_drag"]) * dt)
 		else:
-			speed = move_toward(speed, vlim * inp.throttle, acc * inp.throttle * dt)
+			# кривая разгона: с места тянет сильно, у предела — слабо; последние км/ч набираются долго
+			var k := pow(clampf(speed / maxf(1.0, base_lim), 0.0, 1.0), float(P["accel_curve"]))
+			var acc: float = lerpf(float(P["accel_low"]), float(P["accel"]), k) * (wx.mod("accel") if wx != null else 1.0)
+			if overclock_t > 0.0:
+				acc *= float(RaceData.ITEMS["overclock"]["acc"])
+			if boosting():
+				acc += float(P["item_accel"]) if item_boost_t > 0.0 else float(P["boost_accel"])
+			speed = move_toward(speed, top, acc * thr * dt)
 	elif inp.brake > 0.05:
 		if speed > 0.5:
+			rev_t = 0.0
 			speed = move_toward(speed, 0.0, float(P["brake"]) * inp.brake * dt * (wx.mod("brake") if wx != null else 1.0))
 		else:
-			speed = move_toward(speed, -float(P["rev_max"]), float(P["accel"]) * 0.6 * dt)
+			# задний ход — не мгновенно: сначала остановка, потом короткая пауза
+			rev_t += dt
+			if rev_t >= float(P["rev_delay"]) or speed < -0.5:
+				speed = move_toward(speed, -float(P["rev_max"]), 9.0 * dt)
+			else:
+				speed = move_toward(speed, 0.0, float(P["brake"]) * dt)
 	else:
+		rev_t = 0.0
 		speed = move_toward(speed, 0.0, float(P["coast"]) * dt)
 	if speed > vlim + 0.1 and not boosting():
-		speed = move_toward(speed, vlim, 9.0 * dt)
+		speed = move_toward(speed, vlim, float(P["over_drag"]) * dt)
 	brake_vis = inp.brake > 0.05 and speed > 2.0
 	# занос: держишь со скоростью и рулём — несёт боком, копится заряд; отпустил — ускорение по уровню
 	if not drifting and inp.drift and floor and speed >= float(P["drift_min"]) and absf(inp.steer) > 0.3 and spin_t <= 0.0:
@@ -271,11 +339,20 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 	if wx != null and wx.wind != Vector3.ZERO and floor and go:          # до старта ветер не двигает
 		var side := fwd().cross(Vector3.UP)
 		hv += side * (wx.wind as Vector3).dot(side) * 0.22          # порыв сбоку сносит
+	# трюк в воздухе: прыжок, нажатый в полёте с трамплина. Докрутил до приземления — ускорение и заряд турбо.
+	if trick_t > 0.0:
+		trick_t = maxf(0.0, trick_t - dt)
+	if not floor and inp.jump and go and trick_t <= 0.0 and ramp_air and spin_t <= 0.0 and air_t > 0.08:
+		trick_t = float(P["trick_t"])
+		trick_n += 1
+		trick_dir = signf(inp.steer) if absf(inp.steer) > 0.3 else (1.0 if trick_n % 2 == 1 else -1.0)
+		ev("trick", trick_n)
 	# прыжок, склон, полёт
 	if floor:
 		if pop_v > 0.0:
 			velocity = Vector3(hv.x, pop_v, hv.z)      # подбросило снизу (пар теплотрассы)
 			pop_v = 0.0
+			ramp_air = true
 		elif inp.jump and go and spin_t <= 0.0:
 			velocity = Vector3(hv.x, float(P["hop"]), hv.z)
 			ev("jump", 0)
@@ -292,6 +369,7 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 	# слетел с трамплина: толчок вверх — прыжок выше и веселее
 	if was_floor and not floor_now and floor_n.y < 0.995 and vy_before > 0.5:
 		velocity.y += 3.2
+		ramp_air = true
 		ev("ramp", 0)
 	# стены и препятствия
 	for c in get_slide_collision_count():
@@ -317,6 +395,20 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 			speed *= float(P["land_keep"])
 			ev("land", air_t)
 			vis.squash = clampf(air_t * 1.6, 0.4, 1.4)
+		if trick_n > 0:
+			if trick_t > 0.1:
+				speed *= float(P["trick_fail"])          # не докрутил — шлёпнулся
+				combo = 0
+				combo_t = 0.0
+				ev("trick_fail", trick_n)
+			else:
+				var mul := combo_add(100 * trick_n)
+				boost_t = maxf(boost_t, float(P["trick_boost"]) * float(mini(trick_n, 3)))
+				gain_turbo(float(P["trick_turbo"]) * float(trick_n) * mul)
+				ev("trick_land", trick_n)
+			trick_n = 0
+			trick_t = 0.0
+		ramp_air = false
 		air_t = 0.0
 	else:
 		air_t += dt
@@ -326,8 +418,9 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 func _end_drift(still_held: bool) -> void:
 	var P := RaceData.PHYS
 	if drift_lvl > 0:
+		var mul := combo_add(40 * drift_lvl)
 		boost_t = maxf(boost_t, float(P["drift_boost"][drift_lvl - 1]))
-		turbo = minf(float(P["turbo_max"]), turbo + float(P["drift_turbo"][drift_lvl - 1]))
+		gain_turbo(float(P["drift_turbo"][drift_lvl - 1]) * mul)
 		ev("drift_boost", drift_lvl)
 	drifting = false
 	drift_lvl = 0
@@ -357,6 +450,63 @@ func hit_by(src: String) -> bool:
 	return true
 
 # ---------------- вид ----------------
+## Предмет в руках виден всем: его модель висит над гонщиком и крутится (соперники тоже — видно, чего ждать).
+## Фильтр — три шестигранника по кругу, РАЗГОН МОТОРА — светящиеся кольца, ускорение — пламя за пылесосом.
+func _item_vis(dt: float) -> void:
+	if item != item_shown:
+		item_shown = item
+		if item_node != null and is_instance_valid(item_node):
+			item_node.queue_free()
+		item_node = null
+		if item != "":
+			item_node = RaceItems.model(item, 0.62)
+			item_node.position = Vector3(0, 2.25, -0.35)
+			smooth.add_child(item_node)
+			item_node.scale = Vector3.ONE * 1.5
+			item_node.create_tween().tween_property(item_node, "scale", Vector3.ONE * 0.62, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if item_node != null and is_instance_valid(item_node):
+		item_node.rotation.y += dt * 2.4
+		item_node.position.y = 2.25 + sin(Time.get_ticks_msec() * 0.004 + float(slot)) * 0.07
+	if shield_t > 0.0:
+		if aura_shield == null:
+			aura_shield = Node3D.new()
+			aura_shield.position = Vector3(0, 0.9, 0)
+			smooth.add_child(aura_shield)
+			for k in 3:
+				var h := RaceItems.model("filter", 0.75)
+				var a := TAU * k / 3.0
+				h.position = Vector3(sin(a) * 1.15, 0, cos(a) * 1.15)
+				h.rotation.y = a
+				aura_shield.add_child(h)
+		aura_shield.visible = shield_t > 1.5 or int(Time.get_ticks_msec() / 120) % 2 == 0      # под конец мигает
+		aura_shield.rotation.y += dt * 2.2
+	elif aura_shield != null:
+		aura_shield.visible = false
+	if overclock_t > 0.0:
+		if aura_oc == null:
+			aura_oc = Node3D.new()
+			aura_oc.position = Vector3(0, 0.45, -0.2)
+			smooth.add_child(aura_oc)
+			for k in 2:
+				RaceItems.ring(aura_oc, 0.75 + 0.2 * k, 0.03, RaceItems.mat("oc_bolt", Color(0.3, 0.85, 1.0), 0.3, 0.0, 1.6), Vector3(0, 0.25 * k, 0))
+		aura_oc.visible = true
+		aura_oc.rotation.y -= dt * 6.0
+		aura_oc.scale = Vector3.ONE * (1.0 + 0.08 * sin(Time.get_ticks_msec() * 0.02))
+	elif aura_oc != null:
+		aura_oc.visible = false
+	if boosting():
+		if flame == null:
+			flame = Node3D.new()
+			flame.position = Vector3(0, 0.42, -1.0)
+			pivot.add_child(flame)
+			RaceItems.cyl(flame, 0.2, 0.0, 0.8, RaceItems.mat("tb_fire", Color(1.0, 0.55, 0.1), 0.3, 0.0, 2.6, 0.9), Vector3(0, 0, -0.35), Vector3(PI / 2, 0, 0))
+			RaceItems.cyl(flame, 0.1, 0.0, 0.5, RaceItems.mat("tb_fire2", Color(1.0, 0.95, 0.6), 0.3, 0.0, 3.2), Vector3(0, 0, -0.22), Vector3(PI / 2, 0, 0))
+		flame.visible = true
+		var big := 1.5 if item_boost_t > 0.0 else 1.0
+		flame.scale = Vector3(big, big, big * (0.8 + 0.4 * randf()))
+	elif flame != null:
+		flame.visible = false
+
 func _vis_xf() -> Transform3D:
 	return Transform3D(Basis(Vector3.UP, heading), global_position)
 
@@ -394,9 +544,15 @@ func _process(dt: float) -> void:
 	if spin_t > 0.0:
 		yaw_off = 0.0
 	var air := air_t > 0.08
-	pivot.rotation = Vector3(lerpf(pivot.rotation.x, -0.16 if air else (0.05 if boosting() else 0.0), 1.0 - exp(-8.0 * dt)),
-		lerp_angle(pivot.rotation.y, yaw_off, 1.0 - exp(-7.0 * dt)), lean)
+	# трюк: полный оборот за время трюка — нечётный трюк прыжка волчком, чётный — сальто через нос
+	var trick_len := float(RaceData.PHYS["trick_t"])
+	trick_spin = (1.0 - trick_t / trick_len) * TAU * trick_dir if trick_t > 0.0 else 0.0
+	var flip := trick_n % 2 == 0 and trick_t > 0.0
+	var spin_y := trick_t > 0.0 and not flip
+	pivot.rotation = Vector3(absf(trick_spin) if flip else lerpf(pivot.rotation.x if absf(pivot.rotation.x) < 1.0 else 0.0, -0.16 if air else (0.05 if boosting() else 0.0), 1.0 - exp(-8.0 * dt)),
+		trick_spin if spin_y else lerp_angle(pivot.rotation.y, yaw_off, 1.0 - exp(-7.0 * dt)), lean)
 	vis.power = 0.35 + 0.65 * clampf(absf(speed) / 20.0, 0.0, 1.0)
+	_item_vis(dt)
 	var clip := "RideSit"
 	if air:
 		clip = "RideJump"

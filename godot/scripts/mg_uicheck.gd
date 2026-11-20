@@ -282,6 +282,8 @@ func _ml_jobs(_R: MicroloansRoot, e: MLEconomy, U: MLUI) -> void:
 	for jid in MLData.JOB_ORDER:
 		e.actions = MLData.ACTIONS
 		e.stress = 20
+		e.rep = maxi(e.rep, 60)                 # «Звукарь» открыт с репутации 50: заказ теперь нельзя взять в обход условия
+		e.job_pending = {}                      # прошлый заказ проверки не сдавался — он не должен мешать следующему
 		var J: MLJob = U.run_job(String(jid), 0.9)
 		await wait(3.0)
 		if not is_instance_valid(J):

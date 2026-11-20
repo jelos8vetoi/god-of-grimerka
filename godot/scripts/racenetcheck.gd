@@ -156,6 +156,8 @@ func _host_run() -> void:
 	L.place(Transform3D(Basis(Vector3.UP, cr.heading), cr.global_position - cr.fwd() * 6.0))
 	L.item = "air_blast"
 	L.item_cd = 0.0
+	L.spin_t = 0.0                                   # условия опыта: хост не в развороте, у цели нет щита
+	cr.shield_t = 0.0
 	e0 = cr.events.size()
 	race.use_item(L)
 	ok(cr.events.slice(e0).any(func(ev): return ev[0] == "hit"), "15. попадание предметом по гонщику клиента (считает хост)")

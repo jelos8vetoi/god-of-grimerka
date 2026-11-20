@@ -34,6 +34,17 @@ var rng := RandomNumberGenerator.new()
 var next_id := 1
 var career: MLCareer             # долгий слой прогрессии (ml_career.gd); null — симуляции недели без карьеры
 var week_closed := false
+# Заказы подработок. У каждого прохождения — свой номер: действие списывается, когда заказ взят (job_begin),
+# оплата — ровно один раз, по этому номеру (job_finish). Незавершённый заказ хранится в сохранении: вышел из игры
+# посреди работы — заказ брошен, действие потрачено, денег нет. Повторный сигнал или чужой номер ничего не платят.
+var job_seq := 0
+var job_pending := {}           # {id, jid, tier, day} — взятый и ещё не сданный заказ
+var jobs_paid: Array = []       # номера уже оплаченных заказов (последние 40)
+var week_report: Array = []     # что случилось при закрытии недели: изъятия, хвост долга — для экрана концовки
+
+const TAIL_K := 0.6             # какая доля неоплаченного долга переходит на следующую неделю
+const TAIL_LENDER := "srochno"  # кто её взыскивает
+const JUNK_PICKS_MAX := 40      # больше решений за один разбор хлама не бывает
 
 # ---------------- новая игра ----------------
 func new_game(s: int) -> void:
@@ -41,6 +52,8 @@ func new_game(s: int) -> void:
 	rng.seed = s
 	day = 1
 	week_closed = false
+	job_pending = {}
+	week_report = []
 	money = career.start_money(MLData.START_MONEY) if career != null else MLData.START_MONEY
 	stress = 20
 	rep = 40
@@ -60,6 +73,12 @@ func new_game(s: int) -> void:
 	for L in MLData.START_LOANS:
 		var lid := String(L["lender"])
 		_add_loan(lid, int(round(float(L["principal"]) * k / 500.0)) * 500, int(L["due"]), "", true)
+	# хвост прошлой недели: неоплаченный долг не исчезает — его часть приходит новым займом с коротким сроком
+	if career != null and int(career.d.get("carry_debt", 0)) > 0:
+		var tail := _add_loan(TAIL_LENDER, int(career.d["carry_debt"]), 3, "", true)
+		tail["tail"] = true
+		career.d["carry_debt"] = 0
+		say("ХВОСТ ПРОШЛОЙ НЕДЕЛИ: %d ₽ у %s, срок — день 3" % [int(tail["balance"]), MLData.LENDERS[TAIL_LENDER]["short"]], "bad")
 	stats["taken"] = 0
 	_start_day()
 
@@ -97,13 +116,47 @@ func xp(n: int, why := "") -> void:
 		say("ВЕХА: %s%s" % [m["name"], (" · +%d ₽" % int(m["money"])) if int(m["money"]) > 0 else ""], "milestone")
 
 ## неделя кончилась: копилка и следующая неделя карьеры (один раз)
+## Неделя закрыта. Долг не обнуляется: при «яме» коллекторы сначала забирают наличные, потом имущество бизнесов
+## (за полцены), а TAIL_K от остатка переходит на следующую неделю отдельным займом. Так занятые деньги нельзя
+## превратить в постоянное имущество, просто бросив неделю.
 func _end_week() -> void:
 	if career == null or week_closed or ending == "":
 		return
 	week_closed = true
+	week_report = []
+	var unpaid := total_debt()
+	if unpaid > 0:
+		var cash := mini(money, unpaid)
+		if cash > 0:
+			money -= cash
+			unpaid -= cash
+			week_report.append("Коллекторы забрали наличные: %d ₽" % cash)
+		if unpaid > 0:
+			var sz := career.seize(unpaid)
+			if int(sz["got"]) > 0:
+				unpaid -= int(sz["got"])
+				for line in sz["lines"]:
+					week_report.append(String(line))
+		if unpaid > 0:
+			var base_next := 45000.0 * (1.0 + MLCareer.WEEK_DEBT_K * float(int(career.d["week"])))
+			var tail := int(minf(float(unpaid) * TAIL_K, base_next) / 100.0) * 100
+			career.d["carry_debt"] = tail
+			if tail > 0:
+				week_report.append("Хвост долга на следующую неделю: %d ₽" % tail)
 	var put := career.end_week(money, ending)
 	if put > 0:
 		say("В копилку на следующую неделю: %d ₽" % put, "money")
+		week_report.append("В копилку: %d ₽" % put)
+
+## бросить неделю (пауза → «сдаться», новая игра поверх идущей недели): это «яма» со всеми последствиями
+func surrender() -> void:
+	if ending != "":
+		return
+	job_abandon()
+	ending = "pit"
+	say("Пахан бросил неделю. Долги никуда не делись.", "bad")
+	_end_week()
+	changed.emit()
 
 func _start_day() -> void:
 	phase = "morning"
@@ -265,6 +318,19 @@ func _early_fee(L: Dictionary, amt: int) -> int:
 		return int(float(amt) * float(C["early"]))
 	return 0
 
+## займ вернули в тот же день, что взяли: контора берёт проценты за сутки (минимальный срок), а репутации,
+## опыта и «закрытого долга» за такой возврат нет — иначе «взял и сразу отдал» качало бы всё бесплатно
+func same_day(L: Dictionary) -> bool:
+	return int(L.get("fresh", -1)) == day
+
+func _day_fee(L: Dictionary) -> void:
+	if same_day(L) and not bool(L.get("day_fee", false)):
+		L["day_fee"] = true
+		var add: float = float(L["balance"]) * float(L["rate"])
+		L["balance"] = float(L["balance"]) + add
+		stats["interest"] = int(stats["interest"]) + int(add)
+		say("%s: возврат в день выдачи — проценты за сутки %d ₽" % [MLData.LENDERS[L["lender"]]["short"], int(ceil(add))], "warn")
+
 func pay(id: int, amount: int) -> bool:
 	var L := loan(id)
 	if L.is_empty() or L["status"] == "closed":
@@ -272,9 +338,14 @@ func pay(id: int, amount: int) -> bool:
 	amount = mini(amount, money)
 	if amount <= 0:
 		return false
-	var fee := _early_fee(L, amount)
+	_day_fee(L)
+	# комиссия за досрочное — только с той суммы, что правда ушла в долг (а не со всей протянутой)
+	var C0: Dictionary = MLData.CLAUSES.get(String(L["clause"]), ["", {}])[1]
+	var early: float = float(C0.get("early", 0.0)) if day < int(L["due"]) else 0.0
+	amount = mini(amount, int(ceil(float(L["balance"]) / maxf(0.05, 1.0 - early))))
+	var fee := int(float(amount) * early)
 	var part := minf(float(amount - fee), float(L["balance"]))
-	var spent := int(ceil(part)) + fee
+	var spent := mini(int(ceil(part)) + fee, money)
 	money -= spent
 	L["balance"] = float(L["balance"]) - part
 	if int(L["promise"]) > 0:
@@ -289,6 +360,9 @@ func pay(id: int, amount: int) -> bool:
 func _close(L: Dictionary) -> void:
 	L["balance"] = 0.0
 	L["status"] = "closed"
+	if same_day(L):
+		say("%s: займ возвращён в день выдачи — в зачёт не идёт" % MLData.LENDERS[L["lender"]]["short"], "info")
+		return
 	stats["closed"] = int(stats["closed"]) + 1
 	if day <= int(L["due"]):
 		stats["on_time"] = int(stats["on_time"]) + 1
@@ -357,6 +431,11 @@ func extend(id: int) -> bool:
 ## рефинансирование: новый займ у lender закрывает выбранные долги (объединение нескольких — тоже это)
 func refinance_info(ids: Array, lid: String) -> Dictionary:
 	var D: Dictionary = MLData.LENDERS[lid]
+	var uniq: Array = []
+	for id0 in ids:
+		if not uniq.has(int(id0)):
+			uniq.append(int(id0))
+	ids = uniq
 	var sum := 0.0
 	for id in ids:
 		var L := loan(int(id))
@@ -368,6 +447,9 @@ func refinance_info(ids: Array, lid: String) -> Dictionary:
 	if ids.is_empty():
 		r["ok"] = false
 		r["why"] = "выбери долги"
+	elif sum <= 0.5:
+		r["ok"] = false
+		r["why"] = "эти долги уже закрыты"
 	elif rep < int(D["rep_need"]):
 		r["ok"] = false
 		r["why"] = "%s не дают с такой репутацией (нужно %d)" % [D["short"], int(D["rep_need"])]
@@ -385,6 +467,8 @@ func refinance(ids: Array, lid: String) -> bool:
 		return false
 	for id in ids:
 		var L := loan(int(id))
+		if L.is_empty() or L["status"] == "closed":
+			continue
 		L["balance"] = 0.0
 		L["status"] = "closed"
 		L["refinanced"] = true
@@ -449,7 +533,8 @@ func take(id: int) -> bool:
 	var C: Dictionary = MLData.CLAUSES.get(String(O["clause"]), ["", {}])[1]
 	var got := int(float(O["amount"]) * (1.0 - float(C.get("cut", 0.0))))
 	money += got
-	_add_loan(String(O["lender"]), int(O["amount"]), day + int(O["term"]), String(O["clause"]), bool(O["known"]))
+	var NL := _add_loan(String(O["lender"]), int(O["amount"]), day + int(O["term"]), String(O["clause"]), bool(O["known"]))
+	NL["fresh"] = day                                  # взят сегодня (см. same_day)
 	offers.erase(O)
 	stats["taken"] = int(stats["taken"]) + 1
 	stress = clampi(stress + 3, 0, 100)
@@ -465,15 +550,54 @@ func job_open(jid: String) -> bool:
 		return rep >= int(MLData.JOBS["sound"]["rep"]) or upgrades.has("contacts")
 	return true
 
-## оплата подработки по результату мини-игры (score 0..1)
-func job_done(jid: String, score: float, tier := 1) -> int:
-	if actions <= 0:
+## взять заказ: списывает действие и выдаёт номер прохождения (0 — нельзя: нет действий, закрыто, уже есть заказ)
+func job_begin(jid: String, tier := 1) -> int:
+	if actions <= 0 or not MLData.JOBS.has(jid) or not job_open(jid) or not job_pending.is_empty() or ending != "":
 		return 0
 	actions -= 1
+	job_seq += 1
+	job_pending = {"id": job_seq, "jid": jid, "tier": clampi(tier, 1, 5), "day": day}
+	changed.emit()
+	return job_seq
+
+## сдать заказ: оплата по номеру — один раз. picks — решения по вещам (только для разбора хлама).
+func job_finish(ticket: int, score: float, picks: Array = []) -> int:
+	if ticket <= 0 or job_pending.is_empty() or int(job_pending["id"]) != ticket or jobs_paid.has(ticket):
+		return 0
+	var jid := String(job_pending["jid"])
+	var tier := int(job_pending["tier"])
+	job_pending = {}
+	jobs_paid.append(ticket)
+	if jobs_paid.size() > 40:
+		jobs_paid = jobs_paid.slice(-40)
+	if is_nan(score):
+		score = 0.0
+	return _pay_junk(picks) if jid == "junk" else _pay_job(jid, score, tier)
+
+## заказ брошен (вышел из игры посреди работы, сдался): действие уже потрачено, оплаты нет
+func job_abandon() -> void:
+	if job_pending.is_empty():
+		return
+	var J: Dictionary = MLData.JOBS[String(job_pending["jid"])]
+	jobs_paid.append(int(job_pending["id"]))
+	job_pending = {}
+	stress = clampi(stress + 3, 0, 100)
+	rep = clampi(rep - 1, 0, 100)
+	say("Заказ «%s» брошен: действие потрачено, оплаты нет" % J["name"], "bad")
+	changed.emit()
+
+## оплата подработки одним вызовом (симуляции и проверки): взять и сразу сдать
+func job_done(jid: String, score: float, tier := 1) -> int:
+	var ticket := job_begin(jid, tier)
+	return job_finish(ticket, score) if ticket > 0 else 0
+
+func _pay_job(jid: String, score: float, tier: int) -> int:
 	var J: Dictionary = MLData.JOBS[jid]
 	score = clampf(score, 0.0, 1.0)
 	var mult := (career.pay_mult(jid) if career != null else 1.0) * (1.0 + (cv("perfect") if score >= 0.95 else 0.0)) * (1.0 + 0.25 * float(clampi(tier, 1, 5) - 1))
 	var pay_v := int(lerpf(float(J["min"]), float(J["base"]), score) * (1.25 if upgrades.has("contacts") else 1.0) * mult / 50.0) * 50
+	if score < 0.05:
+		pay_v = 0                                          # зашёл и вышел, ничего не сделав — платить не за что
 	money += pay_v
 	stats["earned"] = int(stats["earned"]) + pay_v
 	stats["jobs"] = int(stats["jobs"]) + 1
@@ -491,13 +615,20 @@ func job_done(jid: String, score: float, tier := 1) -> int:
 	changed.emit()
 	return pay_v
 
-## хлам: решения по вещам → деньги и инвентарь
+## хлам одним вызовом (симуляции и проверки)
 func junk_done(picks: Array) -> int:
-	if actions <= 0:
-		return 0
-	actions -= 1
+	var ticket := job_begin("junk", 1)
+	return job_finish(ticket, 1.0, picks) if ticket > 0 else 0
+
+## хлам: решения по вещам → деньги и инвентарь. Список приходит от самой мини-игры (в ней вещи могут повторяться,
+## редкая продаётся дважды); здесь — только защита от мусора: неверные номера и раздутый список отбрасываются.
+func _pay_junk(picks: Array) -> int:
 	var got := 0
+	if picks.size() > JUNK_PICKS_MAX:
+		picks = picks.slice(0, JUNK_PICKS_MAX)
 	for p in picks:
+		if not (p is Array) or (p as Array).size() < 2 or int(p[0]) < 0 or int(p[0]) >= MLData.JUNK.size():
+			continue
 		var it: Array = MLData.JUNK[int(p[0])]
 		match String(p[1]):
 			"sell":
@@ -755,7 +886,8 @@ func finish() -> void:
 func to_dict() -> Dictionary:
 	return {"day": day, "phase": phase, "money": money, "actions": actions, "stress": stress, "rep": rep, "loans": loans, "offers": offers,
 		"inventory": inventory, "upgrades": upgrades, "flags": flags, "lender_flags": lender_flags, "stats": stats, "log": history.slice(-40),
-		"event_today": event_today, "event_done": event_done, "warned": warned, "ending": ending, "seed": seed_v, "rng_state": str(rng.state), "next_id": next_id}
+		"event_today": event_today, "event_done": event_done, "warned": warned, "ending": ending, "seed": seed_v, "rng_state": str(rng.state), "next_id": next_id,
+		"job_seq": job_seq, "job_pending": job_pending, "jobs_paid": jobs_paid, "week_closed": week_closed, "week_report": week_report}
 
 func from_dict(d: Dictionary) -> void:
 	day = int(d.get("day", 1))
@@ -766,9 +898,11 @@ func from_dict(d: Dictionary) -> void:
 	rep = int(d.get("rep", 40))
 	loans = d.get("loans", [])
 	for L in loans:
-		for k in ["id", "taken", "due", "overdue", "extended", "promise", "principal"]:
+		for k in ["id", "taken", "due", "overdue", "extended", "promise", "principal", "fresh", "min_used", "called", "talk_wins", "promise_day"]:
 			if L.has(k):
 				L[k] = int(L[k])
+		if L.has("from"):
+			L["from"] = (L["from"] as Array).map(func(x): return int(x))
 	offers = d.get("offers", [])
 	for O in offers:
 		O["id"] = int(O["id"])
@@ -777,17 +911,36 @@ func from_dict(d: Dictionary) -> void:
 	inventory = (d.get("inventory", []) as Array).map(func(x): return int(x))
 	upgrades = d.get("upgrades", {})
 	flags = d.get("flags", {})
+	for k in flags:
+		if typeof(flags[k]) == TYPE_FLOAT:
+			flags[k] = int(flags[k])                     # дни из JSON приходят дробными
 	lender_flags = d.get("lender_flags", {})
 	var st: Dictionary = d.get("stats", {})
 	for k in stats:
 		stats[k] = int(st.get(k, 0))
 	history = d.get("log", [])
+	for h in history:
+		if h is Array and (h as Array).size() > 0:
+			h[0] = int(h[0])
 	event_today = String(d.get("event_today", ""))
 	event_done = bool(d.get("event_done", false))
 	warned = d.get("warned", {})
+	for k in warned:
+		warned[k] = int(warned[k])
 	ending = String(d.get("ending", ""))
 	seed_v = int(d.get("seed", 1))
 	rng.seed = seed_v
 	if d.has("rng_state"):
 		rng.state = int(String(d["rng_state"]))
 	next_id = int(d.get("next_id", 100))
+	job_seq = int(d.get("job_seq", 0))
+	job_pending = d.get("job_pending", {}) if d.get("job_pending", {}) is Dictionary else {}
+	for k in ["id", "tier", "day"]:
+		if job_pending.has(k):
+			job_pending[k] = int(job_pending[k])
+	jobs_paid = (d.get("jobs_paid", []) as Array).map(func(x): return int(x))
+	week_closed = bool(d.get("week_closed", ending != ""))
+	week_report = d.get("week_report", [])
+	for L in loans:
+		if L.has("fresh"):
+			L["fresh"] = int(L["fresh"])

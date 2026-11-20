@@ -23,12 +23,20 @@ var late_t := 0.0
 var hold_t := 0.0            # сколько держит предмет
 var back_t := 0.0            # сдаёт назад (застрял)
 var turbo_hold := false
+var style := {}              # характер этого соперника (RaceData.RIVAL_STYLE)
+var trick_want := false      # на этом трамплине будет крутить трюк
+var bump_t := 0.0            # сколько уже прёт на соседа
 
 func setup(rider, rc, level: String, seed_v: int) -> void:
 	r = rider
 	race = rc
 	track = rc.track
-	cfg = RaceData.BOTS.get(level, RaceData.BOTS["normal"])
+	cfg = (RaceData.BOTS.get(level, RaceData.BOTS["normal"]) as Dictionary).duplicate()
+	# характер: поправки к уровню — у каждого соперника свои сильные стороны и привычки
+	style = RaceData.RIVAL_STYLE.get(String(rider.rider_id), {})
+	for k in ["pace", "corner", "drift", "noise", "late", "short", "items"]:
+		if style.has(k):
+			cfg[k] = clampf(float(cfg[k]) + float(style[k]), 0.0, 1.05 if k == "pace" else 1.0)
 	rng.seed = seed_v
 	lane = rng.randf_range(-0.5, 0.5)
 	lane_want = lane
@@ -72,6 +80,21 @@ func think(dt: float) -> RaceInput:
 				var lat_o := ((o[0] as Vector3) - track.P[i]).dot(right)      # где препятствие поперёк дороги
 				if absf(lat_o - off) < float(o[1]) + 1.6:
 					off = lat_o - signf(lat_o if absf(lat_o) > 0.3 else 1.0) * (float(o[1]) + 2.4)
+		# соседи: «таран» прижимается к тому, кто рядом, «педант» сторонится; охотник за мешком садится на хвост
+		var aggr := float(style.get("aggr", 0.0))
+		var draft_k := float(style.get("draft", 0.0))
+		bump_t = maxf(0.0, bump_t - dt)
+		for o in race.riders:
+			if o == r or o.disconnected or o.finished:
+				continue
+			var d2: Vector3 = (o as RaceRider).global_position - pos
+			var ahead2 := d2.dot(r.fwd())
+			var side2 := d2.dot(r.fwd().cross(Vector3.UP))
+			if absf(ahead2) < 3.5 and absf(side2) < 4.0 and absf(aggr) > 0.05 and bump_t < 1.2:
+				off += signf(side2) * aggr * 2.2                      # к нему (или от него)
+				bump_t += dt * 2.0
+			elif ahead2 > 4.0 and ahead2 < 16.0 and absf(side2) < 5.0 and draft_k > 0.0 and track.turn_ahead(r.s, 20.0) < 0.3:
+				off = lerpf(off, ((o as RaceRider).global_position - track.P[i]).dot(right), draft_k * 0.6)
 		off = clampf(off, -half_w, half_w)
 		target = track.P[i] + right * off
 	# руль: угол до точки
@@ -124,6 +147,12 @@ func think(dt: float) -> RaceInput:
 	if turbo_hold and (turn > 0.35 or r.turbo < 8.0):
 		turbo_hold = false
 	inp.boost = turbo_hold
+	# трюк с трамплина: решает при отрыве, жмёт в воздухе (тот же прыжок, что у игрока)
+	if r.ramp_air and r.air_t > 0.1 and r.air_t < 0.2 and r.trick_n == 0:
+		trick_want = rng.randf() < float(style.get("trick", 0.3))
+	if r.ramp_air and trick_want and r.trick_t <= 0.0 and r.trick_n < 1 and r.air_t > 0.14:
+		inp.jump = true
+		trick_want = false
 	# застрял: сдать назад и вывернуть
 	if back_t > 0.0:
 		back_t -= dt
@@ -147,6 +176,8 @@ func _want_item(id: String) -> bool:
 	var smart := rng.randf() < float(cfg["items"])
 	if hold_t < 0.6:
 		return false
+	if style.has("hold") and hold_t > 1.0 + float(style["hold"]) and id in ["dust_bomb", "soap", "filter", "overclock"]:
+		return true                                    # нетерпеливый: ловушки и усиления долго не держит
 	match id:
 		"turbo_balloon":
 			return track.turn_ahead(r.s, 25.0) < 0.25 or hold_t > 6.0
@@ -158,4 +189,12 @@ func _want_item(id: String) -> bool:
 			return race.find_target(r, float(RaceData.ITEMS["super_suck"]["range"]), float(RaceData.ITEMS["super_suck"]["cone"])) != null or hold_t > 9.0
 		"air_blast":
 			return race.find_target(r, float(RaceData.ITEMS["air_blast"]["range"]), float(RaceData.ITEMS["air_blast"]["cone"])) != null or hold_t > 9.0
+		"missile":
+			var I: Dictionary = RaceData.ITEMS["missile"]
+			for o in race.riders:
+				if o != r and not o.finished and fposmod((o as RaceRider).s - r.s, track.L) < float(I["seek"]) and track.turn_ahead(r.s, 30.0) < 0.6:
+					return true
+			return hold_t > 8.0
+		"overclock":
+			return track.turn_ahead(r.s, 30.0) < 0.3 or hold_t > 5.0
 	return hold_t > 5.0

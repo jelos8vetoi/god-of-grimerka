@@ -10,6 +10,7 @@ const STEP := 1.0                  # шаг точек кривой, м
 const SHOULDER := 1.6              # обочина за краем дороги, м
 const WALL_H := 4.0                # высота стен (видимые — ниже: барьеры, гаражи, заборы)
 const KILL_Y := -3.0               # ниже — упал: возврат на последнюю контрольную точку
+const GATE_GAP := 18.0             # контрольные точки не ближе друг к другу, м
 
 var data: Dictionary = {}
 var id := ""
@@ -35,6 +36,7 @@ var gates: Array = []              # [{s, pos, tan}]; gates[0] — финиш
 var boxes: Array = []              # точки коробок предметов
 var pads: Array = []               # [{pos, tan, s}]
 var ramps: Array = []              # [{s0, s1, h}]
+var rings: Array = []              # кольца для трюков: [{pos, tan, node}]
 var obstacle_pts: Array = []       # [центр, радиус] — для ботов
 var fill_counts := {}              # сколько чего поставлено заполнением (для проверки)
 var mats := {}
@@ -54,6 +56,7 @@ func build(track_id: String) -> void:
 	_road()
 	_walls()
 	_ramps()
+	_rings()
 	_pads()
 	_obstacles()
 	_gates()
@@ -303,6 +306,9 @@ func _mats() -> void:
 	mats["cone"] = _mat(Color(1.0, 0.45, 0.1), 0.6)
 	mats["lamp"] = _mat(Color(1.0, 0.85, 0.6), 0.4, 3.0)
 
+static func _col(a) -> Color:
+	return Color(float(a[0]), float(a[1]), float(a[2]))
+
 func _env() -> void:
 	var env := Environment.new()
 	var sky := Sky.new()
@@ -324,12 +330,19 @@ func _env() -> void:
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.52, 0.55, 0.64)
 	env.fog_density = 0.0032
+	# у трассы может быть свой вид неба и света (data["look"]) — чтобы трассы отличались с первого взгляда
+	var look: Dictionary = data.get("look", {})
+	if look.has("sky_top"):
+		sm.sky_top_color = _col(look["sky_top"])
+		sm.sky_horizon_color = _col(look["sky_horizon"])
+		env.fog_light_color = _col(look["fog"])
+		env.fog_density = float(look.get("fog_density", 0.0032))
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 	var sun := DirectionalLight3D.new()
-	sun.light_color = Color(1.0, 0.8, 0.62)
-	sun.light_energy = 1.25
+	sun.light_color = _col(look["sun"]) if look.has("sun") else Color(1.0, 0.8, 0.62)
+	sun.light_energy = float(look.get("sun_energy", 1.25))
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 70.0
 	sun.rotation = Vector3(deg_to_rad(-38), deg_to_rad(-60), 0)
@@ -564,6 +577,37 @@ func _ramps() -> void:
 		lab.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 		add_child(lab)
 
+## кольца над полётом с трамплина. Модель — race_trick_ring.glb, если есть; иначе кольцо собирается из деталей:
+## полосатый обод, лампочки по кругу, две стойки до земли.
+func _rings() -> void:
+	var R: float = float(RaceData.PHYS["ring_r"])
+	for q in data.get("rings", []):
+		if int(q[0]) >= ramps.size():
+			continue
+		var rp: Dictionary = ramps[int(q[0])]
+		var i := at_s(float(rp["s1"]) + float(q[1]))
+		var right: Vector3 = T[i].cross(Vector3.UP)
+		var c: Vector3 = P[i] + right * float(q[3]) + Vector3(0, float(q[2]), 0)
+		var n := Node3D.new()
+		n.position = c
+		n.rotation.y = atan2(T[i].x, T[i].z)
+		add_child(n)
+		var file := "res://assets/racing/race_trick_ring.glb"
+		if ResourceLoader.exists(file):
+			var g: Node3D = (load(file) as PackedScene).instantiate()
+			g.scale = Vector3.ONE * (R * 2.0 / 3.4)
+			n.add_child(g)
+		else:
+			for k in 12:
+				var a0 := TAU * k / 12.0
+				var seg := RaceItems.cyl(n, 0.16, 0.16, R * TAU / 12.0 + 0.05, RaceItems.mat("ring_r" if k % 2 == 0 else "ring_w", Color(0.9, 0.12, 0.1) if k % 2 == 0 else Color(0.95, 0.95, 0.92), 0.5, 0.2, 0.25), Vector3(cos(a0) * R, sin(a0) * R, 0), Vector3(0, 0, a0))
+				seg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+				RaceItems.ball(n, 0.09, RaceItems.mat("ring_bulb", Color(1.0, 0.9, 0.5), 0.3, 0.0, 2.0), Vector3(cos(a0 + 0.26) * (R + 0.02), sin(a0 + 0.26) * (R + 0.02), 0.17))
+			for sx in [-1.0, 1.0]:
+				var hgt: float = maxf(0.3, float(q[2]) - R * 0.7)
+				RaceItems.cyl(n, 0.08, 0.1, hgt, mats["metal"] if mats.has("metal") else RaceItems.mat("steel", Color(0.62, 0.64, 0.68), 0.35, 0.8), Vector3(sx * R * 0.72, -R * 0.7 - hgt * 0.5, 0))
+		rings.append({"pos": c, "tan": T[i], "node": n})
+
 func _pads() -> void:
 	for q in data.get("pads", []):
 		var i := nearest_main(_v(q))
@@ -668,6 +712,15 @@ func _gates() -> void:
 		var i := at_s(s)
 		gates.append({"s": S[i], "pos": P[i], "tan": T[i], "w": W[i]})
 	gates.sort_custom(func(a, b): return from_start(a["s"]) < from_start(b["s"]))
+	# Две точки не могут стоять в одном месте: вторую тогда засчитало бы только на следующем витке, и каждый «круг»
+	# требовал бы двух проездов трассы (так и было: точки, сдвинутые с участка срезки, вставали на одно место).
+	# Оставляем точки не ближе GATE_GAP друг к другу и к финишу.
+	var kept: Array = [gates[0]]
+	for k in range(1, gates.size()):
+		var fs := from_start(float(gates[k]["s"]))
+		if fs - from_start(float(kept.back()["s"])) >= GATE_GAP and L - fs >= GATE_GAP:
+			kept.append(gates[k])
+	gates = kept
 	# арка над финишем
 	var g0: Dictionary = gates[0]
 	var right: Vector3 = (g0["tan"] as Vector3).cross(Vector3.UP)
