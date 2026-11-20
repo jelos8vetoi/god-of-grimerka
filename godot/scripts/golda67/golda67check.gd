@@ -119,6 +119,10 @@ func _run() -> void:
 	await wait(3.0)
 	var g = main.game
 	var G: Golda67 = g.golda
+	if OS.get_cmdline_user_args().has("--g67-real"):
+		await _real_run(g, G)
+		_finish()
+		return
 	ok(g.training == null and g.mode == "golda67", "режим приквела (mode = %s), это не арена" % g.mode)
 	ok(G.place == "hub" and G.world is G67World, "место — подъезд")
 	ok(G.world.missing.is_empty(), "все модели хаба на месте (нет: %s)" % ", ".join(G.world.missing))
@@ -953,6 +957,78 @@ func _flurr_check(g, G: Golda67, P) -> void:
 	G.flurr_last = -1
 	P.global_position = G.world.spawn_pos
 
+## --g67-real: путь игрока с роликами по ходу (первый показ не пропускается — ждём), чистое сохранение, весь забег
+## до босса. Проверяет, что ролики не ломают игру: двери, комнаты, выход Миши (он на месте и в кадре).
+func _clips_wait(G: Golda67, sec := 120.0) -> void:
+	await wait(0.3)
+	await until(func(): return G.clip == null and G.clip_menu == null, sec)
+	await wait(0.4)
+
+func _real_run(g, G: Golda67) -> void:
+	var P = g.player
+	ok(await until(func(): return G.clip != null, 10.0), "REAL: первые ролики начинаются после того, как подъезд проявился")
+	ok(main.intro_fx == null or not main.intro_fx.busy, "REAL: к началу ролика шторка перехода уже ушла")
+	await _clips_wait(G)
+	ok(G.place == "hub" and G.clip == null, "REAL: после первых роликов — подъезд, управление у игрока (%s)" % str(G.events.filter(func(e): return String(e[0]) == "clip")))
+	await shot("r01_hub")
+	await _go(G, P, "exit")
+	await _clips_wait(G)
+	var started: bool = await until(func(): return G.place == "run", 10.0)
+	await _clips_wait(G)
+	ok(started and G.place == "run", "REAL: выход из подъезда начинает забег (ролики: %s)" % str(G.events.filter(func(e): return String(e[0]) == "clip")))
+	if not started:
+		return
+	var pos := -1
+	for step in 12:
+		await _clips_wait(G, 60.0)
+		if G.room_state == "boss":
+			break
+		if G.room_state == "fight":
+			ok(await _clear_room(g, G, 60.0), "REAL: комната %d (%s) зачищена" % [int(G.run["pos"]) + 1, String(G.room.get("type", ""))])
+		await wait(0.5)
+		if g.panel != null:
+			var fo: Array = G.fit_options(String(G.room.get("type", "")) == "elite")
+			if not fo.is_empty():
+				G.take_fit(String(fo[0]))
+			await wait(0.3)
+		if G.room_state == "rest":
+			await _go(G, P, "rest")
+			await wait(0.4)
+		if G.world.gates.is_empty():
+			await wait(1.0)
+		if G.world.gates.is_empty():
+			ok(false, "REAL: после комнаты %d нет дверей (состояние %s)" % [int(G.run["pos"]) + 1, G.room_state])
+			await shot("r_no_gates")
+			return
+		pos = int(G.run["pos"])
+		await _go(G, P, "gate0")
+		await until(func(): return int(G.run["pos"]) != pos, 8.0)
+	var bossed: bool = await until(func(): return G.room_state == "boss" and g.boss_e != null and is_instance_valid(g.boss_e), 10.0)
+	ok(bossed, "REAL: дошли до босса (комната %s, позиция %d)" % [G.room_state, int(G.run.get("pos", -1))])
+	if not bossed:
+		await shot("r_no_boss")
+		return
+	var B = g.boss_e
+	await wait(1.2)
+	var cam: Camera3D = g.get_viewport().get_camera_3d()
+	var head: Vector3 = B.global_position + Vector3(0, 1.6, 0)
+	var sp: Vector2 = cam.unproject_position(head)
+	var vs: Vector2 = g.get_viewport().get_visible_rect().size
+	var in_frame: bool = not cam.is_position_behind(head) and Rect2(Vector2.ZERO, vs).has_point(sp)
+	ok(B.visible and B.rig != null and B.rig.is_visible_in_tree() and in_frame, "REAL: Миша появился и в кадре (экран %s, видим %s)" % [str(sp.round()), str(B.is_visible_in_tree())])
+	await shot("r02_boss_intro")
+	await until(func(): return not G.scene_busy(), 10.0)
+	await until(func(): return B.alive(), 3.0)
+	await wait(0.5)
+	var cam2: Camera3D = g.get_viewport().get_camera_3d()
+	var bh: Vector3 = B.global_position + Vector3(0, 1.4, 0)
+	var sp2: Vector2 = cam2.unproject_position(bh)
+	ok(not cam2.is_position_behind(bh) and Rect2(Vector2.ZERO, vs).has_point(sp2), "REAL: после постановки Миша в кадре, а не за калиткой (экран %s)" % str(sp2.round()))
+	await shot("r03_boss_fight")
+	print("GOLDA67CHECK   REAL mode=%s panel=%s dlg=%d events=%s" % [g.mode, str(g.panel), g.dlg.size(), str(G.events.slice(-8))])
+	print("GOLDA67CHECK   REAL после постановки: valid=%s alive=%s state=%s hp=%s boss_e==B %s enemies=%d room=%s scene_t=%.2f boss_pos=%s player=%s" % [is_instance_valid(B), B.alive() if is_instance_valid(B) else "-", B.state if is_instance_valid(B) else "-", B.hp if is_instance_valid(B) else "-", g.boss_e == B, g.enemies.size(), G.room_state, G.scene_t, str(B.global_position) if is_instance_valid(B) else "-", str(P.global_position)])
+	ok(is_instance_valid(B) and B.alive() and (g.enemies.has(B) or g.boss_e == B), "REAL: бой с Мишей идёт")
+
 ## убить всех живых врагов (бой проверяют проверки боя; здесь — цикл комнат)
 func _kill_all(g) -> void:
 	for e in g.enemies:
@@ -1041,6 +1117,20 @@ func _run_dvor(g, G: Golda67, P) -> void:
 			miss_ic.append(id)
 	ok(miss_ic.is_empty(), "все 37 рисованных значков партий 1–2 на месте (нет: %s)" % str(miss_ic))
 	ok(G.world.bounds == null or not is_instance_valid(G.world.bounds), "после боя ограждения убраны — двор свободен")
+	# домой посреди забега: дверь подъезда во дворе → подъезд (забег на паузе) → выход продолжает с той же комнаты
+	ok(not G.point("home").is_empty(), "после боя у двери подъезда можно уйти домой")
+	var g_before := int(G.run["golda"])
+	var pos_before := int(G.run["pos"])
+	P.hp = P.max_hp - 13.0
+	await _go(G, P, "home")
+	ok(await until(func(): return G.place == "hub", 6.0), "дверь подъезда во дворе ведёт домой в подъезд")
+	ok(G.paused_run() and String(g.top_label.text).contains("ПАУЗЕ"), "в подъезде забег на паузе: «%s»" % g.top_label.text)
+	await shot("21c_home_paused")
+	await _go(G, P, "exit")
+	ok(await until(func(): return G.place == "run" and G.room_state == "open", 6.0), "выход во двор продолжает забег")
+	ok(int(G.run["pos"]) == pos_before and int(G.run["golda"]) == g_before and not G.paused_run(), "та же комната и та же голда (%d, %d), пауза снята" % [int(G.run["pos"]), int(G.run["golda"])])
+	ok(G.world.gates.size() == 2 and absf(P.hp - (P.max_hp - 13.0)) < 0.5, "двери снова открыты, здоровье прежнее (%.0f из %.0f)" % [P.hp, P.max_hp])
+	await shot("21d_home_resumed")
 	# ворота стоят у входов в следующие зоны: идём к ним по двору настоящими клавишами
 	var gp: Vector3 = G.point("gate1")["pos"]
 	var d0: float = P.global_position.distance_to(gp)

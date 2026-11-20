@@ -509,6 +509,15 @@ func add_gates(options: Array) -> void:
 		gates.append({"root": g, "label": lbl, "option": o, "icon": ic})
 		_point("gate%d" % i, String(G67Data.ROOM_NAMES[type]), String(G67Data.ROOM_HINT[type]), pos + Vector3(0, 0, 1.7))
 
+## Дверь подъезда во дворе: вернуться домой посреди забега (забег встаёт на паузу)
+func add_home() -> void:
+	if yard == null:
+		return
+	for pt in points:
+		if String(pt["id"]) == "home":
+			return
+	_point("home", "ПОДЪЕЗД", "домой: забег сохранится, продолжишь отсюда же", yard.position + G67Yard.HOME_DOOR)
+
 ## Место отдыха в комнате ПЕРЕДЫШКА: беседка за гаражами
 func add_rest() -> void:
 	_point("rest", "БЕСЕДКА", "перевести дух: восстановить здоровье", Vector3(0.6, 0, 0.4))

@@ -76,8 +76,19 @@ func begin(_cont := false) -> void:
 	await enter_hub()
 	unlock_clip("V00")                       # трейлер — на телевизоре в подъезде с первого входа
 	if auto_clips and not clip_seen("STORY01"):
-		await play_clip("STORY01")           # регистрация — до первого забега
-		await play_clip("STORY05")           # первое обращение организатора
+		_first_clips()                       # не ждём: переход из меню сначала открывает подъезд
+
+## Первые ролики — после того, как шторка перехода из меню открыла подъезд и вернула цвет. Раньше begin() ждал
+## их до конца, и полминуты роликов шторка висела под ними, а подъезд проявлялся уже после.
+func _first_clips() -> void:
+	var fx = game.main.intro_fx if game.main != null else null
+	var t0 := GameClock.ms()
+	while is_instance_valid(self) and GameClock.ms() - t0 < 6000 and (fx == null or bool(fx.busy) or float(fx.mono_v) > 0.02):
+		await game.get_tree().process_frame
+	if not is_instance_valid(self) or clip != null:
+		return
+	await play_clip("STORY01")               # регистрация — до первого забега
+	await play_clip("STORY05")               # первое обращение организатора
 
 func _swap_world(build: Callable) -> void:
 	game._clear_fight()
@@ -175,6 +186,63 @@ func start_run(district_id := "dvor") -> void:
 	var d := G67Data.district(district_id)
 	await enter_room((d["route"] as Array)[0][0])
 
+## Домой посреди забега: дверь подъезда во дворе (комната зачищена или передышка). Забег — в сохранение
+## (data["run"]: забег, комната, здоровье, состояние), в подъезде он стоит на паузе; выход во двор продолжает его
+## с той же комнаты — двери снова открыты. Гибель или конец забега стирают паузу (_finish_run).
+func go_home() -> void:
+	if busy or place != "run" or not room_state in ["open", "rest"]:
+		return
+	data["run"] = {"run": run.duplicate(true), "room": room.duplicate(true), "hp": float(game.player.hp), "state": room_state}
+	save()
+	events.append(["home"])
+	game.main.ui("confirm")
+	await enter_hub()
+	game.toast("Забег на паузе — выход во двор продолжит его")
+
+func paused_run() -> bool:
+	return not (data.get("run", {}) as Dictionary).is_empty() and (data["run"] as Dictionary).has("room")
+
+func resume_run() -> void:
+	if busy or not paused_run():
+		return
+	busy = true
+	var sv: Dictionary = data["run"]
+	run = (sv["run"] as Dictionary).duplicate(true)
+	room = (sv["room"] as Dictionary).duplicate(true)
+	data["run"] = {}
+	save()
+	place = "run"
+	G67Yard.secret_tag = bool((meta().get("flags", {}) as Dictionary).get("boss_misha", false))
+	G67Yard.crowd_seed = int(meta().get("runs", 0)) * 31 + int(meta().get("visits", 0)) + 1
+	game.buddy.visible = false
+	game.buddy.global_position = Vector3(0, -50, 0)
+	wind_used = false
+	_swap_world(func(w: G67World): w.build_room(room))
+	krot_k = {}
+	if world.yard != null:
+		for l in world.yard.lifes:
+			(l as G67Life).watcher = game.player
+	apply_fits()
+	var p = game.player
+	p.hp = clampf(float(sv.get("hp", p.max_hp)), 1.0, p.max_hp)
+	p.global_position = world.yard.position + G67Yard.HOME_DOOR + Vector3(0, 0.05, -1.2)
+	p.velocity = Vector3.ZERO
+	p.face = PI                      # вышел из подъезда — лицом во двор
+	game.cam_yaw = 0.0
+	game.fx.prewarm(p.global_position)
+	_place_krot(String(room.get("place", "")))
+	events.append(["resume", int(run.get("pos", 0))])
+	await game.get_tree().process_frame
+	if String(sv.get("state", "open")) == "rest":
+		world.add_rest()
+		world.add_home()
+		room_state = "rest"
+	else:
+		_open_gates()
+	var d := district()
+	game.banner("%s · %d / %d" % [String(d["name"]), int(run["pos"]) + 1, (d["route"] as Array).size()], "ЗАБЕГ ПРОДОЛЖАЕТСЯ", Color(1.0, 0.8, 0.2), 2.4)
+	busy = false
+
 func district() -> Dictionary:
 	return G67Data.district(String(run.get("district", "dvor")))
 
@@ -188,7 +256,7 @@ func enter_room(r: Dictionary) -> void:
 		for l in world.yard.lifes:
 			(l as G67Life).watcher = game.player       # жители замечают Пахана, когда он рядом и впереди
 	var p = game.player
-	p.global_position = Vector3(0.0, 0.05, 10.5)
+	p.global_position = Vector3(0.0, 0.05, float(G67Data.ENTRY_Z.get(String(r.get("place", "")), G67Data.ENTRY_Z_DEFAULT)))
 	p.velocity = Vector3.ZERO
 	p.face = 0.0
 	game.cam_yaw = 0.0
@@ -211,6 +279,7 @@ func enter_room(r: Dictionary) -> void:
 			_offer_fit(false)
 		"break":
 			world.add_rest()
+			world.add_home()
 			room_state = "rest"
 		"boss":
 			room_state = "boss"
@@ -346,6 +415,7 @@ func _open_gates() -> void:
 	var opts := route_options(next)
 	world.open_bounds()            # ограждения боя убраны: дальше — по двору, к воротам следующей зоны
 	world.add_gates(opts)
+	world.add_home()
 	room_state = "open"
 	events.append(["gates", opts.size()])
 	game.toast("Выбери дверь")
@@ -857,7 +927,7 @@ func _finish_run(won: bool, delay: float) -> void:
 ## Строка вверху экрана вместо главы и задания кампании
 func hud_line() -> String:
 	if place == "hub" or run.is_empty():
-		return "ГОЛДА 67 · ПОДЪЕЗД · РЕСПЕКТ %d" % int(meta().get("respect", 0))
+		return "ГОЛДА 67 · ПОДЪЕЗД · РЕСПЕКТ %d" % int(meta().get("respect", 0)) + (" · ЗАБЕГ НА ПАУЗЕ" if paused_run() else "")
 	var d := district()
 	var s := "ГОЛДА 67 · %s %d/%d · голда %d" % [String(d["name"]), int(run["pos"]) + 1, (d["route"] as Array).size(), int(run["golda"])]
 	if room_state == "fight":
@@ -923,7 +993,12 @@ func use(id: String) -> void:
 	if id == "exit":
 		if auto_clips and not clip_seen("AD01"):
 			await play_clip("AD01")          # реклама турнира — перед первым выходом во ДВОР
-		start_run("dvor")
+		if paused_run():
+			resume_run()
+		else:
+			start_run("dvor")
+	elif id == "home":
+		go_home()
 	elif id == "tv":
 		tv()
 	elif id == "rest":
