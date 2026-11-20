@@ -53,6 +53,7 @@ const QUEUE_PEOPLE := [
 	{"path": "res://assets/minigames/npc_neighbor.glb", "h": 1.58, "rig": true, "key": "npc_neighbor"},
 	{"path": "res://assets/racing/npc_spectator.glb", "h": 1.7, "rig": false, "key": "npc_spectator"},
 ]
+static var secret_tag := false     # победил Мишу — у подъезда появляется маленькое граффити
 static var crowd_seed := 1     # меняется на каждый забег: очередь каждый раз другая
 var boss_spot := Vector3(2, 0, -44.5)        # где ждёт Миша (у своей машины, на ковре)
 
@@ -386,7 +387,9 @@ func _zone_podezd() -> void:
 	_put("bush", Vector3(-6.0, 0, 26.3), 0.0, 1.1, false)
 	_put("bush", Vector3(8.6, 0, 26.2), 1.0, 1.3, false)
 	_drift(Vector3(-8.5, 0.2, 17.5), Vector3(3.0, 0.7, 3.0))
-	_sign("ПАХАН + MADK1D\nБЫЛИ ТУТ", Vector3(-6.2, 1.4, 35.55), PI, Color(0.2, 0.5, 0.95, 0.9), 0.006, 48)
+	if secret_tag:
+		var tag := _sign("ПАХАН + MADK1D\nБЫЛИ ТУТ", Vector3(-6.2, 1.05, 35.55), PI, Color(0.2, 0.5, 0.95, 0.9), 0.0038, 48)
+		tag.name = "secret_tag"
 
 ## B — гаражи: ряд разных гаражей, проезд, фургон, покрышки и бочки у открытого бокса
 func _zone_garages() -> void:

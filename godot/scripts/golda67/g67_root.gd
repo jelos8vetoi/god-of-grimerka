@@ -151,6 +151,7 @@ func start_run(district_id := "dvor") -> void:
 		return
 	place = "run"
 	run = {"district": district_id, "pos": 0, "golda": 0, "fits": {}, "respect": 0, "rooms": 0}
+	G67Yard.secret_tag = bool((meta().get("flags", {}) as Dictionary).get("boss_misha", false))      # граффити-секрет — после победы над Мишей
 	G67Yard.crowd_seed = int(meta().get("runs", 0)) * 31 + int(meta().get("visits", 0)) + 1      # очередь у ларька — каждый забег другая
 	game.buddy.visible = false
 	game.buddy.global_position = Vector3(0, -50, 0)
@@ -431,6 +432,7 @@ func _place_krot(where: String) -> void:
 		var a := float(i) * 1.26 + 0.4
 		var pg := G67Models.spawn("g67_pigeon", world, pos + Vector3(sin(a), 0, cos(a)) * (1.2 + 0.25 * float(i % 3)), a * 2.0 + 1.0, Vector3(9, 0.3, 9))
 		pg.name = "krot_pigeon%d" % i
+		G67Pigeon.attach(pg, i)
 	events.append(["krot_here", String(k["id"])])
 
 func talk_krot() -> void:
@@ -517,7 +519,12 @@ func talk_flurr() -> void:
 	var played := int(meta().get("flurr", -1))
 	var lines: Array
 	var big := n > played
-	if big:
+	if big and played < 0 and n > 0:
+		# первый разговор, а КРОТ уже встречен: короткое знакомство, связка и сразу нынешний диалог
+		lines = (G67Flurr.STATES[0] as Array).slice(0, G67Data.FLURR_INTRO)
+		lines.append(G67Data.FLURR_BRIDGE)
+		lines.append_array(G67Flurr.STATES[n])
+	elif big:
 		lines = G67Flurr.STATES[n]
 	else:
 		var pool: Array = G67Flurr.DONE if n >= 10 else G67Flurr.WAIT
@@ -536,9 +543,11 @@ func _flurr_done(n: int, big: bool) -> void:
 	game.mode = "golda67"
 	if big:
 		meta()["flurr"] = n
+		# в «АРХИВ ПИЗДЕЦА» идут и этот диалог, и все пропущенные до него (их подряд не проигрываем)
 		var arch: Array = meta().get("archive", [])
-		if not arch.has("flurr%d" % n):
-			arch.append("flurr%d" % n)
+		for k in n + 1:
+			if not arch.has("flurr%d" % k):
+				arch.append("flurr%d" % k)
 		meta()["archive"] = arch
 		save()
 	events.append(["flurr_done", n, big])
