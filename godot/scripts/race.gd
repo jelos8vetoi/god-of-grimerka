@@ -844,9 +844,7 @@ func _show_event(r: RaceRider, k: String, v) -> void:
 				_sfx("sfx_wave", -6.0, 1.2)
 				if final and laps > 1:
 					hud.final_lap()
-					_sfx("sfx_rage", -8.0, 1.6)
-					if main != null and main.audio != null and main.audio.has_method("race_final"):
-						main.audio.race_final()
+					_sfx("sfx_rage", -8.0, 1.6)                 # музыку на последнем круге ускоряет audio._race
 		"ring":
 			fx.ring(track.rings[int(v)]["pos"] as Vector3, 2.2, Color(1.0, 0.85, 0.3), 0.3)
 			fx.sparks(p + Vector3(0, 0.6, 0), r.fwd(), 14, Color(1.0, 0.9, 0.5), 0.9, 70.0)

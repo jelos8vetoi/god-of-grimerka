@@ -237,6 +237,50 @@
       "prompt": "A small pile of stairwell rubbish: crumpled paper cups, cigarette-pack shaped boxes, sunflower seed husks, a squashed drink can, torn flyers and grey dust clumps, loosely heaped together."
     },
     {
+      "id": "ml_job_phone_open",
+      "dir": "minigames",
+      "size": [
+        0.3,
+        0.05,
+        0.16
+      ],
+      "style": "prop",
+      "prompt": "An opened smartphone lying face down with the back cover removed: a dark plastic frame with four tiny screw posts in the corners, a green circuit board, an empty rectangular battery bay, an empty round speaker socket, thin flat ribbon cable sockets, visible but simple components."
+    },
+    {
+      "id": "ml_job_part_battery",
+      "dir": "minigames",
+      "size": [
+        0.07,
+        0.01,
+        0.09
+      ],
+      "style": "prop",
+      "prompt": "A flat rectangular phone battery: silver foil pouch with a black plastic strip along one short edge, a small gold connector tab, a yellow warning stripe, slightly puffed surface, blank label without text."
+    },
+    {
+      "id": "ml_job_part_speaker",
+      "dir": "minigames",
+      "size": [
+        0.03,
+        0.01,
+        0.03
+      ],
+      "style": "prop",
+      "prompt": "A tiny round phone loudspeaker module: a black plastic ring with a fine metal mesh grille in the middle, a short flat orange cable with a gold connector on the side."
+    },
+    {
+      "id": "ml_job_part_flex",
+      "dir": "minigames",
+      "size": [
+        0.02,
+        0.005,
+        0.1
+      ],
+      "style": "prop",
+      "prompt": "A flat flexible ribbon cable for a phone screen: a thin orange strip with fine parallel copper traces, an L-shaped bend, a small black connector block with gold pins on each end."
+    },
+    {
       "id": "ml_job_parcel_box",
       "dir": "minigames",
       "size": [

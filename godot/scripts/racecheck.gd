@@ -138,7 +138,33 @@ func _run() -> void:
 		var tx = row["text"]
 		names.append(String(tx.call()) if tx is Callable else String(tx))
 	ok(mm.panel != null and names.has("SINGLE RACE") and names.has("TIME TRIAL") and names.has("ONLINE RACE") and names.back() == "НАЗАД", "меню гонок: %s" % ", ".join(names))
-	ok(String(names[0]).contains("ТОМСК: ПЫЛЬНЫЙ ЗАЕЗД") and RaceData.TRACK_ORDER.size() == 1, "трасса одна и готовая: «ТОМСК: ПЫЛЬНЫЙ ЗАЕЗД» (будущих в списке нет)")
+	RaceSave.v("track")
+	RaceSave.persist = false
+	RaceSave.data["track"] = "tomsk_dust"             # проверка едет по первой трассе, какую бы ни выбрал игрок
+	var track_ok := true
+	var track_txt: Array = []
+	for tid in RaceData.TRACK_ORDER:
+		var D: Dictionary = RaceData.track(String(tid))
+		var tr0 := RaceTrack.new()
+		add_child(tr0)
+		tr0.visible = false
+		tr0.build(String(tid))
+		var gap0 := 9999.0
+		for gk in tr0.gates.size():
+			var ga: float = tr0.from_start(float(tr0.gates[gk]["s"]))
+			var gb: float = tr0.from_start(float(tr0.gates[gk + 1]["s"])) if gk + 1 < tr0.gates.size() else tr0.L
+			gap0 = minf(gap0, gb - ga)
+		# дорога не пересекает сама себя: точки, далёкие по пути, не подходят ближе ширины дороги
+		var cross := 9999.0
+		for a in range(0, tr0.P.size(), 6):
+			for b in range(a + 60, tr0.P.size(), 6):
+				if tr0.P.size() - b + a > 60:
+					cross = minf(cross, tr0.P[a].distance_to(tr0.P[b]) - (tr0.W[a] + tr0.W[b]) * 0.5)
+		if gap0 < RaceTrack.GATE_GAP or tr0.L < 500.0 or tr0.L > 1200.0 or tr0.boxes.size() < 6 or tr0.rings.size() < 2 or tr0.ramps.is_empty() or cross < 2.0 or int(D["laps"]) != 3:
+			track_ok = false
+		track_txt.append("«%s» — круг %.0f м, точек %d, трамплинов %d, колец %d, коробок %d" % [D["name"], tr0.L, tr0.gates.size(), tr0.ramps.size(), tr0.rings.size(), tr0.boxes.size()])
+		tr0.free()
+	ok(String(names[0]).contains("ТОМСК: ПЫЛЬНЫЙ ЗАЕЗД") and RaceData.TRACK_ORDER.size() >= 2 and track_ok, "трасс %d, у каждой три круга, свои трамплины, кольца и коробки, дорога себя не пересекает: %s" % [RaceData.TRACK_ORDER.size(), "; ".join(track_txt)])
 	await shot("m01_race_menu")
 	RaceSave.persist = false                          # проверка не пишет настройки и рекорды игрока
 	RaceSave.v("weather")

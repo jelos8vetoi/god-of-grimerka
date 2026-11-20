@@ -52,6 +52,8 @@ var trick_l: Label
 var combo_l: Label
 var combo_bar: ColorRect
 var boost_l: Label
+var tip_l: Label               # совет перед стартом (облёт и отсчёт)
+static var tip_n := -1         # какой совет показать: каждый заезд — следующий
 var weather_l: Label
 var happen_l: Label
 var happen_sub: Label
@@ -216,6 +218,20 @@ func _build() -> void:
 	itex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	itex.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	item_card.add_child(itex)
+	# совет перед стартом: одна строка внизу по центру, гаснет на «ЖМИ»
+	tip_l = _text(stage, "", 22, WHITE, Vector2(200, 800))
+	tip_l.size = Vector2(STAGE.x - 400, 60)
+	tip_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tip_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tip_l.add_theme_constant_override("outline_size", 8)
+	var tips: Array = RaceData.TIPS
+	if tip_n < 0:
+		tip_n = randi() % tips.size()
+	tip_n += 1
+	var tip: String = tips[tip_n % tips.size()]
+	for a in ["race_drift", "race_jump", "race_boost"]:
+		tip = tip.replace("{%s}" % a, "[%s]" % " / ".join(RaceSave.keys_of(a)))
+	tip_l.text = tip
 	# трюки и комбо — над спидометром и по центру снизу
 	trick_l = _text(stage, "", 44, Color(1.0, 0.85, 0.25), Vector2(0, 560), serif)
 	trick_l.size = Vector2(STAGE.x, 56)
@@ -355,6 +371,7 @@ func _process(dt: float) -> void:
 		combo_l.text = "КОМБО ×%d" % me.combo if me.combo >= 2 else ""
 		combo_bar.size.x = 200.0 * clampf(me.combo_t / float(RaceData.PHYS["combo_t"]), 0.0, 1.0) if me.combo >= 2 else 0.0
 		wrong_l.visible = me.wrong_t > float(RaceData.PHYS["wrong_way"]) and not me.finished and int(Time.get_ticks_msec() / 300) % 2 == 0
+	tip_l.modulate.a = move_toward(tip_l.modulate.a, 1.0 if race.state in ["intro", "countdown"] else 0.0, dt * 3.0)
 	time_l.text = fmt(race.t)
 	if race.weather != null:
 		var Wd: Dictionary = race.weather.W

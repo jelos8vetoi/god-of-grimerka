@@ -337,6 +337,11 @@ func _race(dt: float, race) -> void:
 	_set_state("race" if race.state != "results" else "victory")
 	_bed("")
 	_mix(dt, -6.0 if race.paused else (-3.0 if race.state == "results" else 0.0))
+	# последний круг: музыка чуть быстрее и выше — напряжение до финиша (после него — обратно)
+	var hot: bool = race.local != null and race.laps > 1 and race.local.lap >= race.laps - 1 and not race.local.finished and race.go
+	for p in layers:
+		if is_instance_valid(p):
+			p.pitch_scale = move_toward(p.pitch_scale, 1.07 if hot else 1.0, dt * 0.06)
 
 ## мини-игра со своей сценой: заглавный трек уходит, набор — какой попросит сама игра ("" — тишина, у неё свой звук)
 func _minigame(dt: float, mg) -> void:

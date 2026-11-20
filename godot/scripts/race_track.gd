@@ -306,6 +306,9 @@ func _mats() -> void:
 	mats["cone"] = _mat(Color(1.0, 0.45, 0.1), 0.6)
 	mats["lamp"] = _mat(Color(1.0, 0.85, 0.6), 0.4, 3.0)
 
+static func _col(a) -> Color:
+	return Color(float(a[0]), float(a[1]), float(a[2]))
+
 func _env() -> void:
 	var env := Environment.new()
 	var sky := Sky.new()
@@ -327,12 +330,19 @@ func _env() -> void:
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.52, 0.55, 0.64)
 	env.fog_density = 0.0032
+	# у трассы может быть свой вид неба и света (data["look"]) — чтобы трассы отличались с первого взгляда
+	var look: Dictionary = data.get("look", {})
+	if look.has("sky_top"):
+		sm.sky_top_color = _col(look["sky_top"])
+		sm.sky_horizon_color = _col(look["sky_horizon"])
+		env.fog_light_color = _col(look["fog"])
+		env.fog_density = float(look.get("fog_density", 0.0032))
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 	var sun := DirectionalLight3D.new()
-	sun.light_color = Color(1.0, 0.8, 0.62)
-	sun.light_energy = 1.25
+	sun.light_color = _col(look["sun"]) if look.has("sun") else Color(1.0, 0.8, 0.62)
+	sun.light_energy = float(look.get("sun_energy", 1.25))
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 70.0
 	sun.rotation = Vector3(deg_to_rad(-38), deg_to_rad(-60), 0)

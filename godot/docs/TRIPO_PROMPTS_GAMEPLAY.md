@@ -42,12 +42,16 @@
 | 18 | `minigames/ml_phone.glb` | МИКРОЗАЙМЫ — телефон Пахана на столе (экран светится от уведомлений) | A | Text to 3D, standard | 528 |
 | 19 | `minigames/ml_cash_stack.glb` | МИКРОЗАЙМЫ — пачка денег на столе | B | Text to 3D, standard | 507 |
 | 20 | `minigames/ml_job_trash_set.glb` | МИКРОЗАЙМЫ — уборка: кучка мусора для всасывания | B | Text to 3D, standard | 512 |
-| 21 | `minigames/ml_job_parcel_box.glb` | МИКРОЗАЙМЫ — доставка: посылка в руках курьера | B | Text to 3D, standard | 504 |
-| 22 | `minigames/ml_job_car_dirty.glb` | МИКРОЗАЙМЫ — новая подработка МОЙКА МАШИН | B | Text to 3D, HD model | 604 |
-| 23 | `minigames/ml_job_shelf_rack.glb` | МИКРОЗАЙМЫ — склад: стеллаж для сортировки | B | Text to 3D, standard | 509 |
-| 24 | `minigames/npc_neighbor.glb` | МИКРОЗАЙМЫ — сосед в подъезде и заказчик в подработках | B | Text to 3D, HD model, для rigging | 544 |
-| 25 | `minigames/npc_customer.glb` | МИКРОЗАЙМЫ — заказчик (ремонт, доставка, звук) | B | Text to 3D, HD model, для rigging | 522 |
-| 26 | `minigames/fn_door_panel.glb` | 5 НОЧЕЙ — панель у проёма с двумя кнопками (дверь и свет) | B | Text to 3D, standard | 558 |
+| 21 | `minigames/ml_job_phone_open.glb` | МИКРОЗАЙМЫ — ремонт: разобранный смартфон (сейчас детали — цветные плашки) | A | Text to 3D, HD model | 605 |
+| 22 | `minigames/ml_job_part_battery.glb` | МИКРОЗАЙМЫ — ремонт: аккумулятор (деталь на замену) | A | Text to 3D, standard | 529 |
+| 23 | `minigames/ml_job_part_speaker.glb` | МИКРОЗАЙМЫ — ремонт: динамик (деталь на замену) | A | Text to 3D, standard | 490 |
+| 24 | `minigames/ml_job_part_flex.glb` | МИКРОЗАЙМЫ — ремонт: шлейф экрана (деталь на замену) | A | Text to 3D, standard | 503 |
+| 25 | `minigames/ml_job_parcel_box.glb` | МИКРОЗАЙМЫ — доставка: посылка в руках курьера | B | Text to 3D, standard | 504 |
+| 26 | `minigames/ml_job_car_dirty.glb` | МИКРОЗАЙМЫ — новая подработка МОЙКА МАШИН | B | Text to 3D, HD model | 604 |
+| 27 | `minigames/ml_job_shelf_rack.glb` | МИКРОЗАЙМЫ — склад: стеллаж для сортировки | B | Text to 3D, standard | 509 |
+| 28 | `minigames/npc_neighbor.glb` | МИКРОЗАЙМЫ — сосед в подъезде и заказчик в подработках | B | Text to 3D, HD model, для rigging | 544 |
+| 29 | `minigames/npc_customer.glb` | МИКРОЗАЙМЫ — заказчик (ремонт, доставка, звук) | B | Text to 3D, HD model, для rigging | 522 |
+| 30 | `minigames/fn_door_panel.glb` | 5 НОЧЕЙ — панель у проёма с двумя кнопками (дверь и свет) | B | Text to 3D, standard | 558 |
 
 ## ГОНКИ — предметы из коробок
 
@@ -275,6 +279,50 @@ A small stack of worn paper banknotes held together with a rubber band: slightly
 
 ```text
 A small pile of stairwell rubbish: crumpled paper cups, cigarette-pack shaped boxes, sunflower seed husks, a squashed drink can, torn flyers and grey dust clumps, loosely heaped together. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright red accents. Single object, centered, no ground, no background, game-ready.
+```
+
+### `ml_job_phone_open.glb` → `godot/assets/minigames/`
+
+- **Для чего:** МИКРОЗАЙМЫ — ремонт: разобранный смартфон (сейчас детали — цветные плашки)
+- **Приоритет:** A · **режим:** Text to 3D, HD model · **размер в игре:** 0.3 × 0.05 × 0.16 м (ширина × высота × длина)
+- **Дополнительно:** Гнёзда пустые: аккумулятор, динамик и шлейф — отдельными моделями ниже.
+- **Промпт (605 символов):**
+
+```text
+An opened smartphone lying face down with the back cover removed: a dark plastic frame with four tiny screw posts in the corners, a green circuit board, an empty rectangular battery bay, an empty round speaker socket, thin flat ribbon cable sockets, visible but simple components. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright red accents. Single object, centered, no ground, no background, game-ready.
+```
+
+### `ml_job_part_battery.glb` → `godot/assets/minigames/`
+
+- **Для чего:** МИКРОЗАЙМЫ — ремонт: аккумулятор (деталь на замену)
+- **Приоритет:** A · **режим:** Text to 3D, standard · **размер в игре:** 0.07 × 0.01 × 0.09 м (ширина × высота × длина)
+- **Дополнительно:** Плоский прямоугольник.
+- **Промпт (529 символов):**
+
+```text
+A flat rectangular phone battery: silver foil pouch with a black plastic strip along one short edge, a small gold connector tab, a yellow warning stripe, slightly puffed surface, blank label without text. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright red accents. Single object, centered, no ground, no background, game-ready.
+```
+
+### `ml_job_part_speaker.glb` → `godot/assets/minigames/`
+
+- **Для чего:** МИКРОЗАЙМЫ — ремонт: динамик (деталь на замену)
+- **Приоритет:** A · **режим:** Text to 3D, standard · **размер в игре:** 0.03 × 0.01 × 0.03 м (ширина × высота × длина)
+- **Дополнительно:** Круглая таблетка с хвостиком-шлейфом.
+- **Промпт (490 символов):**
+
+```text
+A tiny round phone loudspeaker module: a black plastic ring with a fine metal mesh grille in the middle, a short flat orange cable with a gold connector on the side. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright red accents. Single object, centered, no ground, no background, game-ready.
+```
+
+### `ml_job_part_flex.glb` → `godot/assets/minigames/`
+
+- **Для чего:** МИКРОЗАЙМЫ — ремонт: шлейф экрана (деталь на замену)
+- **Приоритет:** A · **режим:** Text to 3D, standard · **размер в игре:** 0.02 × 0.005 × 0.1 м (ширина × высота × длина)
+- **Дополнительно:** Тонкая лента с двумя разъёмами.
+- **Промпт (503 символов):**
+
+```text
+A flat flexible ribbon cable for a phone screen: a thin orange strip with fine parallel copper traces, an L-shaped bend, a small black connector block with gold pins on each end. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright red accents. Single object, centered, no ground, no background, game-ready.
 ```
 
 ### `ml_job_parcel_box.glb` → `godot/assets/minigames/`

@@ -35,6 +35,7 @@ var last_pos := Vector3.ZERO
 var ticks := 0
 var wall0 := 0
 var debug := false
+var track_id := ""              # --pt-track=<id>: на какой трассе играть (по умолчанию — первая)
 var items_only := false         # --pt-items: только снимки предметов (лист моделей, предмет над гонщиком и в HUD)
 
 func _ready() -> void:
@@ -45,6 +46,8 @@ func _ready() -> void:
 			level = a.substr(11)
 		elif a == "--pt-items":
 			items_only = true
+		elif a.begins_with("--pt-track="):
+			track_id = a.substr(11)
 		elif a == "--pt-debug":
 			debug = true
 		elif a.begins_with("--pt-races="):
@@ -116,6 +119,7 @@ func _run() -> void:
 	RaceSave.v("level")
 	RaceSave.persist = false
 	RaceSave.data["level"] = level
+	RaceSave.data["track"] = track_id if RaceData.TRACKS.has(track_id) else String(RaceData.TRACK_ORDER[0])
 	say("уровень соперников: %s · круг трассы и число кругов берутся из меню как у игрока" % level)
 	if items_only:
 		RaceSave.data["weather"] = "clear"
