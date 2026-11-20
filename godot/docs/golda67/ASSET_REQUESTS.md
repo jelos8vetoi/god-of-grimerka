@@ -23,10 +23,10 @@
 
 | Партия | Что | Моделей | Статус |
 |---|---|---|---|
-| **P0** | хаб, район ДВОР, Миша Минасян, КРОТ, dj flürr, базовые враги, двери и награды | 20 | **промпты выданы, жду модели** |
+| **P0** | хаб, район ДВОР, Миша Минасян, КРОТ, dj flürr, базовые враги, двери и награды, ведущий новостей и его стол | 22 | **промпты выданы, жду модели** |
 | P1 | боссы 2–4, враги трёх районов, животные, ПОДЗЕМКА, ЛЕНТА, БОТОФЕРМА, события первой линии | 50 | требуется (промпты — после ответа владельца по P0) |
 | P2 | WHYOUSOLONELY, ИЗНАНКА, СТУДИЯ, Mogging Challenge, Anime Room | 20 | требуется |
-| P3 | декор | 9 | требуется |
+| P3 | декор | 8 | требуется |
 
 ## Партия P0 — вертикальный срез (20 моделей)
 
@@ -335,6 +335,44 @@ A single big chunky gold game coin, thick like a hockey puck, about 30 centimetr
 A reward pickup shaped like an outfit on a hanger: a thick wire coat hanger with a big hook on top, holding a puffy short garment bag made of plain light-grey fabric with a zip down the middle, the bag bulging as if a jacket is inside, a blank round paper tag on a string at the hook, a strip of gold tape around the hanger neck. Simple, rounded, toy-like, about 0.9 metres tall. The bag surface is a single plain colour so it can be tinted. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
 ```
 
+## Дополнение к P0 от 2026-11-20 — ведущий новостей в кадре
+
+Владелец решил, что ведущий «РАЙОННОГО ВЕСТНИКА 67» нужен в кадре. Ролик NEWS01 входит в вертикальный срез,
+поэтому обе модели идут в P0.
+
+| № | id | Модель | Файл | Длина | Статус |
+|---|---|---|---|---|---|
+| 21 | G67-C23 | Ведущий «РАЙОННОГО ВЕСТНИКА 67» | `godot/assets/golda67/g67_news_anchor.glb` | 984 | промпт выдан |
+| 22 | G67-D08 | Новостной стол | `godot/assets/golda67/g67_news_desk.glb` | 934 | промпт выдан |
+
+### 21. G67-C23 — Ведущий «РАЙОННОГО ВЕСТНИКА 67»
+
+- **Назначение:** Ведущий новостей в кадре: ролики NEWS01–NEWS04 (сидит за столом, говорит максимально серьёзно).
+- **Поза / ракурс:** T-поза, вид спереди, в полный рост (в игре сидит за столом — позу сделаю клипом). Формат GLB, лицом по +Z (если выйдет по +X — довернём в коде).
+- **Риг и анимации:** Гуманоид: T-поза, без авторига. Скелет Mixamo поставлю сам (`tools/rig-horror.py`, шаблон `pahan`). Клипы: сидит за столом, перекладывает листы, поворот к экрану, драматическая пауза.
+- **Имя файла:** `g67_news_anchor.glb`
+- **Путь:** `godot/assets/golda67/g67_news_anchor.glb`
+- **Статус:** промпт выдан
+- **Промпт (984 символов):**
+
+```text
+A deadly serious local TV news anchor of a tiny district channel, a man in his fifties. Old-fashioned boxy mustard-brown suit jacket one size too big with wide lapels, pale blue shirt, a wide dark red tie with a big knot, a small round gold pin on the lapel. Below the jacket, hidden by the desk on air, grey track pants with white side stripes and felt house slippers. Neat grey side-parted hair stiff with hairspray, thick grey moustache, heavy square glasses, stern frowning eyebrows, tired bags under the eyes, straight proud posture. The dark red tie is the single bright accent. Stylized low-poly 3D game character, chibi proportions (big head, short limbs), bold readable silhouette, hand-painted textures, muted post-soviet colours with one bright accent. Full body, strict T-pose, arms straight out to the sides, legs apart, fingers simplified, clothes not fused to arms or between legs, clean topology at joints, no rig. Single character, centered, no ground, no background.
+```
+
+### 22. G67-D08 — Новостной стол
+
+- **Назначение:** Стол ведущего в роликах NEWS01–NEWS04 (логотип «РАЙОННЫЙ ВЕСТНИК 67» накладывается в игре на переднюю панель).
+- **Поза / ракурс:** Стоит на полу, вид спереди; точка опоры — центр основания. Формат GLB, лицом по +Z (если выйдет по +X — довернём в коде).
+- **Риг и анимации:** Риг не нужен (статичный объект).
+- **Имя файла:** `g67_news_desk.glb`
+- **Путь:** `godot/assets/golda67/g67_news_desk.glb`
+- **Статус:** промпт выдан
+- **Промпт (934 символов):**
+
+```text
+A cheap homemade TV news desk of a tiny district channel. A curved front desk about 2.2 metres wide and 1 metre tall built from laminated chipboard, the front covered with a glossy dark blue panel with a wide blank lighter rectangle in the middle for a logo and a golden-yellow trim strip along the top edge, chipped corners showing raw chipboard, the back side open with a shelf holding a tangle of cables and an extension cord. On the desktop: a stack of blank paper sheets, a glass of tea in a metal holder, an old desk microphone on a short stand. Front clearly different from the open back. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
 ## Партии P1–P3 — статус «требуется»
 
 Промпты для этих моделей будут выданы следующими партиями, после ответа владельца по P0. Список — в
@@ -351,11 +389,12 @@ A reward pickup shaped like an outfit on a hanger: a thick wire coat hanger with
 | P1 | G67-S01 … G67-S10 (события) | требуется |
 | P2 | G67-C18, C19, C21, C22 | требуется |
 | P2 | G67-S11, S12; G67-B01 … G67-B14 | требуется |
-| P3 | G67-D01 … G67-D10 | требуется |
+| P3 | G67-D01 … G67-D10, кроме D08 (перенесён в P0) | требуется |
 
 ## Журнал
 
 | Дата | Что |
 |---|---|
 | 2026-11-20 | Выдана партия P0 (20 промптов). Ни одна модель не получена. |
+| 2026-11-20 | Ведущий новостей нужен в кадре: в P0 добавлены G67-C23 и G67-D08 (всего в P0 22 промпта). |
 | 2026-11-20 | Решение владельца: уникальных моделей врагов — восемь; сняты с заказа G67-C11, C15, C16, C17, C20. |
