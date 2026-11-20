@@ -412,6 +412,7 @@ func talk_krot() -> void:
 		var to: Vector3 = kr.global_position - p.global_position
 		p.face = atan2(to.x, to.z)
 	game.start_dialog(k["lines"], func(): _krot_done(String(k["id"])))
+	_talk_camera(kr)
 
 func _krot_done(id: String) -> void:
 	game.mode = "golda67"
@@ -436,6 +437,75 @@ func _krot_done(id: String) -> void:
 	world.actors.erase("g67_krot")
 	near = ""
 	game.toast("КРОТ: %d из 10" % seen.filter(func(x): return String(x).begins_with("krot")).size())
+
+## Камера разговора: двое в профиль. Сторону выбираем ту, где больше места (у стены камера упёрлась бы в затылок).
+func _talk_camera(partner) -> void:
+	if partner == null or not is_instance_valid(partner):
+		return
+	game.dlg_partner = partner
+	var p = game.player
+	var mid: Vector3 = (p.global_position + (partner as Node3D).global_position) * 0.5 + Vector3(0, 1.15, 0)
+	var space: PhysicsDirectSpaceState3D = p.get_world_3d().direct_space_state
+	var best := -1.0
+	var best_d := -1.0
+	for sd in [-1.0, 1.0]:
+		var yaw: float = p.face + sd * 1.35
+		var to: Vector3 = mid + Vector3(sin(yaw), 0.1, cos(yaw)) * 4.6
+		var q := PhysicsRayQueryParameters3D.create(mid, to)
+		q.exclude = [p.get_rid()]
+		var hit: Dictionary = space.intersect_ray(q)
+		var d: float = 4.6 if hit.is_empty() else ((hit["position"] as Vector3) - mid).length()
+		if d > best_d:
+			best_d = d
+			best = sd
+	game.dlg_side = best
+
+# ---------------------------------------------------------------- dj flürr
+## Диалоги dj flürr — авторский текст владельца (docs/golda67/DJ_FLURR_SPEC.md → G67Flurr, собирает
+## tools/golda67-flurr.cjs). Состояние — сколько встреч КРОТА игрок действительно завершил (0…10), а не число заходов
+## в подъезд. Большой диалог состояния звучит один раз; до следующей встречи — короткие фразы по кругу.
+var flurr_last := -1           # какая короткая фраза была последней (без повтора подряд)
+
+func krot_done() -> int:
+	var n := 0
+	for x in (meta().get("seen", []) as Array):
+		if String(x).begins_with("krot"):
+			n += 1
+	return clampi(n, 0, 10)
+
+func flurr_state() -> int:
+	return krot_done()
+
+func talk_flurr() -> void:
+	var n := flurr_state()
+	var played := int(meta().get("flurr", -1))
+	var lines: Array
+	var big := n > played
+	if big:
+		lines = G67Flurr.STATES[n]
+	else:
+		var pool: Array = G67Flurr.DONE if n >= 10 else G67Flurr.WAIT
+		flurr_last = (flurr_last + 1) % pool.size()
+		lines = [pool[flurr_last]]
+	events.append(["flurr", n, big])
+	var p = game.player
+	var fr = world.actors.get("g67_dj_flurr")
+	if fr != null and is_instance_valid(fr):
+		var to: Vector3 = fr.global_position - p.global_position
+		p.face = atan2(to.x, to.z)
+	game.start_dialog(lines, func(): _flurr_done(n, big))
+	_talk_camera(fr)
+
+func _flurr_done(n: int, big: bool) -> void:
+	game.mode = "golda67"
+	if big:
+		meta()["flurr"] = n
+		var arch: Array = meta().get("archive", [])
+		if not arch.has("flurr%d" % n):
+			arch.append("flurr%d" % n)
+		meta()["archive"] = arch
+		save()
+	events.append(["flurr_done", n, big])
 
 # ---------------------------------------------------------------- фитсы
 func fit_lv(id: String) -> int:
@@ -620,7 +690,7 @@ func _physics_process(dt: float) -> void:
 		if near != "":
 			events.append(["near", near])
 	if prompt != null:
-		prompt.visible = near != "" and game.panel == null
+		prompt.visible = near != "" and game.panel == null and game.mode != "dlg"
 		if near != "":
 			var pt2 := point(near)
 			prompt.text = "[E]  %s\n%s" % [String(pt2["title"]), String(pt2["hint"])]
@@ -644,6 +714,8 @@ func use(id: String) -> void:
 		rest()
 	elif id == "krot":
 		talk_krot()
+	elif id == "flurr":
+		talk_flurr()
 	elif id.begins_with("gate"):
 		choose_gate(int(id.substr(4)))
 	else:

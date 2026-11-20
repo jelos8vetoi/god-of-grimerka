@@ -242,6 +242,8 @@ func _run() -> void:
 	await wait(0.4)
 	ok(save_same(), "сохранение кампании не изменилось")
 	ok(not FileAccess.file_exists("user://golda67_save.json") or kept["user://golda67_save.json"] == FileAccess.get_file_as_string("user://golda67_save.json"), "проверка не пишет сохранение приквела игрока")
+	# ================= dj flürr: одиннадцать состояний =================
+	await _flurr_check(g, G, P)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
 	# ================= выход =================
@@ -253,6 +255,125 @@ func _run() -> void:
 		ok(main.menu.modes.visible and main.menu.modes.sel == 1, "после выхода открыт выбор режима на карточке «ГОЛДА 67»")
 		await shot("11_back")
 	_finish()
+
+## реплики из авторского документа — тем же правилом, что сборщик данных: посимвольная сверка с данными игры
+func _flurr_from_doc() -> Dictionary:
+	var txt := FileAccess.get_file_as_string("res://docs/golda67/DJ_FLURR_SPEC.md").replace("\r", "")
+	var states: Array = []
+	var wait_l: Array = []
+	var done_l: Array = []
+	var who := ""
+	var part := 0          # 0 — до диалогов и в них, 1 — короткие «пока не найдена», 2 — «после всех»
+	for raw in txt.split("\n"):
+		var t := String(raw).strip_edges()
+		if t.begins_with("13. "):
+			part = 1
+			continue
+		if t.begins_with("14. "):
+			break
+		if part == 0:
+			var dot := t.find(". ")
+			if dot > 0 and t.substr(0, dot).is_valid_int() and int(t.substr(0, dot)) >= 2 and int(t.substr(0, dot)) <= 12 and (t.contains("ЗНАКОМСТВО") or t.contains("ВСТРЕЧА КРОТА")):
+				states.append([])
+				who = ""
+			elif t.begins_with("DJ FL") and t.ends_with("RR:"):
+				who = "DJ"
+			elif t == "Пахан:":
+				who = "V"
+			elif who != "" and t.begins_with("«") and not states.is_empty():
+				(states[-1] as Array).append(who + "|" + _unq(t))
+				who = ""
+		else:
+			if t.begins_with("* "):
+				t = t.substr(2).strip_edges()
+			if t.begins_with("После обнаружения всех"):
+				part = 2
+			elif t.begins_with("«"):
+				(done_l if part == 2 else wait_l).append("DJ|" + _unq(t))
+	return {"states": states, "wait": wait_l, "done": done_l}
+
+func _unq(t: String) -> String:
+	var k := t.rfind("»")
+	return t.substr(1) if k < 0 else t.substr(1, k - 1) + t.substr(k + 1)
+
+func _flurr_check(g, G: Golda67, P) -> void:
+	var doc := _flurr_from_doc()
+	ok((doc["states"] as Array).size() == 11 and G67Flurr.STATES.size() == 11, "у dj flürr одиннадцать состояний")
+	var same := true
+	var total := 0
+	for i in 11:
+		total += (G67Flurr.STATES[i] as Array).size()
+		if G67Flurr.STATES[i] != doc["states"][i]:
+			same = false
+			print("GOLDA67CHECK   состояние %d расходится с документом" % i)
+	ok(same and G67Flurr.WAIT == doc["wait"] and G67Flurr.DONE == doc["done"], "все реплики в игре совпадают с авторским документом посимвольно (%d + %d коротких)" % [total, G67Flurr.WAIT.size() + G67Flurr.DONE.size()])
+	ok(G67Flurr.WAIT.size() == 7 and G67Flurr.DONE.size() == 4, "коротких фраз: 7 «пока не найдена» и 4 «после всех»")
+	var seen0: Array = (G.meta().get("seen", []) as Array).duplicate()
+	var fl0 = G.meta().get("flurr", -1)
+	var pt: Dictionary = G.point("flurr")
+	var all_ok := true
+	for n in 11:
+		var seen: Array = []
+		for k in n:
+			seen.append("krot%d" % (k + 1))
+		G.meta()["seen"] = seen
+		ok(G.flurr_state() == n, "состояние %d = завершено встреч КРОТА: %d" % [n, n]) if n in [0, 3, 10] else null
+		P.global_position = Vector3(pt["pos"].x, pt["pos"].y + 0.05, pt["pos"].z)
+		P.velocity = Vector3.ZERO
+		await wait(0.25)
+		if n == 0:
+			await key(KEY_E)           # первый раз — настоящей клавишей у лавки
+		else:
+			G.talk_flurr()
+		await wait(0.2)
+		if g.mode != "dlg" or g.dlg != G67Flurr.STATES[n]:
+			all_ok = false
+			print("GOLDA67CHECK   состояние %d: звучит не тот диалог" % n)
+		if n == 0:
+			ok(String(g.dlg_name.text) == "DJ FLÜRR", "имя в окне диалога: «%s»" % g.dlg_name.text)
+			await wait(0.5)
+			await shot("12_flurr_dialog")
+		for i in 60:
+			if g.mode != "dlg":
+				break
+			g._dlg_advance()
+			await wait(0.05)
+		if int(G.meta().get("flurr", -1)) != n or g.mode != "golda67":
+			all_ok = false
+			print("GOLDA67CHECK   состояние %d не запомнено" % n)
+		# повторный разговор до следующей встречи — короткая фраза, без повтора подряд
+		var prev := ""
+		for r in 3:
+			G.talk_flurr()
+			await wait(0.1)
+			var pool: Array = G67Flurr.DONE if n >= 10 else G67Flurr.WAIT
+			if g.dlg.size() != 1 or not pool.has(g.dlg[0]) or String(g.dlg[0]) == prev:
+				all_ok = false
+				print("GOLDA67CHECK   состояние %d: повторная реплика неверна (%s)" % [n, str(g.dlg)])
+			prev = String(g.dlg[0])
+			for i in 6:
+				if g.mode != "dlg":
+					break
+				g._dlg_advance()
+				await wait(0.05)
+	ok(all_ok, "все 11 диалогов звучат по состоянию, запоминаются; повторно — короткие фразы без повтора подряд")
+	# подсказка не ведёт к уже завершённой встрече, а после загрузки состояние то же
+	G.meta()["seen"] = ["krot1", "krot2"]
+	G.meta()["flurr"] = 1
+	var saved = JSON.parse_string(JSON.stringify(G.data))
+	ok(int(saved["meta"]["flurr"]) == 1 and (saved["meta"]["seen"] as Array).size() == 2, "прогресс диалогов переживает сохранение и загрузку")
+	G.talk_flurr()
+	await wait(0.1)
+	ok(g.dlg == G67Flurr.STATES[2] and String(g.dlg[-1]).contains("голубю справа"), "после двух встреч звучит диалог про люстру с подсказкой на третью (ДВОР, голуби)")
+	for i in 60:
+		if g.mode != "dlg":
+			break
+		g._dlg_advance()
+		await wait(0.05)
+	G.meta()["seen"] = seen0
+	G.meta()["flurr"] = fl0
+	G.flurr_last = -1
+	P.global_position = G.world.spawn_pos
 
 ## убить всех живых врагов (бой проверяют проверки боя; здесь — цикл комнат)
 func _kill_all(g) -> void:

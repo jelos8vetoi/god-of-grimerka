@@ -131,6 +131,8 @@ var dmg_log = null           # --damagecheck: [атака, цель, урон, �
 var lock: LockOn            # захват цели (lockon.gd)
 var training: Training = null     # тренировочная арена (training.gd); null — обычная игра
 var golda = null                  # «ГОЛДА 67» (golda67/g67_root.gd, Golda67); null — не приквел
+var dlg_partner = null            # с кем говорит герой (Node3D): камера диалога берёт в кадр его, а не напарника
+var dlg_side := -1.0              # с какой стороны от пары встаёт камера (−1 / +1): выбирает тот, кто начал разговор
 var show_dmg := true          # цифры урона над врагами (в арене — переключатель панели)
 var read: PlayerRead         # что враги знают о поведении игрока (player_read.gd)
 var squad_t := 0.0
@@ -902,6 +904,11 @@ func _process(dt: float) -> void:
 		yaw = dlg_face - 0.5   # камера перед героями, чуть сбоку: видно оба лица
 		pitch = -0.08
 		want_len = 4.0
+		if dlg_partner != null and is_instance_valid(dlg_partner):
+			# разговор с жителем: двое в профиль, камера сбоку
+			target = (player.vis_pos() + (dlg_partner as Node3D).global_position) * 0.5 + Vector3(0, 1.15, 0)
+			yaw = dlg_face + dlg_side * 1.35
+			want_len = 4.3
 	elif heat_t > 0.0:
 		want_len = 2.9
 	if hype != null and hype.active() and not (mode == "dlg" and not director):
@@ -1204,6 +1211,7 @@ func _dlg_finish() -> void:
 	voice.stop()
 	dlg_box.visible = false
 	mode = "idle"
+	dlg_partner = null
 	dlg_after.call()
 
 func _update_dialog(dt: float) -> void:
