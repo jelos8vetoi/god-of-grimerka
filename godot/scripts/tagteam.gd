@@ -456,9 +456,9 @@ func _boss_window(e) -> void:
 	e.weak_t += 0.6
 	e.stun_t += 0.6
 	game.popup(e.global_position + Vector3(0, e.height + 1.3, 0), "TEAM BREAK", Color(1.0, 0.55, 0.3))
-	get_tree().create_timer(2.5).timeout.connect(func():
-		if is_instance_valid(e):
-			e.remove_meta("team_ext"))
+	var reset: Tween = e.create_tween()
+	reset.tween_interval(2.5)
+	reset.tween_callback(e.remove_meta.bind("team_ext"))
 
 # ---------------- помощь напарника ----------------
 func assist_block() -> String:
