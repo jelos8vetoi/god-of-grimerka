@@ -371,11 +371,12 @@ func _progress(r: RaceRider, dt: float) -> void:
 		r.wrong_t += dt
 	else:
 		r.wrong_t = maxf(0.0, r.wrong_t - dt * 2.0)
-	# упал в канаву или застрял
-	if r.global_position.y < -0.6 and not r.has_meta("fell"):
+	# упал в канаву, с крыши или застрял: высота считается от дороги под гонщиком (на крышах дорога высоко)
+	var ry: float = track.road_y(r.proj)
+	if r.global_position.y < ry - 0.6 and not r.has_meta("fell") and (ry < 0.5 or track.in_gap(int(r.proj["i"])) or r.global_position.y < ry - 2.0):
 		r.set_meta("fell", true)
 		r.ev("fall", 0)
-	if r.global_position.y < RaceTrack.KILL_Y:
+	if r.global_position.y < ry + RaceTrack.KILL_Y:
 		r.remove_meta("fell")
 		respawn(r)
 	elif go and absf(r.speed) < 1.0 and r.spin_t <= 0.0 and not r.finished:
@@ -615,7 +616,7 @@ func _missiles_tick(dt: float) -> void:
 		var i := track.at_s(float(m["s"]))
 		var right: Vector3 = track.T[i].cross(Vector3.UP)
 		var p: Vector3 = track.P[i] + right * float(m["lat"])
-		p.y = float(m["y"])
+		p.y = track.P[i].y + 0.9                      # над дорогой — и на подъёме, и на крыше
 		var n: Node3D = m["node"]
 		if is_instance_valid(n):
 			n.global_position = p

@@ -69,6 +69,10 @@ func setup(r, weather: String, happenings: bool, seed_v: int) -> void:
 		weather = String(ids[rng.randi() % ids.size()])
 	id = weather
 	W = WEATHERS[id]
+	if id == "dust" and race.track != null and race.track.winter():
+		W = (W as Dictionary).duplicate()            # на зимней трассе пыли нет — это метель (езда та же)
+		W["name"] = "МЕТЕЛЬ"
+		W["desc"] = "по трассе гуляют снежные заряды — в них медленнее и ничего не видно"
 	happen_on = happenings
 	next_t = rng.randf_range(16.0, 24.0)
 	for k in W["mods"]:
@@ -86,14 +90,14 @@ func _look() -> void:
 			sun = c
 	if env != null:
 		env.fog_density = float(W.get("fog", 0.0032))
-		if W.has("sky"):
+		if W.has("sky") and not (tr.winter() and not bool(W.get("night", false))):      # у зимней трассы небо своё
 			var sm := env.sky.sky_material as ProceduralSkyMaterial
 			sm.sky_top_color = W["sky"][0]
 			sm.sky_horizon_color = W["sky"][1]
 			sm.ground_horizon_color = (W["sky"][1] as Color).darkened(0.2)
 			env.fog_light_color = (W["sky"][1] as Color).darkened(0.1)
 		if bool(W.get("night", false)):
-			env.ambient_light_energy = 0.25
+			env.ambient_light_energy = 0.55 if tr.winter() else 0.25      # на снегу ночью светлее, и дорогу должно быть видно
 			env.glow_intensity = 1.0
 	if sun != null and W.has("light"):
 		sun.light_energy = float(W["light"])
@@ -134,6 +138,8 @@ func _precip(kind: String) -> GPUParticles3D:
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y if kind == "rain" else BaseMaterial3D.BILLBOARD_ENABLED
 	m.albedo_color = {"rain": Color(0.75, 0.82, 0.95, 0.45), "ice": Color(1, 1, 1, 0.9), "dust": Color(0.6, 0.5, 0.36, 0.55), "wind": Color(0.85, 0.55, 0.2, 0.9)}[kind]
+	if race.track != null and race.track.winter() and kind in ["dust", "wind"]:
+		m.albedo_color = Color(0.92, 0.95, 1.0, 0.6)
 	q.material = m
 	p.draw_pass_1 = q
 	add_child(p)

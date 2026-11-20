@@ -133,6 +133,13 @@ func setup(r, who: String, k: int, how: String, shadows := true) -> void:
 	engine.volume_db = -14.0 if how == "local" else -20.0
 	smooth.add_child(engine)
 
+## под гонщиком настоящий трамплин? На ровных трассах уклон бывает только у трамплина — там ответ всегда «да»;
+## на трассах с подъёмами (крыши) спрашиваем трассу: перегиб дороги трамплином не считается.
+func _ramp_here() -> bool:
+	if race == null or race.track == null or not race.track.has_height or not proj.has("s"):
+		return true
+	return race.track.ramp_near(float(proj["s"]))
+
 func place(xf: Transform3D) -> void:
 	global_transform = Transform3D(Basis.IDENTITY, xf.origin)
 	heading = atan2(xf.basis.z.x, xf.basis.z.z)
@@ -367,7 +374,7 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 	move_and_slide()
 	var floor_now := is_on_floor()
 	# слетел с трамплина: толчок вверх — прыжок выше и веселее
-	if was_floor and not floor_now and floor_n.y < 0.995 and vy_before > 0.5:
+	if was_floor and not floor_now and floor_n.y < 0.995 and vy_before > 0.5 and _ramp_here():
 		velocity.y += 3.2
 		ramp_air = true
 		ev("ramp", 0)

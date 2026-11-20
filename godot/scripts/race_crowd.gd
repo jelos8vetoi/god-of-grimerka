@@ -35,6 +35,8 @@ func setup(rc) -> void:
 		spots.append([float(r["s1"]) + 12.0, -1.0])
 	for k in mini(COUNT, spots.size()):
 		var i := tr.at_s(float(spots[k][0]))
+		if tr.P[i].y > 0.5:
+			continue                                   # на крышах и лесах зрителям стоять негде — обочины там нет
 		var right: Vector3 = tr.T[i].cross(Vector3.UP)
 		var side: float = spots[k][1]
 		var p: Vector3 = tr.P[i] + right * side * (tr.W[i] * 0.5 + RaceTrack.SHOULDER + 1.9 + rng.randf() * 0.8)
@@ -42,11 +44,11 @@ func setup(rc) -> void:
 		var rig := Rig.new()
 		add_child(rig)
 		rig.setup("res://assets/models/%s.glb" % id, rng.randf_range(1.35, 1.7), RaceVisual.clips(), false, 1.0, "race_" + id)
-		rig.position = Vector3(p.x, 0.0, p.z)
+		rig.position = Vector3(p.x, tr.P[i].y, p.z)
 		var yaw := atan2(-right.x * side, -right.z * side)          # лицом к дороге
 		rig.rotation.y = yaw
 		rig.play("Idle", 0.0)
-		people.append({"rig": rig, "home": yaw, "t": rng.randf() * 3.0, "cheer": 0.0, "phase": rng.randf() * TAU, "pos": rig.position})
+		people.append({"rig": rig, "home": yaw, "t": rng.randf() * 3.0, "cheer": 0.0, "phase": rng.randf() * TAU, "pos": rig.position, "y": rig.position.y})
 
 func cheer_all() -> void:
 	party = true
@@ -65,7 +67,7 @@ func _process(dt: float) -> void:
 		rig.process_mode = Node.PROCESS_MODE_INHERIT if live else Node.PROCESS_MODE_DISABLED
 		if live:
 			p["phase"] = float(p["phase"]) + dt * (9.0 if float(p["cheer"]) > 0.0 else 2.2)
-			rig.position.y = absf(sin(float(p["phase"]))) * (0.22 if float(p["cheer"]) > 0.0 else 0.02)
+			rig.position.y = float(p["y"]) + absf(sin(float(p["phase"]))) * (0.22 if float(p["cheer"]) > 0.0 else 0.02)
 			p["cheer"] = maxf(0.0, float(p["cheer"]) - dt)
 	if acc < THINK / float(people.size()):
 		return
