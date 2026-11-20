@@ -294,6 +294,7 @@ func _open_gates() -> void:
 	var next := int(run["pos"]) + 1
 	if next >= route.size():
 		return
+	world.open_bounds()            # ограждения боя убраны: дальше — по двору, к воротам следующей зоны
 	world.add_gates(route[next])
 	room_state = "open"
 	events.append(["gates", (route[next] as Array).size()])
@@ -391,13 +392,15 @@ func _place_krot(where: String) -> void:
 	world._static_box(pos + Vector3(0, 0.9, 0), Vector3(0.7, 1.8, 0.7))
 	world._point("krot", "КРОТ", "поговорить", pos + Vector3(sin(float(k["yaw"])), 0, cos(float(k["yaw"]))) * 1.1)
 	if String(k.get("carry", "")) != "":
-		var hand := BoneAttachment3D.new()
-		hand.bone_name = "mixamorig_RightHand"
-		r.skel.add_child(hand)
-		G67Models.spawn(String(k["carry"]), hand, Vector3.ZERO, 0.0, Vector3(9, 0.8 / maxf(r.skel.global_transform.basis.get_scale().y, 0.001), 9))
+		# держит вещь перед собой (люстру): руки вперёд, вещь — у груди
+		G67Models.hold(r)
+		var fw := Vector3(sin(float(k["yaw"])), 0, cos(float(k["yaw"])))
+		var item := G67Models.spawn(String(k["carry"]), world, pos + fw * 0.5 + Vector3(0, 0.42, 0), float(k["yaw"]), Vector3(9, 0.62, 9))
+		item.name = "krot_item"
 	for i in int(k.get("pigeons", 0)):
 		var a := float(i) * 1.26 + 0.4
-		G67Models.spawn("g67_pigeon", world, pos + Vector3(sin(a), 0, cos(a)) * (1.2 + 0.25 * float(i % 3)), a * 2.0, Vector3(9, 0.28, 9))
+		var pg := G67Models.spawn("g67_pigeon", world, pos + Vector3(sin(a), 0, cos(a)) * (1.2 + 0.25 * float(i % 3)), a * 2.0 + 1.0, Vector3(9, 0.3, 9))
+		pg.name = "krot_pigeon%d" % i
 	events.append(["krot_here", String(k["id"])])
 
 func talk_krot() -> void:
@@ -435,6 +438,9 @@ func _krot_done(id: String) -> void:
 		game.fx.dust(kr.global_position + Vector3(0, 0.2, 0), 10, game.fx.DUST, 1.0)
 		kr.queue_free()
 	world.actors.erase("g67_krot")
+	var it := world.get_node_or_null("krot_item")      # вещь он уносит с собой; голуби остаются
+	if it != null:
+		it.queue_free()
 	near = ""
 	game.toast("КРОТ: %d из 10" % seen.filter(func(x): return String(x).begins_with("krot")).size())
 

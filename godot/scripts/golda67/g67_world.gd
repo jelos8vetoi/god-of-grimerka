@@ -397,41 +397,48 @@ func build_room(r: Dictionary) -> void:
 	var zc: Vector3 = G67Yard.zone(String(r.get("place", "podezd")))["c"]
 	yard.position = -zc
 	missing.append_array(yard.missing)
-	_zone_bounds(String(r.get("place", "")) != "sport")
+	var type := String(r.get("type", "battle"))
+	if type == "battle" or type == "elite" or type == "boss":
+		_zone_bounds(type != "boss")
 	_particles(T)
 
-## Граница зоны боя: невидимые стенки и турнирная разметка — золотой пунктир на снегу (турнир размечает площадки
-## прямо во дворе). В коробке границу держат борта — разметка не нужна.
-func _zone_bounds(mark: bool) -> void:
+## Граница зоны боя. Невидимых стен во дворе нет: на время боя турнир огораживает площадку переносными
+## ограждениями (их видно, в них упираешься как в забор), после победы ограждения убирают — и двор свободен.
+## В коробке Миши площадку держат её борта.
+var bounds: Node3D
+
+func _zone_bounds(barriers: bool) -> void:
+	bounds = Node3D.new()
+	add_child(bounds)
 	var h := G67Yard.HALF
 	for s in [[Vector3(0, 2, -h - 0.5), Vector3(2 * h + 2, 4, 1)], [Vector3(0, 2, h + 0.5), Vector3(2 * h + 2, 4, 1)], [Vector3(-h - 0.5, 2, 0), Vector3(1, 4, 2 * h + 2)], [Vector3(h + 0.5, 2, 0), Vector3(1, 4, 2 * h + 2)]]:
-		_static_box(s[0], s[1])
-	if not mark:
+		var sb := StaticBody3D.new()
+		sb.collision_layer = 1 | 8
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = s[1]
+		cs.shape = bs
+		sb.add_child(cs)
+		sb.position = s[0]
+		bounds.add_child(sb)
+	if not barriers:
 		return
-	var gold := StandardMaterial3D.new()
-	gold.albedo_color = Color(0.95, 0.72, 0.2)
-	gold.emission_enabled = true
-	gold.emission = Color(0.95, 0.7, 0.2)
-	gold.emission_energy_multiplier = 0.9
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	var bm := BoxMesh.new()
-	bm.size = Vector3(1.0, 0.03, 0.14)
-	bm.material = gold
-	mm.mesh = bm
-	var n := int(2 * h / 2.0)
-	mm.instance_count = n * 4
-	var k := 0
+	# ограждения: секции забора в турнирном золоте, встык по периметру
+	var n := 8
+	var step := 2.0 * h / float(n)
+	var gold := Color(1.0, 0.82, 0.35)
 	for i in n:
-		var t := -h + 1.0 + float(i) * 2.0
-		mm.set_instance_transform(k, Transform3D(Basis(), Vector3(t, 0.05, -h)))
-		mm.set_instance_transform(k + 1, Transform3D(Basis(), Vector3(t, 0.05, h)))
-		mm.set_instance_transform(k + 2, Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(-h, 0.05, t)))
-		mm.set_instance_transform(k + 3, Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(h, 0.05, t)))
-		k += 4
-	var mi := MultiMeshInstance3D.new()
-	mi.multimesh = mm
-	add_child(mi)
+		var t := -h + (float(i) + 0.5) * step
+		for q in [[Vector3(t, 0, -h), PI * 0.5], [Vector3(t, 0, h), PI * 0.5], [Vector3(-h, 0, t), 0.0], [Vector3(h, 0, t), 0.0]]:
+			var f := G67Models.spawn("res://assets/racing/fence_section.glb", bounds, q[0], q[1], Vector3(99, 1.25, step / 1.15))
+			if String(f.get_meta("from", "")) == "glb" and yard != null:
+				yard._tint(f, gold)
+
+## Бой окончен: ограждения убраны, по двору можно ходить
+func open_bounds() -> void:
+	if bounds != null and is_instance_valid(bounds):
+		bounds.queue_free()
+	bounds = null
 
 ## можно ли поставить врага в эту точку (не внутри машины, гаража или дерева)
 func blocked(p: Vector3) -> bool:
@@ -444,13 +451,14 @@ func blocked(p: Vector3) -> bool:
 	return false
 
 ## Ворота выбора следующей комнаты (SPEC, раздел 9: после комнаты — 2–3 двери). options — [{type, place}].
+## Ворота стоят не в ряд у стены, а у входа в ту часть двора, куда ведут: до них нужно дойти по двору.
 ## Над каждыми — тип комнаты и награда; подойти и нажать [E].
 func add_gates(options: Array) -> void:
-	var n := options.size()
-	for i in n:
+	for i in options.size():
 		var o: Dictionary = options[i]
-		var x := (float(i) - float(n - 1) * 0.5) * 6.4
-		var pos := Vector3(x, 0, -12.6)
+		var zc: Vector3 = G67Yard.zone(String(o.get("place", "podezd")))["c"]
+		var pos: Vector3 = zc + Vector3(0, 0, G67Yard.HALF + 1.2) + (yard.position if yard != null else Vector3.ZERO)
+		pos.y = 0.0
 		var g := G67Models.spawn("g67_room_gate", self, pos, 0.0, Vector3(3.0, 3.2, 1.2))
 		if String(g.get_meta("from", "")) != "glb":
 			missing.append("g67_room_gate")
@@ -459,16 +467,32 @@ func add_gates(options: Array) -> void:
 		var lbl := Label3D.new()
 		lbl.text = "%s\n%s" % [String(G67Data.ROOM_NAMES[type]), String(G67Data.ROOM_HINT[type])]
 		lbl.font_size = 56
-		lbl.pixel_size = 0.006
+		lbl.pixel_size = 0.008
 		lbl.outline_size = 14
 		lbl.modulate = G67Data.ROOM_COLOR[type]
 		lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		lbl.no_depth_test = true
-		lbl.position = pos + Vector3(0, 4.0, 0.4)
+		lbl.position = pos + Vector3(0, 4.2, 0.4)
 		add_child(lbl)
-		_light(pos + Vector3(0, 2.6, 1.6), G67Data.ROOM_COLOR[type], 2.2, 6.0)
+		# столб света над воротами: их видно через весь двор
+		var beam := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.25
+		cm.bottom_radius = 0.6
+		cm.height = 16.0
+		beam.mesh = cm
+		var bmat := StandardMaterial3D.new()
+		var bc: Color = G67Data.ROOM_COLOR[type]
+		bmat.albedo_color = Color(bc.r, bc.g, bc.b, 0.16)
+		bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		beam.material_override = bmat
+		beam.position = pos + Vector3(0, 11.0, 0)
+		add_child(beam)
+		_light(pos + Vector3(0, 2.6, 1.6), G67Data.ROOM_COLOR[type], 2.4, 7.0)
 		gates.append({"root": g, "label": lbl, "option": o})
-		_point("gate%d" % i, String(G67Data.ROOM_NAMES[type]), String(G67Data.ROOM_HINT[type]), pos + Vector3(0, 0, 1.6))
+		_point("gate%d" % i, String(G67Data.ROOM_NAMES[type]), String(G67Data.ROOM_HINT[type]), pos + Vector3(0, 0, 1.7))
 
 ## Место отдыха в комнате ПЕРЕДЫШКА: беседка за гаражами
 func add_rest() -> void:

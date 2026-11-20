@@ -419,18 +419,18 @@ A cheap homemade TV news desk of a tiny district channel. A curved front desk ab
 
 | № | id | Модель | Файл | Длина | Статус |
 |---|---|---|---|---|---|
-| 1 | G67-Y01 | Борт хоккейной коробки | `godot/assets/golda67/g67_court_board.glb` | 845 | промпт выдан |
-| 2 | G67-Y02 | Калитка коробки | `godot/assets/golda67/g67_court_gate.glb` | 808 | промпт выдан |
-| 3 | G67-Y03 | Машина Миши Минасяна | `godot/assets/golda67/g67_misha_car.glb` | 902 | промпт выдан |
-| 4 | G67-Y04 | Трон Миши | `godot/assets/golda67/g67_misha_throne.glb` | 797 | промпт выдан |
-| 5 | G67-Y05 | Мачта с прожекторами | `godot/assets/golda67/g67_floodlight_mast.glb` | 756 | промпт выдан |
-| 6 | G67-Y06 | Сугроб | `godot/assets/golda67/g67_snowdrift.glb` | 774 | промпт выдан |
-| 7 | G67-Y07 | Ковровыбивалка с ковром | `godot/assets/golda67/g67_carpet_rack.glb` | 756 | промпт выдан |
-| 8 | G67-Y08 | Сушилка с бельём | `godot/assets/golda67/g67_laundry_lines.glb` | 743 | промпт выдан |
-| 9 | G67-Y09 | Бетонная урна | `godot/assets/golda67/g67_urn.glb` | 692 | промпт выдан |
-| 10 | G67-Y10 | Кирпичная пятиэтажка | `godot/assets/golda67/g67_brick_house.glb` | 878 | промпт выдан |
-| 11 | G67-Y11 | Секция дома с аркой | `godot/assets/golda67/g67_house_arch.glb` | 847 | промпт выдан |
-| 12 | G67-Y12 | Открытый гараж с верстаком | `godot/assets/golda67/g67_garage_open.glb` | 768 | промпт выдан |
+| 1 | G67-Y01 | Борт хоккейной коробки | `godot/assets/golda67/g67_court_board.glb` | 845 | интегрирована 2026-11-20 |
+| 2 | G67-Y02 | Калитка коробки | `godot/assets/golda67/g67_court_gate.glb` | 808 | интегрирована 2026-11-20 |
+| 3 | G67-Y03 | Машина Миши Минасяна | `godot/assets/golda67/g67_misha_car.glb` | 902 | интегрирована 2026-11-20 |
+| 4 | G67-Y04 | Трон Миши | `godot/assets/golda67/g67_misha_throne.glb` | 797 | интегрирована 2026-11-20 |
+| 5 | G67-Y05 | Мачта с прожекторами | `godot/assets/golda67/g67_floodlight_mast.glb` | 756 | интегрирована 2026-11-20 |
+| 6 | G67-Y06 | Сугроб | `godot/assets/golda67/g67_snowdrift.glb` | 774 | интегрирована 2026-11-20 |
+| 7 | G67-Y07 | Ковровыбивалка с ковром | `godot/assets/golda67/g67_carpet_rack.glb` | 756 | интегрирована 2026-11-20 |
+| 8 | G67-Y08 | Сушилка с бельём | `godot/assets/golda67/g67_laundry_lines.glb` | 743 | интегрирована 2026-11-20 |
+| 9 | G67-Y09 | Бетонная урна | `godot/assets/golda67/g67_urn.glb` | 692 | интегрирована 2026-11-20 |
+| 10 | G67-Y10 | Кирпичная пятиэтажка | `godot/assets/golda67/g67_brick_house.glb` | 878 | интегрирована 2026-11-20 |
+| 11 | G67-Y11 | Секция дома с аркой | `godot/assets/golda67/g67_house_arch.glb` | 847 | интегрирована 2026-11-20 |
+| 12 | G67-Y12 | Открытый гараж с верстаком | `godot/assets/golda67/g67_garage_open.glb` | 768 | интегрирована 2026-11-20 |
 
 ### G67-Y01 — Борт хоккейной коробки
 
@@ -607,8 +607,8 @@ An open soviet metal garage box seen from the front, about 3.5 metres wide and 2
 
 | № | id | Модель | Файл | Длина | Статус |
 |---|---|---|---|---|---|
-| 1 | G67-S10 | Люстра | `godot/assets/golda67/g67_chandelier.glb` | 776 | промпт выдан |
-| 2 | G67-A01 | Голубь | `godot/assets/golda67/g67_pigeon.glb` | 745 | промпт выдан |
+| 1 | G67-S10 | Люстра | `godot/assets/golda67/g67_chandelier.glb` | 776 | интегрирована 2026-11-20 |
+| 2 | G67-A01 | Голубь | `godot/assets/golda67/g67_pigeon.glb` | 745 | интегрирована 2026-11-20 |
 
 ### G67-S10 — Люстра
 
@@ -661,6 +661,7 @@ A fat grumpy city pigeon standing on the ground, a self-important little bird. R
 | Дата | Что |
 |---|---|
 | 2026-11-20 | Выдана партия P0 (20 промптов). Ни одна модель не получена. |
+| 2026-11-20 | Получены и поставлены в игру все 12 моделей двора (Y01–Y12), голубь и люстра. Все смотрят лицом как ожидалось; тяжёлые (50–120 тыс. треугольников), кадр держится. Встречи КРОТА 2 и 3 включились. |
 | 2026-11-20 | КРОТ: встреча 1 в игре; выданы промпты люстры (G67-S10) и голубя (G67-A01) для встреч 2 и 3. |
 | 2026-11-20 | Выдана партия ДВОР (Y01–Y12): модели для арены босса и для разнообразия двора. |
 | 2026-11-20 | Смотрящий заменён второй моделью владельца. Всем семи персонажам поставлен скелет. Миша Минасян, КРОТ и dj flürr приняты в виде владельца. |
