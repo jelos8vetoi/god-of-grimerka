@@ -37,6 +37,29 @@ var boxes: Array = []              # точки коробок предмето�
 var pads: Array = []               # [{pos, tan, s}]
 var ramps: Array = []              # [{s0, s1, h}]
 var rings: Array = []              # кольца для трюков: [{pos, tan, node}]
+var has_height := false            # у трассы есть участки выше земли (крыши)
+var gaps: Array = []               # разрывы главной дороги: [[s от, s до]]
+
+## попадает ли точка главной дороги в разрыв
+func in_gap(i: int) -> bool:
+	for g in gaps:
+		if S[i] >= float(g[0]) and S[i] <= float(g[1]):
+			return true
+	return false
+
+## стоит ли на этом месте пути трамплин (с запасом на вылет). На трассах с подъёмами уклон дороги сам по себе не
+## трамплин: толчок вверх и трюк даёт только настоящий
+func ramp_near(s: float) -> bool:
+	for r in ramps:
+		if fposmod(s - (float(r["s0"]) - 2.0), L) < float(r["s1"]) - float(r["s0"]) + 6.0:
+			return true
+	return false
+
+## высота дороги под гонщиком (pr — его проекция): по ней считается «упал»
+func road_y(pr: Dictionary) -> float:
+	if bool(pr.get("short", false)) or not pr.has("i"):
+		return 0.0
+	return P[int(pr["i"])].y
 var obstacle_pts: Array = []       # [центр, радиус] — для ботов
 var fill_counts := {}              # сколько чего поставлено заполнением (для проверки)
 var mats := {}
@@ -63,6 +86,9 @@ func build(track_id: String) -> void:
 	_boxes()
 	if DisplayServer.get_name() != "headless":        # без экрана (сервер, проверки) оформление не нужно: физики в нём нет
 		_decor()
+		_decks()
+		_signs()
+		_landmarks()
 		_fill()
 
 # ---------------- кривые ----------------
@@ -74,27 +100,36 @@ static func _cr(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, t: float) ->
 ## точки кривой через опорные, примерно через STEP метров; ширина — тоже по кривой
 static func _sample(pts: Array, closed: bool) -> Array:
 	var cp: Array = []
+	var hs := PackedFloat32Array()        # высота опорной точки (четвёртое число; нет — 0): дорога может идти по крышам
 	for q in pts:
 		cp.append(Vector3(float(q[0]), float(q[2]) if q.size() > 2 else 0.0, float(q[1])))   # y здесь — ширина
+		hs.append(float(q[3]) if q.size() > 3 else 0.0)
 	var n := cp.size()
 	var out_p := PackedVector3Array()
 	var out_w := PackedFloat32Array()
 	var segs := n if closed else n - 1
 	for i in segs:
-		var p0: Vector3 = cp[(i - 1 + n) % n] if closed or i > 0 else cp[0]
+		var i0 := (i - 1 + n) % n if closed or i > 0 else 0
+		var i3 := (i + 2) % n if closed or i + 2 < n else n - 1
+		var p0: Vector3 = cp[i0]
 		var p1: Vector3 = cp[i]
 		var p2: Vector3 = cp[(i + 1) % n]
-		var p3: Vector3 = cp[(i + 2) % n] if closed or i + 2 < n else cp[n - 1]
+		var p3: Vector3 = cp[i3]
 		var a := Vector3(p1.x, 0, p1.z)
 		var b := Vector3(p2.x, 0, p2.z)
 		var k: int = maxi(2, int(ceil(a.distance_to(b) / STEP)))
+		var h1 := hs[i]
+		var h2 := hs[(i + 1) % n]
 		for j in k:
-			var c := _cr(p0, p1, p2, p3, float(j) / float(k))
-			out_p.append(Vector3(c.x, 0.0, c.z))
+			var u := float(j) / float(k)
+			var c := _cr(p0, p1, p2, p3, u)
+			# высота — той же кривой, но без выбросов за пределы соседних точек (ровная крыша остаётся ровной)
+			var hh := clampf(_cr(Vector3(hs[i0], 0, 0), Vector3(h1, 0, 0), Vector3(h2, 0, 0), Vector3(hs[i3], 0, 0), u).x, minf(h1, h2), maxf(h1, h2))
+			out_p.append(Vector3(c.x, hh, c.z))
 			out_w.append(c.y)
 	if not closed:
 		var e: Vector3 = cp[n - 1]
-		out_p.append(Vector3(e.x, 0, e.z))
+		out_p.append(Vector3(e.x, hs[n - 1], e.z))
 		out_w.append(e.y)
 	return [out_p, out_w]
 
@@ -109,9 +144,17 @@ func _main_curve() -> void:
 	for i in n:
 		S[i] = acc
 		acc += P[i].distance_to(P[(i + 1) % n])
-		T[i] = (P[(i + 1) % n] - P[(i - 1 + n) % n]).normalized()
+		var dv := P[(i + 1) % n] - P[(i - 1 + n) % n]
+		T[i] = Vector3(dv.x, 0, dv.z).normalized()       # касательная — в плане: «вправо» от неё всегда горизонтально
+		if absf(P[i].y) > 0.5:
+			has_height = true
 	L = acc
 	start_s = S[nearest_main(_v(data["start"]))]
+	# разрывы дороги (прыжки между крышами): там нет ни полотна, ни стен
+	gaps = []
+	for g in data.get("gaps", []):
+		var gc := S[nearest_main(_v(g["at"]))]
+		gaps.append([gc - float(g["len"]) * 0.5, gc + float(g["len"]) * 0.5])
 
 func _short_curve() -> void:
 	if not data.has("shortcut"):
@@ -305,6 +348,74 @@ func _mats() -> void:
 	mats["black"] = _mat(Color(0.05, 0.05, 0.06), 0.8)
 	mats["cone"] = _mat(Color(1.0, 0.45, 0.1), 0.6)
 	mats["lamp"] = _mat(Color(1.0, 0.85, 0.6), 0.4, 3.0)
+	mats["snow"] = _mat(Color(0.8, 0.86, 0.96), 0.85)
+	if winter():
+		# зимний вечер: снег вместо травы и пыли, укатанный снег на обочине, мокрый тёмный асфальт, окна и фонари ярче
+		(mats["ground"] as StandardMaterial3D).albedo_color = Color(0.84, 0.86, 0.92)
+		(mats["shoulder"] as StandardMaterial3D).albedo_color = Color(0.58, 0.64, 0.76)
+		asphalt.albedo_color = Color(0.2, 0.21, 0.27)
+		asphalt.roughness = 0.55
+		(mats["window"] as StandardMaterial3D).emission_energy_multiplier = 3.2
+		(mats["lamp"] as StandardMaterial3D).emission_energy_multiplier = 6.0
+		(mats["barrier"] as StandardMaterial3D).albedo_color = Color(0.5, 0.55, 0.66)
+
+## зимний облик трассы (data["look"]["winter"]): снег, синий вечер, голые деревья, сугробы, снегопад
+func winter() -> bool:
+	return bool((data.get("look", {}) as Dictionary).get("winter", false))
+
+## зимой вдоль дороги — фонари с настоящим тёплым светом: пятна на снегу против синих сумерек (без теней — дёшево)
+func _street_lights() -> void:
+	var s := 12.0
+	var k := 0
+	while s < L:
+		var i := at_s(s)
+		s += 34.0
+		k += 1
+		if in_gap(i) or _zone_of(i) == "scaffold":
+			continue
+		var side := 1.0 if k % 2 == 0 else -1.0
+		var right: Vector3 = T[i].cross(Vector3.UP)
+		var p: Vector3 = P[i] + right * side * (W[i] * 0.5 + SHOULDER + 1.1)
+		_lamp(p, atan2(right.x * -side, right.z * -side))
+		var ol := OmniLight3D.new()
+		ol.light_color = Color(1.0, 0.72, 0.4)
+		ol.light_energy = 6.0
+		ol.omni_range = 24.0
+		ol.omni_attenuation = 1.3
+		ol.position = p + Vector3(0, 4.6, 0) - right * side * 1.5
+		add_child(ol)
+
+var snow_fx: CPUParticles3D
+func _snowfall() -> void:
+	snow_fx = CPUParticles3D.new()
+	snow_fx.amount = 900
+	snow_fx.lifetime = 5.0
+	snow_fx.preprocess = 5.0
+	snow_fx.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	snow_fx.emission_box_extents = Vector3(34, 1, 34)
+	snow_fx.direction = Vector3(0.25, -1, 0.1)
+	snow_fx.spread = 12.0
+	snow_fx.gravity = Vector3(0, -1.2, 0)
+	snow_fx.initial_velocity_min = 2.5
+	snow_fx.initial_velocity_max = 4.5
+	snow_fx.scale_amount_min = 0.6
+	snow_fx.scale_amount_max = 1.4
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.09, 0.09)
+	var fm := StandardMaterial3D.new()
+	fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	fm.albedo_color = Color(0.95, 0.97, 1.0)
+	qm.material = fm
+	snow_fx.mesh = qm
+	snow_fx.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(snow_fx)
+
+func _process(_dt: float) -> void:
+	if snow_fx != null:
+		var c := get_viewport().get_camera_3d()
+		if c != null:
+			snow_fx.global_position = c.global_position + Vector3(0, 14, 0) - c.global_transform.basis.z * 14.0
 
 static func _col(a) -> Color:
 	return Color(float(a[0]), float(a[1]), float(a[2]))
@@ -337,6 +448,17 @@ func _env() -> void:
 		sm.sky_horizon_color = _col(look["sky_horizon"])
 		env.fog_light_color = _col(look["fog"])
 		env.fog_density = float(look.get("fog_density", 0.0032))
+	if winter():
+		sm.ground_bottom_color = Color(0.05, 0.07, 0.14)
+		sm.ground_horizon_color = _col(look["sky_horizon"]).darkened(0.25)
+		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		env.ambient_light_color = Color(0.42, 0.47, 0.62)
+		env.ambient_light_energy = 0.75
+		env.glow_intensity = 0.95
+		env.glow_hdr_threshold = 0.85
+		env.adjustment_enabled = true
+		env.adjustment_saturation = 0.95
+		env.adjustment_contrast = 1.08
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -346,7 +468,12 @@ func _env() -> void:
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 70.0
 	sun.rotation = Vector3(deg_to_rad(-38), deg_to_rad(-60), 0)
+	if winter():
+		sun.rotation = Vector3(deg_to_rad(-24), deg_to_rad(140), 0)      # низкая луна с другой стороны: длинные синие тени
 	add_child(sun)
+	if winter():
+		_snowfall()
+		_street_lights()
 	# земля вокруг (только вид: ездить по ней нельзя — стены)
 	var g := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
@@ -380,7 +507,9 @@ func _ribbon(pts: PackedVector3Array, tans: PackedVector3Array, widths, closed: 
 		var b1: Vector3 = pts[j] + rj * (wj * 0.5 * b_k + b_add) + Vector3(0, y, 0)
 		var d1 := dist + pts[i].distance_to(pts[j])
 		st.set_normal(Vector3.UP)
-		for v in [[a0, Vector2(0, dist)], [b0, Vector2(1, dist)], [b1, Vector2(1, d1)], [a0, Vector2(0, dist)], [b1, Vector2(1, d1)], [a1, Vector2(0, d1)]]:
+		# порядок вершин — по часовой, если смотреть сверху (лицевая сторона в Godot): раньше был обратный, и всё
+		# полотно — асфальт, обочины, бордюры, разметка — отсекалось как изнанка: ездили по голой земле
+		for v in [[a0, Vector2(0, dist)], [b1, Vector2(1, d1)], [b0, Vector2(1, dist)], [a0, Vector2(0, dist)], [a1, Vector2(0, d1)], [b1, Vector2(1, d1)]]:
 			st.set_uv(v[1] * Vector2(wi, 1.0) * 0.25)
 			st.add_vertex(v[0])
 		faces.append_array(PackedVector3Array([a0, b1, b0, a0, a1, b1]))
@@ -399,13 +528,14 @@ func _ribbon(pts: PackedVector3Array, tans: PackedVector3Array, widths, closed: 
 
 func _road() -> void:
 	# главная дорога, обочины, бордюры, разметка
-	_ribbon(P, T, W, true, -1.0, 0.0, 1.0, 0.0, 0.0, mats["road"], true)
-	_ribbon(P, T, W, true, -1.0, -SHOULDER, -1.0, 0.0, -0.01, mats["shoulder"], true)
-	_ribbon(P, T, W, true, 1.0, 0.0, 1.0, SHOULDER, -0.01, mats["shoulder"], true)
+	var gap_skip := Callable() if gaps.is_empty() else (func(i): return in_gap(i))
+	_ribbon(P, T, W, true, -1.0, 0.0, 1.0, 0.0, 0.0, mats["road"], true, gap_skip)
+	_ribbon(P, T, W, true, -1.0, -SHOULDER, -1.0, 0.0, -0.01, mats["shoulder"], true, gap_skip)
+	_ribbon(P, T, W, true, 1.0, 0.0, 1.0, SHOULDER, -0.01, mats["shoulder"], true, gap_skip)
 	for side in [-1.0, 1.0]:
-		_ribbon(P, T, W, true, side, -0.45 if side > 0 else 0.0, side, 0.0 if side > 0 else 0.45, 0.012, mats["curb_r"], false, func(i): return (i / 3) % 2 == 0)
-		_ribbon(P, T, W, true, side, -0.45 if side > 0 else 0.0, side, 0.0 if side > 0 else 0.45, 0.012, mats["curb_w"], false, func(i): return (i / 3) % 2 == 1)
-	_ribbon(P, T, W, true, 0.0, -0.12, 0.0, 0.12, 0.01, mats["line"], false, func(i): return (i / 3) % 2 == 0)
+		_ribbon(P, T, W, true, side, -0.45 if side > 0 else 0.0, side, 0.0 if side > 0 else 0.45, 0.012, mats["curb_r"], false, func(i): return (i / 3) % 2 == 0 or in_gap(i))
+		_ribbon(P, T, W, true, side, -0.45 if side > 0 else 0.0, side, 0.0 if side > 0 else 0.45, 0.012, mats["curb_w"], false, func(i): return (i / 3) % 2 == 1 or in_gap(i))
+	_ribbon(P, T, W, true, 0.0, -0.12, 0.0, 0.12, 0.01, mats["line"], false, func(i): return (i / 3) % 2 == 0 or in_gap(i))
 	# финишная черта — шашки
 	var fi := at_s(start_s)
 	for k in 14:
@@ -521,6 +651,8 @@ func _wall_line(pts: PackedVector3Array, tans: PackedVector3Array, widths: Packe
 				continue
 			if is_short and (i < 3 or i > n - 5):
 				continue                       # концы срезки открыты в главную дорогу
+			if not is_short and not gaps.is_empty() and (in_gap(i) or in_gap(j)):
+				continue                       # над разрывом стен нет — там летят
 			var ln := a.distance_to(b) + 0.15
 			var yaw := atan2(b.x - a.x, b.z - a.z)
 			_box(mid + Vector3(0, WALL_H * 0.5, 0), Vector3(0.6, WALL_H, ln), yaw, null, true, false)
@@ -707,6 +839,10 @@ func _gates() -> void:
 			var rel := fposmod(s - short_from, L)
 			if rel > -4.0 and rel < span + 4.0:
 				s = fposmod(short_from - 6.0, L) if rel < span * 0.5 else fposmod(short_to + 6.0, L)
+		# не в провале между крышами и не на разбеге перед ним: вернувшийся на точку должен успеть разогнаться для прыжка
+		for g in gaps:
+			if fposmod(s - (float(g[0]) - 28.0), L) < float(g[1]) - float(g[0]) + 32.0:
+				s = fposmod(float(g[0]) - 30.0, L)
 		if k == 0:
 			s = start_s
 		var i := at_s(s)
@@ -795,6 +931,9 @@ func _decor() -> void:
 	var bridges := 0
 	while i < n:
 		var kind := _zone_of(i)
+		if kind in ["roof", "scaffold"]:
+			i += 8                             # крыши и леса оформляет _decks
+			continue
 		var right: Vector3 = T[i].cross(Vector3.UP)
 		var yaw := atan2(T[i].x, T[i].z)
 		# трубопровод над дорогой в промзоне — дважды за круг
@@ -901,6 +1040,150 @@ func _decor() -> void:
 		pu.rotation.y = rng.randf() * TAU
 		add_child(pu)
 
+## Крыши и строительные леса под поднятой дорогой. Крыша — дом под ней (стены с окнами до земли), парапет и то,
+## что бывает на крышах: вентшахты, антенны, кондиционеры, тарелки, будки. Леса — стойки, перекладины, раскосы
+## и оранжевая сетка. Окна и стойки — одним MultiMesh на вид: их сотни.
+func _decks() -> void:
+	if not has_height:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(id) + 19
+	mats["roofing"] = _mat(Color(0.17, 0.17, 0.19), 0.95)
+	mats["net"] = _mat(Color(0.95, 0.42, 0.1), 0.8)
+	var win_on: Array = []
+	var win_off: Array = []
+	var posts: Array = []
+	var n := P.size()
+	var i := 0
+	while i < n:
+		var kind := _zone_of(i)
+		var y: float = P[i].y
+		if not kind in ["roof", "scaffold"] or y < 1.0 or in_gap(i) or in_gap(mini(i + 4, n - 1)):
+			i += 4
+			continue
+		var right: Vector3 = T[i].cross(Vector3.UP)
+		var yaw := atan2(T[i].x, T[i].z)
+		var half: float = W[i] * 0.5 + SHOULDER
+		if kind == "roof":
+			var slab := half + 4.6
+			var block := int(S[i] / 46.0)
+			var fac: Material = [mats["panel"], mats["panel2"], mats["panel3"]][block % 3]
+			_box(Vector3(P[i].x, y * 0.5 - 0.12, P[i].z), Vector3(slab * 2.0, y, 4.3), yaw, fac, false)
+			_box(P[i] + Vector3(0, -0.1, 0), Vector3(slab * 2.0, 0.12, 4.3), yaw, mats["snow"] if winter() else mats["roofing"], false)      # верх плиты — чуть ниже полотна: разметка и бордюры поверх
+			for sd in [-1.0, 1.0]:
+				_box(P[i] + right * sd * slab + Vector3(0, 0.3, 0), Vector3(0.3, 0.75, 4.3), yaw, mats["curb_w"], false)      # парапет
+				for fl in int(y / 2.8):
+					if rng.randf() < 0.8:
+						(win_on if rng.randf() < 0.3 else win_off).append([Vector3(P[i].x, 1.6 + fl * 2.8, P[i].z) + right * sd * (slab + 0.03), yaw])
+				# то, что стоит на крыше, — между стеной трассы и парапетом
+				var rp: Vector3 = P[i] + right * sd * (half + 2.4)
+				var pick := rng.randi() % 9
+				match pick:
+					0:      # вентшахта с козырьком
+						_box(rp + Vector3(0, 0.6, 0), Vector3(1.1, 1.2, 1.1), yaw, mats["metal"], false)
+						_box(rp + Vector3(0, 1.32, 0), Vector3(1.5, 0.12, 1.5), yaw, mats["rust"], false)
+					1:      # антенна-«ёлочка»
+						_box(rp + Vector3(0, 2.0, 0), Vector3(0.07, 4.0, 0.07), yaw, mats["metal"], false)
+						for q in 4:
+							_box(rp + Vector3(0, 2.6 + q * 0.4, 0), Vector3(1.3 - q * 0.22, 0.04, 0.04), yaw + 0.4, mats["metal"], false)
+					2:      # кондиционер
+						_box(rp + Vector3(0, 0.4, 0), Vector3(1.0, 0.7, 0.5), yaw + rng.randf(), mats["curb_w"], false)
+					3:      # спутниковая тарелка
+						_box(rp + Vector3(0, 0.7, 0), Vector3(0.08, 1.4, 0.08), yaw, mats["metal"], false)
+						var dish := MeshInstance3D.new()
+						var dm := CylinderMesh.new()
+						dm.top_radius = 0.75
+						dm.bottom_radius = 0.2
+						dm.height = 0.25
+						dish.mesh = dm
+						dish.material_override = mats["curb_w"]
+						dish.position = rp + Vector3(0, 1.5, 0)
+						dish.rotation = Vector3(1.1, rng.randf() * TAU, 0)
+						add_child(dish)
+					4:      # будка выхода на крышу
+						_box(rp + right * sd * 0.6 + Vector3(0, 1.2, 0), Vector3(2.2, 2.4, 2.6), yaw, mats["panel2"], false)
+						_box(rp + right * sd * 0.6 - right * sd * 1.12 + Vector3(0, 1.0, 0), Vector3(0.06, 1.9, 0.9), yaw, mats["rust"], false)
+					5:      # труба вытяжки
+						_cyl(rp, 0.28, 2.6, mats["rust"], false)
+		else:
+			# леса: стойки по краям, перекладина, сетка сбоку, настил поверх полотна
+			for sd in [-1.0, 1.0]:
+				posts.append([Vector3(P[i].x, y * 0.5, P[i].z) + right * sd * (half + 0.5), yaw, y])
+				if (i / 4) % 2 == 0:
+					_box(P[i] + right * sd * (half + 0.5) + Vector3(0, 0.75, 0), Vector3(0.06, 1.5, 4.2), yaw, mats["net"], false)
+			_box(P[i] + Vector3(0, -0.22, 0), Vector3(half * 2.0 + 1.2, 0.16, 0.2), yaw, mats["metal"], false)
+			if y > 4.0 and (i / 4) % 3 == 0:
+				var br := _box(Vector3(P[i].x, y * 0.5, P[i].z), Vector3(half * 2.0 + 1.0, 0.1, 0.1), yaw, mats["metal"], false)
+				br.rotation.z = atan2(y, half * 2.0)
+		i += 4
+	# настил: доски на лесах, рубероид на крышах — тонким слоем поверх асфальта
+	_ribbon(P, T, W, true, -1.0, 0.0, 1.0, 0.0, 0.006, mats["wood"], false, func(k): return _zone_of(k) != "scaffold" or in_gap(k))
+	_ribbon(P, T, W, true, -1.0, 0.0, 1.0, 0.0, 0.006, mats["roofing"], false, func(k): return _zone_of(k) != "roof" or in_gap(k))
+	for pack in [[win_on, mats["window"]], [win_off, mats["window_off"]]]:
+		var lst: Array = pack[0]
+		if lst.is_empty():
+			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.08, 1.2, 1.5)
+		mm.mesh = bm
+		mm.instance_count = lst.size()
+		for k in lst.size():
+			mm.set_instance_transform(k, Transform3D(Basis(Vector3.UP, float(lst[k][1])), lst[k][0]))
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = pack[1]
+		add_child(mmi)
+	if not posts.is_empty():
+		var mm2 := MultiMesh.new()
+		mm2.transform_format = MultiMesh.TRANSFORM_3D
+		var pb := BoxMesh.new()
+		pb.size = Vector3(0.14, 1.0, 0.14)
+		mm2.mesh = pb
+		mm2.instance_count = posts.size()
+		for k in posts.size():
+			mm2.set_instance_transform(k, Transform3D(Basis(Vector3.UP, float(posts[k][1])).scaled(Vector3(1.0, float(posts[k][2]), 1.0)), posts[k][0]))
+		var mmi2 := MultiMeshInstance3D.new()
+		mmi2.multimesh = mm2
+		mmi2.material_override = mats["metal"]
+		add_child(mmi2)
+
+## Щиты и таблички у дороги: data["signs"] — [{at: [x, z], side: ±1, text, big, col}]. Доска на двух ногах, надпись
+## лицом к едущим. Стоят на высоте дороги (на крыше — на крыше).
+func _signs() -> void:
+	for sg in data.get("signs", []):
+		var i := nearest_main(_v(sg["at"]))
+		var right: Vector3 = T[i].cross(Vector3.UP)
+		var sd: float = float(sg.get("side", 1))
+		var big: bool = bool(sg.get("big", false))
+		var w := 7.5 if big else 4.2
+		var h := 3.0 if big else 1.7
+		var up := 4.6 if big else 2.4
+		var p: Vector3 = P[i] + right * sd * (W[i] * 0.5 + SHOULDER + (3.2 if big else 1.6))
+		var yaw := atan2(T[i].x, T[i].z)
+		var board_col: Color = _col(sg["bg"]) if sg.has("bg") else Color(0.93, 0.92, 0.88)
+		_box(p + Vector3(0, up, 0), Vector3(w, h, 0.14), yaw, _mat(board_col, 0.8), false)
+		for q in [-1.0, 1.0]:
+			_box(p + right * q * (w * 0.5 - 0.3) + Vector3(0, up * 0.5, 0), Vector3(0.16, up, 0.16), yaw, mats["metal"], false)
+		var l := Label3D.new()
+		l.text = String(sg["text"])
+		l.font_size = 96 if big else 64
+		l.pixel_size = 0.0125 if big else 0.0085
+		l.modulate = _col(sg["col"]) if sg.has("col") else Color(0.06, 0.06, 0.07)
+		l.outline_size = 0
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.width = w / l.pixel_size * 0.92
+		l.double_sided = false
+		l.position = p + Vector3(0, up, 0) - T[i] * 0.09
+		l.rotation.y = yaw + PI                       # лицом навстречу движению
+		add_child(l)
+
+## узнаваемые здания и силуэты города: data["landmarks"] — [{kind, at: [x, z], yaw, k}] (race_tomsk.gd)
+func _landmarks() -> void:
+	for lm in data.get("landmarks", []):
+		RaceTomsk.spawn(String(lm["kind"]), self, Vector3(float(lm["at"][0]), float(lm.get("y", 0.0)), float(lm["at"][1])), float(lm.get("yaw", 0.0)), float(lm.get("k", 1.0)))
+
 func _graffiti(p: Vector3, yaw: float, text: String, rng: RandomNumberGenerator) -> void:
 	var l := Label3D.new()
 	l.text = text
@@ -980,7 +1263,15 @@ func _fill() -> void:
 			if Vector2(c.x - (b[0] as Vector3).x, c.z - (b[0] as Vector3).z).length() < r + float(b[1]):
 				return false
 		return true
+	var drifts: Array = []       # зимой вместо кустов — сугробы
+	var is_winter := winter()
 	var add := func(pid: String, c: Vector3, yaw: float, k := 1.0) -> void:
+		if is_winter:
+			if pid == "bush" or pid == "trash_pile":
+				drifts.append([c, yaw, k])
+				return
+			if pid == "birch_tree":
+				pid = "bare_tree"                # листвы зимой нет
 		if not batches.has(pid):
 			batches[pid] = []
 		(batches[pid] as Array).append([c, yaw, k])
@@ -995,6 +1286,8 @@ func _fill() -> void:
 			var d := _edge_dist(c)
 			if d < 2.5:
 				continue
+			if has_height and d < 15.0 and P[nearest_main(c)].y > 2.0:
+				continue                       # под крышей — дом, под лесами — стойки: деревьям тут не место
 			var inner := Geometry2D.is_point_in_polygon(Vector2(c.x, c.z), loop)
 			var face := rng.randf() * TAU
 			var r := rng.randf()
@@ -1055,6 +1348,24 @@ func _fill() -> void:
 				add.call("bare_tree", c, face, rng.randf_range(1.0, 1.4))
 		x += step
 	var counts := {}
+	if not drifts.is_empty():
+		var dmm := MultiMesh.new()
+		dmm.transform_format = MultiMesh.TRANSFORM_3D
+		var sp := SphereMesh.new()
+		sp.radius = 1.0
+		sp.height = 2.0
+		sp.radial_segments = 10
+		sp.rings = 5
+		dmm.mesh = sp
+		dmm.instance_count = drifts.size()
+		for k in drifts.size():
+			var kk: float = float(drifts[k][2])
+			dmm.set_instance_transform(k, Transform3D(Basis(Vector3.UP, float(drifts[k][1])).scaled(Vector3(2.2 * kk, 0.55 * kk, 1.5 * kk)), (drifts[k][0] as Vector3) + Vector3(0, -0.1, 0)))
+		var dmi := MultiMeshInstance3D.new()
+		dmi.multimesh = dmm
+		dmi.material_override = mats["snow"]
+		dmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(dmi)
 	for pid in batches:
 		var far: bool = pid in ["khrushchevka", "panel_tower", "factory_hall"]
 		var small: bool = pid in ["bush", "bench", "trash_pile", "dumpster", "power_pole"]
