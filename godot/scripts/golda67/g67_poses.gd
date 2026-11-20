@@ -130,6 +130,13 @@ static func clips() -> Dictionary:
 	C["SFilm"] = _loop(3.0, _mix(SIT, FILM), {"spine": {"x": -0.02}})
 	C["SPoint"] = _seq(4.2, _mix(SIT, {"larm": {"x": -0.75, "z": 0.05}, "lfa": {"x": -0.35}}), [[0.0, {"rarm": {"x": -0.75}, "rfa": {"x": -0.35}}], [0.25, {"rarm": {"x": -0.75}, "rfa": {"x": -0.35}}],
 		[0.4, {"rarm": {"x": -1.4, "z": -0.1}, "rfa": {"x": -0.1}, "spine": {"x": 0.05}}, "out"], [0.75, {"rarm": {"x": -1.35, "z": -0.1}, "rfa": {"x": -0.12}}], [0.9, {"rarm": {"x": -0.75}, "rfa": {"x": -0.35}}], [1.0, {"rarm": {"x": -0.75}, "rfa": {"x": -0.35}}]])
+	# привстал посмотреть и сел обратно (однократно)
+	var sw := {"rarm": {"x": -0.75, "z": -0.05}, "rfa": {"x": -0.35}, "larm": {"x": -0.75, "z": 0.05}, "lfa": {"x": -0.35}}
+	C["SStand"] = _seq(4.2, {}, [[0.0, _mix(SIT, sw)], [0.25, _mix({"rup": {"x": -0.55}, "lup": {"x": -0.55}, "rleg": {"x": 0.6}, "lleg": {"x": 0.6}, "drop": 0.12, "spine": {"x": 0.25}}, _mix(R_DOWN, L_DOWN)), "io"],
+		[0.4, _mix(_mix(R_DOWN, L_DOWN), {"spine": {"x": 0.08}, "head": {"x": -0.1}}), "io"], [0.7, _mix(_mix(R_DOWN, L_DOWN), {"spine": {"x": 0.1}, "head": {"x": -0.12}})],
+		[0.85, _mix({"rup": {"x": -0.7}, "lup": {"x": -0.7}, "rleg": {"x": 0.75}, "lleg": {"x": 0.75}, "drop": 0.15, "spine": {"x": 0.3}}, _mix(R_DOWN, L_DOWN)), "io"], [1.0, _mix(SIT, sw)]], false)
+	# стоит, опёршись спиной на машину, руки скрещены
+	C["NLeanBack"] = _loop(4.0, _mix(CROSS, {"spine": {"x": -0.14}, "head": {"x": 0.06}, "hips": {"x": 0.06}, "rup": {"x": -0.18, "z": -0.04}, "lup": {"x": -0.05, "z": 0.12}, "lleg": {"x": 0.12}}), BREATH)
 	# ---- короткие реакции на сильный удар, добивание, смену фазы (один раз, ~1,5 с)
 	for st in [["", {}], ["S", SIT]]:
 		var b0: Dictionary = st[1]
@@ -264,3 +271,13 @@ static func _prop(rig: Rig, bone: String, nm: String, mesh: Mesh, off: Vector3) 
 		mi.scale = Vector3.ONE * k
 		n.add_child(mi)
 	return n
+
+## Встреча 10: КРОТ исчезает как сломанный NPC — рывком проваливается в пол по пояс, замирает на полсекунды,
+## потом схлопывается в плоскость и пропадает. Не бегство и не дым — сбой.
+static func vanish(rig: Node3D, h := 1.62) -> Tween:
+	var tw := rig.create_tween()
+	tw.tween_property(rig, "position:y", rig.position.y - h * 0.48, 0.09)
+	tw.tween_interval(0.5)
+	tw.tween_property(rig, "scale", Vector3(rig.scale.x * 1.25, rig.scale.y * 0.02, rig.scale.z * 1.25), 0.08)
+	tw.tween_callback(rig.queue_free)
+	return tw

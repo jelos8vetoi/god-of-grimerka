@@ -248,6 +248,8 @@ func _run() -> void:
 	await _flurr_check(g, G, P)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
+	# ================= КРОТ: постановки встреч 4–10 =================
+	await _krot_stage(g, G)
 	# ================= выход =================
 	g._to_menu()
 	var back: bool = await until(func(): return main.menu != null and is_instance_valid(main.menu) and main.game == null, 10.0)
@@ -321,6 +323,154 @@ func _yard_people(g, G: Golda67) -> void:
 	await _yard_shot(g, G, G67Yard.TRIBUNE + Vector3(0, 1.4, 0), G67Yard.TRIBUNE + Vector3(-8.5, 3.2, 5.5), "51_tribune")
 	await _yard_shot(g, G, G67Yard.TRIBUNE + Vector3(0, 1.6, 0), G67Yard.TRIBUNE + Vector3(-5.2, 2.4, 0.4), "54_fans_close")
 	await _yard_shot(g, G, G67Yard.TRIBUNE + Vector3(0, 1.2, 0), G67Yard.TRIBUNE + Vector3(-2.0, 2.0, -7.5), "52_tribune_side")
+
+## Постановки КРОТА для встреч 4–10: их районов ещё нет, поэтому КРОТ снимается на площадке в стороне от всего
+## с простыми заменителями вещей (автомат, кольцевая лампа, сервер, столик с пакетом). Только для оценки поз.
+func _krot_stage(g, G: Golda67) -> void:
+	var root := Node3D.new()
+	root.name = "krot_stage"
+	g.add_child(root)
+	root.global_position = Vector3(300, 0, 300)
+	var floor := MeshInstance3D.new()
+	var fm := BoxMesh.new()
+	fm.size = Vector3(12, 0.1, 12)
+	floor.mesh = fm
+	floor.position = Vector3(0, -0.05, 0)
+	floor.material_override = _mat(Color(0.32, 0.32, 0.34))
+	root.add_child(floor)
+	var wall := MeshInstance3D.new()
+	var wm := BoxMesh.new()
+	wm.size = Vector3(12, 5, 0.2)
+	wall.mesh = wm
+	wall.position = Vector3(0, 2.5, -2.6)
+	wall.material_override = _mat(Color(0.22, 0.24, 0.28))
+	root.add_child(wall)
+	var key := OmniLight3D.new()
+	key.position = Vector3(2.0, 3.0, 3.0)
+	key.omni_range = 14.0
+	key.light_energy = 3.0
+	root.add_child(key)
+	var fill := OmniLight3D.new()
+	fill.position = Vector3(-3.0, 2.0, 1.5)
+	fill.omni_range = 10.0
+	fill.light_energy = 1.2
+	fill.light_color = Color(0.7, 0.8, 1.0)
+	root.add_child(fill)
+	var cam := Camera3D.new()
+	root.add_child(cam)
+	cam.position = Vector3(1.25, 1.2, 2.25)
+	cam.look_at(root.global_position + Vector3(0, 0.72, 0), Vector3.UP)
+	cam.make_current()
+	g.hud_root.visible = false            # кадр только для поз: без интерфейса
+	g.combat_hud.visible = false
+	var kc: Dictionary = Poses.pahan()
+	kc.merge(G67Poses.krot(), true)
+	var stages := [
+		["k04_npc", ["K4"], [0.12, 0.31, 0.7]], ["k05_sober", ["K5", "K5Finger"], [0.3]], ["k06_rizz", ["K6", "K6Pose"], [0.3]],
+		["k07_minecraft", ["K7", "K7Shrug"], [0.3]], ["k08_court", ["K8", "K8Point"], [0.3]], ["k09_air", ["K9", "K9Raise"], [0.35]], ["k10_last", ["K10"], [0.2]],
+	]
+	var made := 0
+	for st in stages:
+		var set_n := Node3D.new()
+		root.add_child(set_n)
+		var seat := _stage_props(set_n, String(st[0]))
+		for clip in st[1]:
+			var r := Rig.new()
+			set_n.add_child(r)
+			r.setup(G67Models.DIR + "g67_krot.glb", 1.62, kc, true, 1.0, "g67_krot_k")
+			r.position = Vector3(0, seat - (G67Poses.SIT_HIP * 1.62 if seat > 0.0 else 0.0), 0)
+			if String(st[0]) == "k04_npc":
+				r.rotation.y = -0.95              # стоит перед автоматом (автомат слева от него)
+			elif String(st[0]) == "k06_rizz":
+				r.rotation.y = -0.45              # вполоборота к лампе
+			elif String(st[0]) == "k09_air":
+				r.position.z = -0.75              # за столиком
+			if String(st[0]) == "k09_air":
+				G67Poses._prop(r, "mixamorig_LeftHand", "bag", G67Poses._box(Vector3(0.24, 0.32, 0.02), Color(0.92, 0.94, 0.96), Color(0.3, 0.3, 0.32)), Vector3(0, 0.2, 0.05))
+			r.play(String(clip), 0.0)
+			for fr in st[2]:
+				if r.player != null:
+					r.player.seek(float(fr) * r.player.current_animation_length, true)
+					r.player.pause()
+				await wait(0.15)
+				await shot("%s_%s_%d" % [String(st[0]), String(clip), int(float(fr) * 100)])
+				made += 1
+			if String(st[0]) == "k10_last":
+				G67Poses.vanish(r)
+				await wait(0.06)
+				await shot("k10_last_vanish_a")
+				await wait(0.3)
+				await shot("k10_last_vanish_b")
+				await wait(0.5)
+				ok(not is_instance_valid(r), "встреча 10: КРОТ проваливается сквозь пол и пропадает (сбой, не бегство)")
+			elif is_instance_valid(r):
+				r.queue_free()
+			await wait(0.05)
+		set_n.queue_free()
+	ok(made >= 12, "постановки КРОТА для встреч 4–10 сняты (%d кадров)" % made)
+	g.cam.make_current()
+	g.hud_root.visible = true
+	g.combat_hud.visible = true
+	root.queue_free()
+
+func _mat(c: Color, glow := 0.0) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	if glow > 0.0:
+		m.emission_enabled = true
+		m.emission = c
+		m.emission_energy_multiplier = glow
+	return m
+
+func _cube(parent: Node3D, size: Vector3, pos: Vector3, c: Color, glow := 0.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.position = pos
+	mi.material_override = _mat(c, glow)
+	parent.add_child(mi)
+	return mi
+
+## Заменители вещей встречи; возвращает высоту сиденья (0 — стоит)
+func _stage_props(n: Node3D, id: String) -> float:
+	match id:
+		"k04_npc", "k05_sober":
+			var mz := -0.55 if id == "k04_npc" else -0.45
+			var mx := -1.05 if id == "k04_npc" else -1.0
+			var mach := Node3D.new()
+			mach.position = Vector3(mx, 0, mz)
+			mach.rotation.y = 0.75 if id == "k04_npc" else 0.35       # лицевой стороной к нему
+			n.add_child(mach)
+			_cube(mach, Vector3(0.9, 1.9, 0.75), Vector3(0, 0.95, 0), Color(0.7, 0.12, 0.1))
+			_cube(mach, Vector3(0.6, 0.9, 0.02), Vector3(0, 1.2, 0.38), Color(0.8, 0.9, 1.0), 0.8)
+		"k06_rizz":
+			var ring := MeshInstance3D.new()
+			var tm := TorusMesh.new()
+			tm.inner_radius = 0.36
+			tm.outer_radius = 0.42
+			ring.mesh = tm
+			ring.rotation.x = PI * 0.5
+			ring.position = Vector3(-0.95, 1.4, 0.75)
+			ring.rotation.y = -0.9
+			ring.material_override = _mat(Color(1, 1, 1), 2.5)
+			n.add_child(ring)
+			_cube(n, Vector3(0.04, 1.4, 0.04), Vector3(-0.95, 0.7, 0.75), Color(0.1, 0.1, 0.1))
+		"k07_minecraft":
+			_cube(n, Vector3(0.42, 0.45, 0.42), Vector3(0, 0.225, -0.05), Color(0.35, 0.3, 0.25))
+			_cube(n, Vector3(0.7, 2.0, 0.8), Vector3(-1.15, 1.0, -0.7), Color(0.08, 0.09, 0.1))
+			for i in 8:
+				_cube(n, Vector3(0.05, 0.03, 0.02), Vector3(-1.0 - (i % 3) * 0.08, 0.4 + i * 0.2, -0.29), Color(0.2, 1.0, 0.4), 2.0)
+			return 0.45
+		"k08_court":
+			_cube(n, Vector3(4.0, 3.0, 0.05), Vector3(0, 1.5, -1.4), Color(0.05, 0.05, 0.06))
+			_cube(n, Vector3(0.7, 0.5, 0.5), Vector3(-1.3, 0.25, -0.6), Color(0.12, 0.12, 0.13))
+			_cube(n, Vector3(0.6, 0.45, 0.45), Vector3(-1.3, 0.72, -0.6), Color(0.15, 0.15, 0.16))
+		"k09_air":
+			_cube(n, Vector3(1.1, 0.75, 0.6), Vector3(0, 0.375, -0.1), Color(0.45, 0.35, 0.25))
+			for i in 4:
+				_cube(n, Vector3(0.18, 0.02, 0.24), Vector3(-0.35 + i * 0.22, 0.76, -0.1), Color(0.93, 0.95, 0.97))
+	return 0.0
 
 ## Поставить Мишу и героя и запустить приём (сам он в это время ничего не выбирает)
 func _misha_set(B, P, move: String, ppos: Vector3, bpos := Vector3(0, 0.05, -2.0)) -> void:
@@ -771,7 +921,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(G.world.yard.get_node_or_null("secret_tag") == null, "до победы над Мишей секретного граффити нет")
 	await _yard_people(g, G)
 	var qn: Array = G.world.yard.queue
-	ok(qn.size() == 3 and qn.all(func(n): return is_instance_valid(n)), "перед КРОТОМ у окошка очередь из трёх жителей")
+	ok(qn.size() == 4 and qn.all(func(n): return is_instance_valid(n)), "у окошка очередь из трёх человек, ещё один ест в стороне")
 	var kx: float = G.world.actors["g67_krot"].global_position.x
 	ok(qn.all(func(n): return (n as Node3D).global_position.x > kx + 0.5), "КРОТ стоит последним, очередь — между ним и окошком")
 	G.talk_krot()
@@ -796,7 +946,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 		g._dlg_advance()
 		await wait(0.15)
 	ok(g.mode == "golda67" and (G.meta()["seen"] as Array).has("krot1"), "встреча 1 засчитана (%s)" % str(G.meta()["seen"]))
-	ok(not G.world.actors.has("g67_krot") and G.point("krot").is_empty(), "КРОТ ушёл")
+	ok(not G.world.actors.has("g67_krot") and G.point("krot").is_empty() and G.world.get_node_or_null("krot_after") != null, "разговор окончен: КРОТ остаётся в своей позе, но говорить больше не о чем")
 	ok(String(G.krot_next().get("id", "")) == "krot2", "следующая встреча — вторая (ЛЮСТРА, в подъезде)")
 	# дверь БОЙ (позиция 4), затем передышка
 	await _go(G, P, "gate1")
@@ -870,12 +1020,13 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await shot("28_hub_after")
 	# КРОТ — встреча 2 «ЛЮСТРА»: стоит в холле подъезда с люстрой в руках
 	if G67Models.has("g67_chandelier"):
-		ok(G.world.actors.has("g67_krot") and G.world.get_node_or_null("krot_item") != null, "КРОТ стоит в подъезде с люстрой (встреча 2)")
+		ok(G.world.actors.has("g67_krot") and G.krot_item != null and is_instance_valid(G.krot_item), "КРОТ стоит в подъезде с люстрой (встреча 2)")
 		var k2: Vector3 = G.world.actors["g67_krot"].global_position
 		var oc3 := Camera3D.new()
 		g.add_child(oc3)
-		oc3.global_position = k2 + Vector3(2.3, 1.25, -1.6)
-		oc3.look_at(k2 + Vector3(0, 0.8, 0), Vector3.UP)
+		var kf: Vector3 = G.world.actors["g67_krot"].global_transform.basis.z
+		oc3.global_position = k2 + kf * 2.2 + Vector3(kf.z, 0, -kf.x) * 0.9 + Vector3(0, 1.25, 0)      # спереди-сбоку
+		oc3.look_at(k2 + Vector3(0, 0.85, 0), Vector3.UP)
 		oc3.make_current()
 		await wait(0.6)
 		await shot("40_krot_chandelier")
@@ -888,7 +1039,10 @@ func _run_dvor(g, G: Golda67, P) -> void:
 				break
 			g._dlg_advance()
 			await wait(0.15)
-		ok((G.meta()["seen"] as Array).has("krot2") and G.world.get_node_or_null("krot_item") == null, "встреча 2 засчитана, КРОТ ушёл с люстрой")
+		ok((G.meta()["seen"] as Array).has("krot2") and G.world.get_node_or_null("krot_leaving") != null, "встреча 2 засчитана, КРОТ разворачивается и уходит с люстрой в руках")
+		await wait(1.2)
+		await shot("40b_krot_leaves")
+		ok(await until(func(): return G.world.get_node_or_null("krot_leaving") == null and G.krot_item == null, 5.0), "ушёл и унёс люстру")
 		ok(G.flurr_state() == 2, "DJ FLÜRR теперь в состоянии 2 (подсказка на голубей)")
 	else:
 		print("GOLDA67CHECK   модели люстры нет — встреча 2 ждёт")

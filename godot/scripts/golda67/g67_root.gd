@@ -46,6 +46,7 @@ var scene_said := false
 
 func setup(g) -> void:
 	game = g
+	game.feedback_fired.connect(_on_feedback)
 	process_mode = Node.PROCESS_MODE_ALWAYS      # подсказку [E] нужно гасить и на паузе
 	data = G67Save.load_all()
 	# боссы и говорящие приквела — в копию сюжета этого экземпляра игры (story.json не меняется)
@@ -177,6 +178,10 @@ func enter_room(r: Dictionary) -> void:
 	room = r
 	wind_used = false
 	_swap_world(func(w: G67World): w.build_room(r))
+	krot_k = {}
+	if world.yard != null:
+		for l in world.yard.lifes:
+			(l as G67Life).watcher = game.player       # жители замечают Пахана, когда он рядом и впереди
 	var p = game.player
 	p.global_position = Vector3(0.0, 0.05, 10.5)
 	p.velocity = Vector3.ZERO
@@ -452,24 +457,116 @@ func _place_krot(where: String) -> void:
 		return
 	var off := Vector3.ZERO if where == "hub" or world.yard == null else world.yard.position
 	var pos: Vector3 = (k["pos"] as Vector3) + off
-	var r: Rig = world._actor("g67_krot", G67Models.DIR + "g67_krot.glb", 1.62, pos, float(k["yaw"]))
+	var kc: Dictionary = Poses.pahan()
+	kc.merge(G67Poses.krot(), true)           # позы встреч КРОТА (одна модель на все десять)
+	var r: Rig = world._actor("g67_krot", G67Models.DIR + "g67_krot.glb", 1.62, pos, float(k["yaw"]), kc)
 	if r == null:
 		return
+	krot_k = k
+	krot_line = -1
+	krot_feed = 0.0
+	krot_life = G67Life.attach(r, {"base": String(k.get("pose", "Idle")), "alts": [], "look_r": 6.0, "turn": 1.4}, 9100)
+	if krot_life != null:
+		krot_life.watcher = game.player
 	world._static_box(pos + Vector3(0, 0.9, 0), Vector3(0.7, 1.8, 0.7))
 	var talk: Vector3 = k.get("talk", Vector3(sin(float(k["yaw"])), 0, cos(float(k["yaw"]))) * 1.1)
 	world._point("krot", "КРОТ", "поговорить", pos + talk)
 	if String(k.get("carry", "")) != "":
-		# держит вещь перед собой (люстру): руки вперёд, вещь — у груди
-		G67Models.hold(r)
+		# держит вещь перед собой обеими руками (люстру): вещь закреплена на груди скелета — идёт вместе с ним
 		var fw := Vector3(sin(float(k["yaw"])), 0, cos(float(k["yaw"])))
-		var item := G67Models.spawn(String(k["carry"]), world, pos + fw * 0.5 + Vector3(0, 0.42, 0), float(k["yaw"]), Vector3(9, 0.62, 9))
+		var item := G67Models.spawn(String(k["carry"]), world, pos + fw * 0.46 + Vector3(0, 0.5, 0), float(k["yaw"]), Vector3(9, 0.55, 9))
 		item.name = "krot_item"
+		var att := BoneAttachment3D.new()
+		att.bone_name = "mixamorig_Hips"
+		r.skel.add_child(att)
+		item.reparent(att, true)
+		krot_item = item
 	for i in int(k.get("pigeons", 0)):
 		var a := float(i) * 1.26 + 0.4
 		var pg := G67Models.spawn("g67_pigeon", world, pos + Vector3(sin(a), 0, cos(a)) * (1.2 + 0.25 * float(i % 3)), a * 2.0 + 1.0, Vector3(9, 0.3, 9))
 		pg.name = "krot_pigeon%d" % i
 		G67Pigeon.attach(pg, i)
 	events.append(["krot_here", String(k["id"])])
+
+# ---------------------------------------------------------------- постановка встреч КРОТА
+var krot_k := {}
+var krot_life: G67Life = null
+var krot_item: Node3D = null
+var krot_line := -1
+var krot_feed := 0.0
+var krot_walk := -1.0
+
+## Жесты КРОТА по репликам: пока идёт разговор с ним — смотрим, какая реплика на экране
+func _krot_tick(dt: float) -> void:
+	var kr = world.actors.get("g67_krot")
+	if krot_k.is_empty():
+		return
+	# уходит с вещью
+	if krot_walk >= 0.0:
+		krot_walk += dt
+		var w = world.get_node_or_null("krot_leaving")
+		if w == null:
+			krot_walk = -1.0
+			return
+		(w as Node3D).global_position += (w as Node3D).global_transform.basis.z * 0.95 * dt
+		if krot_walk > 3.2:
+			game.fx.dust((w as Node3D).global_position + Vector3(0, 0.2, 0), 8, game.fx.DUST, 0.9)
+			w.queue_free()
+			krot_item = null
+			krot_walk = -1.0
+		return
+	if kr == null or not is_instance_valid(kr) or krot_life == null:
+		return
+	# люстра в руках медленно поворачивается — он её рассматривает
+	if krot_item != null and is_instance_valid(krot_item) and krot_life.cur != "K2Show":
+		krot_item.rotate_y(dt * 0.35)
+	# корм: на взмахе руки голуби бегут к брошенным зёрнам
+	if bool(krot_k.get("feed", false)) and krot_life.cur == "K3" and kr.player != null:
+		var ph: float = fmod(kr.player.current_animation_position / maxf(0.01, kr.player.current_animation_length), 1.0)
+		if ph >= 0.55 and krot_feed < 0.55:
+			var fw: Vector3 = (kr as Node3D).global_transform.basis.z
+			var spot: Vector3 = (kr as Node3D).global_position + fw * 1.4 + Vector3(fw.z, 0, -fw.x) * randf_range(-0.6, 0.6)
+			for ch in world.get_children():
+				if String(ch.name).begins_with("krot_pigeon"):
+					var pg = ch.get_child(ch.get_child_count() - 1)
+					if pg is G67Pigeon and randf() < 0.75:
+						(pg as G67Pigeon).feed(world.to_local(spot))
+		krot_feed = ph
+	if game.mode != "dlg" or game.dlg_partner != kr:
+		return
+	if game.dlg_i == krot_line:
+		return
+	krot_line = game.dlg_i
+	var acts: Dictionary = krot_k.get("acts", {})
+	var line := String(game.dlg[krot_line]) if krot_line >= 0 and krot_line < game.dlg.size() else ""
+	if acts.has(krot_line):
+		var a = acts[krot_line]
+		if a is Array:
+			krot_life.stage(String(a[0]), 0.25, float(a[1]))
+			get_tree().create_timer(float(a[1]), false).timeout.connect(func():
+				if krot_life != null and is_instance_valid(krot_life) and game.mode == "dlg":
+					krot_life.stage(String(krot_k.get("talk_clip", krot_k["pose"])), 0.4))
+		else:
+			krot_life.stage(String(a), 0.35)
+			if String(a) == "K2Show" and krot_item != null:
+				var tw := krot_item.create_tween()
+				tw.tween_property(krot_item, "rotation:y", krot_item.rotation.y + PI, 0.6).set_trans(Tween.TRANS_SINE)
+	elif line.begins_with("KR|"):
+		if not acts.has(krot_line - 2) or not (acts[krot_line - 2] is String):
+			krot_life.stage(String(krot_k.get("talk_clip", krot_k["pose"])), 0.4)
+
+## После разговора: остаётся в своей позе (говорить больше не о чем) или уходит, унося вещь
+func _krot_after(kr: Rig) -> void:
+	match String(krot_k.get("after", "")):
+		"walk":
+			krot_life.stage("K2Walk", 0.3)
+			kr.rotation.y += PI                          # разворачивается и уходит, люстра остаётся в руках
+			kr.name = "krot_leaving"
+			krot_walk = 0.0
+		_:
+			krot_life.stage(String(krot_k.get("pose", "Idle")), 0.5)
+			kr.name = "krot_after"
+			krot_life.paused = false
 
 func talk_krot() -> void:
 	var k := krot_next()
@@ -503,12 +600,8 @@ func _krot_done(id: String) -> void:
 	world.points = world.points.filter(func(pt): return String(pt["id"]) != "krot")
 	var kr = world.actors.get("g67_krot")
 	if kr != null and is_instance_valid(kr):
-		game.fx.dust(kr.global_position + Vector3(0, 0.2, 0), 10, game.fx.DUST, 1.0)
-		kr.queue_free()
+		_krot_after(kr)
 	world.actors.erase("g67_krot")
-	var it := world.get_node_or_null("krot_item")      # вещь он уносит с собой; голуби остаются
-	if it != null:
-		it.queue_free()
 	near = ""
 	game.toast("КРОТ: %d из 10" % seen.filter(func(x): return String(x).begins_with("krot")).size())
 
@@ -671,6 +764,7 @@ func rest() -> void:
 	_open_gates()
 
 func _boss_down(e) -> void:
+	_crowd("win")
 	var d := district()
 	room_state = "over"
 	game.slowmo(1.4)
@@ -752,6 +846,8 @@ func _physics_process(dt: float) -> void:
 	_t += dt
 	if scene_t >= 0.0:
 		_scene_tick(dt)
+	_krot_tick(dt)
+	_crowd_tick()
 	if place == "run" and not busy and not game.over and not run.is_empty():
 		if room_state == "fight":
 			_fight_tick(dt)
@@ -804,3 +900,33 @@ func use(id: String) -> void:
 
 func to_menu() -> void:
 	game._to_menu()
+
+# ---------------------------------------------------------------- зрители у коробки Миши
+const CROWD_HITS := ["hit_super", "vz_finisher", "vz_slam", "vz_quake", "knockdown"]
+var crowd_t := -9.0
+var crowd_phase := -1
+
+func _crowd(kind: String) -> void:
+	if place != "run" or world == null or world.yard == null or String(room.get("place", "")) != "sport":
+		return                       # зрители видят только свою коробку
+	world.yard.crowd_react(kind)
+	events.append(["crowd", kind])
+
+## Сильный удар, добивание, сбитый с ног — короткая реакция части зрителей (не чаще раза в 2,5 с)
+func _on_feedback(nm: String, _pos: Vector3, power: float) -> void:
+	if not (nm in CROWD_HITS or (nm == "hit_heavy" and power >= 1.2)):
+		return
+	if game.clock - crowd_t < 2.5:
+		return
+	crowd_t = game.clock
+	_crowd("hit")
+
+## Смена фазы босса — реагируют почти все
+func _crowd_tick() -> void:
+	var b = game.boss_e
+	if b == null or not is_instance_valid(b):
+		crowd_phase = -1
+		return
+	if crowd_phase >= 0 and int(b.phase) != crowd_phase:
+		_crowd("phase")
+	crowd_phase = int(b.phase)
