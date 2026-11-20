@@ -16,6 +16,7 @@ func _ready() -> void:
 	for p in KEEP:
 		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
 	AudioServer.set_bus_mute(0, true)
+	G67Save.clean = true          # прогресс игрока в приквеле на проверку не влияет
 	_run()
 
 func ok(cond: bool, text: String) -> void:
@@ -243,6 +244,7 @@ func _run() -> void:
 	ok(save_same(), "сохранение кампании не изменилось")
 	ok(not FileAccess.file_exists("user://golda67_save.json") or kept["user://golda67_save.json"] == FileAccess.get_file_as_string("user://golda67_save.json"), "проверка не пишет сохранение приквела игрока")
 	# ================= dj flürr: одиннадцать состояний =================
+	await _madk_check(g, G, P)
 	await _flurr_check(g, G, P)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
@@ -395,6 +397,57 @@ func _misha_moves(g, G: Golda67, P, B) -> void:
 	P.global_position = Vector3(0, 0.05, 3.0)
 	P.hp = P.max_hp
 	P.inv = 0.0
+
+## madk1d закрыт до первой концовки: Tab, T, G, Q ничего не открывают, в HUD замок; после концовки — всё работает
+func _madk_check(g, G: Golda67, P) -> void:
+	var fl: Dictionary = G.meta().get("flags", {})
+	var had := bool(fl.get(G67Data.MADK_FLAG, false))
+	fl.erase(G67Data.MADK_FLAG)
+	G.meta()["flags"] = fl
+	ok(not G.madk_open() and g.madk_locked(), "новый приквел: madk1d закрыт (флаг первой концовки не стоит)")
+	P.hp = P.max_hp
+	await wait(0.3)
+	g._madk_note_t = -9.0
+	await key(KEY_TAB)
+	await wait(0.5)
+	ok(String(P.hero) == "pahan" and g._madk_note_t > 0.0, "Tab: остаётся Пахан, игроку объяснили, когда откроется madk1d")
+	ok(String(g.toast_label.text).contains("первой концовки"), "подсказка: «%s»" % g.toast_label.text)
+	ok(not g.swap_heroes(true) and String(P.hero) == "pahan", "смена героя кодом тоже закрыта (AIR TAG и прочие пути)")
+	ok(not g.tag.try_assist() and not g.tag.duo.active(), "T: дуэт-атаки нет")
+	g.hype.value = TeamHype.MAX
+	ok(not g.hype.try_start() and not g.hype.active(), "G: Overdrive не запускается даже с полной шкалой")
+	g.hype.value = 0.0
+	ok(g.hype.gain("attack") == 0.0 and g.hype.value == 0.0, "Team Hype не копится")
+	var ab: Array = g.combat_hud.abilities(P)
+	ok(not ab.any(func(x): return String(x[0]) == "Q"), "ромба ад-либа madk1d в HUD нет")
+	var H: CombatHud = g.combat_hud
+	ok(H.madk_lock != null and H.madk_lock.visible and H.tab_lock.visible and not H.hype_text.visible, "в HUD на портрете madk1d и на бирке TAB — замок, шкалы HYPE нет")
+	await shot("08_madk_locked")
+	# после первой концовки — всё открыто
+	fl[G67Data.MADK_FLAG] = true
+	G.meta()["flags"] = fl
+	await wait(0.2)
+	ok(G.madk_open() and not g.madk_locked(), "после первой концовки madk1d открыт")
+	await wait(0.6)
+	g.tag.tag_cd = 0.0
+	await key(KEY_TAB)
+	var sw: bool = await until(func(): return String(P.hero) == "madk1d", 3.0)
+	ok(sw, "Tab: управление переходит к madk1d")
+	ok(not H.madk_lock.visible and H.hype_text.visible, "замок в HUD снят, шкала HYPE на месте")
+	await wait(0.4)
+	await shot("08b_madk_open")
+	await wait(1.4)
+	g.tag.tag_cd = 0.0
+	if String(P.hero) == "madk1d":
+		g.swap_heroes(true)
+	await wait(0.6)
+	ok(String(P.hero) == "pahan", "обратно к Пахану")
+	if not had:
+		fl.erase(G67Data.MADK_FLAG)
+	G.meta()["flags"] = fl
+	G.apply_styles()
+	P.global_position = G.world.spawn_pos
+	await wait(0.3)
 
 func _flurr_from_doc() -> Dictionary:
 	var txt := FileAccess.get_file_as_string("res://docs/golda67/DJ_FLURR_SPEC.md").replace("\r", "")

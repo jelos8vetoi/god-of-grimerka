@@ -302,6 +302,38 @@ func _build_portraits() -> void:
 	mate_fill.size = Vector2(116, 8)
 	mb.add_child(mate_fill)
 
+## madk1d закрыт (приквел до первой концовки): на его портрете и на бирке TAB — замок, шкала HYPE спрятана
+var madk_lock: Control
+var tab_lock: Control
+func _tick_lock() -> void:
+	var locked: bool = game.madk_locked()
+	if locked and madk_lock == null and portraits.has("madk1d"):
+		madk_lock = _lock_badge(64)
+		madk_lock.position = Vector2(84, 96)
+		(portraits["madk1d"]["root"] as Control).add_child(madk_lock)
+		tab_lock = _lock_badge(34)
+		tab_lock.position = Vector2(66, 34)
+		tab_tag.add_child(tab_lock)
+	if madk_lock != null:
+		madk_lock.visible = locked
+		tab_lock.visible = locked
+	hype_fill.get_parent().visible = not locked      # подложка шкалы
+	hype_fill.visible = not locked
+	hype_text.visible = not locked
+
+func _lock_badge(px: int) -> Control:
+	var c := Control.new()
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.z_index = 5
+	var bg := _paper(px + 14, px + 14, 9, INK)
+	c.add_child(bg)
+	var ic := MGIcon.make("lock", px, WHITE)
+	ic.position = Vector2(7, 7)
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.add_child(ic)
+	c.set_meta("madk_lock", true)
+	return c
+
 func _place_portraits(dt: float, snap := false) -> void:
 	for hero in portraits:
 		var d: Dictionary = portraits[hero]
@@ -592,7 +624,8 @@ func _build_slots() -> void:
 func abilities(p) -> Array:
 	var out: Array = []
 	var b = game.buddy
-	out.append(["Q", "АД-ЛИБ", "adlib", 1.0 - clampf(b.cd / max(0.01, b.cd_max), 0.0, 1.0), "%.1f" % b.cd if b.cd > 0.0 else ""])
+	if not game.madk_locked():      # ад-либ — приём madk1d: пока он закрыт, ромба нет
+		out.append(["Q", "АД-ЛИБ", "adlib", 1.0 - clampf(b.cd / max(0.01, b.cd_max), 0.0, 1.0), "%.1f" % b.cd if b.cd > 0.0 else ""])
 	var rage := ["R", "ПЕРЕГРУЗ", "rage", p.rage / 8.0 if p.rage > 0.0 else p.swag / 100.0, "%.0f" % p.rage if p.rage > 0.0 else ""]
 	var id: String = p.style.id
 	match id:
@@ -692,6 +725,7 @@ func _process(dt: float) -> void:
 		mate_fill.color = Color(0.85, 0.2, 0.16) if tg.down[o] else WHITE
 		mate_grey.size.x = 116.0 * clampf((float(tg.hp[o]) + float(tg.grey[o])) / p.max_hp, 0.0, 1.0)
 		tab_tag.modulate.a = 1.0 if tg.tag_block() == "" else 0.45
+	_tick_lock()
 	hp_fill.size.x = BAR_W * clampf(p.hp / p.max_hp, 0.0, 1.0)
 	hp_text.text = "%d / %d" % [int(ceil(p.hp)), int(p.max_hp)]
 	var raging: bool = p.rage > 0.0
