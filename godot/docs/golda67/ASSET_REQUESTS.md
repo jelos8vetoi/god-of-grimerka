@@ -410,6 +410,196 @@ A cheap homemade TV news desk of a tiny district channel. A curved front desk ab
 Исходники без скелета — файлы владельца в «Загрузках»; в проекте лежат уже со скелетом. Статус персонажей —
 «получена, скелет стоит»; «интегрирована» будет после появления в игре.
 
+## Партия ДВОР (Y) — 2026-11-20: чего не хватает двору
+
+Двор собран из имеющихся моделей (хрущёвка, девятиэтажка, гаражи, ларёк, остановка, площадка, беседка и др.).
+Эти двенадцать моделей закрывают места, где сейчас стоит замена: борта и мачты арены, машина и трон Миши,
+сугробы, второй тип дома, арка, жилые детали. Игра работает и без них; с ними двор станет заметно богаче.
+Порядок важности: Y01–Y05 (арена босса), Y10–Y11 (силуэт двора), остальные.
+
+| № | id | Модель | Файл | Длина | Статус |
+|---|---|---|---|---|---|
+| 1 | G67-Y01 | Борт хоккейной коробки | `godot/assets/golda67/g67_court_board.glb` | 845 | промпт выдан |
+| 2 | G67-Y02 | Калитка коробки | `godot/assets/golda67/g67_court_gate.glb` | 808 | промпт выдан |
+| 3 | G67-Y03 | Машина Миши Минасяна | `godot/assets/golda67/g67_misha_car.glb` | 902 | промпт выдан |
+| 4 | G67-Y04 | Трон Миши | `godot/assets/golda67/g67_misha_throne.glb` | 797 | промпт выдан |
+| 5 | G67-Y05 | Мачта с прожекторами | `godot/assets/golda67/g67_floodlight_mast.glb` | 756 | промпт выдан |
+| 6 | G67-Y06 | Сугроб | `godot/assets/golda67/g67_snowdrift.glb` | 774 | промпт выдан |
+| 7 | G67-Y07 | Ковровыбивалка с ковром | `godot/assets/golda67/g67_carpet_rack.glb` | 756 | промпт выдан |
+| 8 | G67-Y08 | Сушилка с бельём | `godot/assets/golda67/g67_laundry_lines.glb` | 743 | промпт выдан |
+| 9 | G67-Y09 | Бетонная урна | `godot/assets/golda67/g67_urn.glb` | 692 | промпт выдан |
+| 10 | G67-Y10 | Кирпичная пятиэтажка | `godot/assets/golda67/g67_brick_house.glb` | 878 | промпт выдан |
+| 11 | G67-Y11 | Секция дома с аркой | `godot/assets/golda67/g67_house_arch.glb` | 847 | промпт выдан |
+| 12 | G67-Y12 | Открытый гараж с верстаком | `godot/assets/golda67/g67_garage_open.glb` | 768 | промпт выдан |
+
+### G67-Y01 — Борт хоккейной коробки
+
+- **Назначение:** Арена Миши Минасяна: борта по периметру площадки (сейчас вместо них — секции декоративного забора).
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_court_board.glb`
+- **Путь:** `godot/assets/golda67/g67_court_board.glb`
+- **Статус:** промпт выдан
+- **Промпт (845 символов):**
+
+```text
+A straight section of an old soviet courtyard hockey rink wall, 4 metres long. Lower part: a 1.1 metre high wooden board fence made of horizontal planks, painted peeling white with a wide blue stripe along the top edge and a red kick stripe at the bottom, scuffed by pucks and boots. Upper part: a 2 metre high chain-link mesh in a rusty welded steel frame with two square posts at the ends. A few dents, old sticker remains, snow lying on the top rail. Both ends cut flat and vertical so sections join into a rink. Stylized low-poly 3D modular environment piece for a game, gritty post-soviet Russian style: chunky proportions, clean low-poly faces, hand-painted textures, worn paint and grime, muted colours. Flat straight side edges so copies tile side by side. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-Y02 — Калитка коробки
+
+- **Назначение:** Вход на арену Миши: проём в борту с открытой калиткой.
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_court_gate.glb`
+- **Путь:** `godot/assets/golda67/g67_court_gate.glb`
+- **Статус:** промпт выдан
+- **Промпт (808 символов):**
+
+```text
+An entrance gate section of an old courtyard hockey rink. A 4 metre wide wall section like the rink boards (white planks with a blue top stripe, chain-link mesh above in a rusty steel frame) with a 1.4 metre wide doorway in the middle, the door leaf made of planks and mesh swung open outward at 90 degrees, a rusty hinge and a bent latch, a worn threshold beam. Two taller steel posts beside the doorway joined by a bar on top where a banner could hang. Ends cut flat. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-Y03 — Машина Миши Минасяна
+
+- **Назначение:** «Трон» босса и шутки роликов (садится на капот, цепь цепляется за зеркало). Сейчас — перекрашенная соседская машина.
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_misha_car.glb`
+- **Путь:** `godot/assets/golda67/g67_misha_car.glb`
+- **Статус:** промпт выдан
+- **Промпт (902 символов):**
+
+```text
+A flashy old soviet-era hatchback tuned by a courtyard boss who thinks it is a luxury car. Boxy 1990s three-door body painted glossy black with a matte gold bonnet stripe, lowered suspension, oversized gold alloy wheels with thin tyres, fully tinted dark windows, a big plastic rear spoiler, a furry dashboard cover visible through the windscreen, fuzzy dice, two extra fog lamps, a chrome exhaust tip, a blank licence plate frame. Clean and polished but with rust peeking at the wheel arches. Side mirrors clearly sticking out. Front clearly different from back. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-Y04 — Трон Миши
+
+- **Назначение:** Место босса в дальнем конце арены: отсюда он встаёт в постановке выхода.
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_misha_throne.glb`
+- **Путь:** `godot/assets/golda67/g67_misha_throne.glb`
+- **Статус:** промпт выдан
+- **Промпт (797 символов):**
+
+```text
+A makeshift throne of a courtyard boss built outdoors. An old fat brown leather armchair with cracked upholstery standing on two wooden shipping pallets, a red patterned soviet wall carpet draped over the high back and hanging down behind, golden tinsel wound around the armrests, a crate used as a side table with a thermos and a blank trophy cup on it, a small red rug under the feet. Pompous and shabby at the same time. Front clearly different from back. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-Y05 — Мачта с прожекторами
+
+- **Назначение:** Освещение арены: четыре мачты по углам коробки (сейчас — увеличенные уличные фонари).
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_floodlight_mast.glb`
+- **Путь:** `godot/assets/golda67/g67_floodlight_mast.glb`
+- **Статус:** промпт выдан
+- **Промпт (756 символов):**
+
+```text
+A tall courtyard sports floodlight mast, about 8 metres high. A slender rusty lattice steel tower narrowing to the top, standing on a concrete footing block, with a short crossbar at the top holding three old rectangular floodlight lamps tilted downward, each with a dented metal hood and a glass face, a loose black cable running down the mast into a grey electrical box bolted at chest height. Snow on the crossbar. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-Y06 — Сугроб
+
+- **Назначение:** Сугробы вдоль проездов и под деревьями (сейчас собраны из простых форм).
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_snowdrift.glb`
+- **Путь:** `godot/assets/golda67/g67_snowdrift.glb`
+- **Статус:** промпт выдан
+- **Промпт (774 символов):**
+
+```text
+A long ploughed snowbank pushed to the side of a courtyard road, about 5 metres long, 1.6 metres wide and 0.9 metres high. Lumpy irregular shape with a steep dirty side facing the road, grey-brown grit and tyre spray along the lower edge, clean white rounded top with wind-blown ridges, a few chunks of broken ice, one half-buried piece of a wooden plank and a cigarette pack sticking out. Soft blue shadows painted in. Flat underside. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-Y07 — Ковровыбивалка с ковром
+
+- **Назначение:** Жилая деталь двора у детской площадки; укрытие в бою.
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_carpet_rack.glb`
+- **Путь:** `godot/assets/golda67/g67_carpet_rack.glb`
+- **Статус:** промпт выдан
+- **Промпт (756 символов):**
+
+```text
+A soviet courtyard carpet-beating rack. A sturdy welded steel frame like a wide low goalpost, about 2.6 metres wide and 2 metres tall, painted peeling green, on two posts set in concrete, with a heavy red patterned soviet carpet thrown over the top bar and hanging down on both sides almost to the ground, snow on the upper fold, a plastic carpet beater hanging on a hook on one post. Front and back both show carpet. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-Y08 — Сушилка с бельём
+
+- **Назначение:** Жилая деталь двора между домом и площадкой.
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_laundry_lines.glb`
+- **Путь:** `godot/assets/golda67/g67_laundry_lines.glb`
+- **Статус:** промпт выдан
+- **Промпт (743 символов):**
+
+```text
+A soviet courtyard laundry drying stand: two T-shaped steel posts about 2.2 metres tall and 4 metres apart, painted peeling blue, joined by four sagging ropes. On the ropes hang frozen stiff laundry: a white bed sheet, a striped towel, a pair of blue track pants with white stripes, two shirts and a row of socks, held by wooden clothespins, edges frosted with snow. Posts set in small concrete footings. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-Y09 — Бетонная урна
+
+- **Назначение:** Урны у подъезда, у ларька и у лавок (сейчас вместо них бочки).
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_urn.glb`
+- **Путь:** `godot/assets/golda67/g67_urn.glb`
+- **Статус:** промпт выдан
+- **Промпт (692 символов):**
+
+```text
+A small soviet concrete street litter bin, about 0.7 metres tall. A chunky hexagonal vase-shaped concrete body with chipped edges and a pebble texture, painted in flaking pale green, a dented galvanised metal bucket insert inside, overflowing with crumpled paper, a bottle and sunflower seed husks, cigarette burns on the rim, a little snow on one side. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-Y10 — Кирпичная пятиэтажка
+
+- **Назначение:** Второй тип дома: сейчас весь двор окружён одной моделью хрущёвки и одной девятиэтажкой.
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_brick_house.glb`
+- **Путь:** `godot/assets/golda67/g67_brick_house.glb`
+- **Статус:** промпт выдан
+- **Промпт (878 символов):**
+
+```text
+A five-storey soviet brick apartment block, a long building about four times longer than deep. Dark red-brown brick walls with lighter brick patterns between floors, a pitched grey slate roof with chimneys and TV antennas, small balconies with mismatched glazing and laundry, three entrance porches with concrete canopies and steel doors on the front side, drainpipes at the corners, air conditioner boxes, some windows glowing warm yellow and some dark, a satellite dish. Back side with fewer balconies. Front clearly different from back. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-Y11 — Секция дома с аркой
+
+- **Назначение:** Арка-проезд из двора: здесь будет переход в район ПОДЗЕМКА и растяжка турнира над ней.
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_house_arch.glb`
+- **Путь:** `godot/assets/golda67/g67_house_arch.glb`
+- **Статус:** промпт выдан
+- **Промпт (847 символов):**
+
+```text
+A section of a five-storey soviet panel apartment block with a tall drive-through archway at ground level. Grey concrete panel walls with visible seams, an arch passage about 4 metres wide and 4.5 metres tall cutting straight through the building, dark inside with a bare bulb lamp, graffiti remains on the arch walls, windows and small balconies on the four floors above, a few lit yellow, a blank banner stretched across above the arch on two ropes. Both side walls cut flat to join neighbouring buildings. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
+### G67-Y12 — Открытый гараж с верстаком
+
+- **Назначение:** Гаражи: один бокс открыт — видно, что там живут своей жизнью (сейчас все гаражи одной модели, только разного оттенка).
+- **Поза / ракурс:** стоит на земле, вид спереди; точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_garage_open.glb`
+- **Путь:** `godot/assets/golda67/g67_garage_open.glb`
+- **Статус:** промпт выдан
+- **Промпт (768 символов):**
+
+```text
+An open soviet metal garage box seen from the front, about 3.5 metres wide and 2.8 metres tall. Corrugated rusty steel walls and roof, both door leaves swung wide open, inside a workbench with a vice and tools, shelves with jars and oil cans, a hanging bare bulb with warm light, a stack of winter tyres, an old stool, a blank poster on the back wall, a kettle on a crate. Snow on the roof. Back and sides plain corrugated metal. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
 ## Партии P1–P3 — статус «требуется»
 
 Промпты для этих моделей будут выданы следующими партиями, после ответа владельца по P0. Список — в
@@ -433,6 +623,7 @@ A cheap homemade TV news desk of a tiny district channel. A curved front desk ab
 | Дата | Что |
 |---|---|
 | 2026-11-20 | Выдана партия P0 (20 промптов). Ни одна модель не получена. |
+| 2026-11-20 | Выдана партия ДВОР (Y01–Y12): модели для арены босса и для разнообразия двора. |
 | 2026-11-20 | Смотрящий заменён второй моделью владельца. Всем семи персонажам поставлен скелет. Миша Минасян, КРОТ и dj flürr приняты в виде владельца. |
 | 2026-11-20 | Получены все 22 модели P0, лежат в `godot/assets/golda67/`. Смотрящий (G67-C06) — на замену. Скелеты не ставились, в игру не интегрированы. |
 | 2026-11-20 | Ведущий новостей нужен в кадре: в P0 добавлены G67-C23 и G67-D08 (всего в P0 22 промпта). |

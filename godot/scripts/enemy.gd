@@ -16,7 +16,15 @@ const KINDS := {
 	# копия призрака (EnemyAI «КОПИИ»): почти прозрачная, без полоски здоровья в цвете, рассыпается с одного удара
 	"phantom": {"model": "hater", "height": 1.75, "hp": 1.0, "speed": 3.2, "range": 2.0, "wind": 0.6, "dmg": 6.0, "clip": "Cast", "cool": 1.8, "tint": Color("dcd6ff"), "alpha": 0.3, "emit": 0.5, "xp": 0, "noweapon": true},
 }
+## Облики врагов приквела «ГОЛДА 67»: поведение — от обычного типа (kind), модель и рост — свои (enemy.skin).
+## Модели владельца со скелетом Пахана (tools/rig-horror.py), оружия в руках нет, цвет не перекрашивается.
+const SKINS := {
+	"g67_shest": {"model": "g67", "path": "res://assets/golda67/g67_enemy_shestyorka.glb", "key": "g67_shest", "height": 1.75, "noweapon": true, "own": true, "clip": "Punch"},
+	"g67_semka": {"model": "g67", "path": "res://assets/golda67/g67_enemy_semechnik.glb", "key": "g67_semka", "height": 1.6, "noweapon": true, "own": true, "clip": "Punch"},
+	"g67_smotr": {"model": "g67", "path": "res://assets/golda67/g67_enemy_smotryashchiy.glb", "key": "g67_smotr", "height": 2.35, "noweapon": true, "own": true, "clip": "Punch", "hp": 300.0},
+}
 const BOSS_LOOK := {
+	"g67_misha": {"model": "g67", "path": "res://assets/golda67/g67_misha.glb", "key": "g67_misha", "scale": 1.25, "own": true},
 	"courier": {"model": "drey", "scale": 1.3, "own": true}, "golem": {"model": "bot", "scale": 1.9}, "hype": {"model": "hater", "scale": 1.35},
 	"dislike": {"model": "bot", "scale": 1.75}, "major": {"model": "clipper", "scale": 1.4}, "strike": {"model": "hater", "scale": 1.45},
 	"botlord": {"model": "bot", "scale": 1.6}, "ghostv": {"model": "pahan", "scale": 1.2, "alpha": 0.85, "emit": 0.12}, "algo": {"model": "hater", "scale": 2.0, "emit": 0.1},
@@ -24,6 +32,7 @@ const BOSS_LOOK := {
 
 var game
 var kind := "bot"
+var skin := ""              # облик из SKINS (приквел): «» — обычный вид типа
 var boss_id := ""
 var boss: Dictionary = {}
 var cfg: Dictionary
@@ -134,7 +143,9 @@ func _ready() -> void:
 		_setup_boss()
 	else:
 		cfg = KINDS[kind].duplicate()
-		max_hp = float(Balance.MOB_HP.get(kind, cfg["hp"])) * float(game.diff_hp)      # баланс здоровья типа — balance.gd
+		if skin != "" and SKINS.has(skin):
+			cfg.merge(SKINS[skin], true)
+		max_hp = float(cfg["hp"] if (skin != "" and (SKINS.get(skin, {}) as Dictionary).has("hp")) else Balance.MOB_HP.get(kind, cfg["hp"])) * float(game.diff_hp)      # баланс здоровья типа — balance.gd
 	hp = max_hp
 	height = cfg["height"]
 	cool = randf_range(0.6, 1.6)
@@ -160,7 +171,9 @@ func _ready() -> void:
 		poses = Poses.clipper()
 	else:
 		poses = Poses.bot()
-	rig.setup("res://assets/models/" + m + ".glb", height, poses, boss_id != "", -1.0 if m == "pahan" else 1.0, m + ("_n" if cfg.get("noweapon", false) else ""))
+	rig.setup(String(cfg.get("path", "res://assets/models/" + m + ".glb")), height, poses, boss_id != "", -1.0 if m == "pahan" else 1.0, String(cfg.get("key", m + ("_n" if cfg.get("noweapon", false) else ""))))
+	if boss_id == "g67_misha":
+		G67Models.misha_chain(rig)        # золотая цепь на груди — идёт за анимацией
 	if not cfg.get("own", false) and (cfg.has("tint") or cfg.has("alpha") or cfg.has("emit")):
 		_tint(cfg.get("tint", Color.WHITE), cfg.get("alpha", 1.0), cfg.get("emit", 0.0))
 	if not cfg.get("noweapon", false):
@@ -217,6 +230,10 @@ func _setup_boss() -> void:
 		cfg["alpha"] = look["alpha"]
 	cfg["emit"] = look.get("emit", 0.04)
 	cfg["own"] = look.get("own", false)   # своя модель босса: не перекрашиваем
+	if look.has("path"):
+		cfg["path"] = look["path"]
+		cfg["key"] = look.get("key", boss_id)
+		cfg["noweapon"] = true
 	if look["model"] == "pahan":
 		cfg["clip"] = "Light1"
 	max_hp = float(boss["hp"]) * Balance.BOSS_HP * float(game.diff_hp)       # было 0,75 — фазы проскакивали (balance.gd)
@@ -1157,6 +1174,20 @@ func _special() -> void:
 	var P = game.player
 	var title := ""
 	match boss_id:
+		"g67_misha":
+			# РАЗМАХ ЦЕПЬЮ: топает и крутит цепью — полоса идёт по кругу; со второй фазы следом волна по земле
+			title = "РАЗМАХ ЦЕПЬЮ"
+			rig.play_for("Stomp", 1.1, 0.08)
+			var to0: Vector3 = P.global_position - global_position
+			var a00 := atan2(-to0.x, -to0.z) + 0.9
+			var w0 := 2.4 * (1.0 if randf() < 0.5 else -1.0)
+			_at(0.55, func():
+				game.sweep(self, 6.5, 1.5, w0, dmg * 0.9, col, a00)
+				game.main.sfx("sfx_swing_heavy", -2.0, 0.8)
+				game.shake(0.3))
+			if phase >= 1:
+				_at(1.5, func(): game.expanding_ring(global_position, 9.0, 1.1, dmg * 0.8, self))
+			sp_dur = 2.3 if phase >= 1 else 1.9
 		"courier":
 			# ДОСТАВКА: посылки летят по дуге туда, куда бежит герой, и взрываются
 			title = "ДОСТАВКА"

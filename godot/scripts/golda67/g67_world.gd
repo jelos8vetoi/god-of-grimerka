@@ -48,6 +48,9 @@ func _theme(d: String) -> Dictionary:
 	if d == "g67_hub":
 		return {"indoor": true, "sky": [Color(0.02, 0.02, 0.025)], "amb": Color(0.36, 0.36, 0.34), "fog": Color(0.1, 0.1, 0.1), "fog_d": 0.006,
 			"key": Color(1, 0.95, 0.85), "key_e": 0.0, "g": [Color(0.3, 0.29, 0.27), Color(0.36, 0.35, 0.33)], "glow": 0.45, "exp": 1.0}
+	if d == "g67_dvor":
+		return {"sky": [Color(0.03, 0.05, 0.12), Color(0.2, 0.17, 0.28)], "fog": Color(0.2, 0.22, 0.32), "fog_d": 0.012, "key": Color(0.6, 0.7, 1.0), "key_e": 0.5,
+			"g": [Color(0.55, 0.58, 0.66), Color(0.78, 0.82, 0.9)], "p": "snow"}
 	return super._theme(d)
 
 # ---------------------------------------------------------------- помощники
@@ -335,3 +338,138 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	_lamp(Vector3(-0.3, CEIL_Y - 0.12, 3.4), Color(1.0, 0.88, 0.68), 2.2, 9.0)          # над холлом
 	_lamp(Vector3(0.0, 2.52, Z_DOOR - 0.8), Color(1.0, 0.82, 0.55), 1.0, 4.0)           # в тамбуре
 	_light(Vector3(0.0, 3.3, Z_FRONT - 0.6), Color(0.45, 0.6, 1.0), 0.9, 6.0)           # от окна
+
+# ---------------------------------------------------------------- район ДВОР
+## Комната забега — ЗОНА одного цельного двора (g67_yard.gd, G67Yard): двор строится целиком и сдвигается так,
+## чтобы зона боя была в начале координат (враги игры держатся квадрата ±15 м вокруг нуля). Из любой зоны видны
+## остальные — дома, гаражи, площадка, коробка.
+var room: Dictionary = {}
+var gates: Array = []          # ворота выбора следующей комнаты: [{root, label, option}]
+var yard: G67Yard
+
+func build_room(r: Dictionary) -> void:
+	room = r
+	deco = "g67_dvor"
+	var T := _theme("g67_dvor")
+	var env := Environment.new()
+	var sky := Sky.new()
+	var sm := ProceduralSkyMaterial.new()
+	sm.sky_top_color = T["sky"][0]
+	sm.sky_horizon_color = T["sky"][1]
+	sm.ground_bottom_color = T["sky"][0]
+	sm.ground_horizon_color = T["sky"][1]
+	sky.sky_material = sm
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 1.15
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 1.05
+	env.glow_enabled = true
+	env.glow_intensity = 0.75
+	env.glow_bloom = 0.1
+	env.glow_hdr_threshold = 0.9
+	env.ssao_enabled = true
+	env.ssao_intensity = 1.6
+	env.fog_enabled = true
+	env.fog_light_color = T["fog"]
+	env.fog_density = 0.006
+	env.fog_aerial_perspective = 0.4
+	var we := WorldEnvironment.new()
+	we.environment = env
+	add_child(we)
+	# луна: холодный боковой свет с длинными тенями; тёплое — только от фонарей и окон
+	var key := DirectionalLight3D.new()
+	key.light_color = Color(0.62, 0.72, 1.0)
+	key.light_energy = 0.55
+	key.shadow_enabled = true
+	key.directional_shadow_max_distance = 70.0
+	key.rotation = Vector3(deg_to_rad(-38), deg_to_rad(-140), 0)
+	add_child(key)
+	var fill := DirectionalLight3D.new()
+	fill.light_color = Color(0.5, 0.52, 0.7)
+	fill.light_energy = 0.22
+	fill.rotation = Vector3(deg_to_rad(-30), deg_to_rad(50), 0)
+	add_child(fill)
+	yard = G67Yard.new()
+	add_child(yard)
+	yard.build()
+	var zc: Vector3 = G67Yard.zone(String(r.get("place", "podezd")))["c"]
+	yard.position = -zc
+	missing.append_array(yard.missing)
+	_zone_bounds(String(r.get("place", "")) != "sport")
+	_particles(T)
+
+## Граница зоны боя: невидимые стенки и турнирная разметка — золотой пунктир на снегу (турнир размечает площадки
+## прямо во дворе). В коробке границу держат борта — разметка не нужна.
+func _zone_bounds(mark: bool) -> void:
+	var h := G67Yard.HALF
+	for s in [[Vector3(0, 2, -h - 0.5), Vector3(2 * h + 2, 4, 1)], [Vector3(0, 2, h + 0.5), Vector3(2 * h + 2, 4, 1)], [Vector3(-h - 0.5, 2, 0), Vector3(1, 4, 2 * h + 2)], [Vector3(h + 0.5, 2, 0), Vector3(1, 4, 2 * h + 2)]]:
+		_static_box(s[0], s[1])
+	if not mark:
+		return
+	var gold := StandardMaterial3D.new()
+	gold.albedo_color = Color(0.95, 0.72, 0.2)
+	gold.emission_enabled = true
+	gold.emission = Color(0.95, 0.7, 0.2)
+	gold.emission_energy_multiplier = 0.9
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var bm := BoxMesh.new()
+	bm.size = Vector3(1.0, 0.03, 0.14)
+	bm.material = gold
+	mm.mesh = bm
+	var n := int(2 * h / 2.0)
+	mm.instance_count = n * 4
+	var k := 0
+	for i in n:
+		var t := -h + 1.0 + float(i) * 2.0
+		mm.set_instance_transform(k, Transform3D(Basis(), Vector3(t, 0.05, -h)))
+		mm.set_instance_transform(k + 1, Transform3D(Basis(), Vector3(t, 0.05, h)))
+		mm.set_instance_transform(k + 2, Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(-h, 0.05, t)))
+		mm.set_instance_transform(k + 3, Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(h, 0.05, t)))
+		k += 4
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	add_child(mi)
+
+## можно ли поставить врага в эту точку (не внутри машины, гаража или дерева)
+func blocked(p: Vector3) -> bool:
+	if yard == null:
+		return false
+	for s in yard.solids:
+		var c: Vector3 = (s[0] as Vector3) + yard.position
+		if Vector2(p.x - c.x, p.z - c.z).length() < float(s[1]) + 0.5:
+			return true
+	return false
+
+## Ворота выбора следующей комнаты (SPEC, раздел 9: после комнаты — 2–3 двери). options — [{type, place}].
+## Над каждыми — тип комнаты и награда; подойти и нажать [E].
+func add_gates(options: Array) -> void:
+	var n := options.size()
+	for i in n:
+		var o: Dictionary = options[i]
+		var x := (float(i) - float(n - 1) * 0.5) * 6.4
+		var pos := Vector3(x, 0, -12.6)
+		var g := G67Models.spawn("g67_room_gate", self, pos, 0.0, Vector3(3.0, 3.2, 1.2))
+		if String(g.get_meta("from", "")) != "glb":
+			missing.append("g67_room_gate")
+		_static_box(pos + Vector3(0, 1.5, 0), Vector3(3.0, 3.0, 0.8))
+		var type := String(o["type"])
+		var lbl := Label3D.new()
+		lbl.text = "%s\n%s" % [String(G67Data.ROOM_NAMES[type]), String(G67Data.ROOM_HINT[type])]
+		lbl.font_size = 56
+		lbl.pixel_size = 0.006
+		lbl.outline_size = 14
+		lbl.modulate = G67Data.ROOM_COLOR[type]
+		lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lbl.no_depth_test = true
+		lbl.position = pos + Vector3(0, 4.0, 0.4)
+		add_child(lbl)
+		_light(pos + Vector3(0, 2.6, 1.6), G67Data.ROOM_COLOR[type], 2.2, 6.0)
+		gates.append({"root": g, "label": lbl, "option": o})
+		_point("gate%d" % i, String(G67Data.ROOM_NAMES[type]), String(G67Data.ROOM_HINT[type]), pos + Vector3(0, 0, 1.6))
+
+## Место отдыха в комнате ПЕРЕДЫШКА: беседка за гаражами
+func add_rest() -> void:
+	_point("rest", "БЕСЕДКА", "перевести дух: восстановить здоровье", Vector3(0.6, 0, 0.4))
