@@ -34,6 +34,18 @@ var misses := 0
 var bot_t := 0.0
 var cable_node: Node3D
 var notes: Array = []
+var streak := 0
+var best_streak := 0
+var phrase := 0
+## Рисунок бита — четыре фразы по нарастающей: ровные доли → синкопа → двойные → тишина перед дропом → дроп.
+## [начало фразы, название, доли]. На первых двух уровнях заказа двойных нет (вместо них ровные).
+const PHRASES := [
+	[1.0, "РОВНО", [1.0, 1.5, 2.0, 2.5]],
+	[3.0, "СИНКОПА", [3.0, 3.75, 4.0, 4.75, 5.0]],
+	[6.0, "ДВОЙНЫЕ", [6.0, 6.25, 6.5, 7.0, 7.25, 7.5]],
+	[8.0, "ТИШИНА…", []],
+	[9.5, "ДРОП!", [9.5, 10.0, 10.25, 10.5, 11.0, 11.25, 11.5, 12.0, 12.5]],
+]
 
 func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	rng.seed = seed_v
@@ -108,9 +120,14 @@ func _part3() -> void:
 	part = 3
 	task_l.text = "Туса началась — бей в бит"
 	_keys([["Пробел", "в бит"]])
-	for k in 24:
-		beats.append(1.0 + k * 0.5)
+	for ph in PHRASES:
+		for b in ph[2]:
+			var bt: float = b
+			if tier <= 2 and String(ph[1]) in ["ДВОЙНЫЕ", "ДРОП!"] and fmod(bt, 0.5) > 0.01:
+				continue                             # простой заказ — без двойных
+			beats.append(bt)
 	beat_t = 0.0
+	phrase = 0
 	sfx("cheer")
 
 ## строка клавиш меняется по частям задания
@@ -263,6 +280,7 @@ func _beat(dt: float) -> void:
 	while not beats.is_empty() and float(beats[0]) < beat_t - _window() * 1.2:
 		beats.pop_front()
 		misses += 1
+		streak = 0
 	for n in notes:
 		(n as Node).queue_free()
 	notes.clear()
@@ -271,6 +289,13 @@ func _beat(dt: float) -> void:
 		var tt := beat_t + float(k) * 0.15
 		lane += "█" if beats.any(func(b): return absf(float(b) - tt) < 0.07) else "·"
 	tip_l.text = "▶" + lane
+	if phrase < PHRASES.size() and beat_t >= float(PHRASES[phrase][0]) - 0.6:
+		pop(String(PHRASES[phrase][1]), Vector3(0, 1.9, 0), MGUI.GOLD if phrase < 4 else RED)
+		if phrase == 4:
+			sfx("cheer")
+		phrase += 1
+	combo_l.text = "в бит ×%d" % streak if streak >= 4 else ""
+	combo_l.visible = streak >= 4
 	score_l.text = "попаданий %d из %d" % [hits, hits + misses]
 	if fposmod(beat_t, 0.5) < dt:
 		sfx("tick", 1.6)
@@ -285,9 +310,14 @@ func hit() -> void:
 	if absf(b - beat_t) < _window():
 		beats.pop_front()
 		hits += 1
-		sfx("ok", 1.3)
+		streak += 1
+		best_streak = maxi(best_streak, streak)
+		sfx("ok", 1.3 + 0.03 * minf(streak, 12))
+		if streak in [8, 16, 24]:
+			pop("×%d ПОДРЯД" % streak, Vector3(0, 1.6, 0), GREEN)
 	else:
 		misses += 1
+		streak = 0
 		sfx("fail", 1.4)
 
 ## бот: подключает по схеме (иногда ошибается), держит фейдеры, бьёт в бит
@@ -331,7 +361,7 @@ func _end() -> void:
 	var s1 := clampf(1.0 - 0.18 * wrong - 0.15 * feedback, 0.0, 1.0)
 	var s2 := clampf(in_green / 12.0 - clip_t * 0.05, 0.0, 1.0)
 	var s3 := float(hits) / float(maxi(1, hits + misses + beats.size()))
-	var score := s1 * 0.25 + s2 * 0.3 + s3 * 0.45
+	var score := s1 * 0.25 + s2 * 0.3 + s3 * 0.42 + 0.03 * clampf(float(best_streak) / 16.0, 0.0, 1.0)
 	show_result(score, ["Кабели: %d ошибок · обратная связь ×%d" % [wrong, feedback],
 		"Уровни: %d%% в зелёном · перегрузка %.1f с · фон убран ×%d" % [int(s2 * 100.0), clip_t, hum_fixed],
-		"Бит: %d из %d — %s" % [hits, hits + misses + beats.size(), "ТУСА КАЧАЕТ!" if s3 > 0.8 else ("покатит" if s3 > 0.45 else "диджей плачет")]])
+		"Бит: %d из %d · подряд ×%d — %s" % [hits, hits + misses + beats.size(), best_streak, "ТУСА КАЧАЕТ!" if s3 > 0.8 else ("покатит" if s3 > 0.45 else "диджей плачет")]])

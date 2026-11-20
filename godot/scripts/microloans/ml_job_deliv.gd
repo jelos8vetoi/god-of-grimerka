@@ -22,7 +22,10 @@ var obst: Array = []                # {c: Vector2, r: float} (круги) и п�
 var rects: Array = []
 var doors: Array = []               # {p: Vector3, name}
 var parcels: Array = []             # {to: int, name, fragile, cond, done, quirk}
-var cur := 0
+var cur := 0                        # к какой посылке сейчас ведёт стрелка (ближайшая; у бота — по его плану)
+var n_done := 0
+var tips := 0                       # срочные, доставленные вовремя
+var urgent_all := 0
 var peds: Array = []                # {rig, a, b, t, spd}
 var puddles: Array = []             # [Vector2, r]
 var weather := "clear"
@@ -132,6 +135,41 @@ func _parcels() -> void:
 		parcels.append({"to": di, "name": doors[di]["name"], "fragile": fragile, "cond": 1.0, "done": false, "quirk": quirk})
 	if parcels.size() > 0 and String(parcels[0]["quirk"]) == "bench":
 		parcels[0]["quirk"] = ""
+	# маршрут — на выбор: все посылки на руках, сдавать можно в любом порядке. Одна-две — срочные: успел до срока —
+	# чаевые. Ближняя дверь или срочная на другом конце двора — решать игроку.
+	for k in (2 if n >= 5 else 1):
+		var u: Dictionary = parcels[parcels.size() - 1 - k * 2] if parcels.size() > k * 2 else parcels[0]
+		if u.has("due"):
+			continue
+		u["due"] = 20.0 + tier * 2.0 + k * 12.0
+		urgent_all += 1
+	for Pk in parcels:
+		var tp := _target_of(Pk)
+		var mk := MGProps.cyl(world_root, tp + Vector3(0, 1.6, 0), 0.5, 0.5, 3.2, MGProps.glow(Color(1.0, 0.25, 0.15) if Pk.has("due") else Color(1.0, 0.82, 0.3), 1.4), Vector3.ZERO, 10)
+		(mk as MeshInstance3D).transparency = 0.72
+		(mk as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		Pk["mark"] = mk
+	_pick()
+
+func _target_of(Pk: Dictionary) -> Vector3:
+	if String(Pk["quirk"]) == "bench":
+		return Vector3(6, 0, 6.8)
+	return doors[int(Pk["to"])]["p"]
+
+## куда ведёт стрелка: ближайшая несданная; бот получше сначала несёт срочную, пока срок не вышел
+func _pick() -> void:
+	cur = parcels.size()
+	var bd := INF
+	for k in parcels.size():
+		var Pk: Dictionary = parcels[k]
+		if bool(Pk["done"]):
+			continue
+		var dd := _target_of(Pk).distance_to(pos)
+		if bot > 0.5 and Pk.has("due") and float(Pk["due"]) > 0.0:
+			dd -= 100.0
+		if dd < bd:
+			bd = dd
+			cur = k
 
 func _target() -> Vector3:
 	var P: Dictionary = parcels[cur]
@@ -230,6 +268,13 @@ func _process(dt: float) -> void:
 	else:
 		pahan.play("Block", 0.2)                    # стоит, держит коробку перед собой
 	pahan.rotation.y = yaw
+	_pick()
+	for Pu in parcels:
+		if Pu.has("due") and not bool(Pu["done"]):
+			Pu["due"] = float(Pu["due"]) - dt
+			if float(Pu["due"]) <= 0.0 and float(Pu["due"]) + dt > 0.0:
+				sfx("fail", 0.7)
+				((Pu["mark"] as MeshInstance3D).material_override as StandardMaterial3D).emission = Color(1.0, 0.82, 0.3)
 	box_node.visible = cur < parcels.size()
 	_ped_tick(dt)
 	# адрес, стрелка, сдача
@@ -240,10 +285,16 @@ func _process(dt: float) -> void:
 		arrow.rotation.y = atan2(to.x, to.z) + PI
 		var P: Dictionary = parcels[cur]
 		task_l.text = "%s%s" % ["Получатель ждёт на лавке у площадки" if String(P["quirk"]) == "bench" else String(P["name"]), " — хрупкая" if bool(P["fragile"]) else ""]
-		score_l.text = "посылка %d из %d · %d м\nцелость %d %%" % [cur + 1, parcels.size(), int(to.length()), int(float(P["cond"]) * 100.0)]
+		score_l.text = "сдано %d из %d · %d м\nцелость %d %%" % [n_done, parcels.size(), int(to.length()), int(float(P["cond"]) * 100.0)]
+		var urg := ""
+		for Pu in parcels:
+			if Pu.has("due") and not bool(Pu["done"]) and float(Pu["due"]) > 0.0:
+				urg = "СРОЧНО: %s — %d с (красный столб, чаевые)" % [Pu["name"], int(ceil(float(Pu["due"])))]
+				break
+		tip_l.text = urg if urg != "" else "Сдавай в любом порядке — стрелка ведёт к ближайшей"
 		if to.length() < 1.6:
 			_deliver()
-	progress(float(cur) / float(parcels.size()))
+	progress(float(n_done) / float(maxi(1, parcels.size())))
 	MGUI.set_bar(stam_bar, stamina, MGUI.GOOD if stamina > 0.3 else MGUI.RED)
 	combo_l.text = "цепочка ×%d" % chain if chain >= 2 else ""
 	combo_l.visible = chain >= 2
@@ -315,7 +366,14 @@ func _deliver() -> void:
 	sfx("coins", 1.1)
 	pop("доставлено", pos + Vector3(0, 2.2, 0), GREEN)
 	puff(pos + Vector3(0, 1.0, 0.4), Color(0.9, 0.85, 0.6), 6)
-	cur += 1
+	if P.has("due") and float(P["due"]) > 0.0:
+		tips += 1
+		sfx("coins", 1.4)
+		pop("ВОВРЕМЯ! ЧАЕВЫЕ", pos + Vector3(0, 2.7, 0), MGUI.GOLD)
+	if is_instance_valid(P.get("mark")):
+		(P["mark"] as Node3D).queue_free()
+	n_done += 1
+	_pick()
 	parcel_t = 0.0
 
 # ---------------- бот ----------------
@@ -362,7 +420,8 @@ func _end() -> void:
 	var cavg := cond / float(maxi(1, ok))
 	var chain_b := clampf(float(best_chain) / float(maxi(2, n)), 0.0, 1.0) * (0.1 + cv("deliv_chain"))
 	var time_b := clampf(time_left / time_max, 0.0, 1.0) * 0.1 if ok == n else 0.0
-	var score := clampf(share * 0.65 + share * cavg * 0.2 + chain_b + time_b, 0.0, 1.0)
+	var score := clampf(share * 0.65 + share * cavg * 0.2 + chain_b + time_b + 0.05 * tips, 0.0, 1.0)
 	show_result(score, ["Доставлено: %d из %d · погода: %s" % [ok, n, {"clear": "ясно", "rain": "дождь", "night": "вечер", "snow": "снег"}[weather]],
 		"Состояние посылок: %d%% · удары: %d" % [int(cavg * 100.0), hits],
-		"Лучшая цепочка: ×%d%s" % [best_chain, "  ·  быстро: +%d%%" % int(time_b * 100.0) if time_b > 0.0 else ""]])
+		"Лучшая цепочка: ×%d%s" % [best_chain, "  ·  быстро: +%d%%" % int(time_b * 100.0) if time_b > 0.0 else ""],
+		"Срочные вовремя: %d из %d" % [tips, urgent_all]])

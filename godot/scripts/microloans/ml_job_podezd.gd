@@ -71,6 +71,10 @@ var bot_back := 0.0
 var bot_back_turn := 1.0
 var bot_skip := {}
 var rng_bot := RandomNumberGenerator.new()
+var wash := false               # насадка: false — щётка (мусор), true — мойка (пятна)
+var stains_all := 0
+var stains_done := 0
+var foam_t := 0.0
 
 func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	rng.seed = seed_v
@@ -82,12 +86,14 @@ func setup(f: Font, sf: SystemFont, stress: int, seed_v: int) -> void:
 	if tier >= 3:
 		opts.append("valuables")
 	task = opts[rng.randi() % opts.size()]
-	keys = [["W/S", "газ, назад"], ["A/D", "руль"]] + ([["Shift", "турбо"]] if cv("tyaga_turbo") > 0.0 else [])
+	keys = [["W/S", "газ, назад"], ["A/D", "руль"], ["Q", "насадка"]] + ([["Shift", "турбо"]] if cv("tyaga_turbo") > 0.0 else [])
 	base_setup(f, sf, stress, "УБОРКА НА ТЯГЕ-812 · %s" % L["name"], "", 50.0 + tier * 6.0)
 	setup_3d(Color(0.05, 0.05, 0.06), Color(0.55, 0.55, 0.6), 0.45)
 	hose_len = 7.0 + float(L["w"]) * 0.35 + cv("tyaga_hose") * 6.0 + (2.0 if eq("tyaga") >= 2 else 0.0)
 	cap = (38.0 + 4.0 * tier) * (1.0 + 0.5 * float(eq("tyaga") >= 1)) + 8.0 * eq("tyaga")
 	_level()
+	time_left += 2.0 * stains_all
+	time_max = time_left
 	_spawn_tyaga()
 	hum = AudioStreamPlayer.new()
 	hum.stream = Tyaga._synth_hum()
@@ -183,6 +189,32 @@ func _level() -> void:
 			var glint := MGProps.ball(node, Vector3(0, 0.08, 0), 0.025, MGProps.glow(Color(1.0, 0.85, 0.3), 3.0))
 			glint.name = "glint"
 			trash.append({"node": node, "w": 1.0, "big": false, "val": true, "got": false, "pull": 0.0})
+	# пятна: въевшаяся грязь на полу. Щёткой оттирается вчетверо дольше, чем мойкой; на скорости — почти никак:
+	# по пятну надо пройти медленно. Слой сходит на глазах (пятно бледнеет).
+	for k in 3 + tier:
+		var sp := Vector3(rng.randf_range(-w / 2 + 1.0, w / 2 - 1.0), 0, rng.randf_range(-d / 2 + 1.0, d / 2 - 1.0))
+		var sr := rng.randf_range(0.4, 0.62)
+		if _blocked(Vector2(sp.x, sp.z), sr):
+			continue
+		var sn := at(sp, rng.randf() * TAU)
+		var sm := StandardMaterial3D.new()
+		sm.albedo_color = [Color(0.2, 0.13, 0.07, 0.88), Color(0.1, 0.1, 0.11, 0.88), Color(0.3, 0.08, 0.07, 0.88)][k % 3]
+		sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		sm.roughness = 0.35
+		for q in 3:
+			var blob := MeshInstance3D.new()
+			var cm := CylinderMesh.new()
+			cm.top_radius = sr * (1.0 - q * 0.22)
+			cm.bottom_radius = cm.top_radius
+			cm.height = 0.006
+			cm.radial_segments = 14
+			blob.mesh = cm
+			blob.material_override = sm
+			blob.position = Vector3(rng.randf_range(-0.2, 0.2) * q, 0.008 + q * 0.002, rng.randf_range(-0.2, 0.2) * q)
+			blob.scale = Vector3(1.0, 1.0, rng.randf_range(0.6, 1.0))
+			sn.add_child(blob)
+		trash.append({"node": sn, "w": 3.0, "big": false, "val": false, "got": false, "pull": 0.0, "stain": true, "hp": 1.0, "r": sr, "mat": sm})
+		stains_all += 1
 	for t in trash:
 		if _counts(t):
 			need += float(t["w"])
@@ -287,6 +319,9 @@ func _process(dt: float) -> void:
 	steer_k = lerpf(steer_k, turn * signf(speed), 1.0 - exp(-6.0 * dt))
 	model.rotation.z = -steer_k * 0.12 * absf(speed) / vmax
 	model.rotation.x = lerpf(model.rotation.x, -throttle * 0.06, 1.0 - exp(-8.0 * dt))
+	if bot >= 0.0:
+		wash = bot >= 0.5 and bot_target >= 0 and trash[bot_target].has("stain")      # невнимательный насадку не меняет — трёт щёткой
+	_wash(dt, fwd)
 	_suck(dt, fwd)
 	_hose(dt)
 	_unload()
@@ -297,7 +332,7 @@ func _process(dt: float) -> void:
 	combo_l.visible = combo >= 3
 	var k_got := got_w / maxf(1.0, need)
 	progress(k_got)
-	score_l.text = "убрано %d %%\nконтейнер %d %%\nшланг %d %%" % [int(k_got * 100.0), int(load / cap * 100.0), int(clampf(tension, 0.0, 1.0) * 100.0)]
+	score_l.text = "убрано %d %%\nконтейнер %d %%\nшланг %d %%\n[Q] %s" % [int(k_got * 100.0), int(load / cap * 100.0), int(clampf(tension, 0.0, 1.0) * 100.0), "МОЙКА" if wash else "ЩЁТКА"]
 	tip_l.text = "Контейнер полон — к ведру у двери" if load >= cap else ("Шланг натянут" if tension > 0.95 else ("Запутался — сдай назад" if stuck_t > 0.0 else ""))
 	hum.pitch_scale = 0.8 + absf(speed) / vmax * 0.5 + (0.25 if turbo_t > 0.0 else 0.0)
 	hum.volume_db = -16.0 + (4.0 if load < cap else -4.0)
@@ -471,14 +506,54 @@ func _cables(a: Vector3, b: Vector3) -> void:
 			return
 
 ## щётка: притягивает мусор спереди; тяжёлому нужна мощность; ценное — только на малой скорости
+func _unhandled_input(e: InputEvent) -> void:
+	if e is InputEventKey and e.pressed and not e.echo and (e as InputEventKey).physical_keycode == KEY_Q and not done:
+		set_nozzle(not wash)
+
+## смена насадки: щётка втягивает мусор, мойка оттирает пятна (и мусор не берёт)
+func set_nozzle(w: bool) -> void:
+	wash = w
+	sfx("tick", 1.5 if w else 0.8)
+	pop("МОЙКА" if w else "ЩЁТКА", pos + Vector3(0, 1.0, 0), Color(0.5, 0.85, 1.0) if w else WHITE)
+
+func _wash(dt: float, fwd: Vector3) -> void:
+	var nozzle := pos + fwd * 0.6
+	foam_t -= dt
+	for t in trash:
+		if t["got"] or not t.has("stain"):
+			continue
+		var tp: Vector3 = (t["node"] as Node3D).position
+		if Vector2(tp.x - nozzle.x, tp.z - nozzle.z).length() > float(t["r"]) + 0.3:
+			continue
+		var slow := clampf(1.35 - absf(speed) / 3.2, 0.3, 1.0)          # медленнее — чище
+		t["hp"] = float(t["hp"]) - dt * (1.0 + cv("tyaga_power")) * (1.0 if wash else 0.25) * slow / 0.8
+		(t["mat"] as StandardMaterial3D).albedo_color.a = clampf(float(t["hp"]), 0.0, 1.0) * 0.88
+		bot_stall = 0.0
+		if foam_t <= 0.0:
+			foam_t = 0.18
+			puff(Vector3(nozzle.x, 0.08, nozzle.z), Color(0.85, 0.92, 1.0) if wash else Color(0.6, 0.55, 0.5), 3, 0.8)
+			if wash:
+				sfx("tick", 1.8)
+		if float(t["hp"]) <= 0.0:
+			t["got"] = true
+			(t["node"] as Node3D).visible = false
+			stains_done += 1
+			if _counts(t):
+				got_w += float(t["w"])
+			combo += 1
+			combo_t = 1.4
+			best_combo = maxi(best_combo, combo)
+			sfx("clean", 1.2)
+			pop("ЧИСТО!", tp + Vector3(0, 0.6, 0), Color(0.5, 0.85, 1.0))
+
 func _suck(dt: float, fwd: Vector3) -> void:
-	if load >= cap:
+	if load >= cap or wash:
 		return
 	var nozzle := pos + fwd * 0.6
 	var power := (1.0 + cv("tyaga_power")) * (2.0 if turbo_t > 0.0 else 1.0)
 	var reach := 0.55 * (1.0 + cv("tyaga_brush")) * (1.3 if turbo_t > 0.0 else 1.0)
 	for t in trash:
-		if t["got"]:
+		if t["got"] or t.has("stain"):
 			continue
 		var node: Node3D = t["node"]
 		var tp := node.position
@@ -565,7 +640,15 @@ func _bot_input() -> Vector2:
 	if bot_target < 0:
 		return Vector2.ZERO
 	var tgt: Vector3 = (trash[bot_target]["node"] as Node3D).position
-	var slow := 0.35 if bool(trash[bot_target]["val"]) and tgt.distance_to(pos) < 1.5 else 1.0
+	# пятно: встал насадкой на него и стоит, пока не ототрёт (кружить над пятном — мотать шланг)
+	if trash[bot_target].has("stain"):
+		var fw := Vector3(-sin(yaw), 0, -cos(yaw))
+		var nz := pos + fw * 0.6
+		if Vector2(tgt.x - nz.x, tgt.z - nz.z).length() < float(trash[bot_target]["r"]) + 0.15:
+			bot_stall = 0.0
+			bot_idle = 0.0
+			return Vector2.ZERO
+	var slow := 0.35 if (bool(trash[bot_target]["val"]) or trash[bot_target].has("stain")) and tgt.distance_to(pos) < 1.5 else 1.0
 	# впереди провод — аккуратный бот сбрасывает скорость, чтобы перекатиться
 	var fwd := Vector3(-sin(yaw), 0, -cos(yaw))
 	for c in cables:
@@ -650,5 +733,7 @@ func _end() -> void:
 		bad.append("разбито ценного ×%d" % broke_val)
 	if bumps > 0:
 		bad.append("удары ×%d" % bumps)
+	if stains_all > 0:
+		lines.append("Пятна оттёрты: %d из %d" % [stains_done, stains_all])
 	lines.append(("Штрафы: " + ", ".join(bad)) if not bad.is_empty() else "Без единого штрафа")
 	show_result(score, lines)
