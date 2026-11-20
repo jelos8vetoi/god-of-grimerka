@@ -638,6 +638,28 @@ An old soviet apartment ceiling chandelier that someone has just taken down and 
 A fat grumpy city pigeon standing on the ground, a self-important little bird. Round chunky grey body, darker wings with two black bars, a shimmering green and purple neck patch, small head with a suspicious orange eye, short beak, pink scaly legs with spread toes, tail feathers slightly ruffled, chest puffed out like an official. Wings folded. About 0.3 metres tall. Legs clearly separate from the body. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
 ```
 
+## Шаурмичная — 2026-11-20
+
+Владелец попросил настоящую шаурмичную для первой встречи КРОТА. Сейчас на её месте стоит обычный ларёк с вывеской.
+
+| id | Модель | Файл | Длина | Статус |
+|---|---|---|---|---|
+| G67-Y13 | Шаурмичная «ШАУРМА 67» | `godot/assets/golda67/g67_shawarma_kiosk.glb` | 975 | промпт выдан |
+
+### G67-Y13 — Шаурмичная «ШАУРМА 67»
+
+- **Назначение:** ларёк, у которого КРОТ стоит в очереди на первой встрече («ДРУЗЬЯ ИЗ FORBES»); позже — комната KIOSK (покупки за голду).
+- **Поза / ракурс:** стоит на земле, вид спереди (окно выдачи); точка опоры — центр основания. Формат GLB.
+- **Риг и анимации:** не нужны.
+- **Имя файла:** `g67_shawarma_kiosk.glb`
+- **Путь:** `godot/assets/golda67/g67_shawarma_kiosk.glb`
+- **Статус:** промпт выдан
+- **Промпт (975 символов):**
+
+```text
+A small street shawarma kiosk in a post-soviet courtyard at night. A boxy metal stall about 3 metres wide, 2.4 metres deep and 3 metres tall, painted peeling red and yellow, with a wide serving window on the front: inside a vertical rotating meat spit glowing warm orange, a steel counter with sauce bottles, a stack of flatbreads, a cutting board. A striped awning over the window, a blank lightbox sign on the roof, a blank menu board beside the window, a small shelf for customers, a gas cylinder at the side, a tin chimney pipe with a cap, steam vents, snow on the roof, a napkin holder. Front clearly different from the plain back. Stylized low-poly 3D game asset, gritty post-soviet Russian courtyard style: chunky exaggerated proportions, bold readable silhouette, clean low-poly faces, hand-painted textures, worn paint, rust and grime, muted greys and browns with a few bright accents. No readable text. Single object, centered, no ground, no background, game-ready.
+```
+
 ## Партии P1–P3 — статус «требуется»
 
 Промпты для этих моделей будут выданы следующими партиями, после ответа владельца по P0. Список — в
@@ -661,6 +683,7 @@ A fat grumpy city pigeon standing on the ground, a self-important little bird. R
 | Дата | Что |
 |---|---|
 | 2026-11-20 | Выдана партия P0 (20 промптов). Ни одна модель не получена. |
+| 2026-11-20 | Выдан промпт шаурмичной (G67-Y13). КРОТ на первой встрече перенесён к ларьку, встреча гарантирована маршрутом. |
 | 2026-11-20 | Получены и поставлены в игру все 12 моделей двора (Y01–Y12), голубь и люстра. Все смотрят лицом как ожидалось; тяжёлые (50–120 тыс. треугольников), кадр держится. Встречи КРОТА 2 и 3 включились. |
 | 2026-11-20 | КРОТ: встреча 1 в игре; выданы промпты люстры (G67-S10) и голубя (G67-A01) для встреч 2 и 3. |
 | 2026-11-20 | Выдана партия ДВОР (Y01–Y12): модели для арены босса и для разнообразия двора. |
