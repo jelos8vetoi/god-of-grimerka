@@ -302,7 +302,7 @@ func _yard_people(g, G: Golda67) -> void:
 		var p: Vector3 = who["pos"]
 		var yaw := float(who["yaw"])
 		var fw := Vector3(sin(yaw), 0, cos(yaw))
-		await _yard_shot(g, G, p + Vector3(0, float(who["h"]) * 0.55, 0), p + fw * 2.6 + Vector3(-fw.z, 0, fw.x) * 1.0 + Vector3(0, 1.3, 0), "50_" + String(who["id"]).trim_prefix("g67_"))
+		await _yard_shot(g, G, p + Vector3(0, float(who["h"]) * 0.55, 0), p + fw * 2.4 + Vector3(-fw.z, 0, fw.x) * float(who.get("shot_side", 1.0)) + Vector3(0, 1.3, 0), "50_" + String(who["id"]).trim_prefix("g67_"))
 	if Y.people.has("g67_npc_babushka"):
 		var b: Rig = Y.people["g67_npc_babushka"]
 		ok(b.skel.find_children("*", "G67Carry", true, false).size() == 1, "у бабушки слой, который держит авоську висящей вниз")
@@ -471,6 +471,31 @@ func _stage_props(n: Node3D, id: String) -> float:
 			for i in 4:
 				_cube(n, Vector3(0.18, 0.02, 0.24), Vector3(-0.35 + i * 0.22, 0.76, -0.1), Color(0.93, 0.95, 0.97))
 	return 0.0
+
+## Снимок КРОТА спереди-сбоку крупно; героя и напарника на время снимка убираем из кадра
+func _krot_shot(g, kr, nm: String, dist := 2.0, side := 1.0, front := 1.0) -> void:
+	if kr == null or not is_instance_valid(kr):
+		print("GOLDA67CHECK   снимок %s: КРОТА нет" % nm)
+		return
+	var k: Vector3 = (kr as Node3D).global_position
+	var kf: Vector3 = (kr as Node3D).global_transform.basis.z
+	kf.y = 0.0
+	kf = kf.normalized()
+	var oc := Camera3D.new()
+	g.add_child(oc)
+	oc.global_position = k + kf * dist * front + Vector3(kf.z, 0, -kf.x) * dist * 0.45 * side + Vector3(0, 1.15, 0)
+	oc.look_at(k + Vector3(0, 0.8, 0), Vector3.UP)
+	oc.make_current()
+	var pv: bool = g.player.visible
+	var bv: bool = g.buddy.visible
+	g.player.visible = false
+	g.buddy.visible = false
+	await wait(0.12)
+	await shot(nm)
+	g.player.visible = pv
+	g.buddy.visible = bv
+	g.cam.make_current()
+	oc.queue_free()
 
 ## Поставить Мишу и героя и запустить приём (сам он в это время ничего не выбирает)
 func _misha_set(B, P, move: String, ppos: Vector3, bpos := Vector3(0, 0.05, -2.0)) -> void:
@@ -940,11 +965,16 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(String(g.dlg[0]) == "KR|Пахан, брат, я тебе говорил, что у меня знакомые в Forbes?" and String(g.dlg[4]).contains("шаурмой"), "реплики — дословно по ТЗ")
 	await wait(0.6)
 	await shot("39_krot_dialog")
+	await wait(0.2)
+	await _krot_shot(g, G.world.actors.get("g67_krot"), "39b_krot1_forbes", 2.4, -2.0, 0.35)      # сбоку: перед ним очередь
 	for i in 14:
 		if g.mode != "dlg":
 			break
 		g._dlg_advance()
 		await wait(0.15)
+		if g.dlg_i == 2:
+			await wait(0.9)
+			await _krot_shot(g, G.world.actors.get("g67_krot"), "39c_krot1_talk", 2.4, -2.0, 0.35)
 	ok(g.mode == "golda67" and (G.meta()["seen"] as Array).has("krot1"), "встреча 1 засчитана (%s)" % str(G.meta()["seen"]))
 	ok(not G.world.actors.has("g67_krot") and G.point("krot").is_empty() and G.world.get_node_or_null("krot_after") != null, "разговор окончен: КРОТ остаётся в своей позе, но говорить больше не о чем")
 	ok(String(G.krot_next().get("id", "")) == "krot2", "следующая встреча — вторая (ЛЮСТРА, в подъезде)")
@@ -1021,17 +1051,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	# КРОТ — встреча 2 «ЛЮСТРА»: стоит в холле подъезда с люстрой в руках
 	if G67Models.has("g67_chandelier"):
 		ok(G.world.actors.has("g67_krot") and G.krot_item != null and is_instance_valid(G.krot_item), "КРОТ стоит в подъезде с люстрой (встреча 2)")
-		var k2: Vector3 = G.world.actors["g67_krot"].global_position
-		var oc3 := Camera3D.new()
-		g.add_child(oc3)
-		var kf: Vector3 = G.world.actors["g67_krot"].global_transform.basis.z
-		oc3.global_position = k2 + kf * 2.2 + Vector3(kf.z, 0, -kf.x) * 0.9 + Vector3(0, 1.25, 0)      # спереди-сбоку
-		oc3.look_at(k2 + Vector3(0, 0.85, 0), Vector3.UP)
-		oc3.make_current()
-		await wait(0.6)
-		await shot("40_krot_chandelier")
-		g.cam.make_current()
-		oc3.queue_free()
+		await _krot_shot(g, G.world.actors.get("g67_krot"), "40_krot_chandelier", 1.7)
 		await _go(G, P, "krot")
 		ok(g.mode == "dlg" and g.dlg == G67Data.KROT[1]["lines"] and String(g.dlg[3]) == "KR|Она на меня странно смотрела.", "диалог «ЛЮСТРА» — дословно по ТЗ")
 		for i in 14:
@@ -1039,9 +1059,12 @@ func _run_dvor(g, G: Golda67, P) -> void:
 				break
 			g._dlg_advance()
 			await wait(0.15)
+			if g.dlg_i == 3:
+				await wait(0.9)
+				await _krot_shot(g, G.world.actors.get("g67_krot"), "40a_krot_shows", 1.7)
 		ok((G.meta()["seen"] as Array).has("krot2") and G.world.get_node_or_null("krot_leaving") != null, "встреча 2 засчитана, КРОТ разворачивается и уходит с люстрой в руках")
 		await wait(1.2)
-		await shot("40b_krot_leaves")
+		await _krot_shot(g, G.world.get_node_or_null("krot_leaving"), "40b_krot_leaves", 1.9, 1.0)
 		ok(await until(func(): return G.world.get_node_or_null("krot_leaving") == null and G.krot_item == null, 5.0), "ушёл и унёс люстру")
 		ok(G.flurr_state() == 2, "DJ FLÜRR теперь в состоянии 2 (подсказка на голубей)")
 	else:
@@ -1072,16 +1095,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 			pecked = pecked or pg0.rotation.x > 0.3
 			await wait(0.1)
 		ok(seen_rot.size() > 3 and pecked, "голуби живые: вертятся и клюют")
-		var k3: Vector3 = G.world.actors["g67_krot"].global_position
-		var oc4 := Camera3D.new()
-		g.add_child(oc4)
-		oc4.global_position = k3 + Vector3(2.4, 1.2, 2.8)
-		oc4.look_at(k3 + Vector3(0, 0.6, 0), Vector3.UP)
-		oc4.make_current()
-		await wait(0.6)
-		await shot("41_krot_pigeons")
-		g.cam.make_current()
-		oc4.queue_free()
+		await _krot_shot(g, G.world.actors.get("g67_krot"), "41_krot_pigeons", 2.4)
 		await _go(G, P, "krot")
 		ok(g.mode == "dlg" and g.dlg == G67Data.KROT[2]["lines"] and String(g.dlg[2]).contains("голубь справа"), "диалог «ГОЛУБИНОЕ ПРАВИТЕЛЬСТВО» — дословно по ТЗ")
 		for i in 14:
@@ -1089,6 +1103,10 @@ func _run_dvor(g, G: Golda67, P) -> void:
 				break
 			g._dlg_advance()
 			await wait(0.15)
+			if g.dlg_i == 2:
+				await wait(0.9)
+				ok(G.krot_life != null and G.krot_life.cur == "K3Point", "«Нет, голубь справа» — показывает на птицу")
+				await _krot_shot(g, G.world.actors.get("g67_krot"), "41b_krot_points", 2.4)
 		ok((G.meta()["seen"] as Array).has("krot3") and G.krot_next().is_empty(), "встреча 3 засчитана; следующие встречи — в районах, которых ещё нет")
 		await _go(G, P, "gate0")
 		await until(func(): return G.room_state == "fight", 8.0)
