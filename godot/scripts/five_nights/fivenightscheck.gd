@@ -83,7 +83,8 @@ func _run() -> void:
 		return
 	for n in 6:
 		for s in ["perfect", "good", "average", "lazy", "turtle", "spam", "starer"]:
-			sims["%d_%s" % [n, s]] = FNSim.batch(n, s, 24)
+			# «безупречному» — выборка больше: порог 95 % на 24 прогонах — это «не больше одной смерти», и итог решал случай
+			sims["%d_%s" % [n, s]] = FNSim.batch(n, s, 72 if s == "perfect" else 24)
 		print("FIVENIGHTSCHECK   ночь %d: безупречный %d%%, хороший %d%%, средний %d%%, лень %d%%, двери весь вечер %d%%, всё включено %d%%, не отводит глаз %d%%" % [n + 1,
 			int(sims["%d_perfect" % n]["win"] * 100), int(sims["%d_good" % n]["win"] * 100), int(sims["%d_average" % n]["win"] * 100), int(sims["%d_lazy" % n]["win"] * 100),
 			int(sims["%d_turtle" % n]["win"] * 100), int(sims["%d_spam" % n]["win"] * 100), int(sims["%d_starer" % n]["win"] * 100)])
@@ -357,6 +358,9 @@ func _ui_part() -> void:
 	await until(func(): return R.state == "night", 4.0)
 	ok(R.state == "night" and not R.ui.neg and st.outcome == "", "после копии ночь идёт дальше (безвредный секрет)")
 	# ================= скримеры: все шесть и темнота =================
+	_scream_catalog()
+	_habits_check()
+	await _dress_check(R)
 	for eid in ["balon", "madk1d", "bot", "clipper", "ghost", "mod"]:
 		await _scare_case(R, eid)
 	# темнота: отключение, генератор, второй раз — скример
@@ -445,6 +449,115 @@ func _ui_part() -> void:
 	await wait(1.0)
 	_finish()
 
+## привычки игрока: обитатели подстраиваются под прошлое поведение (чистая логика)
+func _habits_check() -> void:
+	var hn := FNNight.new()
+	hn.setup(4, 99)
+	for id in hn.enemies:
+		(hn.enemies[id] as FNEnemy).level = 0
+	hn.door["l"] = true
+	hn.seal["t"] = true
+	for k in 600:
+		hn._habits(0.1)
+	var b: FNBalon = hn.enemies["balon"]
+	b.level = 10
+	var left := 0
+	var right := 0
+	for k in 300:
+		b.spot = "stage"
+		b.transit_to = ""
+		b._move(hn)
+		if b.spot in ["power", "hall_r"] or b.transit_to == "hall_r":
+			right += 1
+		elif b.spot in ["arcade", "hall_l"] or b.transit_to == "hall_l":
+			left += 1
+	ok(float(hn.habit("door_l")) > 0.6 and float(hn.habit("door_r")) < 0.05 and right > left * 2, "привычка «держу левую дверь» (%.0f %% времени): Балон из зала идёт направо %d раз против %d налево" % [float(hn.habit("door_l")) * 100.0, right, left])
+	var m: FNMadk1d = hn.enemies["madk1d"]
+	m.level = 10
+	var dl := 0
+	for k in 300:
+		m.spot = "vent"
+		m._move(hn)
+		if m.spot == "duct_l":
+			dl += 1
+	ok(dl > 200, "привычка «держу верхний люк»: MADK1D лезет левой шахтой %d раз из 300" % dl)
+	var c: FNClipper = hn.enemies["clipper"]
+	c.level = 8
+	c.spot = "hall_l"
+	hn.monitor = true
+	hn.cam = "hall_l"
+	hn.cam_hold = 2.0
+	c.move_t = 0.1
+	c.tick(hn, 0.05)
+	var held: bool = c.spot == "hall_l"
+	hn.cam_hold = FNClipper.CAMP_SEC + 0.5
+	c.tick(hn, 0.05)
+	var left_cam: bool = c.spot == "arcade" and c.rush
+	c._move(hn)
+	ok(held and left_cam and c.spot in ["hall_l", "door_l"], "CLIPPER: камера держит его в коридоре, но не дольше %.0f с — уходит в игровую и возвращается обычным путём" % FNClipper.CAMP_SEC)
+	var g: FNGhost = hn.enemies["ghost"]
+	g.level = 5
+	hn.hab["mon"] = 20.0
+	hn.hab_cam = {"stage": 20.0}
+	var corner := 0
+	for k in 300:
+		g.spot = "away"
+		g._move(hn)
+		if g.spot == "corner":
+			corner += 1
+	hn.hab_cam = {"storage": 15.0, "arcade": 8.0}
+	var corner2 := 0
+	for k in 300:
+		g.spot = "away"
+		g._move(hn)
+		if g.spot == "corner":
+			corner2 += 1
+	ok(corner > 60 and corner2 == 0, "GHOST: его камеры обходят — приходит в угол будки (%d из 300); смотрят — не приходит (%d)" % [corner, corner2])
+
+## следы прошлых смен: будка от ночи к ночи меняется; событие часа не оставляет тишину висеть
+func _dress_check(R: FiveNightsRoot) -> void:
+	var o: FNOffice = R.office
+	o.dress(0)
+	await get_tree().process_frame
+	var n0 := o.dress_root.get_child_count()
+	var lamp0 := o.lamp_base
+	o.dress(2)
+	await get_tree().process_frame
+	var n2 := o.dress_root.get_child_count()
+	o.dress(5)
+	await get_tree().process_frame
+	var n5 := o.dress_root.get_child_count()
+	ok(n0 >= 1 and n2 > n0 + 4 and n5 > n2 + 4 and o.alarm_lamp != null and o.lamp_base < lamp0, "будка меняется по ночам: деталей «следов смен» %d → %d → %d, с четвёртой ночи аварийная лампа, свет тусклее (%.2f → %.2f)" % [n0, n2, n5, lamp0, o.lamp_base])
+	await shot("f06b_office_night6")
+	R._hour_event(3)
+	await wait(0.3)
+	var hushed: bool = R.hush_mode == "amb"
+	await wait(2.4)
+	ok(hushed and R.hush_mode == "", "три часа ночи: гул пропадает на две секунды и возвращается сам")
+	o.dress(R.night)
+
+## записи криков: у каждого свои, не меньше трёх, подряд один и тот же не выпадает
+func _scream_catalog() -> void:
+	var line: Array = []
+	var good := true
+	for kind in ["balon", "madk1d", "bot", "clipper", "ghost", "mod", "pahan", "dark"]:
+		var n := FNSound.scream_count(kind)
+		var a := int(FNSound.scream_pick(kind)[1])
+		var same := 0
+		for k in 12:
+			var b := int(FNSound.scream_pick(kind)[1])
+			if b == a:
+				same += 1
+			a = b
+		if n < 3 or same > 0:
+			good = false
+		line.append("%s %d" % [kind, n])
+	ok(good, "записи криков: у каждого из восьми свои варианты (%s), подряд один и тот же не играет" % ", ".join(line))
+	var lens := {}
+	for kind in ["balon", "clipper", "ghost"]:
+		lens[kind] = (FNSound.scream_pick(kind)[0] as AudioStream).get_length()
+	ok(float(lens["clipper"]) < float(lens["balon"]) and float(lens["balon"]) < float(lens["ghost"]), "длина криков разная: CLIPPER %.1f с < БАЛОН %.1f с < GHOST %.1f с" % [float(lens["clipper"]), float(lens["balon"]), float(lens["ghost"])])
+
 ## скример врага: поставить у двери (или где он входит), открыть, дождаться — снимок в середине
 func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 	R.start_night(4)
@@ -455,11 +568,48 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 		(st.enemies[id] as FNEnemy).level = 0
 	var e: FNEnemy = st.enemies[eid]
 	e.level = 10
+	# звук скримера: крик играет и в тихой проверке (мастер-шина заглушена, меряем пик шины Horror); тишина — у
+	# каждого своя: проверяем все варианты по очереди
+	var hush_want: String = {"balon": "dead", "madk1d": "sfx", "bot": "amb", "clipper": "none", "ghost": "dead", "mod": "dead"}[eid]
+	R.scream_force = true
+	R.scare.force_hush = hush_want
+	R.scare.hush_t0 = 0
+	R.scream_at = 0
+	var amb_bus := AudioServer.get_bus_index("Ambient")
+	var hor_bus := AudioServer.get_bus_index("Horror")
+	var amb_before := AudioServer.get_bus_volume_db(amb_bus)
 	st.attack(eid, {"balon": "door_l", "madk1d": "vent_t", "bot": "door_r", "clipper": "door_l", "ghost": "stage", "mod": "door_r"}[eid])
 	var t0 := Time.get_ticks_msec()
 	await until(func(): return R.state == "scare", 2.0)
+	# момент тишины: фон пропал сразу (если тишина — «мёртвая» или «гул»)
+	var amb_silent := 0.0
+	if hush_want != "none":
+		await until(func(): return R.scare.hush_t0 > 0, 3.0)
+		await get_tree().process_frame
+		amb_silent = AudioServer.get_bus_volume_db(amb_bus)
 	# середина скримера: враг в кадре вплотную
 	await until(func(): return R.office.shake > 0.8, 3.0)
+	var hit_ms := Time.get_ticks_msec()
+	var gap_ms: int = R.scream_at - R.scare.hush_t0 if hush_want != "none" else 0
+	var sync_ms: int = absi(hit_ms - R.scream_at)
+	var peak := -200.0
+	for k in 14:
+		await get_tree().process_frame
+		peak = maxf(peak, maxf(AudioServer.get_bus_peak_volume_left_db(hor_bus, 0), AudioServer.get_bus_peak_volume_right_db(hor_bus, 0)))
+	var others := 0
+	for q in R.pool2:
+		if (q as AudioStreamPlayer).playing and (q as AudioStreamPlayer).stream != null and String((q as AudioStreamPlayer).stream.resource_path).contains("scream_"):
+			others += 1
+	ok(R.scream_p != null and R.scream_p.playing and R.scream_kind == eid and R.scream_var >= 1 and R.scream_p.bus == "Horror" and others == 0,
+		"крик %s: своя запись (вариант %d из %d), один проигрыватель на шине Horror" % [FNData.ENEMIES[eid]["name"], R.scream_var, FNSound.scream_count(eid)])
+	ok(sync_ms <= 60, "крик %s начинается в кадр удара (расхождение %d мс)" % [FNData.ENEMIES[eid]["name"], sync_ms])
+	ok(peak > -30.0 and peak <= 0.0, "крик %s слышен и не клиппит: пик шины Horror %.1f дБ" % [FNData.ENEMIES[eid]["name"], peak])
+	if hush_want == "none":
+		ok(R.scare.hush_t0 == 0, "%s: вариант «без тишины» — фон не трогали" % FNData.ENEMIES[eid]["name"])
+	else:
+		var need_amb: bool = hush_want in ["dead", "amb"]
+		ok(gap_ms >= 120 and gap_ms <= 460 and (amb_silent <= -70.0 if need_amb else amb_silent > -60.0),
+			"%s: тишина «%s» за %d мс до крика; шина фона в этот миг %.0f дБ (до — %.0f)" % [FNData.ENEMIES[eid]["name"], hush_want, gap_ms, amb_silent, amb_before])
 	await wait(0.12)
 	await shot("f2_scare_" + eid)
 	var r: Rig = R.actors.rigs[eid]
@@ -471,6 +621,14 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 	await until(func(): return R.state == "dead", 6.0)
 	var dur := (Time.get_ticks_msec() - t0) / 1000.0
 	ok(close and R.state == "dead", "скример %s: в 3D вплотную, затем экран гибели (%.1f с)" % [FNData.ENEMIES[eid]["name"], dur])
+	# после скримера фон возвращается сам и плавно: тишина не «зависает»
+	await wait(2.6)
+	var amb_after := AudioServer.get_bus_volume_db(amb_bus)
+	ok(R.hush_mode == "" and not main.audio.hush_hold and amb_after > amb_before - 3.0, "%s: после скримера фон вернулся (%.0f дБ, до — %.0f)" % [FNData.ENEMIES[eid]["name"], amb_after, amb_before])
+	R.scream_force = false
+	R.scare.force_hush = ""
+	if R.scream_p != null:
+		R.scream_p.stop()
 
 ## чистая логика ночи: энергия, двери, маршруты, условия атаки
 ## аномалии камер в настоящей сцене: силуэт, свет, головы, поворот врага, «за спиной»; снимки a_*

@@ -184,6 +184,58 @@ func _p3(id: String) -> AudioStreamPlayer3D:
 	add_child(p)
 	return p
 
+## Крик скримера: один проигрыватель на шине Horror (у неё свой ограничитель) — два крика друг на друга не лягут.
+## kind — "balon", "ghost", "pahan", "dark"…; громкость — настройка «ГРОМКОСТЬ СКРИМЕРОВ». Возвращает длину, с.
+var adapt_log: Array = []          # как обитатели подстраивались под игрока за эту ночь: [кто, как] — для проверки и архива
+var scream_p: AudioStreamPlayer
+var scream_kind := ""
+var scream_var := 0
+var scream_at := 0                 # когда запущен последний крик (мс) — для проверки синхронности
+func scream(kind: String, vol := 0.0) -> float:
+	scream_kind = kind
+	scream_at = Time.get_ticks_msec()
+	var pick := FNSound.scream_pick(kind)
+	scream_var = int(pick[1])
+	if scream_p == null:
+		scream_p = AudioStreamPlayer.new()
+		scream_p.bus = "Horror" if AudioServer.get_bus_index("Horror") >= 0 else "SFX"
+		add_child(scream_p)
+	scream_p.stop()
+	scream_p.stream = pick[0]
+	var k := clampf(float((FNSave.v("settings") as Dictionary).get("scream", 1.0)), 0.0, 1.0)
+	scream_p.volume_db = vol + linear_to_db(maxf(0.0001, k)) + (FNSound.trim("scream_" + kind) if scream_var == 0 else SCREAM_DB)
+	if _snd_ok() or scream_force:
+		scream_p.play()
+	return (pick[0] as AudioStream).get_length()
+const SCREAM_DB := -1.0            # общий уровень записанных криков: громко, но ниже ограничителя
+var scream_force := false          # проверка: играть крик и в «тихом» режиме (мастер-шина заглушена, пики шины Horror меряются)
+
+## Мёртвая тишина перед скримером. mode: "dead" — пропадает всё (фон, эффекты, голоса), "amb" — только гул и
+## вентиляция, "sfx" — обрываются эффекты и голоса, гул остаётся, "none" — ничего. Мгновенно, без затухания.
+var hush_mode := ""
+func hush_begin(mode: String) -> void:
+	hush_mode = mode
+	if mode == "none" or mode == "":
+		return
+	if mode in ["dead", "sfx"]:
+		for p in pool2:
+			(p as AudioStreamPlayer).stop()
+		for p in pool3:
+			(p as AudioStreamPlayer3D).stop()
+		call_voice.stop()
+		pahan_voice.stop()
+		air_tune.stop()
+		crawl.volume_db = -80.0
+		whisper.volume_db = -80.0
+	if mode in ["dead", "amb"] and main != null and main.audio != null:
+		main.audio.hush(true, true)
+
+## скример кончился (экран гибели, новая ночь, терминал): фон возвращается плавно
+func hush_end() -> void:
+	hush_mode = ""
+	if main != null and main.audio != null:
+		main.audio.hush(false, false)
+
 func _snd_ok() -> bool:
 	return not quiet or (main != null and main.audiolog)
 
@@ -204,6 +256,9 @@ func sfx3(id: String, pos: Vector3, vol := 0.0, pitch := 1.0) -> void:
 ## звук без места: интерфейс, крик скримера
 func sfx2(id: String, vol := 0.0, pitch := 1.0, bus := "SFX") -> void:
 	if not _snd_ok():
+		return
+	if id.begins_with("scream_") and pitch == 1.0:
+		scream(id.substr(7), vol - 2.0)          # крик скримера — отдельным проигрывателем, из записей
 		return
 	for p in pool2:
 		var a := p as AudioStreamPlayer
@@ -311,6 +366,7 @@ func start_night(n: int, lv := {}) -> void:
 	office.dark_eyes.visible = false
 	office.cam.current = true
 	horror.reset(int(st.rng.seed))
+	office.dress(n)
 	anomaly.reset(int(st.rng.seed))
 	said_door = false
 	fix_hold = false
@@ -452,8 +508,48 @@ func _finale() -> void:
 	office.dark_eyes.visible = false
 
 # ---------------- события ночи → звук и картинка ----------------
+## Каждый час ночи — своё событие (не вредят, только давят): час 1 — тихо; час 2 — свет проседает; час 3 — всё
+## замолкает на две секунды и три удара издалека; час 4 — телефон звонит один раз и молчит; час 5 — дыхание за спиной.
+func _hour_event(h: int) -> void:
+	if state != "night" or st == null or st.power_out:
+		return
+	match h:
+		2:
+			for q in 5:
+				office.lamp.light_energy = office.lamp_base * (0.15 if q % 2 == 0 else 0.7)
+				await get_tree().create_timer(0.16, true, false, true).timeout
+			office.lamp.light_energy = office.lamp_base
+			sfx2("power_down", -14.0, 1.8)
+		3:
+			hush_begin("amb")
+			await get_tree().create_timer(2.0, true, false, true).timeout
+			if state == "night":
+				hush_end()
+				for q in 3:
+					sfx3("knock", FNOffice.point("door_r" if q % 2 == 0 else "door_l") + Vector3(0, 0, -6.0), -4.0, 0.8)
+					await get_tree().create_timer(0.55, true, false, true).timeout
+		4:
+			if not call_voice.playing and call_lines.is_empty():
+				sfx2("ring", -6.0)
+				await get_tree().create_timer(2.4, true, false, true).timeout
+				if state == "night":
+					sfx2("click", -4.0, 0.8)
+					sfx2("breath", -10.0, 0.8)
+		5:
+			sfx3("breath", office.cam.global_position + Vector3(0.3, 0.1, 0.9), 2.0, 0.7)
+			await get_tree().create_timer(1.2, true, false, true).timeout
+			if state == "night" and not pahan_voice.playing:
+				msg_hour()
+
+func msg_hour() -> void:
+	ui.msg("Последний час.", 3.0)
+
 func _on_event(k: String, d: Dictionary) -> void:
 	match k:
+		"hour":
+			_hour_event(int(d["h"]))
+		"adapt":
+			adapt_log.append([String(d["e"]), String(d["how"])])
 		"move":
 			var to := String(d["to"])
 			var e := String(d["e"])

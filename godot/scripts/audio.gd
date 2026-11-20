@@ -365,17 +365,37 @@ func _want(v: Array) -> void:
 	for i in want.size():
 		want[i] = float(v[i]) if i < v.size() else 0.0
 
+## Мёртвая тишина (скримеры «5 ночей»): фон и/или музыка пропадают сразу, без затухания; возвращаются плавно.
+## Шины глушит только этот файл — режим просит через hush(). SFX не трогаем: через неё идёт сам крик.
+var hush_amb := 0.0            # 1 — шина Ambient в тишине
+var hush_mus := 0.0
+var hush_hold := false
+func hush(amb: bool, mus: bool) -> void:
+	hush_hold = amb or mus
+	if amb:
+		hush_amb = 1.0
+	if mus:
+		hush_mus = 1.0
+	if hush_hold:                                # сразу, не дожидаясь следующего кадра сведения
+		if amb:
+			AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Ambient"), -80.0)
+		if mus:
+			AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), -80.0)
+
 func _mix(dt: float, ducking: float) -> void:
+	if not hush_hold:                            # отпустили — фон возвращается за секунду с лишним, без скачка
+		hush_amb = move_toward(hush_amb, 0.0, dt * 0.8)
+		hush_mus = move_toward(hush_mus, 0.0, dt * 0.8)
 	duck = lerpf(duck, ducking, 1.0 - exp(-3.0 * dt))
 	headphone_on = listening()
 	headphone = move_toward(headphone, 1.0 if headphone_on else 0.0, dt / (HP_IN if headphone_on else HP_OUT))
 	var hk := headphone * headphone * (3.0 - 2.0 * headphone)
 	var hp_db := HP_SILENCE_DB * hk
 	for b in ["SFX", "Ambient"]:
-		AudioServer.set_bus_volume_db(AudioServer.get_bus_index(b), linear_to_db(max(0.0001, float(vol[b]))) + HP_MUFFLE_DB * hk)
+		AudioServer.set_bus_volume_db(AudioServer.get_bus_index(b), linear_to_db(max(0.0001, float(vol[b]))) + HP_MUFFLE_DB * hk - (80.0 * hush_amb * hush_amb if b == "Ambient" else 0.0))
 	ipod_focus = lerpf(ipod_focus, ipod_focus_target, 1.0 - exp(-3.2 * dt))
 	var focus_volume := lerpf(1.0, 0.68, ipod_focus)
-	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(max(0.0001, float(vol["Music"]) * focus_volume)) + duck + hp_db)
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(max(0.0001, float(vol["Music"]) * focus_volume)) + duck + hp_db - 80.0 * hush_mus * hush_mus)
 	ipod_lowpass.cutoff_hz = lerpf(22000.0, 5600.0, ipod_focus)
 	ipod_reverb.wet = 0.16 * ipod_focus
 	ipod_reverb.dry = 1.0 - 0.08 * ipod_focus

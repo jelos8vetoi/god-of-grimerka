@@ -1,0 +1,114 @@
+{
+ "balon": [
+  {
+   "file": "scream_balon_1.wav",
+   "len": 2.8
+  },
+  {
+   "file": "scream_balon_2.wav",
+   "len": 2.95
+  },
+  {
+   "file": "scream_balon_3.wav",
+   "len": 3.1
+  }
+ ],
+ "madk1d": [
+  {
+   "file": "scream_madk1d_1.wav",
+   "len": 1.85
+  },
+  {
+   "file": "scream_madk1d_2.wav",
+   "len": 1.95
+  },
+  {
+   "file": "scream_madk1d_3.wav",
+   "len": 2.05
+  }
+ ],
+ "bot": [
+  {
+   "file": "scream_bot_1.wav",
+   "len": 2.15
+  },
+  {
+   "file": "scream_bot_2.wav",
+   "len": 2.27
+  },
+  {
+   "file": "scream_bot_3.wav",
+   "len": 2.39
+  }
+ ],
+ "clipper": [
+  {
+   "file": "scream_clipper_1.wav",
+   "len": 1.15
+  },
+  {
+   "file": "scream_clipper_2.wav",
+   "len": 1.23
+  },
+  {
+   "file": "scream_clipper_3.wav",
+   "len": 1.31
+  }
+ ],
+ "ghost": [
+  {
+   "file": "scream_ghost_1.wav",
+   "len": 5.8
+  },
+  {
+   "file": "scream_ghost_2.wav",
+   "len": 6
+  },
+  {
+   "file": "scream_ghost_3.wav",
+   "len": 6.2
+  }
+ ],
+ "mod": [
+  {
+   "file": "scream_mod_1.wav",
+   "len": 2.2
+  },
+  {
+   "file": "scream_mod_2.wav",
+   "len": 2.32
+  },
+  {
+   "file": "scream_mod_3.wav",
+   "len": 2.44
+  }
+ ],
+ "pahan": [
+  {
+   "file": "scream_pahan_1.wav",
+   "len": 2
+  },
+  {
+   "file": "scream_pahan_2.wav",
+   "len": 2.1
+  },
+  {
+   "file": "scream_pahan_3.wav",
+   "len": 2.2
+  }
+ ],
+ "dark": [
+  {
+   "file": "scream_dark_1.wav",
+   "len": 3
+  },
+  {
+   "file": "scream_dark_2.wav",
+   "len": 3.15
+  },
+  {
+   "file": "scream_dark_3.wav",
+   "len": 3.3
+  }
+ ]
+}

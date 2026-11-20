@@ -98,6 +98,60 @@ func hours_f() -> float:
 func clock() -> String:
 	return FNData.HOURS[clampi(hour, 0, 6)]
 
+# ---------------- привычки игрока ----------------
+## Что игрок делал последние секунд сорок (всё старше — забывается): какую дверь и заслонку держит закрытой, сколько
+## смотрит в камеры и в какие, как долго сидит на одной. Обитатели читают только это — прошлое, а не нажатия:
+## держишь левую дверь — Балон пойдёт справа, сидишь на камере коридора — CLIPPER не станет ждать, избегаешь
+## камер GHOST — он придёт в угол будки. Предупреждения перед атакой остаются прежними.
+const HAB_SEC := 40.0
+var hab := {"door_l": 0.0, "door_r": 0.0, "seal_l": 0.0, "seal_t": 0.0, "mon": 0.0, "light": 0.0}
+var hab_cam := {}                # камера → сколько на неё смотрели (с, с забыванием)
+var cam_hold := 0.0              # сколько секунд подряд открыта одна и та же камера
+
+func _habits(dt: float) -> void:
+	var k := exp(-dt / HAB_SEC)
+	for key in hab:
+		hab[key] = float(hab[key]) * k
+	for c in hab_cam:
+		hab_cam[c] = float(hab_cam[c]) * k
+	if door["l"]:
+		hab["door_l"] = float(hab["door_l"]) + dt
+	if door["r"]:
+		hab["door_r"] = float(hab["door_r"]) + dt
+	if seal["l"]:
+		hab["seal_l"] = float(hab["seal_l"]) + dt
+	if seal["t"]:
+		hab["seal_t"] = float(hab["seal_t"]) + dt
+	if light["l"] or light["r"]:
+		hab["light"] = float(hab["light"]) + dt
+	if monitor:
+		hab["mon"] = float(hab["mon"]) + dt
+		hab_cam[cam] = float(hab_cam.get(cam, 0.0)) + dt
+		cam_hold += dt
+	else:
+		cam_hold = 0.0
+
+## доля времени 0..1 (за последние HAB_SEC): 0 — никогда, 1 — всё время
+func habit(key: String) -> float:
+	return clampf(float(hab.get(key, 0.0)) / HAB_SEC, 0.0, 1.0)
+
+## доля времени, что игрок смотрел на эти камеры
+func cam_share(ids: Array) -> float:
+	var s := 0.0
+	for id in ids:
+		s += float(hab_cam.get(id, 0.0))
+	return clampf(s / HAB_SEC, 0.0, 1.0)
+
+## камера, на которую игрок смотрит чаще всего ("" — почти не смотрит)
+func top_cam() -> String:
+	var best := ""
+	var bv := 3.0
+	for c in hab_cam:
+		if float(hab_cam[c]) > bv:
+			bv = float(hab_cam[c])
+			best = String(c)
+	return best
+
 # ---------------- шаг ----------------
 func step(dt: float) -> void:
 	if outcome != "":
@@ -120,6 +174,7 @@ func step(dt: float) -> void:
 	_drain(dt)
 	if power_out:
 		return
+	_habits(dt)
 	_incidents(dt)
 	for id in FNData.ORDER:
 		(enemies[id] as FNEnemy).tick(self, dt)
@@ -307,6 +362,7 @@ func set_cam(id: String) -> void:
 	if cam == id:
 		return
 	cam = id
+	cam_hold = 0.0
 	stats["switches"] = int(stats["switches"]) + 1
 	emit("cam", {"id": id})
 
@@ -362,6 +418,10 @@ func add_glitch(kind: String, data := "") -> void:
 	if kind == "freeze" and data == "":
 		var ids: Array = FNData.CAMS.map(func(c): return c["id"])
 		data = ids[rng.randi() % ids.size()]
+		# MOD бьёт по привычке: замораживает ту камеру, на которую ты смотришь чаще всего (с 8-го уровня)
+		var mod_e: FNEnemy = enemies.get("mod")
+		if mod_e != null and mod_e.level >= 8 and top_cam() != "" and top_cam() != "room9" and rng.randf() < 0.7:
+			data = top_cam()
 	if kind == "labels":
 		var a := rng.randi() % FNData.CAMS.size()
 		data = "%d,%d" % [a, (a + 1 + rng.randi() % (FNData.CAMS.size() - 1)) % FNData.CAMS.size()]
