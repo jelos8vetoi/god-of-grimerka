@@ -208,6 +208,7 @@ func _ui_part() -> void:
 	ok(not R.call_voice.playing and not R.ui.sub_box.visible, "F сбрасывает звонок: голос замолчал, субтитр убран")
 	await wait(1.0)
 	await shot("f03_office")
+	await no_ipod_here("«5 ночей»")
 	var st: FNNight = R.st
 	print("FIVENIGHTSCHECK   состояние: %s, заставка %.1f, пауза %s, t %.1f, монитор %s" % [R.state, R.intro_t, str(R.paused), st.t, str(st.monitor)])
 	# только Балон и не мешаем проверке случайными ходами
@@ -936,3 +937,14 @@ func _finish() -> void:
 	AudioServer.set_bus_mute(0, false)
 	print("FIVENIGHTSCHECK ok" if fails == 0 else "FIVENIGHTSCHECK ОШИБКА: %d" % fails)
 	get_tree().quit()
+
+## iPod есть только в кампании и на арене: в этом режиме нет ни одного плеера, и стрелка ↑ его не открывает
+func no_ipod_here(where: String) -> void:
+	await key(KEY_UP)
+	await get_tree().process_frame
+	var n := 0
+	for c in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		var sc = c.get_script()
+		if sc != null and String(sc.resource_path).ends_with("/ipod.gd"):
+			n += 1
+	ok(n == 0, "%s: iPod нет, стрелка ↑ его не открывает" % where)

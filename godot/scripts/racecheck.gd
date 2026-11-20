@@ -266,6 +266,7 @@ func _run() -> void:
 	var v1: float = race.local.speed
 	ok(v1 > 15.0, "разгон: за 2,2 с — %.1f м/с" % v1)
 	await shot("r02_accel")
+	await no_ipod_here("гонка")
 	# --- 4. торможение ---
 	race.local.set_meta("auto", inp(0.0, 1.0))
 	await wait(0.4)
@@ -830,3 +831,14 @@ func _finish() -> void:
 	AudioServer.set_bus_mute(0, false)
 	print("RACECHECK ok" if fails == 0 else "RACECHECK ОШИБКА: %d" % fails)
 	get_tree().quit()
+
+## iPod есть только в кампании и на арене: в этом режиме нет ни одного плеера, и стрелка ↑ его не открывает
+func no_ipod_here(where: String) -> void:
+	await key(KEY_UP)
+	await get_tree().process_frame
+	var n := 0
+	for c in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		var sc = c.get_script()
+		if sc != null and String(sc.resource_path).ends_with("/ipod.gd"):
+			n += 1
+	ok(n == 0, "%s: iPod нет, стрелка ↑ его не открывает" % where)
