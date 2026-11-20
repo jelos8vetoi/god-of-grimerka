@@ -152,15 +152,28 @@ static func _head(r: Rig) -> Vector3:
 ## Падающие монеты поверх кадра; одна «отскакивает от стекла»
 static func _coins(c: G67ClipPlayer, n: int) -> void:
 	var fs := c.frame.size
+	var gt := G67Icons.tex("icon_golda")
 	for i in n:
-		var coin := Polygon2D.new()
+		var coin: Node2D
+		if gt != null:
+			var r0 := fs.y * randf_range(0.03, 0.055)
+			var sp := Sprite2D.new()
+			sp.texture = gt
+			sp.scale = Vector2.ONE * (r0 * 2.3 / float(gt.get_width()))
+			coin = Node2D.new()
+			coin.add_child(sp)
+			coin.position = Vector2(randf_range(0.05, 0.95) * fs.x, -r0 * 2.0 - randf() * fs.y * 0.6)
+			c.over.add_child(coin)
+			_coin_fall(c, coin, i, r0, fs)
+			continue
+		coin = Polygon2D.new()
 		var pts := PackedVector2Array()
 		var r := fs.y * randf_range(0.03, 0.055)
 		for k in 18:
 			var a := TAU * k / 18.0
 			pts.append(Vector2(cos(a) * r, sin(a) * r * 0.9))
-		coin.polygon = pts
-		coin.color = Color(1.0, 0.78, 0.2)
+		(coin as Polygon2D).polygon = pts
+		(coin as Polygon2D).color = Color(1.0, 0.78, 0.2)
 		var rim := Line2D.new()
 		rim.points = pts
 		rim.closed = true
@@ -176,6 +189,10 @@ static func _coins(c: G67ClipPlayer, n: int) -> void:
 		coin.add_child(lb)
 		coin.position = Vector2(randf_range(0.05, 0.95) * fs.x, -r * 2.0 - randf() * fs.y * 0.6)
 		c.over.add_child(coin)
+		_coin_fall(c, coin, i, r, fs)
+
+## Полёт монеты: первая летит в объектив и «бьётся о стекло», остальные падают с вращением
+static func _coin_fall(c: G67ClipPlayer, coin: Node2D, i: int, r: float, fs: Vector2) -> void:
 		var tw := c.create_tween()
 		var dur := randf_range(1.2, 2.2)
 		if i == 0:

@@ -723,6 +723,27 @@ func _offer_fit(rare: bool) -> void:
 		var txt := "%s%s — %s" % [String(f["name"]), (" · ур. %d → %d" % [lv, lv + 1]) if lv > 0 else "", String(f["desc"])]
 		buttons.append([txt, func(): take_fit(id)])
 	game._show_panel("ВЫБЕРИ ФИТС", "Семейство: %s. Усиление действует до конца забега." % String(G67Data.FAMILY_NAMES["misha"]), buttons)
+	_fit_icons(opts)
+
+## Значки фитсов на кнопках выбора (наклейки владельца; нет файла — кнопка без значка)
+func _fit_icons(opts: Array) -> void:
+	if game.panel == null:
+		return
+	var k := 0
+	for b in game.panel.find_children("*", "Button", true, false):
+		if k >= opts.size():
+			break
+		var t := G67Icons.fit(String(opts[k]))
+		k += 1
+		if t == null:
+			continue
+		var bt := b as Button
+		bt.icon = t
+		bt.expand_icon = false          # с expand_icon значок не входит в ширину кнопки и сжимается в ноль
+		bt.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		bt.add_theme_constant_override("icon_max_width", 64)
+		bt.add_theme_constant_override("h_separation", 14)
+		bt.custom_minimum_size = Vector2(bt.custom_minimum_size.x, 84.0)
 
 func take_fit(id: String) -> void:
 	if not G67Data.FITS.has(id) or fit_lv(id) >= int(G67Data.FITS[id]["lv"]):
