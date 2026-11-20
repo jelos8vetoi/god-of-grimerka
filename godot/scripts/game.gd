@@ -815,7 +815,9 @@ func _unhandled_input(e: InputEvent) -> void:
 		elif e.is_action_pressed("lock_prev"):
 			lock.cycle(-1)
 	if e.is_action_pressed("adlib") and not get_tree().paused and not paused_story():
-		if not buddy.adlib():
+		if madk_locked():
+			madk_note()
+		elif not buddy.adlib():
 			popup(buddy.global_position + Vector3(0, 2.1, 0), "перезарядка", Color(0.6, 0.7, 0.8))
 
 func shake(a: float) -> void:
@@ -846,7 +848,7 @@ func impact(tier: int, pos: Vector3, mul := 1.0) -> void:
 ## Смена героя (Tab): игрок берёт под управление напарника, прежний герой становится напарником.
 ## Герои меняются местами — управление переходит к тому, кто стоял рядом.
 func swap_heroes(quiet := false) -> bool:
-	if paused_story() or over or player.state == "dead":
+	if paused_story() or over or player.state == "dead" or madk_locked():
 		return false
 	var a: Vector3 = player.global_position
 	var b: Vector3 = buddy.global_position
@@ -1311,6 +1313,18 @@ func banner(title: String, sub: String, col: Color, sec := 2.6) -> void:
 	banner_sub.text = sub
 	banner_title.add_theme_color_override("font_color", col)
 	banner_t = sec
+
+## Приквел «ГОЛДА 67» до первой концовки: madk1d закрыт — управлять им и командными приёмами нельзя
+func madk_locked() -> bool:
+	return golda != null and not golda.madk_open()
+
+var _madk_note_t := -9.0
+## Попытка воспользоваться закрытым: объяснить, когда откроется (не чаще раза в 1,5 с)
+func madk_note() -> void:
+	if clock - _madk_note_t < 1.5:
+		return
+	_madk_note_t = clock
+	toast(G67Data.MADK_LOCKED)
 
 func toast(text: String) -> void:
 	toast_label.text = _clean(text)
