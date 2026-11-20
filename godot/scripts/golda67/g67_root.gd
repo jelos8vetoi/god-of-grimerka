@@ -289,15 +289,43 @@ func _room_cleared() -> void:
 	else:
 		_open_gates()
 
+## Двери следующей позиции. Обязательную встречу КРОТА случайность потерять не может: пока она не пройдена, одна из
+## дверей ведёт в её зону; если игрок дважды прошёл мимо — дверь остаётся одна (LEVEL_DESIGN.md, раздел 4).
+func route_options(next: int) -> Array:
+	var route: Array = district()["route"]
+	var opts: Array = (route[next] as Array).duplicate(true)
+	var k := krot_next()
+	if k.is_empty() or String(k["where"]) == "hub" or not G67Yard.ZONES.has(String(k["where"])):
+		return opts
+	if String(k.get("needs", "")) != "" and not G67Models.has(String(k["needs"])):
+		return opts
+	var zone := String(k["where"])
+	if String(room.get("place", "")) == zone:
+		return opts                                   # КРОТ стоит в этой самой комнате — вести к нему уже не нужно
+	var types: Array = opts.map(func(o): return String(o["type"]))
+	if types.has("break") or types.has("boss"):
+		return opts                                   # передышка и босс стоят на своих местах
+	if opts.any(func(o): return String(o["place"]) == zone):
+		if next >= 3:
+			return opts.filter(func(o): return String(o["place"]) == zone)      # последний шанс до босса — без выбора
+		return opts
+	if next >= 3:
+		var only: Dictionary = (opts[0] as Dictionary).duplicate()
+		only["place"] = zone
+		return [only]
+	(opts[0] as Dictionary)["place"] = zone
+	return opts
+
 func _open_gates() -> void:
 	var route: Array = district()["route"]
 	var next := int(run["pos"]) + 1
 	if next >= route.size():
 		return
+	var opts := route_options(next)
 	world.open_bounds()            # ограждения боя убраны: дальше — по двору, к воротам следующей зоны
-	world.add_gates(route[next])
+	world.add_gates(opts)
 	room_state = "open"
-	events.append(["gates", (route[next] as Array).size()])
+	events.append(["gates", opts.size()])
 	game.toast("Выбери дверь")
 
 func choose_gate(i: int) -> void:
@@ -390,7 +418,8 @@ func _place_krot(where: String) -> void:
 	if r == null:
 		return
 	world._static_box(pos + Vector3(0, 0.9, 0), Vector3(0.7, 1.8, 0.7))
-	world._point("krot", "КРОТ", "поговорить", pos + Vector3(sin(float(k["yaw"])), 0, cos(float(k["yaw"]))) * 1.1)
+	var talk: Vector3 = k.get("talk", Vector3(sin(float(k["yaw"])), 0, cos(float(k["yaw"]))) * 1.1)
+	world._point("krot", "КРОТ", "поговорить", pos + talk)
 	if String(k.get("carry", "")) != "":
 		# держит вещь перед собой (люстру): руки вперёд, вещь — у груди
 		G67Models.hold(r)

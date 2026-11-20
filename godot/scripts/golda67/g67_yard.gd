@@ -446,19 +446,21 @@ func _zone_parking() -> void:
 	var c3 := _put("old_car", Vector3(31.3, 0.02, 9.6), 0.0, 1.5)
 	_tint(c3, Color(1.0, 0.8, 0.7))
 	_put("traffic_cone", Vector3(31.5, 0.02, 5.0), 0.0, 0.6, false)              # кто-то занял место конусом
-	_put("kiosk", Vector3(42.4, 0.07, 18.0), PI, 3.0)
-	_light(Vector3(40.6, 1.8, 18.0), Color(1.0, 0.85, 0.55), 2.6, 8.0)
-	_sign("ШАУРМА 67", Vector3(41.45, 2.75, 18.0), -PI * 0.5, Color(1.0, 0.8, 0.2), 0.006, 56)
-	_put("bus_stop", Vector3(42.6, 0.07, 8.0), PI, 2.7)
+	# шаурмичная «ШАУРМА 67» — у проезда, окном во двор; здесь КРОТ стоит в очереди (встреча 1)
+	if _own("g67_shawarma_kiosk", Vector3(42.3, 0.07, 7.0), -PI * 0.5, 3.2) == null:
+		_put("kiosk", Vector3(42.4, 0.07, 7.0), PI, 3.0)
+	_light(Vector3(40.4, 1.8, 7.0), Color(1.0, 0.82, 0.5), 3.0, 9.0)
+	_sign("ШАУРМА 67", Vector3(41.2, 3.3, 7.0), -PI * 0.5, Color(1.0, 0.8, 0.2), 0.007, 56)
+	_put("bus_stop", Vector3(42.6, 0.07, 19.0), PI, 2.7)
 	_put("transformer_booth", Vector3(19.5, 0, -14.5), -PI * 0.5, 3.4)
 	_sign("НЕ ВЛЕЗАЙ\nУБЬЁТ", Vector3(19.5, 2.2, -12.75), 0.0, Color(0.9, 0.2, 0.15), 0.005, 48)
 	_put("billboard", Vector3(44.0, 0, -19.5), PI * 0.75, 7.0, false)
 	_solid_box(Vector3(44.0, 2.0, -19.5), Vector3(0.6, 4.0, 0.6))
 	_lamp(Vector3(34.3, 0, -10.5), 3.4, true)
 	_lamp(Vector3(34.3, 0, 15.0), 3.2)
-	_put("trash_pile", Vector3(40.4, 0.07, 21.2), 1.0, 0.7, false)
-	if _own("g67_urn", Vector3(40.9, 0.07, 15.4), -PI * 0.5, 0.8) == null:
-		_put("barrel", Vector3(40.9, 0.07, 15.4), 0.0, 0.75)
+	_put("trash_pile", Vector3(40.6, 0.07, 3.6), 1.0, 0.7, false)
+	if _own("g67_urn", Vector3(40.9, 0.07, 10.2), -PI * 0.5, 0.8) == null:
+		_put("barrel", Vector3(40.9, 0.07, 10.2), 0.0, 0.75)
 	_put("bare_tree", Vector3(22.0, 0, 9.5), 0.8, 7.0, false)
 	_solid_box(Vector3(22.0, 1.5, 9.5), Vector3(0.5, 3.0, 0.5))
 	_put("bush", Vector3(23.5, 0, -5.0), 0.0, 1.2, false)
