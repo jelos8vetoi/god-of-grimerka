@@ -498,7 +498,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	var kpos: Vector3 = G.world.actors["g67_krot"].global_position
 	var oc2 := Camera3D.new()
 	g.add_child(oc2)
-	oc2.global_position = kpos + Vector3(-2.6, 1.8, 4.4)
+	oc2.global_position = kpos + Vector3(-1.6, 1.7, 3.6)
 	oc2.look_at(kpos + Vector3(1.6, 1.0, 0), Vector3.UP)
 	oc2.make_current()
 	await wait(0.5)
