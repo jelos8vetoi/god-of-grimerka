@@ -257,6 +257,145 @@ func _run() -> void:
 	_finish()
 
 ## реплики из авторского документа — тем же правилом, что сборщик данных: посимвольная сверка с данными игры
+## Снимок Миши сбоку-спереди (обычная камера стоит за спиной героя и закрывает его)
+func _side_shot(g, B, nm: String) -> void:
+	var oc := Camera3D.new()
+	g.add_child(oc)
+	var at: Vector3 = B.global_position
+	oc.global_position = at + Vector3(3.6, 2.0, 3.4)
+	oc.look_at(at + Vector3(0, 1.1, 0.6), Vector3.UP)
+	oc.make_current()
+	await wait(0.05)
+	await shot(nm)
+	g.cam.make_current()
+	oc.queue_free()
+
+## Поставить Мишу и героя и запустить приём (сам он в это время ничего не выбирает)
+func _misha_set(B, P, move: String, ppos: Vector3, bpos := Vector3(0, 0.05, -2.0)) -> void:
+	B.state = "chase"
+	B.cool = 99.0
+	B.special_cd = 99.0
+	B.guard_until = -1.0
+	B.weak_t = 0.0
+	B.global_position = bpos
+	B.velocity = Vector3.ZERO
+	P.global_position = ppos
+	P.velocity = Vector3.ZERO
+	P.hp = P.max_hp
+	P.inv = 0.0
+	if String(P.state) in ["hurt", "roll", "block"]:
+		P.state = "idle"
+	await wait(0.1)
+	BossMoves.start(B, move)
+
+func _press(action: String, down: bool) -> void:
+	if down:
+		Input.action_press(action)
+	else:
+		Input.action_release(action)
+
+## Бой Миши: ЗАХВАТ, ЗАЩИТНАЯ СТОЙКА, ЗАЦЕП ЦЕПИ — зона, честность, ответы игрока
+func _misha_moves(g, G: Golda67, P, B) -> void:
+	var ph: Array = B.boss["phases"]
+	ok((ph[0] as Array).has("m_grab") and (ph[0] as Array).has("m_hook") and (ph[1] as Array).has("m_guard") and (ph[2] as Array).has("m_guard"),
+		"приёмы Миши по фазам: захват и зацеп с первой, стойка со второй")
+	var dmg := float(B.cfg["dmg"])
+	# --- ЗАХВАТ: блок не спасает
+	await _misha_set(B, P, "m_grab", Vector3(0, 0.05, 0.0))
+	ok(String(B.state) == "special" and B.tell.visible and bool(B.sp_lock), "ЗАХВАТ: подготовка с меткой-сектором на земле")
+	_press("block", true)
+	await wait(0.55)
+	await _side_shot(g, B, "26a_misha_grab")
+	var f0: float = B.face
+	await wait(0.75)
+	_press("block", false)
+	ok(not B.grab_log.is_empty() and String(B.grab_log[-1]) == "hit" and P.max_hp - P.hp > dmg * 1.2, "ЗАХВАТ пробивает блок (урон %.0f, обычный удар в блок дал бы %.0f)" % [P.max_hp - P.hp, dmg * 0.3])
+	# --- ЗАХВАТ: уклонение спасает, Миша хватает воздух и стоит открытым
+	await wait(1.2)
+	await _misha_set(B, P, "m_grab", Vector3(0, 0.05, 0.0))
+	await wait(G67Misha.GRAB_WARN - 0.2)
+	await key(KEY_SHIFT)
+	await wait(0.5)
+	ok(String(B.grab_log[-1]) == "miss" and P.hp == P.max_hp, "ЗАХВАТ: уклонение в момент хватки спасает (здоровье %.0f)" % P.hp)
+	ok(String(B.state) == "special", "после промаха Миша ещё стоит согнувшись — окно для ударов")
+	# --- ЗАХВАТ: зона = рисунок
+	await wait(1.0)
+	await _misha_set(B, P, "m_grab", Vector3(0, 0.05, 2.6))          # 4,6 м — за краем зоны
+	await wait(G67Misha.GRAB_WARN + 0.2)
+	ok(String(B.grab_log[-1]) == "miss" and P.hp == P.max_hp, "ЗАХВАТ: за краем метки не достаёт")
+	var fr := Vector3(sin(B.face), 0, cos(B.face))
+	ok(G67Misha.in_grab(B, B.global_position + fr * (G67Misha.GRAB_R - 0.1)) and not G67Misha.in_grab(B, B.global_position + fr * (G67Misha.GRAB_R + 0.2))
+		and not G67Misha.in_grab(B, B.global_position + fr.rotated(Vector3.UP, G67Misha.GRAB_HALF + 0.15) * 2.0), "зона захвата совпадает с меткой (дальность и угол)")
+	# --- ЗАЩИТНАЯ СТОЙКА
+	await wait(1.2)
+	await _misha_set(B, P, "m_guard", Vector3(0, 0.05, 0.2))
+	await wait(0.5)
+	ok(G67Misha.guarding(B) and B.tell.visible and String(B.rig.cur) == "MGuard", "ЗАЩИТНАЯ СТОЙКА: руки скрещены, золотой сектор спереди (%s, %s, %s)" % [str(G67Misha.guarding(B)), str(B.tell.visible), str(B.rig.cur)])
+	await _side_shot(g, B, "26b_misha_guard")
+	var bh: float = B.hp
+	var h := HitInfo.new()
+	h.damage = 30.0
+	h.dir = (B.global_position - P.global_position).normalized()
+	h.attack_id = "test"
+	B.take_hit_info(h)
+	ok(B.hp == bh and String(B.guard_log[-1]) == "return" and P.hp < P.max_hp, "удар в стойку спереди: урона нет, удар вернулся герою (−%.0f)" % (P.max_hp - P.hp))
+	var hp_a: float = P.hp
+	P.inv = 0.0
+	B.take_hit_info(h)
+	ok(P.hp == hp_a and String(B.guard_log[-1]) == "absorb", "ответ стойки не чаще раза в %.1f с" % G67Misha.GUARD_GAP)
+	var hb := HitInfo.new()
+	hb.damage = 30.0
+	hb.dir = Vector3(sin(B.face), 0, cos(B.face))                     # удар со спины летит туда же, куда смотрит Миша
+	hb.attack_id = "test"
+	B.take_hit_info(hb)
+	ok(B.hp < bh and String(B.guard_log[-1]) == "broken" and not G67Misha.guarding(B), "удар со спины сбивает стойку и проходит (−%.0f)" % (bh - B.hp))
+	# --- ЗАЦЕП ЦЕПИ: попал — тянет к себе
+	await wait(1.2)
+	await _misha_set(B, P, "m_hook", Vector3(0, 0.05, 4.0))
+	ok(B.tell.visible and bool(B.sp_lock), "ЗАЦЕП ЦЕПИ: полоса на земле, взгляд замер")
+	await wait(0.5)
+	await shot("26c_misha_hook_tell")
+	await wait(G67Misha.HOOK_WARN - 0.5 + 0.2)
+	ok(String(B.hook_log[-1]) == "hit" and P.hp < P.max_hp, "цепь попала по герою на полосе (−%.0f)" % (P.max_hp - P.hp))
+	# --- ЗАЦЕП ЦЕПИ: шаг с полосы — цепь цепляется за борт, Миша открыт
+	await wait(1.4)
+	await _misha_set(B, P, "m_hook", Vector3(0, 0.05, 4.0))
+	f0 = B.face
+	await wait(0.3)
+	P.global_position = Vector3(3.5, 0.05, 4.0)                        # ушёл с полосы
+	await wait(G67Misha.HOOK_WARN - 0.3 + 0.25)
+	ok(absf(angle_difference(f0, B.face)) < 0.01, "полоса не поворачивается за героем — с неё можно уйти")
+	ok(String(B.hook_log[-1]) == "board" and String(B.state) == "stun" and B.weak_t > G67Misha.HOOK_OPEN - 0.5 and P.hp == P.max_hp,
+		"промах: цепь зацепилась за борт, Миша открыт (%.1f с)" % B.weak_t)
+	ok(G.world.get_node_or_null("misha_hook_chain") != null and String(B.rig.cur) == "MStuck", "цепь натянута до борта, Миша её дёргает")
+	await wait(0.3)
+	await shot("26d_misha_hooked")
+	var bh2: float = B.hp
+	var hw := HitInfo.new()
+	hw.damage = 30.0
+	hw.dir = (B.global_position - P.global_position).normalized()
+	hw.attack_id = "test"
+	B.take_hit_info(hw)
+	ok(bh2 - B.hp > 30.0 * 1.25, "по открытому Мише урон выше (−%.0f за удар в 30)" % (bh2 - B.hp))
+	ok(await until(func(): return String(B.state) != "stun" and B.weak_t <= 0.0, 3.0), "через две секунды он снова в бою")
+	await wait(0.5)
+	ok(G.world.get_node_or_null("misha_hook_chain") == null, "цепь убрана")
+	# --- ЗАЦЕП ЦЕПИ: турник ловит цепь
+	var bar: Vector3 = G.world.hook_points[0]
+	var side := Vector3(1, 0, 0) if bar.x < 0.0 else Vector3(-1, 0, 0)
+	await _misha_set(B, P, "m_hook", bar - side * 1.0 + Vector3(0, 0.05, 0), bar + side * 6.0 + Vector3(0, 0.05, 0))
+	await wait(0.3)
+	P.global_position = Vector3(0, 0.05, 6.0)
+	await wait(G67Misha.HOOK_WARN - 0.3 + 0.25)
+	ok(String(B.hook_log[-1]) == "bars", "если полоса идёт мимо турника — цепь цепляется за турник")
+	await wait(0.2)
+	await shot("26e_misha_hook_bars")
+	await wait(2.4)
+	B.global_position = Vector3(0, 0.05, -2.0)
+	P.global_position = Vector3(0, 0.05, 3.0)
+	P.hp = P.max_hp
+	P.inv = 0.0
+
 func _flurr_from_doc() -> Dictionary:
 	var txt := FileAccess.get_file_as_string("res://docs/golda67/DJ_FLURR_SPEC.md").replace("\r", "")
 	var states: Array = []
@@ -577,11 +716,19 @@ func _run_dvor(g, G: Golda67, P) -> void:
 		return
 	var B = g.boss_e
 	ok(G.scene_busy() and g.intro_busy(), "выход босса — постановка: управление на это время закрыто")
+	ok(B.global_position.distance_to(G.world.throne) < 0.6 and String(B.rig.cur) == "MSit", "Миша сидит на троне (%.2f м, клип %s)" % [B.global_position.distance_to(G.world.throne), str(B.rig.cur)])
 	await wait(1.0)
-	await shot("25a_boss_intro")
+	await shot("25a_boss_throne")
+	await wait(1.2)
+	await shot("25b_boss_stands")
 	await wait(1.6)
-	await shot("25b_boss_intro")
+	ok(B.global_position.z > G.world.throne.z + 0.6 and G.scene_step == 2, "встал и идёт по ковру к герою")
+	await shot("25c_boss_walks")
+	ok(await until(func(): return G.scene_step >= 3, 4.0), "дошёл и топнул")
+	await wait(0.9)
+	await shot("25d_boss_stomp")
 	ok(await until(func(): return not G.scene_busy(), 8.0), "постановка заканчивается сама, начинается бой")
+	ok(B.global_position.distance_to(Vector3(0, 0.05, -6.6)) < 0.3, "к началу боя Миша на своём месте в коробке")
 	ok(String(B.boss_id) == "g67_misha" and String(g.boss_name.text).begins_with("МИША МИНАСЯН"), "босс — Миша Минасян («%s»)" % g.boss_name.text)
 	ok(String(B.cfg.get("path", "")).ends_with("g67_misha.glb"), "модель босса — своя, не босс кампании")
 	ok(B.rig.skel.find_children("*", "BoneAttachment3D", true, false).size() > 0, "на Мише цепь")
@@ -596,6 +743,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(acted, "Миша атакует (состояние: %s)" % String(B.state))
 	await wait(0.6)
 	await shot("26_boss_attack")
+	await _misha_moves(g, G, P, B)
 	var hp1: float = B.hp
 	B.take_hit(40.0, Vector3.FORWARD, 0.0, false)
 	ok(B.hp < hp1, "босс получает урон")

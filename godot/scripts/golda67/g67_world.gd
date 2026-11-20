@@ -346,6 +346,10 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 var room: Dictionary = {}
 var gates: Array = []          # ворота выбора следующей комнаты: [{root, label, option}]
 var yard: G67Yard
+## Бой Миши (G67Misha.hook_target): за что цепляется цепь — турники и борта коробки, в координатах комнаты
+var hook_points: Array = []
+var hook_rect := Rect2(-14, -14, 28, 28)
+var throne := Vector3(0, 0.03, -10.0)
 
 func build_room(r: Dictionary) -> void:
 	room = r
@@ -396,6 +400,13 @@ func build_room(r: Dictionary) -> void:
 	yard.build()
 	var zc: Vector3 = G67Yard.zone(String(r.get("place", "podezd")))["c"]
 	yard.position = -zc
+	# коробка Миши в координатах комнаты: за что цепляется цепь и где трон
+	hook_points = []
+	for bp in G67Yard.BARS:
+		hook_points.append(Vector3(float(bp[0]), 0, float(bp[1])) - zc)
+	var cr: Rect2 = G67Yard.COURT
+	hook_rect = Rect2(cr.position.x - zc.x + 0.3, cr.position.y - zc.z + 0.3, cr.size.x - 0.6, cr.size.y - 0.6)
+	throne = G67Yard.THRONE - zc
 	missing.append_array(yard.missing)
 	var type := String(r.get("type", "battle"))
 	if type == "battle" or type == "elite" or type == "boss":
