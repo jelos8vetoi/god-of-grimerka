@@ -46,19 +46,64 @@ var m_carpet: StandardMaterial3D
 var misha_car: Node3D
 var queue: Array = []          # жители в очереди за шаурмой (узлы)
 ## Очередь у «ШАУРМА 67»: места от окошка назад. Последнее место — за ними — занимает КРОТ (G67Data.KROT, встреча 1).
-const QUEUE_SPOTS := [Vector3(40.35, 0.07, 7.0), Vector3(39.5, 0.07, 7.15), Vector3(38.65, 0.07, 6.95)]
+## Очередь у «ШАУРМА 67»: места от окошка назад, около метра друг от друга, у каждого своё дело:
+## первый наклонился к продавцу и показывает рукой, второй смотрит меню над окошком (и иногда оборачивается
+## к стоящему сзади), третий в телефоне. Последнее место — за ними — занимает КРОТ (G67Data.KROT, встреча 1).
+## Ещё один уже купил и ест в стороне от окошка.
+const QUEUE_SPOTS := [Vector3(40.15, 0.07, 7.0), Vector3(39.05, 0.07, 7.12), Vector3(37.95, 0.07, 6.9)]
+const QUEUE_ROLES := [
+	{"base": "NOrder", "alts": ["NPocketsSide"]},
+	{"base": "NMenu", "alts": ["NTalk"], "poi": Vector3(37.95, 1.5, 6.9)},
+	{"base": "NPhone", "alts": ["NIdleL"]},
+]
+const EATER := {"pos": Vector3(40.1, 0.07, 4.9), "yaw": -0.6, "base": "NEat", "alts": ["NIdleL"]}
 ## Кто может стоять в очереди: модель, рост, со скелетом ли (тогда стоит и покачивается, как живой)
 const QUEUE_PEOPLE := [
 	{"path": "res://assets/minigames/npc_customer.glb", "h": 1.74, "rig": true, "key": "npc_customer"},
 	{"path": "res://assets/minigames/npc_neighbor.glb", "h": 1.58, "rig": true, "key": "npc_neighbor"},
-	{"path": "res://assets/racing/npc_spectator.glb", "h": 1.7, "rig": false, "key": "npc_spectator"},
 ]
+var people := {}               # фоновые жители двора: id → Rig
+## Фоновые жители (решение владельца: четверо, без квестов, без толпы): модель, рост, место, поворот, вещь в руке.
+## Стоят там, где им естественно быть; пройти сквозь них нельзя; в бою не участвуют.
+const PEOPLE := [
+	# бабушка у лавки возле подъезда: стоит с авоськой, иногда отдыхает или поправляет платок; голову поворачивает медленно
+	{"id": "g67_npc_babushka", "h": 1.5, "pos": Vector3(4.9, 0.07, 34.1), "yaw": PI + 0.35, "carry": "mixamorig_RightHand",
+		"base": "NBag", "alts": ["NBagRest", "NScarf"], "turn": 1.0, "look_r": 9.0, "poi": Vector3(0, 1.4, 22)},
+	# мужик в ушанке у открытого гаража: руки в карманах; курит, скрещивает руки, переминается; поглядывает на коробку Миши
+	{"id": "g67_npc_ushanka", "h": 1.72, "pos": Vector3(-43.2, 0.02, 1.2), "yaw": PI * 0.5 - 0.6,
+		"base": "NPocketsSide", "alts": ["NSmoke", "NCross", "NIdleL"], "poi": Vector3(2, 1.5, -38)},
+	# школьник на детской площадке: в телефоне; держит рюкзак за лямку, поправляет рюкзак
+	{"id": "g67_npc_schoolboy", "h": 1.28, "pos": Vector3(-5.4, 0.02, -5.0), "yaw": 0.7,
+		"base": "NPhone", "alts": ["NStrap", "NStraps", "NIdleL"], "poi": Vector3(2, 1.5, -38)},
+	# таксист у своей машины на парковке: опёрся на неё спиной; телефон, руки на поясе, поправляет куртку; смотрит на дорогу
+	{"id": "g67_npc_taxi_driver", "h": 1.76, "pos": Vector3(30.2, 0.02, 9.6), "yaw": -PI * 0.5,
+		"base": "NLeanBack", "alts": ["NTaxiPhone", "NHips", "NJacket"], "poi": Vector3(30, 1.4, 22)},
+]
+var lifes: Array = []          # поведение всех жителей (G67Life): кому смотреть на героя — ставит Golda67
 static var secret_tag := false     # победил Мишу — у подъезда появляется маленькое граффити
 static var crowd_seed := 1
 ## Коробка Миши: турники (x, z, поворот, размер), борта и место трона — их читает бой (зацеп цепи) и постановка выхода
 const BARS := [[-8.0, -43.5, 0.2, 2.7], [12.2, -33.0, PI * 0.5, 2.5]]
 const COURT := Rect2(-11.0, -49.5, 26.0, 22.5)
-const THRONE := Vector3(2.0, 0.03, -48.0)     # меняется на каждый забег: очередь каждый раз другая
+const THRONE := Vector3(2.0, 0.03, -48.0)
+## Трибуна у восточного борта: место, длина вдоль борта и ряды (сдвиг от центра к площадке и высота — в долях размеров модели)
+const TRIBUNE := Vector3(17.7, 0.02, -38.5)
+const TRIBUNE_LEN := 5.2
+const TRIBUNE_ROWS := [[-0.28, 0.27], [0.0, 0.46], [0.27, 0.64]]
+const ARENA_C := Vector3(2.0, 0, -38.0)
+## Восемь зрителей (ТЗ владельца): ряд и место вдоль трибуны или своё место; excited — как охотно реагирует на удары
+const FANS := [
+	{"row": 0, "z": -1.7, "base": "SLean", "alts": ["SWatch"], "excited": 0.35},                   # наклонился вперёд, смотрит внимательно
+	{"row": 0, "z": 1.4, "base": "SCross", "alts": [], "excited": 0.1},                             # сидит, руки скрещены
+	{"row": 1, "z": -1.0, "base": "SWatch", "alts": ["SLean"], "excited": 0.95},                    # эмоционально реагирует на сильные удары
+	{"row": 1, "z": 0.4, "base": "STalk", "alts": ["SWatch"], "excited": 0.25},                     # разговаривает с соседом
+	{"row": 1, "z": 1.9, "base": "SWatch", "alts": ["SStand"], "excited": 0.4, "alt_hold": Vector2(4.0, 4.0)},     # иногда встаёт и садится
+	{"row": 2, "z": -0.6, "base": "SFilm", "alts": ["SWatch"], "excited": 0.2},                     # снимает на телефон
+	{"row": 2, "z": 1.0, "base": "SWatch", "alts": ["SPoint"], "excited": 0.4},                     # показывает пальцем на площадку
+	{"pos": Vector3(-12.6, 0, -36.0), "base": "NCross", "alts": ["NIdleL"], "excited": 0.15},      # просто стоит у борта и смотрит
+]
+var tribune: Node3D
+var fans: Array = []           # зрители у коробки (Rig)     # меняется на каждый забег: очередь каждый раз другая
 var boss_spot := Vector3(2, 0, -44.5)        # где ждёт Миша (у своей машины, на ковре)
 
 static func zone(id: String) -> Dictionary:
@@ -473,6 +518,7 @@ func _zone_parking() -> void:
 		_sign("ШАУРМА 67", Vector3(41.2, 3.3, 7.0), -PI * 0.5, Color(1.0, 0.8, 0.2), 0.007, 56)
 	_light(Vector3(40.4, 1.8, 7.0), Color(1.0, 0.82, 0.5), 3.0, 9.0)
 	_queue()
+	_people()
 	_put("bus_stop", Vector3(42.6, 0.07, 19.0), PI, 2.7)
 	_put("transformer_booth", Vector3(19.5, 0, -14.5), -PI * 0.5, 3.4)
 	_sign("НЕ ВЛЕЗАЙ\nУБЬЁТ", Vector3(19.5, 2.2, -12.75), 0.0, Color(0.9, 0.2, 0.15), 0.005, 48)
@@ -509,23 +555,74 @@ func _queue() -> void:
 		var pos: Vector3 = (QUEUE_SPOTS[i] as Vector3) + Vector3(0, 0, rng.randf_range(-0.08, 0.08))
 		var h: float = float(who["h"]) * rng.randf_range(0.95, 1.06)
 		var yaw := PI * 0.5 + rng.randf_range(-0.18, 0.18)                 # лицом к окошку (на восток)
-		var node: Node3D
-		if bool(who["rig"]):
-			var r := Rig.new()
-			add_child(r)
-			r.setup(String(who["path"]), h, Poses.pahan(), true, 1.0, String(who["key"]))
-			r.position = pos
-			r.rotation.y = yaw
-			r.play("Idle", 0.0)
-			if r.player != null:
-				r.player.seek(rng.randf_range(0.0, 2.0), true)             # не дышат в такт
-			node = r
-		else:
-			node = G67Models.spawn(String(who["path"]), self, pos, yaw - PI * 0.5, Vector3(99, h, 99))      # модель гонок — лицом по +X
+		var node: Node3D = _person(String(who["path"]), String(who["key"]), h, pos, yaw, QUEUE_ROLES[i], 7000 + crowd_seed * 13 + i)
 		_tint(node, tones[rng.randi() % tones.size()])
 		_solid_box(pos + Vector3(0, 0.9, 0), Vector3(0.6, 1.8, 0.6))
 		node.name = "queue%d" % i
 		queue.append(node)
+	# уже купил: ест в стороне от окошка, спиной к очереди
+	var ew: Dictionary = QUEUE_PEOPLE[(crowd_seed + 1) % QUEUE_PEOPLE.size()]
+	if ResourceLoader.exists(String(ew["path"])):
+		var en := _person(String(ew["path"]), String(ew["key"]), float(ew["h"]), EATER["pos"], float(EATER["yaw"]), EATER, 7100 + crowd_seed)
+		_tint(en, tones[(crowd_seed * 3) % tones.size()])
+		_solid_box((EATER["pos"] as Vector3) + Vector3(0, 0.9, 0), Vector3(0.6, 1.8, 0.6))
+		en.name = "queue_eater"
+		queue.append(en)
+
+## Человек со скелетом в своей позе (G67Poses): стоит, дышит; phase — сдвиг, чтобы соседи не двигались в такт
+## Человек со скелетом и своим поведением (G67Life): основная поза, другие позы, взгляд. profile — см. G67Life.attach
+func _person(path: String, key: String, h: float, pos: Vector3, yaw: float, profile: Dictionary, seed_v: int) -> Rig:
+	var r := Rig.new()
+	add_child(r)
+	r.setup(path, h, G67Poses.clips(), true, 1.0, key + "_yd")      # свой ключ: набор клипов жителя, а не героя
+	r.position = pos
+	r.rotation.y = yaw
+	var pf := profile.duplicate()
+	pf["poi_ref"] = self                      # точка интереса — в координатах двора
+	var life := G67Life.attach(r, pf, seed_v)
+	if life != null:
+		lifes.append(life)
+		r.set_meta("life", life)
+	return r
+
+## Реакция зрителей на бой: сильный удар (hit), смена фазы босса (phase), победа (win). Не все сразу и не в такт:
+## каждый со своей вероятностью и задержкой; после реакции — обратно в свою позу.
+func crowd_react(kind: String) -> int:
+	var n := 0
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var pool: Array = {"hit": ["RWow", "RLean"], "phase": ["RWow", "RUp", "RLean"], "win": ["RUp", "RYes"]}.get(kind, ["RLean"])
+	for fan in fans:
+		if not is_instance_valid(fan) or not fan.has_meta("life"):
+			continue
+		var p: float = float(fan.get_meta("excited", 0.3))
+		if kind != "hit":
+			p = minf(1.0, p + 0.35)
+		if rng.randf() > p:
+			continue
+		var life: G67Life = fan.get_meta("life")
+		var clip: String = ("S" if bool(fan.get_meta("seated", false)) else "") + String(pool[rng.randi() % pool.size()])
+		var delay := rng.randf_range(0.05, 0.7)
+		get_tree().create_timer(delay, false).timeout.connect(func():
+			if is_instance_valid(life):
+				life.react(clip))
+		n += 1
+	return n
+
+## Жители двора: по одному каждого вида, со скелетом — стоят и дышат, каждый в своём такте
+func _people() -> void:
+	for i in PEOPLE.size():
+		var who: Dictionary = PEOPLE[i]
+		var id := String(who["id"])
+		if not G67Models.has(id):
+			missing.append(id)
+			continue
+		var r := _person(G67Models.DIR + id + ".glb", id, float(who["h"]), who["pos"], float(who["yaw"]), who, 6000 + i * 31)
+		r.name = id
+		if who.has("carry"):
+			G67Carry.attach(r, String(who["carry"]))
+		_solid_box((who["pos"] as Vector3) + Vector3(0, 0.9, 0), Vector3(0.6, 1.8, 0.6))
+		people[id] = r
 
 ## F — беседка: тихий угол за гаражами, где сидят по вечерам. Здесь передышка перед коробкой.
 func _zone_gazebo() -> void:
@@ -625,10 +722,36 @@ func _zone_sport() -> void:
 	_light(Vector3(x0 + 3.0, 7.0, z0 + 3.0), Color(1.0, 0.93, 0.8), 4.2, 24.0, true)
 	_light(Vector3(x1 - 3.0, 7.0, z1 - 3.0), Color(1.0, 0.9, 0.75), 3.6, 24.0)
 	_light(Vector3(x1 - 3.0, 7.0, z0 + 3.0), Color(0.95, 0.9, 1.0), 2.4, 20.0)
-	# зрители: лавки вдоль восточного борта снаружи и люди на них
-	for i in 3:
-		_put("bench", Vector3(17.0, 0, -44.0 + i * 5.5), PI, 0.95)
-	for s in [[Vector3(16.6, 0, -44.3), 1.72], [Vector3(16.6, 0, -38.2), 1.66], [Vector3(16.7, 0, -33.4), 1.75], [Vector3(-12.6, 0, -36.0), 1.7]]:
-		_put("npc_spectator", s[0], PI if s[0].x > 0 else 0.0, s[1], false)
+	# зрители: районная трибуна у восточного борта (модель смотрит рядами по +X — развёрнута к площадке) и люди на ней;
+	# пока модели нет — лавки вдоль борта
+	# зрители: районная трибуна у восточного борта (ряды модели смотрят по +X — развёрнута к площадке).
+	# Семеро сидят, у каждого своё поведение (FANS); восьмой стоит у западного борта. Реакции — crowd_react.
+	tribune = _own("g67_tribune", TRIBUNE, PI, TRIBUNE_LEN, "d")
+	var ts: Vector3 = tribune.get_meta("size", Vector3(2.9, 3.2, TRIBUNE_LEN)) if tribune != null else Vector3.ZERO
+	if tribune == null:
+		for i in 3:
+			_put("bench", Vector3(17.0, 0, -44.0 + i * 5.5), PI, 0.95)
+	var fan_tones := [Color(1, 1, 1), Color(0.8, 0.88, 1.0), Color(1.0, 0.84, 0.76), Color(0.84, 1.0, 0.86), Color(0.95, 0.84, 1.0), Color(0.76, 0.78, 0.86)]
+	for i in FANS.size():
+		var f: Dictionary = FANS[i]
+		var who: Dictionary = QUEUE_PEOPLE[i % QUEUE_PEOPLE.size()]
+		if not ResourceLoader.exists(String(who["path"])):
+			continue
+		var h: float = float(who["h"]) * (0.94 if i % 3 == 1 else 1.0)
+		var sp: Vector3
+		if f.has("row"):
+			if tribune == null:
+				continue
+			var row := int(f["row"])
+			# сидит: таз на сиденье ряда
+			sp = TRIBUNE + Vector3(ts.x * float(TRIBUNE_ROWS[row][0]), ts.y * float(TRIBUNE_ROWS[row][1]) - G67Poses.SIT_HIP * h, float(f["z"]))
+		else:
+			sp = f["pos"]
+		var fan := _person(String(who["path"]), String(who["key"]), h, sp, atan2(ARENA_C.x - sp.x, ARENA_C.z - sp.z), f, 8000 + i * 17)
+		_tint(fan, fan_tones[(i * 5 + 2) % fan_tones.size()])
+		fan.name = "fan%d" % i
+		fan.set_meta("seated", f.has("row"))
+		fan.set_meta("excited", float(f.get("excited", 0.3)))
+		fans.append(fan)
 	_drift(Vector3(-13.0, 0.3, -44.0), Vector3(2.0, 1.1, 7.0))
 	_drift(Vector3(8.0, 0.3, -51.2), Vector3(9.0, 1.2, 2.2))

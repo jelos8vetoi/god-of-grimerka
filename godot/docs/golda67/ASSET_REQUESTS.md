@@ -665,17 +665,23 @@ A small street shawarma kiosk in a post-soviet courtyard at night. A boxy metal 
 Владелец утвердил четырёх фоновых жителей, трибуну и событие; промпты — до 1000 символов. Персонажи — Text to 3D,
 HD model, T-поза без авторига; пропсы — standard. Файл GLB, один объект.
 
+**Приёмка 2026-11-20.** Все девять получены, облегчены (153 МБ → 21 МБ), импортированы со сжатием и просмотрены с
+четырёх сторон — замечаний нет. Жители: лицом по +Z, T-поза; скелеты поставлены (`tools/rig-horror.py`, записи
+`g67_npc_*`), стоят во дворе (`G67Yard.PEOPLE`). Авоська бабушки привязана к кисти и всегда висит вниз (`G67Carry`),
+ключи таксиста — к тазу. Трибуна: ряды смотрят по +X, стоит у восточного борта коробки (`G67Yard.TRIBUNE`), на ней
+зрители. Кровать, ведро, сирена и тряпки приняты и ждут события «ТРЯПКИ! ТРЯПКИ!» (в игре ещё не стоят).
+
 | № | ID | Что | Файл | Символов | Статус |
 |---|---|---|---|---|---|
-| 1 | G67-N01 | Бабушка с авоськой | `godot/assets/golda67/g67_npc_babushka.glb` | 901 | промпт выдан |
-| 2 | G67-N02 | Мужик в ушанке | `godot/assets/golda67/g67_npc_ushanka.glb` | 881 | промпт выдан |
-| 3 | G67-N03 | Школьник | `godot/assets/golda67/g67_npc_schoolboy.glb` | 894 | промпт выдан |
-| 4 | G67-N04 | Таксист | `godot/assets/golda67/g67_npc_taxi_driver.glb` | 878 | промпт выдан |
-| 5 | G67-Y14 | Трибуна у коробки Миши | `godot/assets/golda67/g67_tribune.glb` | 843 | промпт выдан |
-| 6 | G67-S11 | Кровать Пахана | `godot/assets/golda67/g67_event_bed.glb` | 819 | промпт выдан |
-| 7 | G67-S12 | Ведро с водой | `godot/assets/golda67/g67_event_bucket.glb` | 797 | промпт выдан |
-| 8 | G67-S13 | Сирена с красным маяком | `godot/assets/golda67/g67_event_siren.glb` | 831 | промпт выдан |
-| 9 | G67-S14 | Тряпки и швабра | `godot/assets/golda67/g67_event_rags.glb` | 776 | промпт выдан |
+| 1 | G67-N01 | Бабушка с авоськой | `godot/assets/golda67/g67_npc_babushka.glb` | 901 | получена 2026-11-20 |
+| 2 | G67-N02 | Мужик в ушанке | `godot/assets/golda67/g67_npc_ushanka.glb` | 881 | получена 2026-11-20 |
+| 3 | G67-N03 | Школьник | `godot/assets/golda67/g67_npc_schoolboy.glb` | 894 | получена 2026-11-20 |
+| 4 | G67-N04 | Таксист | `godot/assets/golda67/g67_npc_taxi_driver.glb` | 878 | получена 2026-11-20 |
+| 5 | G67-Y14 | Трибуна у коробки Миши | `godot/assets/golda67/g67_tribune.glb` | 843 | получена 2026-11-20 |
+| 6 | G67-S11 | Кровать Пахана | `godot/assets/golda67/g67_event_bed.glb` | 819 | получена 2026-11-20 |
+| 7 | G67-S12 | Ведро с водой | `godot/assets/golda67/g67_event_bucket.glb` | 797 | получена 2026-11-20 |
+| 8 | G67-S13 | Сирена с красным маяком | `godot/assets/golda67/g67_event_siren.glb` | 831 | получена 2026-11-20 |
+| 9 | G67-S14 | Тряпки и швабра | `godot/assets/golda67/g67_event_rags.glb` | 776 | получена 2026-11-20 |
 
 ### G67-N01 — Бабушка с авоськой
 
@@ -684,7 +690,7 @@ HD model, T-поза без авторига; пропсы — standard. Фай�
 - **Риг и анимации:** скелет ставлю сам (`tools/rig-horror.py`), клипы — `Poses.pahan()`.
 - **Имя файла:** `g67_npc_babushka.glb`
 - **Путь:** `godot/assets/golda67/g67_npc_babushka.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (901 символов):**
 
 ```text
@@ -698,7 +704,7 @@ A small elderly Russian grandmother, stooped and stout, stern suspicious face wi
 - **Риг и анимации:** скелет ставлю сам (`tools/rig-horror.py`), клипы — `Poses.pahan()`.
 - **Имя файла:** `g67_npc_ushanka.glb`
 - **Путь:** `godot/assets/golda67/g67_npc_ushanka.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (881 символов):**
 
 ```text
@@ -712,7 +718,7 @@ A stocky middle-aged Russian man from the garages, tired kind face, thick grey m
 - **Риг и анимации:** скелет ставлю сам (`tools/rig-horror.py`), клипы — `Poses.pahan()`.
 - **Имя файла:** `g67_npc_schoolboy.glb`
 - **Путь:** `godot/assets/golda67/g67_npc_schoolboy.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (894 символов):**
 
 ```text
@@ -726,7 +732,7 @@ A ten year old Russian schoolboy in winter, cheeky grin, missing front tooth, ro
 - **Риг и анимации:** скелет ставлю сам (`tools/rig-horror.py`), клипы — `Poses.pahan()`.
 - **Имя файла:** `g67_npc_taxi_driver.glb`
 - **Путь:** `godot/assets/golda67/g67_npc_taxi_driver.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (878 символов):**
 
 ```text
@@ -740,7 +746,7 @@ A lean Russian taxi driver in his forties, sly squinting face, dark stubble, thi
 - **Риг и анимации:** не нужны.
 - **Имя файла:** `g67_tribune.glb`
 - **Путь:** `godot/assets/golda67/g67_tribune.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (843 символов):**
 
 ```text
@@ -754,7 +760,7 @@ A small old courtyard spectator stand next to a hockey rink, about 5 metres wide
 - **Риг и анимации:** не нужны.
 - **Имя файла:** `g67_event_bed.glb`
 - **Путь:** `godot/assets/golda67/g67_event_bed.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (819 символов):**
 
 ```text
@@ -768,7 +774,7 @@ An old soviet single bed with a metal tube frame and a sagging spring mesh, abou
 - **Риг и анимации:** не нужны.
 - **Имя файла:** `g67_event_bucket.glb`
 - **Путь:** `godot/assets/golda67/g67_event_bucket.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (797 символов):**
 
 ```text
@@ -782,7 +788,7 @@ A dented old galvanized metal bucket, about 35 centimetres tall, full of water a
 - **Риг и анимации:** не нужны.
 - **Имя файла:** `g67_event_siren.glb`
 - **Путь:** `godot/assets/golda67/g67_event_siren.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (831 символов):**
 
 ```text
@@ -796,7 +802,7 @@ An old soviet wall-mounted alarm unit, about 40 centimetres tall. A grey painted
 - **Риг и анимации:** не нужны.
 - **Имя файла:** `g67_event_rags.glb`
 - **Путь:** `godot/assets/golda67/g67_event_rags.glb`
-- **Статус:** промпт выдан
+- **Статус:** получена 2026-11-20
 - **Промпт (776 символов):**
 
 ```text

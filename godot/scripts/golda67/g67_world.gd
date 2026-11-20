@@ -70,13 +70,13 @@ func _put(id: String, pos: Vector3, yaw: float, size: Vector3, fit := "h", solid
 func _point(id: String, title: String, hint: String, pos: Vector3) -> void:
 	points.append({"id": id, "title": title, "hint": hint, "pos": pos})
 
-func _actor(id: String, path: String, height: float, pos: Vector3, yaw: float) -> Rig:
+func _actor(id: String, path: String, height: float, pos: Vector3, yaw: float, clips := {}) -> Rig:
 	if not ResourceLoader.exists(path):
 		missing.append(path)
 		return null
 	var r := Rig.new()
 	add_child(r)
-	r.setup(path, height, Poses.pahan(), true, 1.0, id)
+	r.setup(path, height, clips if not clips.is_empty() else Poses.pahan(), true, 1.0, id + ("_k" if not clips.is_empty() else ""))
 	r.position = pos
 	r.rotation.y = yaw
 	r.play("Idle", 0.0)

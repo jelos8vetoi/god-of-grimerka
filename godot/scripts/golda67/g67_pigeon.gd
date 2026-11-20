@@ -14,6 +14,7 @@ var peck_in := 2.0        # через сколько клюнет
 var peck_t := -1.0        # идёт клевок (секунды от начала), −1 — нет
 var pecks := 1            # сколько клевков подряд осталось
 var rng := RandomNumberGenerator.new()
+var to := Vector3.INF     # куда идёт (корм), в координатах родителя
 
 const PECK_LEN := 0.42    # один клевок
 const PECK_ANGLE := 0.62  # наклон корпуса вперёд, рад
@@ -31,10 +32,24 @@ static func attach(node: Node3D, i: int) -> G67Pigeon:
 	node.add_child(p)
 	return p
 
+## Бросили корм: подбежать к точке (координаты родителя) и поклевать
+func feed(at: Vector3) -> void:
+	to = at + Vector3(rng.randf_range(-0.35, 0.35), 0, rng.randf_range(-0.35, 0.35))
+	to.y = home.y
+
 func _process(dt: float) -> void:
 	if bird == null:
 		return
 	t += dt
+	if to != Vector3.INF:
+		var d: Vector3 = to - home
+		if d.length() < 0.06:
+			to = Vector3.INF
+			peck_in = 0.05                       # дошёл — сразу клевать
+		else:
+			home += d.normalized() * minf(d.length(), 0.85 * dt)
+			yaw_to = atan2(d.x, d.z)
+			turn_in = 0.6
 	# поворот: короткий, рывком, как у птицы
 	turn_in -= dt
 	if turn_in <= 0.0 and peck_t < 0.0:
