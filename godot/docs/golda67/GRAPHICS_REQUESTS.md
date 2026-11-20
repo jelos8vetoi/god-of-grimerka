@@ -228,9 +228,174 @@ A speech bubble with a torn paper edge containing one big over-ear headphone cup
 
 | Партия | Состав | Промпты | Файлы |
 |---|---|---|---|
-| 1 | 5 фитсов, 8 комнат, 2 валюты, 2 индикатора | готовы (раздел 3) | 0 из 17 |
-| 2 | 18 артефактов, логотип «ГОЛДА 67», эмблема «67» | следующая | — |
+| 1 | 5 фитсов, 8 комнат, 2 валюты, 2 индикатора | готовы (раздел 3) | 17 из 17 получены 2026-11-20 |
+| 2 | 18 артефактов, логотип «ГОЛДА 67», эмблема «67» | готовы (раздел 5) | 0 из 20 |
 | 3 | товары ларька, рамки редкости, значки состояний, карточка фитса, плашка босса | — | — |
 | 4 | фоны экранов подъезда и меню ларька | — | — |
 | 5 | объявления, заставка ТВ, итоги забега, вывеска, граффити, баннеры | — | — |
 | 6 | текстуры двора | — | — |
+
+## 5. Партия 2 — 18 артефактов, логотип и эмблема
+
+Артефакты — тот же стиль и формат, что у партии 1 (PNG 1024×1024, прозрачный фон). Числа и правила — `APPROVALS.md`, раздел 2.3.
+Файлы класть туда же: `godot/assets/golda67/ui/`. Если генератор не умеет прозрачный фон — фон однотонный, уберу сам.
+
+**G67-A01 · Кассета 2016**
+- Файл: `icon_art_cassette_2016.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+An old audio cassette tape seen from the front with a blank paper label, one reel spinning with a loose loop of brown tape pulled out and curling, two short impact marks. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color red #d8322c. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A02 · SIM-карта**
+- Файл: `icon_art_sim.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A single SIM card with a cut corner and a big golden contact chip in the middle, three short speed lines behind it as if it is flying fast. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color teal #3fc7c9. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A03 · Золотой браслет 67**
+- Файл: `icon_art_bracelet_67.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A thick gold chain bracelet forming a closed loop, with a small hanging tag that has the number 67 stamped on it, two small sparkle marks. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color gold #e0b040. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers except the number 67 where described. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A04 · Наушники с одним рабочим ухом**
+- Файл: `icon_art_one_earbud.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A pair of cheap wired earbuds with a tangled cable, one earbud fine, the other one cracked and wrapped with a strip of tape, a tiny sound wave coming only from the good one. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color electric blue #2f6fd8. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A05 · Энергетик**
+- Файл: `icon_art_energy.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A dented tall energy drink can with a jagged lightning bolt shape on its side, the tab pulled open, a few drops splashing out at the top. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color green #5fd08a. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A06 · Проектная флешка**
+- Файл: `icon_art_flash_drive.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A chunky USB flash drive with a gold cap hanging on a short lanyard ring, a small star shape on the body, two short shine marks. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color gold #e0b040. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A07 · Сломанный пульт**
+- Файл: `icon_art_broken_remote.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+An old TV remote control with a crack across the body and a strip of tape holding it together, one big round button glowing, a few small round buttons missing. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color teal #3fc7c9. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A08 · Рыночные кроссовки**
+- Файл: `icon_art_market_sneakers.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+One cheap knockoff market sneaker in side view with four uneven stripes instead of three, a loose untied lace, short speed lines behind the heel. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color red #d8322c. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A09 · Платиновый значок**
+- Файл: `icon_art_platinum_badge.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A shiny pin badge shaped like a five-pointed star inside a round wreath, with a safety pin on the back visible at the top, two sparkle marks. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color platinum silver #c9d2da. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A10 · Телефон с треснутым экраном**
+- Файл: `icon_art_cracked_phone.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A smartphone seen from the front with a spider-web crack across the glass screen, the screen glowing with an angry red tint behind the cracks. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color red #d8322c. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A11 · ЧЕСНОЧНАЯ АУРА (событие)**
+- Файл: `icon_art_garlic_aura.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A plump garlic bulb with three loose cloves around it, surrounded by two wavy concentric aura rings like a protective field. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color green #5fd08a. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A12 · ХОМЯЧЬЯ АУРА (событие)**
+- Файл: `icon_art_hamster_aura.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A chubby hamster sitting upright with full cheeks stuffed with coins, small round coins orbiting around it in a ring, serious face. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color sand brown #c9a36b. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A13 · ОШЕЙНИК 67 (событие)**
+- Файл: `icon_art_collar_67.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A studded leather dog collar forming a loop with a round metal tag hanging from the buckle, the tag stamped with the number 67. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color burgundy #7a1f2b. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers except the number 67 where described. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A14 · Шапка-бини**
+- Файл: `icon_art_beanie.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A knitted winter beanie hat with a folded cuff and visible ribbed knit lines, a little snow on top, slightly crumpled. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color orange #ff8c26. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A15 · Грилзы**
+- Файл: `icon_art_grillz.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A row of shiny gold grillz teeth seen from the front in a wide grin shape, one tooth with a small diamond, two sparkle marks. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color gold #e0b040. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A16 · Синяя изолента**
+- Файл: `icon_art_blue_tape.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A roll of electrical insulating tape seen at a slight angle with a short loose strip hanging off and torn at the end. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color electric blue #2f6fd8. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A17 · Вторая симка**
+- Файл: `icon_art_second_sim.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+Two SIM cards stacked and fanned out, one slightly behind the other, golden contact chips visible on both, a small plus shape between them. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color teal #3fc7c9. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-A18 · Кольцо «Автотюн»**
+- Файл: `icon_art_autotune_ring.png` · PNG 1024×1024, прозрачный фон
+- Где используется: кладовка (выбор из двух), слоты артефактов в HUD и паузе, коллекция в подъезде
+
+```
+A chunky signet ring seen from the front, the flat top engraved with a zigzag sound wave line, two small musical sparkle marks around it. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color violet #8b4dff. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-L01 · Логотип «ГОЛДА 67»**
+- Файл: `logo_golda67.png` · PNG 2048×1024 (2:1), прозрачный фон
+- Где используется: карточка режима в «ВЫБОРЕ РЕЖИМА», заставка входа в приквел, экран итогов
+
+```
+Game logo wordmark that reads exactly ГОЛДА 67 in heavy condensed Cyrillic capital letters, the word ГОЛДА in off-white #ece6d8 and the number 67 big in gold #e0b040, letters cut from paper with thick uneven black ink outline, rough torn paper sticker edge around the whole word, coarse halftone dot shading, gritty photocopy texture, a thin gold chain running under the letters, small sparkle marks. Post-Soviet street rap zine aesthetic, bold and readable. No other text. Flat front view, no 3D, no drop shadow, no gradient background. Transparent background, wide 2:1, 2048x1024 PNG.
+```
+
+**G67-L02 · Эмблема «67» в круге**
+- Файл: `emblem_67.png` · PNG 1024×1024, прозрачный фон
+- Где используется: печать турнира: экран итогов, награда босса, загрузка
+
+```
+A round gold seal stamp emblem with the big bold number 67 in the center, a ring of small stars around the edge, a ribbed coin-like rim and two short ribbon tails below, gold #e0b040 with black ink #111111 and off-white paper #ece6d8 only. Thick uneven black ink outline, rough torn paper sticker edge, coarse halftone shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. No other text or letters except 67. Flat front view, no drop shadow, no glow. Transparent background, square 1:1, 1024x1024 PNG.
+```

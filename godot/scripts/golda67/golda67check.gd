@@ -245,6 +245,7 @@ func _run() -> void:
 	ok(not FileAccess.file_exists("user://golda67_save.json") or kept["user://golda67_save.json"] == FileAccess.get_file_as_string("user://golda67_save.json"), "проверка не пишет сохранение приквела игрока")
 	# ================= dj flürr: одиннадцать состояний =================
 	await _madk_check(g, G, P)
+	await _voice_check(g, G, P)
 	await _flurr_check(g, G, P)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
@@ -497,6 +498,76 @@ func _krot_shot(g, kr, nm: String, dist := 2.0, side := 1.0, front := 1.0) -> vo
 	g.cam.make_current()
 	oc.queue_free()
 
+## Озвучка главы 1: манифест, реальные разговоры, обрыв при перелистывании и пропуске, пауза, выкрики, отсутствующий файл
+func _voice_check(g, G: Golda67, P) -> void:
+	G67Voice.reload()
+	var d = JSON.parse_string(FileAccess.get_file_as_string(G67Voice.MANIFEST)) if FileAccess.file_exists(G67Voice.MANIFEST) else null
+	if not (d is Dictionary):
+		print("GOLDA67CHECK   озвучка главы 1: манифеста нет — пропуск")
+		return
+	var ready := 0
+	var bad: Array = []
+	var total := 0
+	for e in (d["lines"] as Array):
+		if String(e["status"]) == "obsolete":
+			continue
+		total += 1
+		if String(e["status"]) in ["generated", "validated"]:
+			var line := String(e["code"]) + "|" + String(e["text"])
+			var pth := G67Voice.path(line)
+			var st = load(pth) if pth != "" else null
+			if st is AudioStream and (st as AudioStream).get_length() > 0.2:
+				ready += 1
+			else:
+				bad.append(String(e["id"]))
+	ok(bad.is_empty(), "озвучка главы 1: готовых реплик %d из %d, все находятся игрой и читаются%s" % [ready, total, "" if bad.is_empty() else " (не читаются: %s)" % str(bad)])
+	if ready == 0:
+		return
+	# разговор с DJ FLÜRR: голос главы 1, перелистывание обрывает прежнюю реплику, Tab — пропуск
+	var fl0 = G.meta().get("flurr", -1)
+	var seen0: Array = (G.meta().get("seen", []) as Array).duplicate()
+	G.meta()["seen"] = []
+	G.meta()["flurr"] = -1
+	G.talk_flurr()
+	await wait(0.3)
+	var p1 := String(g.voice.stream.resource_path) if g.voice.stream != null else ""
+	ok(g.voice.playing and p1.begins_with(G67Voice.DIR), "DJ FLÜRR: звучит голос главы 1 (%s)" % p1.get_file())
+	get_tree().paused = true
+	var pos0: float = g.voice.get_playback_position()
+	await wait(0.5)
+	var pos1: float = g.voice.get_playback_position()
+	get_tree().paused = false
+	await wait(0.3)
+	ok(absf(pos1 - pos0) < 0.05 and g.voice.playing, "на паузе голос стоит, после паузы продолжает")
+	g.dlg_chars = 9999.0
+	g._dlg_advance()
+	await wait(0.2)
+	var p2 := String(g.voice.stream.resource_path) if g.voice.stream != null else ""
+	ok(p2 != p1 and g.voice.playing, "следующая реплика: прежняя оборвалась, звучит новая (%s)" % p2.get_file())
+	g._dlg_finish()
+	await wait(0.1)
+	ok(not g.voice.playing, "пропуск разговора (Tab) глушит голос")
+	G.meta()["seen"] = seen0
+	G.meta()["flurr"] = fl0
+	G.flurr_last = -1
+	# выкрики: Пахан — голосом главы 1, madk1d до первой концовки молчит
+	g._hush()
+	g.bark_cd.clear()
+	g.bark("parry", 0.0)
+	await wait(0.1)
+	var bp := String(g.bark_v.stream.resource_path) if g.bark_v.stream != null else ""
+	ok(g.bark_v.playing and bp.begins_with(G67Voice.DIR + "Pahan/"), "выкрик Пахана в приквеле — его голос главы 1 (%s)" % bp.get_file())
+	g._hush()
+	g.bark("worry", 0.0)
+	await wait(0.1)
+	ok(not g.bark_m.playing, "madk1d до первой концовки не выкрикивает (его нет в бою)")
+	# реплики без файла: игра не падает, показывает текст
+	g.start_dialog(["KR|Этой реплики нет в главе 1."], func(): g.mode = "golda67")
+	await wait(0.2)
+	ok(g.mode == "dlg" and String(g.dlg_text.text).contains("Этой реплики нет") and not g.voice.playing, "реплика без голоса показывается текстом, без ошибок")
+	g._dlg_finish()
+	await wait(0.1)
+
 ## Поставить Мишу и героя и запустить приём (сам он в это время ничего не выбирает)
 func _misha_set(B, P, move: String, ppos: Vector3, bpos := Vector3(0, 0.05, -2.0)) -> void:
 	B.state = "chase"
@@ -564,6 +635,9 @@ func _misha_moves(g, G: Golda67, P, B) -> void:
 	h.damage = 30.0
 	h.dir = (B.global_position - P.global_position).normalized()
 	h.attack_id = "test"
+	B.guard_next = 0.0              # первый удар в стойку — ответ доступен (не зависит от того, что было до проверки)
+	P.inv = 0.0
+	P.global_position = B.global_position + Vector3(sin(B.face), 0, cos(B.face)) * 2.0
 	B.take_hit_info(h)
 	ok(B.hp == bh and String(B.guard_log[-1]) == "return" and P.hp < P.max_hp, "удар в стойку спереди: урона нет, удар вернулся герою (−%.0f; босс %.1f → %.1f, итог %s)" % [P.max_hp - P.hp, bh, B.hp, str(B.guard_log[-1])])
 	var hp_a: float = P.hp
@@ -1009,6 +1083,8 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(B.global_position.z > G.world.throne.z + 0.6 and G.scene_step == 2, "встал и идёт по ковру к герою")
 	await shot("25c_boss_walks")
 	ok(await until(func(): return G.scene_step >= 3, 4.0), "дошёл и топнул")
+	if G67Voice.path("G1|" + G67Data.BOSS_INTRO) != "":
+		ok(String(g.bark_b.stream.resource_path if g.bark_b.stream != null else "").begins_with(G67Voice.DIR + "Bosses/"), "на выходе Миша говорит своим голосом главы 1 (%s)" % (g.bark_b.stream.resource_path.get_file() if g.bark_b.stream != null else "—"))
 	await wait(0.9)
 	await shot("25d_boss_stomp")
 	ok(await until(func(): return not G.scene_busy(), 8.0), "постановка заканчивается сама, начинается бой")
