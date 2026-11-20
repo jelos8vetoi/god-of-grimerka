@@ -49,7 +49,7 @@ func play(kind: String, pitch := 1.0) -> void:
 	count[kind] = int(count.get(kind, 0)) + 1
 	if muted:
 		return
-	var now := Time.get_ticks_msec()
+	var now := GameClock.ms()
 	if now - int(last.get(kind, -1000)) < GAP_MS:
 		return
 	last[kind] = now

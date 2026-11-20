@@ -78,6 +78,7 @@ func pause_case(tag: String) -> void:
 	var g = main.game
 	var pm = g.pause_panel
 	var cam0: Transform3D = g.cam.global_transform
+	var pl0: Vector3 = g.player.global_position
 	var fov0: float = g.cam.fov
 	await key(KEY_ESCAPE)
 	var p0 := snap_pose()
@@ -96,11 +97,14 @@ func pause_case(tag: String) -> void:
 	await key(KEY_ESCAPE)
 	await wait(0.18)
 	await shot("pause_%s_3_close.png" % tag)
-	var t0 := Time.get_ticks_msec()
-	while get_tree().paused and Time.get_ticks_msec() - t0 < 2000:
+	var t0 := GameClock.ms()
+	while get_tree().paused and GameClock.ms() - t0 < 2000:
 		await get_tree().process_frame
 	ok(not get_tree().paused and pm.state == "closed", "%s: игра продолжается" % tag)
-	var back_ok: bool = g.cam.global_position.distance_to(cam0.origin) < 0.05 and absf(g.cam.fov - fov0) < 0.5 and g.cam.h_offset == pm.cam_h
+	# на бегу и в перекате герой после снятия паузы сразу делает шаг, и камера едет за ним: допуск — 5 см плюс то,
+	# на сколько успел сместиться сам герой (раньше проверка проходила, только если успевала до этого кадра)
+	var moved: float = g.player.global_position.distance_to(pl0)
+	var back_ok: bool = g.cam.global_position.distance_to(cam0.origin) < 0.05 + moved and absf(g.cam.fov - fov0) < 0.5 and g.cam.h_offset == pm.cam_h
 	ok(back_ok, "%s: камера вернулась на прежнее место (%.3f м)" % [tag, g.cam.global_position.distance_to(cam0.origin)])
 	ok(g.hud_root.visible, "%s: HUD вернулся" % tag)
 	var p1 := snap_pose()
@@ -119,8 +123,8 @@ func _run() -> void:
 	await shot("start_1_press.png")
 	await wait(0.55)
 	await shot("start_2_cover.png")
-	var t0 := Time.get_ticks_msec()
-	while main.game == null and Time.get_ticks_msec() - t0 < 5000:
+	var t0 := GameClock.ms()
+	while main.game == null and GameClock.ms() - t0 < 5000:
 		await get_tree().process_frame
 	ok(main.game != null and games() == 1, "NEW GAME: одна игра, двойное нажатие не создало вторую")
 	var g = main.game
@@ -140,7 +144,7 @@ func _run() -> void:
 	await shot("start_4_orbit.png")
 	await wait(0.9)
 	await shot("start_5_hud.png")
-	while g.intro_busy() and Time.get_ticks_msec() - t0 < 12000:
+	while g.intro_busy() and GameClock.ms() - t0 < 12000:
 		await get_tree().process_frame
 	await wait(0.6)
 	await shot("start_6_done.png")
@@ -204,8 +208,8 @@ func _run() -> void:
 	ok(main.menu != null and main.game == null, "выход в меню")
 	if saved is Dictionary:
 		main.menu.launch(true)
-		t0 = Time.get_ticks_msec()
-		while (main.game == null or main.game.intro_busy() or main.intro_fx.busy) and Time.get_ticks_msec() - t0 < 12000:
+		t0 = GameClock.ms()
+		while (main.game == null or main.game.intro_busy() or main.intro_fx.busy) and GameClock.ms() - t0 < 12000:
 			await get_tree().process_frame
 		await wait(0.5)
 		await shot("continue_done.png")

@@ -114,7 +114,7 @@ func _ready() -> void:
 	_build()
 	_fit()
 	get_viewport().size_changed.connect(_fit)
-	opened_ms = Time.get_ticks_msec()
+	opened_ms = GameClock.ms()
 	# появление: лист въезжает слева с лёгким поворотом, полоса — справа; время реальное (стоп-кадр и пауза не мешают)
 	modulate.a = 0.0
 	var tw := create_tween().set_parallel(true).set_ignore_time_scale(true)
@@ -138,7 +138,7 @@ func _fit() -> void:
 	root.position = (vs - STAGE * k) * 0.5
 
 func locked() -> bool:
-	return Time.get_ticks_msec() - opened_ms < int(LOCK * 1000.0)
+	return GameClock.ms() - opened_ms < int(LOCK * 1000.0)
 
 # ---------------- сборка ----------------
 func _build() -> void:

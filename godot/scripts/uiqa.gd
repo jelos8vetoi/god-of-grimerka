@@ -64,16 +64,16 @@ func shot(name: String) -> void:
 ## Один цикл паузы: открыть, показать страницу, закрыть — с ожиданием по состоянию, а не по часам.
 func cycle(pm, page: int) -> void:
 	await key(KEY_ESCAPE)
-	var t0 := Time.get_ticks_msec()
-	while not (pm.is_open and get_tree().paused) and Time.get_ticks_msec() - t0 < 3000:
+	var t0 := GameClock.ms()
+	while not (pm.is_open and get_tree().paused) and GameClock.ms() - t0 < 3000:
 		await get_tree().process_frame
 	await wait(0.7)
 	pm._open_page(page)
 	await wait(0.1)
 	pm._close_card()
 	await key(KEY_ESCAPE)
-	t0 = Time.get_ticks_msec()
-	while (get_tree().paused or pm.is_open) and Time.get_ticks_msec() - t0 < 3000:
+	t0 = GameClock.ms()
+	while (get_tree().paused or pm.is_open) and GameClock.ms() - t0 < 3000:
 		await get_tree().process_frame
 	await wait(0.15)
 
@@ -233,8 +233,8 @@ func _run() -> void:
 	await wait(2.5)
 	var game = main.game
 	# запуск из меню идёт через кинематографичный переход: ждём, пока камера займёт место и откроется ввод
-	var tq := Time.get_ticks_msec()
-	while game != null and (game.intro_busy() or (main.intro_fx != null and main.intro_fx.busy)) and Time.get_ticks_msec() - tq < 10000:
+	var tq := GameClock.ms()
+	while game != null and (game.intro_busy() or (main.intro_fx != null and main.intro_fx.busy)) and GameClock.ms() - tq < 10000:
 		await get_tree().process_frame
 	ok(game != null and not game.intro_busy(), "переход из меню завершился, управление отдано")
 	ok(game != null and main.menu == null, "%s запускает игру, меню убрано" % ("Continue" if has_save else "New Game"))
@@ -256,8 +256,8 @@ func _run() -> void:
 	var f_game := await fps(1.5)
 	# iPod: Esc работает внутри него, паузу не открывает
 	await key(KEY_UP)
-	var t_ip := Time.get_ticks_msec()
-	while not game.player.pod.buds_in() and Time.get_ticks_msec() - t_ip < 12000:
+	var t_ip := GameClock.ms()
+	while not game.player.pod.buds_in() and GameClock.ms() - t_ip < 12000:
 		await get_tree().process_frame
 	await wait(1.2)
 	ok(game.ipod.opened, "↑ открывает iPod")

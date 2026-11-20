@@ -40,8 +40,8 @@ func shot(name: String) -> void:
 	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
 
 func until(cond: Callable, sec: float) -> bool:
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
+	var t0 := GameClock.ms()
+	while GameClock.ms() - t0 < int(sec * 1000.0):
 		if cond.call():
 			return true
 		await get_tree().process_frame
@@ -222,7 +222,11 @@ func _run() -> void:
 	await wait(0.1)
 	var fe = g.enemies.back()
 	ok(fe != null and fe.kind == "clipper" and not fe.train_guard, "«СОЗДАТЬ ВРАГА» — обычный враг выбранного вида")
-	await wait(1.3)
+	# ждём, пока враг появится (после гибели босса идёт замедление, и появление растягивается)
+	var tw0 := GameClock.ms()
+	while fe != null and is_instance_valid(fe) and not fe.alive() and GameClock.ms() - tw0 < 6000:
+		await get_tree().process_frame
+	await wait(0.1)
 	var xp0: int = g.xp
 	fe.take_hit(99999.0, Vector3(0, 0, -1), 2.0, true, 0.0)
 	await wait(0.2)

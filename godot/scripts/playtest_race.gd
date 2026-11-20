@@ -63,8 +63,8 @@ func wait(t: float) -> void:
 	await get_tree().create_timer(t, true, false, true).timeout
 
 func until(cond: Callable, sec: float) -> bool:
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < int(sec * 1000.0):
+	var t0 := GameClock.ms()
+	while GameClock.ms() - t0 < int(sec * 1000.0):
 		if cond.call():
 			return true
 		await get_tree().process_frame
@@ -151,7 +151,7 @@ func _run() -> void:
 		path_s = 0.0
 		last_pos = me.global_position
 		ticks = 0
-		wall0 = Time.get_ticks_msec()
+		wall0 = GameClock.ms()
 		quiet_t = 0.0
 		quiet_max = 0.0
 		last_ev_n = me.events.size()
@@ -376,7 +376,7 @@ func _report(n: int, fin: bool) -> void:
 	say("гонка %d: %s · время %.1f с · место %d из %d" % [n, "финиш" if fin else "НЕ ДОЕХАЛ за 7 минут", me.finish_t if me.finished else race.t, me.rank, race.riders.size()])
 	say("гонка %d: круги %s · лучший %.1f с" % [n, ", ".join(me.lap_times.map(func(x): return "%.1f" % float(x))), me.best_lap])
 	say("гонка %d: средняя скорость %.1f м/с (%.0f%% предела), максимум %.1f; у предела (≥90%%) %d%% времени, медленнее половины — %d%%" % [n, sum / cnt, sum / cnt / vmax * 100.0, top, near * 100 / cnt, slow * 100 / cnt])
-	say("гонка %d: проехано по положению %.0f м, по трассе %.0f м (круг по данным %.0f м × %d = %.0f); шагов физики %d за %.1f с настоящего времени (%.1f в секунду), часы гонки %.1f с" % [n, path_real, path_s, race.track.L, race.laps, race.track.L * race.laps, ticks, float(Time.get_ticks_msec() - wall0) / 1000.0, float(ticks) / maxf(0.001, float(Time.get_ticks_msec() - wall0) / 1000.0), race.t])
+	say("гонка %d: проехано по положению %.0f м, по трассе %.0f м (круг по данным %.0f м × %d = %.0f); шагов физики %d за %.1f с настоящего времени (%.1f в секунду), часы гонки %.1f с" % [n, path_real, path_s, race.track.L, race.laps, race.track.L * race.laps, ticks, float(GameClock.ms() - wall0) / 1000.0, float(ticks) / maxf(0.001, float(GameClock.ms() - wall0) / 1000.0), race.t])
 	var c := {}
 	for i in range(ev_from, me.events.size()):
 		var k := String(me.events[i][0])

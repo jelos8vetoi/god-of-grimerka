@@ -339,7 +339,7 @@ func duo_block() -> void:
 				if OS.get_cmdline_user_args().has("--dmgdebug2"):
 					print("DBG duo block=", game.tag.assist_block(), " phase=", D.phase, " buf=", D.buf_t, " st=", P.state, " hero=", P.hero, " down=", game.tag.down)
 				game.dmg_log = []
-				var t0 := Time.get_ticks_msec()
+				var t0 := GameClock.ms()
 				await tap("assist")
 				var n := 0
 				while (D.active() or D.buf_t > -9.0) and n < 400:

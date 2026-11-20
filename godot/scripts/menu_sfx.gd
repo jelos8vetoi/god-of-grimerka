@@ -45,7 +45,7 @@ func _ready() -> void:
 func play(kind: String, pitch := 1.0) -> void:
 	if not streams.has(kind):
 		return
-	var now := Time.get_ticks_msec()
+	var now := GameClock.ms()
 	if now - int(last.get(kind, -1000)) < GAP_MS:
 		return
 	last[kind] = now
