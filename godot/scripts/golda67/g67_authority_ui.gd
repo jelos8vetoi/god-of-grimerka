@@ -4,9 +4,10 @@ extends CanvasLayer
 ## G67Data.UPGRADES / UP_COST, покупка и сохранение — Golda67.buy_up. Экран только показывает и покупает.
 ## Композиция — сцена 1600×900, вписанная в окно: шапка (название, смысл, жетон РЕСПЕКТА, вложено в дерево),
 ## слева сетка 3×3 из трёх групп (ТЕЛО, ЗАБЕГ, ЗАПАС — по порядку веток в данных), справа «удостоверение»
-## выбранной ветки (уровень, сейчас → после, цена, печать состояния, действие или причина отказа), внизу клавиши.
+## выбранной ветки (уровень, сейчас → после, цена, печать состояния, действие или причина отказа). Полосы
+## подсказок клавиш нет (решение владельца), HUD игры на время экрана спрятан.
 ## Управление: W/A/S/D или стрелки (и крестовина геймпада) — по сетке, Enter / пробел / A — купить уровень,
-## Esc / B — закрыть; мышь: наведение выбирает, клик по карточке или по кнопке — купить.
+## Esc / B — закрыть; мышь: наведение выбирает, клик по карточке или по кнопке — купить. Подсказок клавиш на экране нет.
 
 signal closed
 
@@ -57,6 +58,7 @@ func _respect() -> int:
 # ---------------------------------------------------------------- сборка
 func _build() -> void:
 	opened_ms = GameClock.ms()
+	_hud(false)
 	shade = ColorRect.new()
 	shade.color = Color(0, 0, 0, 0.0)
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -76,7 +78,6 @@ func _build() -> void:
 	_header()
 	_grid()
 	_doc()
-	_footer()
 	shown_resp = float(_respect())
 	_refresh_all()
 	_select(0, true)
@@ -204,14 +205,6 @@ func _doc() -> void:
 	d_btn.add_theme_color_override("font_disabled_color", Color(PAPER_INK, 0.55))
 	d_btn.pressed.connect(_buy)
 	stage.add_child(d_btn)
-
-func _footer() -> void:
-	var keys := Keys.new()
-	keys.position = Vector2(66, 842)
-	keys.size = Vector2(1480, 40)
-	keys.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	keys.items = [[["W", "A", "S", "D"], "выбор · стрелки тоже"], [["ENTER"], "купить уровень"], [["ESC"], "закрыть"]]
-	stage.add_child(keys)
 
 # ---------------------------------------------------------------- данные и выбор
 func _refresh_all() -> void:
@@ -372,9 +365,22 @@ func _input(e: InputEvent) -> void:
 	elif act == "close":
 		close()
 
+## HUD игры не выглядывает из-под экрана (портреты внизу слева)
+var _hud_was := {}
+func _hud(v: bool) -> void:
+	for nm in ["combat_hud", "hud_root"]:
+		var n = G.game.get(nm)
+		if n != null and is_instance_valid(n) and "visible" in n:
+			if not v:
+				_hud_was[nm] = n.visible
+				n.visible = false
+			elif _hud_was.has(nm):
+				n.visible = _hud_was[nm]
+
 func close() -> void:
 	if not is_inside_tree():
 		return
+	_hud(true)
 	G.game.main.ui("close")
 	MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
 	closed.emit()
@@ -462,21 +468,3 @@ class Face extends Control:
 		var c: G67UpCard = ui.cards[ui.sel]
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.1, 0.1, 0.11))
 		G67UpCard.draw_face(self, c.id, Rect2(Vector2(8, 8), size - Vector2(16, 16)), c.state == "lock", c.lv, c.mx, c.t, c.golda)
-
-## Клавиши внизу — как физические: верхняя грань, тень, подпись рядом
-class Keys extends Control:
-	var items: Array = []
-	func _draw() -> void:
-		var x := 0.0
-		var f := MGUI.font("mono")
-		var fu := MGUI.font("ui")
-		for it in items:
-			for k in it[0]:
-				var w: float = maxf(34.0, f.get_string_size(String(k), HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 18.0)
-				draw_rect(Rect2(Vector2(x, 6), Vector2(w, 30)), Color(0.05, 0.05, 0.05))
-				draw_rect(Rect2(Vector2(x, 2), Vector2(w, 28)), Color(0.78, 0.74, 0.64))
-				draw_rect(Rect2(Vector2(x + 3, 4), Vector2(w - 6, 20)), Color(0.86, 0.82, 0.72))
-				draw_string(f, Vector2(x + 9, 21), String(k), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.12, 0.1, 0.09))
-				x += w + 6.0
-			draw_string(fu, Vector2(x + 4, 22), String(it[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.62, 0.6, 0.56))
-			x += fu.get_string_size(String(it[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 40.0

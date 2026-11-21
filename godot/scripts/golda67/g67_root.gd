@@ -1235,7 +1235,12 @@ func open_screen(what: String) -> void:
 	game.player.velocity = Vector3.ZERO
 	if prompt != null:
 		prompt.visible = false
-	hub_ui = G67AuthorityUI.open(self) if what == "upgrades" else G67HubUI.open(self, what)
+	match what:
+		"upgrades": hub_ui = G67AuthorityUI.open(self)
+		"archive": hub_ui = G67ArchiveUI.open(self)
+		"board": hub_ui = G67BoardUI.open(self)
+		"mail": hub_ui = G67MailUI.open(self)
+		_: hub_ui = G67HubUI.open(self, what)
 	hub_ui.closed.connect(func(): hub_ui = null)
 
 func _tv_menu() -> void:
