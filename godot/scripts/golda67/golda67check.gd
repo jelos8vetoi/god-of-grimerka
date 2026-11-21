@@ -1101,23 +1101,46 @@ func _hub_screens(g, G: Golda67, P) -> void:
 	await key(KEY_ESCAPE)
 	ok(await until(func(): return G.hub_ui == null, 1.0), "Esc закрывает экран")
 	ok(not get_tree().paused, "Esc на экране не открывает паузу")
-	# стойка стилей: до Миши — только Балон, madk1d закрыт
+	# стойка стилей: до Миши — только Балон, madk1d закрыт; закрытое не берётся
 	ok(await _hub_screen(G, P, "styles", "styles"), "стойка стилей открывает свой экран")
-	var Sr: Array = G.hub_ui.rows.filter(func(r): return not r.has("head"))
-	ok(Sr.size() == 6 and not bool(Sr[0].get("lock", false)) and Sr.slice(1).all(func(r): return bool(r.get("lock", false))), "на стойке открыт только Балон VOZDUH, остальные пять — с причиной")
-	await wait(0.3)
+	var SU = G.hub_ui
+	ok(SU is G67StylesUI and SU.slots.size() == 6, "на доске шесть мест: три Пахана, три madk1d")
+	ok((SU.slots[0] as G67StylesUI.Slot).open and (SU.slots[0] as G67StylesUI.Slot).held and SU.slots.slice(1).all(func(o): return not (o as G67StylesUI.Slot).open), "открыт только Балон VOZDUH (он в руках), остальные пять — на замке")
+	await wait(0.8)
 	await shot("h03_styles")
+	await key(KEY_D)
+	await key(KEY_ENTER)
+	await wait(0.2)
+	ok(G.start_style() == "vozduh" and String(SU.t_why.text).contains("Миш"), "закрытая Водяра не берётся, причина: «%s»" % SU.t_why.text)
+	G.meta()["flags"]["boss_misha"] = true
+	G.apply_styles()
 	await key(KEY_ESCAPE)
 	await until(func(): return G.hub_ui == null, 1.0)
-	# коллекция артефактов: 18 мест, пока все тёмные
+	await _hub_screen(G, P, "styles", "styles")
+	G.hub_ui.select(1)
+	await wait(0.25)
+	await key(KEY_ENTER)
+	await wait(0.2)
+	ok(G.start_style() == "bottles" and (G.hub_ui.slots[1] as G67StylesUI.Slot).held and not (G.hub_ui.slots[0] as G67StylesUI.Slot).held, "после Миши Водяра берётся в забег, бирка «В РУКАХ» переходит на неё")
+	G.set_start_style("vozduh")
+	G.meta()["flags"].erase("boss_misha")
+	G.apply_styles()
+	await key(KEY_ESCAPE)
+	await until(func(): return G.hub_ui == null, 1.0)
+	# коллекция артефактов: сервант, 18 мест, пока все — силуэты
 	ok(await _hub_screen(G, P, "artifacts", "artifacts"), "коллекция артефактов открывается")
-	ok(G.hub_ui.rows.size() == 18 and G.hub_ui.rows.all(func(r): return r.get("icon") is Texture2D), "18 мест с рисованными значками владельца")
+	var CU = G.hub_ui
+	ok(CU is G67ArtifactsUI and CU.cells.size() == 18 and CU.cells.all(func(c): return (c as G67ArtifactsUI.Cell).tex != null), "18 мест с рисованными значками владельца")
+	ok(CU.cells.all(func(c): return not (c as G67ArtifactsUI.Cell).has) and CU.c_name.text == "???", "ничего не найдено — за стеклом силуэты, имя скрыто")
 	await wait(0.3)
 	await shot("h04_artifacts")
 	await key(KEY_ESCAPE)
 	await until(func(): return G.hub_ui == null, 1.0)
-	# карта маршрутов
+	# карта маршрутов: четыре района и шесть зон двора
 	ok(await _hub_screen(G, P, "routes", "routes"), "карта маршрутов открывается")
+	var RU = G.hub_ui
+	ok(RU is G67RoutesUI and RU.marks.size() == 4 + G67Yard.ZONES.size(), "на карте 4 района и %d зон двора" % G67Yard.ZONES.size())
+	ok(String((RU.marks[0] as G67RoutesUI.Mark).state) == "open" and String((RU.marks[1] as G67RoutesUI.Mark).state) == "lock", "ДВОР открыт, ПОДЗЕМКА закрыта (Миша не побеждён)")
 	await wait(0.3)
 	await shot("h05_routes")
 	await key(KEY_ESCAPE)
