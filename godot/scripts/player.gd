@@ -26,6 +26,7 @@ var aura_light: OmniLight3D
 var hp := 100.0
 var max_hp := 100.0
 var swag := 0.0
+var speed_k := 1.0            # множитель бега (артефакты приквела; в кампании 1)
 var slow_t := 0.0             # замедлен (снаряд HATER, яд): бег медленнее
 var rage := 0.0
 var state := "move"
@@ -569,7 +570,7 @@ func _physics_process(dt: float) -> void:
 	if pressed("overdrive"):
 		game.hype.try_start()
 	slow_t = max(0.0, slow_t - dt)
-	var spd := 5.6 * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0) * (0.6 if slow_t > 0.0 else 1.0)
+	var spd := 5.6 * speed_k * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0) * (0.6 if slow_t > 0.0 else 1.0)
 	# ТЯГА-812: в этом стиле «свободное» состояние героя ведёт пылесос
 	if style.id == "tyaga812" and state == "move" and switch_to == "":
 		state = "tyaga"
@@ -1217,7 +1218,7 @@ func take_damage(dmg: float, from: Vector3, attacker = null, context = {}) -> vo
 	to.y = 0
 	if state == "block" and not unblockable and aim_dir().angle_to(to.normalized()) < 1.4:
 		if block_t < 0.22 and attacker:
-			attacker.stun(1.6)
+			attacker.stun(1.6 * (game.run_mods.parry_stun() if game.run_mods != null and game.run_mods.has_method("parry_stun") else 1.0))
 			game.feedback("parry", global_position + Vector3(0, 1.1, 0) + to.normalized() * 0.6, to.normalized(), 1.0, Color(0.5, 0.85, 1.0))
 			rig.play_role_for("parry", 0.45, 0.05)
 			anim_hold = 0.4
@@ -1280,6 +1281,10 @@ func take_damage(dmg: float, from: Vector3, attacker = null, context = {}) -> vo
 		game.bark("worry", 22.0)
 	inv = 0.55
 	if hp <= 0.0:
+		if game.run_mods != null and game.run_mods.has_method("save_from_death") and game.run_mods.save_from_death(game):
+			hp = 1.0                                       # артефакт приквела «ОШЕЙНИК 67»: раз за забег
+			inv = 2.0
+			return
 		if game.tag != null and game.tag.on_down():      # героя сменил напарник — бой продолжается
 			return
 		hp = 0.0

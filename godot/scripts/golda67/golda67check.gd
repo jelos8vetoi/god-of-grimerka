@@ -265,6 +265,10 @@ func _run() -> void:
 	if OS.get_cmdline_user_args().has("--g67-hub"):
 		_finish()
 		return
+	if OS.get_cmdline_user_args().has("--g67-s3"):
+		await _stage3(g, G, P)
+		_finish()
+		return
 	# ================= dj flürr: одиннадцать состояний =================
 	await _madk_check(g, G, P)
 	await _voice_check(g, G, P)
@@ -272,6 +276,8 @@ func _run() -> void:
 	await _flurr_check(g, G, P)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
+	# ================= этап 3: кладовка, ларёк, артефакты, фитсы по таблице =================
+	await _stage3(g, G, P)
 	# ================= КРОТ: постановки встреч 4–10 =================
 	await _krot_stage(g, G)
 	# ================= выход =================
@@ -1004,6 +1010,12 @@ func _real_run(g, G: Golda67) -> void:
 		if G.room_state == "rest":
 			await _go(G, P, "rest")
 			await wait(0.4)
+		if G.hub_ui != null:
+			await wait(0.4)
+			await shot("r_%s_%d" % [String(G.room.get("type", "")), int(G.run["pos"]) + 1])
+			await key(KEY_ESCAPE)
+			await until(func(): return G.hub_ui == null, 2.0)
+			await wait(0.3)
 		if G.world.gates.is_empty():
 			await wait(1.0)
 		if G.world.gates.is_empty():
@@ -1066,9 +1078,16 @@ func _hub_screens(g, G: Golda67, P) -> void:
 	ok(G.up("dmg") == 1 and absf(P.dmg_mul - 1.04) < 0.001, "УРОН, уровень 1: множитель %.2f" % P.dmg_mul)
 	await key(KEY_D)
 	var r0 := int(G.meta()["respect"])
-	await key(KEY_ENTER)             # ВОССТАНОВЛЕНИЕ — закрыта до этапа 3
+	await key(KEY_ENTER)             # ВОССТАНОВЛЕНИЕ — работает с этапа 3
 	await wait(0.2)
-	ok(G.up("res") == 0 and int(G.meta()["respect"]) == r0, "закрытая ветка не покупается и РЕСПЕКТ не тратит")
+	ok(G.up("res") == 1 and int(G.meta()["respect"]) == r0 - G67Data.UP_COST[0], "ВОССТАНОВЛЕНИЕ, уровень 1 куплена (этап 3)")
+	await key(KEY_S)
+	await key(KEY_A)
+	await key(KEY_A)
+	r0 = int(G.meta()["respect"])
+	await key(KEY_ENTER)             # ВАРИАНТЫ ЛЕЧЕНИЯ — ждут утверждения владельца
+	await wait(0.2)
+	ok(U.sel == 3 and G.up("heal") == 0 and int(G.meta()["respect"]) == r0, "закрытая ветка не покупается и РЕСПЕКТ не тратит")
 	await shot("h02_upgrades_bought")
 	# все состояния карточек разом: максимум, можно купить, не хватает, закрыто; выбор и покупка — снимки
 	G.meta()["up"] = {"hp": 5, "dmg": 2, "rare": 1}
@@ -1285,6 +1304,211 @@ func _clip_frames(G: Golda67, dir: String) -> void:
 		await wait(0.3)
 
 ## убить всех живых врагов (бой проверяют проверки боя; здесь — цикл комнат)
+## Этап 3: кладовка (выбор одного из двух, полные карманы — замена), ларёк «ШАУРМА 67» (цены, лимиты, причины
+## отказа), эффекты всех артефактов и ВОССТАНОВЛЕНИЯ числами, ДОБИВАЛА и ВТОРОЕ ДЫХАНИЕ по таблице
+func _stage3(g, G: Golda67, P) -> void:
+	ok(G.place == "hub", "этап 3: начинаем из подъезда")
+	ok(G67Data.ARTIFACTS.size() == 18 and G.slots() == 3, "18 артефактов, слотов 3")
+	var pool := G.storage_pool()
+	ok(not pool.any(func(id): return G67Data.ART_EVENT.has(id)), "событийных артефактов в кладовке нет")
+	ok(not pool.has("second_sim"), "«Вторая симка» до первой концовки не выпадает")
+	ok(pool.has("autotune_ring") == (G.styles_open().size() >= 2), "«Автотюн» — только когда открыты два стиля (стилей %d)" % G.styles_open().size())
+	await _go(G, P, "exit")
+	ok(await until(func(): return G.place == "run" and G.room_state == "fight", 8.0), "этап 3: забег начался")
+	await _clear_room(g, G)
+	await wait(0.3)
+	# ---- кладовка: два артефакта, Enter берёт выбранный
+	G.run["pos"] = 2
+	await G.enter_room({"type": "storage", "place": "garages"})
+	ok(await until(func(): return G.hub_ui != null and G.hub_ui.kind == "storage", 3.0), "КЛАДОВКА: в гараже сам открылся экран выбора")
+	var off: Array = G.storage_offer()
+	ok(off.size() == 2 and off[0] != off[1] and not off.any(func(id): return G67Data.ART_EVENT.has(id)), "на верстаке два разных артефакта (%s)" % str(off))
+	ok(g.hud_root.visible == false and g.combat_hud.visible == false, "HUD игры под экраном спрятан")
+	await wait(0.5)
+	await shot("s3_01_storage")
+	await key(KEY_D)
+	await wait(0.2)
+	await key(KEY_ENTER)
+	ok(await until(func(): return G.hub_ui == null, 2.0), "взял — экран закрылся")
+	ok(G.arts() == [off[1]] and (G.meta()["artifacts"] as Array).has(off[1]), "взят второй артефакт, он попал в коллекцию (%s)" % str(G.arts()))
+	ok(G.room_state == "open" and not G.world.gates.is_empty() and G.point("storage").is_empty(), "дальше двери, бокс закрыт")
+	await wait(0.3)
+	await shot("s3_02_storage_taken")
+	# ---- полные карманы: выбрать, что выложить
+	G.run["arts"] = ["beanie", "sim", "grillz"]
+	G.apply_fits()
+	await G.enter_room({"type": "storage", "place": "garages"})
+	await until(func(): return G.hub_ui != null and G.hub_ui.kind == "storage", 3.0)
+	off = G.storage_offer()
+	ok(not off.has("beanie") and not off.has("sim") and not off.has("grillz"), "взятые в этом забеге второй раз не предлагаются (%s)" % str(off))
+	await wait(0.3)
+	await key(KEY_ENTER)
+	await wait(0.3)
+	ok(G.hub_ui != null and String(G.hub_ui.pick) == String(off[0]) and G.hub_ui.sel == G.hub_ui.slot0, "карманы полны: выбор переходит на карманы")
+	await shot("s3_03_storage_full")
+	var hp0: float = P.max_hp
+	await key(KEY_ENTER)
+	ok(await until(func(): return G.hub_ui == null, 2.0), "выложил шапку — взял новое")
+	ok(G.arts().size() == 3 and G.arts().has(off[0]) and not G.arts().has("beanie") and P.max_hp == hp0 - 20.0, "замена: %s, максимум здоровья без шапки %.0f" % [str(G.arts()), P.max_hp])
+	ok(not G.take_art("cassette_2016"), "в полные карманы без замены не кладётся")
+	# Esc — оставить и уйти, бокс остаётся
+	await G.enter_room({"type": "storage", "place": "garages"})
+	await until(func(): return G.hub_ui != null, 3.0)
+	await wait(0.3)
+	await key(KEY_ESCAPE)
+	ok(await until(func(): return G.hub_ui == null, 2.0) and G.room_state == "open" and not G.point("storage").is_empty(), "Esc — ушёл ни с чем: двери открыты, к боксу можно вернуться")
+	await _go(G, P, "storage")
+	ok(await until(func(): return G.hub_ui != null and G.hub_ui.kind == "storage", 2.0), "бокс открывается снова на [E]")
+	await key(KEY_ESCAPE)
+	await until(func(): return G.hub_ui == null, 2.0)
+	# ---- эффекты артефактов числами
+	G.run["arts"] = []
+	G.run["fits"] = {}
+	G.apply_fits()
+	await wait(0.1)
+	var base_mhp: float = P.max_hp
+	ok(G.take_art("beanie") and P.max_hp == base_mhp + 20.0, "«Шапка-бини»: максимум %.0f → %.0f" % [base_mhp, P.max_hp])
+	G.take_art("one_earbud")
+	G.take_art("blue_tape")
+	ok(absf(G.mods.incoming(g) - 0.9) < 0.001, "«Наушники»: входящий урон ×0,9")
+	var h := HitInfo.new()
+	h.damage = 10.0
+	h.heavy = true
+	G.mods.melee_hit(h, P, 1)
+	ok(absf(h.damage - 11.5) < 0.01, "«Синяя изолента»: тяжёлый 10 → %.1f" % h.damage)
+	var h2 := HitInfo.new()
+	h2.damage = 10.0
+	G.mods.melee_hit(h2, P, 1)
+	ok(absf(h2.damage - 10.0) < 0.01, "лёгкий удар изолента не трогает")
+	G.run["arts"] = ["grillz", "collar_67", "sim"]
+	ok(absf(G.mods.parry_stun() - 1.5) < 0.001, "«Грилзы»: оглушение парированием ×1,5")
+	ok(G.mods.save_from_death(g) and not G.mods.save_from_death(g), "«ОШЕЙНИК 67»: спасает от смертельного удара один раз за забег")
+	await wait(0.1)
+	ok(absf(P.combat.cd_k - 0.85) < 0.001, "«SIM-карта»: перезарядки ×0,85")
+	G.run["arts"] = ["market_sneakers", "bracelet_67", "cracked_phone"]
+	await wait(0.1)
+	ok(absf(P.speed_k - 1.08) < 0.001 and absf(P.combat.cd_k - 1.0) < 0.001, "«Рыночные кроссовки»: скорость ×1,08; без симки перезарядки обычные")
+	ok(absf(G.gold_k() - 1.2) < 0.001, "«Золотой браслет 67»: голда ×1,2")
+	P.hp = P.max_hp * 0.3
+	await wait(0.1)
+	ok(absf(P.dmg_mul - G.fit_mul * 1.25) < 0.001, "«Телефон с треснутым экраном»: ниже 35 %% — урон ×%.2f" % P.dmg_mul)
+	P.hp = P.max_hp
+	await wait(0.1)
+	ok(absf(P.dmg_mul - G.fit_mul) < 0.001, "выше 35 %% — урон обычный")
+	G.run["arts"] = ["cassette_2016"]
+	await wait(0.1)
+	P.hp -= 5.0
+	await wait(0.1)
+	ok(absf(P.dmg_mul - G.fit_mul * 1.2) < 0.001 and G.events.has(["cassette"]), "«Кассета 2016»: после полученного урона +20 %")
+	G.run["arts"] = ["cracked_phone", "cassette_2016"]
+	G.fit_mul = 1.9
+	P.hp = 10.0
+	await wait(0.1)
+	ok(absf(P.dmg_mul - G67Data.DMG_CAP_ALL) < 0.001, "общий потолок урона фитсов и артефактов — ×%.1f" % P.dmg_mul)
+	G.apply_fits()
+	P.hp = P.max_hp
+	# ВОССТАНОВЛЕНИЕ (АВТОРИТЕТ РАЙОНА): −8 % за уровень
+	var ups: Dictionary = G.meta().get("up", {})
+	ups["res"] = 1
+	G.meta()["up"] = ups
+	G.run["arts"] = ["sim"]
+	await wait(0.1)
+	ok(absf(P.combat.cd_k - 0.85 * 0.92) < 0.001 and absf(P.combat.ammo_k - 0.92) < 0.001, "«ВОССТАНОВЛЕНИЕ» ур. 1 с симкой: перезарядки ×%.3f, боезапас ×%.2f" % [P.combat.cd_k, P.combat.ammo_k])
+	ups["res"] = 0
+	G.run["arts"] = []
+	# ---- ДОБИВАЛА и ВТОРОЕ ДЫХАНИЕ по таблице
+	G.run["fits"] = {"finisher": 1}
+	G.fin_room = 0.0
+	P.hp = 40.0
+	G._spawn("shest")
+	await _kill_spawned(g, G)
+	ok(absf(P.hp - 43.0) < 0.01, "«ДОБИВАЛА» ур. 1: +3 за врага (здоровье %.0f)" % P.hp)
+	G._spawn("smotr")
+	await _kill_spawned(g, G)
+	ok(absf(P.hp - 52.0) < 0.01, "за элитного — втрое: +9 (здоровье %.0f)" % P.hp)
+	G.fin_room = 24.0
+	G._spawn("shest")
+	await _kill_spawned(g, G)
+	ok(absf(P.hp - 53.0) < 0.01 and absf(G.fin_room - 25.0) < 0.01, "не больше 25 за комнату (здоровье %.0f)" % P.hp)
+	G.run["fits"] = {"second_wind": 2}
+	G.wind_used = false
+	P.hp = P.max_hp * 0.2
+	var hw: float = P.hp
+	await wait(0.1)
+	ok(absf(P.hp - (hw + 40.0)) < 0.01, "«ВТОРОЕ ДЫХАНИЕ» ур. 2: +40 ниже 30 %")
+	G.run["fits"] = {}
+	G.apply_fits()
+	# ---- ларёк «ШАУРМА 67»
+	G.run["pos"] = 3
+	G.run["golda"] = 100
+	await G.enter_room({"type": "kiosk", "place": "parking"})
+	ok(await until(func(): return G.hub_ui != null and G.hub_ui.kind == "kiosk", 3.0), "ЛАРЁК: у окна сам открылся экран ценников")
+	ok(G.room_state == "open" and not G.world.gates.is_empty() and not G.point("home").is_empty(), "двери и дом в ларьке открыты сразу")
+	await wait(0.5)
+	await shot("s3_04_kiosk")
+	P.hp = 30.0
+	await key(KEY_ENTER)
+	await wait(0.2)
+	ok(int(G.run["golda"]) == 65 and absf(P.hp - 70.0) < 0.01, "ШАУРМА: −35 голды, +40 здоровья (голда %d, здоровье %.0f)" % [int(G.run["golda"]), P.hp])
+	await key(KEY_ENTER)
+	await wait(0.2)
+	ok(int(G.run["golda"]) == 30 and G.kiosk_left("shawarma") == 0, "вторая шаурма — последняя на это посещение")
+	await key(KEY_ENTER)
+	await wait(0.2)
+	ok(int(G.run["golda"]) == 30 and G.kiosk_why("shawarma") == "на сегодня всё", "третью не продают")
+	ok(G.kiosk_why("double") == "не хватает голды", "на двойную не хватает голды — ценник бледный с причиной")
+	await wait(0.3)
+	await shot("s3_05_kiosk_refused")
+	G.run["golda"] = 200
+	G.hub_ui._refresh()
+	var mh: float = P.max_hp
+	await key(KEY_D)
+	await wait(0.2)
+	await key(KEY_ENTER)
+	await wait(0.2)
+	ok(absf(P.max_hp - (mh + 15.0)) < 0.01 and int(G.run["golda"]) == 140, "ДВОЙНАЯ: максимум %.0f → %.0f, −60 голды" % [mh, P.max_hp])
+	var nf := 0
+	for f in G67Data.FITS:
+		nf += G.fit_lv(f)
+	await key(KEY_D)
+	await wait(0.2)
+	await key(KEY_ENTER)
+	await wait(0.2)
+	var nf2 := 0
+	for f in G67Data.FITS:
+		nf2 += G.fit_lv(f)
+	ok(nf2 == nf + 1 and int(G.run["golda"]) == 65, "С СОБОЙ: случайный фитс (+1 уровень), −75 голды")
+	await wait(0.3)
+	await shot("s3_06_kiosk_bought")
+	await key(KEY_ESCAPE)
+	ok(await until(func(): return G.hub_ui == null, 2.0) and not G.point("kiosk").is_empty(), "Esc — отошёл от окна, ларёк остаётся")
+	await _go(G, P, "kiosk")
+	ok(await until(func(): return G.hub_ui != null and G.hub_ui.kind == "kiosk", 2.0), "к окну можно подойти снова")
+	ok(G.kiosk_left("shawarma") == 0, "лимит — на посещение, а не на подход к окну")
+	await key(KEY_ESCAPE)
+	await until(func(): return G.hub_ui == null, 2.0)
+	# ---- домой и обратно: ларёк на месте
+	await _go(G, P, "home")
+	ok(await until(func(): return G.place == "hub", 6.0), "из ларька можно уйти домой")
+	await wait(0.3)
+	ok(P.speed_k == 1.0 and absf(P.combat.cd_k - 1.0) < 0.001, "в подъезде эффекты забега сняты")
+	await _go(G, P, "exit")
+	ok(await until(func(): return G.place == "run" and not G.point("kiosk").is_empty(), 8.0), "продолжение забега: ларёк снова у окна")
+	# ---- конец забега: артефакты остаются в коллекции, в новом забеге карманы пусты
+	G._finish_run(false, 0.1)
+	ok(await until(func(): return G.place == "hub", 8.0), "забег окончен — подъезд")
+	ok((G.meta()["artifacts"] as Array).size() >= 3, "найденные артефакты остались в коллекции (%d)" % (G.meta()["artifacts"] as Array).size())
+	await wait(0.5)
+
+## добить только что появившихся (пока враг выходит, он неуязвим)
+func _kill_spawned(g, G: Golda67) -> void:
+	for i in 40:
+		_kill_all(g)
+		await wait(0.15)
+		if G.alive() == 0:
+			break
+	await wait(0.2)
+
 func _kill_all(g) -> void:
 	for e in g.enemies:
 		if is_instance_valid(e) and e.state != "dead":

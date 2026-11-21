@@ -419,3 +419,32 @@ Game logo wordmark that reads exactly ГОЛДА 67 in heavy condensed Cyrillic 
 ```
 A round gold seal stamp emblem with the big bold number 67 in the center, a ring of small stars around the edge, a ribbed coin-like rim and two short ribbon tails below, gold #e0b040 with black ink #111111 and off-white paper #ece6d8 only. Thick uneven black ink outline, rough torn paper sticker edge, coarse halftone shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. No other text or letters except 67. Flat front view, no drop shadow, no glow. Transparent background, square 1:1, 1024x1024 PNG.
 ```
+
+## 6. Партия 3 — товары ларька «ШАУРМА 67» (этап 3)
+
+Ценники в окне ларька сейчас рисуются кодом (простые фигуры). Как только файл появится в
+`godot/assets/golda67/ui/`, игра сама поставит картинку на ценник (`G67Icons.tex("icon_kiosk_<товар>")`).
+
+**G67-K01 · ШАУРМА**
+- Файл: `icon_kiosk_shawarma.png` · PNG 1024×1024, прозрачный фон
+- Где используется: ценник «ШАУРМА» в окне ларька
+
+```
+One fat shawarma roll wrapped halfway in crumpled foil and a paper napkin, held at a slight tilt, pieces of meat, green lettuce and red tomato peeking from the open top, two small steam lines above. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color orange #ff8c26. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-K02 · ДВОЙНАЯ ШАУРМА**
+- Файл: `icon_kiosk_double.png` · PNG 1024×1024, прозрачный фон
+- Где используется: ценник «ДВОЙНАЯ ШАУРМА»
+
+```
+Two shawarma rolls in crumpled foil crossed like an X, both stuffed to overflowing with meat, lettuce and tomato, a small plus-shaped spark above them, generous and heavy looking. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color orange #ff8c26. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```
+
+**G67-K03 · С СОБОЙ**
+- Файл: `icon_kiosk_togo.png` · PNG 1024×1024, прозрачный фон
+- Где используется: ценник «С СОБОЙ» (случайный фитс)
+
+```
+A brown paper takeaway bag with the top folded twice and stapled, slightly crumpled, a mysterious glint of a gold chain link peeking from a small tear in the side, a question-mark-like curl of steam above. Game UI icon, single centered object, bold flat sticker illustration, thick uneven black ink outline, rough hand-cut torn paper edge around the shape, coarse halftone dot shading, gritty photocopy texture, post-Soviet street rap zine aesthetic. Strict limited palette: off-white paper #ece6d8, black ink #111111, and one accent color gold #e0b040. Flat front view, no perspective, no drop shadow, no glow, no gradient background. No text, no letters, no numbers. Reads clearly at 48 pixels. Transparent background, square 1:1, 1024x1024 PNG.
+```

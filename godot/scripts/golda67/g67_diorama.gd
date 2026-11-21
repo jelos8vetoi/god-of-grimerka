@@ -63,16 +63,16 @@ func _hide_hud(v: bool) -> void:
 
 func lab(text: String, font: String, sz: int, col: Color, pos: Vector2, w := 0.0, parent: Node = null) -> Label:
 	var l := Label.new()
-	l.text = text
 	l.add_theme_font_override("font", MGUI.font(font))
 	l.add_theme_font_size_override("font_size", sz)
 	l.add_theme_color_override("font_color", col)
 	l.position = pos
 	if w > 0.0:
-		l.size = Vector2(w, 0)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.size = Vector2(w, 0)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	(parent if parent != null else stage).add_child(l)
+	l.text = text            # текст — после добавления в сцену: заданный раньше растягивал подпись в одну строку
 	return l
 
 func add_item(n: Control, key) -> int:

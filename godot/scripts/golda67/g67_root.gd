@@ -32,6 +32,13 @@ var spawn_cd := 0.0
 var wind_used := false        # «ВТОРОЕ ДЫХАНИЕ» уже сработало в этой комнате
 var base_hp := 100.0
 var busy := false             # идёт переход между комнатами
+var mods: G67RunMods          # game.run_mods в приквеле: артефакты внутри удара и урона
+var fit_mul := 1.0            # множитель урона от фитсов и АВТОРИТЕТА (артефакты добавляются сверху, потолок DMG_CAP_ALL)
+var fin_room := 0.0           # сколько уже вылечила ДОБИВАЛА в этой комнате
+var cass_until := -9.0        # «Кассета 2016»: до какого времени +20 % урона
+var cass_next := -9.0         # и когда сработает снова
+var _last_hp := -1.0
+var _last_swag := -1.0
 # ---- постановка (выход босса): камеру и ввод на это время держит контроллер
 const SCENE_LEN := 7.6        # выход Миши: сидит на троне → встаёт → идёт по ковру → топает → бой
 const SCENE_SIT := 1.7        # до этой секунды сидит
@@ -47,6 +54,10 @@ var scene_said := false
 func setup(g) -> void:
 	game = g
 	game.feedback_fired.connect(_on_feedback)
+	mods = G67RunMods.new(self)
+	game.run_mods = mods
+	game.player.execution.executed.connect(_on_executed)
+	game.player.flow.swapped.connect(_on_swapped)
 	process_mode = Node.PROCESS_MODE_ALWAYS      # подсказку [E] нужно гасить и на паузе
 	data = G67Save.load_all()
 	# боссы и говорящие приквела — в копию сюжета этого экземпляра игры (story.json не меняется)
@@ -177,7 +188,9 @@ func start_run(district_id := "dvor") -> void:
 	if busy:
 		return
 	place = "run"
-	run = {"district": district_id, "pos": 0, "golda": 30 * up("gold"), "fits": {}, "respect": 0, "rooms": 0, "rerolls": up("reroll")}
+	run = {"district": district_id, "pos": 0, "golda": 30 * up("gold"), "fits": {}, "respect": 0, "rooms": 0, "rerolls": up("reroll"), "arts": [], "kiosk": {}}
+	cass_until = -9.0
+	cass_next = -9.0
 	var ss := start_style()
 	if game.player.hero == "pahan" and String(game.player.style.id) != ss:
 		game.player.set_style(ss)
@@ -244,6 +257,10 @@ func resume_run() -> void:
 		room_state = "rest"
 	else:
 		_open_gates()
+	if String(room.get("type", "")) == "kiosk":
+		world.add_kiosk()
+	elif String(room.get("type", "")) == "storage" and not bool(room.get("taken", false)):
+		world.add_storage()
 	var d := district()
 	game.banner("%s · %d / %d" % [String(d["name"]), int(run["pos"]) + 1, (d["route"] as Array).size()], "ЗАБЕГ ПРОДОЛЖАЕТСЯ", Color(1.0, 0.8, 0.2), 2.4)
 	busy = false
@@ -373,6 +390,8 @@ func enter_room(r: Dictionary) -> void:
 	busy = true
 	room = r
 	wind_used = false
+	fin_room = 0.0
+	run["kiosk"] = {}
 	_swap_world(func(w: G67World): w.build_room(r))
 	krot_k = {}
 	if world.yard != null:
@@ -400,6 +419,13 @@ func enter_room(r: Dictionary) -> void:
 		"fit":
 			room_state = "reward"
 			_offer_fit(false)
+		"storage":
+			room_state = "reward"
+			_open_storage()
+		"kiosk":
+			world.add_kiosk()
+			_open_gates()                 # ларёк ничего не требует: двери и дом открыты сразу
+			open_screen("kiosk")
 		"break":
 			world.add_rest()
 			world.add_home()
@@ -469,7 +495,7 @@ func _fight_tick(dt: float) -> void:
 	game.main.sfx("sfx_wave", -8.0)
 
 func gold_k() -> float:
-	return 1.0 + 0.25 * float(fit_lv("gold_chain"))
+	return 1.0 + 0.25 * float(fit_lv("gold_chain")) + (0.2 if has_art("bracelet_67") else 0.0)
 
 func add_golda(n: int) -> void:
 	run["golda"] = int(run.get("golda", 0)) + int(round(n * gold_k()))
@@ -483,11 +509,19 @@ func on_kill(e) -> void:
 		_boss_down(e)
 		return
 	var foe := String(e.get_meta("foe", ""))
-	if G67Data.FOES.has(foe):
-		add_golda(int(G67Data.FOES[foe]["golda"]))
-	var heal := 3.0 * float(fit_lv("finisher"))
-	if heal > 0.0:
-		p.hp = minf(p.max_hp, p.hp + heal)
+	if not G67Data.FOES.has(foe):
+		return                            # призванные боссом голды и лечения не дают
+	add_golda(int(G67Data.FOES[foe]["golda"]))
+	if has_art("hamster_aura"):
+		run["golda"] = int(run["golda"]) + 2
+	# ДОБИВАЛА по таблице: 3 / 6 / 9 за врага, элитный (Смотрящий) — втрое, не больше 25 / 40 / 55 за комнату
+	var lv := fit_lv("finisher")
+	if lv > 0:
+		var heal: float = float(G67Data.FINISHER_HEAL[lv - 1]) * (G67Data.FINISHER_ELITE if foe == "smotr" else 1.0)
+		heal = minf(heal, float(G67Data.FINISHER_CAP[lv - 1]) - fin_room)
+		if heal > 0.0:
+			fin_room += heal
+			p.hp = minf(p.max_hp, p.hp + heal)
 
 func _room_cleared() -> void:
 	var type := String(room["type"])
@@ -885,6 +919,213 @@ func _flurr_done(n: int, big: bool) -> void:
 		save()
 	events.append(["flurr_done", n, big])
 
+# ---------------------------------------------------------------- артефакты (APPROVALS.md, 2.3)
+func arts() -> Array:
+	return run.get("arts", []) if not run.is_empty() else []
+
+func has_art(id: String) -> bool:
+	return arts().has(id)
+
+## Слотов: 3 + уровень «СЛОТОВ АРТЕФАКТОВ»
+func slots() -> int:
+	return G67Data.ART_SLOTS + up("slots")
+
+static func art_info(id: String) -> Dictionary:
+	for a in G67Data.ARTIFACTS:
+		if String(a["id"]) == id:
+			return a
+	return {}
+
+## Что может лежать в кладовке: не событийные, ещё не взятые в этом забеге; «Вторая симка» — после первой концовки,
+## «Автотюн» — когда открыты два стиля
+func storage_pool() -> Array:
+	var out: Array = []
+	for a in G67Data.ARTIFACTS:
+		var id := String(a["id"])
+		if G67Data.ART_EVENT.has(id) or has_art(id):
+			continue
+		if id == "second_sim" and not madk_open():
+			continue
+		if id == "autotune_ring" and styles_open().size() < 2:
+			continue
+		out.append(id)
+	return out
+
+## Кладовка: два артефакта на выбор; их запоминает комната (вернулся из подъезда — те же два)
+func storage_offer() -> Array:
+	if not room.has("offer"):
+		var pool := storage_pool()
+		pool.shuffle()
+		room["offer"] = pool.slice(0, 2)
+	return room["offer"]
+
+func _open_storage() -> void:
+	if storage_offer().is_empty():
+		add_golda(25)
+		_open_gates()
+		return
+	world.add_storage()
+	open_screen("storage")
+
+## Взять артефакт (replace — какой выложить, если слоты заняты). Найденный остаётся в коллекции подъезда.
+func take_art(id: String, replace := "") -> bool:
+	if art_info(id).is_empty() or has_art(id):
+		return false
+	var a: Array = run["arts"]
+	if a.size() >= slots():
+		if not a.has(replace):
+			return false
+		a.erase(replace)
+		events.append(["art_drop", replace])
+		if replace == "beanie":
+			apply_fits()
+	a.append(id)
+	var got: Array = meta().get("artifacts", [])
+	if not got.has(id):
+		got.append(id)
+		meta()["artifacts"] = got
+		save()
+	if id == "broken_remote":
+		run["rerolls"] = int(run.get("rerolls", 0)) + 1
+	events.append(["art", id])
+	apply_fits(id)
+	game.main.ui("confirm")
+	game.banner(String(art_info(id)["name"]).to_upper(), "артефакт · %d / %d" % [a.size(), slots()], Color(0.55, 0.75, 0.95), 2.2)
+	room["taken"] = true
+	return true
+
+## Уйти из кладовки — двери дальше. Не взял ничего — гараж остаётся открытым, можно вернуться к нему до ворот.
+func leave_storage() -> void:
+	if String(room.get("type", "")) != "storage" or world == null:
+		return
+	if bool(room.get("taken", false)):
+		world.points = world.points.filter(func(pt): return String(pt["id"]) != "storage")
+	if room_state == "reward":
+		_open_gates()
+
+## Урон героя сейчас: фитсы × артефакты по обстановке, общий потолок ×2,0
+func dmg_now() -> float:
+	var k := fit_mul
+	if game.clock < cass_until:
+		k *= 1.2
+	var p = game.player
+	if has_art("cracked_phone") and p.hp < p.max_hp * 0.35:
+		k *= 1.25
+	return minf(G67Data.DMG_CAP_ALL, k)
+
+## Постоянные эффекты артефактов и ВОССТАНОВЛЕНИЕ АВТОРИТЕТА — каждый кадр; в подъезде всё возвращается к 1
+func _art_tick(dt: float) -> void:
+	var p = game.player
+	var in_run := place == "run" and not run.is_empty()
+	var res := float(up("res")) if in_run else 0.0
+	var cd := (0.85 if has_art("sim") else 1.0) * (1.0 - 0.08 * res)
+	p.combat.cd_k = cd
+	p.combat.ammo_k = 1.0 - 0.08 * res
+	p.speed_k = 1.08 if has_art("market_sneakers") else 1.0
+	game.hype.gain_k = 1.3 if has_art("energy") else 1.0
+	if not in_run:
+		_last_hp = -1.0
+		_last_swag = -1.0
+		return
+	# ад-либ (Q) — та же доля быстрее; помощь напарника на [T] — «Вторая симка» на 25 %
+	if cd < 1.0 and game.buddy.cd > 0.0:
+		game.buddy.cd = maxf(0.0, game.buddy.cd - dt * (1.0 / cd - 1.0))
+	if has_art("second_sim") and game.tag.assist_cd > 0.0:
+		game.tag.assist_cd = maxf(0.0, game.tag.assist_cd - dt / 3.0)
+	# «Кассета 2016»: после полученного урона
+	if _last_hp >= 0.0 and p.hp < _last_hp - 0.01 and has_art("cassette_2016") and game.clock >= cass_next:
+		cass_until = game.clock + 4.0
+		cass_next = game.clock + 8.0
+		events.append(["cassette"])
+	_last_hp = p.hp
+	# «Энергетик», пока Team Hype закрыт: СВЭГ копится на 20 % быстрее
+	if has_art("energy") and game.madk_locked() and _last_swag >= 0.0 and p.swag > _last_swag:
+		p.swag = minf(100.0, p.swag + (p.swag - _last_swag) * 0.2)
+	_last_swag = p.swag
+	p.dmg_mul = dmg_now()
+
+## «Платиновый значок»: добивание на [E] лечит на 8 и даёт 5 голды
+func _on_executed(_e, _style: String, _ctx: String) -> void:
+	if place == "run" and has_art("platinum_badge"):
+		var p = game.player
+		p.hp = minf(p.max_hp, p.hp + 8.0)
+		run["golda"] = int(run.get("golda", 0)) + 5
+		events.append(["badge"])
+
+## «Кольцо „Автотюн“»: усиление Perfect Swap — на 1 с дольше
+func _on_swapped(_from: String, _to: String, perfect: bool) -> void:
+	if perfect and place == "run" and has_art("autotune_ring"):
+		game.player.flow.boost_t += 1.0
+		events.append(["autotune"])
+
+# ---------------------------------------------------------------- ларёк «ШАУРМА 67» (APPROVALS.md, 2.2)
+## Сколько этого товара осталось в этом посещении
+func kiosk_left(id: String) -> int:
+	for k in G67Data.KIOSK:
+		if String(k["id"]) == id:
+			return int(k["per_visit"]) - int((run.get("kiosk", {}) as Dictionary).get(id, 0))
+	return 0
+
+## Можно ли купить и почему нет («» — можно)
+func kiosk_why(id: String) -> String:
+	var k := kiosk_item(id)
+	if k.is_empty():
+		return "нет такого"
+	if kiosk_left(id) <= 0:
+		return "на сегодня всё"
+	if int(run.get("golda", 0)) < int(k["price"]):
+		return "не хватает голды"
+	if id == "togo" and togo_pool().is_empty():
+		return "фитсов больше нет"
+	return ""
+
+static func kiosk_item(id: String) -> Dictionary:
+	for k in G67Data.KIOSK:
+		if String(k["id"]) == id:
+			return k
+	return {}
+
+## «С СОБОЙ»: фитсы, которые ещё можно взять или улучшить; редкие — с шансом KIOSK_RARE
+func togo_pool() -> Array:
+	var out: Array = []
+	for id in G67Data.FITS:
+		if fit_lv(id) < int(G67Data.FITS[id]["lv"]):
+			out.append(id)
+	return out
+
+## Купить товар; ответ — что получил («» — не купил)
+func kiosk_buy(id: String) -> String:
+	if kiosk_why(id) != "":
+		return ""
+	var k := kiosk_item(id)
+	run["golda"] = int(run["golda"]) - int(k["price"])
+	var bought: Dictionary = run["kiosk"]
+	bought[id] = int(bought.get(id, 0)) + 1
+	var p = game.player
+	var got := ""
+	match id:
+		"shawarma":
+			p.hp = minf(p.max_hp, p.hp + G67Data.KIOSK_HEAL)
+			got = "+%d здоровья" % int(G67Data.KIOSK_HEAL)
+		"double":
+			run["maxhp_buys"] = int(run.get("maxhp_buys", 0)) + 1
+			apply_fits("double")
+			p.hp = minf(p.max_hp, p.hp + G67Data.KIOSK_HEAL)
+			got = "+%d здоровья, максимум +%d" % [int(G67Data.KIOSK_HEAL), int(G67Data.KIOSK_MAXHP)]
+		"togo":
+			var pool := togo_pool()
+			var rares := pool.filter(func(f): return bool(G67Data.FITS[f]["rare"]))
+			var common := pool.filter(func(f): return not bool(G67Data.FITS[f]["rare"]))
+			var from: Array = rares if (not rares.is_empty() and (common.is_empty() or randf() < G67Data.KIOSK_RARE)) else common
+			var fid := String(from[randi() % from.size()])
+			var fits: Dictionary = run["fits"]
+			fits[fid] = fit_lv(fid) + 1
+			apply_fits(fid)
+			got = "%s · ур. %d" % [String(G67Data.FITS[fid]["name"]), fit_lv(fid)]
+			events.append(["fit", fid])
+	events.append(["kiosk", id])
+	return got
+
 # ---------------------------------------------------------------- фитсы
 func fit_lv(id: String) -> int:
 	return int((run.get("fits", {}) as Dictionary).get(id, 0))
@@ -964,12 +1205,13 @@ func take_fit(id: String) -> void:
 ## Пересчитать усиления забега. Исходные данные стилей не меняются: только множитель урона героя и его здоровье.
 func apply_fits(just := "") -> void:
 	var p = game.player
-	p.dmg_mul = minf(G67Data.DMG_CAP, 1.0 + 0.12 * float(fit_lv("heavy_hand")) + 0.04 * float(up("dmg")))
-	var want := hp_max() + 20.0 * float(fit_lv("authority"))
+	fit_mul = minf(G67Data.DMG_CAP, 1.0 + 0.12 * float(fit_lv("heavy_hand")) + 0.04 * float(up("dmg")))
+	p.dmg_mul = dmg_now()
+	var want := hp_max() + 20.0 * float(fit_lv("authority")) + (20.0 if has_art("beanie") else 0.0) + G67Data.KIOSK_MAXHP * float(run.get("maxhp_buys", 0))
 	if want != p.max_hp:
 		p.max_hp = want
-		if just == "authority":
-			p.hp = minf(p.max_hp, p.hp + 20.0)
+		if just in ["authority", "beanie", "double"]:
+			p.hp = minf(p.max_hp, p.hp + (20.0 if just != "double" else G67Data.KIOSK_MAXHP))
 	p.hp = minf(p.hp, p.max_hp)
 
 func _second_wind() -> void:
@@ -977,9 +1219,9 @@ func _second_wind() -> void:
 	if lv <= 0 or wind_used:
 		return
 	var p = game.player
-	if p.hp > 0.0 and p.hp < p.max_hp * 0.3:
+	if p.hp > 0.0 and p.hp < p.max_hp * G67Data.WIND_AT:
 		wind_used = true
-		p.hp = minf(p.max_hp, p.hp + 25.0 * float(lv))
+		p.hp = minf(p.max_hp, p.hp + float(G67Data.WIND_HEAL[mini(lv, G67Data.WIND_HEAL.size()) - 1]))
 		game.popup(p.global_position + Vector3(0, 2.2, 0), "ВТОРОЕ ДЫХАНИЕ", G67Data.FAMILY_COLOR["misha"])
 		events.append(["wind"])
 
@@ -1008,8 +1250,8 @@ func _boss_down(e) -> void:
 	var first := not bool(fl.get(String(d["flag"]), false))
 	fl[String(d["flag"])] = true
 	meta()["flags"] = fl
-	add_golda(int(G67Data.ROOM_GOLDA["boss"]))
-	run["respect"] = int(run["respect"]) + int(G67Data.RESPECT["boss_first" if first else "boss"])
+	add_golda(int(round(float(G67Data.ROOM_GOLDA["boss"]) * (1.5 if has_art("flash_drive") else 1.0))))
+	run["respect"] = int(run["respect"]) + int(G67Data.RESPECT["boss_first" if first else "boss"]) + (10 if has_art("flash_drive") else 0)
 	events.append(["boss_down", String(d["boss"])])
 	var style_name := String(Styles.by_id(String(d["unlock"])).title).to_upper()
 	game.banner("МИША МИНАСЯН ПОВЕРЖЕН", ("открыт стиль: %s" % style_name) if first else "район пройден", Color(1, 0.85, 0.3), 4.0)
@@ -1063,6 +1305,8 @@ func hud_line() -> String:
 	var s := "ГОЛДА 67 · %s %d/%d · голда %d" % [String(d["name"]), int(run["pos"]) + 1, (d["route"] as Array).size(), int(run["golda"])]
 	if room_state == "fight":
 		s += " · врагов: %d" % (alive() + pending.size())
+	if not arts().is_empty():
+		s += " · артефактов %d/%d" % [arts().size(), slots()]
 	return s
 
 func point(id: String) -> Dictionary:
@@ -1089,6 +1333,7 @@ func _physics_process(dt: float) -> void:
 		if room_state == "fight":
 			_fight_tick(dt)
 		_second_wind()
+	_art_tick(dt)
 	var pp: Vector3 = game.player.global_position
 	var best := ""
 	var bd := REACH + (0.6 if place == "run" else 0.0)
@@ -1135,6 +1380,10 @@ func use(id: String) -> void:
 		tv()
 	elif id == "rest":
 		rest()
+	elif id == "kiosk":
+		open_screen("kiosk")
+	elif id == "storage":
+		open_screen("storage")
 	elif id == "krot":
 		talk_krot()
 	elif id == "flurr":
@@ -1243,6 +1492,8 @@ func open_screen(what: String) -> void:
 		"styles": hub_ui = G67StylesUI.open(self)
 		"artifacts": hub_ui = G67ArtifactsUI.open(self)
 		"routes": hub_ui = G67RoutesUI.open(self)
+		"storage": hub_ui = G67StorageUI.open(self)
+		"kiosk": hub_ui = G67KioskUI.open(self)
 	hub_ui.closed.connect(func(): hub_ui = null)
 
 func _tv_menu() -> void:
