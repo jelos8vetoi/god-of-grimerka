@@ -255,6 +255,11 @@ func _run() -> void:
 	await wait(0.4)
 	ok(save_same(), "сохранение кампании не изменилось")
 	ok(not FileAccess.file_exists("user://golda67_save.json") or kept["user://golda67_save.json"] == FileAccess.get_file_as_string("user://golda67_save.json"), "проверка не пишет сохранение приквела игрока")
+	# ================= экраны подъезда (этап 2) =================
+	await _hub_screens(g, G, P)
+	if OS.get_cmdline_user_args().has("--g67-hub"):
+		_finish()
+		return
 	# ================= dj flürr: одиннадцать состояний =================
 	await _madk_check(g, G, P)
 	await _voice_check(g, G, P)
@@ -633,7 +638,7 @@ func _clip_check(g, G: Golda67, P) -> void:
 	# телевизор: список открытых роликов
 	G.tv()
 	await wait(0.3)
-	ok(G.clip_menu != null, "телевизор в подъезде открывает архив роликов")
+	ok(G.hub_ui != null and G.hub_ui.kind == "archive", "телевизор в подъезде открывает архив роликов")
 	await shot("c_tv_menu")
 	G._tv_close()
 	await wait(0.2)
@@ -961,7 +966,7 @@ func _flurr_check(g, G: Golda67, P) -> void:
 ## до босса. Проверяет, что ролики не ломают игру: двери, комнаты, выход Миши (он на месте и в кадре).
 func _clips_wait(G: Golda67, sec := 120.0) -> void:
 	await wait(0.3)
-	await until(func(): return G.clip == null and G.clip_menu == null, sec)
+	await until(func(): return G.clip == null and G.hub_ui == null, sec)
 	await wait(0.4)
 
 func _real_run(g, G: Golda67) -> void:
@@ -1028,6 +1033,120 @@ func _real_run(g, G: Golda67) -> void:
 	print("GOLDA67CHECK   REAL mode=%s panel=%s dlg=%d events=%s" % [g.mode, str(g.panel), g.dlg.size(), str(G.events.slice(-8))])
 	print("GOLDA67CHECK   REAL после постановки: valid=%s alive=%s state=%s hp=%s boss_e==B %s enemies=%d room=%s scene_t=%.2f boss_pos=%s player=%s" % [is_instance_valid(B), B.alive() if is_instance_valid(B) else "-", B.state if is_instance_valid(B) else "-", B.hp if is_instance_valid(B) else "-", g.boss_e == B, g.enemies.size(), G.room_state, G.scene_t, str(B.global_position) if is_instance_valid(B) else "-", str(P.global_position)])
 	ok(is_instance_valid(B) and B.alive() and (g.enemies.has(B) or g.boss_e == B), "REAL: бой с Мишей идёт")
+
+## Этап 2: экраны предметов подъезда как у игрока — подойти, E, клавиши, мышь, Esc; снимки каждого экрана
+func _hub_screen(G: Golda67, P, id: String, kind: String) -> bool:
+	await _go(G, P, id)
+	return await until(func(): return G.hub_ui != null and G.hub_ui.kind == kind, 3.0)
+
+func _hub_screens(g, G: Golda67, P) -> void:
+	# значок «новый разговор» над dj flürr, пока его новый разговор не услышан
+	ok(G.mark_talk != null and G.mark_talk.visible == G.flurr_new(), "над dj flürr — значок нового разговора (%s)" % str(G.mark_talk.visible if G.mark_talk != null else null))
+	# АВТОРИТЕТ РАЙОНА: покупка уровня за РЕСПЕКТ настоящими клавишами
+	G.meta()["respect"] = 60
+	ok(await _hub_screen(G, P, "upgrades", "upgrades"), "стол улучшений открывает «АВТОРИТЕТ РАЙОНА»")
+	var U = G.hub_ui
+	ok(U is G67AuthorityUI and U.cards.size() == 9, "девять веток улучшений — карточки в три группы")
+	ok(not G.prompt.visible and g.intro_busy(), "пока экран открыт, подсказка скрыта, ввод игры закрыт")
+	await wait(0.3)
+	await shot("h01_upgrades")
+	var hp0: float = P.max_hp
+	await key(KEY_ENTER)             # первая ветка — ЗДОРОВЬЕ
+	await wait(0.2)
+	ok(G.up("hp") == 1 and int(G.meta()["respect"]) == 60 - G67Data.UP_COST[0] and absf(P.max_hp - hp0 - 10.0) < 0.01,
+		"ЗДОРОВЬЕ, уровень 1: РЕСПЕКТ %d, здоровье %.0f → %.0f" % [int(G.meta()["respect"]), hp0, P.max_hp])
+	await key(KEY_D)
+	await key(KEY_ENTER)             # УРОН — правее
+	await wait(0.2)
+	ok(G.up("dmg") == 1 and absf(P.dmg_mul - 1.04) < 0.001, "УРОН, уровень 1: множитель %.2f" % P.dmg_mul)
+	await key(KEY_D)
+	var r0 := int(G.meta()["respect"])
+	await key(KEY_ENTER)             # ВОССТАНОВЛЕНИЕ — закрыта до этапа 3
+	await wait(0.2)
+	ok(G.up("res") == 0 and int(G.meta()["respect"]) == r0, "закрытая ветка не покупается и РЕСПЕКТ не тратит")
+	await shot("h02_upgrades_bought")
+	# все состояния карточек разом: максимум, можно купить, не хватает, закрыто; выбор и покупка — снимки
+	G.meta()["up"] = {"hp": 5, "dmg": 2, "rare": 1}
+	G.meta()["respect"] = 20
+	U._refresh_all()
+	U._select(0)
+	await wait(0.3)
+	await shot("h02b_states")
+	await key(KEY_S)
+	await key(KEY_D)
+	await wait(0.3)
+	ok(U.sel == 4 and String((U.cards[4] as G67UpCard).id) == "rare", "S и D ведут по сетке: ряд ЗАБЕГ, РЕДКИЕ ФИТСЫ")
+	await shot("h02c_rare_selected")
+	await key(KEY_ENTER)
+	await wait(0.12)
+	await shot("h02d_bought_anim")
+	ok(G.up("rare") == 2, "РЕДКИЕ ФИТСЫ куплены с клавиатуры (уровень %d)" % G.up("rare"))
+	await key(KEY_ENTER)
+	await wait(0.1)
+	ok(G.up("rare") == 2 and String(U.d_why.text).contains("Не хватает"), "не хватает РЕСПЕКТА — покупки нет, причина написана: «%s»" % U.d_why.text)
+	await shot("h02e_short")
+	await key(KEY_W)
+	await key(KEY_A)
+	await wait(0.2)
+	ok((U.cards[U.sel] as G67UpCard).state == "max" and U.d_btn.disabled, "ветка на максимуме: кнопка покупки выключена")
+	await shot("h02f_max")
+	G.meta()["up"] = {"hp": 1, "dmg": 1}
+	G.meta()["respect"] = 0
+	G.meta()["respect"] = 0
+	await key(KEY_ESCAPE)
+	ok(await until(func(): return G.hub_ui == null, 1.0), "Esc закрывает экран")
+	ok(not get_tree().paused, "Esc на экране не открывает паузу")
+	# стойка стилей: до Миши — только Балон, madk1d закрыт
+	ok(await _hub_screen(G, P, "styles", "styles"), "стойка стилей открывает свой экран")
+	var Sr: Array = G.hub_ui.rows.filter(func(r): return not r.has("head"))
+	ok(Sr.size() == 6 and not bool(Sr[0].get("lock", false)) and Sr.slice(1).all(func(r): return bool(r.get("lock", false))), "на стойке открыт только Балон VOZDUH, остальные пять — с причиной")
+	await wait(0.3)
+	await shot("h03_styles")
+	await key(KEY_ESCAPE)
+	await until(func(): return G.hub_ui == null, 1.0)
+	# коллекция артефактов: 18 мест, пока все тёмные
+	ok(await _hub_screen(G, P, "artifacts", "artifacts"), "коллекция артефактов открывается")
+	ok(G.hub_ui.rows.size() == 18 and G.hub_ui.rows.all(func(r): return r.get("icon") is Texture2D), "18 мест с рисованными значками владельца")
+	await wait(0.3)
+	await shot("h04_artifacts")
+	await key(KEY_ESCAPE)
+	await until(func(): return G.hub_ui == null, 1.0)
+	# карта маршрутов
+	ok(await _hub_screen(G, P, "routes", "routes"), "карта маршрутов открывается")
+	await wait(0.3)
+	await shot("h05_routes")
+	await key(KEY_ESCAPE)
+	await until(func(): return G.hub_ui == null, 1.0)
+	# доска и ящики
+	ok(await _hub_screen(G, P, "notices", "board"), "доска объявлений открывается")
+	ok(G.hub_ui.rows.size() == 2, "до победы над Мишей на доске две листовки (%d)" % G.hub_ui.rows.size())
+	await wait(0.3)
+	await shot("h06_board")
+	await key(KEY_ESCAPE)
+	await until(func(): return G.hub_ui == null, 1.0)
+	ok(await _hub_screen(G, P, "mail", "mail"), "почтовые ящики открываются")
+	await key(KEY_ESCAPE)
+	await until(func(): return G.hub_ui == null, 1.0)
+	# архив у телевизора (трейлер уже был: сразу список)
+	var cs0: Array = (G.meta().get("clips_seen", []) as Array).duplicate()
+	if not cs0.has("V00"):
+		G.meta()["clips_seen"] = cs0 + ["V00"]
+	var tv_ok: bool = await _hub_screen(G, P, "tv", "archive")
+	if not tv_ok:
+		print("GOLDA67CHECK   ТВ: near=%s clip=%s hub=%s события=%s" % [G.near, str(G.clip), str(G.hub_ui), str(G.events.slice(-6))])
+	ok(tv_ok, "телевизор открывает «АРХИВ ПИЗДЕЦА»")
+	var heads: Array = G.hub_ui.rows.filter(func(r): return r.has("head")).map(func(r): return String(r["head"]))
+	ok(heads == ["РЕКЛАМА", "ОБЛАКО LIVE", "НОВОСТИ", "СЮЖЕТ", "КРОТ", "DJ FLÜRR", "СОБЫТИЯ", "КОНЦОВКИ"], "разделы архива: %s" % ", ".join(heads))
+	await wait(0.3)
+	await shot("h07_archive")
+	await key(KEY_ESCAPE)
+	await until(func(): return G.hub_ui == null, 1.0)
+	G.meta()["clips_seen"] = cs0
+	# дальше проверка считает точные числа фитсов: улучшения снимаем, в забег — только один перевыбор
+	G.meta()["up"] = {"reroll": 1}
+	P.max_hp = G.hp_max()
+	P.hp = P.max_hp
+	P.dmg_mul = 1.0
 
 ## убить всех живых врагов (бой проверяют проверки боя; здесь — цикл комнат)
 func _kill_all(g) -> void:
@@ -1161,6 +1280,13 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	var fit_btns: Array = g.panel.find_children("*", "Button", true, false) if g.panel != null else []
 	ok(fit_btns.size() >= 2 and fit_btns.slice(0, 2).all(func(bt): return (bt as Button).icon != null), "у карточек фитсов — значки фитсов")
 	await shot("22a_fit_icons")
+	var rb: Array = fit_btns.filter(func(bt): return String((bt as Button).text).begins_with("ПЕРЕВЫБРАТЬ"))
+	ok(rb.size() == 1, "«ПОВТОРНЫЙ ВЫБОР» из АВТОРИТЕТА РАЙОНА: на карточках фитсов есть «ПЕРЕВЫБРАТЬ»")
+	if rb.size() == 1:
+		(rb[0] as Button).pressed.emit()
+		await wait(0.3)
+		var fb2: Array = g.panel.find_children("*", "Button", true, false) if g.panel != null else []
+		ok(int(G.run.get("rerolls", -1)) == 0 and fb2.size() == 3 and G.events.has(["reroll"]), "перевыбор потрачен: новые три фитса, кнопки больше нет")
 	await wait(0.5)
 	await shot("22_fit_choice")
 	var opts: Array = G.fit_options(false)
