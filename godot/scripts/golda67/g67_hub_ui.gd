@@ -126,85 +126,11 @@ func show_kind(what: String) -> void:
 	for c in chip_box.get_children():
 		c.queue_free()
 	match what:
-		"archive": _archive()
 		"styles": _styles()
 		"artifacts": _artifacts()
 		"routes": _routes()
-		"board": _notes("ДОСКА ОБЪЯВЛЕНИЙ", "что висит у лестницы", G67Data.BOARD, "icon_room_event")
-		"mail": _notes("ПОЧТОВЫЕ ЯЩИКИ", "листовки и газеты", G67Data.MAIL, "icon_new_talk")
 	_rebuild()
 	G.events.append(["hub_ui", what])
-
-## «АРХИВ ПИЗДЕЦА»: ролики по разделам, встречи КРОТА и разговоры DJ FLÜRR (их текст с голосом), события, концовки
-func _archive() -> void:
-	title_l.text = "АРХИВ ПИЗДЕЦА"
-	sub_l.text = "всё, что уже случилось в районе · неоткрытое — «???»"
-	rows = []
-	for sec in G67Data.ARCHIVE_CLIPS:
-		rows.append({"head": String(sec[0])})
-		for cid in sec[1]:
-			if G.clip_open(cid):
-				rows.append({"title": G67Clips.title(cid), "tag": "" if G.clip_seen(cid) else "НОВОЕ", "icon": "camera",
-					"desc": "%s«%s»\n— %s" % ["Вертикальный ролик с телефона.\n" if G67Clips.tall(cid) else "", _text_of(G67Clips.L(cid, 0)), G67Clips.speaker(G67Clips.L(cid, 0).get_slice("|", 0))],
-					"act": func(): _play_clip(cid)})
-			else:
-				rows.append({"title": "???", "lock": true, "desc": "Этот ролик ещё не вышел."})
-	rows.append({"head": "КРОТ"})
-	var seen: Array = G.meta().get("seen", [])
-	for i in G67Data.KROT.size():
-		var k: Dictionary = G67Data.KROT[i]
-		if seen.has(String(k["id"])):
-			rows.append({"title": "Встреча %d · %s" % [i + 1, String(k["title"])], "icon": G67Icons.tex("icon_krot_found"),
-				"desc": "Разговор целиком — Enter. Голос каждой реплики — там же.", "act": func(): _transcript("КРОТ · " + String(k["title"]), k["lines"])})
-		else:
-			rows.append({"title": "Встреча %d · ???" % (i + 1), "lock": true, "desc": "КРОТ ещё не попадался."})
-	rows.append({"head": "DJ FLÜRR"})
-	var arch: Array = G.meta().get("archive", [])
-	for n in G67Flurr.STATES.size():
-		if arch.has("flurr%d" % n):
-			var st: Array = G67Flurr.STATES[n]
-			rows.append({"title": "Разговор %d" % (n + 1), "icon": G67Icons.tex("icon_new_talk"),
-				"desc": "«%s»" % _text_of(String(st[0])), "act": func(): _transcript("DJ FLÜRR · разговор %d" % (n + 1), st)})
-		elif n <= G.flurr_state():
-			rows.append({"title": "Разговор %d · не услышан" % (n + 1), "lock": true, "desc": "DJ FLÜRR ждёт на лавке: подойди и поговори."})
-		else:
-			rows.append({"title": "Разговор %d · ???" % (n + 1), "lock": true, "desc": "Откроется по ходу встреч с КРОТОМ."})
-	rows.append({"head": "СОБЫТИЯ"})
-	for ev in G67Data.ARCHIVE_EVENTS:
-		rows.append({"title": "???", "lock": true, "desc": "Событие двора ещё не случалось."})
-	rows.append({"head": "КОНЦОВКИ"})
-	for i in G67Data.ARCHIVE_ENDINGS:
-		rows.append({"title": "???", "lock": true, "desc": "Концовка ещё не открыта."})
-	_hints([["W/S", "выбор"], ["Enter", "смотреть / слушать"], ["Esc", "закрыть"]])
-
-func _play_clip(cid: String) -> void:
-	close()
-	G.play_clip(cid)
-
-## Текст разговора по репликам: Enter — голос выбранной реплики (если озвучена), Esc — назад в архив
-func _transcript(head: String, lines: Array) -> void:
-	title_l.text = head
-	sub_l.text = "разговор целиком · Enter — голос реплики"
-	rows = []
-	for ln in lines:
-		var s := String(ln)
-		var code := s.get_slice("|", 0) if s.contains("|") else ""
-		var who := G67Clips.speaker(code) if code != "" else ""
-		if code == "DJ":
-			who = "DJ FLÜRR"
-		var path := G67Voice.path(s)
-		rows.append({"title": who, "sub": _text_of(s), "icon": "call" if path != "" else "",
-			"desc": _text_of(s), "act": (func(): _say(path)) if path != "" else Callable()})
-	back = func(): show_kind("archive")
-	_rebuild()
-	_hints([["W/S", "реплика"], ["Enter", "голос"], ["Esc", "назад"]])
-
-func _say(path: String) -> void:
-	voice.stream = load(path)
-	voice.play()
-
-func _text_of(s: String) -> String:
-	return s.get_slice("|", 1) if s.contains("|") else s
 
 ## Стойка стилей: с каким стилем выходить в забег; закрытые — когда откроются
 func _styles() -> void:
@@ -279,18 +205,6 @@ func _routes() -> void:
 	rows.append({"title": "Найдено встреч: %d из %d" % [seen.size(), 10], "icon": G67Icons.tex("icon_krot_found"),
 		"desc": ("Следующая встреча — «%s», %s." % [String(k["title"]), "в подъезде" if String(k["where"]) == "hub" else String(G67Yard.ZONES.get(String(k["where"]), {"name": "во дворе"})["name"])]) if not k.is_empty() else "Все известные встречи пройдены."})
 	_hints([["W/S", "строка"], ["Esc", "закрыть"]])
-
-func _notes(head: String, sub: String, list_src: Array, icon_id: String) -> void:
-	title_l.text = head
-	sub_l.text = sub
-	rows = []
-	var fl: Dictionary = G.meta().get("flags", {})
-	for n in list_src:
-		var flag := String(n[1])
-		if flag != "" and not bool(fl.get(flag, false)):
-			continue
-		rows.append({"title": String(n[0]), "icon": G67Icons.tex(icon_id), "desc": "Висит на доске у лестницы." if kind == "board" else "Лежит в почтовом ящике."})
-	_hints([["W/S", "листок"], ["Esc", "закрыть"]])
 
 # ---------------------------------------------------------------- список
 func _rebuild() -> void:

@@ -119,6 +119,11 @@ func _run() -> void:
 	await wait(3.0)
 	var g = main.game
 	var G: Golda67 = g.golda
+	for arg in OS.get_cmdline_user_args():
+		if String(arg).begins_with("--g67-frames="):
+			await _clip_frames(G, String(arg).substr(13))
+			_finish()
+			return
 	if OS.get_cmdline_user_args().has("--g67-real"):
 		await _real_run(g, G)
 		_finish()
@@ -1117,28 +1122,110 @@ func _hub_screens(g, G: Golda67, P) -> void:
 	await shot("h05_routes")
 	await key(KEY_ESCAPE)
 	await until(func(): return G.hub_ui == null, 1.0)
-	# доска и ящики
+	# доска объявлений: пробковая доска, три листка; объявление после Миши — заклеено и не открывается
 	ok(await _hub_screen(G, P, "notices", "board"), "доска объявлений открывается")
-	ok(G.hub_ui.rows.size() == 2, "до победы над Мишей на доске две листовки (%d)" % G.hub_ui.rows.size())
-	await wait(0.3)
+	var BU = G.hub_ui
+	ok(BU is G67BoardUI and BU.notes.size() == 3, "на доске три листка из данных")
+	ok(not g.combat_hud.visible and not g.hud_root.visible, "пока экран открыт, HUD игры спрятан")
+	ok((BU.notes[2] as G67BoardUI.Note).locked and String(BU.notes[2].why).contains("Миш"), "объявление «АВТОРИТЕТ ВРЕМЕННО НЕДОСТУПЕН» до победы над Мишей заклеено, причина: «%s»" % BU.notes[2].why)
+	ok((BU.notes[0] as G67BoardUI.Note).fresh, "непрочитанный листок с наклейкой «НОВОЕ»")
+	await wait(0.4)
 	await shot("h06_board")
+	await key(KEY_ENTER)
+	await wait(0.35)
+	ok(BU.mode == "read" and (G.meta().get("board_read", []) as Array).has(0), "Enter снимает листок и читает вблизи, листок отмечен прочитанным")
+	await shot("h06b_board_read")
+	await key(KEY_ESCAPE)
+	await wait(0.2)
+	ok(BU.mode == "list" and BU.sel == 0 and G.hub_ui != null, "Esc — листок обратно на доску, выбор тот же")
+	BU.select(2)
+	await key(KEY_ENTER)
+	await wait(0.2)
+	ok(BU.mode == "list", "заклеенный листок не читается")
 	await key(KEY_ESCAPE)
 	await until(func(): return G.hub_ui == null, 1.0)
+	ok(g.combat_hud.visible, "после экрана HUD вернулся")
+	# почтовые ящики: три ящика с письмами, вестник до победы над Мишей — на замке
 	ok(await _hub_screen(G, P, "mail", "mail"), "почтовые ящики открываются")
+	var MU = G.hub_ui
+	ok(MU is G67MailUI and MU.items.size() == 3 and MU.boxes.size() == 15, "15 ящиков в блоке, писем — в трёх")
+	ok(String((MU.items[2]["node"] as G67MailUI.Box).state) == "lock" and String((MU.items[0]["node"] as G67MailUI.Box).state) == "new", "листовка ждёт в ящике, вестник — на замке до победы над Мишей")
+	await wait(0.4)
+	await shot("h07_mail")
+	await key(KEY_ENTER)
+	await wait(1.4)
+	ok(MU.mode == "read" and (G.meta().get("mail_read", []) as Array).has(0), "Enter открывает ящик и письмо, письмо отмечено прочитанным")
+	await shot("h07b_letter")
+	await key(KEY_ESCAPE)
+	await wait(0.3)
+	ok(MU.mode == "list" and MU.sel == 0 and String((MU.items[0]["node"] as G67MailUI.Box).state) == "read", "Esc — обратно к тому же ящику, он прочитан")
+	await key(KEY_D)
+	await key(KEY_D)
+	await wait(0.1)
+	var s_before: int = MU.sel
+	MU.select(2)
+	await key(KEY_ENTER)
+	await wait(0.3)
+	ok(MU.mode == "list" and not (G.meta().get("mail_read", []) as Array).has(2), "запертый ящик не открывается (выбор был %d)" % s_before)
 	await key(KEY_ESCAPE)
 	await until(func(): return G.hub_ui == null, 1.0)
-	# архив у телевизора (трейлер уже был: сразу список)
+	# архив у телевизора (трейлер уже был: сразу стена телевизоров)
 	var cs0: Array = (G.meta().get("clips_seen", []) as Array).duplicate()
 	if not cs0.has("V00"):
 		G.meta()["clips_seen"] = cs0 + ["V00"]
 	var tv_ok: bool = await _hub_screen(G, P, "tv", "archive")
-	if not tv_ok:
-		print("GOLDA67CHECK   ТВ: near=%s clip=%s hub=%s события=%s" % [G.near, str(G.clip), str(G.hub_ui), str(G.events.slice(-6))])
 	ok(tv_ok, "телевизор открывает «АРХИВ ПИЗДЕЦА»")
-	var heads: Array = G.hub_ui.rows.filter(func(r): return r.has("head")).map(func(r): return String(r["head"]))
-	ok(heads == ["РЕКЛАМА", "ОБЛАКО LIVE", "НОВОСТИ", "СЮЖЕТ", "КРОТ", "DJ FLÜRR", "СОБЫТИЯ", "КОНЦОВКИ"], "разделы архива: %s" % ", ".join(heads))
-	await wait(0.3)
-	await shot("h07_archive")
+	var AU = G.hub_ui
+	ok(AU is G67ArchiveUI and AU.tvs.size() == 12 and AU.tapes.size() == G67Data.KROT.size() + G67Flurr.STATES.size(), "стена из 12 телевизоров и %d кассет" % AU.tapes.size())
+	var locked_ok := true
+	var open_ok := true
+	for i in AU.tvs.size():
+		var r: Dictionary = AU.recs[i]
+		var st := String((AU.tvs[i] as G67ArchTV).state)
+		if r["type"] == "clip":
+			if G.clip_open(String(r["id"])) != (st != "lock"):
+				open_ok = false
+			if st != "lock" and not ResourceLoader.exists(String(r["preview"])):
+				open_ok = false
+		elif st != "lock":
+			locked_ok = false
+	ok(open_ok, "открытые ролики горят своим стоп-кадром, неоткрытые — на цепи (как clip_open)")
+	ok(locked_ok, "события и концовки — запертые телевизоры")
+	await wait(1.6)
+	await shot("h08_archive")
+	# запертый телевизор не запускается
+	var li := -1
+	for i in AU.tvs.size():
+		if (AU.tvs[i] as G67ArchTV).state == "lock":
+			li = i
+			break
+	AU.select(li)
+	await key(KEY_ENTER)
+	await wait(0.2)
+	ok(G.clip == null and AU.mode == "list", "запертый телевизор не включается")
+	await shot("h08b_archive_locked")
+	# просмотр: Enter → ролик тем же плеером, по окончании — архив у того же телевизора
+	AU.select(0)
+	await key(KEY_ENTER)
+	ok(await until(func(): return G.clip != null, 2.0) and not AU.visible, "Enter на открытом телевизоре — ролик, архив спрятан")
+	G.clip.skippable = true
+	G.clip.skip()
+	ok(await until(func(): return G.clip == null and AU.visible and AU.mode == "list", 3.0) and AU.sel == 0, "после ролика — снова архив, у того же телевизора")
+	# кассета: разговор целиком
+	var ti := -1
+	for i in range(AU.tvs.size(), AU.recs.size()):
+		if bool(AU.recs[i].get("has", false)):
+			ti = i
+			break
+	if ti >= 0:
+		AU.select(ti)
+		await key(KEY_ENTER)
+		await wait(0.3)
+		ok(AU.mode == "read" and AU.r_rows.size() == (AU.recs[ti]["lines"] as Array).size(), "кассета: разговор целиком, %d реплик" % AU.r_rows.size())
+		await shot("h08c_tape")
+		await key(KEY_ESCAPE)
+		await wait(0.2)
+		ok(AU.mode == "list", "Esc — обратно к полке")
 	await key(KEY_ESCAPE)
 	await until(func(): return G.hub_ui == null, 1.0)
 	G.meta()["clips_seen"] = cs0
@@ -1147,6 +1234,32 @@ func _hub_screens(g, G: Golda67, P) -> void:
 	P.max_hp = G.hp_max()
 	P.hp = P.max_hp
 	P.dmg_mul = 1.0
+
+## --g67-frames=<папка>: каждый ролик главы 1 — кадр каждые 0,5 с без субтитров (с плашками ролика), для выбора
+## стоп-кадра телевизора в «АРХИВЕ ПИЗДЕЦА» (готовые превью — assets/golda67/archive/<ID>.jpg)
+func _clip_frames(G: Golda67, dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	for cid in G67Clips.ORDER:
+		var c := G67ClipPlayer.open(G.game, cid, true)
+		var n := 0
+		while is_instance_valid(c) and not c.done:
+			c.sub_text.visible = false
+			c.sub_name.visible = false
+			c.hint.visible = false
+			await wait(0.5)
+			if not is_instance_valid(c) or c.done:
+				break
+			await RenderingServer.frame_post_draw
+			if not is_instance_valid(c):
+				break
+			var img := get_viewport().get_texture().get_image()
+			var r := Rect2i(get_viewport().get_final_transform() * c.frame.get_global_rect()).intersection(Rect2i(Vector2i.ZERO, img.get_size()))
+			var cut := img.get_region(r)
+			cut.resize(480 if not c.tall else 270, 270 if not c.tall else 480, Image.INTERPOLATE_BILINEAR)
+			cut.save_png(dir.path_join("%s_%03d.png" % [cid, n]))
+			n += 1
+		print("GOLDA67CHECK   кадры %s: %d" % [cid, n])
+		await wait(0.3)
 
 ## убить всех живых врагов (бой проверяют проверки боя; здесь — цикл комнат)
 func _kill_all(g) -> void:
