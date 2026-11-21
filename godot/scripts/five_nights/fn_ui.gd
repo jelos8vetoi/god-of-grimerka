@@ -17,12 +17,13 @@ uniform sampler2D scr : hint_screen_texture, filter_linear_mipmap;
 uniform float fx = 1.0;
 uniform float t = 0.0;
 uniform float hurt = 0.0;        // всплеск искажения (скример, одержимость)
+uniform float booth = 0.0;        // в будке различимы краска, лампы и тени в проёмах
 uniform float dark = 0.0;
 uniform float inv = 0.0;         // вывернутые цвета (скример GHOST)
 float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void fragment() {
 	vec2 uv = SCREEN_UV;
-	float ab = (0.0015 + hurt * 0.012) * fx;
+	float ab = (mix(0.0015, 0.00042, booth) + hurt * 0.012) * fx;
 	vec3 c;
 	c.r = texture(scr, uv + vec2(ab, 0.0)).r;
 	c.g = texture(scr, uv).g;
@@ -30,13 +31,13 @@ void fragment() {
 	float l = dot(c, vec3(0.3, 0.59, 0.11));
 	float red = clamp((c.r - max(c.g, c.b)) * 2.2, 0.0, 1.0);
 	vec3 mono = vec3(l) * vec3(1.02, 0.99, 0.94);
-	vec3 col = mix(mono, vec3(c.r * 1.1, c.g * 0.35, c.b * 0.3), red);
+	vec3 col = mix(mix(mono, c, booth * 0.60), vec3(c.r * 1.1, c.g * 0.35, c.b * 0.3), red);
 	// полутон в тенях: точки решёткой
 	vec2 g = FRAGCOORD.xy / 5.0;
 	float dotm = length(fract(g) - 0.5);
 	float shade = smoothstep(0.32, 0.0, l);
-	col *= 1.0 - shade * smoothstep(0.18, 0.42, dotm) * 0.55 * fx;
-	col += (h(FRAGCOORD.xy + t * 61.0) - 0.5) * 0.07 * fx;
+	col *= 1.0 - shade * smoothstep(0.18, 0.42, dotm) * mix(0.55, 0.32, booth) * fx;
+	col += (h(FRAGCOORD.xy + t * 61.0) - 0.5) * mix(0.07, 0.035, booth) * fx;
 	vec2 d = SCREEN_UV - 0.5;
 	col *= 1.0 - dot(d, d) * (1.1 + dark * 1.5);
 	col = mix(col, col * vec3(1.3, 0.5, 0.45), hurt * 0.4);
@@ -603,6 +604,7 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 	post_mat.set_shader_parameter("t", t)
 	post_mat.set_shader_parameter("fx", fx_k)
 	post_mat.set_shader_parameter("hurt", maxf(hurt, g.haunt * 0.6))
+	post_mat.set_shader_parameter("booth", 1.0 if root.state == "night" and not st.monitor else 0.0)
 	post_mat.set_shader_parameter("dark", 1.0 if st.power_out else 0.0)
 	inv_t = maxf(0.0, inv_t - dt)
 	post_mat.set_shader_parameter("inv", 1.0 if neg or (inv_t > 0.0 and fposmod(t, 0.12) < 0.08) else 0.0)

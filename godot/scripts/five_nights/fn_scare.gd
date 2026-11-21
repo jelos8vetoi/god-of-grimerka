@@ -81,6 +81,7 @@ func _process(dt: float) -> void:
 func setup(r) -> void:
 	root = r
 	office = r.office
+	cam_from = office.rest_view
 	actors = r.actors
 
 ## позиция перед глазами: вперёд на d, сдвиг вбок x, высота y
@@ -105,7 +106,7 @@ func play(eid: String, at: String, pre: int) -> void:
 			pass
 		1:                                          # лампа мигает и гаснет
 			for k in 4:
-				office.lamp.light_energy = 0.0 if k % 2 == 0 else 0.6
+				office.set_lamp_energy(0.0 if k % 2 == 0 else 0.6)
 				await _wait(0.09)
 			await _wait(0.25)
 		_:                                          # быстрые шаги
@@ -147,7 +148,7 @@ func _hit(scream: String, lamp_col: Color, fov_to := 58.0) -> void:
 	scream_len = root.scream(scream.trim_prefix("scream_"))          # крик — в тот же кадр, что и рывок
 	aim_id = scare_id
 	office.lamp.light_color = lamp_col
-	office.lamp.light_energy = 3.2
+	office.set_lamp_energy(3.2)
 	office.scare_light.light_color = Color(1.0, 0.95, 0.9).lerp(lamp_col, 0.45)
 	office.scare_light.light_energy = 4.0
 	office.shake = 1.6
@@ -244,7 +245,7 @@ func _bot(r: Rig) -> void:
 	# кадр заедает: анимация рывками
 	for k in 9:
 		r.player.speed_scale = 0.0 if k % 2 == 0 else 3.0
-		office.lamp.light_energy = 3.0 if k % 2 == 0 else 0.2
+		office.set_lamp_energy(3.0 if k % 2 == 0 else 0.2)
 		root.ui.hurt = 1.0
 		await _wait(0.07)
 	r.player.speed_scale = 1.0
@@ -275,7 +276,7 @@ func _clipper(r: Rig) -> void:
 
 # ---------------- GHOST ----------------
 func _ghost(r: Rig) -> void:
-	office.lamp.light_energy = 0.15
+	office.set_lamp_energy(0.15)
 	_face_cam(r, _front(1.7, 0.1, -1.25))
 	r.play_for("FNScare", 1.4, 0.0)
 	root.sfx2("whisper", 0.0)
@@ -318,7 +319,7 @@ func pahan(lethal := false) -> void:
 	root.sfx2("heart", -6.0, 0.8)
 	await _wait(0.5)
 	office.reflection.visible = false
-	office.lamp.light_energy = 0.0
+	office.set_lamp_energy(0.0)
 	root.ui.neg = true
 	var look := create_tween()
 	look.tween_property(office.cam, "rotation", Vector3(-0.05, 0.0, 0.0), 0.1)
@@ -344,9 +345,9 @@ func pahan(lethal := false) -> void:
 		r.visible = false
 		actors.maw("pahan", 0.0)
 		office.scare_light.light_energy = 0.0
-		office.cam.fov = 74.0
+		office.cam.fov = office.rest_fov
 		office.cam.transform = cam_from
-		office.lamp.light_energy = office.lamp_base
+		office.set_lamp_energy(office.lamp_base)
 	busy = false
 
 ## вернуть всё, что трогал скример
@@ -354,10 +355,10 @@ func restore() -> void:
 	aim_id = ""
 	root.hush_end()
 	office.scare_light.light_energy = 0.0
-	office.cam.fov = 74.0
+	office.cam.fov = office.rest_fov
 	office.cam.transform = cam_from
-	office.lamp.light_color = Color(1.0, 0.88, 0.7)
-	office.lamp.light_energy = office.lamp_base
+	office.lamp.light_color = office.lamp_tint
+	office.set_lamp_energy(office.lamp_base)
 	office.hatch.rotation.x = 0.0
 	for id in actors.rigs:
 		actors.maw(id, 0.0)
