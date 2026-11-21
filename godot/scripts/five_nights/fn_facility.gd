@@ -1,6 +1,6 @@
 ## Помещения «ОБЛАКО — ЦЕНТР РАЗВЛЕЧЕНИЙ И ХРАНЕНИЯ ДАННЫХ», которые видно на камерах: главный зал со сценой,
 ## игровая зона с автоматами, склад маскотов, серверная, узел вентиляции, комната питания, служебка (видна из правого
-## коридора) и «комната 9», которой нет на плане. Коридоры 4 и 5 построены у офиса (FNOffice) — здесь их обстановка.
+## коридора) и «комната 9», которой нет на плане. Коридоры 4 и 5 подходят к нишам редактируемой будки.
 ## Модели — MGModels: .glb владельца из godot/assets/minigames (tools/tripo-minigames.json), а пока его нет —
 ## собранные кодом (MGProps). У каждой комнаты свой свет, своя история в предметах, своя камера (точка, куда смотрит,
 ## размах поворота sway) и места для врагов. Для аномалий камер (FNAnomaly) комнаты отдают: свет (lights), силуэт в
@@ -17,14 +17,13 @@ var lights := {}                   # id комнаты → Array[Light3D] (дл�
 var figures := {}                  # id комнаты → силуэт в углу (скрыт)
 var movable := {}                  # id комнаты → [узел, другое положение, другой поворот]
 var heads := {}                    # id комнаты → Array[Node3D] (головы маскотов)
-var fan_blades: Node3D             # вентилятор на столе охранника
 var gauges: Array = []
 var balloons: Array = []
 var t := 0.0
 
 func build(o: FNOffice) -> void:
 	office = o
-	_office_dress()
+	_figure("office", Vector3(-0.45, 0, 1.25), PI)   # аномалия камеры за спиной охранника
 	_stage(Vector3(60, 0, 0))
 	_arcade(Vector3(85, 0, 0))
 	_storage(Vector3(110, 0, 0))
@@ -134,76 +133,21 @@ func _lamp_row(room: String, o: Vector3, y: float, xs: Array, c: Color) -> void:
 		var d := MGProps.strip_lamp(n, 1.2, c)
 		blink.append(d["tube"])
 
-# ---------------- будка охранника: обстановка вокруг стола ----------------
-func _office_dress() -> void:
-	var W := FNOffice.W
-	if office.desk_model != null:
-		# пульт из файла уже со своим вентилятором и вторым монитором: на маленьком мониторе — помехи поверх стекла
-		var sm := MGProps.screen_mat(Color(0.6, 0.85, 0.7), 2.0, 3.0, 1.2)
-		MGProps.quad(self, office.du(Vector3(0.293, 0.617, -0.075)), Vector2(0.155, 0.13) * FNOffice.DESK_K, sm, Vector3(0, -0.12, 0))
-		screens.append(sm)
-	else:
-		# вентилятор на столе: лопасти крутятся (tick)
-		var fan := node(Vector3(0.88, 0.81, -1.28), -0.5)
-		MGProps.cyl(fan, Vector3(0, 0.01, 0), 0.07, 0.08, 0.02, MGProps.mat("plastic"))
-		MGProps.cyl(fan, Vector3(0, 0.12, 0), 0.012, 0.012, 0.22, MGProps.mat("plastic"))
-		MGProps.cyl(fan, Vector3(0, 0.25, 0.0), 0.05, 0.05, 0.08, MGProps.mat("plastic"), Vector3(PI / 2, 0, 0))
-		var cage := MeshInstance3D.new()
-		var tm := TorusMesh.new()
-		tm.inner_radius = 0.12
-		tm.outer_radius = 0.13
-		cage.mesh = tm
-		cage.material_override = MGProps.mat("steel")
-		cage.position = Vector3(0, 0.25, 0.06)
-		cage.rotation.x = PI / 2
-		fan.add_child(cage)
-		fan_blades = node(Vector3(0, 0.25, 0.06), 0.0, fan)
-		for k in 3:
-			MGProps.box(fan_blades, Vector3(0, 0, 0), Vector3(0.22, 0.05, 0.005), MGProps.mat("plastic"), Vector3(0, 0, k * TAU / 3.0))
-		# второй монитор слева — помехи
-		var crt := node(Vector3(-1.0, 0.81, -1.3), 0.35)
-		crt.scale = Vector3.ONE * 0.7
-		var c := MGProps.crt(crt, Color(0.6, 0.85, 0.7), 2.0, 3.0)
-		screens.append(c["screen"])
-		# стикеры на рамке монитора
-		for k in 3:
-			MGProps.box(self, Vector3(-0.28 + k * 0.05, 1.33 - k * 0.02, -0.845), Vector3(0.05, 0.05, 0.002), MGProps._yellow() if k != 1 else MGProps.mat("red"), Vector3(0, 0, 0.1 * k - 0.1))
-		# кабели от монитора вниз за стол
-		for k in 3:
-			MGProps.cable(self, Vector3(-0.15 + k * 0.12, 0.95, -1.45), Vector3(-0.4 + k * 0.3, 0.02, -1.55), 0.25, 0.012, MGProps.mat("rubber") if k != 1 else MGProps.mat("red_dark"))
-	# часы, плакат, камера в углу, решётка вентиляции на потолке
-	var clock := node(Vector3(-1.62, 2.12, -1.69))
-	MGProps.cyl(clock, Vector3.ZERO, 0.14, 0.14, 0.03, MGProps.mat("plastic"), Vector3(PI / 2, 0, 0))
-	MGProps.box(clock, Vector3(0, 0.04, 0.02), Vector3(0.012, 0.09, 0.005), MGProps.mat("black"))
-	MGProps.box(clock, Vector3(0.03, 0, 0.02), Vector3(0.07, 0.01, 0.005), MGProps.mat("red"), Vector3(0, 0, 0.6))
-	var pst := node(Vector3(-1.62, 1.35, -1.69))
-	MGProps.poster(pst, "БАЛОН —\nЛИЦО\nОБЛАКА", "Улыбайся. Он видит.", Color(0.75, 0.05, 0.05), 0.5, 0.7)
-	var cctv := node(Vector3(W - 0.25, 2.55, -1.5), PI * 0.8)
-	MGProps.box(cctv, Vector3(0, 0, 0), Vector3(0.1, 0.1, 0.24), MGProps.mat("plastic"), Vector3(0.4, 0, 0))
-	MGProps.cyl(cctv, Vector3(0, -0.04, 0.12), 0.035, 0.035, 0.03, MGProps.mat("black"), Vector3(PI / 2 + 0.4, 0, 0))
-	var rec := MGProps.glow(Color(1, 0.05, 0.05), 3.0)
-	MGProps.ball(cctv, Vector3(0.04, 0.04, 0.12), 0.01, rec)
-	blink.append(rec)
-	var grill := node(Vector3(0.6, 2.69, 0.7))
-	grill.rotation.x = PI / 2
-	MGProps.vent_grill(grill, 0.6, 0.45)
-	# правая стена за проёмом: огнетушитель и щиток
-	var ext := node(Vector3(W - 0.15, 0.0, 1.05), -PI / 2)
-	MGProps.cyl(ext, Vector3(0, 0.3, 0), 0.08, 0.08, 0.55, MGProps.mat("red"))
-	MGProps.cyl(ext, Vector3(0, 0.62, 0), 0.03, 0.04, 0.1, MGProps.mat("black"))
-	var fp := node(Vector3(W - 0.08, 1.5, 0.95), -PI / 2)
-	for l in MGProps.fuse_panel(fp, "БУДКА"):
-		blink.append(l)
-	# корзина с бумагами под столом
-	var bin := node(Vector3(1.45, 0, -1.25))
-	MGProps.cyl(bin, Vector3(0, 0.17, 0), 0.15, 0.12, 0.34, MGProps.mat("metal"))
-	for k in 3:
-		MGProps.ball(bin, Vector3(-0.05 + k * 0.05, 0.33, 0.02 * k), 0.05, MGProps.mat("paper"), Vector3(1, 0.7, 1.1))
-	MGProps.litter(node(Vector3(0.2, 0, 0.6)), 5, 0.9, 3)
-	_figure("office", Vector3(-0.45, 0, 1.25), PI)       # аномалия «self»: стоит за спиной (видно только с камеры)
-
 # ---------------- коридоры у офиса: свет, кабели, двери, история ----------------
 func _hall(s: float, x: float, id: String) -> void:
+	# От поворота за нишей до CAM 4/5. Ближняя стена закрывает обзор за угол.
+	var inner := s * (FNOffice.W + 0.85)
+	office.box(Vector3(x, -0.05, -5.425), Vector3(1.3, 0.1, 8.75), m("floor"), self)
+	office.box(Vector3(x, 2.55, -5.2), Vector3(1.3, 0.1, 9.2), m("black"), self)
+	office.box(Vector3(inner, 1.25, -5.6), Vector3(0.1, 2.5, 8.4), m("wall"), self)
+	office.box(Vector3(s * (FNOffice.W + 2.25), 1.25, -5.2), Vector3(0.1, 2.5, 9.2), m("wall"), self)
+	office.box(Vector3(x, 1.25, -9.85), Vector3(1.3, 2.5, 0.1), m("wall"), self)
+	var hall_lamp := OmniLight3D.new()
+	hall_lamp.position = Vector3(x, 2.3, -6.0)
+	hall_lamp.omni_range = 4.5
+	hall_lamp.light_energy = 0.25
+	hall_lamp.light_color = Color(0.75, 0.8, 0.7)
+	add_child(hall_lamp)
 	var wall_out := s * (FNOffice.W + 2.2)          # внешняя стена коридора (видна на камере)
 	var face := -PI / 2 if s > 0 else PI / 2          # лицом в коридор
 	for z in [-3.0, -7.0]:
@@ -519,8 +463,6 @@ func tick(dt: float) -> void:
 			(s as ShaderMaterial).set_shader_parameter("energy", 1.1 + 0.4 * sin(t * (5.0 + i)) * randf())
 		elif s is StandardMaterial3D:
 			(s as StandardMaterial3D).emission_energy_multiplier = 0.9 + 0.5 * sin(t * (7.0 + i)) * randf()
-	if fan_blades != null:
-		fan_blades.rotation.z += dt * 18.0
 	for g in gauges:
 		(g as Node3D).rotation.z = sin(t * 1.3 + float(gauges.find(g))) * 0.6
 	for i in balloons.size():
