@@ -51,6 +51,8 @@ var ring_cd := 0.0
 var tip_prev := Vector3.ZERO  # конец оружия на прошлом кадре (для sweep)
 var tip_ok := false
 var ammo := {}                # id стиля → запас (бутылки)
+var cd_k := 1.0               # множитель перезарядок приёмов (артефакты и улучшения приквела; в кампании 1)
+var ammo_k := 1.0             # множитель времени восстановления запаса (меньше — быстрее)
 var ammo_msg := -9.0
 var last_hits := 0            # сколько целей задел последний момент попадания (для проверок)
 
@@ -65,7 +67,7 @@ func tick(dt: float) -> void:
 	for id in ammo:
 		var st: StyleData = Styles.by_id(id)
 		if st.ammo_regen > 0.0 and float(ammo[id]) < st.ammo_max:
-			ammo[id] = min(float(st.ammo_max), float(ammo[id]) + dt / st.ammo_regen)
+			ammo[id] = min(float(st.ammo_max), float(ammo[id]) + dt / (st.ammo_regen * ammo_k))
 
 func ammo_of(id: String) -> float:
 	if not ammo.has(id):
@@ -198,7 +200,7 @@ func _launch(a: AttackData, chained: bool) -> void:
 	p.trail.boost = a.trail_boost
 	p.trail.set_color(style.color_hot if a.power >= 2 or p.rage > 0.0 or p.swag >= 70.0 else style.color)   # высокий СВЭГ — след раскалён
 	if a.cooldown > 0.0:
-		cooldowns[a.id] = clock + a.cooldown
+		cooldowns[a.id] = clock + a.cooldown * cd_k
 	attack_started.emit(a)
 
 func _begin_charge(a: AttackData) -> void:

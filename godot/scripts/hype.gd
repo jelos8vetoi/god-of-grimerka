@@ -48,6 +48,7 @@ var recent: Array = []            # последние удары: одинак�
 var tired := {}                   # источник → [когда был, сколько раз подряд]
 var seen := {"breaker": 0, "skate": 0, "guitar": 0, "tag": 0}
 var on := false
+var gain_k := 1.0             # множитель накопления (артефакт «Энергетик» в приквеле)
 var t := 0.0
 var beat_i := 0
 var targets: Array = []
@@ -86,7 +87,7 @@ func gain(src: String, mul := 1.0) -> float:
 	if tired.has(src) and now - float(tired[src][0]) < FATIGUE:
 		n = int(tired[src][1]) + 1
 	tired[src] = [now, n]
-	var v: float = float(GAIN[src]) * mul * pow(0.5, n) if src != "attack" and src != "beat" and src != "air" else float(GAIN[src]) * mul
+	var v: float = (float(GAIN[src]) * mul * pow(0.5, n) if src != "attack" and src != "beat" and src != "air" else float(GAIN[src]) * mul) * gain_k
 	value = min(MAX, value + v)
 	idle_t = 0.0
 	log_gain.append([src, v])

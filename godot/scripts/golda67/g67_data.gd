@@ -3,10 +3,10 @@
 class_name G67Data
 extends RefCounted
 
-## Типы комнат (SPEC, раздел 9). Сделаны: BATTLE, ELITE, FIT, BREAK, BOSS. Не сделаны: STORAGE, KIOSK, EVENT.
-const ROOM_NAMES := {"battle": "БОЙ", "elite": "ЭЛИТА", "fit": "ФИТС", "break": "ПЕРЕДЫШКА", "boss": "БОСС"}
-const ROOM_HINT := {"battle": "голда", "elite": "редкий фитс и голда", "fit": "выбор фитса", "break": "лечение", "boss": "Миша Минасян"}
-const ROOM_COLOR := {"battle": Color(0.95, 0.3, 0.25), "elite": Color(1.0, 0.55, 0.15), "fit": Color(1.0, 0.8, 0.2), "break": Color(0.45, 0.9, 0.55), "boss": Color(0.85, 0.15, 0.2)}
+## Типы комнат (SPEC, раздел 9). Сделаны: BATTLE, ELITE, FIT, STORAGE, KIOSK, BREAK, BOSS. Не сделан: EVENT (этап 4).
+const ROOM_NAMES := {"battle": "БОЙ", "elite": "ЭЛИТА", "fit": "ФИТС", "storage": "КЛАДОВКА", "kiosk": "ЛАРЁК", "break": "ПЕРЕДЫШКА", "boss": "БОСС"}
+const ROOM_HINT := {"battle": "голда", "elite": "редкий фитс и голда", "fit": "выбор фитса", "storage": "артефакт: один из двух", "kiosk": "«ШАУРМА 67» за голду", "break": "лечение", "boss": "Миша Минасян"}
+const ROOM_COLOR := {"battle": Color(0.95, 0.3, 0.25), "elite": Color(1.0, 0.55, 0.15), "fit": Color(1.0, 0.8, 0.2), "storage": Color(0.55, 0.75, 0.95), "kiosk": Color(0.95, 0.65, 0.3), "break": Color(0.45, 0.9, 0.55), "boss": Color(0.85, 0.15, 0.2)}
 
 ## Враги района: вид для ИИ (kind из enemy.KINDS) и облик (skin из enemy.SKINS)
 const FOES := {
@@ -23,8 +23,8 @@ const DISTRICTS := {
 		"route": [
 			[{"type": "battle", "place": "podezd"}],
 			[{"type": "battle", "place": "garages"}, {"type": "fit", "place": "playground"}],
-			[{"type": "elite", "place": "parking"}, {"type": "battle", "place": "playground"}],
-			[{"type": "fit", "place": "garages"}, {"type": "battle", "place": "parking"}],
+			[{"type": "elite", "place": "parking"}, {"type": "storage", "place": "garages"}],
+			[{"type": "kiosk", "place": "parking"}, {"type": "battle", "place": "garages"}],
 			[{"type": "break", "place": "gazebo"}],
 			[{"type": "boss", "place": "sport"}],
 		],
@@ -96,8 +96,8 @@ const FITS := {
 	"heavy_hand": {"family": "misha", "name": "ТЯЖЁЛАЯ РУКА", "desc": "Весь урон +12% за уровень.", "lv": 3, "rare": false},
 	"authority": {"family": "misha", "name": "АВТОРИТЕТ", "desc": "Максимум здоровья +20 за уровень, сразу лечит на столько же.", "lv": 3, "rare": false},
 	"gold_chain": {"family": "misha", "name": "ЦЕПЬ НА УДАЧУ", "desc": "Голды с врагов и комнат +25% за уровень.", "lv": 3, "rare": false},
-	"finisher": {"family": "misha", "name": "ДОБИВАЛА", "desc": "Каждый поверженный враг лечит на 3 здоровья за уровень.", "lv": 3, "rare": false},
-	"second_wind": {"family": "misha", "name": "ВТОРОЕ ДЫХАНИЕ", "desc": "Раз за комнату: здоровье упало ниже 30% — лечит на 25 за уровень.", "lv": 2, "rare": true},
+	"finisher": {"family": "misha", "name": "ДОБИВАЛА", "desc": "Поверженный враг лечит на 3 / 6 / 9 (элитный — втрое), не больше 25 / 40 / 55 за комнату; босс и призванные не считаются.", "lv": 3, "rare": false},
+	"second_wind": {"family": "misha", "name": "ВТОРОЕ ДЫХАНИЕ", "desc": "Раз за комнату (и в комнате босса): удар оставил меньше 30 % здоровья — лечит на 25 / 40. От смертельного не спасает.", "lv": 2, "rare": true},
 }
 const FAMILY_NAMES := {"misha": "МИША МИНАСЯН"}
 const FAMILY_COLOR := {"misha": Color(0.85, 0.63, 0.23)}
@@ -110,7 +110,30 @@ const RESPECT := {"room": 2, "elite": 5, "boss": 20, "boss_first": 40}
 ## Миши край — это калитка в борту: герой стоял в ней, камера оставалась за бортом и Мишу заслоняла калитка.
 const ENTRY_Z := {"sport": 5.0}
 const ENTRY_Z_DEFAULT := 10.5
-const ROOM_GOLDA := {"battle": 12, "elite": 30, "fit": 0, "break": 0, "boss": 67}
+## Фитсы Миши по утверждённой таблице (APPROVALS.md, 2.1)
+const FINISHER_HEAL := [3.0, 6.0, 9.0]     # ДОБИВАЛА: лечение за поверженного врага по уровню
+const FINISHER_ELITE := 3.0                # элитный — втрое больше
+const FINISHER_CAP := [25.0, 40.0, 55.0]   # не больше за одну комнату
+const WIND_HEAL := [25.0, 40.0]            # ВТОРОЕ ДЫХАНИЕ: лечение по уровню (раз за комнату, здоровье ниже 30 %)
+const WIND_AT := 0.3
+
+## Ларёк «ШАУРМА 67» (APPROVALS.md, 2.2): товар → цена, эффект, сколько за посещение
+const KIOSK := [
+	{"id": "shawarma", "name": "ШАУРМА", "price": 35, "per_visit": 2, "desc": "Восстанавливает 40 здоровья."},
+	{"id": "double", "name": "ДВОЙНАЯ ШАУРМА", "price": 60, "per_visit": 1, "desc": "Восстанавливает 40 здоровья и +15 к максимуму здоровья до конца забега."},
+	{"id": "togo", "name": "С СОБОЙ", "price": 75, "per_visit": 1, "desc": "Случайный фитс из тех, что ещё можно взять или улучшить (15 % — редкий)."},
+]
+const KIOSK_HEAL := 40.0
+const KIOSK_MAXHP := 15.0
+const KIOSK_RARE := 0.15
+
+## Артефакты (APPROVALS.md, 2.3): слотов 3 (+1 за уровень «СЛОТОВ АРТЕФАКТОВ»), в кладовке — один из двух;
+## событийные в кладовке не лежат; «Вторая симка» — после первой концовки, «Автотюн» — когда открыты два стиля
+const ART_SLOTS := 3
+const ART_EVENT := ["garlic_aura", "hamster_aura", "collar_67"]
+const DMG_CAP_ALL := 2.0                   # общий потолок урона от фитсов и артефактов вместе
+
+const ROOM_GOLDA := {"battle": 12, "elite": 30, "fit": 0, "storage": 0, "kiosk": 0, "break": 0, "boss": 67}
 const BREAK_HEAL := 0.45      # доля максимума здоровья
 
 static func district(id: String) -> Dictionary:
@@ -130,11 +153,11 @@ static func waves_for(d: Dictionary, type: String, pos: int) -> Array:
 const UPGRADES := [
 	{"id": "hp", "name": "ЗДОРОВЬЕ", "max": 5, "per": "+10 к максимуму здоровья", "live": true},
 	{"id": "dmg", "name": "УРОН", "max": 5, "per": "+4 % урона", "live": true},
-	{"id": "res", "name": "ВОССТАНОВЛЕНИЕ", "max": 3, "per": "перезарядки и боезапас −8 %", "live": false, "wait": "вместе с артефактами (этап 3)"},
-	{"id": "heal", "name": "ВАРИАНТЫ ЛЕЧЕНИЯ", "max": 2, "per": "+1 вариант на передышке", "live": false, "wait": "вместе с ларьком «ШАУРМА 67» (этап 3)"},
+	{"id": "res", "name": "ВОССТАНОВЛЕНИЕ", "max": 3, "per": "перезарядки и боезапас −8 %", "live": true},
+	{"id": "heal", "name": "ВАРИАНТЫ ЛЕЧЕНИЯ", "max": 2, "per": "+1 вариант на передышке", "live": false, "wait": "когда владелец утвердит варианты лечения на передышке"},
 	{"id": "rare", "name": "РЕДКИЕ ФИТСЫ", "max": 3, "per": "+6 % к шансу редкого фитса", "live": true},
 	{"id": "reroll", "name": "ПОВТОРНЫЙ ВЫБОР", "max": 2, "per": "+1 перевыбор фитса за забег", "live": true},
-	{"id": "slots", "name": "СЛОТЫ АРТЕФАКТОВ", "max": 2, "per": "слотов 3 → 4 → 5", "live": false, "wait": "вместе с кладовкой (этап 3)"},
+	{"id": "slots", "name": "СЛОТЫ АРТЕФАКТОВ", "max": 2, "per": "слотов 3 → 4 → 5", "live": true},
 	{"id": "gold", "name": "СТАРТОВАЯ ГОЛДА", "max": 3, "per": "+30 голды в начале забега", "live": true},
 	{"id": "routes", "name": "ОТКРЫТИЕ МАРШРУТОВ", "max": 3, "per": "старт с района 2 / 3 / 4", "live": false, "wait": "когда откроются ПОДЗЕМКА, ЛЕНТА и БОТОФЕРМА"},
 ]
