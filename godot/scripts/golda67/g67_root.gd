@@ -108,9 +108,9 @@ func enter_hub() -> void:
 	run = {}
 	_swap_world(func(w: G67World): w.build("g67_hub"))
 	var p = game.player
-	p.max_hp = base_hp
+	p.max_hp = hp_max()
 	p.hp = p.max_hp
-	p.dmg_mul = 1.0
+	p.dmg_mul = 1.0 + 0.04 * float(up("dmg"))
 	p.global_position = world.spawn_pos
 	p.velocity = Vector3.ZERO
 	p.face = 0.0                 # вошёл с улицы: лицом в холл, к лестнице
@@ -124,6 +124,7 @@ func enter_hub() -> void:
 	game.fx.prewarm(p.global_position)
 	_build_prompt()
 	_place_krot("hub")
+	_hub_marks()
 	events.append(["enter", "hub"])
 	await game.get_tree().process_frame
 	game.banner(TITLE, "ПОДЪЕЗД · РЕСПЕКТ: %d" % int(meta().get("respect", 0)), Color(1.0, 0.8, 0.2), 3.5)
@@ -176,13 +177,17 @@ func start_run(district_id := "dvor") -> void:
 	if busy:
 		return
 	place = "run"
-	run = {"district": district_id, "pos": 0, "golda": 0, "fits": {}, "respect": 0, "rooms": 0}
+	run = {"district": district_id, "pos": 0, "golda": 30 * up("gold"), "fits": {}, "respect": 0, "rooms": 0, "rerolls": up("reroll")}
+	var ss := start_style()
+	if game.player.hero == "pahan" and String(game.player.style.id) != ss:
+		game.player.set_style(ss)
 	G67Yard.secret_tag = bool((meta().get("flags", {}) as Dictionary).get("boss_misha", false))      # граффити-секрет — после победы над Мишей
 	G67Yard.crowd_seed = int(meta().get("runs", 0)) * 31 + int(meta().get("visits", 0)) + 1      # очередь у ларька — каждый забег другая
 	game.buddy.visible = false
 	game.buddy.global_position = Vector3(0, -50, 0)
 	events.append(["run", district_id])
 	unlock_clip("CL01")                      # «КАК ЗАЙТИ ВО ДВОР» — в архив после входа во ДВОР
+	apply_fits()
 	var d := G67Data.district(district_id)
 	await enter_room((d["route"] as Array)[0][0])
 
@@ -242,6 +247,124 @@ func resume_run() -> void:
 	var d := district()
 	game.banner("%s · %d / %d" % [String(d["name"]), int(run["pos"]) + 1, (d["route"] as Array).size()], "ЗАБЕГ ПРОДОЛЖАЕТСЯ", Color(1.0, 0.8, 0.2), 2.4)
 	busy = false
+
+# ---------------------------------------------------------------- АВТОРИТЕТ РАЙОНА и стойка стилей
+## Уровень улучшения (meta["up"]); цена следующего уровня; покупка за РЕСПЕКТ — только у работающих веток
+func up(id: String) -> int:
+	return int((meta().get("up", {}) as Dictionary).get(id, 0))
+
+func up_info(id: String) -> Dictionary:
+	for u in G67Data.UPGRADES:
+		if String(u["id"]) == id:
+			return u
+	return {}
+
+func up_cost(id: String) -> int:
+	return int(G67Data.UP_COST[clampi(up(id), 0, G67Data.UP_COST.size() - 1)])
+
+func buy_up(id: String) -> bool:
+	var u := up_info(id)
+	if u.is_empty() or not bool(u["live"]) or up(id) >= int(u["max"]):
+		return false
+	var cost := up_cost(id)
+	if int(meta().get("respect", 0)) < cost:
+		return false
+	meta()["respect"] = int(meta()["respect"]) - cost
+	var ups: Dictionary = meta().get("up", {})
+	ups[id] = up(id) + 1
+	meta()["up"] = ups
+	save()
+	events.append(["up", id, int(ups[id])])
+	if place == "hub":
+		var p = game.player
+		p.max_hp = hp_max()
+		p.hp = p.max_hp
+		p.dmg_mul = 1.0 + 0.04 * float(up("dmg"))
+	return true
+
+## Здоровье героя в приквеле до фитсов: своё + «ЗДОРОВЬЕ» из АВТОРИТЕТА РАЙОНА
+func hp_max() -> float:
+	return base_hp + 10.0 * float(up("hp"))
+
+## С каким стилем Пахан выходит в забег (стойка стилей); закрытый стиль не выбирается
+func start_style() -> String:
+	var s := String(meta().get("start_style", "vozduh"))
+	return s if styles_open().has(s) else "vozduh"
+
+func set_start_style(sid: String) -> void:
+	if not styles_open().has(sid):
+		return
+	meta()["start_style"] = sid
+	save()
+	events.append(["start_style", sid])
+	if game.player.hero == "pahan":
+		game.player.set_style(sid)
+
+# ---------------------------------------------------------------- значки в подъезде
+## Над dj flürr — «новый разговор», над телевизором — «новое» (непросмотренный ролик); КРОТ найден — карточка
+var mark_talk: Sprite3D
+var mark_tv: Sprite3D
+
+func _hub_marks() -> void:
+	mark_talk = null
+	mark_tv = null
+	if place != "hub" or world == null:
+		return
+	var fr = world.actors.get("g67_dj_flurr")
+	if fr != null and is_instance_valid(fr):
+		mark_talk = G67Icons.sprite("icon_new_talk", 0.0011)
+		if mark_talk != null:
+			world.add_child(mark_talk)
+			mark_talk.global_position = (fr as Node3D).global_position + Vector3(0, 2.25, 0)
+	var tvp := point("tv")
+	if not tvp.is_empty():
+		mark_tv = G67Icons.sprite("icon_new_talk", 0.0008)
+		if mark_tv != null:
+			world.add_child(mark_tv)
+			mark_tv.global_position = Vector3(tvp["pos"]) + Vector3(0, 1.75, -0.4)
+	_marks_tick()
+
+func flurr_new() -> bool:
+	return flurr_state() > int(meta().get("flurr", -1))
+
+func clips_new() -> bool:
+	for cid in G67Clips.ORDER:
+		if clip_open(cid) and not clip_seen(cid):
+			return true
+	return false
+
+func _marks_tick() -> void:
+	if mark_talk != null and is_instance_valid(mark_talk):
+		mark_talk.visible = flurr_new() and game.mode != "dlg"
+	if mark_tv != null and is_instance_valid(mark_tv):
+		mark_tv.visible = clips_new()
+
+func _krot_card(n: int) -> void:
+	var cl := CanvasLayer.new()
+	cl.layer = 54
+	game.add_child(cl)
+	var box := MGUI.panel(true, MGUI.GOLD, MGUI.S3)
+	box.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	box.position = Vector2(-170, 90)
+	box.custom_minimum_size = Vector2(340, 0)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cl.add_child(box)
+	var h := MGUI.hbox(MGUI.S3)
+	box.add_child(h)
+	var ic := G67Icons.rect("icon_krot_found", 64)
+	if ic != null:
+		h.add_child(ic)
+	var v := MGUI.vbox(0)
+	h.add_child(v)
+	v.add_child(MGUI.label("КРОТ НАЙДЕН", "h2", MGUI.GOLD))
+	v.add_child(MGUI.label("встреча %d из 10 · в архиве у телевизора" % n, "small", MGUI.TEXT_2))
+	box.modulate.a = 0.0
+	var tw := box.create_tween()
+	tw.tween_property(box, "modulate:a", 1.0, 0.25)
+	tw.tween_interval(2.6)
+	tw.tween_property(box, "modulate:a", 0.0, 0.5)
+	tw.tween_callback(cl.queue_free)
+	events.append(["krot_card", n])
 
 func district() -> Dictionary:
 	return G67Data.district(String(run.get("district", "dvor")))
@@ -448,7 +571,7 @@ func _boss_intro(b) -> void:
 	events.append(["boss_intro"])
 
 func scene_busy() -> bool:
-	return scene_t >= 0.0 or clip != null or clip_menu != null
+	return scene_t >= 0.0 or clip != null or hub_ui != null
 
 func owns_camera() -> bool:
 	return scene_t >= 0.0 and scene_boss != null and is_instance_valid(scene_boss)
@@ -674,6 +797,7 @@ func _krot_done(id: String) -> void:
 	meta()["archive"] = arch
 	save()
 	events.append(["krot_seen", id])
+	_krot_card(seen.size())
 	if id == "krot3":
 		unlock_clip("EXTRA01")               # «КРОТ НА ПОДКАСТЕ» — в архив после третьей встречи
 	# КРОТ уходит по своим делам: без объяснений
@@ -777,7 +901,9 @@ func fit_options(rare: bool) -> Array:
 				common.append(id)
 	common.shuffle()
 	rares.shuffle()
-	var ids: Array = (rares + common) if rare else (common + rares)
+	# «РЕДКИЕ ФИТСЫ» (АВТОРИТЕТ РАЙОНА): обычная комната с шансом 6 % за уровень предлагает редкий первым
+	var rare_first := rare or randf() < 0.06 * float(up("rare"))
+	var ids: Array = (rares + common) if rare_first else (common + rares)
 	return ids.slice(0, 3)
 
 func _offer_fit(rare: bool) -> void:
@@ -792,6 +918,11 @@ func _offer_fit(rare: bool) -> void:
 		var lv := fit_lv(id)
 		var txt := "%s%s — %s" % [String(f["name"]), (" · ур. %d → %d" % [lv, lv + 1]) if lv > 0 else "", String(f["desc"])]
 		buttons.append([txt, func(): take_fit(id)])
+	if int(run.get("rerolls", 0)) > 0:
+		buttons.append(["ПЕРЕВЫБРАТЬ · осталось %d" % int(run["rerolls"]), func():
+			run["rerolls"] = int(run["rerolls"]) - 1
+			events.append(["reroll"])
+			_offer_fit(rare)])
 	game._show_panel("ВЫБЕРИ ФИТС", "Семейство: %s. Усиление действует до конца забега." % String(G67Data.FAMILY_NAMES["misha"]), buttons)
 	_fit_icons(opts)
 
@@ -833,8 +964,8 @@ func take_fit(id: String) -> void:
 ## Пересчитать усиления забега. Исходные данные стилей не меняются: только множитель урона героя и его здоровье.
 func apply_fits(just := "") -> void:
 	var p = game.player
-	p.dmg_mul = minf(G67Data.DMG_CAP, 1.0 + 0.12 * float(fit_lv("heavy_hand")))
-	var want := base_hp + 20.0 * float(fit_lv("authority"))
+	p.dmg_mul = minf(G67Data.DMG_CAP, 1.0 + 0.12 * float(fit_lv("heavy_hand")) + 0.04 * float(up("dmg")))
+	var want := hp_max() + 20.0 * float(fit_lv("authority"))
 	if want != p.max_hp:
 		p.max_hp = want
 		if just == "authority":
@@ -951,6 +1082,7 @@ func _physics_process(dt: float) -> void:
 	_t += dt
 	if scene_t >= 0.0:
 		_scene_tick(dt)
+	_marks_tick()
 	_krot_tick(dt)
 	_crowd_tick()
 	if place == "run" and not busy and not game.over and not run.is_empty():
@@ -972,13 +1104,13 @@ func _physics_process(dt: float) -> void:
 		if near != "":
 			events.append(["near", near])
 	if prompt != null:
-		prompt.visible = near != "" and game.panel == null and game.mode != "dlg"
+		prompt.visible = near != "" and game.panel == null and game.mode != "dlg" and hub_ui == null and clip == null
 		if near != "":
 			var pt2 := point(near)
 			prompt.text = "[E]  %s\n%s" % [String(pt2["title"]), String(pt2["hint"])]
 
 func _unhandled_input(e: InputEvent) -> void:
-	if game == null or near == "" or game.panel != null or game.get_tree().paused or busy:
+	if game == null or near == "" or game.panel != null or game.get_tree().paused or busy or hub_ui != null or clip != null:
 		return
 	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_E:
 		use(near)
@@ -1009,6 +1141,10 @@ func use(id: String) -> void:
 		talk_flurr()
 	elif id.begins_with("gate"):
 		choose_gate(int(id.substr(4)))
+	elif id in ["upgrades", "styles", "artifacts", "routes", "mail"]:
+		open_screen(id)
+	elif id == "notices":
+		open_screen("board")
 	else:
 		game.toast("%s — в разработке" % String(pt["title"]))
 
@@ -1047,7 +1183,7 @@ func _crowd_tick() -> void:
 
 # ---------------------------------------------------------------- ролики главы 1 (G67Clips, G67ClipPlayer)
 var clip: G67ClipPlayer = null
-var clip_menu: CanvasLayer = null
+var hub_ui = null                       # открытый экран предмета подъезда (G67HubUI или G67AuthorityUI)
 ## Ролики сами по ходу игры (в проверке выключено: она запускает их в своём разделе)
 var auto_clips := true
 
@@ -1092,59 +1228,19 @@ func tv() -> void:
 		return
 	_tv_menu()
 
-func _tv_menu() -> void:
-	if clip_menu != null:
+## Экран предмета подъезда (G67HubUI): архив, АВТОРИТЕТ РАЙОНА, стойка стилей, коллекция, карта, доска, ящики
+func open_screen(what: String) -> void:
+	if hub_ui != null or clip != null:
 		return
-	clip_menu = CanvasLayer.new()
-	clip_menu.layer = 55
-	game.add_child(clip_menu)
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	clip_menu.add_child(root)
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.72)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_child(dim)
-	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
-	box.custom_minimum_size = Vector2(560, 0)
-	box.position = Vector2(-280, -260)
-	box.add_theme_constant_override("separation", 10)
-	root.add_child(box)
-	var head := Label.new()
-	head.text = "ОБЛАКО LIVE · АРХИВ ПИЗДЕЦА"
-	head.add_theme_font_override("font", game.main.font)
-	head.add_theme_font_size_override("font_size", 30)
-	head.add_theme_color_override("font_color", Color(1.0, 0.8, 0.25))
-	box.add_child(head)
-	var first: Button = null
-	for cid in G67Clips.ORDER:
-		if not clip_open(cid):
-			continue
-		var b := Button.new()
-		b.text = "%s   %s" % [G67Clips.title(cid), "" if clip_seen(cid) else "· новое"]
-		b.add_theme_font_override("font", game.main.font)
-		b.add_theme_font_size_override("font_size", 22)
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.pressed.connect(func():
-			_tv_close()
-			play_clip(cid))
-		box.add_child(b)
-		if first == null:
-			first = b
-	var close := Button.new()
-	close.text = "ЗАКРЫТЬ"
-	close.add_theme_font_override("font", game.main.font)
-	close.add_theme_font_size_override("font_size", 20)
-	close.pressed.connect(_tv_close)
-	box.add_child(close)
-	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
-	if first != null:
-		first.grab_focus()
-	events.append(["tv_menu"])
+	game.player.velocity = Vector3.ZERO
+	if prompt != null:
+		prompt.visible = false
+	hub_ui = G67AuthorityUI.open(self) if what == "upgrades" else G67HubUI.open(self, what)
+	hub_ui.closed.connect(func(): hub_ui = null)
+
+func _tv_menu() -> void:
+	open_screen("archive")
 
 func _tv_close() -> void:
-	if clip_menu != null:
-		clip_menu.queue_free()
-		clip_menu = null
-		MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
+	if hub_ui != null:
+		hub_ui.close()
