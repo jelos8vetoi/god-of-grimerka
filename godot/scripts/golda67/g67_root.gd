@@ -1183,7 +1183,7 @@ func _crowd_tick() -> void:
 
 # ---------------------------------------------------------------- ролики главы 1 (G67Clips, G67ClipPlayer)
 var clip: G67ClipPlayer = null
-var hub_ui = null                       # открытый экран предмета подъезда (G67HubUI или G67AuthorityUI)
+var hub_ui = null                       # открытый экран предмета подъезда (G67Diorama или G67AuthorityUI)
 ## Ролики сами по ходу игры (в проверке выключено: она запускает их в своём разделе)
 var auto_clips := true
 
@@ -1228,7 +1228,7 @@ func tv() -> void:
 		return
 	_tv_menu()
 
-## Экран предмета подъезда (G67HubUI): архив, АВТОРИТЕТ РАЙОНА, стойка стилей, коллекция, карта, доска, ящики
+## Экран предмета подъезда: архив, АВТОРИТЕТ РАЙОНА, стойка стилей, коллекция, карта, доска, ящики
 func open_screen(what: String) -> void:
 	if hub_ui != null or clip != null:
 		return
@@ -1240,7 +1240,9 @@ func open_screen(what: String) -> void:
 		"archive": hub_ui = G67ArchiveUI.open(self)
 		"board": hub_ui = G67BoardUI.open(self)
 		"mail": hub_ui = G67MailUI.open(self)
-		_: hub_ui = G67HubUI.open(self, what)
+		"styles": hub_ui = G67StylesUI.open(self)
+		"artifacts": hub_ui = G67ArtifactsUI.open(self)
+		"routes": hub_ui = G67RoutesUI.open(self)
 	hub_ui.closed.connect(func(): hub_ui = null)
 
 func _tv_menu() -> void:
