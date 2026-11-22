@@ -978,6 +978,29 @@ static func _hearts(c: G67ClipPlayer, n: int) -> void:
 	kill.tween_callback(hl.queue_free)
 
 # ---------------------------------------------------------------- NEWS01 — «РАЙОННЫЙ ВЕСТНИК 67», выпуск после Миши
+## Рамка «запись» для врезки с места событий
+static func _rec_frame(c: G67ClipPlayer, sec: float) -> void:
+	var fs := c.frame.size
+	var h := Control.new()
+	h.size = fs
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.over.add_child(h)
+	var t := fs.y * 0.012
+	for r in [Rect2(0, 0, fs.x, t), Rect2(0, fs.y - t, fs.x, t), Rect2(0, 0, t, fs.y), Rect2(fs.x - t, 0, t, fs.y)]:
+		var b := ColorRect.new()
+		b.color = Color(0.9, 0.1, 0.1, 0.8)
+		b.position = r.position
+		b.size = r.size
+		h.add_child(b)
+	var l := c._label(h, "● REC", int(fs.y * 0.045), Color(1, 0.2, 0.2))
+	l.position = Vector2(fs.x * 0.04, fs.y * 0.05)
+	var bl := c.create_tween().set_loops()
+	bl.tween_property(l, "modulate:a", 0.2, 0.4)
+	bl.tween_property(l, "modulate:a", 1.0, 0.4)
+	var kill := c.create_tween()
+	kill.tween_interval(sec)
+	kill.tween_callback(h.queue_free)
+
 static func news01(c: G67ClipPlayer) -> void:
 	var y := _yard(c)
 	# студия — в стороне от двора
@@ -993,6 +1016,7 @@ static func news01(c: G67ClipPlayer) -> void:
 	logo3.position = S + Vector3(1.6, 2.2, -2.4)
 	c.world.add_child(logo3)
 	c.prop("g67_news_desk", S + Vector3(0, 0, 0.3), 0.0, Vector3(2.6, 0.92, 1.2), "h")
+	var papers := c.box(Vector3(0.32, 0.012, 0.24), S + Vector3(0.35, 0.95, 0.0), Color(0.93, 0.93, 0.88))
 	var an := c.actor("anchor", "anchor", S + Vector3(0, 0, -0.55), 0.0)
 	c.anim("anchor", "NCross", 0.0)
 	c.light(S + Vector3(0, 3.0, 3.0), Color(1, 0.96, 0.9), 2.2, 12.0)
@@ -1007,6 +1031,10 @@ static func news01(c: G67ClipPlayer) -> void:
 	spin.position = S + Vector3(0, 30, 0)
 	c.world.add_child(spin)
 	c.cam_at(S + Vector3(0, 30, 6), S + Vector3(0, 30, 0), 50.0)
+	G67Sound.play(c, "jingle")
+	G67Sound.play(c, "hit_cut")
+	c.plate("РАЙОННЫЙ ВЕСТНИК 67", "big", 1.5)
+	G67Clips.snap_req = "intro"
 	c.create_tween().tween_property(spin, "rotation:y", TAU, 1.5)
 	for i in 3:
 		c.sfx("sfx_ui", -4.0, 0.8 + i * 0.25)
@@ -1015,9 +1043,18 @@ static func news01(c: G67ClipPlayer) -> void:
 	# ведущий в кадре, средний план
 	c.cam_at(S + Vector3(-0.5, 1.75, 3.1), S + Vector3(0.1, 1.45, -0.55), 40.0)
 	c.plate("РАЙОННЫЙ ВЕСТНИК 67", "lower", 3.0)
+	G67Sound.play(c, "mic_move")                                                                   # ведущий поправляет бумаги
+	var pt := c.create_tween()
+	pt.tween_property(papers, "rotation:y", 0.35, 0.25)
+	pt.tween_property(papers, "rotation:y", -0.1, 0.2)
+	pt.tween_property(papers, "rotation:y", 0.0, 0.15)
+	await c.wait(0.6)
 	var d0 := c.say_async(L("NEWS01", 0))
+	c.plate("АВТОРИТЕТ ВРЕМЕННО НЕДОСТУПЕН. ПОПРОБУЙТЕ ПОЗЖЕ.", "ticker", d0 + 1.5)
 	c.cam_to(S + Vector3(-0.2, 1.7, 2.7), S + Vector3(0.05, 1.5, -0.55), d0 * 0.34, 36.0)            # общий → наезд
-	await c.wait(d0 * 0.34)
+	await c.wait(d0 * 0.2)
+	G67Clips.snap_req = "studio"
+	await c.wait(d0 * 0.14)
 	c.vhs(0.6, 0.2)
 	G67Sound.play(c, "click")
 	c.cam_at(S + Vector3(-1.9, 1.55, 1.7), S + Vector3(0.05, 1.45, -0.55), 38.0)                      # перебивка: ведущий сбоку
@@ -1039,9 +1076,18 @@ static func news01(c: G67ClipPlayer) -> void:
 	c.cam_at(M + Vector3(3.2, 1.6, 2.6), M + Vector3(0, 1.1, 0.7), 42.0)
 	c.cam_to(M + Vector3(2.4, 1.3, 1.6), M + Vector3(0, 1.2, 0.6), 2.2)
 	c.plate("ПОВТОР", "top", 2.2)
+	_rec_frame(c, 2.4)
 	c.mono(0.35)
 	c.sfx("sfx_boom", -6.0, 0.5)
-	await c.wait(2.3)
+	await c.wait(1.2)
+	G67Clips.snap_req = "inset"
+	if mi.player != null:
+		mi.player.pause()                                                                          # стоп-кадр на ударе
+	c.vhs(1.0, 0.5)
+	G67Sound.play(c, "hit_cut")
+	await c.wait(1.1)
+	if mi.player != null:
+		mi.player.play()
 	c.mono(0.0)
 	c.clear_plates()
 	c.vhs(0.9, 0.4)
@@ -1055,10 +1101,35 @@ static func news01(c: G67ClipPlayer) -> void:
 	c.cam_at(bench + Vector3(-1.9, 1.3, 0.75), bench + Vector3(0, 0.9, 0), 38.0)
 	c.cam_to(bench + Vector3(-1.6, 1.22, 0.5), bench + Vector3(0, 0.95, 0), 6.0, 34.0)
 	c.plate("АВТОРИТЕТ ВРЕМЕННО НЕДОСТУПЕН. ПОПРОБУЙТЕ ПОЗЖЕ.", "ticker", 8.0)
+	_rec_frame(c, 8.5)
 	await c.say(L("NEWS01", 1), 0.3)
-	# закрытие выпуска — снова ведущий
+	c.clear_plates()
+	# закрытие выпуска — ведущий складывает листы, смотрит в камеру, студия гаснет, логотип, обрыв
+	c.vhs(0.9, 0.4)
+	G67Sound.play(c, "click")
 	c.cam_at(S + Vector3(0.4, 1.75, 3.4), S + Vector3(0.0, 1.45, -0.55), 42.0)
-	await c.wait(1.6)
+	c.cam_to(S + Vector3(0.15, 1.65, 2.3), S + Vector3(0.0, 1.5, -0.55), 1.8, 32.0)
+	G67Sound.play(c, "mic_move")
+	var pf := c.create_tween()
+	pf.tween_property(papers, "position", S + Vector3(0.1, 0.96, -0.1), 0.4)
+	pf.parallel().tween_property(papers, "scale", Vector3(0.8, 3.0, 1.0), 0.4)
+	await c.wait(1.0)
+	G67Clips.snap_req = "final"
+	await c.wait(0.4)
+	for l in c.world.get_children():
+		if l is Light3D:
+			c.create_tween().tween_property(l, "light_energy", 0.0, 0.8)
+	await c.wait(0.9)
+	c.plate("РАЙОННЫЙ ВЕСТНИК 67", "big", 0.8)
+	G67Sound.play(c, "hit_cut")
+	await c.wait(0.8)
+	c.vhs(1.0, 0.3)
+	c.screen(func(s: Control, fs: Vector2):
+		var r := ColorRect.new()
+		r.color = Color.BLACK
+		r.size = fs
+		s.add_child(r))
+	await c.wait(0.3)
 
 # ---------------------------------------------------------------- STORY01 — регистрация (9:16, камера телефона madk1d)
 static func story01(c: G67ClipPlayer) -> void:
