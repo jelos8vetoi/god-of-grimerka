@@ -19,7 +19,7 @@ const LAYERS := [
 const ELECTRIC := ["lamp_hum", "crt_whine", "panel_hum", "tablet_noise"]
 ## id (файлы sfx/<id>_N), места (Vector3 или "@Точка"), дБ, с какой ночи, вес, можно ли при отключении
 const EVENTS := [
-	{"id": "creak", "pos": [Vector3(-3.75, 1.4, -9.5), Vector3(3.75, 1.4, -9.5), Vector3(0.5, 4.5, -3)], "db": 0.9, "night": 0, "w": 3.0, "out": true},
+	{"id": "creak", "pos": [Vector3(-3.75, 1.4, -9.5), Vector3(3.75, 1.4, -9.5), Vector3(0.5, 4.5, -3)], "db": -1.1, "night": 0, "w": 3.0, "out": true},
 	{"id": "clang", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9), Vector3(0, 1, -18)], "db": 7.4, "night": 0, "w": 2.0, "out": true},
 	{"id": "rattle", "pos": [Vector3(-1.6, 0.6, -8), Vector3(0.4, 3.8, -6)], "db": 0.4, "night": 0, "w": 2.0, "out": true},
 	{"id": "relay", "pos": ["@Panel"], "db": -6.4, "night": 0, "w": 2.0, "out": false},

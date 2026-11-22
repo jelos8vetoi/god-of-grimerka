@@ -426,7 +426,7 @@ func _layout() -> void:
 	# звонок — над плашкой генератора, если она на экране (обе живут снизу по центру)
 	var lift := 110.0 if dark_box != null and dark_box.visible else 0.0
 	var tip_h: float = (tip_box.get_combined_minimum_size().y + 8.0) if tip_box != null and tip_box.visible else 0.0
-	sub_box.position = Vector2((s.x - sub_box.get_combined_minimum_size().x) * 0.5, s.y - EDGE - sub_box.get_combined_minimum_size().y - (70 if deck_shown else 10) - lift - tip_h)
+	sub_box.position = Vector2((s.x - sub_box.get_combined_minimum_size().x) * 0.5, s.y - EDGE - sub_box.get_combined_minimum_size().y - (70 if deck_shown or lift > 0.0 else 10) - lift - tip_h)
 	toast_l.reset_size()
 	toast_l.position = Vector2((s.x - toast_l.get_combined_minimum_size().x) * 0.5, s.y - 12.0 - 34.0)
 	hint_box.reset_size()
