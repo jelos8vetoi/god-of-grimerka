@@ -38,13 +38,13 @@ func _build() -> void:
 	_t("ЭТАПЫ: %d из 7" % int(R.get("stage_n", 0)), "display", 28, col, Vector2(70, y))
 	var stages: Array = R.get("stages", [])
 	for i in stages.size():
-		var ic := G67Icons.rect(String(G67Icons.ROOM.get(String(stages[i][0]), "")), 40)
+		var ic := G67Icons.rect(String(G67Icons.ROOM.get(String(stages[i][0]), "icon_room_battle")), 40)
 		if ic != null:
 			ic.position = Vector2(70 + i * 48, y + 40)
 			stage.add_child(ic)
 	var died: Array = R.get("died_at", [])
 	if not died.is_empty() and String(died[0]) != "":
-		var di := G67Icons.rect(String(G67Icons.ROOM.get(String(died[0]), "")), 40)
+		var di := G67Icons.rect(String(G67Icons.ROOM.get(String(died[0]), "icon_room_battle")), 40)
 		if di != null:
 			di.position = Vector2(70 + stages.size() * 48, y + 40)
 			di.modulate = Color(1, 1, 1, 0.35)      # этап, на котором погиб, — приглушённый значок

@@ -1269,6 +1269,12 @@ func _hub_screens(g, G: Golda67, P) -> void:
 	ok(not g.combat_hud.visible and not g.hud_root.visible, "пока экран открыт, HUD игры спрятан")
 	ok((BU.notes[2] as G67BoardUI.Note).locked and String(BU.notes[2].why).contains("Миш"), "объявление «АВТОРИТЕТ ВРЕМЕННО НЕДОСТУПЕН» до победы над Мишей заклеено, причина: «%s»" % BU.notes[2].why)
 	ok((BU.notes[0] as G67BoardUI.Note).fresh, "непрочитанный листок с наклейкой «НОВОЕ»")
+	ok(BU.big is G67BoardUI.Info and BU.big.kind != "" and BU.big.status == "НОВОЕ" and BU.big.when != "", "справа карточка «что это»: %s · %s · %s" % [BU.big.kind, BU.big.status, BU.big.when])
+	ok(BU.stage.find_children("*", "Label", true, false).any(func(l): return String(l.text).begins_with("Esc")), "в углу мелко «Esc — закрыть»")
+	await wait(3.6)
+	ok(BU.stage.find_children("*", "Label", true, false).all(func(l): return not String(l.text).begins_with("Esc") or l.modulate.a < 0.05), "через 3 с подсказка «Esc» погасла")
+	ok(_text_fits(BU), "доска: надписи внутри экрана")
+	ok(BU.big.get_rect().end.y <= 900.0 and BU.big.get_rect().end.x <= 1600.0, "карточка внутри стола")
 	await wait(0.4)
 	await shot("h06_board")
 	await key(KEY_ENTER)
@@ -1487,11 +1493,16 @@ func _stage3(g, G: Golda67, P) -> void:
 	await wait(0.1)
 	ok(absf(P.speed_k - 1.08) < 0.001 and absf(P.combat.cd_k - 1.0) < 0.001, "«Рыночные кроссовки»: скорость ×1,08; без симки перезарядки обычные")
 	ok(absf(G.gold_k() - 1.2) < 0.001, "«Золотой браслет 67»: голда ×1,2")
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	P.inv = 30.0
+	await wait(0.3)
 	P.hp = P.max_hp * 0.3
-	await wait(0.1)
+	await wait(0.3)
 	ok(absf(P.dmg_mul - G.fit_mul * 1.25) < 0.001, "«Телефон с треснутым экраном»: ниже 35 %% — урон ×%.2f" % P.dmg_mul)
 	P.hp = P.max_hp
-	await wait(0.1)
+	await wait(0.3)
 	ok(absf(P.dmg_mul - G.fit_mul) < 0.001, "выше 35 %% — урон обычный")
 	G.run["arts"] = ["cassette_2016"]
 	await wait(0.1)
@@ -2024,6 +2035,22 @@ func _pause_pages(g, G: Golda67, where: String) -> void:
 	ok(names == ["СТАТУС", "БАФЫ", "АРТЕФАКТЫ", "МАРШРУТ", "МУЗЫКА", "СИСТЕМА"], "вкладки паузы приквела: %s" % str(names))
 
 func _ui3_check(g, G: Golda67, P) -> void:
+	# N05: пропущенный ролик сам больше не запускается, в архиве остаётся «новым»
+	var cs2: Array = G.meta().get("clips_seen", [])
+	for cid in ["AD01", "STORY01"]:
+		cs2.erase(cid)
+		G.meta()["clips_seen"] = cs2
+		G.meta()["clips_auto"] = (G.meta().get("clips_auto", []) as Array).filter(func(x): return x != cid)
+		G.play_auto(cid)
+		await wait(0.6)
+		ok(G.clip != null, "N05: автозапуск «%s» показал ролик" % cid)
+		G.clip.skip()
+		await wait(0.5)
+		G.play_auto(cid)
+		await wait(0.4)
+		ok(G.clip == null and not G.clip_seen(cid) and G.clip_open(cid) and (G.meta()["clips_auto"] as Array).has(cid), "N05: пропущенный «%s» второй раз сам не запускается, в архиве «новый»" % cid)
+	await G.enter_hub()
+	await wait(0.6)
 	# C5: madk1d до первой концовки — житель подъезда: стоит на месте, пока герой ходит
 	var m0: Vector3 = g.buddy.global_position
 	var moved := 0.0
@@ -2038,12 +2065,22 @@ func _ui3_check(g, G: Golda67, P) -> void:
 	g.cam_pitch = -0.2
 	await wait(1.0)
 	await shot("madk_hub_wide")
-	P.global_position = Vector3(-0.2, 0.05, 3.7)
-	P.face = atan2(-2.1, -1.3)
-	g.cam_yaw = P.face - PI
-	g.cam_pitch = -0.12
-	await wait(1.2)
+	var mb: Node3D = g.buddy
+	var mf := Vector3(sin(g.buddy.face), 0, cos(g.buddy.face))
+	var oc := Camera3D.new()
+	g.add_child(oc)
+	oc.global_position = mb.global_position + mf * 2.4 + Vector3(mf.z, 0, -mf.x) * 0.9 + Vector3(0, 1.3, 0)
+	oc.look_at(mb.global_position + Vector3(0, 0.9, 0), Vector3.UP)
+	oc.make_current()
+	var pv0: bool = P.visible
+	P.visible = false
+	await wait(0.2)
 	await shot("madk_hub_close")
+	ok(mb.global_position.y < 0.3 and mb.global_position.y > -0.1 and absf(mb.global_position.x - G.MADK_SPOT.x) < 0.5, "C5: madk1d стоит на полу на своём месте (%s)" % str(mb.global_position))
+	ok(cos(g.buddy.face - PI * 0.5) > 0.6 or cos(g.buddy.face - atan2(P.global_position.x - mb.global_position.x, P.global_position.z - mb.global_position.z)) > 0.5, "C5: madk1d лицом в холл или к герою (%.2f)" % g.buddy.face)
+	P.visible = pv0
+	g.cam.make_current()
+	oc.queue_free()
 	g.buddy.home_react = "Cheer"
 	g.buddy.home_until = 0.0
 	await wait(0.6)
@@ -2671,6 +2708,11 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	var rtxt := _all_text(G.hub_ui.stage)
 	ok(rtxt.contains("ГЛАВА 1 ПРОЙДЕНА") and rtxt.contains("ПОБЕДА") and rtxt.contains("ОТКРЫТО") and (RS["new"] as Array).size() >= 5 and rtxt.contains("Водяра"), "экран победы: «ГЛАВА 1 ПРОЙДЕНА», список открытого (%d строк)" % (RS["new"] as Array).size())
 	ok(not rtxt.to_lower().contains("подземка — готов") and rtxt.contains("в следующей главе"), "про ПОДЗЕМКУ — только «в следующей главе»")
+	var ic_n := 0
+	for ch in G.hub_ui.stage.get_children():
+		if ch is TextureRect and ch.size.x <= 41.0 and ch.modulate.a > 0.9:
+			ic_n += 1
+	ok(ic_n == 7 and (RS["stages"] as Array).size() == 7, "значков этапов на экране итогов победы семь (%d)" % ic_n)
 	ok(int(RS["stage_n"]) == 7 and int(RS["kills"]) == int(G.run["kills"]) and int(RS["earned"]) == int(G.run["earned"]) and int(RS["spent"]) == int(G.run["spent"]), "числа экрана сходятся с забегом (этапов %d, врагов %d, голды %d)" % [int(RS["stage_n"]), int(RS["kills"]), int(RS["earned"])])
 	await wait(0.4)
 	ok(_text_fits(G.hub_ui), "итоги: надписи внутри экрана")
