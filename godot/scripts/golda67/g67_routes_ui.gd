@@ -2,7 +2,7 @@ class_name G67RoutesUI
 extends G67Diorama
 ## Карта маршрутов — лист в клетку, приколотый к стене: сверху от руки — четыре района турнира по порядку (ДВОР →
 ## ПОДЗЕМКА → ЛЕНТА → БОТОФЕРМА; пройденный обведён, открытый — с флажком, закрытые — бледные с «?»), ниже — план
-## ДВОРА: зоны стоят там же, где во дворе (G67Yard.ZONES), позиции забега пронумерованы (G67Data.DISTRICTS),
+## ДВОРА: зоны стоят там же, где во дворе (G67Yard.ZONES), этапы забега пронумерованы (шаблон G67Data.DISTRICTS.routes на следующий забег),
 ## следующая встреча КРОТА — красная кнопка. Выбирается район или зона; справа — страничка блокнота с описанием.
 
 const PLAN := Rect2(118, 352, 940, 470)       # план двора на листе
@@ -10,6 +10,7 @@ const WORLD := Rect2(-48, -54, 94, 91)        # двор в метрах (x, z)
 const CITY_Y := 230.0
 
 var marks: Array = []          # {kind: "district"/"zone", id, pos}
+var route: Array = []          # шаблон маршрута следующего забега (номер забега % 3) или идущего на паузе
 var note: Control
 var n_head: Label
 var n_name: Label
@@ -26,6 +27,7 @@ static func plan_pos(c: Vector3) -> Vector2:
 	return PLAN.position + Vector2((c.x - WORLD.position.x) / WORLD.size.x * PLAN.size.x, (c.z - WORLD.position.y) / WORLD.size.y * PLAN.size.y)
 
 func _build() -> void:
+	route = route_now()
 	var sheet := Sheet.new()
 	sheet.ui = self
 	sheet.size = STAGE
@@ -59,6 +61,7 @@ func _build() -> void:
 		m2.id = String(zid)
 		m2.label = String(z["name"])
 		m2.info = z
+		m2.route = route
 		m2.position = plan_pos(z["c"]) - Vector2(60, 34)
 		m2.size = Vector2(120, 68)
 		m2.pivot_offset = m2.size * 0.5
@@ -81,15 +84,21 @@ func _build_note() -> void:
 	n_state = lab("", "caps", 15, Color(0.12, 0.1, 0.08), Vector2(x, 290))
 	n_text = lab("", "ui", 17, Color(0.18, 0.18, 0.26), Vector2(x, 332), 336)
 
-## Что происходит в зоне: позиции забега ДВОРА, где она стоит, и встреча КРОТА
+## Что происходит в зоне: этапы забега ДВОРА, где она стоит, и встреча КРОТА
 func zone_lines(zid: String) -> Array:
 	var out: Array = []
-	var route: Array = G67Data.DISTRICTS["dvor"]["route"]
 	for i in route.size():
 		for o in route[i]:
 			if String(o["place"]) == zid:
 				out.append("%d · %s" % [i + 1, String(G67Data.ROOM_NAMES[String(o["type"])])])
 	return out
+
+## Какой шаблон маршрута сейчас: у забега на паузе — его, иначе — шаблон следующего забега
+func route_now() -> Array:
+	var tpl := int(G.meta().get("runs", 0)) % 3
+	if G.paused_run():
+		tpl = int(((G.data["run"] as Dictionary).get("run", {}) as Dictionary).get("tpl", 0))
+	return G67Data.route_of(G67Data.DISTRICTS["dvor"], tpl)
 
 func krot_zone() -> String:
 	var k := G.krot_next()
@@ -109,7 +118,7 @@ func _on_select(i: int, prev: int) -> void:
 				n_text.text = "Босс района — %s — побеждён.\nВ район можно вернуться: выход — дверь подъезда." % String(m.info["boss"])
 			"open":
 				n_state.text = "ОТКРЫТ"
-				n_text.text = "Босс района — %s.\nВыход — дверь подъезда, шесть позиций, в конце — босс." % String(m.info["boss"]) if m.id == "dvor" else "Босс района — %s.\nДорога открыта, но сам район ещё строится." % String(m.info["boss"])
+				n_text.text = "Босс района — %s.\nВыход — дверь подъезда, семь этапов, в конце — босс." % String(m.info["boss"]) if m.id == "dvor" else ("Босс района — %s.\nДорога через арку открыта. Продолжение турнира — в следующей главе." % String(m.info["boss"]))
 			_:
 				n_state.text = "ЗАКРЫТ"
 				n_text.text = "Босс района — ???\nОткроется после победы над боссом прошлого района."
@@ -117,10 +126,10 @@ func _on_select(i: int, prev: int) -> void:
 		n_head.text = "ДВОР · ЗОНА"
 		n_name.text = m.label.substr(0, 1).to_upper() + m.label.substr(1)
 		var ls := zone_lines(m.id)
-		n_state.text = ("ПОЗИЦИИ ЗАБЕГА: " + ", ".join(ls.map(func(s): return String(s).get_slice(" ", 0)))) if not ls.is_empty() else "ВНЕ МАРШРУТА"
-		var txt := "\n".join(ls.map(func(s): return "Позиция " + String(s)))
+		n_state.text = ("ЭТАПЫ ЗАБЕГА: " + ", ".join(ls.map(func(s): return String(s).get_slice(" ", 0)))) if not ls.is_empty() else "ВНЕ МАРШРУТА"
+		var txt := "\n".join(ls.map(func(s): return "Этап " + String(s)))
 		if m.id == "podezd":
-			txt = "Отсюда начинается забег — первая комната у самого подъезда.\nСюда же можно вернуться посреди забега.\n\n" + txt
+			txt = "Отсюда начинается забег — первый бой у самого подъезда.\nСюда же можно вернуться посреди забега.\n\n" + txt
 		if krot_zone() == m.id:
 			txt += "\n\nКРОТ: следующая встреча — здесь."
 		n_text.text = txt
@@ -174,8 +183,8 @@ class Sheet extends Control:
 				var b := a + Vector2(-s.size.y, s.size.y)
 				draw_line(a.clamp(s.position, s.end), b.clamp(s.position, s.end), Color(pen, 0.25), 1.0)
 		draw_string(f, Vector2(pl.get_center().x - 40, pl.end.y - 6), "ПОДЪЕЗД", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, pen)
-		# маршрут забега: позиции по порядку через первую зону каждой позиции
-		var route: Array = G67Data.DISTRICTS["dvor"]["route"]
+		# маршрут забега: этапы по порядку через первую зону каждого этапа
+		var route: Array = ui.route
 		var pts: Array = []
 		for opts in route:
 			pts.append(G67RoutesUI.plan_pos(G67Yard.ZONES[String(opts[0]["place"])]["c"]))
@@ -189,7 +198,7 @@ class Sheet extends Control:
 			draw_circle(kp - Vector2(2, 2), 3, Color(1, 0.7, 0.6))
 			draw_string(f, kp + Vector2(14, 5), "КРОТ?", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.7, 0.12, 0.1))
 
-## Отметка на карте: район (кружок от руки) или зона двора (подпись и номера позиций)
+## Отметка на карте: район (кружок от руки) или зона двора (подпись и номера этапов)
 class Mark extends Control:
 	var kind := "zone"
 	var id := ""
@@ -197,6 +206,7 @@ class Mark extends Control:
 	var label := ""
 	var state := "open"
 	var info: Dictionary
+	var route: Array = []
 	var selected := false
 	func set_selected(v: bool) -> void:
 		selected = v
@@ -232,7 +242,6 @@ class Mark extends Control:
 		else:
 			draw_circle(c, 7, Color(0.72, 0.16, 0.12))
 			var nums: Array = []
-			var route: Array = G67Data.DISTRICTS["dvor"]["route"]
 			for i in route.size():
 				for o in route[i]:
 					if String(o["place"]) == id:

@@ -205,6 +205,7 @@ static func strike(e, m: Dictionary, dist: float, dir: Vector3) -> Dictionary:
 			var reach: float = float(m["r"]) + dash
 			g.main.sfx("sfx_slash" if e.kind == "clipper" else "sfx_swing", -5.0)
 			e.kb = fw * dash * 9.0           # рывок виден: враг проезжает вперёд
+			e.kb_hit = false
 			if dist < reach and fw.angle_to(dir) < float(m.get("half", 1.0)):
 				p.take_damage(dmg, e.global_position, e)
 		"slam", "repel":
@@ -349,6 +350,9 @@ static func blink(e, to: String, hide := 0.0) -> void:
 			at = e.global_position + (d.normalized() if d.length() > 0.1 else Vector3.FORWARD) * 4.0
 	if not g.in_arena(at, 1.0):
 		at = pp + (e.global_position - pp).normalized() * 3.0
+		if not g.in_hall:      # запасная точка тоже может оказаться за краем зоны: зажимаем в прямоугольник арены
+			at.x = g.arena_c.x + clampf(at.x - g.arena_c.x, -(g.arena_h.x - 1.2), g.arena_h.x - 1.2)
+			at.z = g.arena_c.z + clampf(at.z - g.arena_c.z, -(g.arena_h.y - 1.2), g.arena_h.y - 1.2)
 	at.y = e.global_position.y
 	g.fx.poof(e.global_position, e.height / 1.7, col)
 	e.global_position = at

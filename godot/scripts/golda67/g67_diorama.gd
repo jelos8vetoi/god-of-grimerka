@@ -43,6 +43,12 @@ func _open_base(g67: Golda67, what: String) -> void:
 	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 	g67.events.append(["hub_ui", what])
 
+## Мелкая подсказка «Esc — закрыть» в углу: только первые 3 с после открытия
+func esc_hint() -> Label:
+	var l := lab("Esc — закрыть", "caps", 12, Color(0.85, 0.82, 0.72, 0.8), Vector2(1400, 866))
+	l.create_tween().tween_property(l, "modulate:a", 0.0, 0.4).set_delay(3.0)
+	return l
+
 func _fit() -> void:
 	var vs := get_viewport().get_visible_rect().size
 	var k := minf(vs.x / STAGE.x, vs.y / STAGE.y)

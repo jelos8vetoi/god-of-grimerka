@@ -8,6 +8,9 @@
 class_name G67Clips
 extends RefCounted
 
+## музыка на время ролика: mode — silence (по умолчанию) / duck / keep, cue — набор jingle_g67_* (играет, только если файл есть)
+const MUSIC := {}
+
 const ORDER := ["STORY01", "STORY05", "V00", "AD01", "CL01", "NEWS01", "EXTRA01"]
 const INFO := {
 	"V00": {"title": "ТУРНИР 67 — трейлер", "tall": false},
@@ -782,11 +785,22 @@ static func _phone_screen(c: G67ClipPlayer, s: Control, fs: Vector2, kind: Strin
 	bg.size = fs
 	s.add_child(bg)
 	var t := func(text: String, y: float, size: float, col: Color):
-		var l := c._label(s, text, int(fs.x * size), col)
+		# кегль уменьшается, пока самое длинное слово не влезет в экран телефона; текст по центру, с переносом
+		var px := int(fs.x * size)
+		var fnt: Font = c.game.main.font
+		var wide := 0.0
+		while true:
+			wide = 0.0
+			for w in text.replace("\n", " ").split(" "):
+				wide = maxf(wide, fnt.get_string_size(w, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x)
+			if wide <= fs.x * 0.8 or px <= 12:
+				break
+			px -= 2
+		var l := c._label(s, text, px, col)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		l.size = Vector2(fs.x * 0.9, 0)
-		l.position = Vector2(fs.x * 0.05, fs.y * y)
+		l.size = Vector2(fs.x * 0.84, 0)
+		l.position = Vector2(fs.x * 0.08, fs.y * y)
 	match kind:
 		"ad":
 			t.call("ТУРНИР 67", 0.08, 0.12, Color(1.0, 0.8, 0.2))

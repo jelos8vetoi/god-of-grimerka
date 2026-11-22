@@ -4,6 +4,9 @@
 extends Node3D
 
 const ARENA := 15.0
+var cam_len := 4.6          # длина штанги камеры (приквел: в подъезде 3,2)
+var arena_c := Vector3.ZERO
+var arena_h := Vector2(ARENA, ARENA)
 const SAVE := "user://grimerka_save.json"
 const MAX_ALIVE := 9
 
@@ -96,6 +99,7 @@ var top_label: Label
 var q_label: Label
 var xp_label: Label
 var fps_label: Label
+var dlg_hint: Label        # строка «ЛКМ / ПРОБЕЛ — ДАЛЕЕ…» (в приквеле — только на первой реплике первого диалога)
 var banner_title: Label
 var banner_sub: Label
 var banner_t := 0.0
@@ -556,7 +560,16 @@ func melee_attackers() -> int:
 func in_arena(p: Vector3, margin: float) -> bool:
 	if in_hall:
 		return p.x > -2.2 + margin * 0.5 and p.x < 3.7 - margin * 0.5 and abs(p.z) < 4.7 - margin * 0.5
-	return abs(p.x) < ARENA - margin and abs(p.z) < ARENA - margin
+	return abs(p.x - arena_c.x) < arena_h.x - margin and abs(p.z - arena_c.z) < arena_h.y - margin
+
+## Бой привязан к зоне: центр и полуразмеры прямоугольника (по умолчанию — квадрат ±ARENA вокруг нуля)
+func set_arena(c: Vector3, h: Vector2) -> void:
+	arena_c = c
+	arena_h = h
+
+func reset_arena() -> void:
+	arena_c = Vector3.ZERO
+	arena_h = Vector2(ARENA, ARENA)
 
 func on_kill(e) -> void:
 	if telemetry != null:
@@ -1014,7 +1027,7 @@ func _process(dt: float) -> void:
 	if lock != null:
 		lock.camera_tick(rdt)          # захват цели мягко ведёт cam_yaw / cam_pitch (если камерой никто другой не владеет)
 	var target: Vector3 = player.vis_pos() + Vector3(0, 1.55, 0)      # плавное положение: без дрожи между шагами физики
-	var want_len := 4.6
+	var want_len := cam_len
 	var yaw := cam_yaw
 	var pitch := cam_pitch
 	if mode == "dlg" and not director:
@@ -1080,7 +1093,11 @@ func _process(dt: float) -> void:
 		cam.h_offset = 0.0
 		cam.v_offset = 0.0
 	elif golda != null and golda.owns_camera():
-		cam.global_transform = golda.camera()      # постановка приквела (выход босса)
+		cam.global_transform = golda.camera()      # постановка приквела (выход босса, разговоры)
+		if golda.talk_on:
+			cam.fov = golda.talk_fov
+			cam.h_offset = 0.0
+			cam.v_offset = 0.0
 	cam_attributes.dof_blur_far_enabled = ipod_focus > 0.002
 	# A restrained DOF pass establishes depth; the lightweight screen pass below
 	# supplies the remaining focus separation without turning the world to mush.
@@ -1088,6 +1105,8 @@ func _process(dt: float) -> void:
 	_update_post(rdt)
 	if world:
 		world.follow(player.global_position)
+	if golda != null:
+		golda.hero_fade()
 	_update_hud(rdt)
 	if mode == "dlg":
 		var to_b: Vector3 = buddy.global_position - player.global_position
@@ -1293,6 +1312,9 @@ func start_dialog(lines: Array, after: Callable) -> void:
 	dlg = lines
 	dlg_i = -1
 	dlg_after = after
+	dlg_hint.visible = golda == null or not golda.dlg_hint_used
+	if golda != null:
+		golda.dlg_hint_used = true
 	dlg_box.visible = true
 	player.velocity = Vector3.ZERO
 	# кент встаёт рядом
@@ -1311,6 +1333,8 @@ func _dlg_advance() -> void:
 	voice.stop()
 	_hush()
 	dlg_i += 1
+	if dlg_i >= 1 and golda != null:
+		dlg_hint.visible = false
 	if dlg_i >= dlg.size():
 		_dlg_finish()
 		return
@@ -1441,14 +1465,44 @@ func damage_flash() -> void:
 	pp["aberr"] = max(float(pp["aberr"]), 0.6)
 
 func banner(title: String, sub: String, col: Color, sec := 2.6) -> void:
-	banner_title.text = title
+	_fit_banner(title)
 	banner_sub.text = sub
 	banner_title.add_theme_color_override("font_color", col)
 	banner_t = sec
 
+## Заголовок баннера: шире экрана (минус 160) — кегль уменьшается шагами до 34, дальше перенос по словам на две строки
+func _fit_banner(title: String) -> void:
+	var maxw: float = hud_root.get_viewport_rect().size.x - 160.0
+	var font: Font = banner_title.get_theme_font("font")
+	var size := 60
+	while size > 34 and font.get_string_size(title, HORIZONTAL_ALIGNMENT_CENTER, -1, size).x > maxw:
+		size -= 2
+	var text := title
+	if font.get_string_size(title, HORIZONTAL_ALIGNMENT_CENTER, -1, size).x > maxw and title.contains(" "):
+		var words := title.split(" ")
+		var best := 1
+		var best_d := INF
+		for i in range(1, words.size()):
+			var l := font.get_string_size(" ".join(words.slice(0, i)), HORIZONTAL_ALIGNMENT_CENTER, -1, size).x
+			var r := font.get_string_size(" ".join(words.slice(i)), HORIZONTAL_ALIGNMENT_CENTER, -1, size).x
+			if absf(l - r) < best_d:
+				best_d = absf(l - r)
+				best = i
+		text = " ".join(words.slice(0, best)) + "\n" + " ".join(words.slice(best))
+	banner_title.add_theme_font_size_override("font_size", size)
+	banner_title.text = text
+
 ## Приквел «ГОЛДА 67» до первой концовки: madk1d закрыт — управлять им и командными приёмами нельзя
 func madk_locked() -> bool:
 	return golda != null and not golda.madk_open()
+
+## Приквел «ГОЛДА 67» до первой концовки, подъезд: madk1d — житель, стоит на своём месте и не ходит за героем
+func madk_home() -> bool:
+	return golda != null and golda.madk_home()
+
+## Приквел «ГОЛДА 67» до первой концовки, забег: madk1d остался в подъезде — рядом с героем его нет и в бой он не вступает
+func madk_away() -> bool:
+	return golda != null and golda.madk_away()
 
 var _madk_note_t := -9.0
 ## Попытка воспользоваться закрытым: объяснить, когда откроется (не чаще раза в 1,5 с)
@@ -1605,9 +1659,9 @@ func _build_hud() -> void:
 	dlg_text.position = Vector2(28, 52)
 	dlg_text.size = Vector2(vs.x * 0.76 - 56, 110)
 	dlg_box.add_child(dlg_text)
-	var hint := _lbl("ЛКМ / ПРОБЕЛ — ДАЛЕЕ   ·   TAB — ПРОПУСТИТЬ СЦЕНУ", 13, Color(0.55, 0.6, 0.7))
-	hint.position = Vector2(28, 162)
-	dlg_box.add_child(hint)
+	dlg_hint = _lbl("ЛКМ / ПРОБЕЛ — ДАЛЕЕ   ·   TAB — ПРОПУСТИТЬ СЦЕНУ", 13, Color(0.55, 0.6, 0.7))
+	dlg_hint.position = Vector2(28, 162)
+	dlg_box.add_child(dlg_hint)
 	# меню паузы целиком — scripts/pausemenu.gd (вкладки, сцена с Паханом, анимация открытия)
 	var pm := PauseMenu.new()
 	pm.game = self
@@ -1670,6 +1724,7 @@ func _to_menu() -> void:
 	get_tree().paused = false
 	Engine.time_scale = 1.0
 	if golda != null:
+		golda.on_quit()              # забег вне боя встаёт на паузу, посреди боя — поражение
 		main.end_golda67()           # из приквела — на его карточку в выборе режима
 		return
 	main.show_menu()
@@ -1790,6 +1845,7 @@ func _update_hud(dt: float) -> void:
 	if golda != null:
 		top_label.text = golda.hud_line()
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second()
+	fps_label.visible = bool(Opts.v("show_fps"))
 	boss_box.visible = (mode == "boss" or training != null or golda != null or is_survival()) and boss_e != null and is_instance_valid(boss_e) and boss_e.state != "dead"
 	if is_survival() and boss_box.visible:
 		boss_fill.size.x = 596.0 * clampf(boss_e.hp / boss_e.max_hp, 0.0, 1.0)

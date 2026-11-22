@@ -8,7 +8,8 @@
 class_name G67Misha
 extends RefCounted
 
-const MOVES := [["m_grab", "m_hook"], ["m_guard", "m_hook", "m_grab"], ["m_hook", "m_guard", "m_grab"]]
+## Порядок приёмов по фазам задан в G67Data.BOSSES (phases); сюда phases_for ничего не дописывает
+const MOVES := [[], [], []]
 const TITLES := {"m_grab": "ЗАХВАТ", "m_guard": "ЗАЩИТНАЯ СТОЙКА", "m_hook": "ЗАЦЕП ЦЕПИ"}
 
 const GRAB_WARN := 0.95      # подготовка захвата, с
