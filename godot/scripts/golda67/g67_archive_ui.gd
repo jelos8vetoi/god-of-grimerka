@@ -95,10 +95,6 @@ func _build_tvs() -> void:
 				"state": ("seen" if G.clip_seen(cid) else "new") if open else "lock", "preview": PREVIEW % cid if ResourceLoader.exists(PREVIEW % cid) else "",
 				"why": "Запись появится " + String(G67Data.CLIP_WHY.get(cid, "позже")) + "."})
 			no += 1
-	for ev in G67Data.ARCHIVE_EVENTS:
-		list.append({"type": "event", "id": "event%d" % no, "cat": "СОБЫТИЯ", "no": no, "title": "???", "state": "lock", "preview": "",
-			"why": "Событие двора ещё не случалось. Запись появится, когда оно произойдёт во время забега."})
-		no += 1
 	for k in G67Data.ARCHIVE_ENDINGS:
 		list.append({"type": "ending", "id": "ending%d" % (k + 1), "cat": "КОНЦОВКИ", "no": no, "title": "???", "state": "lock", "preview": "",
 			"why": "Концовка ещё не открыта." if k == 0 else "Эта концовка — дальше по сюжету."})

@@ -67,6 +67,24 @@ func _put(id: String, pos: Vector3, yaw: float, size: Vector3, fit := "h", solid
 		_static_box(pos + Vector3(0, sz.y * 0.5, 0), sz)
 	return n
 
+## Преграда только для камеры (слой 8, героя и врагов не трогает): потолок, стена над проёмом, сетка над бортом
+func _cam_box(pos: Vector3, size: Vector3) -> void:
+	_body_box(pos, size, 0.0, 8)
+
+## Преграда только для героя и врагов (слой 1), камера её не видит: перила, низкая ограда
+func _body_box(pos: Vector3, size: Vector3, rot: float, layer: int) -> void:
+	var sb := StaticBody3D.new()
+	sb.collision_layer = layer
+	sb.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	cs.shape = bs
+	sb.add_child(cs)
+	sb.position = pos
+	sb.rotation.y = rot
+	add_child(sb)
+
 func _point(id: String, title: String, hint: String, pos: Vector3) -> void:
 	points.append({"id": id, "title": title, "hint": hint, "pos": pos})
 
@@ -155,7 +173,7 @@ func _railing(a: Vector3, b: Vector3) -> void:
 		bar.position = a + d * (float(i) / float(n)) + Vector3(0, 0.465, 0)
 		add_child(bar)
 	var sz := Vector3(0.12, 1.3, len)
-	_static_box(mid + Vector3(0, 0.65, 0), sz, yaw)
+	_body_box(mid + Vector3(0, 0.65, 0), sz, yaw, 1)          # камера смотрит сквозь прутья
 
 ## Лампа: плафон на потолке или стене и свет от него
 func _lamp(pos: Vector3, col: Color, energy: float, rng: float) -> OmniLight3D:
@@ -210,6 +228,11 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	var X := HUB_X
 	var t := 0.44                       # на сколько модуль стены утоплен за плоскость стены (его толщина / 2)
 
+	# ---------- камерные преграды: потолок клетки, стена над проёмом тамбура, потолок тамбура, верх над вторым пролётом ----------
+	_cam_box(Vector3(0, CEIL_Y + 0.1, (Z_BACK + Z_DOOR) * 0.5), Vector3(2 * X + 2.6, 0.2, Z_DOOR - Z_BACK + 2.6))
+	_cam_box(Vector3(0, 2.2 + (CEIL_Y - 2.2) * 0.5, Z_FRONT + 0.15), Vector3(2.8, CEIL_Y - 2.2, 0.3))
+	_cam_box(Vector3(0, 2.7, (Z_FRONT + Z_DOOR) * 0.5 + 0.15), Vector3(3.0, 0.2, Z_DOOR - Z_FRONT))
+	_cam_box(Vector3((FLIGHT2_X + X) * 0.5, 3.0 + (CEIL_Y - 3.0) * 0.5, 3.85), Vector3(X - FLIGHT2_X, CEIL_Y - 3.0, 0.3))
 	# ---------- коробка лестничной клетки: потолок и побелка выше модулей ----------
 	_box(Vector3(0, CEIL_Y + 0.1, (Z_BACK + Z_DOOR) * 0.5), Vector3(2 * X + 2.6, 0.2, Z_DOOR - Z_BACK + 2.6), m_white)
 	for sx in [-1.0, 1.0]:
@@ -276,7 +299,6 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	# ---------- холл: стена под площадкой с дверью колясочной ----------
 	_put("g67_service_door", Vector3(0.0, 0, Z_EDGE + 0.12), 0.0, Vector3(1.0, LAND_Y - 0.08, 0.6), "h", false)
 	_static_box(Vector3(0.0, 0.7, Z_EDGE + 0.1), Vector3(1.1, 1.4, 0.3))
-	_point("door", "КОЛЯСОЧНАЯ", "заколочена", Vector3(0.0, 0, Z_EDGE + 0.9))
 	# почтовые ящики — на левой стене у входа, на уровне глаз
 	_put("g67_mailboxes", Vector3(-X + 0.12, 1.05, 4.3), PI * 0.5, Vector3(1.5, 0.8, 0.5), "h", false)
 	_point("mail", "ПОЧТОВЫЕ ЯЩИКИ", "листовки турнира", Vector3(-X + 0.9, 0, 4.3))
@@ -340,19 +362,18 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	_light(Vector3(0.0, 3.3, Z_FRONT - 0.6), Color(0.45, 0.6, 1.0), 0.9, 6.0)           # от окна
 
 # ---------------------------------------------------------------- район ДВОР
-## Комната забега — ЗОНА одного цельного двора (g67_yard.gd, G67Yard): двор строится целиком и сдвигается так,
-## чтобы зона боя была в начале координат (враги игры держатся квадрата ±15 м вокруг нуля). Из любой зоны видны
-## остальные — дома, гаражи, площадка, коробка.
+## Двор строится один раз на забег и не сдвигается (yard.position = 0, координаты мира = координаты двора, g67_yard.gd).
+## Бой привязан к зоне двора (G67Yard.ZONES): game.set_arena(центр, полуразмеры), на время боя зону огораживают.
 var room: Dictionary = {}
-var gates: Array = []          # ворота выбора следующей комнаты: [{root, label, option}]
+var gates: Array = []          # варианты следующего этапа: [{option, icon, root, label, stand, auto, pos}]
 var yard: G67Yard
-## Бой Миши (G67Misha.hook_target): за что цепляется цепь — турники и борта коробки, в координатах комнаты
+## Бой Миши (G67Misha.hook_target): за что цепляется цепь — турники и борта коробки, в координатах мира
 var hook_points: Array = []
 var hook_rect := Rect2(-14, -14, 28, 28)
 var throne := Vector3(0, 0.03, -10.0)
+var statist: Rig = null        # Миша на троне до боя: виден через сетку весь забег
 
-func build_room(r: Dictionary) -> void:
-	room = r
+func build_yard() -> void:
 	deco = "g67_dvor"
 	var T := _theme("g67_dvor")
 	var env := Environment.new()
@@ -398,33 +419,68 @@ func build_room(r: Dictionary) -> void:
 	yard = G67Yard.new()
 	add_child(yard)
 	yard.build()
-	var zc: Vector3 = G67Yard.zone(String(r.get("place", "podezd")))["c"]
-	yard.position = -zc
-	# коробка Миши в координатах комнаты: за что цепляется цепь и где трон
+	yard.position = Vector3.ZERO
 	hook_points = []
 	for bp in G67Yard.BARS:
-		hook_points.append(Vector3(float(bp[0]), 0, float(bp[1])) - zc)
+		hook_points.append(Vector3(float(bp[0]), 0, float(bp[1])))
 	var cr: Rect2 = G67Yard.COURT
-	hook_rect = Rect2(cr.position.x - zc.x + 0.3, cr.position.y - zc.z + 0.3, cr.size.x - 0.6, cr.size.y - 0.6)
-	throne = G67Yard.THRONE - zc
+	hook_rect = Rect2(cr.position.x + 0.3, cr.position.y + 0.3, cr.size.x - 0.6, cr.size.y - 0.6)
+	throne = G67Yard.THRONE
 	missing.append_array(yard.missing)
-	var type := String(r.get("type", "battle"))
-	if type == "battle" or type == "elite" or type == "boss":
-		_zone_bounds(type != "boss")
+	_cam_court()
+	_misha_statist()
 	_particles(T)
 
-## Граница зоны боя. Невидимых стен во дворе нет: на время боя турнир огораживает площадку переносными
-## ограждениями (их видно, в них упираешься как в забор), после победы ограждения убирают — и двор свободен.
-## В коробке Миши площадку держат её борта.
+## Камера не выходит за борта коробки: сплошные камерные стены по периметру COURT (внутренняя грань — в 0,35 м от борта),
+## включая проём калитки; сетка над бортом тоже не пропускает
+func _cam_court() -> void:
+	var cr: Rect2 = G67Yard.COURT
+	var inset := 0.35
+	var h := 7.0
+	var cx := cr.position.x + cr.size.x * 0.5
+	var cz := cr.position.y + cr.size.y * 0.5
+	_cam_box(Vector3(cr.position.x + inset - 0.5, h * 0.5, cz), Vector3(1.0, h, cr.size.y + 3.0))
+	_cam_box(Vector3(cr.end.x - inset + 0.5, h * 0.5, cz), Vector3(1.0, h, cr.size.y + 3.0))
+	_cam_box(Vector3(cx, h * 0.5, cr.position.y + inset - 0.5), Vector3(cr.size.x + 3.0, h, 1.0))
+	_cam_box(Vector3(cx, h * 0.5, cr.end.y - inset + 0.5), Vector3(cr.size.x + 3.0, h, 1.0))
+
+## Миша сидит на троне с самого начала забега: та же модель, поза и золотая цепь, что у босса, но это не враг
+func _misha_statist() -> void:
+	var look: Dictionary = preload("res://scripts/enemy.gd").BOSS_LOOK.get("g67_misha", {})
+	if look.is_empty() or not ResourceLoader.exists(String(look.get("path", ""))):
+		return
+	var poses: Dictionary = Poses.bot()
+	poses.merge(G67Misha.clips(), true)
+	statist = Rig.new()
+	add_child(statist)
+	statist.setup(String(look["path"]), 1.75 * float(look["scale"]), poses, true, 1.0, String(look.get("key", "g67_misha")))
+	G67Models.misha_chain(statist)
+	statist.position = Vector3(throne.x, throne.y, throne.z + 0.2)
+	statist.rotation.y = 0.0
+	statist.play("MSit", 0.0)
+
+func drop_statist() -> void:
+	if statist != null and is_instance_valid(statist):
+		statist.queue_free()
+	statist = null
+
+## Граница зоны боя. Во дворе на время боя турнир огораживает зону переносными ограждениями (их видно, в них
+## упираешься как в забор); после победы ограждения убирают. Невидимые стенки по прямоугольнику зоны закрывают и проём
+## калитки коробки. В коробке Миши площадку держат её борта (barriers = false).
 var bounds: Node3D
 
-func _zone_bounds(barriers: bool) -> void:
+func bound_zone(zid: String, barriers: bool) -> void:
+	open_bounds()
+	var z: Dictionary = G67Yard.zone(zid)
+	var c: Vector3 = z["c"]
+	var hx: float = (z["h"] as Vector2).x
+	var hz: float = (z["h"] as Vector2).y
 	bounds = Node3D.new()
 	add_child(bounds)
-	var h := G67Yard.HALF
-	for s in [[Vector3(0, 2, -h - 0.5), Vector3(2 * h + 2, 4, 1)], [Vector3(0, 2, h + 0.5), Vector3(2 * h + 2, 4, 1)], [Vector3(-h - 0.5, 2, 0), Vector3(1, 4, 2 * h + 2)], [Vector3(h + 0.5, 2, 0), Vector3(1, 4, 2 * h + 2)]]:
+	for s in [[Vector3(c.x, 2, c.z - hz - 0.5), Vector3(2 * hx + 2, 4, 1)], [Vector3(c.x, 2, c.z + hz + 0.5), Vector3(2 * hx + 2, 4, 1)],
+			[Vector3(c.x - hx - 0.5, 2, c.z), Vector3(1, 4, 2 * hz + 2)], [Vector3(c.x + hx + 0.5, 2, c.z), Vector3(1, 4, 2 * hz + 2)]]:
 		var sb := StaticBody3D.new()
-		sb.collision_layer = 1 | 8
+		sb.collision_layer = 1          # забор низкий: камера может выйти за него и смотреть поверх
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = s[1]
@@ -435,15 +491,24 @@ func _zone_bounds(barriers: bool) -> void:
 	if not barriers:
 		return
 	# ограждения: секции забора в турнирном золоте, встык по периметру
-	var n := 8
-	var step := 2.0 * h / float(n)
 	var gold := Color(1.0, 0.82, 0.35)
-	for i in n:
-		var t := -h + (float(i) + 0.5) * step
-		for q in [[Vector3(t, 0, -h), PI * 0.5], [Vector3(t, 0, h), PI * 0.5], [Vector3(-h, 0, t), 0.0], [Vector3(h, 0, t), 0.0]]:
-			var f := G67Models.spawn("res://assets/racing/fence_section.glb", bounds, q[0], q[1], Vector3(99, 1.25, step / 1.15))
-			if String(f.get_meta("from", "")) == "glb" and yard != null:
-				yard._tint(f, gold)
+	var nx := maxi(2, int(round(2.0 * hx / 3.65)))
+	var nz := maxi(2, int(round(2.0 * hz / 3.65)))
+	var sx := 2.0 * hx / float(nx)
+	var sz := 2.0 * hz / float(nz)
+	var sides: Array = []
+	for i in nx:
+		var t := c.x - hx + (float(i) + 0.5) * sx
+		sides.append([Vector3(t, 0, c.z - hz), PI * 0.5, sx])
+		sides.append([Vector3(t, 0, c.z + hz), PI * 0.5, sx])
+	for i in nz:
+		var t := c.z - hz + (float(i) + 0.5) * sz
+		sides.append([Vector3(c.x - hx, 0, t), 0.0, sz])
+		sides.append([Vector3(c.x + hx, 0, t), 0.0, sz])
+	for q in sides:
+		var f := G67Models.spawn("res://assets/racing/fence_section.glb", bounds, q[0], q[1], Vector3(99, 1.25, float(q[2]) / 1.15))
+		if String(f.get_meta("from", "")) == "glb" and yard != null:
+			yard._tint(f, gold)
 
 ## Бой окончен: ограждения убраны, по двору можно ходить
 func open_bounds() -> void:
@@ -456,78 +521,115 @@ func blocked(p: Vector3) -> bool:
 	if yard == null:
 		return false
 	for s in yard.solids:
-		var c: Vector3 = (s[0] as Vector3) + yard.position
+		var c: Vector3 = s[0] as Vector3
 		if Vector2(p.x - c.x, p.z - c.z).length() < float(s[1]) + 0.5:
 			return true
 	return false
 
-## Ворота выбора следующей комнаты (SPEC, раздел 9: после комнаты — 2–3 двери). options — [{type, place}].
-## Ворота стоят не в ряд у стены, а у входа в ту часть двора, куда ведут: до них нужно дойти по двору.
-## Над каждыми — тип комнаты и награда; подойти и нажать [E].
+## Где стоит вариант этапа: {pos — точка [E] (нет — вариант стартует сам), mark — над чем висит значок, stand — угол стойки}
+static func gate_spot(o: Dictionary) -> Dictionary:
+	var type := String(o["type"])
+	var zid := String(o.get("place", "podezd"))
+	var z: Dictionary = G67Yard.zone(zid)
+	match type:
+		"battle", "elite":
+			if z.has("stand"):
+				var sp: Vector3 = z["stand"]
+				var yaw: float = float(z["stand_yaw"])
+				return {"pos": sp + Vector3(sin(yaw), 0, cos(yaw)) * 1.5, "mark": sp + Vector3(0, 3.0, 0), "stand": sp, "yaw": yaw}
+			return {"pos": (z["c"] as Vector3) + Vector3(0, 0, (z["h"] as Vector2).y - 3.0), "mark": (z["c"] as Vector3) + Vector3(0, 3.0, (z["h"] as Vector2).y - 3.0)}
+		"fit":
+			var hp: Vector3 = G67Yard.HANGER_POS
+			return {"pos": hp + Vector3(sin(G67Yard.HANGER_YAW), 0, cos(G67Yard.HANGER_YAW)) * 1.3, "mark": hp + Vector3(0, 2.7, 0)}
+		"storage":
+			return {"pos": G67Yard.STORAGE_POS, "mark": G67Yard.STORAGE_POS + Vector3(0, 2.7, 0)}
+		"break":
+			return {"pos": G67Yard.REST_POS, "mark": G67Yard.REST_POS + Vector3(0, 2.4, 0)}
+		"boss":
+			return {"pos": G67Yard.GATE_BOSS, "mark": G67Yard.GATE_BOSS + Vector3(0, 2.7, 0)}
+		"ambush":
+			return {"mark": (z["c"] as Vector3) + Vector3(0, 2.7, 0)}
+	return {"pos": z["c"], "mark": (z["c"] as Vector3) + Vector3(0, 2.7, 0)}
+
+## Варианты следующего этапа (options — [{type, place}]). Ни ворот, ни столба света: у каждого варианта — его место во
+## дворе (турнирная стойка, вешалка, открытый бокс, лавка, калитка) и над ним небольшой значок типа; подойти и нажать [E].
+## Вариант «засада» точки не имеет: он стартует сам, когда герой входит в её зону.
 func add_gates(options: Array) -> void:
+	clear_gates()
 	for i in options.size():
 		var o: Dictionary = options[i]
-		var zc: Vector3 = G67Yard.zone(String(o.get("place", "podezd")))["c"]
-		var pos: Vector3 = zc + Vector3(0, 0, G67Yard.HALF + 1.2) + (yard.position if yard != null else Vector3.ZERO)
-		pos.y = 0.0
-		var g := G67Models.spawn("g67_room_gate", self, pos, 0.0, Vector3(3.0, 3.2, 1.2))
-		if String(g.get_meta("from", "")) != "glb":
-			missing.append("g67_room_gate")
-		_static_box(pos + Vector3(0, 1.5, 0), Vector3(3.0, 3.0, 0.8))
 		var type := String(o["type"])
+		var spot := gate_spot(o)
+		var col: Color = G67Data.ROOM_COLOR[type]
+		var title := "%s · %s" % [String(G67Data.ROOM_NAMES[type]), String(G67Yard.zone(String(o.get("place", "podezd")))["name"]).to_upper()]
+		var root := Node3D.new()
+		root.name = "gate_mark%d" % i
+		root.position = spot["mark"]
+		add_child(root)
+		var ic := G67Icons.sprite(String(G67Icons.ROOM.get(type, "")), 0.0016)
+		if ic != null:
+			root.add_child(ic)
 		var lbl := Label3D.new()
-		lbl.text = "%s\n%s" % [String(G67Data.ROOM_NAMES[type]), String(G67Data.ROOM_HINT[type])]
-		lbl.font_size = 56
-		lbl.pixel_size = 0.008
-		lbl.outline_size = 14
-		lbl.modulate = G67Data.ROOM_COLOR[type]
+		lbl.text = String(G67Data.ROOM_NAMES[type])
+		lbl.font_size = 40
+		lbl.pixel_size = 0.0035
+		lbl.outline_size = 10
+		lbl.modulate = col
 		lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		lbl.no_depth_test = true
-		lbl.position = pos + Vector3(0, 4.2, 0.4)
-		add_child(lbl)
-		var ic := G67Icons.sprite(String(G67Icons.ROOM.get(type, "")), 0.0036)
-		if ic != null:
-			ic.position = pos + Vector3(0, 5.75, 0.4)
-			add_child(ic)
-		# столб света над воротами: их видно через весь двор
-		var beam := MeshInstance3D.new()
-		var cm := CylinderMesh.new()
-		cm.top_radius = 0.25
-		cm.bottom_radius = 0.6
-		cm.height = 16.0
-		beam.mesh = cm
-		var bmat := StandardMaterial3D.new()
-		var bc: Color = G67Data.ROOM_COLOR[type]
-		bmat.albedo_color = Color(bc.r, bc.g, bc.b, 0.16)
-		bmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		bmat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		beam.material_override = bmat
-		beam.position = pos + Vector3(0, 11.0, 0)
-		add_child(beam)
-		_light(pos + Vector3(0, 2.6, 1.6), G67Data.ROOM_COLOR[type], 2.4, 7.0)
-		gates.append({"root": g, "label": lbl, "option": o, "icon": ic})
-		_point("gate%d" % i, String(G67Data.ROOM_NAMES[type]), String(G67Data.ROOM_HINT[type]), pos + Vector3(0, 0, 1.7))
+		lbl.position = Vector3(0, -0.5 if ic != null else 0.0, 0)
+		root.add_child(lbl)
+		var lt := OmniLight3D.new()
+		lt.light_color = col
+		lt.light_energy = 0.7
+		lt.omni_range = 4.0
+		lt.position = Vector3(0, -0.6, 0)
+		root.add_child(lt)
+		var stand: Node3D = null
+		if spot.has("stand"):
+			var sp: Vector3 = spot["stand"]
+			stand = G67Models.spawn("g67_poster_stand", self, sp, float(spot["yaw"]), Vector3(1.0, 2.2, 1.0))
+			stand.name = "gate_stand%d" % i
+			_static_box(sp + Vector3(0, 1.0, 0), Vector3(1.0, 2.0, 0.5), float(spot["yaw"]))
+			var sb: Node = get_child(get_child_count() - 1)
+			sb.name = "gate_stand_body%d" % i
+		var auto := not spot.has("pos")
+		gates.append({"root": root, "label": lbl, "option": o, "icon": ic, "stand": stand, "auto": auto, "pos": spot.get("pos", spot["mark"])})
+		if not auto:
+			_point("gate%d" % i, title, String(G67Data.ROOM_HINT[type]), spot["pos"])
 
-## Дверь подъезда во дворе: вернуться домой посреди забега (забег встаёт на паузу)
+## Варианты сняты: значки, стойки и их точки убраны (этап выбран или начался)
+func clear_gates() -> void:
+	for g in gates:
+		for k in ["root", "stand"]:
+			var n = g.get(k)
+			if n != null and is_instance_valid(n):
+				n.queue_free()
+	for i in gates.size():
+		var b := get_node_or_null("gate_stand_body%d" % i)
+		if b != null:
+			b.queue_free()
+	gates = []
+	points = points.filter(func(pt): return not String(pt["id"]).begins_with("gate"))
+
+## Дверь подъезда во дворе: вернуться домой посреди забега (забег сохранится)
 func add_home() -> void:
 	if yard == null:
 		return
 	for pt in points:
 		if String(pt["id"]) == "home":
 			return
-	_point("home", "ПОДЪЕЗД", "домой: забег сохранится, продолжишь отсюда же", yard.position + G67Yard.HOME_DOOR)
+	_point("home", "ПОДЪЕЗД", "домой: забег сохранится, продолжишь отсюда же", G67Yard.HOME_DOOR)
 
-## Ларёк «ШАУРМА 67»: окно шаурмичной на парковке (комната ЛАРЁК)
+## Ларёк «ШАУРМА 67»: окно шаурмичной на парковке — постоянный магазин двора
 func add_kiosk() -> void:
 	if yard != null:
-		_point("kiosk", "ШАУРМА 67", "окно ларька: шаурма за голду", yard.position + Vector3(39.9, 0, 7.0))
+		_point("kiosk", "ШАУРМА 67", "окно ларька: шаурма за голду", G67Yard.KIOSK_POS)
 
-## Кладовка: открытый бокс у гаражей (комната КЛАДОВКА)
+## Кладовка: открытый бокс у гаражей
 func add_storage() -> void:
 	if yard != null:
-		_point("storage", "КЛАДОВКА", "открытый бокс: взять один артефакт", yard.position + Vector3(-43.4, 0, -0.5))
-
-## Место отдыха в комнате ПЕРЕДЫШКА: беседка за гаражами
-func add_rest() -> void:
-	_point("rest", "БЕСЕДКА", "перевести дух: восстановить здоровье", Vector3(0.6, 0, 0.4))
+		for pt in points:
+			if String(pt["id"]) == "storage":
+				return
+		_point("storage", "КЛАДОВКА", "открытый бокс: взять один артефакт", G67Yard.STORAGE_POS)

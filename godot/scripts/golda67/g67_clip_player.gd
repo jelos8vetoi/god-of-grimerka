@@ -3,8 +3,10 @@
 ## VHS-помехами и звуком. Сценарии — G67Clips (одна функция на ролик, пишется как последовательность кадров:
 ## await c.wait(), await c.say(), c.cam_to() …).
 ##
-## Пропуск: уже просмотренный ролик — Enter / Пробел / ЛКМ; при первом показе — нельзя (ТЗ). Esc — пауза игры. Пауза игры ставит ролик
-## на паузу (всё в нём «pausable»). Просмотренные и открытые — Golda67.meta: "clips_seen", "archive" ("clip_<ID>").
+## Esc ставит ролик на паузу (изображение, голос, таймеры и время ролика стоят; поверх затемнение и «ПАУЗА», меню игры не
+## открывается), Esc ещё раз — продолжение. Пропуск — удержание Enter / Пробела / кнопки A геймпада 0,8 с (и при первом
+## просмотре; кольцо-индикатор в углу). Пропущенный ролик открыт в архиве, но не «просмотрен» (play_clip смотрит skipped).
+## Просмотренные и открытые — Golda67.meta: "clips_seen", "archive" ("clip_<ID>").
 class_name G67ClipPlayer
 extends CanvasLayer
 
@@ -16,7 +18,12 @@ const VP_TALL := Vector2i(608, 1080)
 var game
 var id := ""
 var tall := false
-var skippable := false
+const HOLD_SKIP := 0.8
+const HINT_SEC := 3.0
+var skippable := true           # пропуск доступен всегда: удержанием
+var paused := false
+var _ctl: Control
+var _dim: ColorRect
 var skipped := false
 var done := false
 var t := 0.0
@@ -131,6 +138,26 @@ func _build() -> void:
 	sub_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint = _label(root, "", 18, Color(0.7, 0.72, 0.78))
+	_dim = ColorRect.new()
+	_dim.color = Color(0, 0, 0, 0.62)
+	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dim.visible = false
+	_dim.process_mode = Node.PROCESS_MODE_ALWAYS
+	var pl := _label(_dim, "ПАУЗА", 64, Color(0.95, 0.96, 0.97))
+	pl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	add_child(_dim)
+	var cl := _label(_dim, "Esc — продолжить", 22, Color(0.7, 0.72, 0.78))
+	cl.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	cl.position = Vector2(-120, -120)
+	_ctl = Ctl.new()
+	_ctl.set("owner_p", self)
+	_ctl.process_mode = Node.PROCESS_MODE_ALWAYS
+	_ctl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_ctl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_ctl)
 	voice = AudioStreamPlayer.new()
 	voice.bus = "Voice"
 	add_child(voice)
@@ -180,7 +207,8 @@ func _layout() -> void:
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 func _run() -> void:
-	hint.text = "Enter — пропустить" if skippable else "первый просмотр — без пропуска"
+	hint.text = "Esc — пауза · удерживай Enter — пропустить"
+	hint.create_tween().tween_property(hint, "modulate:a", 0.0, 0.4).set_delay(HINT_SEC)      # подсказка только в начале ролика
 	await G67Clips.run(self, id)
 	_end()
 
@@ -188,6 +216,9 @@ func _end() -> void:
 	if done:
 		return
 	done = true
+	if paused:
+		paused = false
+		get_tree().paused = false
 	voice.stop()
 	game.main.audio.director.leave_cinematic(self)
 	finished.emit(id)
@@ -203,19 +234,50 @@ func _process(dt: float) -> void:
 		cam.h_offset = randf_range(-1.0, 1.0) * _shake * 0.08
 		cam.v_offset = randf_range(-1.0, 1.0) * _shake * 0.05
 
-func _unhandled_input(e: InputEvent) -> void:
-	if done:
+## Пауза ролика: встаёт дерево (ролик, голос, таймеры — «pausable»), работают только Ctl и затемнение
+func set_paused(v: bool) -> void:
+	if done or paused == v:
 		return
-	# Esc — пауза игры (ролик встаёт вместе с ней); пропуск — Enter, Пробел, ЛКМ
-	var press: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]) or (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT)
-	if not press:
-		return
-	get_viewport().set_input_as_handled()
-	if skippable:
-		skip()
+	paused = v
+	get_tree().paused = v
+	_dim.visible = v
+	if v and voice.playing:
+		voice.stream_paused = true
+	elif not v:
+		voice.stream_paused = false
+
+## Узел ввода роликa: работает и на паузе. Esc — пауза; удержание Enter / Пробела / A — пропуск, индикатор — кольцо
+class Ctl extends Control:
+	var owner_p
+	var hold := 0.0
+	func _input(e: InputEvent) -> void:
+		if owner_p == null or owner_p.done:
+			return
+		if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_ESCAPE:
+			owner_p.set_paused(not owner_p.paused)
+			get_viewport().set_input_as_handled()
+		elif e is InputEventKey and e.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+			get_viewport().set_input_as_handled()
+	func _process(dt: float) -> void:
+		if owner_p == null or owner_p.done:
+			return
+		var held: bool = not owner_p.paused and (Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_KP_ENTER) or Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A))
+		var before := hold
+		hold = hold + dt if held else maxf(0.0, hold - dt * 3.0)
+		if hold != before or hold > 0.0:
+			queue_redraw()
+		if hold >= G67ClipPlayer.HOLD_SKIP:
+			hold = 0.0
+			owner_p.skip()
+	func _draw() -> void:
+		if hold <= 0.0:
+			return
+		var c := Vector2(size.x - 70, 70)
+		draw_arc(c, 24, 0, TAU, 32, Color(1, 1, 1, 0.2), 4.0)
+		draw_arc(c, 24, -PI * 0.5, -PI * 0.5 + TAU * clampf(hold / G67ClipPlayer.HOLD_SKIP, 0.0, 1.0), 32, Color(1.0, 0.82, 0.3), 5.0)
 
 func skip() -> void:
-	if not skippable or done:
+	if done:
 		return
 	skipped = true
 	voice.stop()

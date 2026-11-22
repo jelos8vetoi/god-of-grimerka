@@ -248,7 +248,7 @@ static func value_text(uid: String, level: int) -> String:
 		"dmg": return "урон +%d %%" % (4 * level) if level > 0 else "урон без надбавки"
 		"res": return "перезарядки −%d %%" % (8 * level) if level > 0 else "перезарядки как есть"
 		"heal": return "вариантов лечения: %d" % (1 + level)
-		"rare": return "редкие фитсы +%d %%" % (6 * level) if level > 0 else "редкие — как повезёт"
+		"rare": return "редкие бафы +%d %%" % (6 * level) if level > 0 else "редкие — как повезёт"
 		"reroll": return "перевыборов: %d" % level if level > 0 else "перевыборов нет"
 		"slots": return "слотов: %d" % (3 + level)
 		"gold": return "на старте %d голды" % (30 * level) if level > 0 else "на старте без голды"

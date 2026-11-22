@@ -53,6 +53,7 @@ var combat: Combat          # ядро боя: буфер ввода, окна �
 var bottles: Bottles         # водяра: в руке, в полёте, всплеск (bottles.gd)
 var tyaga: Tyaga             # пылесос ТЯГА-812: езда, притягивание, выброс (tyaga.gd)
 var own_styles: Array = ["vozduh", "bottles", "tyaga812"]   # стили Пахана: [1], [2], [3]
+var _style_note_t := -9.0
 var switch_to := ""          # идёт смена стиля: на какой
 var switch_t := 0.0
 var switch_buf := false      # во время смены нажали удар: сработает сразу после
@@ -562,6 +563,11 @@ func _physics_process(dt: float) -> void:
 	for i in own_styles.size():
 		if pressed("style%d" % (i + 1)):
 			set_style(own_styles[i])
+	if game.golda != null:
+		for k in range(own_styles.size() + 1, 4):
+			if pressed("style%d" % k) and game.clock - _style_note_t >= 1.5:
+				_style_note_t = game.clock
+				game.toast("Водяра — после победы над Мишей Минасяном" if k == 2 else "ТЯГА-812 — после победы над FORTUNA 812")
 	if pressed("tag"):
 		if game.tag.try_tag():      # смена героя и командные приёмы — tagteam.gd
 			return
@@ -646,7 +652,8 @@ func _physics_process(dt: float) -> void:
 			elif combat.try_start():
 				pass
 			elif pressed("heat"):
-				try_heat()
+				if not (game.golda != null and game.golda.near != "" and execution.pick().is_empty()):      # приквел: E у предмета — к предмету, а не Heat
+					try_heat()
 			elif pressed("rage") and swag >= 100.0:
 				start_rage()
 		"switch":
@@ -1111,7 +1118,13 @@ func try_heat() -> void:
 		guitar.distort()               # у гитары E — DISTORTION
 		return
 	if swag < 40.0:
-		game.popup(global_position + Vector3(0, 2.2, 0), "нужно 40 СВЭГа", Color(0.7, 0.75, 0.85))
+		var foe_near := false
+		for e in game.enemies:
+			if is_instance_valid(e) and e.alive() and e.global_position.distance_to(global_position) < 8.0:
+				foe_near = true
+				break
+		if foe_near:
+			game.popup(global_position + Vector3(0, 2.2, 0), "нужно 40 СВЭГа", Color(0.7, 0.75, 0.85))
 		return
 	if style.heat.is_empty():
 		return

@@ -7,6 +7,9 @@ var body: Node3D
 var target := Vector3.ZERO
 var wait := 0.0
 var face := 0.0
+var home_react := ""          # приквел: реакция на возвращение героя в подъезд («Cheer» или короткое действие)
+var home_until := 0.0
+var home_next := 6.0
 var say_t := 0.0
 var cd := 0.0
 var cd_max := 10.0
@@ -78,9 +81,38 @@ func _ready() -> void:
 	add_child(track)
 
 func _physics_process(dt: float) -> void:
+	if game.madk_away():      # приквел до первой концовки: в забеге напарника нет — не идёт за героем, не отскакивает и не дерётся
+		velocity = Vector3.ZERO
+		foe = null
+		return
 	var p = game.player
 	var pp: Vector3 = p.global_position
 	cd = max(0.0, cd - dt)
+	if game.madk_home():      # приквел до первой концовки, подъезд: житель — стоит на месте, поворачивается к герою рядом
+		velocity = Vector3(0, velocity.y - 20.0 * dt, 0)
+		foe = null
+		var to := pp - global_position
+		to.y = 0.0
+		var now: float = game.clock
+		var near_hero := to.length() < 5.0
+		if home_react != "" and now >= home_until:
+			var clip := home_react          # реакция на возвращение героя: разворот и жест
+			home_react = ""
+			home_until = now + 2.0
+			rig.play_for(clip, 2.0, 0.1)
+			home_next = now + randf_range(9.0, 16.0)
+		elif now >= home_next and now >= home_until:
+			var pick: Array = [["Freeze", 1.8], ["StyleSwitch", 0.8]].pick_random()          # спокойное короткое действие из его набора
+			home_until = now + float(pick[1])
+			rig.play_for(String(pick[0]), float(pick[1]), 0.15)
+			home_next = now + randf_range(9.0, 16.0)
+		var want := atan2(to.x, to.z) if (near_hero or now < home_until) else PI * 0.5
+		face = lerp_angle(face, want, 1.0 - exp(-4.0 * dt))
+		if now >= home_until:
+			rig.play("Idle", 0.3)
+		move_and_slide()
+		body.rotation.y = face
+		return
 	if game.paused_story() or game.over:      # разговор или гибель героя: стоит, не дерётся
 		velocity = Vector3(0, velocity.y - 20.0 * dt, 0)
 		rig.play("Idle", 0.3)

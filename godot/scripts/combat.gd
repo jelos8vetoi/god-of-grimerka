@@ -298,10 +298,16 @@ func tick_attack(dt: float, dir: Vector3) -> void:
 			p.launch_projectile(a, charged)
 		else:
 			_resolve_hits(hit_i - 1, hit_log.get(hit_i - 1, {}).is_empty())
+			if cur != a:
+				return       # получил урон внутри разбора попаданий: interrupt() уже сбросил удар
 	if a.detect == "sweep" and hit_i < hs.size() and kk >= float(hs[hit_i]) - a.hit_lead:
 		_resolve_hits(hit_i, hit_log.get(hit_i, {}).is_empty(), true)     # хитбокс оружия открыт ещё до момента удара: задевает по пути
+		if cur != a:
+			return
 	if a.projectile == "" and hit_i > 0 and kk <= float(hs[hit_i - 1]) + a.hit_window:
 		_resolve_hits(hit_i - 1, false)      # окно ещё открыто: добираем тех, кто вошёл в зону позже
+		if cur != a:
+			return
 	_track_tip()
 	if a.slam >= 0.0 and not slam_done and kk >= a.slam:
 		slam_done = true
@@ -470,6 +476,8 @@ func damage_for(a: AttackData, _target = null, extra_moment := 0.0) -> float:
 
 func _resolve_hits(idx: int, first: bool, sweep_only := false) -> void:
 	var a := cur
+	if a == null:
+		return            # удар прерван (например, ответ стойки Миши в ходе этого же разбора)
 	var list := targets(a, idx, sweep_only)
 	if first:
 		last_hits = 0

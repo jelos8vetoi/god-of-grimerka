@@ -88,8 +88,9 @@ static func lead(e, sec: float) -> Vector3:
 	return at
 
 static func _arena(g, at: Vector3) -> Vector3:
-	var lim: float = float(g.ARENA) - 1.2
-	return Vector3(clampf(at.x, -lim, lim), 0.0, clampf(at.z, -lim, lim))
+	var limx: float = float(g.arena_h.x) - 1.2
+	var limz: float = float(g.arena_h.y) - 1.2
+	return Vector3(g.arena_c.x + clampf(at.x - g.arena_c.x, -limx, limx), 0.0, g.arena_c.z + clampf(at.z - g.arena_c.z, -limz, limz))
 
 ## Запустить приём. Длительность — sp_dur босса; всё, что бьёт, — с меткой.
 static func start(e, move: String) -> void:

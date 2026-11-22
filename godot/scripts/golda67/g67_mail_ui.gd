@@ -44,7 +44,7 @@ func _build() -> void:
 	for k in NUMS.size():
 		var b := Box.new()
 		b.num = NUMS[k]
-		b.paint = [Color(0.3, 0.42, 0.36), Color(0.28, 0.36, 0.48), Color(0.42, 0.34, 0.26), Color(0.36, 0.38, 0.36)][(k * 7) % 4]
+		b.paint = Color(0.27, 0.36, 0.5)          # весь блок одного синего, как в подъезде
 		b.position = BOX0 + Vector2((k % COLS) * (BOX.x + GAP.x), (k / COLS) * (BOX.y + GAP.y))
 		b.size = BOX
 		b.pivot_offset = BOX * 0.5
@@ -64,6 +64,7 @@ func _build() -> void:
 	for b in letter_box:
 		add_item(b, b.mail)
 	_build_info()
+	esc_hint()
 	select(0, true)
 
 func _build_info() -> void:
@@ -128,6 +129,9 @@ func _on_select(i: int, prev: int) -> void:
 			i_btn.disabled = true
 
 func _activate(i: int) -> void:
+	if mode == "read":
+		_back()                # Enter закрывает прочитанное, а не открывает второе окно
+		return
 	if i < 0:
 		return
 	var b: Box = items[i]["node"]
@@ -247,6 +251,13 @@ class Box extends Control:
 			var p := Vector2(rng.randf_range(4, dw - 14), rng.randf_range(4, size.y - 10))
 			draw_rect(Rect2(p, Vector2(rng.randf_range(4, 14), rng.randf_range(2, 6))), Color(0.5, 0.48, 0.44, 0.5))
 		draw_rect(Rect2(Vector2(0, size.y - 8), Vector2(dw, 8)), Color(0.42, 0.25, 0.12, 0.45))      # ржавчина по низу
+		for k in 6:                                       # царапины
+			var sp := Vector2(rng.randf_range(6, dw - 30), rng.randf_range(10, size.y - 20))
+			draw_line(sp, sp + Vector2(rng.randf_range(12, 40), rng.randf_range(-8, 8)), Color(0.75, 0.75, 0.72, 0.28), 1.0)
+		for k in 3:                                       # потёки ржавчины у щели
+			var rx := size.x * (0.2 + 0.2 * k)
+			draw_line(Vector2(rx, 34), Vector2(rx + rng.randf_range(-3, 3), 34 + rng.randf_range(14, 40)), Color(0.5, 0.26, 0.1, 0.4), 3.0)
+		draw_string(MGUI.font("mono"), Vector2(8, size.y - 14), "№%d" % num, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.1, 0.12, 0.16, 0.6))      # выбитый номер
 		draw_rect(dr, Color(0.1, 0.1, 0.1), false, 2.0)
 		if door > 0.5:
 			return

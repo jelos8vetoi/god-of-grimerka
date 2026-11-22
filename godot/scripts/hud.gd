@@ -632,7 +632,7 @@ func abilities(p) -> Array:
 		"vozduh":
 			out.append(["E", "HEAT", "heat", min(1.0, p.swag / 40.0), ""])
 			var st: StyleData = Styles.by_id("bottles")
-			out.append(["F", "ВОДЯРА", "bottle", p.combat.ammo_of("bottles") / max(1.0, float(st.ammo_max)), ""])
+			out.append(["F", "БУТЫЛКА" if game.golda != null else "ВОДЯРА", "bottle", p.combat.ammo_of("bottles") / max(1.0, float(st.ammo_max)), ""])
 		"bottles":
 			out.append(["E", "HEAT", "heat", min(1.0, p.swag / 40.0), ""])
 			out.append(rage)
