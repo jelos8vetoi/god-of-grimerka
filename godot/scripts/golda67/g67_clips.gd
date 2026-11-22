@@ -1291,6 +1291,10 @@ static func ev_clips() -> Dictionary:
 			[1.0, {"rarm": {"x": -0.5}, "larm": {"x": -0.5}, "rfa": {"x": -0.2}, "lfa": {"x": -0.2}, "spine": {"x": 0.2}}]], false),
 	}
 
+## Паника: руки подняты и машут (модификатор скелета поверх бега)
+static func _panic_arms(c: G67ClipPlayer, r: Rig) -> void:
+	G67PanicArms.attach(r.skel)
+
 static var snap_req := ""      # проверка просит снимок в ключевой момент сцены
 
 static func get_tree_snap_after(c: G67ClipPlayer) -> void:
@@ -1678,8 +1682,9 @@ static func ev02(c: G67ClipPlayer) -> void:
 			_ev_box(c, Vector3(0.22, 0.01, 0.12), Vector3(np.x, 0.04, np.z), Color(0.1, 0.14, 0.24), 0.2, 0.8)
 		var tv: Vector3 = np - pa.position
 		pa.rotation.y = lerp_angle(pa.rotation.y, atan2(tv.x, tv.z), 0.1), -0.5, TAU * 2.3, 8.5)
+	_panic_arms(c, mk)
 	c.cam_at(Vector3(-2.0, 3.5, 3.0), Vector3(0, 0.5, -1.0), 56.0)
-	c.cam_to(Vector3(-1.0, 3.2, 3.1), Vector3(0, 0.5, -1.0), 2.4, 56.0)
+	var camtw := c.cam_to(Vector3(-1.0, 3.2, 3.1), Vector3(0, 0.5, -1.0), 2.4, 56.0)
 	# бросок ведра: по дуге из руки на пол, катится и остаётся у стены в кадре
 	st["carry"] = false
 	var b0: Vector3 = bucket.global_position
@@ -1689,7 +1694,23 @@ static func ev02(c: G67ClipPlayer) -> void:
 		bucket.rotation.z = k * 4.5, 0.0, 1.0, 0.8)
 	bthrow.tween_property(bucket, "global_position", Vector3(-2.55, 0.17, 1.2), 0.6)
 	bthrow.parallel().tween_property(bucket, "rotation:z", 6.6 + 1.5, 0.6)
-	await c.say(L[1], 0.1)
+	var dpan := c.say_async(L[1])
+	await c.wait(0.9)
+	camtw.kill()
+	var fol := c.create_tween().set_loops()                                       # камера бежит перед ним: лицо и поднятые руки
+	fol.tween_callback(func():
+		if is_instance_valid(mk):
+			var fw := Vector3(sin(mk.rotation.y), 0, cos(mk.rotation.y))
+			c.cam.global_position = mk.global_position + fw * 2.3 + Vector3(0, 1.4, 0)
+			c.cam.look_at(mk.global_position + Vector3(0, 1.15, 0), Vector3.UP)
+			c.cam.fov = 55.0)
+	fol.tween_interval(0.016)
+	await c.wait(0.3)
+	G67Clips.snap_req = "panic"
+	await c.wait(0.4)
+	fol.kill()
+	await c.wait(maxf(dpan - 1.6, 0.1) + 0.1)
+	c.clear_sub()
 	c.cam_at(Vector3(0.9, 1.5, 0.4), Vector3(-0.3, 1.25, -1.3), 42.0)
 	await c.say(L[2], 0.1)
 	var follow := c.create_tween().set_loops()
