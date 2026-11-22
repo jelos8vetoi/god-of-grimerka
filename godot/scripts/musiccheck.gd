@@ -411,50 +411,62 @@ func _golda67() -> void:
 		if D.events[i]["ev"] == "stinger" and String(D.events[i]["cue"]).ends_with("_intro"):
 			stung = true
 	ok(not boss_early and boss != null and (String(D.cue) == "boss_courier" or String(D.cue) == "boss_g67_misha") and D.ctx == "boss" and stung, "m8 Миша: до конца постановки босса нет (%s), потом набор «%s» (замена boss_g67_misha → boss_courier), вступление %s" % [str(not boss_early), D.cue, str(stung)])
-	# m9 фазы
+	# m9 фазы босса: ворота фаз и антракт со свитой — как в golda67check (удар до порога, конец неуязвимости, антракт, его конец)
 	var p9a: float = D.active_players()[0].get_playback_position()
-	boss.guard_until = -1.0
-	boss.take_hit(boss.max_hp * 0.4, Vector3.ZERO, 0.0)
-	await wait(3.0)
-	var tw0 := Time.get_ticks_msec()
-	while bool(boss.get("antract")) and Time.get_ticks_msec() - tw0 < 15000:         # антракт кончается, когда свита побеждена
-		for e in g.enemies:
-			if is_instance_valid(e) and e != boss and e.state != "dead":
-				e.take_hit(999999.0, Vector3.ZERO, 0.0)
-		await get_tree().process_frame
-	await wait(2.5)
+	g.player.inv = 1.0
+	boss.state = "chase"
+	boss.cool = 99.0
+	boss.move = ""
+	boss.take_hit(99999.0, Vector3.FORWARD, 0.0, true)               # до порога фазы 2
+	await wait(1.3)
+	var antr1: bool = await until(func(): return bool(boss.get("antract")), 3.0)
+	await wait(3.2)
+	var lay_a: Array = D.base["layers"]
+	var lv_a: float = D.decks[D.active].lv[1] if D.active >= 0 else -99.0
+	var antract_ok: bool = antr1 and lay_a.size() == 3 and float(lay_a[0]) > 0.5 and float(lay_a[1]) < 0.5 and lv_a < -40.0
+	boss.antract_until = boss.age                                      # конец антракта
+	await wait(4.5)
 	var l1: float = D.decks[D.active].lv[1] if D.active >= 0 else -99.0
-	boss.guard_until = -1.0
-	boss.take_hit(boss.max_hp * 0.35, Vector3.ZERO, 0.0)
-	await wait(3.0)
-	var tw1 := Time.get_ticks_msec()
-	while bool(boss.get("antract")) and Time.get_ticks_msec() - tw1 < 15000:         # антракт кончается, когда свита побеждена
-		for e in g.enemies:
-			if is_instance_valid(e) and e != boss and e.state != "dead":
-				e.take_hit(999999.0, Vector3.ZERO, 0.0)
-		await get_tree().process_frame
-	await wait(2.5)
+	boss.hp = boss.max_hp * 2.0 / 3.0 + 1.0
+	boss.state = "chase"
+	boss.cool = 99.0
+	boss.move = ""
+	boss.take_hit(99999.0, Vector3.FORWARD, 0.0, true)               # до порога фазы 3
+	await wait(1.3)
+	var antr2: bool = await until(func(): return bool(boss.get("antract")), 3.0)
+	await wait(1.0)
+	boss.antract_until = boss.age
+	await wait(5.0)
 	var l2: float = D.decks[D.active].lv[2] if D.active >= 0 else -99.0
 	var p9b: float = D.active_players()[0].get_playback_position()
-	ok(boss.phase >= 2 and l1 > -10.0 and l2 > -10.0 and p9b > p9a, "m9 фазы босса: слой p2 %.1f дБ, p3 %.1f дБ, позиция набора %.1f → %.1f с" % [l1, l2, p9a, p9b])
+	ok(boss.phase >= 2 and antr2 and l1 > -10.0 and l2 > -10.0 and p9b > p9a and (String(D.cue) == "boss_g67_misha" or String(D.cue) == "boss_courier"), "m9 фазы босса: слой p2 %.1f дБ, p3 %.1f дБ, фаза %d, позиция набора %.1f → %.1f с" % [l1, l2, boss.phase, p9a, p9b])
+	ok(antract_ok, "m9 антракт: слои %s, слой p2 в антракте %.1f дБ" % [str(lay_a), lv_a])
+	boss.set("weak_t", 3.0)                                            # окно «ОТКРЫТ» третьей фазы: первый слой уходит
+	await wait(3.0)
+	var lay_w: Array = D.base["layers"]
+	var lv_w: float = D.decks[D.active].lv[0] if D.active >= 0 else 99.0
+	ok(boss.phase >= 2 and lay_w.size() == 3 and float(lay_w[0]) < 0.5 and float(lay_w[2]) > 0.5 and lv_w < -20.0, "m9 окно «ОТКРЫТ»: слои %s, первый слой %.1f дБ" % [str(lay_w), lv_w])
+	boss.set("weak_t", 0.0)
+	await wait(1.0)
 	# m10 босс повержен обычным уроном
 	var ev10 := D.events.size()
-	var tw2 := Time.get_ticks_msec()
-	while bool(boss.get("antract")) and Time.get_ticks_msec() - tw2 < 15000:         # антракт кончается, когда свита побеждена
-		for e in g.enemies:
-			if is_instance_valid(e) and e != boss and e.state != "dead":
-				e.take_hit(999999.0, Vector3.ZERO, 0.0)
-		await get_tree().process_frame
+	boss.state = "chase"
+	boss.cool = 99.0
+	boss.move = ""
 	boss.guard_until = -1.0
-	boss.take_hit(999999.0, Vector3.ZERO, 0.0)
+	boss.take_hit(999999.0, Vector3.FORWARD, 0.0, true)
 	await wait(2.0)
 	var won := false
 	for i in range(ev10, D.events.size()):
 		if D.events[i]["ev"] == "stinger" and String(D.events[i]["cue"]).ends_with("_win"):
 			won = true
 	var over: bool = g67.room_state == "over"
+	await until(func(): return g67.hub_ui != null and g67.hub_ui.kind == "result", 12.0)
+	if g67.hub_ui != null:
+		g67.hub_ui.select(0, true)                       # «В ПОДЪЕЗД» на экране итогов
+		g67.hub_ui._activate(0)
 	await until(func(): return g67.place == "hub", 14.0)
-	await wait(2.0)
+	await wait(4.0)
 	ok(won and over and g67.place == "hub" and D.via_k > 0.5, "m10 босс повержен: победная отбивка %s, затем хаб, музыка из телевизора (via %.2f, набор «%s»)" % [str(won), D.via_k, D.cue])
 	# m12 перезапуск режима дважды: один режиссёр, число проигрывателей прежнее, заглавный трек не оживает
 	var dirs := 0
