@@ -286,6 +286,7 @@ func music_set() -> String:
 func start_night(n: int, lv := {}) -> void:
 	night = n
 	levels = lv
+	var first_time: bool = (FNSave.v("beaten") as Array).is_empty()
 	FNSave.played()
 	if n < 5:
 		FNSave.put("current", n)
@@ -293,6 +294,7 @@ func start_night(n: int, lv := {}) -> void:
 	st.setup(n, int(Time.get_ticks_usec() % 2147483647), lv)
 	menu.visible = false
 	ui.hud.visible = true
+	ui.night_begin(n, first_time)
 	ui.show_pause(false)
 	ui.show_dark(false)
 	paused = false
@@ -548,12 +550,14 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"door":
 			sfx3("door_down" if d["closed"] else "door_up", FNOffice.point("door_" + String(d["s"])) * Vector3(0.75, 1, 1) + Vector3(0, 1.6, 0), -2.0)
 			office.press("door_" + String(d["s"]))
+			ui.toast("door_" + String(d["s"]))
 		"light":
 			if d["on"]:
 				sfx3("click", office.lights[String(d["s"])].global_position, -10.0, 1.3)
 		"seal":
 			sfx3("click", FNOffice.point("vent_" + String(d["s"])), -4.0, 0.8)
 			office.press("seal_" + String(d["s"]))
+			ui.toast("seal_" + String(d["s"]))
 		"monitor":
 			sfx2("cam", -10.0, 0.8 if d["on"] else 0.6)
 			if not d["on"]:
@@ -568,6 +572,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"reset":
 			sfx2("power_down", -10.0, 1.8)
 			office.press("reset")
+			ui.toast("reset")
 		"force_open":
 			sfx3("door_up", FNOffice.point("door_r") + Vector3(-0.5, 1.6, 0), 2.0, 0.85)
 			ui.alarm("ПРАВАЯ ДВЕРЬ ОТКРЫТА СИСТЕМОЙ")
@@ -939,6 +944,8 @@ func _unhandled_input(e: InputEvent) -> void:
 				_toggle("seal_t")
 			KEY_R:
 				_toggle("reset")
+			KEY_F1:
+				ui.toggle_deck_pin()
 			KEY_F:
 				mute_call()
 			KEY_L:

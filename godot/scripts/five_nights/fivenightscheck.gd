@@ -242,6 +242,12 @@ func _ui_part() -> void:
 	ok(not st.door["l"] and not st.door["r"] and R.office.door_y["l"] > 0.9, "двери открылись")
 	# ---- ПУЛЬТ: у каждого устройства видно клавишу, название и состояние ----
 	var UI: FNUI = R.ui
+	var learn_on: bool = UI.deck_learn_left > 0.0
+	ok(learn_on and UI.deck.visible, "первая ночь нового сохранения: пульт виден из-за учёбы (осталось %.0f с)" % UI.deck_learn_left)
+	var pin_was := UI.deck_pin
+	if not learn_on:
+		UI.deck_pin = true
+		await wait(0.2)
 	var deck_names_ok := true
 	var deck_txt: Array = []
 	var deck_screen := Rect2(Vector2.ZERO, UI._vs())
@@ -308,6 +314,8 @@ func _ui_part() -> void:
 	var led_txt: String = (UI.deck_rows["door_l"]["state"] as Label).text
 	st.glitches.erase("leds_off")
 	ok(String(rs[0]) == "МАЛО ЭНЕРГИИ" and bool(rs[3]) and led_txt == "НЕТ ДАННЫХ", "недоступное видно: сброс «%s», при сбое индикаторов дверь «%s»" % [rs[0], led_txt])
+	await _deck_hidden(R, st)
+	UI.deck_pin = pin_was
 	# свет держится, пока держишь
 	var q := InputEventKey.new()
 	q.keycode = KEY_Q
@@ -637,6 +645,46 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 ## чистая логика ночи: энергия, двери, маршруты, условия атаки
 ## левый коридор CAM 4 — сцена: одна, звук совпадает с местом врага, свет не достаёт до двери ниши, враг виден в коридоре
 ## и не виден из-за угла ниши (сырая картинка камеры без шейдера); снимки c4_*
+## пульт скрыт (учёба кончилась): энергия и часы на месте, F1 возвращает пульт и запоминает выбор, действия подписывает toast
+func _deck_hidden(R: FiveNightsRoot, st: FNNight) -> void:
+	var UI: FNUI = R.ui
+	var pin_was := UI.deck_pin
+	var learn_was := UI.deck_learn_left
+	var cfg: Dictionary = FNSave.v("settings")
+	var cfg_was = cfg.get("deck", null)
+	UI.deck_learn_left = 0.0
+	UI.deck_pin = false
+	await wait(0.3)
+	ok(not UI.deck.visible and UI.power_box.visible and UI.clock_box.visible, "учёба кончилась — пульта нет, энергия и часы на месте")
+	await key(KEY_F1)
+	await wait(0.3)
+	var pinned_on: bool = UI.deck.visible and bool(cfg.get("deck", false))
+	await key(KEY_F1)
+	await wait(0.3)
+	ok(pinned_on and not UI.deck.visible and not bool(cfg.get("deck", false)), "F1 показывает пульт и запоминает это в настройках, второй F1 убирает")
+	await key(KEY_A)
+	await wait(0.25)
+	var toast_txt: String = UI.toast_l.text
+	var toast_vis: bool = UI.toast_l.visible
+	await key(KEY_A)
+	await wait(0.4)
+	ok(toast_vis and toast_txt == "ЛЕВАЯ ДВЕРЬ — ЗАКРЫТА", "пульта нет — дверь по клавише A подписана на экране: «%s»" % toast_txt)
+	UI.deck_pin = true
+	UI.toast_t = 0.0
+	await wait(0.3)
+	await key(KEY_A)
+	await wait(0.25)
+	var no_toast: bool = not UI.toast_l.visible
+	await key(KEY_A)
+	await wait(0.4)
+	ok(no_toast, "пока пульт на экране, подпись действия не нужна")
+	UI.deck_pin = pin_was
+	UI.deck_learn_left = learn_was
+	if cfg_was == null:
+		cfg.erase("deck")
+	else:
+		cfg["deck"] = cfg_was
+
 func _hall_left(R: FiveNightsRoot, st: FNNight) -> void:
 	var F := R.fac
 	var hl := F.hall_l
