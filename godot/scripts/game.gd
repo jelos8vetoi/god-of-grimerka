@@ -1100,7 +1100,9 @@ func _process(dt: float) -> void:
 		cam.v_offset = 0.0
 	elif golda != null and golda.owns_camera():
 		cam.global_transform = golda.camera()      # постановка приквела (выход босса, разговоры)
-		if golda.scene_t >= 0.0 and not golda.talk_on:
+		if golda.ev_cam and not golda.talk_on:
+			cam.fov = golda.ev_fov
+		elif golda.scene_t >= 0.0 and not golda.talk_on:
 			cam.fov = golda.scene_fov
 		if golda.talk_on:
 			cam.fov = golda.talk_fov

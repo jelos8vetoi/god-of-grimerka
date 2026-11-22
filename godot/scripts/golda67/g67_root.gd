@@ -1191,6 +1191,83 @@ func _ev_tray_pos() -> Vector3:
 	return (G67Yard.EVENT_SPOTS["burmalda"] as Vector3) + Vector3(0, 0.3, 0.9)
 
 ## Рывок рычага: один бесплатно, ещё два по BURMALDA_COST
+# ---- мини-сцены событий: камера ведёт Golda67, ввод закрыт (scene_busy), пропуск удержанием, страховка 12 с
+var ev_cam := false
+var ev_pos := Vector3.ZERO
+var ev_look := Vector3.ZERO
+var ev_fov := 50.0
+var ev_skip := false
+var ev_hold := 0.0
+var ev_t0 := 0
+var ev_last_junk := -1
+
+func _ev_begin() -> void:
+	ev_cam = true
+	ev_skip = false
+	ev_hold = 0.0
+	ev_t0 = Time.get_ticks_msec()
+	_talk_hud(true)
+	game.player.velocity = Vector3.ZERO
+
+func _ev_end() -> void:
+	if not ev_cam:
+		return
+	ev_cam = false
+	_talk_hud(false)
+	game.cam.transform = Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
+	game.cam.fov = float(Opts.v("fov"))
+
+func _ev_shot(pos: Vector3, look: Vector3, fov := 50.0) -> void:
+	ev_pos = pos
+	ev_look = look
+	ev_fov = fov
+
+func _ev_wait(sec: float) -> void:
+	var t := 0.0
+	while t < sec and not ev_skip and Time.get_ticks_msec() - ev_t0 < 12000:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+
+func _ev_say(line: String) -> void:
+	var code := line.get_slice("|", 0)
+	var text := line.substr(line.find("|") + 1)
+	game._say(game.bark_b, line, 3.0)
+	game.banner(text, G67Clips.speaker(code), Color(1.0, 0.9, 0.7), 2.4)
+	events.append(["ev_say", line])
+
+func _ev_face(to: Vector3) -> void:
+	var pp: Vector3 = game.player.global_position
+	game.player.face = atan2(to.x - pp.x, to.z - pp.z)
+
+func _ev_sparks(at: Vector3, col := Color(1.0, 0.85, 0.3), n := 40) -> void:
+	var pr := GPUParticles3D.new()
+	var pm := ParticleProcessMaterial.new()
+	pm.direction = Vector3(0, 1, 0)
+	pm.spread = 70.0
+	pm.initial_velocity_min = 2.0
+	pm.initial_velocity_max = 5.0
+	pm.gravity = Vector3(0, -9.0, 0)
+	pr.process_material = pm
+	var sm := SphereMesh.new()
+	sm.radius = 0.03
+	sm.height = 0.06
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = col
+	mt.emission_enabled = true
+	mt.emission = col
+	mt.emission_energy_multiplier = 3.0
+	sm.material = mt
+	pr.draw_pass_1 = sm
+	pr.amount = n
+	pr.lifetime = 0.8
+	pr.one_shot = true
+	pr.explosiveness = 0.9
+	pr.position = at
+	world.add_child(pr)
+	pr.emitting = true
+	get_tree().create_timer(1.5).timeout.connect(pr.queue_free)
+
+## Рывок рычага: один бесплатно, ещё два по BURMALDA_COST; сцена: камера, реплика, барабан, выдача, реакция
 func _burmalda_pull() -> void:
 	if ev_busy or room_state != "reward" or String(room.get("ev", "")) != "burmalda":
 		return
@@ -1205,13 +1282,6 @@ func _burmalda_pull() -> void:
 		run["spent"] = int(run.get("spent", 0)) + G67Data.BURMALDA_COST
 	run["ev_pulls"] = n + 1
 	ev_busy = true
-	world.ev_spin(2.5)
-	G67Sound.play(self, "lever")
-	for k in 6:
-		get_tree().create_timer(0.3 + 0.35 * k, false).timeout.connect(func(): G67Sound.play(self, "drum", Vector3.INF, 0.8 + 0.08 * k))
-	await game.get_tree().create_timer(2.5, false).timeout
-	if not is_instance_valid(game) or game.golda != self:
-		return
 	var total := 0
 	for o in G67Data.BURMALDA:
 		total += int(o["w"])
@@ -1222,7 +1292,7 @@ func _burmalda_pull() -> void:
 		if r < 0:
 			pick = String(o["id"])
 			break
-	_burmalda_outcome(pick)
+	await _burmalda_scene(pick, n == 0)
 	ev_busy = false
 	ev_idle = 0.0
 	var left := 3 - int(run["ev_pulls"])
@@ -1230,8 +1300,45 @@ func _burmalda_pull() -> void:
 		if String(pt["id"]) == "ev_burmalda":
 			pt["hint"] = ("ещё рывок — %d голды (осталось %d)" % [G67Data.BURMALDA_COST, left]) if left > 0 else "автомат пуст"
 	if int(run["ev_pulls"]) >= 3:
-		await game.get_tree().create_timer(1.5, false).timeout
 		_ev_finish()
+
+func _burmalda_scene(pick: String, first: bool) -> void:
+	var L := G67Voice.EVENT_BURMALDA
+	var sp: Vector3 = G67Yard.EVENT_SPOTS["burmalda"]
+	var pp: Vector3 = game.player.global_position
+	_ev_begin()
+	_ev_face(sp)
+	_ev_shot(pp + Vector3(1.8, 1.7, 1.9), sp + Vector3(0, 1.3, 0), 54.0)
+	await _ev_wait(0.5)
+	_ev_shot(pp + Vector3(2.0, 1.5, 0.8), sp + Vector3(0.1, 1.3, 0), 46.0)
+	if first or randf() < 0.35:
+		_ev_say(L[0])
+		await _ev_wait(1.8)
+	var variant := randi() % 3
+	var rare := pick in ["art", "rare_art", "fit"]
+	world.ev_spin(2.6, pick, variant, rare)
+	G67Sound.play(self, "lever")
+	for k in 7:
+		get_tree().create_timer(0.3 + 0.33 * k, false).timeout.connect(func(): G67Sound.play(self, "drum", Vector3.INF, 0.8 + 0.07 * k))
+	if variant == 2:
+		_ev_sparks(sp + Vector3(0, 1.0, 0.5), Color(1.0, 0.6, 0.2), 15)       # «заело»
+	await _ev_wait(2.9)
+	_ev_shot(pp + Vector3(1.4, 1.3, 0.0), sp + Vector3(0, 0.6, 0.6), 44.0)
+	_burmalda_outcome(pick)
+	if rare:
+		G67Sound.play(self, "fit")
+	await _ev_wait(1.3)
+	if pick == "junk":
+		var j := randi_range(2, 3)
+		if j == ev_last_junk:
+			j = 5 - j
+		ev_last_junk = j
+		_ev_shot(pp + Vector3(0.0, 1.9, 1.5), pp + Vector3(0, 1.4, 0), 42.0)
+		_ev_say(L[j])
+	else:
+		_ev_say(L[1])
+	await _ev_wait(1.7)
+	_ev_end()
 
 func _drop_junk(at: Vector3) -> void:
 	var n := MeshInstance3D.new()
@@ -1289,20 +1396,170 @@ func _button_press() -> void:
 	if ev_busy or room_state != "reward" or String(room.get("ev", "")) != "button":
 		return
 	ev_busy = true
-	world.ev_lid(true)
-	game.main.sfx("sfx_wave", -8.0)
-	await game.get_tree().create_timer(1.2, false).timeout
-	if not is_instance_valid(game) or game.golda != self:
-		return
 	var last := String(meta().get("button_last", ""))
 	var pool: Array = G67Data.BUTTON.filter(func(x): return x != last)
 	var id := String(pool[randi() % pool.size()])
 	meta()["button_last"] = id
 	save()
-	_button_outcome(id)
-	await game.get_tree().create_timer(1.5, false).timeout
+	await _button_scene(id)
 	ev_busy = false
 	_ev_finish()
+
+func _button_scene(id: String) -> void:
+	var L := G67Voice.EVENT_BUTTON
+	var sp: Vector3 = G67Yard.EVENT_SPOTS["button"]
+	var p = game.player
+	var pp: Vector3 = p.global_position
+	_ev_begin()
+	_ev_face(sp)
+	_ev_shot(pp + Vector3(1.4, 1.8, 1.8), sp + Vector3(0, 1.5, 0), 55.0)
+	await _ev_wait(0.4)
+	_ev_shot(sp + Vector3(0.5, 1.7, 1.3), sp + Vector3(0, 1.55, 0), 34.0)       # наезд на кнопку
+	world.ev_lid(true)
+	G67Sound.play(self, "door")
+	await _ev_wait(0.8)
+	G67Sound.play(self, "click")
+	await _ev_wait(1.4)                                                          # комедийная пауза
+	var hv: Vector3 = sp + Vector3(0.7, 0.0, 0.7)
+	match id:
+		"alarms":
+			_button_outcome(id)
+			_ev_shot(pp + Vector3(-3.0, 2.4, 3.2), sp + Vector3(0, 1.6, 0), 60.0)
+			var rl := OmniLight3D.new()
+			rl.light_color = Color(1.0, 0.1, 0.08)
+			rl.omni_range = 30.0
+			rl.position = sp + Vector3(0, 6.0, 2.0)
+			rl.light_energy = 0.0
+			world.add_child(rl)
+			var rt := rl.create_tween().set_loops(8)
+			rt.tween_property(rl, "light_energy", 6.0, 0.2)
+			rt.tween_property(rl, "light_energy", 0.0, 0.2)
+			get_tree().create_timer(3.6).timeout.connect(rl.queue_free)
+			_ev_say(L[0])
+			await _ev_wait(1.8)
+			_ev_say(L[1])
+			await _ev_wait(1.6)
+		"snow":
+			_button_outcome(id)
+			var pigs: Array = []
+			for i in 6:
+				var a := TAU * float(i) / 6.0
+				var pg := G67Models.spawn("g67_pigeon", world, sp + Vector3(cos(a) * 5.0, 0.0, sin(a) * 5.0), a + PI, Vector3(0.3, 0.3, 0.3))
+				pigs.append(pg)
+				var tw := pg.create_tween()
+				tw.tween_property(pg, "position", pp + Vector3(cos(a) * (0.9 if i > 0 else 0.6), 0.0, sin(a) * (0.9 if i > 0 else 0.6)), 1.6)
+			_ev_shot(pp + Vector3(2.5, 2.2, 2.5), pp + Vector3(0, 0.4, 0), 55.0)
+			await _ev_wait(1.8)
+			_ev_shot(pp + Vector3(0.5, 0.7, 0.9), pp + Vector3(0, 0.9, 0), 40.0)           # голубь и Пахан лицом к лицу
+			await _ev_wait(1.3)
+			_ev_say(L[2])
+			await _ev_wait(1.6)
+			for pg in pigs:
+				if is_instance_valid(pg):
+					var tw2: Tween = pg.create_tween()
+					tw2.tween_property(pg, "position", pg.position + Vector3(0, 6.0, 0), 1.0)
+					tw2.tween_callback(pg.queue_free)
+			await _ev_wait(0.8)
+		"shawarma":
+			_ev_shot(sp + Vector3(1.5, 2.0, 2.4), sp + Vector3(0, 2.8, 0), 48.0)
+			G67Sound.play(self, "click")
+			_ev_say(L[3])
+			await _ev_wait(2.4)
+			_ev_say(L[4])
+			await _ev_wait(1.6)
+			G67Sound.play(self, "click")
+			_button_outcome(id)
+			_ev_shot(pp + Vector3(1.5, 1.6, 1.8), hv, 50.0)
+			await _ev_wait(1.2)
+		"lights":
+			_button_outcome(id)
+			G67Sound.play(self, "jingle")
+			_ev_shot(sp + Vector3(2.6, 2.4, 3.2), sp + Vector3(0, 2.2, 0), 58.0)
+			var lb := Label3D.new()
+			lb.text = "ПОЗДРАВЛЯЕМ!"
+			lb.font_size = 72
+			lb.pixel_size = 0.006
+			lb.outline_size = 10
+			lb.modulate = Color(1.0, 0.9, 0.3)
+			lb.position = sp + Vector3(0, 3.2, 0.6)
+			lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			world.add_child(lb)
+			var cf: Array = []
+			for col in [Color(1, 0.2, 0.3), Color(0.3, 0.8, 1.0), Color(1.0, 0.85, 0.2), Color(0.5, 1.0, 0.4)]:
+				var cp := GPUParticles3D.new()
+				var cm := ParticleProcessMaterial.new()
+				cm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+				cm.emission_box_extents = Vector3(2.0, 0.1, 2.0)
+				cm.direction = Vector3(0, -1, 0)
+				cm.spread = 20.0
+				cm.initial_velocity_min = 0.6
+				cm.initial_velocity_max = 1.6
+				cm.gravity = Vector3(0, -1.2, 0)
+				cp.process_material = cm
+				var bm := BoxMesh.new()
+				bm.size = Vector3(0.1, 0.01, 0.06)
+				var mt := StandardMaterial3D.new()
+				mt.albedo_color = col
+				mt.emission_enabled = true
+				mt.emission = col
+				bm.material = mt
+				cp.draw_pass_1 = bm
+				cp.amount = 60
+				cp.lifetime = 3.0
+				cp.position = sp + Vector3(0, 4.5, 0)
+				world.add_child(cp)
+				cp.emitting = true
+				cf.append(cp)
+			await _ev_wait(3.6)
+			lb.queue_free()
+			for cp in cf:
+				cp.emitting = false
+				get_tree().create_timer(3.2).timeout.connect(cp.queue_free)
+			await _ev_wait(1.2)                                                       # оборвалось на полутакте: тишина
+		"nothing":
+			var post: Node3D = world.ev_nodes["button"]["root"]
+			var base := post.position
+			var tw3 := post.create_tween()
+			for k in 12:
+				tw3.tween_property(post, "position", base + Vector3(randf_range(-0.05, 0.05), 0, randf_range(-0.05, 0.05)), 0.07)
+			tw3.tween_property(post, "position", base, 0.05)
+			G67Sound.play(self, "chain")
+			G67Sound.play(self, "relay")
+			_ev_sparks(sp + Vector3(0, 1.4, 0.3))
+			await _ev_wait(1.2)
+			var paper := MeshInstance3D.new()
+			var pm := BoxMesh.new()
+			pm.size = Vector3(0.5, 0.01, 0.35)
+			paper.mesh = pm
+			var pmt := StandardMaterial3D.new()
+			pmt.albedo_color = Color(0.95, 0.93, 0.85)
+			paper.material_override = pmt
+			paper.position = sp + Vector3(1.4, 0.03, 0.5)
+			world.add_child(paper)
+			var pl := Label3D.new()
+			pl.text = "Пошел нахуй"
+			pl.font_size = 40
+			pl.pixel_size = 0.0025
+			pl.modulate = Color(0.1, 0.1, 0.12)
+			pl.rotation.x = -PI * 0.5
+			pl.position = sp + Vector3(1.4, 0.045, 0.5)
+			world.add_child(pl)
+			G67Sound.play(self, "tray")
+			_ev_shot(sp + Vector3(1.4, 1.2, 1.3), sp + Vector3(1.4, 0.0, 0.5), 40.0)
+			_button_outcome(id)
+			await _ev_wait(2.6)
+			get_tree().create_timer(20.0).timeout.connect(func():
+				if is_instance_valid(paper):
+					paper.queue_free()
+				if is_instance_valid(pl):
+					pl.queue_free())
+		"shock":
+			_button_outcome(id)
+			_ev_sparks(sp + Vector3(0, 1.6, 0.2), Color(0.6, 0.8, 1.0), 60)
+			_ev_shot(pp + Vector3(1.2, 1.6, 1.6), pp + Vector3(0, 1.2, 0), 46.0)
+			await _ev_wait(2.4)
+	world.ev_lid(false)
+	_ev_end()
 
 func _button_outcome(id: String) -> void:
 	var p = game.player
@@ -1312,20 +1569,7 @@ func _button_outcome(id: String) -> void:
 		"nothing":
 			game.banner("НИЧЕГО", "кнопка щёлкнула", Color(0.8, 0.8, 0.8), 2.0)
 		"lights":
-			game.banner("СВЕТ ПОГАС", "у ног звенят монеты", Color(1, 0.85, 0.3), 2.4)
-			var cl := CanvasLayer.new()
-			cl.layer = 40
-			var cr := ColorRect.new()
-			cr.color = Color(0, 0, 0, 0.0)
-			cr.set_anchors_preset(Control.PRESET_FULL_RECT)
-			cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			cl.add_child(cr)
-			game.add_child(cl)
-			var tw := cl.create_tween()
-			tw.tween_property(cr, "color:a", 0.7, 0.4)
-			tw.tween_interval(7.2)
-			tw.tween_property(cr, "color:a", 0.0, 0.4)
-			tw.tween_callback(cl.queue_free)
+			game.banner("ПОЗДРАВЛЯЕМ!", "+20 голды монетами", Color(1, 0.85, 0.3), 2.4)
 			for k in 4:
 				_drop_coin(p.global_position + Vector3(randf_range(-1.0, 1.0), 0, randf_range(-1.0, 1.0)), 5, true)
 		"alarms":
@@ -1352,10 +1596,7 @@ func _button_outcome(id: String) -> void:
 			p.swag = 100.0
 			game.shake(0.6)
 		"snow":
-			game.banner("СНЕГ С КРЫШИ", "следующий бой — враги входят оглушёнными", Color(0.8, 0.9, 1.0), 2.4)
-			p.rig.play_for("Hit", 1.0, 0.1)
-			p.velocity = Vector3.ZERO
-			game.fx.dust(p.global_position + Vector3(0, 0.3, 0), 18, game.fx.DUST, 1.2)
+			game.banner("ГОЛУБИ ЗАПОМНИЛИ", "первая волна следующего боя — оглушена", Color(0.8, 0.9, 1.0), 2.4)
 			run["snow_stun"] = true
 
 func event_seen(ev: String) -> void:
@@ -1428,6 +1669,7 @@ func _boss_intro(b) -> void:
 	b.set_physics_process(false)
 	# начинает на троне, лицом к воротам; выйдет по ковровой дорожке
 	scene_to = b.global_position
+	_talk_hud(true)
 	scene_from = Vector3(world.throne.x, b.global_position.y, world.throne.z + 0.2)
 	b.global_position = scene_from
 	b.face = 0.0
@@ -1439,10 +1681,10 @@ func _boss_intro(b) -> void:
 	events.append(["boss_intro"])
 
 func scene_busy() -> bool:
-	return scene_t >= 0.0 or clip != null or hub_ui != null
+	return scene_t >= 0.0 or clip != null or hub_ui != null or ev_cam
 
 func owns_camera() -> bool:
-	return talk_on or (scene_t >= 0.0 and scene_boss != null and is_instance_valid(scene_boss))
+	return talk_on or ev_cam or (scene_t >= 0.0 and scene_boss != null and is_instance_valid(scene_boss))
 
 # ---------------------------------------------------------------- камера разговоров (talk_shots)
 ## План: {pos, look, fov} в мировых координатах; номер плана на реплику — talk_map. Планы строятся от положений героя и
@@ -1537,7 +1779,7 @@ func talk_end() -> void:
 ## Боевой HUD, верхняя строка и значки над точками на время разговора спрятаны
 func _talk_hud(hide: bool) -> void:
 	if hide:
-		var nodes: Array = [game.combat_hud, game.hud_root, mark_talk, prompt]
+		var nodes: Array = [game.combat_hud, game.hud_root, mark_talk, prompt, game.boss_box]
 		for g in world.gates:
 			nodes.append(g.get("root"))
 		for n in nodes:
@@ -1564,6 +1806,8 @@ func _talk_step(dt: float) -> void:
 
 ## где камера в этот миг постановки
 func camera() -> Transform3D:
+	if ev_cam:
+		return Transform3D(Basis.looking_at(ev_look - ev_pos, Vector3.UP), ev_pos)
 	if talk_on:
 		return Transform3D(Basis.looking_at(talk_look - talk_pos, Vector3.UP), talk_pos)
 	var home: Transform3D = game.spring.global_transform * Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
@@ -1668,6 +1912,7 @@ func _scene_skip() -> void:
 	_scene_end()
 
 func _scene_end() -> void:
+	_talk_hud(false)
 	scene_t = -1.0
 	skip_hold = 0.0
 	if scene_boss != null and is_instance_valid(scene_boss):
@@ -2464,6 +2709,11 @@ func _physics_process(dt: float) -> void:
 	_t += dt
 	if talk_on:
 		_talk_step(dt)
+	if ev_cam:
+		var heldv := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE)
+		ev_hold = ev_hold + dt if heldv else maxf(0.0, ev_hold - dt * 3.0)
+		if ev_hold >= SKIP_HOLD:
+			ev_skip = true
 	if scene_t >= 0.0:
 		var held := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A)
 		skip_hold = skip_hold + dt if held else maxf(0.0, skip_hold - dt * 3.0)

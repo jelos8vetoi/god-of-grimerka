@@ -720,25 +720,42 @@ func build_event_props() -> void:
 	d.add_child(dl)
 	ev_nodes["rags"] = d
 
-func ev_spin(sec: float) -> void:
+func ev_spin(sec: float, final := "junk", variant := 0, festive := false) -> void:
 	var bn: Dictionary = ev_nodes.get("burm", {})
 	if bn.is_empty():
 		return
 	var win: Label3D = bn["win"]
 	var syms := ["7", "★", "♦", "♣", "¤", "☺"]
+	var finals := {"gold": "¤ ¤ ¤", "heal": "♥ ♥ ♥", "art": "★ ★ ★", "rare_art": "7 7 7", "fit": "♦ ♦ ♦", "junk": "♣ ☺ ¤"}
+	var lamps: Array = bn["lamps"]
 	var tw := create_tween()
 	tw.tween_method(func(v: float):
-		win.text = "%s %s %s" % [syms[randi() % 6], syms[randi() % 6], syms[randi() % 6]]
-		for i in (bn["lamps"] as Array).size():
-			((bn["lamps"] as Array)[i] as MeshInstance3D).visible = (int(v * 40.0) + i) % 2 == 0, 0.0, 1.0, sec)
+		var vv := v
+		if variant == 1 and v > 0.8:
+			vv = 0.8 + (v - 0.8) * 0.2 - (0.04 if int(v * 40.0) % 2 == 0 else 0.0)       # откат на символ назад
+		if variant == 2 and v > 0.4 and v < 0.75:
+			vv = 0.4                                                                      # заело
+		if v < 0.97:
+			win.text = "%s %s %s" % [syms[randi() % 6], syms[randi() % 6], syms[randi() % 6]]
+		else:
+			win.text = String(finals.get(final, "7 7 7"))
+		for i in lamps.size():
+			var rate := 80.0 if festive else 40.0
+			var pat := (int(v * rate) + i) % 2 == 0 if (variant == 0 or festive) else ((int(v * rate * 0.5) % 3) == i % 3 if variant == 1 else (int(v * 24.0) % 2 == 0))
+			(lamps[i] as MeshInstance3D).visible = pat, 0.0, 1.0, sec)
 	tw.tween_callback(func():
-		win.text = "7 7 7"
-		for l in bn["lamps"]:
+		win.text = String(finals.get(final, "7 7 7"))
+		for l in lamps:
 			(l as MeshInstance3D).visible = true)
 	var lv: Node3D = bn["lever"]
 	var tl := create_tween()
 	tl.tween_property(lv, "rotation:x", 0.9, 0.25)
 	tl.tween_property(lv, "rotation:x", 0.0, 0.4).set_delay(0.3)
+	if variant == 2:
+		var rt: Node3D = bn["root"]
+		var sh := create_tween()
+		for k in 8:
+			sh.tween_property(rt, "position:x", rt.position.x + (0.03 if k % 2 == 0 else -0.03), 0.06).set_delay(0.0 if k else 1.0)
 
 func ev_lid(open: bool) -> void:
 	var bn: Dictionary = ev_nodes.get("button", {})

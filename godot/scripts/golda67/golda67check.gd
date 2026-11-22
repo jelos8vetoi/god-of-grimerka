@@ -143,6 +143,11 @@ func _run() -> void:
 		await _boss_scene_shots(g, G, g.player, OS.get_cmdline_user_args().has("--g67-skip"))
 		_finish()
 		return
+	for arg in OS.get_cmdline_user_args():
+		if String(arg).begins_with("--g67-evscene="):
+			await _ev_scene_shots(g, G, g.player, String(arg).substr(14))
+			_finish()
+			return
 	if OS.get_cmdline_user_args().has("--g67-cam"):
 		await _cam_check(g, G, g.player)
 		_finish()
@@ -2445,7 +2450,7 @@ func _events_check(g, G: Golda67, P) -> void:
 	G.use("ev_burmalda")
 	await wait(0.3)
 	await until(func(): return not G.ev_busy, 15.0)
-	ok(int(G.run["ev_pulls"]) == 1 and int(G.run["golda"]) == g0, "первый рывок бесплатный")
+	ok(int(G.run["ev_pulls"]) == 1 and int(G.run["spent"]) == 0, "первый рывок бесплатный")
 	G.use("ev_burmalda")
 	await wait(0.3)
 	var freed2: bool = await until(func(): return not G.ev_busy, 15.0)
@@ -2498,6 +2503,34 @@ func _events_check(g, G: Golda67, P) -> void:
 			_:
 				ok(true, "кнопка: исход «%s»" % bid)
 	await shot("ev_button_out")
+	# сцены: все исходы обеих таблиц; ввод закрыт на время, потом возвращён; нужные реплики проиграны
+	P.global_position = (G67Yard.EVENT_SPOTS["button"] as Vector3) + Vector3(0, 0.05, 1.0)
+	G.room = {"type": "event", "ev": "button", "place": "evspot"}
+	G.room_state = "reward"
+	for bid in G67Data.BUTTON:
+		G.events.clear()
+		G._button_scene(bid)
+		await wait(0.3)
+		ok(G.ev_cam and G.scene_busy(), "сцена кнопки «%s»: началась, ввод закрыт" % bid)
+		await until(func(): return not G.ev_cam, 14.0)
+		ok(not G.ev_cam and not G.scene_busy() and not g.intro_busy(), "сцена кнопки «%s»: камера и управление возвращены" % bid)
+		var want_lines: int = {"alarms": 2, "snow": 1, "shawarma": 2}.get(bid, 0)
+		var said: int = G.events.filter(func(e): return String(e[0]) == "ev_say").size()
+		ok(said == want_lines, "сцена кнопки «%s»: реплик сказано %d из %d" % [bid, said, want_lines])
+	for l in G67Voice.EVENT_BUTTON + G67Voice.EVENT_BURMALDA:
+		ok(G67Voice.path(String(l)) != "", "реплика события озвучена: %s" % String(l))
+	G.room = {"type": "event", "ev": "burmalda", "place": "evspot"}
+	P.global_position = (G67Yard.EVENT_SPOTS["burmalda"] as Vector3) + Vector3(0, 0.05, 1.8)
+	for oid in ["junk", "gold", "heal", "art", "fit", "rare_art"]:
+		G.events.clear()
+		G._burmalda_scene(oid, true)
+		await wait(0.3)
+		await until(func(): return not G.ev_cam, 14.0)
+		ok(not G.ev_cam and not G.scene_busy(), "сцена Бурмалды «%s»: управление возвращено" % oid)
+		ok(G.events.any(func(e): return String(e[0]) == "ev_say"), "сцена Бурмалды «%s»: Пахан говорит" % oid)
+	ok(not G.scene_busy(), "после сцен события управление свободно")
+	G.room = {"type": "event", "ev": "button", "place": "evspot"}
+	G.room_state = "reward"
 	G.run["snow_stun"] = false
 	p.inv = 0.0
 	G._ev_finish()
@@ -2506,6 +2539,35 @@ func _events_check(g, G: Golda67, P) -> void:
 	await G.enter_hub()
 	G.data["run"] = {}
 	await wait(0.3)
+
+## Сцена события: kind = burm:<исход> или btn:<исход>; кадр каждые 0,5 с
+func _ev_scene_shots(g, G: Golda67, P, kind: String) -> void:
+	await _go(G, P, "exit")
+	await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(0.4)
+	var ev := "burmalda" if kind.begins_with("burm") else "button"
+	var sp: Vector3 = G67Yard.EVENT_SPOTS[ev]
+	P.global_position = sp + Vector3(0, 0.05, 1.8 if ev == "burmalda" else 1.0)
+	G.room = {"type": "event", "ev": ev, "place": "evspot"}
+	G.room_state = "reward"
+	var id := kind.get_slice(":", 1)
+	var t0 := GameClock.ms()
+	var nxt := 0.0
+	if ev == "burmalda":
+		G._burmalda_scene(id, true)
+	else:
+		G._button_scene(id)
+	await wait(0.05)
+	while G.ev_cam:
+		var tt := float(GameClock.ms() - t0) / 1000.0
+		if tt >= nxt:
+			await shot("ev_%s_%04.1f" % [id, nxt])
+			nxt += 0.5
+		await get_tree().process_frame
+	print("GOLDA67CHECK   СЦЕНА %s длилась %.1f с" % [kind, float(GameClock.ms() - t0) / 1000.0])
 
 ## Постановка выхода Миши: кадр каждые 0,5 с; прожекторы до и после; пропуск удержанием
 func _boss_scene_shots(g, G: Golda67, P, skip: bool) -> void:
