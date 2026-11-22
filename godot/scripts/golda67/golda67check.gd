@@ -159,6 +159,14 @@ func _run() -> void:
 			await _clip_log(G, String(arg).substr(11))
 			_finish()
 			return
+	if OS.get_cmdline_user_args().has("--g67-perfzones"):
+		await _perf_zones(g, G, g.player)
+		_finish()
+		return
+	if OS.get_cmdline_user_args().has("--g67-collprobe"):
+		await _coll_probe(g, G, g.player)
+		_finish()
+		return
 	if OS.get_cmdline_user_args().has("--g67-perf"):
 		await _perf_flyover(g, G, g.player)
 		_finish()
@@ -2761,6 +2769,107 @@ func _clip_log(G: Golda67, cid: String) -> void:
 			note = "  ← ОБРЕЗАНА" if gap < -0.05 else ("  ← ПАУЗА > 0,8 с" if gap > 0.8 else "")
 		print("GOLDA67CHECK   LOG %s %5.1f  %s  голос %.2f с  пауза %.2f%s%s" % [cid, float(lg[i][0]), String(lg[i][1]).left(48), float(lg[i][2]), gap, note, "" if bool(lg[i][3]) else "  (НЕТ ГОЛОСА)"])
 	print("GOLDA67CHECK   LOG %s длина %.1f с" % [cid, t_last])
+
+## Разведка: предметы двора и подъезда без коллизии (проба формой в центре каждого заметного объекта)
+func _aabb_of(n: Node) -> AABB:
+	var out := AABB()
+	var first := true
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null or not m.visible:
+			continue
+		var bb: AABB = m.global_transform * m.mesh.get_aabb()
+		out = bb if first else out.merge(bb)
+		first = false
+	if n is MeshInstance3D and (n as MeshInstance3D).mesh != null and first:
+		out = (n as MeshInstance3D).global_transform * (n as MeshInstance3D).mesh.get_aabb()
+	return out
+
+func _coll_report(tag: String, root: Node, g) -> void:
+	var space: PhysicsDirectSpaceState3D = g.get_world_3d().direct_space_state
+	var rows: Array = []
+	for n in root.get_children():
+		if not (n is Node3D) or n is Light3D or n is GPUParticles3D or n is Camera3D or n is Label3D or n is MultiMeshInstance3D or n is StaticBody3D:
+			continue
+		var bb := _aabb_of(n)
+		if bb.size.length() < 0.01:
+			continue
+		if bb.size.y < 0.45 or maxf(bb.size.x, bb.size.z) < 0.25 or bb.size.x > 12.0 or bb.size.z > 12.0:
+			continue
+		if bb.position.y > 1.2:
+			continue
+		var cy: float = clampf(bb.position.y + bb.size.y * 0.5, 0.4, 1.0)
+		var hit := false
+		for k in 3:
+			var sh := SphereShape3D.new()
+			sh.radius = 0.25
+			var q := PhysicsShapeQueryParameters3D.new()
+			q.shape = sh
+			q.collision_mask = 1
+			var cx := bb.position.x + bb.size.x * (0.5 if k == 0 else (0.3 if k == 1 else 0.7))
+			var cz := bb.position.z + bb.size.z * (0.5 if k == 0 else (0.3 if k == 1 else 0.7))
+			q.transform = Transform3D(Basis(), Vector3(cx, cy, cz))
+			if not space.intersect_shape(q, 1).is_empty():
+				hit = true
+				break
+		if not hit:
+			var kids: Array = []
+			for ch in n.get_children():
+				kids.append(String(ch.name))
+			var sc := String(n.scene_file_path).get_file()
+			rows.append("%s | дети %s %s | %.1f×%.1f×%.1f м | (%.1f, %.1f)" % [String(n.name), str(kids.slice(0, 2)), sc, bb.size.x, bb.size.y, bb.size.z, bb.get_center().x, bb.get_center().z])
+	print("GOLDA67CHECK   COLL %s: без коллизии %d" % [tag, rows.size()])
+	for r in rows:
+		print("GOLDA67CHECK   COLL  ", r)
+
+func _coll_probe(g, G: Golda67, P) -> void:
+	await wait(0.5)
+	_coll_report("подъезд", G.world, g)
+	await _go(G, P, "exit")
+	await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(1.0)
+	_coll_report("двор (мир)", G.world, g)
+	if G.world.yard != null:
+		_coll_report("двор (yard)", G.world.yard, g)
+
+## Замер кадра по зонам: камера над центром зоны, 3 с на каждую
+func _perf_zones(g, G: Golda67, P) -> void:
+	await _go(G, P, "exit")
+	await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(1.0)
+	var oc := Camera3D.new()
+	oc.fov = 65.0
+	g.add_child(oc)
+	oc.make_current()
+	for zid in ["podezd", "garages", "playground", "parking", "gazebo", "sport"]:
+		var z: Dictionary = G67Yard.zone(zid)
+		var c: Vector3 = z["c"]
+		oc.global_position = c + Vector3(0, 5.5, 13.0)
+		oc.look_at(c + Vector3(0, 1.0, 0), Vector3.UP)
+		await wait(0.6)
+		var times: Array = []
+		var t0 := Time.get_ticks_msec()
+		var last := t0
+		while Time.get_ticks_msec() - t0 < 3000:
+			await get_tree().process_frame
+			var nw := Time.get_ticks_msec()
+			times.append(float(nw - last))
+			last = nw
+		times.sort()
+		var tot := 0.0
+		for x in times:
+			tot += float(x)
+		var worst: int = maxi(1, int(times.size() * 0.01))
+		var wsum := 0.0
+		for i in worst:
+			wsum += float(times[times.size() - 1 - i])
+		print("GOLDA67CHECK   PERFZONE %s: средний %.1f FPS, 1%% худших %.1f FPS" % [zid, 1000.0 / (tot / times.size()), 1000.0 / (wsum / worst)])
 
 ## Замер кадра: облёт двора 10 с, средний FPS и 1 % худших
 func _perf_flyover(g, G: Golda67, P) -> void:
