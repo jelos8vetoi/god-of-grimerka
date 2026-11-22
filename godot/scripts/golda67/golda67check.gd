@@ -125,6 +125,20 @@ func _run() -> void:
 			await _clip_frames(G, String(arg).substr(13))
 			_finish()
 			return
+	if OS.get_cmdline_user_args().has("--g67-ev02"):
+		G.play_clip("EV02")
+		await wait(0.3)
+		var t_last := 0.0
+		var nxt := 0.0
+		while G.clip != null and is_instance_valid(G.clip):
+			t_last = G.clip.t
+			if t_last >= nxt:
+				await shot("evs_%02d" % int(nxt))
+				nxt += 1.0
+			await get_tree().process_frame
+		print("GOLDA67CHECK   EV02 длина %.1f с" % t_last)
+		_finish()
+		return
 	if OS.get_cmdline_user_args().has("--g67-cam"):
 		await _cam_check(g, G, g.player)
 		_finish()
