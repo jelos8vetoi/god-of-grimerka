@@ -4,9 +4,9 @@ class_name G67Data
 extends RefCounted
 
 ## Типы комнат (SPEC, раздел 9). Сделаны: BATTLE, ELITE, FIT, STORAGE, KIOSK, BREAK, BOSS. Не сделан: EVENT (этап 4).
-const ROOM_NAMES := {"battle": "БОЙ", "ambush": "ЗАСАДА", "elite": "ЭЛИТА", "fit": "БАФ", "storage": "КЛАДОВКА", "kiosk": "ЛАРЁК", "break": "ПЕРЕДЫШКА", "boss": "БОСС"}
-const ROOM_HINT := {"battle": "голда и РЕСПЕКТ", "ambush": "голда и РЕСПЕКТ", "elite": "редкий баф, голда и РЕСПЕКТ", "fit": "баф на выбор", "storage": "артефакт: один из двух", "kiosk": "«ШАУРМА 67» за голду", "break": "восстановить здоровье", "boss": "Миша Минасян"}
-const ROOM_COLOR := {"battle": Color(0.95, 0.3, 0.25), "ambush": Color(0.95, 0.4, 0.3), "elite": Color(1.0, 0.55, 0.15), "fit": Color(1.0, 0.8, 0.2), "storage": Color(0.55, 0.75, 0.95), "kiosk": Color(0.95, 0.65, 0.3), "break": Color(0.45, 0.9, 0.55), "boss": Color(0.85, 0.15, 0.2)}
+const ROOM_NAMES := {"battle": "БОЙ", "ambush": "ЗАСАДА", "elite": "ЭЛИТА", "fit": "БАФ", "storage": "КЛАДОВКА", "kiosk": "ЛАРЁК", "break": "ПЕРЕДЫШКА", "boss": "БОСС", "event": "СОБЫТИЕ"}
+const ROOM_HINT := {"battle": "голда и РЕСПЕКТ", "ambush": "голда и РЕСПЕКТ", "elite": "редкий баф, голда и РЕСПЕКТ", "fit": "баф на выбор", "storage": "артефакт: один из двух", "kiosk": "«ШАУРМА 67» за голду", "break": "восстановить здоровье", "boss": "Миша Минасян", "event": "необычное место двора"}
+const ROOM_COLOR := {"battle": Color(0.95, 0.3, 0.25), "ambush": Color(0.95, 0.4, 0.3), "elite": Color(1.0, 0.55, 0.15), "fit": Color(1.0, 0.8, 0.2), "storage": Color(0.55, 0.75, 0.95), "kiosk": Color(0.95, 0.65, 0.3), "break": Color(0.45, 0.9, 0.55), "boss": Color(0.85, 0.15, 0.2), "event": Color(0.72, 0.58, 0.95)}
 
 ## Враги района: вид для ИИ (kind из enemy.KINDS) и облик (skin из enemy.SKINS)
 const FOES := {
@@ -18,6 +18,40 @@ const FOES := {
 ## Район: семь этапов до босса включительно. Этап — один или два варианта, каждый вариант — настоящее место двора.
 ## routes — три шаблона забега (по номеру забега: runs % 3); route — первый из них (для совместимости).
 ## waves — волны по индексу этапа (0…5): список волн, волна — [[враг, сколько], …]
+## Шесть позиций района (LEVEL_DESIGN, раздел 3): типы вариантов без конкретики; сами варианты строит Golda67.route_options
+const POSITIONS := [[{"type": "battle"}], [{"type": "battle"}, {"type": "fit"}, {"type": "event"}], [{"type": "elite"}, {"type": "storage"}, {"type": "event"}],
+	[{"type": "kiosk"}, {"type": "event"}, {"type": "battle"}], [{"type": "break"}], [{"type": "boss"}]]
+const BATTLE_PLACES := ["garages", "parking", "playground"]
+const TYPE_ZONES := {"battle": ["garages", "parking", "playground"], "elite": ["garages", "parking", "playground"], "fit": ["playground"], "storage": ["garages"],
+	"kiosk": ["parking"], "break": ["gazebo"], "boss": ["sport"]}
+## Плейлист «Любимые треки Пахана» (PLAYLIST.md): номер, исполнитель, название
+const PLAYLIST := [[1, "3g0th2002", "Когда я вырасту"], [2, "LOVV66", "Не Дай Запомнить"], [3, "Toxi$, OG Buda", "BANDZ"], [4, "OG Buda", "6AM в Будапеште"],
+	[5, "OG Buda, Платина", "YTPO"], [6, "cardinparis ft. lovv66", "красивое"], [7, "королевский XVII", "vivre sa vie"], [8, "Саби Учиха", "Шары"],
+	[9, "pemfi", "династия madk1d (Ultra Slowed x Редакт)"], [10, "Джон Гарик", "Arctic Rose"], [11, "Aarne, VILLIAN", "Претендент На Убийство"], [12, "Eminem", "Deja Vu"],
+	[13, "blink-182", "All The Small Things"], [14, "madk1d", "перестань"], [15, "Паша Техник, FEDUK", "ГУСЬ"], [16, "H", "кроты-хомяки"]]
+const EVENTS_SHORT := ["burmalda", "button"]
+## «Бурмалда»: веса исходов; голда — min…max; рывок: один бесплатно, ещё два по BURMALDA_COST
+const BURMALDA := [
+	{"id": "junk", "w": 34, "names": ["НОСОК БЕЗ ПАРЫ", "ЧЕК НА 0 ГОЛДЫ", "КРЫШКА ОТ КАСТРЮЛИ", "ПУЛЬТ ОТ НИЧЕГО"]},
+	{"id": "gold", "w": 30, "min": 15, "max": 45},
+	{"id": "heal", "w": 15, "heal": 30.0},
+	{"id": "art", "w": 12},
+	{"id": "fit", "w": 6},
+	{"id": "rare_art", "w": 3},
+]
+const BURMALDA_COST := 25
+## «Можно. А зачем?»: шесть исходов, равные веса, один и тот же не два забега подряд
+const BUTTON := ["nothing", "lights", "alarms", "shawarma", "shock", "snow"]
+const EVENT_DESC := {"rags": "Тряпки, швабра и сирена: дверь в квартиру за гаражами.", "burmalda": "Автомат во дворе: дёрнул рычаг — получил что-то. Или носок.", "button": "Красная кнопка под колпаком. Нажать можно. А зачем?"}
+const EVENT_NAMES := {"rags": "ТРЯПКИ! ТРЯПКИ!", "burmalda": "БУРМАЛДА", "button": "МОЖНО. А ЗАЧЕМ?"}
+const MUST := {"ev_rags": "rags"}
+
+## Подпись этапа: тип · место (у события — его название)
+static func stage_title(type: String, place: String, ev := "") -> String:
+	if type == "event" and ev != "":
+		return String(EVENT_NAMES.get(ev, "СОБЫТИЕ"))
+	return "%s · %s" % [String(ROOM_NAMES.get(type, type)), String(G67Yard.zone(place)["name"]).to_upper()]
+
 const ROUTES_DVOR := [
 	[
 		[{"type": "battle", "place": "podezd"}],
@@ -67,7 +101,7 @@ const DISTRICTS := {
 ## Приёмы фаз — существующие приёмы боссов; свой особый приём — enemy._special («РАЗМАХ ЦЕПЬЮ»).
 const BOSSES := {
 	"g67_misha": {
-		"n": "МИША МИНАСЯН", "sub": "главный авторитет двора", "sp": "G1", "hp": 1300, "r": 30, "spd": 116, "c": "#d9a23a", "dmg": 9, "gap": 1.4, "xp": 0, "armor": 0.75,      # armor — множитель урона по нему вне окон «ОТКРЫТ»
+		"n": "МИША МИНАСЯН", "sub": "главный авторитет двора", "sp": "G1", "hp": 2600, "r": 30, "spd": 116, "c": "#d9a23a", "dmg": 7, "gap": 1.6, "xp": 0, "armor": 0.7, "antract": true,      # armor — множитель урона по нему вне окон «ОТКРЫТ»
 		"poise": 320, "gate": true,      # фазы не проскакивают (enemy._phase_shift); равновесие выше, чем у остальных боссов
 		"phases": [["m_grab", "slam", "m_hook", "charge"], ["m_guard", "shock", "m_grab", "charge", "m_hook", "slam"], ["m_hook", "leap", "m_guard", "charge", "m_grab", "shock", "slam"]],
 		"barks": ["", "Мне даже олимпийка не нужна, чтобы быть главным.", "Это не цепь зацепилась. Это контроль пространства."],
@@ -156,20 +190,29 @@ const ART_SLOTS := 3
 const ART_EVENT := ["garlic_aura", "hamster_aura", "collar_67"]
 const DMG_CAP_ALL := 2.0                   # общий потолок урона от фитсов и артефактов вместе
 
-const ROOM_GOLDA := {"battle": 20, "ambush": 20, "elite": 40, "fit": 0, "storage": 0, "kiosk": 0, "break": 0, "boss": 67}
+const ROOM_GOLDA := {"battle": 20, "ambush": 20, "elite": 40, "fit": 0, "storage": 0, "kiosk": 0, "break": 0, "boss": 67, "event": 0}
 const BREAK_HEAL := 0.45      # доля максимума здоровья
 
 static func district(id: String) -> Dictionary:
 	return DISTRICTS.get(id, DISTRICTS["dvor"])
 
-static func waves_for(d: Dictionary, _type: String, pos: int) -> Array:
-	var w: Dictionary = d["waves"]
-	return w[clampi(pos, 0, w.size() - 1)]
+## Волны боя: позиция 1 — три волны; бой на позициях 2 и 4 — три волны; элита — три волны
+const WAVES_P1 := [[["shest", 3]], [["shest", 2], ["semka", 1]], [["shest", 3], ["semka", 1]]]
+const WAVES_BATTLE := [[["shest", 3], ["semka", 1]], [["shest", 3], ["semka", 2]], [["shest", 3], ["semka", 2]]]
+## Свёрток шаурмы за зачистку боевого этапа: лечение (подобрать; непобранный пропадает при начале следующего этапа)
+const FOE_DMG_K := 0.6       # урон рядовых врагов двора и свиты Миши (сам Миша — нет); кампанию не трогает
+const FOES_ALIVE_MAX := 5   # одновременно живых врагов в бою приквела
+const STAGE_HEAL := {"battle": 25.0, "ambush": 25.0, "elite": 40.0}
+const WAVES_ELITE := [[["smotr", 1], ["shest", 2]], [["shest", 2], ["semka", 2]], [["smotr", 1], ["semka", 2]]]
+
+static func waves_for(_d: Dictionary, type: String, pos: int) -> Array:
+	if type == "elite":
+		return WAVES_ELITE
+	return WAVES_P1 if pos == 0 else WAVES_BATTLE
 
 ## Шаблон маршрута забега: по номеру забега (первый забег — шаблон 0)
-static func route_of(d: Dictionary, tpl: int) -> Array:
-	var rs: Array = d["routes"]
-	return rs[clampi(tpl, 0, rs.size() - 1)]
+static func route_of(_d: Dictionary, _tpl: int) -> Array:
+	return POSITIONS
 
 # ---------------------------------------------------------------- подъезд: экраны предметов (этап 2)
 ## «АВТОРИТЕТ РАЙОНА» — девять веток (LEVEL_DESIGN.md, раздел 7). live — эффект уже работает; у остальных — wait:

@@ -7,15 +7,17 @@
 |---|---:|---|---|---|
 | DJ FLÜRR | 33 | dj flurr | fa19dd5b | есть |
 | Миша Минасян | 10 | Миша Минасян | 12ff0700 | есть |
-| КРОТ | 10 | КРОТ | 96515c67 | есть |
-| Пахан | 42 | ПАШОК | d3dddb2a | есть |
+| КРОТ | 10 | КРОТ | c71d2f3d | есть |
+| Пахан | 50 | ПАШОК | d3dddb2a | есть |
 | Ведущий новостей | 2 | пресет Narrator (Voice Studio Pro) | preset:narrator | есть |
 | Полковник Бустеренко | 1 | Полковник Бустеренко | 81c90e8e | есть |
 | FORTUNA 812 | 1 | FORTUNA 812 | c60ed931 | есть |
 | Королевский XVII | 1 | королевский | 477ec948 | есть |
-| madk1d | 4 | madk1d (Fish Audio, голос из игры) | fish:FISH_REF_M | есть |
+| madk1d | 4 | MADK1D | c792db39 | есть |
 | Ведущий подкаста | 2 | пресет Casual (Voice Studio Pro) | preset:casual | есть |
-| WHYOUSOLONELY | 2 | WHYOUSOLONELY | dfcf8831 | есть |
+| WHYOUSOLONELY | 4 | WHYOUSOLONELY | dfcf8831 | есть |
+| Диспетчер | 2 | пресет Audiobook UK Narrator, женский (Voice Studio Pro) | preset:audiobook_uk_narrator | есть |
+| Громкоговоритель | 2 | пресет Corporate (Voice Studio Pro) | preset:corporate | есть |
 
 **Все модели для главы 1 уже есть — создавать ничего не нужно.**
 

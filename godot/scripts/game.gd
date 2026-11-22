@@ -497,6 +497,12 @@ func _update_fight(dt: float) -> void:
 	elif mode == "boss" or training != null or golda != null:
 		if boss_e and is_instance_valid(boss_e):
 			boss_fill.size.x = 596.0 * clamp(boss_e.hp / boss_e.max_hp, 0.0, 1.0)
+			if boss_e.antract:
+				boss_name.text = "ЗАМОК · СВИТА — %s" % String(boss_e.boss["n"])      # антракт: Миша неуязвим, пока свита не побеждена
+				boss_fill.color = Color(0.55, 0.55, 0.6)
+			elif boss_fill.color != Color(1, 0.3, 0.2):
+				boss_fill.color = Color(1, 0.3, 0.2)
+				boss_name.text = "%s — %s" % [boss_e.boss["n"], boss_e.boss["sub"]]
 			if auto_kill > 0.0 and boss_e.alive() and boss_e.age > 5.0:
 				boss_e.take_hit(99999.0, Vector3.FORWARD, 0.0, true)
 	if step_done_t >= 0.0:
@@ -1094,6 +1100,10 @@ func _process(dt: float) -> void:
 		cam.v_offset = 0.0
 	elif golda != null and golda.owns_camera():
 		cam.global_transform = golda.camera()      # постановка приквела (выход босса, разговоры)
+		if golda.ev_cam and not golda.talk_on:
+			cam.fov = golda.ev_fov
+		elif golda.scene_t >= 0.0 and not golda.talk_on:
+			cam.fov = golda.scene_fov
 		if golda.talk_on:
 			cam.fov = golda.talk_fov
 			cam.h_offset = 0.0

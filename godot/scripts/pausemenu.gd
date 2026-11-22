@@ -549,6 +549,9 @@ func _open_page(i: int) -> void:
 			_plate(top, func(): return "СЕЙЧАС: " + game.objective())
 			_rows([["НАЗАД", _close_card]])
 		4:
+			if game.golda != null:
+				_phone_page(top)
+				return
 			var row2 := HBoxContainer.new()
 			row2.add_theme_constant_override("separation", 20)
 			top.add_child(row2)
@@ -608,7 +611,7 @@ func _golda_page(i: int, top: VBoxContainer) -> void:
 					return "Голда: %d   ·   ДВОР · этап %d из %d" % [int(G.run["golda"]), int(G.run["pos"]) + 1, G.route().size()]
 				var sv: Dictionary = G.data.get("run", {})
 				if G.paused_run():
-					return "ПОДЪЕЗД   ·   ЗАБЕГ НА ПАУЗЕ · этап %d из 7" % (int((sv["run"] as Dictionary).get("pos", 0)) + 1)
+					return "ПОДЪЕЗД   ·   ЗАБЕГ НА ПАУЗЕ · этап %d из 6" % (int((sv["run"] as Dictionary).get("pos", 0)) + 1)
 				return "ПОДЪЕЗД", 19, SILVER)
 			_rows([["НАЗАД", _close_card]])
 		1:
@@ -649,11 +652,11 @@ func _golda_page(i: int, top: VBoxContainer) -> void:
 				var opts: Array = rt[n]
 				var line := ""
 				if n < stages.size():
-					line = "✓  %d · %s · %s" % [n + 1, String(G67Data.ROOM_NAMES[String(stages[n][0])]), String(G67Yard.zone(String(stages[n][1]))["name"]).to_upper()]
+					line = "✓  %d · %s" % [n + 1, G67Data.stage_title(String(stages[n][0]), String(stages[n][1]), String(stages[n][2]) if (stages[n] as Array).size() > 2 else "")]
 				elif n == pos and G.room_state != "open":
-					line = "▶  %d · %s · %s (идёт)" % [n + 1, String(G67Data.ROOM_NAMES[String(G.room["type"])]), String(G67Yard.zone(String(G.room.get("place", "")))["name"]).to_upper()]
+					line = "▶  %d · %s (идёт)" % [n + 1, G67Data.stage_title(String(G.room["type"]), String(G.room.get("place", "")), String(G.room.get("ev", "")))]
 				else:
-					var parts: Array = opts.map(func(o): return "%s · %s" % [String(G67Data.ROOM_NAMES[String(o["type"])]), String(G67Yard.zone(String(o["place"]))["name"]).to_upper()])
+					var parts: Array = opts.map(func(o): return String(G67Data.ROOM_NAMES[String(o["type"])]))
 					line = "%s  %d · %s" % ["→" if n == stages.size() else "·", n + 1, "  /  ".join(parts)]
 				txt.append(line)
 			for t in txt:
@@ -889,6 +892,59 @@ func _buddy_portrait() -> Control:
 	return t
 
 ## Рисунок iPod для страницы «Музыка»: серебристый корпус, экран с нотой и колесо.
+## iPhone Пахана (приквел): плейлист «Любимые треки Пахана»; в бою — только текущий трек и пауза
+func _phone_page(top: Node) -> void:
+	var ph: G67Phone = game.golda.phone_get()
+	var fight: bool = String(game.golda.room_state) in ["fight", "boss"]
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 20)
+	top.add_child(row)
+	var scr := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.04, 0.06)
+	sb.set_corner_radius_all(26)
+	sb.set_content_margin_all(10)
+	sb.border_color = Color(0.25, 0.25, 0.3)
+	sb.set_border_width_all(3)
+	scr.add_theme_stylebox_override("panel", sb)
+	row.add_child(scr)
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 0)
+	inner.custom_minimum_size = Vector2(440, 0)
+	scr.add_child(inner)
+	if ResourceLoader.exists(G67Phone.COVER) and not fight:
+		var tr := TextureRect.new()
+		tr.texture = load(G67Phone.COVER)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.custom_minimum_size = Vector2(84, 84)
+		inner.add_child(tr)
+	_line(inner, func(): return "ЛЮБИМЫЕ ТРЕКИ ПАХАНА", 20, WHITE)
+	_line(inner, func():
+		if ph.cur < 0:
+			return "ничего не играет"
+		var t: Array = G67Data.PLAYLIST[ph.cur - 1]
+		return "%s%s — %s" % ["" if not ph.paused else "Ⅱ ", t[1], t[2]], 16, SILVER)
+	_line(inner, func():
+		var L := ph.length()
+		var k := 0 if L <= 0.0 else clampi(int(ph.position() / L * 24.0), 0, 24)
+		return "%s%s  %s / %s" % ["▮".repeat(k), "▯".repeat(24 - k), G67Phone.clock(ph.position()), G67Phone.clock(L)], 14, GREY)
+	if not fight:
+		for i in G67Data.PLAYLIST.size():
+			var t2: Array = G67Data.PLAYLIST[i]
+			var has: bool = ph.has_track(i + 1)
+			var lb := _line(inner, func(): return "%s%d. %s — %s%s" % ["▶ " if ph.cur == i + 1 else ("› " if ph.selected == i else "   "), t2[0], t2[1], t2[2], "" if has else "   (нет файла)"], 12, WHITE if has else Color(0.45, 0.45, 0.48))
+			card_live.append(func(): lb.modulate = Color(1, 0.85, 0.3) if ph.cur == i + 1 else (Color(0.8, 0.9, 1.0) if ph.selected == i else Color.WHITE))
+	var acts: Array = []
+	if not fight:
+		acts.append([func(): return "ВЫБОР: %d. %s — %s   (←/→, Enter — играть)" % [ph.selected + 1, G67Data.PLAYLIST[ph.selected][1], G67Data.PLAYLIST[ph.selected][2]], func(): ph.play(ph.selected + 1), func(d: int): ph.select(d)])
+	acts.append([func(): return "▶ Ⅱ  " + ("ПАУЗА" if ph.active() else "ИГРАТЬ"), func(): ph.toggle()])
+	if not fight:
+		acts.append(["◀◀  ПРЕДЫДУЩИЙ / СЛЕДУЮЩИЙ  ▶▶   (←/→)", func(): ph.step(1), func(d: int): ph.step(d)])
+	acts.append([func(): return "ГРОМКОСТЬ: %d %%" % roundi(ph.volume * 100.0), null, func(d: int): ph.set_volume(snappedf(ph.volume + 0.05 * d, 0.05))])
+	acts.append(["НАЗАД", _close_card])
+	_rows(acts)
+
 func _ipod_art() -> Control:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(170, 270)

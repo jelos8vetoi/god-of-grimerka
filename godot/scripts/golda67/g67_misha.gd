@@ -104,11 +104,15 @@ static func _grab(e) -> void:
 			g.popup(P.global_position + Vector3(0, 2.2, 0), "ПОЙМАЛ", Color(1.0, 0.4, 0.3))
 			g.shake(0.45)
 			e.grab_log.append("hit")
+			if g.golda != null:
+				g.golda._crowd("hit")
 			e.sp_dur = GRAB_WARN + 0.6
 		else:
 			# схватил воздух: стоит согнувшись — время для ударов
 			g.popup(e.global_position + Vector3(0, e.height + 0.5, 0), "МИМО", Color(0.8, 0.9, 1.0))
 			e.grab_log.append("miss")
+			if g.golda != null:
+				g.golda._crowd("laugh")
 			e.sp_dur = GRAB_WARN + GRAB_MISS)
 	e.sp_dur = GRAB_WARN + GRAB_MISS
 
@@ -229,6 +233,8 @@ static func _hook(e) -> void:
 		_chain(g, chest, anchor, HOOK_OPEN)
 		g.fx.twinkle(anchor, 8, Color(1.0, 0.85, 0.4), 0.9)
 		g.main.sfx("sfx_block", -1.0, 1.3)
+		if g.golda != null:
+			g.golda._crowd("laugh")
 		e.hook_log.append(String(tg[1]))
 		e.state = "stun"
 		e.t = 0.0

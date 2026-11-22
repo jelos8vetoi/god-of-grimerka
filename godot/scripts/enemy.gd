@@ -137,6 +137,8 @@ var counter_at := 0.0       # босс: когда снова можно при�
 var combo_left := 0         # босс: сколько приёмов подряд ещё (растёт с фазой)
 var phase_guard_until := -1.0     # босс с boss["gate"]: смена фазы — неуязвим до этого age
 var phase_next := false     # смена фазы кончилась: сразу первый приём новой фазы, без отдыха
+var antract := false           # антракт между фазами: стойка у ковра, неуязвим, пока свита не побеждена или не вышло время
+var antract_until := 0.0
 var phase_note := -9.0      # когда в последний раз писали «НЕ СЕЙЧАС»
 var moves_used := {}        # для проверок: какие приёмы делал
 var sp_lock := false        # особый приём: взгляд замер (зона на земле не поворачивается за героем)
@@ -234,7 +236,8 @@ func _ready() -> void:
 	born_at = global_position
 	game.main.sfx("sfx_spawn", -10.0)
 	game.fx.dust(global_position + Vector3(0, 0.15, 0), 8, game.fx.DUST, 0.9)
-	game.fx.portal(global_position, 2.8 * height / 1.7, Color(1.0, 0.25, 0.2, 0.75), 1.0)
+	if not has_meta("no_portal"):          # приквел: враг входит из настоящего места двора, без портала
+		game.fx.portal(global_position, 2.8 * height / 1.7, Color(1.0, 0.25, 0.2, 0.75), 1.0)
 	if boss_id != "":
 		game.fx.lightning(global_position, height * 2.4, Color(boss["c"]))
 		game.fx.portal(global_position, 4.5 * height / 1.7, Color(boss["c"]), 1.4, "magic_02")
@@ -469,9 +472,15 @@ func _physics_process(dt: float) -> void:
 				(ev[1] as Callable).call()
 			if boss_id != "hype" and not sp_lock:
 				face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-5.0 * dt))
+			if antract:
+				_antract_tick(dt)
+				return
 			if t > sp_dur:
 				if phase_next:
 					phase_next = false
+					if bool(boss.get("antract", false)) and game.golda != null:
+						_antract_begin()
+						return
 					state = "chase"
 					cool = 0.0
 				else:
@@ -1050,6 +1059,35 @@ func _phase_shift(np: int) -> void:
 		if away.length() < PHASE_PUSH_R:
 			away = away.normalized() if away.length() > 0.05 else Vector3(sin(face), 0, cos(face))
 			P.velocity = Vector3(away.x * PHASE_PUSH_V, P.velocity.y, away.z * PHASE_PUSH_V))
+
+## Антракт: Миша идёт к середине ковра, встаёт в защитную стойку (неуязвим, «СВИТА»), в коробку вбегает свита
+const ANTRACT_SEC := 22.0
+func _antract_begin() -> void:
+	antract = true
+	antract_until = age + ANTRACT_SEC
+	phase_guard_until = antract_until
+	state = "special"
+	t = 0.0
+	sp_lock = true
+	sp_dur = 999.0
+	rig.play("MGuard", 0.2)
+	game.popup(global_position + Vector3(0, height + 0.9, 0), "СВИТА", Color(1.0, 0.8, 0.3))
+	game.golda.misha_retinue(phase)
+
+func _antract_tick(dt: float) -> void:
+	var c: Vector3 = game.arena_c
+	var to: Vector3 = Vector3(c.x - global_position.x, 0.0, c.z - global_position.z)
+	if to.length() > 0.4:
+		global_position += to.normalized() * minf(to.length(), 3.0 * dt)
+	var pd: Vector3 = game.player.global_position - global_position
+	face = lerp_angle(face, atan2(pd.x, pd.z), 1.0 - exp(-6.0 * dt))
+	if age >= antract_until or game.golda.retinue_dead():
+		game.golda.misha_retinue_clear()
+		antract = false
+		phase_guard_until = -1.0
+		state = "chase"
+		cool = 0.0
+		t = 0.0
 
 ## Удар по неуязвимому боссу в смене фазы: щит и надпись не чаще раза в 0,6 с
 func _phase_deny(dir: Vector3) -> void:

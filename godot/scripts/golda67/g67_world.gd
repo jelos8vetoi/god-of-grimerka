@@ -477,20 +477,37 @@ func bound_zone(zid: String, barriers: bool) -> void:
 	var hz: float = (z["h"] as Vector2).y
 	bounds = Node3D.new()
 	add_child(bounds)
-	for s in [[Vector3(c.x, 2, c.z - hz - 0.5), Vector3(2 * hx + 2, 4, 1)], [Vector3(c.x, 2, c.z + hz + 0.5), Vector3(2 * hx + 2, 4, 1)],
-			[Vector3(c.x - hx - 0.5, 2, c.z), Vector3(1, 4, 2 * hz + 2)], [Vector3(c.x + hx + 0.5, 2, c.z), Vector3(1, 4, 2 * hz + 2)]]:
-		var sb := StaticBody3D.new()
-		sb.collision_layer = 1          # забор низкий: камера может выйти за него и смотреть поверх
-		var cs := CollisionShape3D.new()
-		var bs := BoxShape3D.new()
-		bs.size = s[1]
-		cs.shape = bs
-		sb.add_child(cs)
-		sb.position = s[0]
-		bounds.add_child(sb)
+	# проёмы: у каждой точки входа снаружи зоны — ширина 2,5 м на ближайшей стороне
+	var gaps := {"n": [], "s": [], "w": [], "e": []}
+	for sp in z.get("spawns", []):
+		var q: Vector3 = sp[0]
+		var dxe: float = absf(q.x - c.x) - hx
+		var dze: float = absf(q.z - c.z) - hz
+		if dxe < 0.0 and dze < 0.0:
+			continue
+		if dxe > dze:
+			(gaps["e" if q.x > c.x else "w"] as Array).append(clampf(q.z, c.z - hz + 2.0, c.z + hz - 2.0))
+		else:
+			(gaps["s" if q.z > c.z else "n"] as Array).append(clampf(q.x, c.x - hx + 2.0, c.x + hx - 2.0))
+	var open_n := 0
+	# невидимые стенки: куски между проёмами; в проёме — стенка только для героя (слой 6), враги проходят
+	for side in ["n", "s", "w", "e"]:
+		var horiz: bool = side in ["n", "s"]
+		var lo: float = (c.x - hx - 1.0) if horiz else (c.z - hz - 1.0)
+		var hi: float = (c.x + hx + 1.0) if horiz else (c.z + hz + 1.0)
+		var fixed: float = {"n": c.z - hz - 0.5, "s": c.z + hz + 0.5, "w": c.x - hx - 0.5, "e": c.x + hx + 0.5}[side]
+		var cuts: Array = (gaps[side] as Array).duplicate()
+		cuts.sort()
+		var cur := lo
+		for g in cuts:
+			_bound_box(horiz, fixed, cur, float(g) - 1.25, 1)
+			_bound_box(horiz, fixed, float(g) - 1.25, float(g) + 1.25, 32)
+			cur = float(g) + 1.25
+			open_n += 1
+		_bound_box(horiz, fixed, cur, hi, 1)
 	if not barriers:
 		return
-	# ограждения: секции забора в турнирном золоте, встык по периметру
+	# ограждения: секции забора в турнирном золоте; напротив точек входа секции нет, по бокам проёма — стойки
 	var gold := Color(1.0, 0.82, 0.35)
 	var nx := maxi(2, int(round(2.0 * hx / 3.65)))
 	var nz := maxi(2, int(round(2.0 * hz / 3.65)))
@@ -499,16 +516,54 @@ func bound_zone(zid: String, barriers: bool) -> void:
 	var sides: Array = []
 	for i in nx:
 		var t := c.x - hx + (float(i) + 0.5) * sx
-		sides.append([Vector3(t, 0, c.z - hz), PI * 0.5, sx])
-		sides.append([Vector3(t, 0, c.z + hz), PI * 0.5, sx])
+		sides.append([Vector3(t, 0, c.z - hz), PI * 0.5, sx, "n", t])
+		sides.append([Vector3(t, 0, c.z + hz), PI * 0.5, sx, "s", t])
 	for i in nz:
 		var t := c.z - hz + (float(i) + 0.5) * sz
-		sides.append([Vector3(c.x - hx, 0, t), 0.0, sz])
-		sides.append([Vector3(c.x + hx, 0, t), 0.0, sz])
+		sides.append([Vector3(c.x - hx, 0, t), 0.0, sz, "w", t])
+		sides.append([Vector3(c.x + hx, 0, t), 0.0, sz, "e", t])
+	fence_total = sides.size()
+	fence_built = 0
 	for q in sides:
+		var skip := false
+		for g in gaps[q[3]]:
+			if absf(float(q[4]) - float(g)) < 1.25 + float(q[2]) * 0.5:
+				skip = true
+		if skip:
+			continue
+		fence_built += 1
 		var f := G67Models.spawn("res://assets/racing/fence_section.glb", bounds, q[0], q[1], Vector3(99, 1.25, float(q[2]) / 1.15))
 		if String(f.get_meta("from", "")) == "glb" and yard != null:
 			yard._tint(f, gold)
+	for side in ["n", "s", "w", "e"]:
+		for g in gaps[side]:
+			for e in [-1.25, 1.25]:
+				var pp := Vector3(float(g) + e, 0.0, {"n": c.z - hz, "s": c.z + hz}[side]) if side in ["n", "s"] else Vector3({"w": c.x - hx, "e": c.x + hx}[side], 0.0, float(g) + e)
+				var post := MeshInstance3D.new()
+				var bm := BoxMesh.new()
+				bm.size = Vector3(0.22, 1.5, 0.22)
+				post.mesh = bm
+				var pm := StandardMaterial3D.new()
+				pm.albedo_color = gold
+				post.material_override = pm
+				post.position = pp + Vector3(0, 0.75, 0)
+				bounds.add_child(post)
+
+var fence_total := 0
+var fence_built := 0
+
+func _bound_box(horiz: bool, fixed: float, a: float, b: float, layer: int) -> void:
+	if b - a < 0.05:
+		return
+	var sb := StaticBody3D.new()
+	sb.collision_layer = layer          # слой 1 — все; слой 6 (32) — только герой (маска героя включает его)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(b - a, 4, 1) if horiz else Vector3(1, 4, b - a)
+	cs.shape = bs
+	sb.add_child(cs)
+	sb.position = Vector3((a + b) * 0.5, 2, fixed) if horiz else Vector3(fixed, 2, (a + b) * 0.5)
+	bounds.add_child(sb)
 
 ## Бой окончен: ограждения убраны, по двору можно ходить
 func open_bounds() -> void:
@@ -549,6 +604,11 @@ static func gate_spot(o: Dictionary) -> Dictionary:
 			return {"pos": G67Yard.GATE_BOSS, "mark": G67Yard.GATE_BOSS + Vector3(0, 2.7, 0)}
 		"ambush":
 			return {"mark": (z["c"] as Vector3) + Vector3(0, 2.7, 0)}
+		"kiosk":
+			return {"pos": G67Yard.KIOSK_POS, "mark": G67Yard.KIOSK_POS + Vector3(0, 2.7, 0)}
+		"event":
+			var ep: Vector3 = G67Yard.EVENT_SPOTS.get(String(o.get("ev", "")), z["c"])
+			return {"pos": ep, "mark": ep + Vector3(0, 2.6, 0)}
 	return {"pos": z["c"], "mark": (z["c"] as Vector3) + Vector3(0, 2.7, 0)}
 
 ## Варианты следующего этапа (options — [{type, place}]). Ни ворот, ни столба света: у каждого варианта — его место во
@@ -561,7 +621,7 @@ func add_gates(options: Array) -> void:
 		var type := String(o["type"])
 		var spot := gate_spot(o)
 		var col: Color = G67Data.ROOM_COLOR[type]
-		var title := "%s · %s" % [String(G67Data.ROOM_NAMES[type]), String(G67Yard.zone(String(o.get("place", "podezd")))["name"]).to_upper()]
+		var title := G67Data.stage_title(type, String(o.get("place", "podezd")), String(o.get("ev", "")))
 		var root := Node3D.new()
 		root.name = "gate_mark%d" % i
 		root.position = spot["mark"]
@@ -599,6 +659,292 @@ func add_gates(options: Array) -> void:
 			_point("gate%d" % i, title, String(G67Data.ROOM_HINT[type]), spot["pos"])
 
 ## Варианты сняты: значки, стойки и их точки убраны (этап выбран или начался)
+# ---------------------------------------------------------------- предметы событий двора (геометрия кодом)
+var ev_nodes := {}
+
+func _ev_mesh(parent: Node, mesh: Mesh, pos: Vector3, col: Color, emit := 0.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.roughness = 0.75
+	m.metallic = 0.35
+	if emit > 0.0:
+		m.emission_enabled = true
+		m.emission = col
+		m.emission_energy_multiplier = emit
+	mi.material_override = m
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+func _ev_label(parent: Node, text: String, pos: Vector3, size: int, col: Color) -> Label3D:
+	var l := Label3D.new()
+	l.text = text
+	l.font_size = size
+	l.pixel_size = 0.004
+	l.outline_size = 8
+	l.modulate = col
+	l.position = pos
+	parent.add_child(l)
+	return l
+
+func _evb(sz: Vector3) -> BoxMesh:
+	var b := BoxMesh.new()
+	b.size = sz
+	return b
+
+## Автомат «Бурмалда», красная кнопка «Можно. А зачем?» и дверь «ТРЯПОК» — постоянные предметы двора
+func build_event_props() -> void:
+	var sp: Dictionary = G67Yard.EVENT_SPOTS
+	# автомат
+	var a := Node3D.new()
+	a.position = sp["burmalda"]
+	add_child(a)
+	_ev_mesh(a, _evb(Vector3(1.0, 2.0, 0.8)), Vector3(0, 1.0, 0), Color(0.42, 0.1, 0.09))
+	_ev_mesh(a, _evb(Vector3(0.62, 0.5, 0.05)), Vector3(0, 1.45, 0.41), Color(0.05, 0.05, 0.06))
+	var win := _ev_label(a, "7 7 7", Vector3(0, 1.45, 0.45), 56, Color(1.0, 0.85, 0.3))
+	_ev_label(a, "БУРМАЛДА", Vector3(0, 2.1, 0.2), 48, Color(1.0, 0.8, 0.25))
+	var tray := _ev_mesh(a, _evb(Vector3(0.5, 0.22, 0.2)), Vector3(0, 0.45, 0.42), Color(0.08, 0.08, 0.09))
+	var lever := Node3D.new()
+	lever.position = Vector3(0.55, 1.2, 0.1)
+	a.add_child(lever)
+	var rod := CylinderMesh.new()
+	rod.top_radius = 0.03
+	rod.bottom_radius = 0.03
+	rod.height = 0.5
+	_ev_mesh(lever, rod, Vector3(0, 0.25, 0), Color(0.6, 0.6, 0.62))
+	var kn := SphereMesh.new()
+	kn.radius = 0.08
+	kn.height = 0.16
+	_ev_mesh(lever, kn, Vector3(0, 0.52, 0), Color(0.8, 0.1, 0.1))
+	var lamps: Array = []
+	for i in 5:
+		var s := SphereMesh.new()
+		s.radius = 0.05
+		s.height = 0.1
+		lamps.append(_ev_mesh(a, s, Vector3(-0.36 + i * 0.18, 1.8, 0.41), Color(1.0, 0.75, 0.2), 1.5))
+	var al := OmniLight3D.new()
+	al.light_color = Color(1.0, 0.7, 0.3)
+	al.light_energy = 0.9
+	al.omni_range = 4.0
+	al.position = Vector3(0, 1.6, 1.0)
+	a.add_child(al)
+	win.visible = false
+	# потёртость: сколы до металла и ржавые потёки, заклёпки по рёбрам
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6767
+	for k in 14:
+		_ev_mesh(a, _evb(Vector3(rng.randf_range(0.04, 0.12), rng.randf_range(0.03, 0.08), 0.01)), Vector3(rng.randf_range(-0.45, 0.45), rng.randf_range(0.2, 1.9), 0.405), Color(0.62, 0.62, 0.6))
+	for k in 7:
+		var rx := rng.randf_range(-0.45, 0.45)
+		_ev_mesh(a, _evb(Vector3(0.03, rng.randf_range(0.15, 0.5), 0.012)), Vector3(rx, rng.randf_range(0.25, 0.7), 0.406), Color(0.35, 0.16, 0.07))
+	var rv := SphereMesh.new()
+	rv.radius = 0.018
+	rv.height = 0.036
+	for i in 8:
+		for sx in [-0.46, 0.46]:
+			_ev_mesh(a, rv, Vector3(sx, 0.15 + i * 0.25, 0.405), Color(0.6, 0.55, 0.5))
+	# решётка динамика и лампа в колпаке
+	for i in 5:
+		_ev_mesh(a, _evb(Vector3(0.3, 0.012, 0.01)), Vector3(0.0, 1.58 + i * 0.0, 0.0) + Vector3(-0.0, 0.0, 0.0), Color(0.05, 0.05, 0.05)).visible = false
+	_ev_mesh(a, _evb(Vector3(0.34, 0.2, 0.02)), Vector3(0.0, 0.8, 0.405), Color(0.06, 0.06, 0.07))
+	for i in 5:
+		_ev_mesh(a, _evb(Vector3(0.3, 0.014, 0.012)), Vector3(0.0, 0.73 + i * 0.035, 0.418), Color(0.4, 0.4, 0.4))
+	var cap_m := SphereMesh.new()
+	cap_m.radius = 0.1
+	cap_m.height = 0.2
+	var cap := _ev_mesh(a, cap_m, Vector3(0, 2.07, 0), Color(1.0, 0.7, 0.2), 2.0)
+	# надписи
+	var plate := _ev_mesh(a, _evb(Vector3(0.9, 0.2, 0.012)), Vector3(0.0, 1.07, 0.408), Color(0.82, 0.78, 0.62))
+	var l2 := _ev_label(a, "Мы не знаем, что внутри.\nНо оно работает", Vector3(0.0, 1.07, 0.416), 30, Color(0.12, 0.1, 0.08))
+	l2.pixel_size = 0.0019
+	var l3 := _ev_label(a, "Гарантия до первого\nиспользования", Vector3(0.0, 0.3, 0.416), 22, Color(0.9, 0.88, 0.8))
+	l3.pixel_size = 0.0034
+	l3.position.x = -0.12
+	l3.rotation.z = 0.02
+	# наклейки: стрелка к рычагу, знак «!», облезлая круглая
+	_ev_mesh(a, _evb(Vector3(0.16, 0.04, 0.01)), Vector3(0.28, 1.6, 0.41), Color(1.0, 0.85, 0.1))
+	_ev_mesh(a, _evb(Vector3(0.06, 0.12, 0.01)).duplicate(), Vector3(0.38, 1.6, 0.41), Color(1.0, 0.85, 0.1)).rotation.z = 0.8
+	var warn := _ev_mesh(a, _evb(Vector3(0.16, 0.14, 0.01)), Vector3(-0.34, 0.55, 0.41), Color(1.0, 0.8, 0.1))
+	warn.rotation.z = 0.78
+	_ev_label(a, "!", Vector3(-0.34, 0.55, 0.42), 48, Color(0.1, 0.1, 0.1))
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.07
+	cyl.bottom_radius = 0.07
+	cyl.height = 0.01
+	var rd := _ev_mesh(a, cyl, Vector3(0.3, 0.55, 0.41), Color(0.7, 0.2, 0.15))
+	rd.rotation.x = PI * 0.5
+	# значки барабана: монета, шаурма, артефакт, бирка, носок
+	var slots: Array = []
+	for si in 3:
+		var slot := Node3D.new()
+		slot.position = Vector3(-0.2 + si * 0.2, 1.45, 0.44)
+		a.add_child(slot)
+		var icons: Array = []
+		for k in 5:
+			var ic := Node3D.new()
+			slot.add_child(ic)
+			match k:
+				0:
+					var c0 := CylinderMesh.new()
+					c0.top_radius = 0.07
+					c0.bottom_radius = 0.07
+					c0.height = 0.015
+					var m0 := _ev_mesh(ic, c0, Vector3.ZERO, Color(1.0, 0.8, 0.15), 1.5)
+					m0.rotation.x = PI * 0.5
+				1:
+					var c1 := CapsuleMesh.new()
+					c1.radius = 0.04
+					c1.height = 0.15
+					var m1 := _ev_mesh(ic, c1, Vector3.ZERO, Color(0.7, 0.4, 0.2), 0.6)
+					m1.rotation.z = PI * 0.5
+				2:
+					_ev_mesh(ic, _evb(Vector3(0.1, 0.1, 0.02)), Vector3.ZERO, Color(0.3, 0.8, 1.0), 2.0).rotation.z = 0.785
+				3:
+					_ev_mesh(ic, _evb(Vector3(0.13, 0.08, 0.015)), Vector3.ZERO, Color(0.3, 0.9, 0.4), 1.2)
+					_ev_mesh(ic, _evb(Vector3(0.02, 0.02, 0.02)), Vector3(-0.045, 0, 0.01), Color(0, 0, 0))
+				4:
+					_ev_mesh(ic, _evb(Vector3(0.05, 0.12, 0.015)), Vector3(0, 0.0, 0), Color(0.55, 0.6, 0.7), 0.6)
+					_ev_mesh(ic, _evb(Vector3(0.1, 0.05, 0.015)), Vector3(0.025, -0.045, 0), Color(0.55, 0.6, 0.7), 0.6)
+			ic.visible = false
+			icons.append(ic)
+		(icons[si % 5] as Node3D).visible = true
+		slots.append(icons)
+	_static_box(sp["burmalda"] + Vector3(0, 1.0, 0), Vector3(1.1, 2.0, 0.9), 0.0)
+	ev_nodes["burm"] = {"win": win, "lever": lever, "lamps": lamps, "tray": tray, "root": a, "slots": slots, "cap": cap}
+	# кнопка на столбе
+	var b := Node3D.new()
+	b.position = sp["button"]
+	b.rotation.y = 0.0
+	add_child(b)
+	var post := CylinderMesh.new()
+	post.top_radius = 0.1
+	post.bottom_radius = 0.12
+	post.height = 1.3
+	_ev_mesh(b, post, Vector3(0, 0.65, 0), Color(0.36, 0.34, 0.3))
+	_ev_mesh(b, _evb(Vector3(0.45, 0.28, 0.3)), Vector3(0, 1.42, 0), Color(0.3, 0.3, 0.32))
+	var dome := SphereMesh.new()
+	dome.radius = 0.12
+	dome.height = 0.16
+	_ev_mesh(b, dome, Vector3(0, 1.58, 0.02), Color(0.9, 0.08, 0.06), 1.2)
+	var lid := Node3D.new()
+	lid.position = Vector3(0, 1.62, -0.14)
+	b.add_child(lid)
+	_ev_mesh(lid, _evb(Vector3(0.36, 0.03, 0.28)), Vector3(0, 0.04, 0.14), Color(0.7, 0.85, 0.9, 0.5))
+	_ev_label(b, "МОЖНО. А ЗАЧЕМ?", Vector3(0, 1.95, 0.05), 40, Color(1.0, 0.85, 0.8))
+	var bl := OmniLight3D.new()
+	bl.light_color = Color(1.0, 0.2, 0.15)
+	bl.light_energy = 0.6
+	bl.omni_range = 3.0
+	bl.position = Vector3(0, 1.7, 0.4)
+	b.add_child(bl)
+	_ev_label(b, "НЕ НАЖИМАТЬ", Vector3(0, 1.42, 0.16), 34, Color(1.0, 0.3, 0.25))
+	var tbl := _ev_mesh(b, _evb(Vector3(0.62, 0.42, 0.02)), Vector3(0, 0.8, 0.13), Color(0.72, 0.7, 0.58))
+	tbl.rotation.z = 0.03
+	for li in 3:
+		var tx: String = ["ЩИТ № 67", "U = ?", "ОТВ. — НИКТО"][li]
+		var tl2 := _ev_label(b, tx, Vector3(0, 0.92 - li * 0.12, 0.145), 26, Color(0.1, 0.1, 0.1))
+		tl2.pixel_size = 0.0028
+	var cab := _ev_mesh(b, _evb(Vector3(0.04, 0.04, 2.2)), Vector3(0.3, 0.03, 1.1), Color(0.05, 0.05, 0.05))
+	cab.rotation.y = 0.0
+	_ev_mesh(b, _evb(Vector3(0.04, 0.9, 0.04)), Vector3(0.2, 0.45, -0.1), Color(0.05, 0.05, 0.05))
+	var hch := Node3D.new()
+	hch.position = Vector3(0.8, 0.02, 0.9)
+	b.add_child(hch)
+	var hm := CylinderMesh.new()
+	hm.top_radius = 0.38
+	hm.bottom_radius = 0.38
+	hm.height = 0.03
+	_ev_mesh(hch, hm, Vector3.ZERO, Color(0.12, 0.12, 0.13))
+	var hole := _ev_mesh(b, hm, Vector3(0.8, 0.005, 0.9), Color(0.0, 0.0, 0.0))
+	hch.set_meta("hole", hole)
+	var horn := Node3D.new()
+	horn.position = Vector3(0, 2.35, 0.1)
+	b.add_child(horn)
+	var hc := CylinderMesh.new()
+	hc.top_radius = 0.28
+	hc.bottom_radius = 0.07
+	hc.height = 0.5
+	var hmesh := _ev_mesh(horn, hc, Vector3.ZERO, Color(0.5, 0.5, 0.5))
+	hmesh.rotation.x = PI * 0.5
+	hmesh.position = Vector3(0, 0, 0.2)
+	_ev_mesh(b, _evb(Vector3(0.06, 0.5, 0.06)), Vector3(0, 2.1, 0), Color(0.3, 0.3, 0.3))
+	_static_box(sp["button"] + Vector3(0, 0.7, 0), Vector3(0.5, 1.4, 0.4), 0.0)
+	ev_nodes["button"] = {"lid": lid, "root": b, "hatch": hch, "horn": horn}
+	# дверь «ТРЯПОК»: гаражный бокс, тёплый свет из щели
+	var d := Node3D.new()
+	d.position = sp["rags"]
+	d.rotation.y = PI * 0.5
+	add_child(d)
+	_ev_mesh(d, _evb(Vector3(1.6, 2.2, 0.12)), Vector3(0, 1.1, 0), Color(0.3, 0.33, 0.3))
+	_ev_mesh(d, _evb(Vector3(1.4, 0.05, 0.04)), Vector3(0, 0.03, 0.08), Color(1.0, 0.8, 0.45), 3.0)
+	var dl := OmniLight3D.new()
+	dl.light_color = Color(1.0, 0.75, 0.4)
+	dl.light_energy = 0.9
+	dl.omni_range = 4.0
+	dl.position = Vector3(0, 0.4, 0.9)
+	d.add_child(dl)
+	ev_nodes["rags"] = d
+
+func ev_spin(sec: float, final := "junk", variant := 0, festive := false) -> void:
+	var bn: Dictionary = ev_nodes.get("burm", {})
+	if bn.is_empty():
+		return
+	var slots: Array = bn["slots"]
+	var finals := {"gold": [0, 0, 0], "heal": [1, 1, 1], "art": [2, 2, 2], "rare_art": [2, 2, 2], "fit": [3, 3, 3], "junk": [4, 0, 3]}
+	var fin: Array = finals.get(final, [4, 0, 3])
+	var lamps: Array = bn["lamps"]
+	var cap: MeshInstance3D = bn["cap"]
+	var capm: StandardMaterial3D = cap.material_override
+	var lamp_col := Color(1.0, 0.25, 0.85) if festive else Color(1.0, 0.7, 0.2)
+	capm.albedo_color = lamp_col
+	capm.emission = lamp_col
+	var shown := [-1, -1, -1]
+	var tw := create_tween()
+	tw.tween_method(func(v: float):
+		for si in 3:
+			var idx: int = int(fin[si]) if v >= 0.96 else (int(v * 30.0) + si * 2 + (int(v * 12.0) * 3 if variant != 1 or v < 0.6 else 0)) % 5
+			if variant == 1 and v > 0.8 and v < 0.96:
+				idx = (int(fin[si]) + 4) % 5
+			if variant == 2 and v > 0.4 and v < 0.75:
+				idx = (int(fin[si]) + 2) % 5
+			if shown[si] != idx:
+				shown[si] = idx
+				for k in 5:
+					((slots[si] as Array)[k] as Node3D).visible = k == idx
+		for i in lamps.size():
+			var rate := 80.0 if festive else 40.0
+			var pat := (int(v * rate) + i) % 2 == 0 if (variant == 0 or festive) else ((int(v * rate * 0.5) % 3) == i % 3 if variant == 1 else (int(v * 24.0) % 2 == 0))
+			(lamps[i] as MeshInstance3D).visible = pat, 0.0, 1.0, sec)
+	tw.tween_callback(func():
+		for l in lamps:
+			(l as MeshInstance3D).visible = true)
+	var lv: Node3D = bn["lever"]
+	var tl := create_tween()
+	tl.tween_property(lv, "rotation:x", 1.0, 0.3)
+	tl.tween_property(lv, "rotation:x", 0.0, 0.5).set_delay(0.3)
+	if variant == 2:
+		var rt: Node3D = bn["root"]
+		var sh := create_tween()
+		for k in 8:
+			sh.tween_property(rt, "position:x", rt.position.x + (0.03 if k % 2 == 0 else -0.03), 0.06).set_delay(0.0 if k else 1.0)
+
+## Люк у основания столба кнопки: открыть / закрыть
+func ev_hatch(open: bool) -> void:
+	var bn: Dictionary = ev_nodes.get("button", {})
+	if bn.is_empty():
+		return
+	var h: Node3D = bn["hatch"]
+	create_tween().tween_property(h, "position:y", 0.45 if open else 0.02, 0.4)
+	create_tween().tween_property(h, "rotation:x", -1.0 if open else 0.0, 0.4)
+
+func ev_lid(open: bool) -> void:
+	var bn: Dictionary = ev_nodes.get("button", {})
+	if bn.is_empty():
+		return
+	create_tween().tween_property(bn["lid"], "rotation:x", -1.9 if open else 0.0, 0.45)
+
 func clear_gates() -> void:
 	for g in gates:
 		for k in ["root", "stand"]:

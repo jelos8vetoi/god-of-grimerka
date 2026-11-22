@@ -303,6 +303,8 @@ func say(line: String, hold := 0.25) -> void:
 		sub_name.text = ""
 
 ## Реплика без ожидания; возвращает длительность
+static var last_log: Array = []      # [время, реплика, длина голоса, есть ли голос] — для сверки монтажа (--g67-clip)
+
 func say_async(line: String) -> float:
 	var p := line.find("|")
 	var code := line.substr(0, p)
@@ -314,7 +316,9 @@ func say_async(line: String) -> float:
 	if path != "":
 		voice.stream = load(path)
 		voice.play()
+		last_log.append([t, line, voice.stream.get_length(), true])
 		return voice.stream.get_length()
+	last_log.append([t, line, clampf(0.6 + text.length() * 0.062, 1.2, 6.0), false])
 	return clampf(0.6 + text.length() * 0.062, 1.2, 6.0)
 
 func clear_sub() -> void:
@@ -417,11 +421,18 @@ func actor(key: String, kind: String, pos: Vector3, yaw: float) -> Rig:
 			path = "res://assets/models/pahan.glb"
 			h = 1.74
 			C = Poses.pahan()
+			C.merge(G67Clips.ev_clips(), true)
 		"madk1d":
 			path = "res://assets/models/madk1d.glb"
 			h = 1.68
 			C = Poses.madk1d()
 			C.merge(G67Clips.madk_clips(), true)
+			C.merge(G67Clips.ev_clips(), true)
+		"whyousolonely":
+			path = G67Models.DIR + "g67_whyousolonely.glb"
+			h = 1.75
+			C = Poses.pahan()
+			C.merge(G67Clips.ev_clips(), true)
 		"krot":
 			path = G67Models.DIR + "g67_krot.glb"
 			h = 1.62
