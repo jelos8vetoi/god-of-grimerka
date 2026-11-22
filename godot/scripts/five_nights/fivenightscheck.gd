@@ -354,6 +354,7 @@ func _ui_part() -> void:
 	ok(seen_cams == 8, "1–8 — все восемь камер (%d)" % seen_cams)
 	await _hall_left(R, st)
 	await _ambience(R, st)
+	await _tension(R, st)
 	await _anomalies(R, st)
 	ok(R.cams.vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS, "рисуется только выбранная камера, пока монитор поднят")
 	await key(KEY_SPACE)
@@ -736,6 +737,158 @@ func _hall_left(R: FiveNightsRoot, st: FNNight) -> void:
 
 ## фон будки (FNAmbience): слои из записей, монитор глушит комнату, угроза запрещает случайные звуки, отключение питания
 ## останавливает электрику и раскручивает вентиляторы вниз, возвращение — обратно, случайные звуки и пауза
+## напряжение ночи: фаза и уровень по состоянию игры, задержанное дыхание, характер камер
+func _tension(R: FiveNightsRoot, st_in: FNNight) -> void:
+	var st: FNNight = R.st if R.st != null else st_in
+	var T := R.tension
+	var A := R.ambience
+	var C := R.cams
+	var cam_keep := [C.cur, C.cam.global_transform, C.cam.fov, C.base_basis, C.sway, C.switch_t, C.mat.get_shader_parameter("noise_k"), C.mat.get_shader_parameter("gain"), C.mat.get_shader_parameter("tint"), C.mat.get_shader_parameter("wobble")]
+	var seal_keep := [st.seal["l"], st.seal["t"]]
+	var night_keep := [st.t, st.hour, st.broken, st.broken_t, st.break_next, st.fix_t, st.glitches.duplicate(true), st.cam_off_t, st.dark_t, st.stats.duplicate(true), st.usage]
+	T.reset()
+	var saved := {}
+	for id in st.enemies:
+		var e: FNEnemy = st.enemies[id]
+		saved[id] = [e.level, e.spot, e.prev, e.move_t, e.linger, e.moves, e.door_t, e.pose, e.look]
+		e.level = 0
+		e.spot = "away"
+		e.move_t = 1.0e6
+		e.linger = 1.0e6
+	var keep := [st.power, st.power_out, st.door["l"], st.door["r"], st.monitor, R.night, A.event_t, A.gust_t]
+	st.monitor = false
+	st.power = 80.0
+	st.power_out = false
+	st.door["l"] = false
+	st.door["r"] = false
+	R.night = 0
+	T.rec_t = 0.0
+	await wait(1.5)
+	ok(T.state == "CALM" and T.level < 0.05, "напряжение: все дома — спокойно (%s, %.2f)" % [T.state, T.level])
+	var b: FNEnemy = st.enemies["balon"]
+	b.level = 5
+	b.moves = 1
+	b.spot = "hall_l"
+	var up: bool = await until(func(): return T.level > 0.5, 3.0)
+	ok(T.state == "NEARBY" and up, "враг в левом коридоре: рядом (%s, %.2f за 3 с)" % [T.state, T.level])
+	st.power = 8.0
+	await wait(0.8)
+	ok(T.state == "CRITICAL", "энергии меньше 12 %%: критично (%s)" % T.state)
+	st.power = 80.0
+	st.door["l"] = true
+	b.spot = "door_l"
+	b.door_t = 0.0
+	await wait(0.4)
+	b.spot = "away"
+	await wait(0.5)
+	var rec: bool = T.state == "RECOVERY"
+	T.rec_t = minf(T.rec_t, 0.5)
+	var back: bool = await until(func(): return T.state in ["CALM", "UNEASY"], 20.0)
+	ok(rec and back, "дверь закрыта, враг ушёл: передышка, потом спокойнее (%s → %s)" % ["RECOVERY" if rec else "нет", T.state])
+	b.level = 0
+	st.door["l"] = false
+	# отключение проверяем прямым вызовом в один кадр: настоящее отключение запускает игровую логику (темнота, скример)
+	st.power_out = true
+	T.tick(st, 0.1, 0)
+	var blk: bool = T.state == "BLACKOUT"
+	st.power_out = false
+	T.tick(st, 0.1, 0)
+	ok(blk, "питание отключено: фаза BLACKOUT")
+	await wait(0.3)
+	T.rec_t = 0.0
+	await wait(0.3)
+	T.rec_t = 0.0
+	A.vent_dead = false
+	A.vent_spin = 1.0
+	A.fan_dead = false
+	A.fan_spin = 1.0
+	A.duck_k = 0.0
+	A.hold_t = 0.0
+	var vent_ok: bool = await until(func(): return A.level("vent") > -40.0, 8.0)
+	print("FIVENIGHTSCHECK   дыхание: вентиляция %.1f дБ, питание %s, hush «%s», состояние %s" % [A.level("vent"), str(st.power_out), R.hush_mode, R.state])
+	T.reset()
+	await wait(1.5)
+	A.since_event = 30.0
+	A.event_t = 1.0e6
+	var v0 := A.level("vent")
+	A.start_breath()
+	A.breath_len = 5.0
+	A.event_t = 0.05
+	await wait(3.2)
+	var v1 := A.level("vent")
+	var quiet: bool = A.since_event > 3.0 or A.breath_done
+	ok(v1 <= v0 - 6.0 and A.breath_phase == "hold", "задержанное дыхание: вентиляция упала на %.1f дБ (было %.1f, стало %.1f)" % [v0 - v1, v0, v1])
+	await until(func(): return A.breath_phase == "idle", 16.0)
+	await wait(1.5)
+	var v2 := A.level("vent")
+	ok(A.breath_phase == "idle" and absf(v2 - v0) <= 1.0 and A.breath_done and quiet, "после дыхания вентиляция вернулась (%.1f против %.1f дБ), один далёкий звук, случайные не вмешивались" % [v2, v0])
+	var all_looks := true
+	var applied := true
+	var ids: Array = []
+	for c in FNData.CAMS:
+		ids.append(String(c["id"]))
+	ids.append("room9")
+	for id in ids:
+		if not FNCams.LOOKS.has(id):
+			all_looks = false
+			continue
+		if R.fac.cams.has(id):
+			R.cams.set_cam(id)
+			if absf(float(R.cams.mat.get_shader_parameter("gain")) - float(FNCams.LOOKS[id]["gain"])) > 0.001:
+				applied = false
+	ok(all_looks and applied, "у всех камер свой характер (%d записей), set_cam применяет яркость" % ids.size())
+	for id in saved:
+		var e: FNEnemy = st.enemies[id]
+		var sv: Array = saved[id]
+		e.level = sv[0]
+		e.spot = sv[1]
+		e.prev = sv[2]
+		e.move_t = sv[3]
+		e.linger = sv[4]
+		e.moves = sv[5]
+		e.door_t = sv[6]
+		e.pose = sv[7]
+		e.look = sv[8]
+	st.power = keep[0]
+	st.power_out = keep[1]
+	st.door["l"] = keep[2]
+	st.door["r"] = keep[3]
+	st.monitor = keep[4]
+	R.night = keep[5]
+	A.event_t = keep[6]
+	A.gust_t = keep[7]
+	st.seal["l"] = seal_keep[0]
+	st.seal["t"] = seal_keep[1]
+	C.cur = cam_keep[0]
+	C.cam.global_transform = cam_keep[1]
+	C.cam.fov = cam_keep[2]
+	C.base_basis = cam_keep[3]
+	C.sway = cam_keep[4]
+	C.switch_t = cam_keep[5]
+	C.mat.set_shader_parameter("noise_k", cam_keep[6])
+	C.mat.set_shader_parameter("gain", cam_keep[7])
+	C.mat.set_shader_parameter("tint", cam_keep[8])
+	C.mat.set_shader_parameter("wobble", cam_keep[9])
+	C._ir()
+	A.breath_phase = "idle"
+	A.breath_k = 0.0
+	A.breath_t = 0.0
+	A.breath_next = randf_range(100.0, 140.0)
+	A.breath_done = false
+	R.actors.place_key.clear()
+	st.t = night_keep[0]
+	st.hour = night_keep[1]
+	st.broken = night_keep[2]
+	st.broken_t = night_keep[3]
+	st.break_next = night_keep[4]
+	st.fix_t = night_keep[5]
+	st.glitches = night_keep[6]
+	st.cam_off_t = night_keep[7]
+	st.dark_t = night_keep[8]
+	st.stats = night_keep[9]
+	st.usage = night_keep[10]
+	T.reset()
+
 func _ambience(R: FiveNightsRoot, st: FNNight) -> void:
 	var A := R.ambience
 	var loops := 0

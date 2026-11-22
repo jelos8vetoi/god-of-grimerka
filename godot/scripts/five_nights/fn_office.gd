@@ -69,6 +69,7 @@ var flick_t := 2.4
 var beams_aimed := false
 var beam_t := {}                  # сторона → сколько секунд горит фонарь
 var lamp_k := 1.0                 # текущий свет лампы относительно её обычного (для звука лампы)
+var tension_k := 0.0              # уровень напряжения ночи (ставит корень): лампа мерцает чуть сильнее
 var instab := 0.0                 # нестабильность питания: растёт к поздним ночам (только вид)
 var crt_next := 12.0
 var crt_dip := 0.0
@@ -266,6 +267,9 @@ func alarm_pulse(danger: bool, dt: float) -> void:
 	alarm_lamp.light_energy = lerpf(alarm_lamp.light_energy, want, 1.0 - exp(-6.0 * dt))
 	alarm_lens.material_override = mats["red_led"] if power_on and alarm_lamp.light_energy > 0.35 else mats["red"]
 
+func instab_eff() -> float:
+	return clampf(instab + 0.25 * tension_k, 0.0, 1.0)
+
 func tick(st: FNNight, dt: float, look_in: float) -> void:
 	t += dt
 	if not beams_aimed:
@@ -328,9 +332,9 @@ func _lighting(st: FNNight, dt: float) -> void:
 	if was >= 0.18 and flick_t < 0.18 and power_on:
 		lamp_dip.emit()
 	if flick_t <= 0.0:
-		flick_t = randf_range(2.2, 5.6) * lerpf(1.6, 0.6, instab) * (0.5 if st.power < 15.0 else 1.0)
+		flick_t = randf_range(2.2, 5.6) * lerpf(1.6, 0.6, instab_eff()) * (0.5 if st.power < 15.0 else 1.0)
 	var dip := sin(PI * clampf(flick_t / 0.18, 0.0, 1.0))
-	var output := (0.985 + 0.015 * sin(t * 11.0) + 0.02 * sin(t * 0.7 + 1.3) * instab - lerpf(0.14, 0.42, instab) * dip) * supply
+	var output := (0.985 + 0.015 * sin(t * 11.0) + 0.02 * sin(t * 0.7 + 1.3) * instab_eff() - lerpf(0.14, 0.42, instab_eff()) * dip) * supply
 	output *= 1.0 - 0.03 * maxf(0.0, float(st.usage) - 3.0)
 	if st.brown_warn > 0.0:
 		output *= 0.68 + 0.31 * cos(st.brown_warn * 17.0)
@@ -341,7 +345,7 @@ func _lighting(st: FNNight, dt: float) -> void:
 	crt_next -= dt
 	if crt_next <= 0.0:
 		crt_dip = 0.06
-		crt_next = randf_range(5.0, 14.0) if instab >= 0.7 else randf_range(9.0, 25.0)
+		crt_next = randf_range(5.0, 14.0) if instab_eff() >= 0.7 else randf_range(9.0, 25.0)
 	crt_dip = maxf(0.0, crt_dip - dt)
 	var crt_k := (1.0 + 0.035 * sin(t * 2.3) + 0.02 * sin(t * 7.1)) * (0.75 if crt_dip > 0.0 else 1.0)
 	glow.light_energy = (0.46 if st.monitor else 0.30) * supply * crt_k
