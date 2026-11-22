@@ -205,6 +205,7 @@ static func strike(e, m: Dictionary, dist: float, dir: Vector3) -> Dictionary:
 			var reach: float = float(m["r"]) + dash
 			g.main.sfx("sfx_slash" if e.kind == "clipper" else "sfx_swing", -5.0)
 			e.kb = fw * dash * 9.0           # рывок виден: враг проезжает вперёд
+			e.kb_hit = false
 			if dist < reach and fw.angle_to(dir) < float(m.get("half", 1.0)):
 				p.take_damage(dmg, e.global_position, e)
 		"slam", "repel":

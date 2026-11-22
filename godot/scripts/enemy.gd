@@ -105,6 +105,7 @@ var tilt_t := 9.0
 var hit_side := ""           # откуда пришёл последний удар: front, back, left, right
 var wall_cd := 0.0
 var wall_hits := 0           # для проверок: сколько раз врага впечатало в стену
+var kb_hit := false          # отбрасывание задал полученный удар (рывок врага — нет): только такого впечатывает в стену
 var react := "normal"       # последняя реакция: none, hit, stagger, heavy_stagger, knockback, knockdown, airborne
 var hurt_len := 0.35        # сколько длится текущая реакция «получил удар»
 var no_flinch := false      # броня: этот удар не сбивает состояние
@@ -329,7 +330,9 @@ func _physics_process(dt: float) -> void:
 			rig.rotation.z = 0.0
 	# впечатало в стену: отброшенный враг долетел до края арены
 	wall_cd = max(0.0, wall_cd - dt)
-	if wall_cd <= 0.0 and boss_id == "" and state != "dead" and kb.length() > 6.5 and (is_on_wall() or not game.in_arena(global_position + kb.normalized() * 0.5, radius)):
+	if kb_hit and kb.length() <= 6.5:
+		kb_hit = false
+	if wall_cd <= 0.0 and kb_hit and boss_id == "" and state != "dead" and kb.length() > 6.5 and (_hit_static() or not game.in_arena(global_position + kb.normalized() * 0.5, radius)):
 		_wall_hit()
 	velocity.x = kb.x
 	velocity.z = kb.z
@@ -517,16 +520,18 @@ func _physics_process(dt: float) -> void:
 				cool = max(cool, 0.5)
 		"dead":
 			velocity = Vector3.ZERO
-			var lim: float = game.ARENA - 0.7
+			var ac: Vector3 = game.arena_c
+			var limx: float = game.arena_h.x - 0.7
+			var limz: float = game.arena_h.y - 0.7
 			if fly:
 				# тело летит само, без столкновений: дуга, отскок от земли и от края арены
 				fly_v.y -= 20.0 * dt
 				var np := global_position + fly_v * dt
-				if abs(np.x) > lim:
-					np.x = clampf(np.x, -lim, lim)
+				if abs(np.x - ac.x) > limx:
+					np.x = ac.x + clampf(np.x - ac.x, -limx, limx)
 					fly_v.x *= -0.35
-				if abs(np.z) > lim:
-					np.z = clampf(np.z, -lim, lim)
+				if abs(np.z - ac.z) > limz:
+					np.z = ac.z + clampf(np.z - ac.z, -limz, limz)
 					fly_v.z *= -0.35
 				if np.y <= 0.05 and fly_v.y < 0.0:
 					np.y = 0.05
@@ -543,7 +548,7 @@ func _physics_process(dt: float) -> void:
 				global_position = np
 			else:
 				var sp := global_position + Vector3(kb.x, 0, kb.z) * dt
-				global_position = Vector3(clampf(sp.x, -lim, lim), global_position.y, clampf(sp.z, -lim, lim))
+				global_position = Vector3(ac.x + clampf(sp.x - ac.x, -limx, limx), global_position.y, ac.z + clampf(sp.z - ac.z, -limz, limz))
 				if t > 2.6 and (boss_id == "" or game.is_survival()):
 					# тело не тонет в полу, а рассыпается дымом с искрами
 					game.fx.poof(global_position, height / 1.7, Color(0.85, 0.8, 0.95))
@@ -914,6 +919,7 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 	if game.dmg_log is Array:
 		game.dmg_log.append([hit_id if hit_id != "" else "other", get_instance_id(), dmg, Engine.get_physics_frames()])
 	kb = dir * knock * (0.25 if boss_id != "" else 1.0)
+	kb_hit = knock > 0.0
 	_react(dir, heavy)
 	if game.show_dmg:
 		game.popup(global_position + Vector3(0, height + 0.2, 0), str(int(shown)), Color(1, 0.9, 0.4) if heavy else Color.WHITE)
@@ -961,6 +967,14 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		ring.visible = false
 		rig.play_for("Hit", 0.45, 0.04)
 	_update_bar()
+
+## Упёрся ли враг на последнем шаге в неподвижную стену (пол, другой враг или герой — не стена)
+func _hit_static() -> bool:
+	for i in get_slide_collision_count():
+		var col := get_slide_collision(i)
+		if col.get_collider() is StaticBody3D and absf(col.get_normal().y) < 0.5:
+			return true
+	return false
 
 ## Отброшенного врага впечатало в стену: урон, оглушение, отскок.
 func _wall_hit() -> void:
@@ -1044,6 +1058,7 @@ func take_hit_info(h: HitInfo) -> void:
 				hurt_len = 0.75
 				ring.visible = false
 				kb = h.dir * clampf(h.knockback / m, 7.0, 18.0)
+				kb_hit = true
 				rig.play_for("Hit", 0.75, 0.04)
 				game.fx.dust(global_position + Vector3(0, 0.1, 0), 5, game.fx.DUST, 0.7)
 		"knockdown":

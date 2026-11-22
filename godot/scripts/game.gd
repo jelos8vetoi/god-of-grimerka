@@ -4,6 +4,8 @@
 extends Node3D
 
 const ARENA := 15.0
+var arena_c := Vector3.ZERO
+var arena_h := Vector2(ARENA, ARENA)
 const SAVE := "user://grimerka_save.json"
 const MAX_ALIVE := 9
 
@@ -556,7 +558,16 @@ func melee_attackers() -> int:
 func in_arena(p: Vector3, margin: float) -> bool:
 	if in_hall:
 		return p.x > -2.2 + margin * 0.5 and p.x < 3.7 - margin * 0.5 and abs(p.z) < 4.7 - margin * 0.5
-	return abs(p.x) < ARENA - margin and abs(p.z) < ARENA - margin
+	return abs(p.x - arena_c.x) < arena_h.x - margin and abs(p.z - arena_c.z) < arena_h.y - margin
+
+## Бой привязан к зоне: центр и полуразмеры прямоугольника (по умолчанию — квадрат ±ARENA вокруг нуля)
+func set_arena(c: Vector3, h: Vector2) -> void:
+	arena_c = c
+	arena_h = h
+
+func reset_arena() -> void:
+	arena_c = Vector3.ZERO
+	arena_h = Vector2(ARENA, ARENA)
 
 func on_kill(e) -> void:
 	if telemetry != null:
