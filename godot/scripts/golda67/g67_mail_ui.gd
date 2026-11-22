@@ -128,6 +128,9 @@ func _on_select(i: int, prev: int) -> void:
 			i_btn.disabled = true
 
 func _activate(i: int) -> void:
+	if mode == "read":
+		_back()                # Enter закрывает прочитанное, а не открывает второе окно
+		return
 	if i < 0:
 		return
 	var b: Box = items[i]["node"]

@@ -91,8 +91,11 @@ static func spawn(id: String, parent: Node, pos: Vector3, yaw: float, size: Vect
 static func sit(rig: Rig, seat: float) -> void:
 	if rig == null or rig.skel == null:
 		return
+	var tree := rig.get_tree()
 	for i in 3:
-		await rig.get_tree().process_frame
+		await tree.process_frame
+		if not is_instance_valid(rig):
+			return
 	if not is_instance_valid(rig) or rig.player == null:
 		return
 	rig.player.pause()

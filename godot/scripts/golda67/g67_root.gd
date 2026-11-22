@@ -33,6 +33,7 @@ var room_state := ""          # fight | reward | open | boss | over
 const HintsScript := preload("res://scripts/golda67/g67_hints.gd")
 var hints                     # подсказки по ходу забега (один раз за сохранение)
 var stash_nodes := {}         # индекс места заначки → монета во дворе
+var dlg_hint_used := false    # строка управления в окне диалога уже показывалась в этом запуске режима
 var recovered_respect := -1   # прошлый забег оборвался в бою: засчитан поражением, столько РЕСПЕКТА он дал
 var waves: Array = []
 var wave_i := -1
@@ -155,6 +156,7 @@ func enter_hub() -> void:
 	_build_prompt()
 	_place_krot("hub")
 	_hub_marks()
+	refresh_hints()
 	events.append(["enter", "hub"])
 	await game.get_tree().process_frame
 	game.banner(TITLE, "ПОДЪЕЗД · РЕСПЕКТ: %d" % int(meta().get("respect", 0)), Color(1.0, 0.8, 0.2), 3.5)
@@ -230,16 +232,23 @@ func _seed_yard() -> void:
 
 ## Герой полупрозрачен, когда камера прижалась к нему (вплотную к стене или борту): плавно от 1,3 м (0) до 0,6 м (0,75)
 var _fade_last := 0.0
+var _fade_meshes: Array = []
+var _fade_key := ""
 func hero_fade() -> void:
 	var p = game.player
 	var head: Vector3 = p.vis_pos() + Vector3(0, 1.55, 0)
 	var d: float = game.cam.global_position.distance_to(head)
 	var k: float = clampf((FADE_FAR - d) / (FADE_FAR - FADE_NEAR), 0.0, 1.0) * FADE_MAX
-	if is_equal_approx(k, _fade_last) and k == 0.0:
+	if k == 0.0 and _fade_last == 0.0:
 		return
+	var key := "%d|%s|%s" % [p.rig.get_instance_id(), String(p.hero), String(p.style.id)]
+	if key != _fade_key:
+		_fade_key = key
+		_fade_meshes = p.rig.find_children("*", "GeometryInstance3D", true, false)       # список — один раз на смену рига и стиля
 	_fade_last = k
-	for gi in p.rig.find_children("*", "GeometryInstance3D", true, false):
-		(gi as GeometryInstance3D).transparency = k
+	for gi in _fade_meshes:
+		if is_instance_valid(gi):
+			(gi as GeometryInstance3D).transparency = k
 
 ## Начать забег: район ДВОР, первый этап. До первой концовки madk1d остаётся в подъезде (SPEC, раздел 3).
 func start_run(district_id := "dvor") -> void:
@@ -746,7 +755,7 @@ func _room_cleared() -> void:
 	var type := String(room["type"])
 	events.append(["clear", type])
 	add_golda(int(G67Data.ROOM_GOLDA[type]))
-	run["respect"] = int(run["respect"]) + int(G67Data.RESPECT["elite" if type == "elite" else "room"])
+	_add_respect("elite" if type == "elite" else "battle", int(G67Data.RESPECT["elite" if type == "elite" else "room"]))
 	run["rooms"] = int(run["rooms"]) + 1
 	game.banner("ЧИСТО", "голда: %d" % int(run["golda"]), Color(1, 0.85, 0.3), 1.8)
 	game.fx.twinkle(game.player.global_position + Vector3(0, 1.0, 0), 14, Color(1, 0.85, 0.4), 1.0)
@@ -768,7 +777,7 @@ func route_options(next: int) -> Array:
 func _stage_end() -> void:
 	var type := String(room.get("type", ""))
 	if type in ["fit", "storage", "break"]:
-		run["respect"] = int(run["respect"]) + int(G67Data.RESPECT["calm"])
+		_add_respect("calm", int(G67Data.RESPECT["calm"]))
 		run["rooms"] = int(run["rooms"]) + 1
 	(run["stages"] as Array).append([type, String(room.get("place", ""))])
 	events.append(["stage_done", type])
@@ -1045,6 +1054,7 @@ func _krot_done(id: String) -> void:
 	save()
 	events.append(["krot_seen", id])
 	_krot_card(seen.size())
+	_note_new("Встреча с КРОТОМ: %s — запись в архиве у телевизора" % String(krot_k.get("title", id)))
 	if id == "krot3":
 		unlock_clip("EXTRA01")               # «КРОТ НА ПОДКАСТЕ» — в архив после третьей встречи
 	# КРОТ уходит по своим делам: без объяснений
@@ -1196,6 +1206,7 @@ func take_art(id: String, replace := "") -> bool:
 	var got: Array = meta().get("artifacts", [])
 	if not got.has(id):
 		got.append(id)
+		_note_new("Артефакт «%s» — сервант на площадке подъезда" % String(art_info(id)["name"]))
 		meta()["artifacts"] = got
 		save()
 	if id == "broken_remote":
@@ -1362,45 +1373,30 @@ func fit_options(rare: bool) -> Array:
 	var ids: Array = (rares + common) if rare_first else (common + rares)
 	return ids.slice(0, 3)
 
+const FitUIScript := preload("res://scripts/golda67/g67_fit_ui.gd")
+var fit_offer: Array = []
+var fit_rare := false
+
+## Экран «ВЫБЕРИ БАФ» (G67FitUI): три бирки на вешалке и «ПЕРЕВЫБРАТЬ»
 func _offer_fit(rare: bool) -> void:
 	var opts := fit_options(rare)
 	if opts.is_empty():
 		add_golda(25)
 		_stage_end()
 		return
-	var buttons: Array = []
-	for id in opts:
-		var f: Dictionary = G67Data.FITS[id]
-		var lv := fit_lv(id)
-		var txt := "%s%s — %s" % [String(f["name"]), (" · ур. %d → %d" % [lv, lv + 1]) if lv > 0 else "", String(f["desc"])]
-		buttons.append([txt, func(): take_fit(id)])
-	if int(run.get("rerolls", 0)) > 0:
-		buttons.append(["ПЕРЕВЫБРАТЬ · осталось %d" % int(run["rerolls"]), func():
-			run["rerolls"] = int(run["rerolls"]) - 1
-			events.append(["reroll"])
-			_offer_fit(rare)])
-	game._show_panel("ВЫБЕРИ БАФ", "Семейство: %s. Усиление действует до конца забега." % String(G67Data.FAMILY_NAMES["misha"]), buttons)
-	_fit_icons(opts)
+	fit_offer = opts
+	fit_rare = rare
+	open_screen("fit")
 
-## Значки фитсов на кнопках выбора (наклейки владельца; нет файла — кнопка без значка)
-func _fit_icons(opts: Array) -> void:
-	if game.panel == null:
+## Перевыбор: тратит один перевыбор, закрывает экран и открывает новый с другими бафами
+func fit_reroll(rare: bool) -> void:
+	if int(run.get("rerolls", 0)) <= 0:
 		return
-	var k := 0
-	for b in game.panel.find_children("*", "Button", true, false):
-		if k >= opts.size():
-			break
-		var t := G67Icons.fit(String(opts[k]))
-		k += 1
-		if t == null:
-			continue
-		var bt := b as Button
-		bt.icon = t
-		bt.expand_icon = false          # с expand_icon значок не входит в ширину кнопки и сжимается в ноль
-		bt.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		bt.add_theme_constant_override("icon_max_width", 64)
-		bt.add_theme_constant_override("h_separation", 14)
-		bt.custom_minimum_size = Vector2(bt.custom_minimum_size.x, 84.0)
+	run["rerolls"] = int(run["rerolls"]) - 1
+	events.append(["reroll"])
+	if hub_ui != null:
+		hub_ui.close()
+	_offer_fit(rare)
 
 func take_fit(id: String) -> void:
 	if not G67Data.FITS.has(id) or fit_lv(id) >= int(G67Data.FITS[id]["lv"]):
@@ -1409,8 +1405,8 @@ func take_fit(id: String) -> void:
 	fits[id] = fit_lv(id) + 1
 	events.append(["fit", id])
 	game._close_panel()
-	if game.main.testing() == "" and game.main.user_play():
-		MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
+	if hub_ui != null and hub_ui.kind == "fit":
+		hub_ui.close()
 	apply_fits(id)
 	game.banner(String(G67Data.FITS[id]["name"]), "баф · уровень %d" % fit_lv(id), G67Data.FAMILY_COLOR["misha"], 2.2)
 	game.main.ui("confirm")
@@ -1452,6 +1448,22 @@ func rest() -> void:
 	game.banner("ПЕРЕДЫШКА", "здоровье +%d" % int(add), Color(0.5, 0.95, 0.6), 2.0)
 	_stage_end()
 
+## РЕСПЕКТ забега по источникам (для экрана итогов): battle, elite, calm, boss
+func _add_respect(cat: String, n: int) -> void:
+	run["respect"] = int(run.get("respect", 0)) + n
+	var rp: Dictionary = run.get("resp", {})
+	rp[cat] = int(rp.get(cat, 0)) + n
+	run["resp"] = rp
+
+## Что открылось в этом забеге (экран итогов, блок «ОТКРЫТО»)
+func _note_new(text: String) -> void:
+	if place != "run" or run.is_empty():
+		return
+	var nw: Array = run.get("new", [])
+	if not nw.has(text):
+		nw.append(text)
+	run["new"] = nw
+
 func _boss_down(e) -> void:
 	_crowd("win")
 	var d := district()
@@ -1466,11 +1478,14 @@ func _boss_down(e) -> void:
 	fl[String(d["flag"])] = true
 	meta()["flags"] = fl
 	add_golda(int(round(float(G67Data.ROOM_GOLDA["boss"]) * (1.5 if has_art("flash_drive") else 1.0))))
-	run["respect"] = int(run["respect"]) + int(G67Data.RESPECT["boss_first" if first else "boss"]) + (10 if has_art("flash_drive") else 0)
+	_add_respect("boss", int(G67Data.RESPECT["boss_first" if first else "boss"]) + (10 if has_art("flash_drive") else 0))
+	if first:
+		for t in ["Стиль «Водяра» — стойка стилей в подъезде", "Новый листок на доске объявлений", "Письмо в почтовом ящике кв. 42", "Запись «РАЙОННЫЙ ВЕСТНИК 67» — телевизор в подъезде", "Граффити «ПАХАН + MADK1D БЫЛИ ТУТ» — у двери подъезда"]:
+			_note_new(t)
 	events.append(["boss_down", String(d["boss"])])
 	var style_name := String(Styles.by_id(String(d["unlock"])).title).to_upper()
 	game.banner("МИША МИНАСЯН ПОВЕРЖЕН", ("открыт стиль: %s" % style_name) if first else "район пройден", Color(1, 0.85, 0.3), 4.0)
-	_finish_run(true, 4.5)
+	_finish_run(true, 2.5)
 
 func on_dead() -> void:
 	if place != "run":
@@ -1485,31 +1500,68 @@ func on_dead() -> void:
 	game.slowmo(1.0)
 	events.append(["dead"])
 	game.banner("ЗАБЕГ ОКОНЧЕН", "РЕСПЕКТ и открытое остаются с тобой", Color(0.9, 0.3, 0.25), 3.0)
-	_finish_run(false, 3.2)
+	for en in game.enemies:       # погиб: враги замирают и больше не бьют
+		if is_instance_valid(en) and en.state != "dead":
+			en.set_physics_process(false)
+			en.velocity = Vector3.ZERO
+			en.rig.play("Idle", 0.2)
+	_finish_run(false, 1.2)
 
-## Конец забега: РЕСПЕКТ — в постоянное, голда сгорает, забег стирается, герой — в подъезде
+const ResultUIScript := preload("res://scripts/golda67/g67_result_ui.gd")
+var result: Dictionary = {}      # итоги последнего забега (экран G67ResultUI)
+
+## Конец забега: РЕСПЕКТ — в постоянное и в сохранение ДО экрана итогов, голда сгорает, забег стирается; через delay —
+## экран итогов (двор под ним), дальше «В ПОДЪЕЗД» или «НОВЫЙ ЗАБЕГ» (result_to_hub / result_new_run)
 func _finish_run(won: bool, delay: float) -> void:
 	var got := int(run.get("respect", 0))
+	var first_win := won and bool((run.get("new", []) as Array).size() > 0 and (run["new"] as Array).has("Стиль «Водяра» — стойка стилей в подъезде"))
 	meta()["respect"] = int(meta().get("respect", 0)) + got
 	meta()["runs"] = int(meta().get("runs", 0)) + 1
 	data["run"] = {}
 	save()
+	result = {"won": won, "first": first_win, "got": got, "total": int(meta()["respect"]), "parts": (run.get("resp", {}) as Dictionary).duplicate(),
+		"stages": (run.get("stages", []) as Array).duplicate(true), "stage_n": int(run.get("pos", 0)) + (1 if won else 0), "kills": int(run.get("kills", 0)),
+		"earned": int(run.get("earned", 0)), "spent": int(run.get("spent", 0)), "left": int(run.get("golda", 0)), "fits": (run.get("fits", {}) as Dictionary).duplicate(),
+		"arts": (run.get("arts", []) as Array).duplicate(), "new": (run.get("new", []) as Array).duplicate(), "boss_death": not won and String(room.get("type", "")) == "boss"}
 	events.append(["finish", won, got])
 	await game.get_tree().create_timer(delay, true, false, true).timeout
 	if not is_instance_valid(game) or game.golda != self:
 		return
 	game.over = false
 	Engine.time_scale = 1.0
+	open_screen("result")
+
+func _after_run() -> void:
+	game.over = false
+	Engine.time_scale = 1.0
 	var p = game.player
 	p.state = "move"
 	p.rage = 0.0
 	p.rig.play("Idle", 0.1)
+
+## «В ПОДЪЕЗД» на экране итогов
+func result_to_hub() -> void:
+	if hub_ui != null:
+		hub_ui.close()
+	_after_run()
+	var got := int(result.get("got", 0))
+	var won := bool(result.get("won", false))
 	await enter_hub()
 	game.toast("РЕСПЕКТ +%d" % got)
 	if won and bool((meta().get("flags", {}) as Dictionary).get("boss_misha", false)):
 		unlock_clip("NEWS01")
 		if auto_clips and not clip_seen("NEWS01"):
 			await play_clip("NEWS01")        # «РАЙОННЫЙ ВЕСТНИК 67» после первой победы над Мишей
+
+## «НОВЫЙ ЗАБЕГ»: сразу во двор (здоровье и стиль — как при выходе из подъезда)
+func result_new_run() -> void:
+	if hub_ui != null:
+		hub_ui.close()
+	_after_run()
+	if bool(result.get("won", false)) and bool((meta().get("flags", {}) as Dictionary).get("boss_misha", false)):
+		unlock_clip("NEWS01")
+	await enter_hub()
+	await start_run("dvor")
 
 # ---------------------------------------------------------------- HUD и взаимодействие
 ## Строка вверху экрана вместо главы и задания кампании
@@ -1537,6 +1589,25 @@ func next_line() -> String:
 		else:
 			parts.append("%s — %s" % [String(G67Yard.zone(String(o.get("place", "")))["name"]).to_upper(), String(G67Data.ROOM_NAMES[type])])
 	return "ДАЛЬШЕ: " + " · ".join(parts)
+
+## Подсказки предметов подъезда по состоянию: сервант, дверь, стойка стилей, карта
+func refresh_hints() -> void:
+	if place != "hub" or world == null:
+		return
+	var n_art := (meta().get("artifacts", []) as Array).size()
+	var door := "начать забег"
+	var tpl := int(meta().get("runs", 0)) % 3
+	if paused_run():
+		var sv: Dictionary = data["run"]
+		var rr: Dictionary = sv["run"]
+		door = "продолжить забег · этап %d из 7 · здоровье %d из %d" % [int(rr.get("pos", 0)) + 1, int(float(sv.get("hp", game.player.max_hp))), int(game.player.max_hp)]
+		tpl = int(rr.get("tpl", 0))
+	for pt in world.points:
+		match String(pt["id"]):
+			"artifacts": pt["hint"] = ("найдено %d из %d" % [n_art, G67Data.ARTIFACTS.size()]) if n_art > 0 else "пока пусто"
+			"exit": pt["hint"] = door
+			"styles": pt["hint"] = String(Styles.by_id(start_style()).title)
+			"routes": pt["hint"] = "ДВОР · маршрут № %d" % (tpl + 1)
 
 func point(id: String) -> Dictionary:
 	if world != null:
@@ -1636,7 +1707,7 @@ func use(id: String) -> void:
 	elif id == "notices":
 		open_screen("board")
 	else:
-		game.toast("%s — в разработке" % String(pt["title"]))
+		pass                                 # декорация без действия: молча
 
 func to_menu() -> void:
 	game._to_menu()
@@ -1687,6 +1758,7 @@ func unlock_clip(cid: String) -> void:
 	var arch: Array = meta().get("archive", [])
 	if not arch.has("clip_" + cid):
 		arch.append("clip_" + cid)
+		_note_new("Запись «%s» — телевизор в подъезде" % G67Clips.title(cid))
 		meta()["archive"] = arch
 		save()
 		events.append(["clip_open", cid])
@@ -1703,8 +1775,13 @@ func play_clip(cid: String) -> void:
 	game._hush()
 	clip = G67ClipPlayer.open(game, cid, clip_seen(cid))
 	events.append(["clip", cid])
-	await clip.finished
+	var cp = clip
+	await cp.finished
+	var was_skipped: bool = cp.skipped
 	clip = null
+	if was_skipped:
+		events.append(["clip_skipped", cid])
+		return                                # пропущенный ролик открыт в архиве, но не просмотрен: «НОВАЯ ЗАПИСЬ» остаётся
 	var seen: Array = meta().get("clips_seen", [])
 	if not seen.has(cid):
 		seen.append(cid)
@@ -1735,7 +1812,11 @@ func open_screen(what: String) -> void:
 		"routes": hub_ui = G67RoutesUI.open(self)
 		"storage": hub_ui = G67StorageUI.open(self)
 		"kiosk": hub_ui = G67KioskUI.open(self)
-	hub_ui.closed.connect(func(): hub_ui = null)
+		"fit": hub_ui = FitUIScript.open(self, fit_offer, fit_rare)
+		"result": hub_ui = ResultUIScript.open(self)
+	hub_ui.closed.connect(func():
+		hub_ui = null
+		refresh_hints())
 
 func _tv_menu() -> void:
 	open_screen("archive")
