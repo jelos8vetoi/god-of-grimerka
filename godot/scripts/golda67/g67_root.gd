@@ -11,6 +11,11 @@ extends Node
 
 const REACH := 1.4            # с какого расстояния предмет «под рукой»
 const TITLE := "ГОЛДА 67"
+const HUB_CAM_LEN := 3.2      # длина штанги камеры в подъезде (тесно), во дворе — прежние 4,6
+const YARD_CAM_LEN := 4.6
+const FADE_FAR := 1.3         # камера ближе этого к плечам героя — он начинает таять
+const FADE_NEAR := 0.6        # на этом расстоянии прозрачность 0,75
+const FADE_MAX := 0.75
 
 var game
 var world: G67World
@@ -25,6 +30,8 @@ var _t := 0.0
 var run: Dictionary = {}      # {district, tpl, pos (индекс этапа 0…6), golda, fits, respect, rooms, kills, earned, spent, stages, stash…}
 var room: Dictionary = {}     # текущий вариант этапа {type, place}
 var room_state := ""          # fight | reward | open | boss | over
+const HintsScript := preload("res://scripts/golda67/g67_hints.gd")
+var hints                     # подсказки по ходу забега (один раз за сохранение)
 var stash_nodes := {}         # индекс места заначки → монета во дворе
 var recovered_respect := -1   # прошлый забег оборвался в бою: засчитан поражением, столько РЕСПЕКТА он дал
 var waves: Array = []
@@ -135,8 +142,9 @@ func enter_hub() -> void:
 	p.dmg_mul = 1.0 + 0.04 * float(up("dmg"))
 	p.global_position = world.spawn_pos
 	p.velocity = Vector3.ZERO
-	p.face = 0.0                 # вошёл с улицы: лицом в холл, к лестнице
+	p.face = PI                  # вошёл с улицы: лицом в холл, к лестнице; камера за спиной (cam_yaw = face − PI)
 	game.cam_yaw = 0.0
+	game.cam_len = HUB_CAM_LEN
 	game.buddy.visible = true
 	game.buddy.global_position = world.spawn_pos + Vector3(-1.1, 0.0, -0.7)
 	game.buddy.target = Vector3.ZERO
@@ -208,6 +216,7 @@ func _build_yard_world() -> void:
 
 ## Герой — у двери дома лицом во двор, камера за спиной
 func _stand_at_home() -> void:
+	game.cam_len = YARD_CAM_LEN
 	var p = game.player
 	p.global_position = G67Yard.HOME_DOOR + Vector3(0, 0.05, -4.5)
 	p.velocity = Vector3.ZERO
@@ -218,6 +227,19 @@ func _stand_at_home() -> void:
 func _seed_yard() -> void:
 	G67Yard.secret_tag = bool((meta().get("flags", {}) as Dictionary).get("boss_misha", false))      # граффити-секрет — после победы над Мишей
 	G67Yard.crowd_seed = int(meta().get("runs", 0)) * 31 + int(meta().get("visits", 0)) + 1      # очередь у ларька — каждый забег другая
+
+## Герой полупрозрачен, когда камера прижалась к нему (вплотную к стене или борту): плавно от 1,3 м (0) до 0,6 м (0,75)
+var _fade_last := 0.0
+func hero_fade() -> void:
+	var p = game.player
+	var head: Vector3 = p.vis_pos() + Vector3(0, 1.55, 0)
+	var d: float = game.cam.global_position.distance_to(head)
+	var k: float = clampf((FADE_FAR - d) / (FADE_FAR - FADE_NEAR), 0.0, 1.0) * FADE_MAX
+	if is_equal_approx(k, _fade_last) and k == 0.0:
+		return
+	_fade_last = k
+	for gi in p.rig.find_children("*", "GeometryInstance3D", true, false):
+		(gi as GeometryInstance3D).transparency = k
 
 ## Начать забег: район ДВОР, первый этап. До первой концовки madk1d остаётся в подъезде (SPEC, раздел 3).
 func start_run(district_id := "dvor") -> void:
@@ -1513,7 +1535,7 @@ func next_line() -> String:
 		if type == "boss":
 			parts.append("КОРОБКА — %s" % String(G67Data.ROOM_HINT["boss"]))
 		else:
-			parts.append("%s — %s" % [String(G67Yard.zone(String(o.get("place", "")))["name"]).to_upper(), String(G67Data.ROOM_NAMES[type]).to_lower()])
+			parts.append("%s — %s" % [String(G67Yard.zone(String(o.get("place", "")))["name"]).to_upper(), String(G67Data.ROOM_NAMES[type])])
 	return "ДАЛЬШЕ: " + " · ".join(parts)
 
 func point(id: String) -> Dictionary:
@@ -1543,6 +1565,9 @@ func _physics_process(dt: float) -> void:
 		_ambush_tick()
 		_second_wind()
 	_art_tick(dt)
+	if hints == null:
+		hints = HintsScript.new(self)
+	hints.tick(dt)
 	var pp: Vector3 = game.player.global_position
 	var best := ""
 	var bd := REACH + (0.6 if place == "run" else 0.0)
@@ -1567,6 +1592,9 @@ func _unhandled_input(e: InputEvent) -> void:
 	if game == null or near == "" or game.panel != null or game.get_tree().paused or busy or hub_ui != null or clip != null:
 		return
 	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_E:
+		var pl = game.player
+		if place == "run" and pl.execution.can_start() and not pl.execution.pick().is_empty():
+			return                     # добивание на [E] важнее предмета рядом
 		use(near)
 		get_viewport().set_input_as_handled()
 

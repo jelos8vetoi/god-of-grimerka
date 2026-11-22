@@ -646,7 +646,8 @@ func _physics_process(dt: float) -> void:
 			elif combat.try_start():
 				pass
 			elif pressed("heat"):
-				try_heat()
+				if not (game.golda != null and game.golda.near != "" and execution.pick().is_empty()):      # приквел: E у предмета — к предмету, а не Heat
+					try_heat()
 			elif pressed("rage") and swag >= 100.0:
 				start_rage()
 		"switch":
@@ -1111,7 +1112,13 @@ func try_heat() -> void:
 		guitar.distort()               # у гитары E — DISTORTION
 		return
 	if swag < 40.0:
-		game.popup(global_position + Vector3(0, 2.2, 0), "нужно 40 СВЭГа", Color(0.7, 0.75, 0.85))
+		var foe_near := false
+		for e in game.enemies:
+			if is_instance_valid(e) and e.alive() and e.global_position.distance_to(global_position) < 8.0:
+				foe_near = true
+				break
+		if foe_near:
+			game.popup(global_position + Vector3(0, 2.2, 0), "нужно 40 СВЭГа", Color(0.7, 0.75, 0.85))
 		return
 	if style.heat.is_empty():
 		return

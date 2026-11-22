@@ -125,6 +125,10 @@ func _run() -> void:
 			await _clip_frames(G, String(arg).substr(13))
 			_finish()
 			return
+	if OS.get_cmdline_user_args().has("--g67-cam"):
+		await _cam_check(g, G, g.player)
+		_finish()
+		return
 	if OS.get_cmdline_user_args().has("--g67-real"):
 		await _real_run(g, G)
 		_finish()
@@ -1688,6 +1692,48 @@ func _stash_check(g, G: Golda67, P) -> void:
 	await wait(0.4)
 	ok(int(G.run["golda"]) == gold0 + got, "второй раз та же заначка не платит")
 
+func _b13_check(g, G: Golda67, P) -> void:
+	await _go(G, P, "exit")
+	ok(await until(func(): return G.place == "run" and G.room_state == "fight", 8.0), "забег для проверки клавиши E")
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(0.5)
+	var kp: Vector3 = G.point("kiosk")["pos"]
+	P.global_position = kp
+	P.velocity = Vector3.ZERO
+	P.swag = 0.0
+	await wait(0.4)
+	ok(G.near == "kiosk", "герой у окна ларька (рядом: %s)" % G.near)
+	# нет врагов рядом: E не показывает «нужно 40 СВЭГа»
+	P.try_heat()
+	ok(g.get_tree().get_nodes_in_group("none").is_empty(), "try_heat без врагов не падает")
+	# готовый к добиванию враг перед героем: E — добивание, а не предмет
+	var e = g._make_enemy("bot", "", P.global_position + Vector3(sin(P.face), 0, cos(P.face)) * 1.5)
+	await wait(1.4)
+	e.hp = 5.0
+	e.stun(3.0)
+	e.global_position = P.global_position + Vector3(sin(P.face), 0, cos(P.face)) * 1.5
+	await wait(0.3)
+	var can: bool = P.execution.can_start() and not P.execution.pick().is_empty()
+	var uses := G.events.filter(func(ev): return ev.size() > 1 and String(ev[0]) == "use" and String(ev[1]) == "kiosk").size()
+	await key(KEY_E)
+	await wait(0.4)
+	var uses2 := G.events.filter(func(ev): return ev.size() > 1 and String(ev[0]) == "use" and String(ev[1]) == "kiosk").size()
+	ok(can and uses2 == uses and G.hub_ui == null, "E с готовым к добиванию врагом у ларька не открывает ларёк (добивание: %s)" % str(can))
+	await until(func(): return not P.execution.active(), 5.0)
+	_kill_all(g)
+	await wait(0.5)
+	G.room_state = "open"
+	await key(KEY_E)
+	await wait(0.4)
+	ok(G.hub_ui != null and G.hub_ui.kind == "kiosk", "без врагов E у ларька открывает ларёк")
+	await key(KEY_ESCAPE)
+	await until(func(): return G.hub_ui == null, 2.0)
+	await G.enter_hub()
+	G.data["run"] = {}
+	await wait(0.3)
+
 ## Выход в меню: hub / safe / fight; сохранение с боем; старая запись забега на паузе
 func _quit_check(g, G: Golda67, P) -> void:
 	ok(G.place == "hub" and G.quit_kind() == "hub" and G.quit_text() == "Прогресс сохранён.", "выход из подъезда: прогресс сохранён (%s)" % G.quit_kind())
@@ -1747,6 +1793,63 @@ func _quit_check(g, G: Golda67, P) -> void:
 	await G.enter_hub()
 	G.data["run"] = {}
 	await wait(0.3)
+
+## Камера внутри допустимого: в подъезде — в коробке лестничной клетки (тамбур уже и ниже), у бортов — внутри COURT
+func _cam_ok(c: Vector3, kind: String) -> bool:
+	if kind == "court":
+		var cr: Rect2 = G67Yard.COURT
+		return c.x >= cr.position.x + 0.3 and c.x <= cr.end.x - 0.3 and c.z >= cr.position.y + 0.3 and c.z <= cr.end.y - 0.3
+	if c.z > G67World.Z_FRONT:
+		return absf(c.x) <= 1.5 and c.y <= 2.7 and c.z <= G67World.Z_DOOR + 0.5
+	return absf(c.x) <= G67World.HUB_X + 0.45 and c.y <= G67World.CEIL_Y and c.z >= G67World.Z_BACK - 0.45 and c.z <= G67World.Z_DOOR + 0.5
+
+## 36 положений камеры (12 поворотов × наклоны −0,32 / −0,75 / +0,1) в точке; возвращает, сколько вне допустимого
+func _cam_sweep(g, P, at: Vector3, kind: String, nm: String) -> int:
+	P.global_position = at
+	P.velocity = Vector3.ZERO
+	await wait(0.4)
+	var bad := 0
+	var worst := ""
+	for k in 12:
+		for pit in [-0.32, -0.75, 0.1]:
+			g.cam_yaw = TAU * float(k) / 12.0
+			g.cam_pitch = pit
+			await wait(0.25)
+			var c: Vector3 = g.cam.global_position
+			if not _cam_ok(c, kind):
+				bad += 1
+				if worst == "":
+					worst = "yaw %.2f pitch %.2f → %s" % [g.cam_yaw, pit, str(c.snapped(Vector3.ONE * 0.1))]
+	g.cam_yaw = PI
+	g.cam_pitch = -0.32
+	print("GOLDA67CHECK   КАМЕРА %s: плохих положений %d из 36 %s" % [nm, bad, worst])
+	return bad
+
+## Герой смотрит от камеры (камера за спиной): cos(face − cam_yaw − PI) > 0,9
+func _faces_away(g, P) -> bool:
+	return cos(float(P.face) - float(g.cam_yaw) - PI) > 0.9
+
+func _cam_check(g, G: Golda67, P) -> void:
+	var total := 0
+	ok(G.place == "hub" and _faces_away(g, P) and absf(g.cam_len - 3.2) < 0.01, "первый кадр подъезда: герой лицом от камеры (face %.2f, cam_yaw %.2f), штанга 3,2" % [P.face, g.cam_yaw])
+	var L := G67World.LAND_Y
+	for v in [["вход подъезда", Vector3(0, 0.05, 5.0)], ["холл", Vector3(0, 0.05, 3.0)], ["площадка", Vector3(0, L + 0.05, -3.0)], ["середина лестницы", Vector3(-2.3, 0.8, -0.35)]]:
+		var b: int = await _cam_sweep(g, P, v[1], "hub", String(v[0]))
+		ok(b == 0, "камера в подъезде, точка «%s»: плохих положений %d из 36" % [v[0], b])
+		total += b
+	await _go(G, P, "exit")
+	await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+	ok(_faces_away(g, P) and absf(g.cam_len - 4.6) < 0.01, "первый кадр двора после start_run: герой лицом от камеры (face %.2f, cam_yaw %.2f), штанга 4,6" % [P.face, g.cam_yaw])
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(0.5)
+	P.inv = 1.0
+	for v in [["западный борт", Vector3(-10.0, 0.05, -38.25)], ["восточный борт", Vector3(14.0, 0.05, -38.25)], ["северный борт", Vector3(-6.0, 0.05, -48.5)], ["южный борт", Vector3(-6.0, 0.05, -28.0)]]:
+		var b2: int = await _cam_sweep(g, P, v[1], "court", String(v[0]))
+		ok(b2 == 0, "камера у борта коробки, точка «%s»: плохих положений %d из 36" % [v[0], b2])
+		total += b2
+	print("GOLDA67CHECK   КАМЕРА всего плохих положений: %d из 288" % total)
 
 func _run_dvor(g, G: Golda67, P) -> void:
 	# выход во двор — настоящей клавишей E у входной двери
@@ -1832,7 +1935,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(G.world.get_node_or_null("gate_stand0") != null and G.world.get_node_or_null("gate_stand1") == null, "у боя стоит турнирная стойка, у баффа — нет (вешалка во дворе всегда)")
 	ok(String(G.point("gate0")["title"]) == "БОЙ · ГАРАЖИ" and String(G.point("gate0")["hint"]) == "голда и РЕСПЕКТ" and String(G.point("gate1")["title"]) == "БАФ · ДЕТСКАЯ ПЛОЩАДКА" and String(G.point("gate1")["hint"]) == "баф на выбор",
 		"заголовки точек: «%s», «%s»" % [G.point("gate0")["title"], G.point("gate1")["title"]])
-	ok(String(g.top_label.text).contains("ДАЛЬШЕ: ГАРАЖИ — бой · ДЕТСКАЯ ПЛОЩАДКА — баф") and String(g.top_label.text).contains("ДВОР 1/7"), "строка «куда дальше»: «%s»" % g.top_label.text)
+	ok(String(g.top_label.text).contains("ДАЛЬШЕ: ГАРАЖИ — БОЙ · ДЕТСКАЯ ПЛОЩАДКА — БАФ") and String(g.top_label.text).contains("ДВОР 1/7"), "строка «куда дальше»: «%s»" % g.top_label.text)
 	var miss_ic: Array = []
 	for id in G67Icons.ROOM.values() + G67Icons.FIT.values() + ["icon_golda", "icon_respect", "icon_krot_found", "icon_new_talk", "emblem_67", "logo_golda67",
 			"icon_art_cassette_2016", "icon_art_sim", "icon_art_bracelet_67", "icon_art_one_earbud", "icon_art_energy", "icon_art_flash_drive",
@@ -1849,6 +1952,13 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	P.global_position = Vector3(kp.x - 0.5, 0.05, kp.z)
 	await wait(0.6)
 	ok(G.hub_ui == null and G.near == "kiosk", "у окна ларька экран сам не открывается: ждёт [E] (рядом: %s)" % G.near)
+	# подсказка про заначки: герой в 4 м от монеты вне боя — строка один раз
+	var c0: Vector3 = G67Yard.STASH[int(G.run["stash"]["spots"][0])]
+	P.global_position = c0 + Vector3(4.0, 0.05, 0)
+	P.velocity = Vector3.ZERO
+	var hint_ok: bool = await until(func(): return G.hints.cur == "stash" or G.hints.seen("stash"), 12.0)
+	ok(hint_ok and G.hints.seen("stash"), "подсказка про заначку показана у монеты (%s)" % str(G.meta().get("hints", [])))
+	ok(G.hints.seen("stash") and G.events.has(["hint", "stash"]), "подсказка записана в сохранение и в события")
 	await _stash_check(g, G, P)
 	# домой посреди забега: дверь подъезда во дворе → подъезд (забег на паузе) → выход продолжает с двери подъезда
 	ok(not G.point("home").is_empty(), "после боя у двери подъезда можно уйти домой")
@@ -1979,7 +2089,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(await until(func(): return String(G.room.get("type", "")) == "break" and G.room_state == "open", 8.0), "ПЕРЕДЫШКА: герой уже у лавки, лечение сразу")
 	ok(P.hp > 20.0 + P.max_hp * 0.4, "лавка лечит (здоровье %.0f из %.0f)" % [P.hp, P.max_hp])
 	ok(G.world.gates.size() == 1 and bool(G.world.gates[0]["auto"]) and String(G.world.gates[0]["option"]["type"]) == "ambush" and G.point("gate0").is_empty(), "дальше — ЗАСАДА на северном проезде: точки [E] у неё нет")
-	ok(String(g.top_label.text).contains("ДАЛЬШЕ: СЕВЕРНЫЙ ПРОЕЗД — засада"), "строка «куда дальше»: «%s»" % g.top_label.text)
+	ok(String(g.top_label.text).contains("ДАЛЬШЕ: СЕВЕРНЫЙ ПРОЕЗД — ЗАСАДА"), "строка «куда дальше»: «%s»" % g.top_label.text)
 	# засада стартует сама, когда герой вошёл в проезд
 	P.global_position = Vector3(-26.0, 0.05, -21.5)
 	await wait(0.8)
@@ -2005,6 +2115,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	if not bossed:
 		return
 	var B = g.boss_e
+	ok(_faces_away(g, P), "на входе к боссу герой лицом от камеры (face %.2f, cam_yaw %.2f)" % [P.face, g.cam_yaw])
 	ok(G.world == yard_world and G.world.yard.position == Vector3.ZERO, "от начала забега до босса двор не пересобирался и не сдвигался")
 	ok(G.world.statist == null and (G.run["stages"] as Array).size() == 6 and int(G.run["earned"]) == int(G.run["golda"]) + int(G.run["spent"]), "статист с трона убран, этапов пройдено 6, голда сходится (получено %d)" % int(G.run["earned"]))
 	ok(G.scene_busy() and g.intro_busy(), "выход босса — постановка: управление на это время закрыто")
@@ -2023,6 +2134,8 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await shot("25d_boss_stomp")
 	ok(await until(func(): return not G.scene_busy(), 8.0), "постановка заканчивается сама, начинается бой")
 	ok(B.global_position.distance_to(G.world.yard.boss_spot + Vector3(0, 0.05, 0)) < 0.3, "к началу боя Миша на своём месте в коробке")
+	var first_mv: bool = await until(func(): return String(B.move) != "", 8.0)
+	ok(first_mv and String(B.move) == "m_grab", "первый приём боя — ЗАХВАТ (%s)" % String(B.move))
 	ok(String(B.boss_id) == "g67_misha" and String(g.boss_name.text).begins_with("МИША МИНАСЯН"), "босс — Миша Минасян («%s»)" % g.boss_name.text)
 	ok(String(B.cfg.get("path", "")).ends_with("g67_misha.glb"), "модель босса — своя, не босс кампании")
 	ok(B.rig.skel.find_children("*", "BoneAttachment3D", true, false).size() > 0, "на Мише цепь")
@@ -2046,6 +2159,47 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	var hp1: float = B.hp
 	B.take_hit(40.0, Vector3.FORWARD, 0.0, false)
 	ok(B.hp < hp1, "босс получает урон")
+	# фазы не проскакивают: удар на 99999 по полному здоровью — только до порога фазы
+	await _misha_set(B, P, "m_grab", Vector3(0, 0.05, 9.0), Vector3(0, 0.05, -2.0))
+	B.hp = B.max_hp
+	B.phase = 0
+	B.phase_guard_until = -1.0
+	B.counter_at = 99999.0
+	B.state = "chase"
+	B.sp_events = []
+	B.tell_until = -1.0
+	B._tell_end()
+	B.cool = 99.0
+	B.move = ""
+	P.inv = 1.0
+	B.take_hit(99999.0, Vector3.FORWARD, 0.0, true)
+	var thr1: float = B.max_hp * 2.0 / 3.0
+	ok(B.alive() and B.phase == 1 and absf(B.hp - thr1) < 0.01, "удар на 99999 по полному здоровью Мишу не убивает и фазу не перескакивает: здоровье %.0f = порог фазы 1, фаза %d" % [B.hp, B.phase])
+	var hg: float = B.hp
+	await wait(0.3)
+	B.take_hit(500.0, Vector3.FORWARD, 0.0, true)
+	B.take_hit_info(HitInfo.new())
+	ok(absf(B.hp - hg) < 0.01 and B.age < B.phase_guard_until, "смена фазы: 1,2 с неуязвимость — урон не проходит")
+	ok(String(B.state) == "special" and String(B.rig.cur) == "Stomp", "на смене фазы Миша топает (%s, %s)" % [String(B.state), String(B.rig.cur)])
+	await wait(1.3)
+	B.cool = 0.0
+	var p1: bool = await until(func(): return String(B.move) == "m_guard", 4.0)
+	ok(p1 and absf(B.hp - hg) < 0.01, "после смены фазы сразу первый приём фазы — ЗАЩИТНАЯ СТОЙКА (%s)" % String(B.move))
+	await wait(3.2)
+	B.hp = B.max_hp * 2.0 / 3.0 + 1.0
+	B.state = "chase"
+	B.sp_events = []
+	B.cool = 99.0
+	B.move = ""
+	B.take_hit(99999.0, Vector3.FORWARD, 0.0, true)
+	ok(B.alive() and B.phase == 2 and absf(B.hp - B.max_hp / 3.0) < 0.01, "вторая смена: здоровье %.0f = порог фазы 2, фаза %d" % [B.hp, B.phase])
+	await wait(1.3)
+	B.cool = 0.0
+	var p2: bool = await until(func(): return String(B.move) == "m_hook", 4.0)
+	ok(p2, "после второй смены — ЗАЦЕП ЦЕПИ (%s)" % String(B.move))
+	await wait(3.0)
+	P.inv = 0.0
+	B.guard_until = -1.0
 	B.take_hit(99999.0, Vector3.FORWARD, 0.0, true)
 	var down: bool = await until(func(): return G.events.any(func(ev): return ev.size() > 0 and String(ev[0]) == "boss_down"), 6.0)
 	ok(down, "Миша Минасян повержен")
@@ -2147,6 +2301,36 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(int(G.meta()["respect"]) >= r0 and bool(G.meta()["flags"].get("boss_misha", false)), "гибель не стёрла РЕСПЕКТ и победу над боссом")
 	ok(P.hp == P.max_hp and P.max_hp == G.base_hp, "здоровье восстановлено, усиления забега сняты (%.0f)" % P.max_hp)
 	await wait(0.5)
+	# подсказки: каждая один раз, в бою не больше трёх; новый экземпляр режима («перезапуск») их не повторяет
+	var hint_ev: Array = G.events.filter(func(ev): return String(ev[0]) == "hint").map(func(ev): return String(ev[1]))
+	var uniq := {}
+	for hid in hint_ev:
+		uniq[hid] = true
+	ok(not hint_ev.is_empty() and uniq.size() == hint_ev.size(), "подсказки по одной за сохранение: показаны %s" % str(hint_ev))
+	ok(G.place == "hub" and G.hints.cur == "" and G.hints.label.modulate.a == 0.0, "в подъезде подсказок нет")
+	var again := G.HintsScript.new(G)
+	ok(again.seen("stash") and again.seen(String(hint_ev[0])), "после перезапуска режима показанные подсказки не повторяются")
+	again.label.queue_free()
+	# B07: обе фразы фаз Миши целиком в экране (кегль или перенос)
+	for ph in [1, 2]:
+		var bark := String(G67Data.BOSSES["g67_misha"]["barks"][ph])
+		g.banner(bark, "", Color.WHITE, 1.0)
+		var maxw: float = g.hud_root.get_viewport_rect().size.x - 160.0
+		var fnt: Font = g.banner_title.get_theme_font("font")
+		var fsz: int = g.banner_title.get_theme_font_size("font_size")
+		var wide := 0.0
+		for line in g.banner_title.text.split("
+"):
+			wide = maxf(wide, fnt.get_string_size(line, HORIZONTAL_ALIGNMENT_CENTER, -1, fsz).x)
+		ok(wide <= maxw and fsz >= 34, "B07: фраза фазы %d целиком в экране (%.0f из %.0f, кегль %d, строк %d)" % [ph, wide, maxw, fsz, g.banner_title.text.split("
+").size()])
+	g.banner("ШИРОКИЙ ЗАГОЛОВОК ДЛЯ ПРОВЕРКИ ПЕРЕНОСА СЛОВ НА ДВЕ СТРОКИ ПО ЦЕНТРУ ЭКРАНА", "", Color.WHITE, 0.2)
+	ok(g.banner_title.text.contains("
+"), "B07: слишком длинный заголовок переносится на две строки")
+	g.banner("ПРОВЕРКА", "", Color.WHITE, 0.2)
+	ok(g.banner_title.get_theme_font_size("font_size") == 60, "короткий заголовок — прежний кегль 60")
+	# B13: E у предмета не срывает добивание; «нужно 40 СВЭГа» без врагов рядом нет
+	await _b13_check(g, G, P)
 	await _quit_check(g, G, P)
 
 

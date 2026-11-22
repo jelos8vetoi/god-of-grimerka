@@ -67,6 +67,24 @@ func _put(id: String, pos: Vector3, yaw: float, size: Vector3, fit := "h", solid
 		_static_box(pos + Vector3(0, sz.y * 0.5, 0), sz)
 	return n
 
+## Преграда только для камеры (слой 8, героя и врагов не трогает): потолок, стена над проёмом, сетка над бортом
+func _cam_box(pos: Vector3, size: Vector3) -> void:
+	_body_box(pos, size, 0.0, 8)
+
+## Преграда только для героя и врагов (слой 1), камера её не видит: перила, низкая ограда
+func _body_box(pos: Vector3, size: Vector3, rot: float, layer: int) -> void:
+	var sb := StaticBody3D.new()
+	sb.collision_layer = layer
+	sb.collision_mask = 0
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = size
+	cs.shape = bs
+	sb.add_child(cs)
+	sb.position = pos
+	sb.rotation.y = rot
+	add_child(sb)
+
 func _point(id: String, title: String, hint: String, pos: Vector3) -> void:
 	points.append({"id": id, "title": title, "hint": hint, "pos": pos})
 
@@ -155,7 +173,7 @@ func _railing(a: Vector3, b: Vector3) -> void:
 		bar.position = a + d * (float(i) / float(n)) + Vector3(0, 0.465, 0)
 		add_child(bar)
 	var sz := Vector3(0.12, 1.3, len)
-	_static_box(mid + Vector3(0, 0.65, 0), sz, yaw)
+	_body_box(mid + Vector3(0, 0.65, 0), sz, yaw, 1)          # камера смотрит сквозь прутья
 
 ## Лампа: плафон на потолке или стене и свет от него
 func _lamp(pos: Vector3, col: Color, energy: float, rng: float) -> OmniLight3D:
@@ -210,6 +228,11 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	var X := HUB_X
 	var t := 0.44                       # на сколько модуль стены утоплен за плоскость стены (его толщина / 2)
 
+	# ---------- камерные преграды: потолок клетки, стена над проёмом тамбура, потолок тамбура, верх над вторым пролётом ----------
+	_cam_box(Vector3(0, CEIL_Y + 0.1, (Z_BACK + Z_DOOR) * 0.5), Vector3(2 * X + 2.6, 0.2, Z_DOOR - Z_BACK + 2.6))
+	_cam_box(Vector3(0, 2.2 + (CEIL_Y - 2.2) * 0.5, Z_FRONT + 0.15), Vector3(2.8, CEIL_Y - 2.2, 0.3))
+	_cam_box(Vector3(0, 2.7, (Z_FRONT + Z_DOOR) * 0.5 + 0.15), Vector3(3.0, 0.2, Z_DOOR - Z_FRONT))
+	_cam_box(Vector3((FLIGHT2_X + X) * 0.5, 3.0 + (CEIL_Y - 3.0) * 0.5, 3.85), Vector3(X - FLIGHT2_X, CEIL_Y - 3.0, 0.3))
 	# ---------- коробка лестничной клетки: потолок и побелка выше модулей ----------
 	_box(Vector3(0, CEIL_Y + 0.1, (Z_BACK + Z_DOOR) * 0.5), Vector3(2 * X + 2.6, 0.2, Z_DOOR - Z_BACK + 2.6), m_white)
 	for sx in [-1.0, 1.0]:
@@ -405,8 +428,22 @@ func build_yard() -> void:
 	hook_rect = Rect2(cr.position.x + 0.3, cr.position.y + 0.3, cr.size.x - 0.6, cr.size.y - 0.6)
 	throne = G67Yard.THRONE
 	missing.append_array(yard.missing)
+	_cam_court()
 	_misha_statist()
 	_particles(T)
+
+## Камера не выходит за борта коробки: сплошные камерные стены по периметру COURT (внутренняя грань — в 0,35 м от борта),
+## включая проём калитки; сетка над бортом тоже не пропускает
+func _cam_court() -> void:
+	var cr: Rect2 = G67Yard.COURT
+	var inset := 0.35
+	var h := 7.0
+	var cx := cr.position.x + cr.size.x * 0.5
+	var cz := cr.position.y + cr.size.y * 0.5
+	_cam_box(Vector3(cr.position.x + inset - 0.5, h * 0.5, cz), Vector3(1.0, h, cr.size.y + 3.0))
+	_cam_box(Vector3(cr.end.x - inset + 0.5, h * 0.5, cz), Vector3(1.0, h, cr.size.y + 3.0))
+	_cam_box(Vector3(cx, h * 0.5, cr.position.y + inset - 0.5), Vector3(cr.size.x + 3.0, h, 1.0))
+	_cam_box(Vector3(cx, h * 0.5, cr.end.y - inset + 0.5), Vector3(cr.size.x + 3.0, h, 1.0))
 
 ## Миша сидит на троне с самого начала забега: та же модель, поза и золотая цепь, что у босса, но это не враг
 func _misha_statist() -> void:
@@ -444,7 +481,7 @@ func bound_zone(zid: String, barriers: bool) -> void:
 	for s in [[Vector3(c.x, 2, c.z - hz - 0.5), Vector3(2 * hx + 2, 4, 1)], [Vector3(c.x, 2, c.z + hz + 0.5), Vector3(2 * hx + 2, 4, 1)],
 			[Vector3(c.x - hx - 0.5, 2, c.z), Vector3(1, 4, 2 * hz + 2)], [Vector3(c.x + hx + 0.5, 2, c.z), Vector3(1, 4, 2 * hz + 2)]]:
 		var sb := StaticBody3D.new()
-		sb.collision_layer = 1 | 8
+		sb.collision_layer = 1          # забор низкий: камера может выйти за него и смотреть поверх
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = s[1]

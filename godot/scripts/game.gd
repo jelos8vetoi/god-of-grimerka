@@ -4,6 +4,7 @@
 extends Node3D
 
 const ARENA := 15.0
+var cam_len := 4.6          # длина штанги камеры (приквел: в подъезде 3,2)
 var arena_c := Vector3.ZERO
 var arena_h := Vector2(ARENA, ARENA)
 const SAVE := "user://grimerka_save.json"
@@ -1025,7 +1026,7 @@ func _process(dt: float) -> void:
 	if lock != null:
 		lock.camera_tick(rdt)          # захват цели мягко ведёт cam_yaw / cam_pitch (если камерой никто другой не владеет)
 	var target: Vector3 = player.vis_pos() + Vector3(0, 1.55, 0)      # плавное положение: без дрожи между шагами физики
-	var want_len := 4.6
+	var want_len := cam_len
 	var yaw := cam_yaw
 	var pitch := cam_pitch
 	if mode == "dlg" and not director:
@@ -1099,6 +1100,8 @@ func _process(dt: float) -> void:
 	_update_post(rdt)
 	if world:
 		world.follow(player.global_position)
+	if golda != null:
+		golda.hero_fade()
 	_update_hud(rdt)
 	if mode == "dlg":
 		var to_b: Vector3 = buddy.global_position - player.global_position
@@ -1452,10 +1455,33 @@ func damage_flash() -> void:
 	pp["aberr"] = max(float(pp["aberr"]), 0.6)
 
 func banner(title: String, sub: String, col: Color, sec := 2.6) -> void:
-	banner_title.text = title
+	_fit_banner(title)
 	banner_sub.text = sub
 	banner_title.add_theme_color_override("font_color", col)
 	banner_t = sec
+
+## Заголовок баннера: шире экрана (минус 160) — кегль уменьшается шагами до 34, дальше перенос по словам на две строки
+func _fit_banner(title: String) -> void:
+	var maxw: float = hud_root.get_viewport_rect().size.x - 160.0
+	var font: Font = banner_title.get_theme_font("font")
+	var size := 60
+	while size > 34 and font.get_string_size(title, HORIZONTAL_ALIGNMENT_CENTER, -1, size).x > maxw:
+		size -= 2
+	var text := title
+	if font.get_string_size(title, HORIZONTAL_ALIGNMENT_CENTER, -1, size).x > maxw and title.contains(" "):
+		var words := title.split(" ")
+		var best := 1
+		var best_d := INF
+		for i in range(1, words.size()):
+			var l := font.get_string_size(" ".join(words.slice(0, i)), HORIZONTAL_ALIGNMENT_CENTER, -1, size).x
+			var r := font.get_string_size(" ".join(words.slice(i)), HORIZONTAL_ALIGNMENT_CENTER, -1, size).x
+			if absf(l - r) < best_d:
+				best_d = absf(l - r)
+				best = i
+		text = " ".join(words.slice(0, best)) + "
+" + " ".join(words.slice(best))
+	banner_title.add_theme_font_size_override("font_size", size)
+	banner_title.text = text
 
 ## Приквел «ГОЛДА 67» до первой концовки: madk1d закрыт — управлять им и командными приёмами нельзя
 func madk_locked() -> bool:
