@@ -79,6 +79,12 @@ func build(f: FNFacility, world: World3D) -> void:
 	mat.shader = sh
 	mat.set_shader_parameter("feed", vp.get_texture())
 
+## сила инфракрасной подсветки врагов на камерах (fn_ir.w, см. materials/fn_ir_pass.gdshader)
+const IR := 0.85
+
+func _ir() -> void:
+	RenderingServer.global_shader_parameter_set("fn_ir", Vector4(cam.global_position.x, cam.global_position.y, cam.global_position.z, IR))
+
 func set_cam(id: String) -> void:
 	if not fac.cams.has(id):
 		return
@@ -88,6 +94,7 @@ func set_cam(id: String) -> void:
 	cam.look_at(c["look"], Vector3.UP)
 	cam.fov = float(c["fov"])
 	base_basis = cam.global_basis
+	_ir()
 	sway = deg_to_rad(float(c.get("sway", 0.0)))
 	switch_t = 0.22
 
@@ -97,6 +104,7 @@ func peek_office() -> void:
 	cam.look_at(Vector3(-0.2, 1.0, -0.7), Vector3.UP)
 	cam.fov = 76.0
 	base_basis = cam.global_basis
+	_ir()
 	sway = 0.0
 	switch_t = 0.12
 

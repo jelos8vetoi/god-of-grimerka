@@ -66,6 +66,8 @@ var buttons := {}
 var leds := {}
 var t := 0.0
 var flick_t := 2.4
+var beams_aimed := false
+var beam_t := {}                  # сторона → сколько секунд горит фонарь
 var lamp_k := 1.0                 # текущий свет лампы относительно её обычного (для звука лампы)
 var instab := 0.0                 # нестабильность питания: растёт к поздним ночам (только вид)
 var crt_next := 12.0
@@ -266,6 +268,10 @@ func alarm_pulse(danger: bool, dt: float) -> void:
 
 func tick(st: FNNight, dt: float, look_in: float) -> void:
 	t += dt
+	if not beams_aimed:
+		beams_aimed = true
+		for s in ["l", "r"]:
+			(lights[s] as SpotLight3D).look_at(FNOffice.point("door_" + s) + Vector3(0, 1.25, 0.2), Vector3.UP)      # конус по центру того места, где стоят враги
 	power_on = not st.power_out
 	alarm_pulse(st.enemies.values().any(func(e): return (e as FNEnemy)._at_door()), dt)
 	_look(st, dt, look_in)
@@ -276,8 +282,18 @@ func tick(st: FNNight, dt: float, look_in: float) -> void:
 		var door: MeshInstance3D = doors[s]
 		door.position.y = (door.mesh as BoxMesh).size.y * ease(door_y[s], 0.6)
 		var beam: SpotLight3D = lights[s]
-		beam.visible = st.light[s] and power_on
-		beam.light_energy = 2.6 * (0.97 + 0.03 * sin(t * 15.0)) if beam.visible else 0.0
+		var on: bool = st.light[s] and power_on
+		var bt: float = float(beam_t.get(s, 0.0))
+		bt = bt + dt if on else 0.0
+		beam_t[s] = bt
+		# холодный пуск: нарастает за 0,16 с с одним коротким провалом до 60 % на 0,06 с; гаснет за 0,10 с
+		var bw := 0.0
+		if on:
+			bw = 2.6 * clampf(bt / 0.16, 0.0, 1.0) * (0.97 + 0.03 * sin(t * 15.0))
+			if bt > 0.045 and bt < 0.085:
+				bw *= 0.6
+		beam.light_energy = bw if on else move_toward(beam.light_energy, 0.0, 2.6 / 0.10 * dt)
+		beam.visible = beam.light_energy > 0.01
 	_indicators(st)
 	_lighting(st, dt)
 	var mad: FNEnemy = st.enemies["madk1d"]

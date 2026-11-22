@@ -10,8 +10,37 @@ static func en(o: Dictionary) -> Dictionary:
 static func mk(o: Dictionary) -> Dictionary:
 	return Poses.mk(o)
 
+## зеркало позы по бокам: вращения вокруг Y и Z меняют знак, правые и левые кости меняются местами
+static func mirror(o: Dictionary) -> Dictionary:
+	var m := {}
+	for k in o:
+		var key := String(k)
+		var v: Dictionary = o[k] if o[k] is Dictionary else {}
+		if not (o[k] is Dictionary):
+			m[k] = o[k]
+			continue
+		var nk := key
+		if key.length() > 2 and key[0] in ["r", "l"] and key.substr(1) in ["arm", "up", "leg", "fa", "hand"]:
+			nk = ("l" if key[0] == "r" else "r") + key.substr(1)
+		m[nk] = {"x": float(v.get("x", 0.0)), "y": -float(v.get("y", 0.0)), "z": -float(v.get("z", 0.0))}
+	return m
+
+## у двери: сдержанная стойка вместо «сидя на пороге» — наклон корпуса не больше 9°, взгляд на охранника, редкий довод головы и замирание
+static func _door(base: Callable, door: Dictionary, d := 6.0) -> Dictionary:
+	var A: Dictionary = base.call(door)
+	var aim: Dictionary = base.call(Poses.add(door, {"head": {"z": -0.12, "y": 0.18}, "neck": {"z": -0.06}}))
+	var sway1: Dictionary = base.call(Poses.add(door, {"spine": {"z": -0.02}}))
+	var sway2: Dictionary = base.call(Poses.add(door, {"spine": {"z": 0.02}}))
+	return {"d": d, "loop": true, "ease": "io", "k": [[0.0, A], [0.18, sway1], [0.36, A], [0.5, aim, "out"], [0.62, aim], [0.7, aim], [0.82, sway2], [1.0, A]]}
+
+## сейчас войдёт: тот же наклон, руки начинают подниматься (амплитуда на 40 % меньше прежней)
+static func _door_lunge(base: Callable, door: Dictionary) -> Dictionary:
+	var L1: Dictionary = base.call(Poses.add(door, {"spine": {"x": 0.12}}))
+	var L2: Dictionary = base.call(Poses.add(door, {"spine": {"x": 0.3}, "head": {"x": -0.18}, "rarm": {"x": -0.72, "z": -0.3}, "larm": {"x": -0.72, "z": 0.3}, "rfa": {"x": -0.36}, "lfa": {"x": -0.36}}))
+	return {"d": 1.4, "loop": true, "k": [[0.0, L1], [0.35, L2, "out"], [0.55, Poses.add(base.call(Poses.add(door, {"spine": {"x": 0.3}, "head": {"x": -0.18}})), {"head": {"z": 0.18}}), "io"], [0.8, L2], [1.0, L1, "in"]]}
+
 ## общие для всех врагов на основе «руки опущены»
-static func _common(base: Callable, still: Dictionary, stare: Dictionary, peek: Dictionary) -> Dictionary:
+static func _common(base: Callable, still: Dictionary, stare: Dictionary, peek: Dictionary, door := {}) -> Dictionary:
 	var S: Dictionary = base.call(still)
 	var tw: Dictionary = base.call(Poses.add(still, {"head": {"z": 0.32, "y": -0.25}, "neck": {"z": 0.1}}))
 	var R: Dictionary = base.call(stare)
@@ -22,7 +51,11 @@ static func _common(base: Callable, still: Dictionary, stare: Dictionary, peek: 
 	var b2: Dictionary = base.call(Poses.add(still, {"spine": {"x": -0.18}, "head": {"x": 0.35, "z": 0.2}, "lup": {"x": 0.3}, "rup": {"x": -0.1}}))
 	var L1: Dictionary = base.call(Poses.add(peek, {"spine": {"x": 0.25}}))
 	var L2: Dictionary = base.call(Poses.add(peek, {"spine": {"x": 0.55}, "head": {"x": -0.3}, "rarm": {"x": -1.2, "z": -0.5}, "larm": {"x": -1.2, "z": 0.5}, "rfa": {"x": -0.6}, "lfa": {"x": -0.6}}))
-	return {
+	var extra := {}
+	if not door.is_empty():
+		var dm := mirror(door)
+		extra = {"FNPeekL": _door(base, door), "FNPeekR": _door(base, dm, 5.5), "FNLungeL": _door_lunge(base, door), "FNLungeR": _door_lunge(base, dm)}
+	return extra.merged({
 		# стоит, не дышит; под конец цикла голова дёргается вбок и медленно возвращается
 		"FNStill": {"d": 5.0, "loop": true, "k": [[0.0, S], [0.86, S], [0.88, tw, "out"], [0.97, S, "io"], [1.0, S]]},
 		# смотрит прямо в камеру: голова завалена набок, иногда ещё сильнее
@@ -34,7 +67,7 @@ static func _common(base: Callable, still: Dictionary, stare: Dictionary, peek: 
 		"FNRetreat": {"d": 2.2, "loop": true, "ease": "io", "k": [[0.0, b1], [0.5, b2], [1.0, b1]]},
 		# сейчас войдёт: у проёма подаётся вперёд, руки поднимаются — честный знак «закрывай дверь»
 		"FNLunge": {"d": 1.4, "loop": true, "k": [[0.0, L1], [0.35, L2, "out"], [0.55, Poses.add(L2, {"head": {"z": 0.3}}), "io"], [0.8, L2], [1.0, L1, "in"]]},
-	}
+	})
 
 ## шаг: полупроходка из фаз [бедро и голень ведущей ноги, толчковой, просадка]
 static func _walk(base: Callable, extra_a: Dictionary, extra_b: Dictionary, d := 1.3) -> Dictionary:
@@ -57,7 +90,8 @@ static func balon() -> Dictionary:
 	var still := {"spine": {"x": 0.14, "z": 0.05}, "head": {"z": 0.42, "x": 0.1}, "rarm": {"z": 0.18}, "larm": {"z": -0.12}, "rfa": {"x": 0.2}, "lfa": {"x": 0.2}}
 	var stare := {"spine": {"x": 0.05}, "head": {"z": 0.75, "x": -0.12}, "neck": {"z": 0.25}, "rarm": {"z": 0.2}, "larm": {"z": -0.2}}
 	var peek := {"spine": {"z": -0.42, "x": 0.15}, "head": {"z": -0.55}, "rarm": {"x": -1.9, "z": -0.6}, "rfa": {"x": -0.5}, "lup": {"z": -0.12}}
-	A.merge(_common(Callable(FNPoses, "en"), still, stare, peek), true)
+	var door := {"spine": {"z": 0.0, "x": 0.1}, "head": {"z": -0.5, "x": 0.12}, "rarm": {"z": 0.12}, "larm": {"z": -0.1}, "rfa": {"x": 0.2}, "lfa": {"x": 0.2}}
+	A.merge(_common(Callable(FNPoses, "en"), still, stare, peek, door), true)
 	# тяжёлая раскачивающаяся походка: корпус валится с боку на бок
 	A["FNWalk"] = _walk(Callable(FNPoses, "en"), {"spine": {"z": 0.16, "x": 0.12}, "head": {"z": 0.3}}, {"spine": {"z": -0.16, "x": 0.12}, "head": {"z": -0.1}}, 1.7)
 	# скример: снизу из-под стола → выпрямился во весь рост, руки в стороны, голова рывком вперёд
@@ -73,7 +107,8 @@ static func madk1d() -> Dictionary:
 	var still := {"spine": {"x": 0.2}, "head": {"z": -0.4, "x": 0.2}, "rarm": {"z": 0.05}, "larm": {"z": -0.05}}
 	var stare := {"head": {"z": -0.85, "x": -0.15}, "neck": {"z": -0.2}, "spine": {"x": 0.1}}
 	var peek := {"spine": {"z": 0.45, "x": 0.2}, "head": {"z": 0.6}, "larm": {"x": -1.8, "z": 0.6}}
-	A.merge(_common(Callable(FNPoses, "mk"), still, stare, peek), true)
+	var door := {"spine": {"z": 0.0, "x": 0.2}, "head": {"z": -0.4}, "rarm": {"z": 0.05}, "larm": {"z": -0.05}}
+	A.merge(_common(Callable(FNPoses, "mk"), still, stare, peek, door), true)
 	A["FNWalk"] = _walk(Callable(FNPoses, "mk"), {"spine": {"x": 0.3}, "head": {"x": -0.2}}, {"spine": {"x": 0.3}, "head": {"x": -0.2}}, 0.9)
 	# ползёт (риг повёрнут лицом вниз): руки по очереди тянутся вперёд, колени подтягиваются
 	var c1 := mk({"rarm": {"x": -2.7, "z": -1.0}, "larm": {"x": -1.6, "z": 0.9}, "rfa": {"x": -0.2}, "lfa": {"x": -1.3}, "rup": {"x": -0.9}, "rleg": {"x": 1.6}, "lup": {"x": -0.2}, "lleg": {"x": 0.6}, "head": {"x": -0.9}})
@@ -95,7 +130,8 @@ static func bot() -> Dictionary:
 	var still := {"spine": {"x": -0.04}, "head": {"y": 0.5}, "rarm": {"z": 0.12}, "larm": {"z": -0.12}, "rfa": {"x": 0.25}, "lfa": {"x": 0.25}}
 	var stare := {"head": {"y": 0.0, "z": 0.0, "x": 0.25}, "spine": {"x": 0.12}, "rarm": {"x": -0.3}, "larm": {"x": -0.3}}
 	var peek := {"spine": {"z": -0.3}, "head": {"y": -0.9}, "rarm": {"x": -1.6}, "rfa": {"x": -0.2}}
-	A.merge(_common(Callable(FNPoses, "en"), still, stare, peek), true)
+	var door := {"spine": {"z": 0.0, "x": 0.02}, "head": {"y": -0.55}, "rarm": {"z": 0.1}, "larm": {"z": -0.1}, "rfa": {"x": 0.25}, "lfa": {"x": 0.25}}
+	A.merge(_common(Callable(FNPoses, "en"), still, stare, peek, door), true)
 	# дёрганая походка: ступени без плавности, руки не двигаются
 	var w := _walk(Callable(FNPoses, "en"), {"head": {"y": 0.3}, "rarm": {"x": -0.2}, "larm": {"x": -0.2}}, {"head": {"y": -0.3}, "rarm": {"x": -0.2}, "larm": {"x": -0.2}}, 1.2)
 	w.erase("smooth")
@@ -116,7 +152,8 @@ static func clipper() -> Dictionary:
 	var still := {"spine": {"x": 0.35}, "head": {"x": -0.35, "z": 0.2}, "rup": {"x": -0.5}, "lup": {"x": 0.2}, "rleg": {"x": 0.7}, "lleg": {"x": 0.6}, "drop": 0.12}
 	var stare := {"spine": {"x": 0.45}, "head": {"x": -0.6, "z": -0.6}, "rup": {"x": -0.6}, "rleg": {"x": 0.9}, "lleg": {"x": 0.7}, "drop": 0.15}
 	var peek := {"spine": {"z": 0.5, "x": 0.3}, "head": {"z": 0.7, "x": -0.2}, "drop": 0.1}
-	A.merge(_common(Callable(FNPoses, "en"), still, stare, peek), true)
+	var door := {"spine": {"z": 0.0, "x": 0.4}, "head": {"x": -0.35, "z": -0.1}, "rup": {"x": -0.45}, "lup": {"x": 0.2}, "rleg": {"x": 0.6}, "lleg": {"x": 0.5}, "drop": 0.12}
+	A.merge(_common(Callable(FNPoses, "en"), still, stare, peek, door), true)
 	A["FNWalk"] = A["Run"]                          # он не ходит — перебегает
 	var raise := en({"spine": {"x": -0.1, "y": -0.4}, "head": {"x": -0.2}, "rarm": {"x": -2.8, "z": -0.3}, "larm": {"x": -2.6, "z": 0.3}, "rfa": {"x": -0.5}, "lfa": {"x": -0.6}})
 	var cut := en({"spine": {"x": 0.6, "y": 0.4}, "head": {"x": 0.3, "z": 0.3}, "rarm": {"x": -0.7}, "larm": {"x": -0.6}, "drop": 0.06})
@@ -129,7 +166,8 @@ static func ghost() -> Dictionary:
 	var still := {"spine": {"x": -0.08}, "head": {"z": 0.6, "x": 0.35}, "rarm": {"z": 0.25}, "larm": {"z": -0.25}, "rup": {"x": 0.1}, "lup": {"x": -0.05}, "lift": 0.08}
 	var stare := {"head": {"z": -0.2, "x": -0.05}, "spine": {"x": 0.04}, "rarm": {"z": 0.35}, "larm": {"z": -0.35}, "lift": 0.08}
 	var peek := {"spine": {"z": -0.6}, "head": {"z": -0.9}, "lift": 0.06}
-	A.merge(_common(Callable(FNPoses, "en"), still, stare, peek), true)
+	var door := {"spine": {"z": 0.0}, "head": {"z": -0.5, "x": 0.2}, "rarm": {"z": 0.25}, "larm": {"z": -0.25}, "lift": 0.08}
+	A.merge(_common(Callable(FNPoses, "en"), still, stare, peek, door), true)
 	A["FNWalk"] = A["FNStill"]
 	var near := en({"head": {"z": 0.9, "x": 0.2}, "rarm": {"z": 0.4, "x": -0.4}, "larm": {"z": -0.4, "x": -0.4}, "lift": 0.1})
 	var snap := en({"head": {"z": 0.0, "x": -0.35}, "spine": {"x": 0.4}, "rarm": {"z": -0.6, "x": -1.7}, "larm": {"z": 0.6, "x": -1.7}, "lift": 0.1})
@@ -142,7 +180,8 @@ static func mod() -> Dictionary:
 	var still := {"spine": {"x": 0.08}, "head": {"x": 0.45}, "rarm": {"x": -0.4, "z": -0.1}, "rfa": {"x": -1.4}, "larm": {"x": -0.4, "z": 0.1}, "lfa": {"x": -1.4}}
 	var stare := {"head": {"x": -0.1, "y": 0.35, "z": -0.4}, "rarm": {"x": -0.4}, "rfa": {"x": -1.4}, "larm": {"x": -0.4}, "lfa": {"x": -1.4}}
 	var peek := {"spine": {"z": -0.35}, "head": {"z": -0.4, "y": 0.4}, "rarm": {"x": -1.7}}
-	A.merge(_common(Callable(FNPoses, "en"), still, stare, peek), true)
+	var door := {"spine": {"z": 0.0, "x": 0.12}, "head": {"x": 0.4, "z": -0.2, "y": 0.3}, "rarm": {"x": -0.4}, "rfa": {"x": -1.4}, "larm": {"x": -0.4}, "lfa": {"x": -1.4}}
+	A.merge(_common(Callable(FNPoses, "en"), still, stare, peek, door), true)
 	A["FNWalk"] = _walk(Callable(FNPoses, "en"), {"head": {"x": 0.3}, "rfa": {"x": -1.2}, "lfa": {"x": -1.2}}, {"head": {"x": 0.3}, "rfa": {"x": -1.2}, "lfa": {"x": -1.2}}, 1.4)
 	var wind := en({"spine": {"y": -0.5, "x": -0.1}, "rarm": {"x": -0.4, "z": 0.2}, "rfa": {"x": -2.2}, "larm": {"x": -1.4}, "head": {"x": 0.1}})
 	var hit := en({"spine": {"y": 0.45, "x": 0.4}, "rarm": {"x": -1.6, "z": -1.2}, "rfa": {"x": -0.05}, "larm": {"x": -0.3}, "head": {"x": 0.25}, "drop": 0.04})
