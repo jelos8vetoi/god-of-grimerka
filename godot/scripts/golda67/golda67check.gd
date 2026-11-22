@@ -1769,6 +1769,7 @@ func _n01_check(g, G: Golda67, P) -> void:
 	EnemyAI.blink(foe, "away")
 	ok(g.in_arena(foe.global_position, 0.0), "N01: после «away» у края зоны Семечник внутри арены (%s)" % str(foe.global_position))
 	# страховка: за ограждением дольше секунды — переставляется внутрь
+	foe.set_meta("spawn_ms", -100000)
 	foe.global_position = Vector3(c.x - h.x - 6.0, 0.05, c.z)
 	G.pending = []
 	G.wave_wait = 999.0
@@ -2410,6 +2411,74 @@ func _probe_free(g, pos: Vector3) -> bool:
 	q.collision_mask = 1
 	return g.player.get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
 
+## Точки входа врагов: места, проходимость, проёмы в заборе, враг входит в зону за ≤ 6 с
+func _spawn_check(g, G: Golda67, P) -> void:
+	for zid in ["garages", "parking", "playground", "podezd"]:
+		var z: Dictionary = G67Yard.zone(zid)
+		var c: Vector3 = z["c"]
+		var h: Vector2 = z["h"]
+		var sp_ok := true
+		var spl: Array = z["spawns"]
+		for sp in spl:
+			var q: Vector3 = sp[0]
+			var out: float = maxf(absf(q.x - c.x) - h.x, absf(q.z - c.z) - h.y)
+			var free := _probe_free(g, q)
+			print("GOLDA67CHECK   точка входа %s · %s %s: за краем %.1f м, проходима %s" % [zid, sp[1], str(q), out, str(free)])
+			if out < -1.0 or out > 6.5 or not free:
+				sp_ok = false
+		ok(spl.size() >= 3 and sp_ok, "зона «%s»: %d точки входа вне зоны (≤ 6,5 м) и проходимы" % [zid, spl.size()])
+		_kill_all(g)
+		G.pending = []
+		G.wave_wait = 999.0
+		G.room_state = "open"
+		P.global_position = c + Vector3(0, 0.05, 0)
+		G.enter_room({"type": "battle", "place": zid})
+		await until(func(): return G.room_state == "fight" and G.alive() >= 1, 8.0)
+		var gaps_n := 0
+		for sp in spl:
+			var q2: Vector3 = sp[0]
+			if absf(q2.x - c.x) > h.x or absf(q2.z - c.z) > h.y:
+				gaps_n += 1
+		ok(G.world.fence_total - G.world.fence_built >= gaps_n and gaps_n > 0, "зона «%s»: секций забора меньше на проёмы (%d из %d, проёмов %d)" % [zid, G.world.fence_built, G.world.fence_total, gaps_n])
+		var e0 = null
+		for e in g.enemies:
+			if is_instance_valid(e) and e.alive():
+				e0 = e
+				break
+		var oc := Camera3D.new()
+		oc.fov = 55.0
+		g.add_child(oc)
+		oc.global_position = c + Vector3(0, 46, 12)
+		oc.look_at(c, Vector3.UP)
+		oc.make_current()
+		await wait(0.6)
+		await shot("spawn_" + zid)
+		g.cam.make_current()
+		oc.queue_free()
+		if e0 != null:
+			var born: Vector3 = e0.born_at
+			var near := false
+			for sp in spl:
+				if (sp[0] as Vector3).distance_to(born) < 2.0:
+					near = true
+			ok(near, "зона «%s»: враг появился в точке входа (%s)" % [zid, str(born)])
+			var inside: bool = await until(func(): return is_instance_valid(e0) and g.in_arena(e0.global_position, 0.0), 6.0)
+			ok(inside, "зона «%s»: враг из проёма оказался внутри зоны за ≤ 6 с" % zid)
+		# герой в проёме упирается
+		var q3: Vector3 = (spl[0][0] as Vector3)
+		var gap_hit := true
+		var dirv: Vector3 = (q3 - P.global_position).normalized()
+		P.global_position = Vector3(clampf(q3.x, c.x - h.x + 2.0, c.x + h.x - 2.0), 0.05, clampf(q3.z, c.z - h.y + 2.0, c.z + h.y - 2.0))
+		P.velocity = dirv * 12.0
+		await wait(1.2)
+		gap_hit = g.in_arena(P.global_position, 1.5)
+		ok(gap_hit, "зона «%s»: герой в проёме упирается в невидимую стенку (%s)" % [zid, str(P.global_position)])
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	G.room_state = "open"
+	G.world.open_bounds()
+
 ## События двора: предметы стоят, каждый исход таблиц форсируется и проверяется, этап закрывается
 func _events_check(g, G: Golda67, P) -> void:
 	await _go(G, P, "exit")
@@ -2419,6 +2488,7 @@ func _events_check(g, G: Golda67, P) -> void:
 	G.pending = []
 	G.wave_wait = 999.0
 	await wait(0.5)
+	await _spawn_check(g, G, P)
 	ok(G.world.ev_nodes.has("burm") and G.world.ev_nodes.has("button") and G.world.ev_nodes.has("rags"), "автомат, кнопка и дверь «ТРЯПОК» стоят во дворе: %s" % str(G67Yard.EVENT_SPOTS))
 	for k in G67Yard.EVENT_SPOTS:
 		var free_at: Array = []
@@ -2800,7 +2870,8 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	var zp: Dictionary = G67Yard.zone("podezd")
 	ok(g.arena_c == zp["c"] and g.arena_h == zp["h"] and g.in_arena(Vector3(0, 0, 21), 1.0) and not g.in_arena(Vector3(0, 0, 0), 1.0), "арена боя — прямоугольник зоны у подъезда, а не квадрат вокруг нуля")
 	var ep: Array = g.enemies.filter(func(e): return is_instance_valid(e)).map(func(e): return e.global_position)
-	ok(ep.all(func(p): return g.in_arena(p, 0.5)), "враги выходят внутри зоны боя")
+	var spp: Array = (G67Yard.zone("podezd")["spawns"] as Array).map(func(x): return x[0])
+	ok(ep.all(func(p): return g.in_arena(p, 0.5) or spp.any(func(q): return (q as Vector3).distance_to(p) < 3.0)), "враги входят из точек входа или уже внутри зоны боя")
 	# КРОТ и ларёк — постоянные места двора: стоят весь забег (B10: ничего не переставляется)
 	ok(G.world.actors.has("g67_krot") and not G.point("krot").is_empty(), "КРОТ стоит у ларька с начала забега (встреча 1 — зона двора)")
 	var kz: Dictionary = G67Yard.zone("parking")

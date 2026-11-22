@@ -477,20 +477,37 @@ func bound_zone(zid: String, barriers: bool) -> void:
 	var hz: float = (z["h"] as Vector2).y
 	bounds = Node3D.new()
 	add_child(bounds)
-	for s in [[Vector3(c.x, 2, c.z - hz - 0.5), Vector3(2 * hx + 2, 4, 1)], [Vector3(c.x, 2, c.z + hz + 0.5), Vector3(2 * hx + 2, 4, 1)],
-			[Vector3(c.x - hx - 0.5, 2, c.z), Vector3(1, 4, 2 * hz + 2)], [Vector3(c.x + hx + 0.5, 2, c.z), Vector3(1, 4, 2 * hz + 2)]]:
-		var sb := StaticBody3D.new()
-		sb.collision_layer = 1          # забор низкий: камера может выйти за него и смотреть поверх
-		var cs := CollisionShape3D.new()
-		var bs := BoxShape3D.new()
-		bs.size = s[1]
-		cs.shape = bs
-		sb.add_child(cs)
-		sb.position = s[0]
-		bounds.add_child(sb)
+	# проёмы: у каждой точки входа снаружи зоны — ширина 2,5 м на ближайшей стороне
+	var gaps := {"n": [], "s": [], "w": [], "e": []}
+	for sp in z.get("spawns", []):
+		var q: Vector3 = sp[0]
+		var dxe: float = absf(q.x - c.x) - hx
+		var dze: float = absf(q.z - c.z) - hz
+		if dxe < 0.0 and dze < 0.0:
+			continue
+		if dxe > dze:
+			(gaps["e" if q.x > c.x else "w"] as Array).append(clampf(q.z, c.z - hz + 2.0, c.z + hz - 2.0))
+		else:
+			(gaps["s" if q.z > c.z else "n"] as Array).append(clampf(q.x, c.x - hx + 2.0, c.x + hx - 2.0))
+	var open_n := 0
+	# невидимые стенки: куски между проёмами; в проёме — стенка только для героя (слой 6), враги проходят
+	for side in ["n", "s", "w", "e"]:
+		var horiz: bool = side in ["n", "s"]
+		var lo: float = (c.x - hx - 1.0) if horiz else (c.z - hz - 1.0)
+		var hi: float = (c.x + hx + 1.0) if horiz else (c.z + hz + 1.0)
+		var fixed: float = {"n": c.z - hz - 0.5, "s": c.z + hz + 0.5, "w": c.x - hx - 0.5, "e": c.x + hx + 0.5}[side]
+		var cuts: Array = (gaps[side] as Array).duplicate()
+		cuts.sort()
+		var cur := lo
+		for g in cuts:
+			_bound_box(horiz, fixed, cur, float(g) - 1.25, 1)
+			_bound_box(horiz, fixed, float(g) - 1.25, float(g) + 1.25, 32)
+			cur = float(g) + 1.25
+			open_n += 1
+		_bound_box(horiz, fixed, cur, hi, 1)
 	if not barriers:
 		return
-	# ограждения: секции забора в турнирном золоте, встык по периметру
+	# ограждения: секции забора в турнирном золоте; напротив точек входа секции нет, по бокам проёма — стойки
 	var gold := Color(1.0, 0.82, 0.35)
 	var nx := maxi(2, int(round(2.0 * hx / 3.65)))
 	var nz := maxi(2, int(round(2.0 * hz / 3.65)))
@@ -499,16 +516,54 @@ func bound_zone(zid: String, barriers: bool) -> void:
 	var sides: Array = []
 	for i in nx:
 		var t := c.x - hx + (float(i) + 0.5) * sx
-		sides.append([Vector3(t, 0, c.z - hz), PI * 0.5, sx])
-		sides.append([Vector3(t, 0, c.z + hz), PI * 0.5, sx])
+		sides.append([Vector3(t, 0, c.z - hz), PI * 0.5, sx, "n", t])
+		sides.append([Vector3(t, 0, c.z + hz), PI * 0.5, sx, "s", t])
 	for i in nz:
 		var t := c.z - hz + (float(i) + 0.5) * sz
-		sides.append([Vector3(c.x - hx, 0, t), 0.0, sz])
-		sides.append([Vector3(c.x + hx, 0, t), 0.0, sz])
+		sides.append([Vector3(c.x - hx, 0, t), 0.0, sz, "w", t])
+		sides.append([Vector3(c.x + hx, 0, t), 0.0, sz, "e", t])
+	fence_total = sides.size()
+	fence_built = 0
 	for q in sides:
+		var skip := false
+		for g in gaps[q[3]]:
+			if absf(float(q[4]) - float(g)) < 1.25 + float(q[2]) * 0.5:
+				skip = true
+		if skip:
+			continue
+		fence_built += 1
 		var f := G67Models.spawn("res://assets/racing/fence_section.glb", bounds, q[0], q[1], Vector3(99, 1.25, float(q[2]) / 1.15))
 		if String(f.get_meta("from", "")) == "glb" and yard != null:
 			yard._tint(f, gold)
+	for side in ["n", "s", "w", "e"]:
+		for g in gaps[side]:
+			for e in [-1.25, 1.25]:
+				var pp := Vector3(float(g) + e, 0.0, {"n": c.z - hz, "s": c.z + hz}[side]) if side in ["n", "s"] else Vector3({"w": c.x - hx, "e": c.x + hx}[side], 0.0, float(g) + e)
+				var post := MeshInstance3D.new()
+				var bm := BoxMesh.new()
+				bm.size = Vector3(0.22, 1.5, 0.22)
+				post.mesh = bm
+				var pm := StandardMaterial3D.new()
+				pm.albedo_color = gold
+				post.material_override = pm
+				post.position = pp + Vector3(0, 0.75, 0)
+				bounds.add_child(post)
+
+var fence_total := 0
+var fence_built := 0
+
+func _bound_box(horiz: bool, fixed: float, a: float, b: float, layer: int) -> void:
+	if b - a < 0.05:
+		return
+	var sb := StaticBody3D.new()
+	sb.collision_layer = layer          # слой 1 — все; слой 6 (32) — только герой (маска героя включает его)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(b - a, 4, 1) if horiz else Vector3(1, 4, b - a)
+	cs.shape = bs
+	sb.add_child(cs)
+	sb.position = Vector3((a + b) * 0.5, 2, fixed) if horiz else Vector3(fixed, 2, (a + b) * 0.5)
+	bounds.add_child(sb)
 
 ## Бой окончен: ограждения убраны, по двору можно ходить
 func open_bounds() -> void:

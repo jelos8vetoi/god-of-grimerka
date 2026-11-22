@@ -616,6 +616,7 @@ func district() -> Dictionary:
 ## Двор не пересобирается и не сдвигается: меняются только арена боя, ограждения и награда.
 func enter_room(r: Dictionary) -> void:
 	flush_coins()
+	game.player.collision_mask |= 32          # слой 6: стенка проёма ограждения держит героя, враги проходят
 	_kiosk_hint()
 	busy = true
 	room = r
@@ -703,10 +704,14 @@ func _spawn(foe: String) -> void:
 	var fallback := Vector3.INF
 	# вход из точек зоны (не ближе 7 м к герою); нет подходящей — любое место зоны, как раньше
 	var zid := String(room.get("place", "podezd"))
-	var pts: Array = G67Yard.entry_points(zid)
+	var pts: Array = []
+	for sp in G67Yard.zone(zid).get("spawns", []):
+		pts.append(sp[0])
+	if pts.is_empty():
+		pts = G67Yard.entry_points(zid)
 	pts.shuffle()
 	for q in pts:
-		if (q as Vector3).distance_to(pp) >= 7.0 and not world.blocked(q):
+		if (q as Vector3).distance_to(pp) >= 7.0:
 			fallback = q
 			break
 	if fallback == Vector3.INF:
@@ -729,6 +734,7 @@ func _spawn(foe: String) -> void:
 	e.position = pos
 	e.set_meta("foe", foe)
 	e.set_meta("no_portal", true)
+	e.set_meta("spawn_ms", GameClock.ms())
 	game.add_child(e)
 	G67Sound.play(self, "entry", pos)
 	e.cfg["dmg"] = float(e.cfg["dmg"]) * G67Data.FOE_DMG_K
@@ -761,7 +767,8 @@ func _keep_foes_inside(dt: float) -> void:
 			_out_t.erase(id)
 			continue
 		_out_t[id] = float(_out_t.get(id, 0.0)) + dt
-		if float(_out_t[id]) > 1.0:
+		var fresh: bool = GameClock.ms() - int(e.get_meta("spawn_ms", -100000)) < 7000
+		if float(_out_t[id]) > (6.0 if fresh else 1.0):          # входящий из проёма — 6 с
 			var c: Vector3 = game.arena_c
 			var h: Vector2 = game.arena_h
 			e.global_position = Vector3(c.x + clampf(e.global_position.x - c.x, -(h.x - 1.5), h.x - 1.5), e.global_position.y, c.z + clampf(e.global_position.z - c.z, -(h.y - 1.5), h.y - 1.5))
