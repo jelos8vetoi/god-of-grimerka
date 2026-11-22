@@ -1,0 +1,938 @@
+{
+ "note": "Рецепт фона «5 ночей». Сборка: node tools/godot-fn-ambience.cjs --src <папка исходников>. Для разовых segment = [начало, длительность] в исходнике, len = итоговая длина (с хвостом эха); для петель segment = [начало, конец].",
+ "items": [
+  {
+   "out": "rumble_a.ogg",
+   "kind": "loop",
+   "src": "oga_legit_the_shop/TheShopCollection_convenience_store_drinks_fridge_drone_2.wav",
+   "src_name": "TheShopCollection_convenience_store_drinks_fridge_drone_2.wav",
+   "title": "The Shop: convenience store drinks fridge drone 2",
+   "author": "LEGIT Audio",
+   "url": "https://opengameart.org/content/the-shop",
+   "licence": "CC0",
+   "use": "низкий гул здания (основа фона)",
+   "segment": null,
+   "filters": "asetrate=48000,aresample=44100,highpass=f=28,lowpass=f=260,lowpass=f=260",
+   "loop": [
+    22,
+    4
+   ],
+   "channels": 2,
+   "target_lufs": -26
+  },
+  {
+   "out": "rumble_b.ogg",
+   "kind": "loop",
+   "src": "s02_vent/bsb1032_air-extractor.ogg",
+   "src_name": "bsb1032_air-extractor.ogg",
+   "title": "Air extractor (BigSoundBank #1032)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/air-extractor-s1032.html",
+   "licence": "CC0 (public domain)",
+   "use": "глухой гул вытяжки под полом",
+   "segment": [
+    1,
+    20
+   ],
+   "filters": "highpass=f=30,lowpass=f=180,lowpass=f=180",
+   "loop": [
+    15,
+    3.5
+   ],
+   "channels": 1,
+   "target_lufs": -26
+  },
+  {
+   "out": "vent.ogg",
+   "kind": "loop",
+   "src": "s02_vent/bsb3598_ventilation-5.ogg",
+   "src_name": "bsb3598_ventilation-5.ogg",
+   "title": "Ventilation #5 (BigSoundBank #3598)",
+   "author": "Joseph SARDIN & Axeline T.",
+   "url": "https://bigsoundbank.com/ventilation-5-s3598.html",
+   "licence": "CC0 (public domain)",
+   "use": "вентиляция будки",
+   "segment": [
+    4,
+    72
+   ],
+   "filters": "aformat=channel_layouts=mono,highpass=f=45,lowpass=f=6500",
+   "loop": [
+    60,
+    5
+   ],
+   "channels": 1,
+   "target_lufs": -26
+  },
+  {
+   "out": "draft.ogg",
+   "kind": "loop",
+   "src": "s03_draft/bsb0147_whistling-of-the-wind-1.ogg",
+   "src_name": "bsb0147_whistling-of-the-wind-1.ogg",
+   "title": "Whistling of the Wind #1 (BigSoundBank #0147)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/whistling-of-the-wind-1-s0147.html",
+   "licence": "CC0 (public domain)",
+   "use": "сквозняк из шахты (порывы)",
+   "segment": [
+    2,
+    103
+   ],
+   "filters": "highpass=f=90,lowpass=f=5500",
+   "loop": [
+    92,
+    6
+   ],
+   "channels": 1,
+   "target_lufs": -30
+  },
+  {
+   "out": "vent_air.ogg",
+   "kind": "loop",
+   "src": "s03_draft/oga_airvent-large-loop_Longor.wav",
+   "src_name": "oga_airvent-large-loop_Longor.wav",
+   "title": "Airvent (large loop)",
+   "author": "Longor",
+   "url": "https://opengameart.org/content/airvent-loop",
+   "licence": "CC0",
+   "use": "шорох воздуха в решётке",
+   "segment": null,
+   "filters": "highpass=f=120",
+   "loop": [
+    6,
+    1.2
+   ],
+   "channels": 1,
+   "target_lufs": -26
+  },
+  {
+   "out": "lamp_hum.ogg",
+   "kind": "loop",
+   "src": "s06_mains/bsb0064_electric-transformer-1.ogg",
+   "src_name": "bsb0064_electric-transformer-1.ogg",
+   "title": "Electric transformer #1 (BigSoundBank #0064)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/electric-transformer-1-s0064.html",
+   "licence": "CC0 (public domain)",
+   "use": "гул лампы над столом",
+   "segment": [
+    0.5,
+    10.5
+   ],
+   "filters": "highpass=f=85,lowpass=f=3200",
+   "loop": [
+    8,
+    1.5
+   ],
+   "channels": 1,
+   "target_lufs": -26
+  },
+  {
+   "out": "crt_whine.ogg",
+   "kind": "loop",
+   "src": "s06_mains/bsb1091_electric-meter.flac",
+   "src_name": "bsb1091_electric-meter.flac",
+   "title": "Electric meter (BigSoundBank #1091)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/electric-meter-s1091.html",
+   "licence": "CC0 (public domain)",
+   "use": "писк ЭЛТ-монитора",
+   "segment": [
+    1,
+    21
+   ],
+   "filters": "highpass=f=900",
+   "loop": [
+    16,
+    2
+   ],
+   "channels": 1,
+   "target_lufs": -26
+  },
+  {
+   "out": "panel_hum.ogg",
+   "kind": "loop",
+   "src": "oga_legit_the_shop/TheShopCollection_convenience_store_drinks_fridge_drone.wav",
+   "src_name": "TheShopCollection_convenience_store_drinks_fridge_drone.wav",
+   "title": "The Shop: convenience store drinks fridge drone",
+   "author": "LEGIT Audio",
+   "url": "https://opengameart.org/content/the-shop",
+   "licence": "CC0",
+   "use": "гул электрощитка",
+   "segment": null,
+   "filters": "aformat=channel_layouts=mono,highpass=f=42,lowpass=f=700",
+   "loop": [
+    8.5,
+    2
+   ],
+   "channels": 1,
+   "target_lufs": -26
+  },
+  {
+   "out": "tablet_noise.ogg",
+   "kind": "loop",
+   "src": "s05_electronics/bsb0125_computer-1-ventilation.ogg",
+   "src_name": "bsb0125_computer-1-ventilation.ogg",
+   "title": "Computer 1 (Ventilation) (BigSoundBank #0125)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/computer-1-ventilation-s0125.html",
+   "licence": "CC0 (public domain)",
+   "use": "шипение планшета",
+   "segment": [
+    0.5,
+    9.5
+   ],
+   "filters": "highpass=f=450,lowpass=f=9000",
+   "loop": [
+    7,
+    1.5
+   ],
+   "channels": 1,
+   "target_lufs": -26
+  },
+  {
+   "out": "deskfan.ogg",
+   "kind": "loop",
+   "src": "s02_vent/bsb2435_ventilation-4.ogg",
+   "src_name": "bsb2435_ventilation-4.ogg",
+   "title": "Ventilation #4 (BigSoundBank #2435)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/ventilation-4-s2435.html",
+   "licence": "CC0 (public domain)",
+   "use": "настольный вентилятор",
+   "segment": [
+    0.5,
+    12
+   ],
+   "filters": "highpass=f=160,lowpass=f=7000",
+   "loop": [
+    9.5,
+    1.5
+   ],
+   "channels": 1,
+   "target_lufs": -26
+  },
+  {
+   "out": "far_bed.ogg",
+   "kind": "loop",
+   "src": "s01_rumble/bsb0504_technical-room-of-an-industry.ogg",
+   "src_name": "bsb0504_technical-room-of-an-industry.ogg",
+   "title": "Technical room of an industry (BigSoundBank #0504)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/technical-room-of-an-industry-s0504.html",
+   "licence": "CC0 (public domain)",
+   "use": "далёкие механизмы здания",
+   "segment": [
+    2,
+    53
+   ],
+   "filters": "highpass=f=38,lowpass=f=420,lowpass=f=420,aecho=0.8:0.6:140|290|470:0.45|0.3|0.2",
+   "loop": [
+    44,
+    5
+   ],
+   "channels": 2,
+   "target_lufs": -26,
+   "stereo_haas_ms": 27,
+   "haas_lowpass": 380
+  },
+  {
+   "out": "clang_1.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/bsb1776_fall-2-sheet-steel-bars-1.ogg",
+   "src_name": "bsb1776_fall-2-sheet-steel-bars-1.ogg",
+   "title": "Fall 2 sheet steel bars #1 (BigSoundBank #1776)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/fall-2-sheet-steel-bars-1-s1776.html",
+   "licence": "CC0 (public domain)",
+   "use": "далёкий удар металла",
+   "segment": [
+    0,
+    0.9
+   ],
+   "filters": "highpass=f=70,lowpass=f=2200",
+   "reverb": "far",
+   "len": 2.1,
+   "peak_db": -8
+  },
+  {
+   "out": "clang_2.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/bsb0235_iron-bar-falls-2.ogg",
+   "src_name": "bsb0235_iron-bar-falls-2.ogg",
+   "title": "Iron bar falls #2 (BigSoundBank #0235)",
+   "author": "DenisChardonnet",
+   "url": "https://bigsoundbank.com/iron-bar-falls-2-s0235.html",
+   "licence": "CC0 (public domain)",
+   "use": "далёкий удар металла",
+   "segment": [
+    0,
+    1.2
+   ],
+   "filters": "highpass=f=70,lowpass=f=2200",
+   "reverb": "far",
+   "len": 2.4,
+   "peak_db": -8
+  },
+  {
+   "out": "clang_3.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/oga_castiron_clang_20.wav",
+   "src_name": "oga_castiron_clang_20.wav",
+   "title": "33 metal clang sounds (cast iron pans): clang #20",
+   "author": "bart",
+   "url": "https://opengameart.org/content/33-metal-clang-sounds-cast-iron-pans",
+   "licence": "CC0",
+   "use": "далёкий удар металла",
+   "segment": [
+    0,
+    0.6
+   ],
+   "filters": "highpass=f=70,lowpass=f=2200",
+   "reverb": "far",
+   "len": 1.8,
+   "peak_db": -8
+  },
+  {
+   "out": "creak_1.ogg",
+   "kind": "oneshot",
+   "src": "s10_creak/bsb0616_creaking-metallic-door.ogg",
+   "src_name": "bsb0616_creaking-metallic-door.ogg",
+   "title": "Creaking metallic door (BigSoundBank #0616)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/creaking-metallic-door-s0616.html",
+   "licence": "CC0 (public domain)",
+   "use": "скрип металла",
+   "segment": [
+    28.19,
+    1.64
+   ],
+   "filters": "highpass=f=120",
+   "fade_out": 0.15,
+   "len": 1.64,
+   "peak_db": -6
+  },
+  {
+   "out": "creak_2.ogg",
+   "kind": "oneshot",
+   "src": "s10_creak/bsb0616_creaking-metallic-door.ogg",
+   "src_name": "bsb0616_creaking-metallic-door.ogg",
+   "title": "Creaking metallic door (BigSoundBank #0616)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/creaking-metallic-door-s0616.html",
+   "licence": "CC0 (public domain)",
+   "use": "скрип металла",
+   "segment": [
+    26.045,
+    1.33
+   ],
+   "filters": "highpass=f=120",
+   "fade_out": 0.15,
+   "len": 1.33,
+   "peak_db": -6
+  },
+  {
+   "out": "creak_3.ogg",
+   "kind": "oneshot",
+   "src": "s10_creak/bsb0616_creaking-metallic-door.ogg",
+   "src_name": "bsb0616_creaking-metallic-door.ogg",
+   "title": "Creaking metallic door (BigSoundBank #0616)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/creaking-metallic-door-s0616.html",
+   "licence": "CC0 (public domain)",
+   "use": "скрип металла",
+   "segment": [
+    34.685,
+    1.03
+   ],
+   "filters": "highpass=f=120",
+   "fade_out": 0.15,
+   "len": 1.03,
+   "peak_db": -6
+  },
+  {
+   "out": "creak_4.ogg",
+   "kind": "oneshot",
+   "src": "s10_creak/bsb0616_creaking-metallic-door.ogg",
+   "src_name": "bsb0616_creaking-metallic-door.ogg",
+   "title": "Creaking metallic door (BigSoundBank #0616)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/creaking-metallic-door-s0616.html",
+   "licence": "CC0 (public domain)",
+   "use": "скрип металла",
+   "segment": [
+    74.305,
+    2.36
+   ],
+   "filters": "highpass=f=120",
+   "fade_out": 0.15,
+   "len": 2.36,
+   "peak_db": -6
+  },
+  {
+   "out": "groan_1.ogg",
+   "kind": "oneshot",
+   "src": "s10_creak/bsb0616_creaking-metallic-door.ogg",
+   "src_name": "bsb0616_creaking-metallic-door.ogg",
+   "title": "Creaking metallic door (BigSoundBank #0616)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/creaking-metallic-door-s0616.html",
+   "licence": "CC0 (public domain)",
+   "use": "стон конструкции",
+   "segment": [
+    14.915,
+    1.73
+   ],
+   "pre": "asetrate=26880",
+   "filters": "lowpass=f=1400",
+   "reverb": "far",
+   "len": 4.29,
+   "peak_db": -8
+  },
+  {
+   "out": "groan_2.ogg",
+   "kind": "oneshot",
+   "src": "s10_creak/bsb0616_creaking-metallic-door.ogg",
+   "src_name": "bsb0616_creaking-metallic-door.ogg",
+   "title": "Creaking metallic door (BigSoundBank #0616)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/creaking-metallic-door-s0616.html",
+   "licence": "CC0 (public domain)",
+   "use": "стон конструкции",
+   "segment": [
+    53.125,
+    1.72
+   ],
+   "pre": "asetrate=26880",
+   "filters": "lowpass=f=1400",
+   "reverb": "far",
+   "len": 4.27,
+   "peak_db": -8
+  },
+  {
+   "out": "rattle_1.ogg",
+   "kind": "oneshot",
+   "src": "s11_rattle/bsb0316_rapid-rattle.ogg",
+   "src_name": "bsb0316_rapid-rattle.ogg",
+   "title": "Rapid rattle (BigSoundBank #0316)",
+   "author": "DavidGreck",
+   "url": "https://bigsoundbank.com/rapid-rattle-s0316.html",
+   "licence": "CC0 (public domain)",
+   "use": "дребезг решётки",
+   "segment": [
+    0.15,
+    1.2
+   ],
+   "filters": "highpass=f=250,lowpass=f=5000",
+   "reverb": "room",
+   "fade_out": 0.3,
+   "len": 1.4,
+   "peak_db": -9
+  },
+  {
+   "out": "rattle_2.ogg",
+   "kind": "oneshot",
+   "src": "s11_rattle/bsb0923_rattle.ogg",
+   "src_name": "bsb0923_rattle.ogg",
+   "title": "Rattle (BigSoundBank #0923)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/rattle-s0923.html",
+   "licence": "CC0 (public domain)",
+   "use": "дребезг листа металла",
+   "segment": [
+    11.2,
+    1.3
+   ],
+   "filters": "highpass=f=250,lowpass=f=5000",
+   "reverb": "room",
+   "fade_out": 0.3,
+   "len": 1.8,
+   "peak_db": -9
+  },
+  {
+   "out": "zap_1.wav",
+   "kind": "oneshot",
+   "src": "s12_spark/bsb0952_short-welds.ogg",
+   "src_name": "bsb0952_short-welds.ogg",
+   "title": "Short welds (BigSoundBank #0952)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/short-welds-s0952.html",
+   "licence": "CC0 (public domain)",
+   "use": "искра, треск проводки",
+   "segment": [
+    0.205,
+    0.3
+   ],
+   "filters": "highpass=f=700",
+   "fade_out": 0.06,
+   "len": 0.3,
+   "peak_db": -8
+  },
+  {
+   "out": "zap_2.wav",
+   "kind": "oneshot",
+   "src": "s12_spark/bsb0952_short-welds.ogg",
+   "src_name": "bsb0952_short-welds.ogg",
+   "title": "Short welds (BigSoundBank #0952)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/short-welds-s0952.html",
+   "licence": "CC0 (public domain)",
+   "use": "искра, треск проводки",
+   "segment": [
+    2.765,
+    0.25
+   ],
+   "filters": "highpass=f=700",
+   "fade_out": 0.06,
+   "len": 0.25,
+   "peak_db": -8
+  },
+  {
+   "out": "zap_3.wav",
+   "kind": "oneshot",
+   "src": "s12_spark/bsb0952_short-welds.ogg",
+   "src_name": "bsb0952_short-welds.ogg",
+   "title": "Short welds (BigSoundBank #0952)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/short-welds-s0952.html",
+   "licence": "CC0 (public domain)",
+   "use": "искра, треск проводки",
+   "segment": [
+    8.09,
+    0.35
+   ],
+   "filters": "highpass=f=700",
+   "fade_out": 0.06,
+   "len": 0.35,
+   "peak_db": -8
+  },
+  {
+   "out": "knock_1.ogg",
+   "kind": "oneshot",
+   "src": "s13_knock/bsb0095_door-knock.ogg",
+   "src_name": "bsb0095_door-knock.ogg",
+   "title": "Door Knock (BigSoundBank #0095)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/door-knock-s0095.html",
+   "licence": "CC0 (public domain)",
+   "use": "стук за стеной",
+   "segment": [
+    0.12,
+    0.8
+   ],
+   "filters": "lowpass=f=1700",
+   "reverb": "wall",
+   "len": 1.1,
+   "peak_db": -6
+  },
+  {
+   "out": "knock_2.ogg",
+   "kind": "oneshot",
+   "src": "s13_knock/bsb0095_door-knock.ogg",
+   "src_name": "bsb0095_door-knock.ogg",
+   "title": "Door Knock (BigSoundBank #0095)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/door-knock-s0095.html",
+   "licence": "CC0 (public domain)",
+   "use": "стук за стеной",
+   "segment": [
+    7.27,
+    1.1
+   ],
+   "filters": "lowpass=f=1700",
+   "reverb": "wall",
+   "len": 1.4,
+   "peak_db": -6
+  },
+  {
+   "out": "knock_3.ogg",
+   "kind": "oneshot",
+   "src": "s13_knock/bsb0095_door-knock.ogg",
+   "src_name": "bsb0095_door-knock.ogg",
+   "title": "Door Knock (BigSoundBank #0095)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/door-knock-s0095.html",
+   "licence": "CC0 (public domain)",
+   "use": "стук за стеной",
+   "segment": [
+    9.51,
+    0.75
+   ],
+   "filters": "lowpass=f=1700",
+   "reverb": "wall",
+   "len": 1.05,
+   "peak_db": -6
+  },
+  {
+   "out": "thud_1.ogg",
+   "kind": "oneshot",
+   "src": "s13_knock/oga_door_close06.flac",
+   "src_name": "oga_door_close06.flac",
+   "title": "Door open / door close set: door close 06",
+   "author": "qubodup",
+   "url": "https://opengameart.org/content/door-open-door-close-set",
+   "licence": "CC0",
+   "use": "глухой удар в соседней комнате",
+   "segment": [
+    0,
+    1
+   ],
+   "filters": "lowpass=f=500",
+   "reverb": "far",
+   "len": 2.2,
+   "peak_db": -8
+  },
+  {
+   "out": "thud_2.ogg",
+   "kind": "oneshot",
+   "src": "s13_knock/oga_door_close02.flac",
+   "src_name": "oga_door_close02.flac",
+   "title": "Door open / door close set: door close 02",
+   "author": "qubodup",
+   "url": "https://opengameart.org/content/door-open-door-close-set",
+   "licence": "CC0",
+   "use": "глухой удар в соседней комнате",
+   "segment": [
+    0,
+    1
+   ],
+   "filters": "lowpass=f=500",
+   "reverb": "far",
+   "len": 2.2,
+   "peak_db": -8
+  },
+  {
+   "out": "grind_1.ogg",
+   "kind": "oneshot",
+   "src": "s14_grind/bsb2357_grinding-metal-barrier-opening-3.ogg",
+   "src_name": "bsb2357_grinding-metal-barrier-opening-3.ogg",
+   "title": "Metal barrier: Opening #3 (BigSoundBank #2357)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/grinding-metal-barrier-opening-3-s2357.html",
+   "licence": "CC0 (public domain)",
+   "use": "скрежет механизма",
+   "segment": [
+    0.15,
+    1.5
+   ],
+   "filters": "lowpass=f=1600",
+   "reverb": "far",
+   "len": 2.7,
+   "peak_db": -9
+  },
+  {
+   "out": "grind_2.ogg",
+   "kind": "oneshot",
+   "src": "s14_grind/oga_scrape1_cinderblock_AntumDeluge.wav",
+   "src_name": "oga_scrape1_cinderblock_AntumDeluge.wav",
+   "title": "Scrapes: scrape 1",
+   "author": "AntumDeluge",
+   "url": "https://opengameart.org/content/scrapes",
+   "licence": "CC0",
+   "use": "скрежет по бетону",
+   "segment": [
+    0.05,
+    1.05
+   ],
+   "filters": "lowpass=f=1600",
+   "reverb": "far",
+   "len": 2.25,
+   "peak_db": -9
+  },
+  {
+   "out": "drag_1.ogg",
+   "kind": "oneshot",
+   "src": "s15_drag/oga_workshop_dragging_metal.wav",
+   "src_name": "oga_workshop_dragging_metal.wav",
+   "title": "68 workshop sounds: dragging metal",
+   "author": "bart",
+   "url": "https://opengameart.org/content/68-workshop-sounds",
+   "licence": "CC0",
+   "use": "тащат что-то тяжёлое",
+   "segment": [
+    0.45,
+    2.75
+   ],
+   "filters": "highpass=f=60,lowpass=f=1000",
+   "reverb": "far",
+   "len": 3.95,
+   "peak_db": -9
+  },
+  {
+   "out": "drag_2.ogg",
+   "kind": "oneshot",
+   "src": "s15_drag/oga_workshop_dragging_metal.wav",
+   "src_name": "oga_workshop_dragging_metal.wav",
+   "title": "68 workshop sounds: dragging metal",
+   "author": "bart",
+   "url": "https://opengameart.org/content/68-workshop-sounds",
+   "licence": "CC0",
+   "use": "тащат что-то тяжёлое",
+   "segment": [
+    3.5,
+    2.2
+   ],
+   "filters": "highpass=f=60,lowpass=f=1000",
+   "reverb": "far",
+   "len": 3.4,
+   "peak_db": -9
+  },
+  {
+   "out": "drip_1.ogg",
+   "kind": "oneshot",
+   "src": "s16_drip/bsb1383_drops-metal-sink.ogg",
+   "src_name": "bsb1383_drops-metal-sink.ogg",
+   "title": "Drops, metal sink (BigSoundBank #1383)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/drops-metal-sink-s1383.html",
+   "licence": "CC0 (public domain)",
+   "use": "капля",
+   "skip": "не собрано: во всех каплях исходника bsb1383 (Drops, metal sink) есть клиппинг (13-20 отсчётов на каплю, пик ≥ 1.0), условие «пик исходника < 0.98» не выполняется"
+  },
+  {
+   "out": "drip_2.ogg",
+   "kind": "oneshot",
+   "src": "s16_drip/bsb1383_drops-metal-sink.ogg",
+   "src_name": "bsb1383_drops-metal-sink.ogg",
+   "title": "Drops, metal sink (BigSoundBank #1383)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/drops-metal-sink-s1383.html",
+   "licence": "CC0 (public domain)",
+   "use": "капля",
+   "skip": "не собрано: во всех каплях исходника bsb1383 (Drops, metal sink) есть клиппинг (13-20 отсчётов на каплю, пик ≥ 1.0), условие «пик исходника < 0.98» не выполняется"
+  },
+  {
+   "out": "drip_3.ogg",
+   "kind": "oneshot",
+   "src": "s16_drip/bsb1383_drops-metal-sink.ogg",
+   "src_name": "bsb1383_drops-metal-sink.ogg",
+   "title": "Drops, metal sink (BigSoundBank #1383)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/drops-metal-sink-s1383.html",
+   "licence": "CC0 (public domain)",
+   "use": "капля",
+   "skip": "не собрано: во всех каплях исходника bsb1383 (Drops, metal sink) есть клиппинг (13-20 отсчётов на каплю, пик ≥ 1.0), условие «пик исходника < 0.98» не выполняется"
+  },
+  {
+   "out": "click_1.wav",
+   "kind": "oneshot",
+   "src": "s18_relay/bsb0321_switch-5.ogg",
+   "src_name": "bsb0321_switch-5.ogg",
+   "title": "Switch #5 (BigSoundBank #0321)",
+   "author": "DavidGreck",
+   "url": "https://bigsoundbank.com/switch-5-s0321.html",
+   "licence": "CC0 (public domain)",
+   "use": "щелчок выключателя",
+   "segment": [
+    0.255,
+    0.12
+   ],
+   "fade_out": 0.04,
+   "len": 0.12,
+   "peak_db": -6
+  },
+  {
+   "out": "click_2.wav",
+   "kind": "oneshot",
+   "src": "s18_relay/bsb0321_switch-5.ogg",
+   "src_name": "bsb0321_switch-5.ogg",
+   "title": "Switch #5 (BigSoundBank #0321)",
+   "author": "DavidGreck",
+   "url": "https://bigsoundbank.com/switch-5-s0321.html",
+   "licence": "CC0 (public domain)",
+   "use": "щелчок выключателя",
+   "segment": [
+    1.27,
+    0.12
+   ],
+   "fade_out": 0.04,
+   "len": 0.12,
+   "peak_db": -6
+  },
+  {
+   "out": "click_3.wav",
+   "kind": "oneshot",
+   "src": "s18_relay/bsb0321_switch-5.ogg",
+   "src_name": "bsb0321_switch-5.ogg",
+   "title": "Switch #5 (BigSoundBank #0321)",
+   "author": "DavidGreck",
+   "url": "https://bigsoundbank.com/switch-5-s0321.html",
+   "licence": "CC0 (public domain)",
+   "use": "щелчок выключателя",
+   "segment": [
+    2.325,
+    0.12
+   ],
+   "fade_out": 0.04,
+   "len": 0.12,
+   "peak_db": -6
+  },
+  {
+   "out": "relay_1.wav",
+   "kind": "oneshot",
+   "src": "s18_relay/bsb2191_thermostat-1.ogg",
+   "src_name": "bsb2191_thermostat-1.ogg",
+   "title": "Thermostat #1 (BigSoundBank #2191)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/thermostat-1-s2191.html",
+   "licence": "CC0 (public domain)",
+   "use": "щелчок реле",
+   "segment": [
+    0,
+    0.08
+   ],
+   "fade_out": 0.02,
+   "len": 0.08,
+   "peak_db": -8
+  },
+  {
+   "out": "relay_2.wav",
+   "kind": "oneshot",
+   "src": "s17_powerdown/bsb1092_electric-circuit-breaker.ogg",
+   "src_name": "bsb1092_electric-circuit-breaker.ogg",
+   "title": "Electric circuit breaker (BigSoundBank #1092)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/electric-circuit-breaker-s1092.html",
+   "licence": "CC0 (public domain)",
+   "use": "щелчок реле",
+   "segment": [
+    9.37,
+    0.2
+   ],
+   "fade_out": 0.06,
+   "len": 0.2,
+   "peak_db": -8
+  },
+  {
+   "out": "breaker_1.wav",
+   "kind": "oneshot",
+   "src": "s17_powerdown/bsb1092_electric-circuit-breaker.ogg",
+   "src_name": "bsb1092_electric-circuit-breaker.ogg",
+   "title": "Electric circuit breaker (BigSoundBank #1092)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/electric-circuit-breaker-s1092.html",
+   "licence": "CC0 (public domain)",
+   "use": "щелчок автомата",
+   "segment": [
+    0.28,
+    0.2
+   ],
+   "fade_out": 0.06,
+   "len": 0.2,
+   "peak_db": -4
+  },
+  {
+   "out": "power_down_1.ogg",
+   "kind": "oneshot",
+   "src": "s17_powerdown/oga_MachinePowerOff_CoughE.ogg",
+   "src_name": "oga_MachinePowerOff_CoughE.ogg",
+   "title": "Machine shutting down (MachinePowerOff)",
+   "author": "Cough-E",
+   "url": "https://opengameart.org/content/machine-shutting-down",
+   "licence": "CC0",
+   "use": "отключение питания",
+   "segment": [
+    0,
+    2.3
+   ],
+   "filters": "highpass=f=60",
+   "fade_out": 0.1,
+   "len": 2.2,
+   "peak_db": -4
+  },
+  {
+   "out": "lamp_flick_1.wav",
+   "kind": "oneshot",
+   "src": "s18_relay/bsb2143_flashing-light-bulb-1.ogg",
+   "src_name": "bsb2143_flashing-light-bulb-1.ogg",
+   "title": "Flashing light bulb #1 (BigSoundBank #2143)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/flashing-light-bulb-1-s2143.html",
+   "licence": "CC0 (public domain)",
+   "use": "мигание лампы",
+   "segment": [
+    0.03,
+    0.35
+   ],
+   "fade_out": 0.08,
+   "len": 0.35,
+   "peak_db": -8
+  },
+  {
+   "out": "lamp_flick_2.wav",
+   "kind": "oneshot",
+   "src": "s18_relay/bsb2144_flashing-light-bulb-2.ogg",
+   "src_name": "bsb2144_flashing-light-bulb-2.ogg",
+   "title": "Flashing light bulb #2 (BigSoundBank #2144)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/flashing-light-bulb-2-s2144.html",
+   "licence": "CC0 (public domain)",
+   "use": "мигание лампы",
+   "segment": [
+    0.02,
+    0.6
+   ],
+   "fade_out": 0.1,
+   "len": 0.6,
+   "peak_db": -8
+  },
+  {
+   "out": "buzz_1.ogg",
+   "kind": "oneshot",
+   "src": "s06_mains/bsb0064_electric-transformer-1.ogg",
+   "src_name": "bsb0064_electric-transformer-1.ogg",
+   "title": "Electric transformer #1 (BigSoundBank #0064)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/electric-transformer-1-s0064.html",
+   "licence": "CC0 (public domain)",
+   "use": "треск и гул лампы",
+   "segment": [
+    3,
+    2.5
+   ],
+   "filters": "highpass=f=85",
+   "fade_in": 0.08,
+   "fade_out": 0.08,
+   "len": 2.5,
+   "peak_db": -8
+  },
+  {
+   "out": "door_down_1.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/bsb2359_grinding-metal-barrier-closure-2.ogg",
+   "src_name": "bsb2359_grinding-metal-barrier-closure-2.ogg",
+   "title": "Metal Barrier: Closure #2 (BigSoundBank #2359)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/grinding-metal-barrier-closure-2-s2359.html",
+   "licence": "CC0 (public domain)",
+   "use": "ставня опускается",
+   "segment": [
+    1.06,
+    1.48
+   ],
+   "filters": "volume=-1.5dB,alimiter=limit=0.89,highpass=f=50",
+   "fade_out": 0.15,
+   "len": 1.48,
+   "peak_db": -3
+  },
+  {
+   "out": "door_up_1.ogg",
+   "kind": "oneshot",
+   "src": "s14_grind/bsb2355_grinding-metal-barrier-opening-1.ogg",
+   "src_name": "bsb2355_grinding-metal-barrier-opening-1.ogg",
+   "title": "Metal barrier: Opening #1 (BigSoundBank #2355)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/grinding-metal-barrier-opening-1-s2355.html",
+   "licence": "CC0 (public domain)",
+   "use": "ставня поднимается",
+   "segment": [
+    0.1,
+    1.9
+   ],
+   "filters": "highpass=f=80",
+   "fade_out": 0.1,
+   "len": 1.9,
+   "peak_db": -5
+  }
+ ]
+}
