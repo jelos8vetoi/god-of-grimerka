@@ -1305,62 +1305,110 @@ func _burmalda_pull() -> void:
 func _burmalda_scene(pick: String, first: bool) -> void:
 	var L := G67Voice.EVENT_BURMALDA
 	var sp: Vector3 = G67Yard.EVENT_SPOTS["burmalda"]
+	game.player.global_position = sp + Vector3(1.0, 0.05, 1.3)           # у рычага, сбоку от окна
 	var pp: Vector3 = game.player.global_position
 	_ev_begin()
-	_ev_face(sp)
-	_ev_shot(pp + Vector3(1.8, 1.7, 1.9), sp + Vector3(0, 1.3, 0), 54.0)
-	await _ev_wait(0.5)
-	_ev_shot(pp + Vector3(2.0, 1.5, 0.8), sp + Vector3(0.1, 1.3, 0), 46.0)
+	_ev_face(sp + Vector3(0.6, 0, 0))
+	ev_arc = randf() < 0.5
+	_ev_shot(sp + Vector3(-3.4, 2.0, 4.2), sp + Vector3(0.2, 1.2, 0.3), 56.0)           # автомат целиком, рычаг и герой
+	await _ev_wait(0.6)
+	_ev_shot(sp + Vector3(-2.6, 1.7, 3.2), sp + Vector3(0.2, 1.2, 0.4), 50.0)
 	if first or randf() < 0.35:
 		_ev_say(L[0])
 		await _ev_wait(1.8)
 	var variant := randi() % 3
 	var rare := pick in ["art", "rare_art", "fit"]
 	world.ev_spin(2.6, pick, variant, rare)
+	if game.player.rig.has_clip("Light1"):
+		game.player.rig.play_for("Light1", 0.5, 0.05)
 	G67Sound.play(self, "lever")
 	for k in 7:
 		get_tree().create_timer(0.3 + 0.33 * k, false).timeout.connect(func(): G67Sound.play(self, "drum", Vector3.INF, 0.8 + 0.07 * k))
 	if variant == 2:
 		_ev_sparks(sp + Vector3(0, 1.0, 0.5), Color(1.0, 0.6, 0.2), 15)       # «заело»
 	await _ev_wait(2.9)
-	_ev_shot(pp + Vector3(1.4, 1.3, 0.0), sp + Vector3(0, 0.6, 0.6), 44.0)
+	_ev_shot(sp + Vector3(-2.2, 1.5, 3.0), sp + Vector3(0.0, 0.7, 0.8), 48.0)
 	_burmalda_outcome(pick)
 	if rare:
-		G67Sound.play(self, "fit")
+		G67Sound.play(self, "respect")
+		_ev_sparks(sp + Vector3(0, 2.1, 0.2), Color(1.0, 0.3, 0.85), 80)
+		_ev_sparks(sp + Vector3(0, 2.1, 0.2), Color(0.4, 0.9, 1.0), 60)
 	await _ev_wait(1.3)
 	if pick == "junk":
 		var j := randi_range(2, 3)
 		if j == ev_last_junk:
 			j = 5 - j
 		ev_last_junk = j
-		_ev_shot(pp + Vector3(0.0, 1.9, 1.5), pp + Vector3(0, 1.4, 0), 42.0)
+		_ev_shot(sp + Vector3(-1.6, 1.6, 3.4), pp + Vector3(0, 1.2, 0), 44.0)
 		_ev_say(L[j])
 	else:
 		_ev_say(L[1])
 	await _ev_wait(1.7)
 	_ev_end()
 
-func _drop_junk(at: Vector3) -> void:
-	var n := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.22, 0.08, 0.14)
-	n.mesh = bm
+var ev_arc := false
+
+func _junk_part(parent: Node3D, size: Vector3, pos: Vector3, col: Color, cyl := false) -> void:
+	var mi := MeshInstance3D.new()
+	if cyl:
+		var cm := CylinderMesh.new()
+		cm.top_radius = size.x
+		cm.bottom_radius = size.x
+		cm.height = size.y
+		mi.mesh = cm
+	else:
+		var bm := BoxMesh.new()
+		bm.size = size
+		mi.mesh = bm
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.5, 0.5, 0.52)
-	n.material_override = m
+	m.albedo_color = col
+	mi.material_override = m
+	mi.position = pos
+	parent.add_child(mi)
+
+func _drop_junk(at: Vector3, idx := 0) -> void:
+	var n := Node3D.new()
+	match idx:
+		0:
+			_junk_part(n, Vector3(0.07, 0.07, 0.24), Vector3(0, 0.035, 0), Color(0.6, 0.6, 0.7))
+			_junk_part(n, Vector3(0.1, 0.07, 0.08), Vector3(0.04, 0.035, 0.1), Color(0.6, 0.6, 0.7))
+		1:
+			_junk_part(n, Vector3(0.07, 0.01, 0.3), Vector3(0, 0.005, 0), Color(0.95, 0.93, 0.85))
+		2:
+			_junk_part(n, Vector3(0.14, 0.03, 0.14), Vector3(0, 0.015, 0), Color(0.55, 0.55, 0.58), true)
+			_junk_part(n, Vector3(0.03, 0.04, 0.03), Vector3(0, 0.045, 0), Color(0.2, 0.2, 0.2), true)
+		_:
+			_junk_part(n, Vector3(0.06, 0.03, 0.2), Vector3(0, 0.015, 0), Color(0.1, 0.1, 0.12))
+			_junk_part(n, Vector3(0.02, 0.01, 0.02), Vector3(0, 0.035, -0.05), Color(0.9, 0.2, 0.2))
 	world.add_child(n)
 	n.global_position = at + Vector3(0, 0.3, 0)
 	coins.append({"n": n, "v": 0, "decor": true, "vel": Vector3(randf_range(-0.6, 0.6), 1.5, 1.8), "land": false, "t": 0.0, "life": 40.0})
 
+func _arc_last(count: int) -> void:
+	var pp: Vector3 = game.player.global_position
+	for i in range(maxi(0, coins.size() - count), coins.size()):
+		var n = coins[i]["n"]
+		if is_instance_valid(n):
+			var dv: Vector3 = pp - (n as Node3D).global_position
+			dv.y = 0.0
+			coins[i]["vel"] = dv.normalized() * 2.6 + Vector3(0, 4.2, 0)
+
 func _burmalda_outcome(id: String) -> void:
+	var c_before := coins.size()
+	_burmalda_outcome_core(id)
+	if ev_arc:
+		_arc_last(coins.size() - c_before)
+
+func _burmalda_outcome_core(id: String) -> void:
 	var tray := _ev_tray_pos()
 	events.append(["burmalda", id])
 	G67Sound.play(self, "tray")
 	match id:
 		"junk":
 			var names: Array = G67Data.BURMALDA[0]["names"]
-			game.banner(String(names[randi() % names.size()]), "хлам: ничего полезного", Color(0.8, 0.8, 0.75), 2.2)
-			_drop_junk(tray)
+			var nm_j: String = String(names[randi() % names.size()])
+			game.banner(nm_j, "хлам: ничего полезного", Color(0.8, 0.8, 0.75), 2.2)
+			_drop_junk(tray, names.find(nm_j))
 		"gold":
 			var o: Dictionary = G67Data.BURMALDA[1]
 			var v := randi_range(int(o["min"]), int(o["max"]))
@@ -1418,13 +1466,24 @@ func _button_scene(id: String) -> void:
 	world.ev_lid(true)
 	G67Sound.play(self, "door")
 	await _ev_wait(0.8)
+	if p.rig.has_clip("Light1"):
+		p.rig.play_for("Light1", 0.4, 0.05)                                        # Пахан давит кнопку
 	G67Sound.play(self, "click")
+	var mb := AudioServer.get_bus_index("Music")
+	if mb >= 0:
+		var mv := AudioServer.get_bus_volume_db(mb)
+		AudioServer.set_bus_volume_db(mb, mv - 12.0)                              # пауза: музыка тише, слышен ветер
+		get_tree().create_timer(1.4).timeout.connect(func(): AudioServer.set_bus_volume_db(mb, mv))
 	await _ev_wait(1.4)                                                          # комедийная пауза
 	var hv: Vector3 = sp + Vector3(0.7, 0.0, 0.7)
 	match id:
 		"alarms":
 			_button_outcome(id)
 			_ev_shot(pp + Vector3(-3.0, 2.4, 3.2), sp + Vector3(0, 1.6, 0), 60.0)
+			for lf in world.yard.lifes:
+				if is_instance_valid(lf):
+					(lf as G67Life).react("RWow")
+			world.yard.crowd_react("phase")
 			var rl := OmniLight3D.new()
 			rl.light_color = Color(1.0, 0.1, 0.08)
 			rl.omni_range = 30.0
@@ -1450,7 +1509,8 @@ func _button_scene(id: String) -> void:
 				tw.tween_property(pg, "position", pp + Vector3(cos(a) * (0.9 if i > 0 else 0.6), 0.0, sin(a) * (0.9 if i > 0 else 0.6)), 1.6)
 			_ev_shot(pp + Vector3(2.5, 2.2, 2.5), pp + Vector3(0, 0.4, 0), 55.0)
 			await _ev_wait(1.8)
-			_ev_shot(pp + Vector3(0.5, 0.7, 0.9), pp + Vector3(0, 0.9, 0), 40.0)           # голубь и Пахан лицом к лицу
+			var fwd := Vector3(sin(p.face), 0, cos(p.face))
+			_ev_shot(pp + fwd * 1.6 + Vector3(0, 0.35, 0), pp + Vector3(0, 1.25, 0), 42.0)           # голубь снизу и Пахан лицом к лицу
 			await _ev_wait(1.3)
 			_ev_say(L[2])
 			await _ev_wait(1.6)
@@ -1463,11 +1523,19 @@ func _button_scene(id: String) -> void:
 		"shawarma":
 			_ev_shot(sp + Vector3(1.5, 2.0, 2.4), sp + Vector3(0, 2.8, 0), 48.0)
 			G67Sound.play(self, "click")
+			_ev_face(sp + Vector3(0, 2.4, 0))                                    # смотрит на рупор
 			_ev_say(L[3])
-			await _ev_wait(2.4)
+			await _ev_wait(0.9)
+			_ev_shot(pp + Vector3(0.6, 1.5, 1.4), pp + Vector3(0, 1.45, 0), 40.0)
+			game.player.face = atan2(pp.x + 0.6 - pp.x, 1.4)                     # ... в камеру
+			await _ev_wait(0.8)
+			_ev_shot(sp + Vector3(1.5, 2.0, 2.4), sp + Vector3(0, 2.8, 0), 48.0)
+			_ev_face(sp + Vector3(0, 2.4, 0))                                    # ... и снова на рупор
+			await _ev_wait(0.7)
 			_ev_say(L[4])
 			await _ev_wait(1.6)
 			G67Sound.play(self, "click")
+			world.ev_hatch(true)
 			_button_outcome(id)
 			_ev_shot(pp + Vector3(1.5, 1.6, 1.8), hv, 50.0)
 			await _ev_wait(1.2)
@@ -1527,6 +1595,7 @@ func _button_scene(id: String) -> void:
 			G67Sound.play(self, "relay")
 			_ev_sparks(sp + Vector3(0, 1.4, 0.3))
 			await _ev_wait(1.2)
+			world.ev_hatch(true)
 			var paper := MeshInstance3D.new()
 			var pm := BoxMesh.new()
 			pm.size = Vector3(0.5, 0.01, 0.35)
@@ -1534,16 +1603,20 @@ func _button_scene(id: String) -> void:
 			var pmt := StandardMaterial3D.new()
 			pmt.albedo_color = Color(0.95, 0.93, 0.85)
 			paper.material_override = pmt
-			paper.position = sp + Vector3(1.4, 0.03, 0.5)
+			paper.position = sp + Vector3(0.8, 0.6, 0.9)
 			world.add_child(paper)
+			var ptw := paper.create_tween()
+			ptw.tween_property(paper, "position", sp + Vector3(1.4, 0.03, 0.5), 0.7)
 			var pl := Label3D.new()
 			pl.text = "Пошел нахуй"
 			pl.font_size = 40
 			pl.pixel_size = 0.0025
 			pl.modulate = Color(0.1, 0.1, 0.12)
 			pl.rotation.x = -PI * 0.5
-			pl.position = sp + Vector3(1.4, 0.045, 0.5)
+			pl.position = sp + Vector3(0.8, 0.6, 0.9)
 			world.add_child(pl)
+			var ltw := pl.create_tween()
+			ltw.tween_property(pl, "position", sp + Vector3(1.4, 0.045, 0.5), 0.7)
 			G67Sound.play(self, "tray")
 			_ev_shot(sp + Vector3(1.4, 1.2, 1.3), sp + Vector3(1.4, 0.0, 0.5), 40.0)
 			_button_outcome(id)
@@ -1555,10 +1628,14 @@ func _button_scene(id: String) -> void:
 					pl.queue_free())
 		"shock":
 			_button_outcome(id)
+			if p.rig.has_clip("Hit"):
+				p.rig.play_for("Hit", 0.8, 0.05)
 			_ev_sparks(sp + Vector3(0, 1.6, 0.2), Color(0.6, 0.8, 1.0), 60)
+			_ev_sparks(sp + Vector3(0, 1.7, 0.2), Color(0.5, 0.5, 0.5), 25)
 			_ev_shot(pp + Vector3(1.2, 1.6, 1.6), pp + Vector3(0, 1.2, 0), 46.0)
 			await _ev_wait(2.4)
 	world.ev_lid(false)
+	world.ev_hatch(false)
 	_ev_end()
 
 func _button_outcome(id: String) -> void:

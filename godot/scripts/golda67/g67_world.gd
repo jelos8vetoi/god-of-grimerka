@@ -675,8 +675,90 @@ func build_event_props() -> void:
 	al.omni_range = 4.0
 	al.position = Vector3(0, 1.6, 1.0)
 	a.add_child(al)
+	win.visible = false
+	# потёртость: сколы до металла и ржавые потёки, заклёпки по рёбрам
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6767
+	for k in 14:
+		_ev_mesh(a, _evb(Vector3(rng.randf_range(0.04, 0.12), rng.randf_range(0.03, 0.08), 0.01)), Vector3(rng.randf_range(-0.45, 0.45), rng.randf_range(0.2, 1.9), 0.405), Color(0.62, 0.62, 0.6))
+	for k in 7:
+		var rx := rng.randf_range(-0.45, 0.45)
+		_ev_mesh(a, _evb(Vector3(0.03, rng.randf_range(0.15, 0.5), 0.012)), Vector3(rx, rng.randf_range(0.25, 0.7), 0.406), Color(0.35, 0.16, 0.07))
+	var rv := SphereMesh.new()
+	rv.radius = 0.018
+	rv.height = 0.036
+	for i in 8:
+		for sx in [-0.46, 0.46]:
+			_ev_mesh(a, rv, Vector3(sx, 0.15 + i * 0.25, 0.405), Color(0.6, 0.55, 0.5))
+	# решётка динамика и лампа в колпаке
+	for i in 5:
+		_ev_mesh(a, _evb(Vector3(0.3, 0.012, 0.01)), Vector3(0.0, 1.58 + i * 0.0, 0.0) + Vector3(-0.0, 0.0, 0.0), Color(0.05, 0.05, 0.05)).visible = false
+	_ev_mesh(a, _evb(Vector3(0.34, 0.2, 0.02)), Vector3(0.0, 0.8, 0.405), Color(0.06, 0.06, 0.07))
+	for i in 5:
+		_ev_mesh(a, _evb(Vector3(0.3, 0.014, 0.012)), Vector3(0.0, 0.73 + i * 0.035, 0.418), Color(0.4, 0.4, 0.4))
+	var cap_m := SphereMesh.new()
+	cap_m.radius = 0.1
+	cap_m.height = 0.2
+	var cap := _ev_mesh(a, cap_m, Vector3(0, 2.07, 0), Color(1.0, 0.7, 0.2), 2.0)
+	# надписи
+	var plate := _ev_mesh(a, _evb(Vector3(0.9, 0.2, 0.012)), Vector3(0.0, 1.07, 0.408), Color(0.82, 0.78, 0.62))
+	var l2 := _ev_label(a, "Мы не знаем, что внутри.\nНо оно работает", Vector3(0.0, 1.07, 0.416), 30, Color(0.12, 0.1, 0.08))
+	l2.pixel_size = 0.0019
+	var l3 := _ev_label(a, "Гарантия до первого использования", Vector3(0.0, 0.36, 0.416), 22, Color(0.9, 0.88, 0.8))
+	l3.pixel_size = 0.0016
+	l3.position.x = -0.08
+	l3.position.y = 0.3
+	l3.rotation.z = 0.02
+	# наклейки: стрелка к рычагу, знак «!», облезлая круглая
+	_ev_mesh(a, _evb(Vector3(0.16, 0.04, 0.01)), Vector3(0.28, 1.6, 0.41), Color(1.0, 0.85, 0.1))
+	_ev_mesh(a, _evb(Vector3(0.06, 0.12, 0.01)).duplicate(), Vector3(0.38, 1.6, 0.41), Color(1.0, 0.85, 0.1)).rotation.z = 0.8
+	var warn := _ev_mesh(a, _evb(Vector3(0.16, 0.14, 0.01)), Vector3(-0.34, 0.55, 0.41), Color(1.0, 0.8, 0.1))
+	warn.rotation.z = 0.78
+	_ev_label(a, "!", Vector3(-0.34, 0.55, 0.42), 48, Color(0.1, 0.1, 0.1))
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.07
+	cyl.bottom_radius = 0.07
+	cyl.height = 0.01
+	var rd := _ev_mesh(a, cyl, Vector3(0.3, 0.55, 0.41), Color(0.7, 0.2, 0.15))
+	rd.rotation.x = PI * 0.5
+	# значки барабана: монета, шаурма, артефакт, бирка, носок
+	var slots: Array = []
+	for si in 3:
+		var slot := Node3D.new()
+		slot.position = Vector3(-0.2 + si * 0.2, 1.45, 0.44)
+		a.add_child(slot)
+		var icons: Array = []
+		for k in 5:
+			var ic := Node3D.new()
+			slot.add_child(ic)
+			match k:
+				0:
+					var c0 := CylinderMesh.new()
+					c0.top_radius = 0.07
+					c0.bottom_radius = 0.07
+					c0.height = 0.015
+					var m0 := _ev_mesh(ic, c0, Vector3.ZERO, Color(1.0, 0.8, 0.15), 1.5)
+					m0.rotation.x = PI * 0.5
+				1:
+					var c1 := CapsuleMesh.new()
+					c1.radius = 0.04
+					c1.height = 0.15
+					var m1 := _ev_mesh(ic, c1, Vector3.ZERO, Color(0.7, 0.4, 0.2), 0.6)
+					m1.rotation.z = PI * 0.5
+				2:
+					_ev_mesh(ic, _evb(Vector3(0.1, 0.1, 0.02)), Vector3.ZERO, Color(0.3, 0.8, 1.0), 2.0).rotation.z = 0.785
+				3:
+					_ev_mesh(ic, _evb(Vector3(0.13, 0.08, 0.015)), Vector3.ZERO, Color(0.3, 0.9, 0.4), 1.2)
+					_ev_mesh(ic, _evb(Vector3(0.02, 0.02, 0.02)), Vector3(-0.045, 0, 0.01), Color(0, 0, 0))
+				4:
+					_ev_mesh(ic, _evb(Vector3(0.05, 0.12, 0.015)), Vector3(0, 0.0, 0), Color(0.55, 0.6, 0.7), 0.6)
+					_ev_mesh(ic, _evb(Vector3(0.1, 0.05, 0.015)), Vector3(0.025, -0.045, 0), Color(0.55, 0.6, 0.7), 0.6)
+			ic.visible = false
+			icons.append(ic)
+		(icons[si % 5] as Node3D).visible = true
+		slots.append(icons)
 	_static_box(sp["burmalda"] + Vector3(0, 1.0, 0), Vector3(1.1, 2.0, 0.9), 0.0)
-	ev_nodes["burm"] = {"win": win, "lever": lever, "lamps": lamps, "tray": tray, "root": a}
+	ev_nodes["burm"] = {"win": win, "lever": lever, "lamps": lamps, "tray": tray, "root": a, "slots": slots, "cap": cap}
 	# кнопка на столбе
 	var b := Node3D.new()
 	b.position = sp["button"]
@@ -703,8 +785,39 @@ func build_event_props() -> void:
 	bl.omni_range = 3.0
 	bl.position = Vector3(0, 1.7, 0.4)
 	b.add_child(bl)
+	_ev_label(b, "НЕ НАЖИМАТЬ", Vector3(0, 1.42, 0.16), 34, Color(1.0, 0.3, 0.25))
+	var tbl := _ev_mesh(b, _evb(Vector3(0.62, 0.42, 0.02)), Vector3(0, 0.8, 0.13), Color(0.72, 0.7, 0.58))
+	tbl.rotation.z = 0.03
+	for li in 3:
+		var tx: String = ["ЩИТ № 67", "U = ?", "ОТВ. — НИКТО"][li]
+		var tl2 := _ev_label(b, tx, Vector3(0, 0.92 - li * 0.12, 0.145), 26, Color(0.1, 0.1, 0.1))
+		tl2.pixel_size = 0.0028
+	var cab := _ev_mesh(b, _evb(Vector3(0.04, 0.04, 2.2)), Vector3(0.3, 0.03, 1.1), Color(0.05, 0.05, 0.05))
+	cab.rotation.y = 0.0
+	_ev_mesh(b, _evb(Vector3(0.04, 0.9, 0.04)), Vector3(0.2, 0.45, -0.1), Color(0.05, 0.05, 0.05))
+	var hch := Node3D.new()
+	hch.position = Vector3(0.8, 0.02, 0.9)
+	b.add_child(hch)
+	var hm := CylinderMesh.new()
+	hm.top_radius = 0.38
+	hm.bottom_radius = 0.38
+	hm.height = 0.03
+	_ev_mesh(hch, hm, Vector3.ZERO, Color(0.12, 0.12, 0.13))
+	var hole := _ev_mesh(b, hm, Vector3(0.8, 0.005, 0.9), Color(0.0, 0.0, 0.0))
+	hch.set_meta("hole", hole)
+	var horn := Node3D.new()
+	horn.position = Vector3(0, 2.35, 0.1)
+	b.add_child(horn)
+	var hc := CylinderMesh.new()
+	hc.top_radius = 0.28
+	hc.bottom_radius = 0.07
+	hc.height = 0.5
+	var hmesh := _ev_mesh(horn, hc, Vector3.ZERO, Color(0.5, 0.5, 0.5))
+	hmesh.rotation.x = PI * 0.5
+	hmesh.position = Vector3(0, 0, 0.2)
+	_ev_mesh(b, _evb(Vector3(0.06, 0.5, 0.06)), Vector3(0, 2.1, 0), Color(0.3, 0.3, 0.3))
 	_static_box(sp["button"] + Vector3(0, 0.7, 0), Vector3(0.5, 1.4, 0.4), 0.0)
-	ev_nodes["button"] = {"lid": lid, "root": b}
+	ev_nodes["button"] = {"lid": lid, "root": b, "hatch": hch, "horn": horn}
 	# дверь «ТРЯПОК»: гаражный бокс, тёплый свет из щели
 	var d := Node3D.new()
 	d.position = sp["rags"]
@@ -724,38 +837,53 @@ func ev_spin(sec: float, final := "junk", variant := 0, festive := false) -> voi
 	var bn: Dictionary = ev_nodes.get("burm", {})
 	if bn.is_empty():
 		return
-	var win: Label3D = bn["win"]
-	var syms := ["7", "★", "♦", "♣", "¤", "☺"]
-	var finals := {"gold": "¤ ¤ ¤", "heal": "♥ ♥ ♥", "art": "★ ★ ★", "rare_art": "7 7 7", "fit": "♦ ♦ ♦", "junk": "♣ ☺ ¤"}
+	var slots: Array = bn["slots"]
+	var finals := {"gold": [0, 0, 0], "heal": [1, 1, 1], "art": [2, 2, 2], "rare_art": [2, 2, 2], "fit": [3, 3, 3], "junk": [4, 0, 3]}
+	var fin: Array = finals.get(final, [4, 0, 3])
 	var lamps: Array = bn["lamps"]
+	var cap: MeshInstance3D = bn["cap"]
+	var capm: StandardMaterial3D = cap.material_override
+	var lamp_col := Color(1.0, 0.25, 0.85) if festive else Color(1.0, 0.7, 0.2)
+	capm.albedo_color = lamp_col
+	capm.emission = lamp_col
+	var shown := [-1, -1, -1]
 	var tw := create_tween()
 	tw.tween_method(func(v: float):
-		var vv := v
-		if variant == 1 and v > 0.8:
-			vv = 0.8 + (v - 0.8) * 0.2 - (0.04 if int(v * 40.0) % 2 == 0 else 0.0)       # откат на символ назад
-		if variant == 2 and v > 0.4 and v < 0.75:
-			vv = 0.4                                                                      # заело
-		if v < 0.97:
-			win.text = "%s %s %s" % [syms[randi() % 6], syms[randi() % 6], syms[randi() % 6]]
-		else:
-			win.text = String(finals.get(final, "7 7 7"))
+		for si in 3:
+			var idx: int = int(fin[si]) if v >= 0.96 else (int(v * 30.0) + si * 2 + (int(v * 12.0) * 3 if variant != 1 or v < 0.6 else 0)) % 5
+			if variant == 1 and v > 0.8 and v < 0.96:
+				idx = (int(fin[si]) + 4) % 5
+			if variant == 2 and v > 0.4 and v < 0.75:
+				idx = (int(fin[si]) + 2) % 5
+			if shown[si] != idx:
+				shown[si] = idx
+				for k in 5:
+					((slots[si] as Array)[k] as Node3D).visible = k == idx
 		for i in lamps.size():
 			var rate := 80.0 if festive else 40.0
 			var pat := (int(v * rate) + i) % 2 == 0 if (variant == 0 or festive) else ((int(v * rate * 0.5) % 3) == i % 3 if variant == 1 else (int(v * 24.0) % 2 == 0))
 			(lamps[i] as MeshInstance3D).visible = pat, 0.0, 1.0, sec)
 	tw.tween_callback(func():
-		win.text = String(finals.get(final, "7 7 7"))
 		for l in lamps:
 			(l as MeshInstance3D).visible = true)
 	var lv: Node3D = bn["lever"]
 	var tl := create_tween()
-	tl.tween_property(lv, "rotation:x", 0.9, 0.25)
-	tl.tween_property(lv, "rotation:x", 0.0, 0.4).set_delay(0.3)
+	tl.tween_property(lv, "rotation:x", 1.0, 0.3)
+	tl.tween_property(lv, "rotation:x", 0.0, 0.5).set_delay(0.3)
 	if variant == 2:
 		var rt: Node3D = bn["root"]
 		var sh := create_tween()
 		for k in 8:
 			sh.tween_property(rt, "position:x", rt.position.x + (0.03 if k % 2 == 0 else -0.03), 0.06).set_delay(0.0 if k else 1.0)
+
+## Люк у основания столба кнопки: открыть / закрыть
+func ev_hatch(open: bool) -> void:
+	var bn: Dictionary = ev_nodes.get("button", {})
+	if bn.is_empty():
+		return
+	var h: Node3D = bn["hatch"]
+	create_tween().tween_property(h, "position:y", 0.45 if open else 0.02, 0.4)
+	create_tween().tween_property(h, "rotation:x", -1.0 if open else 0.0, 0.4)
 
 func ev_lid(open: bool) -> void:
 	var bn: Dictionary = ev_nodes.get("button", {})

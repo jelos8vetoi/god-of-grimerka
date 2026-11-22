@@ -2529,6 +2529,32 @@ func _events_check(g, G: Golda67, P) -> void:
 		ok(not G.ev_cam and not G.scene_busy(), "сцена Бурмалды «%s»: управление возвращено" % oid)
 		ok(G.events.any(func(e): return String(e[0]) == "ev_say"), "сцена Бурмалды «%s»: Пахан говорит" % oid)
 	ok(not G.scene_busy(), "после сцен события управление свободно")
+	var texts: Array = []
+	for nm in ["burm", "button"]:
+		for lb in (G.world.ev_nodes[nm]["root"] as Node).find_children("*", "Label3D", true, false):
+			texts.append(String((lb as Label3D).text).replace("\n", " "))
+	for want_t in ["БУРМАЛДА", "Мы не знаем, что внутри. Но оно работает", "Гарантия до первого использования", "МОЖНО. А ЗАЧЕМ?", "НЕ НАЖИМАТЬ", "ЩИТ № 67", "U = ?", "ОТВ. — НИКТО"]:
+		ok(texts.has(want_t), "надпись на предмете двора: «%s»" % want_t)
+	# N07: этап ЛАРЁК выбирается у окна
+	var must_old: Dictionary = (G.meta().get("must", {}) as Dictionary).duplicate()
+	G.meta()["must"] = {"ev_rags": true}
+	G.run["stages"] = [["battle", "podezd", ""], ["fit", "playground", ""], ["battle", "garages", ""]]
+	G.run["pos"] = 2
+	G.run["kiosk_full"] = false
+	G.run["kiosk"] = {}
+	G.room_state = "open"
+	G.room = {"type": "battle", "place": "garages"}
+	G.world.add_gates(G.route_options(3))
+	G._kiosk_hint()
+	P.global_position = G67Yard.KIOSK_POS + Vector3(-0.5, 0.05, 0)
+	ok(G._kiosk_gate() >= 0 and String(G.point("kiosk")["hint"]).begins_with("ЛАРЁК"), "N07: на позиции с ЛАРЬКОМ у окна подсказка «%s»" % G.point("kiosk")["hint"])
+	G.use("kiosk")
+	await wait(0.6)
+	ok(String(G.room.get("type", "")) == "kiosk" and bool(G.run.get("kiosk_full", false)) and G.kiosk_price("shawarma") == 0, "N07: [E] у окна выбрал этап ЛАРЁК, окно полное, первая шаурма бесплатно")
+	if G.hub_ui != null:
+		G.hub_ui.close()
+		await wait(0.3)
+	G.meta()["must"] = must_old
 	G.room = {"type": "event", "ev": "button", "place": "evspot"}
 	G.room_state = "reward"
 	G.run["snow_stun"] = false
