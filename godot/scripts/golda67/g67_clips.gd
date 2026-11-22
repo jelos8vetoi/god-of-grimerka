@@ -1558,7 +1558,7 @@ static func extra01(c: G67ClipPlayer) -> void:
 	c.cam_at(R + Vector3(6.2, 1.7, 0.9), R + Vector3(0, 1.1, 0.45), 46.0)
 	c.cam_to(R + Vector3(5.4, 1.65, 1.0), R + Vector3(0, 1.1, 0.45), 1.4, 24.0)
 	await c.wait(1.3)
-	hk = Vector3(0.0, 1.3, -0.25)                  # голова КРОТА за столом (сидит)
+	hk = Vector3(0.0, 0.9, 0.0)                    # голова КРОТА за столом (сидит низко)
 	hp = Vector3(0.0, 1.6, 1.05)                   # голова ведущего
 	G67Clips.snap_req = "wide"
 	await c.wait(0.4)
@@ -1579,6 +1579,8 @@ static func extra01(c: G67ClipPlayer) -> void:
 	c.cam_at(R + Vector3(1.6, 1.2, 0.9), R + Vector3(0.3, 0.95, 0.1), 34.0)
 	await c.wait(0.45)
 	# 3 — реплика КРОТА: камера B (КРОТ в три четверти), перебивка — руки стучат по столу, «на ты» — откидывается на спинку
+	hk = _bone_pos(k, "mixamorig_Head")
+	c.light(hk + Vector3(-0.9, 0.5, 1.3), Color(1.0, 0.85, 0.65), 1.8, 3.5)       # ключевой свет на лицо КРОТА
 	var d1 := c.say_async(L("EXTRA01", 1))
 	c.anim("krot", "CPodTalk", 0.2)
 	c.cam_at(hk + Vector3(-1.3, 0.05, 1.8), hk, 34.0)
@@ -1609,6 +1611,7 @@ static func extra01(c: G67ClipPlayer) -> void:
 	var back := c.create_tween()
 	back.tween_property(k, "position", R + Vector3(0, 0.0, -0.1), 0.4)
 	back.parallel().tween_property(k, "rotation:x", 0.12, 0.4)
+	hk = _bone_pos(k, "mixamorig_Head")
 	var d3 := c.say_async(L("EXTRA01", 3))
 	c.anim("krot", "CPodTalk", 0.2)
 	c.cam_at(hk + Vector3(-1.3, 0.05, 1.8), hk, 34.0)
@@ -1623,6 +1626,7 @@ static func extra01(c: G67ClipPlayer) -> void:
 	c.cam_at(hk + Vector3(-1.3, 0.05, 1.8), hk, 28.0)                                       # крупный: смотрит в камеру
 	c.cam_to(hk + Vector3(-0.9, 0.03, 1.5), hk, d3 * 0.45 + 0.1, 24.0)
 	await c.wait(0.6)
+	hk = _bone_pos(k, "mixamorig_Head")
 	G67Clips.snap_req = "krot_mic"
 	await c.wait(d3 * 0.45 - 0.4)
 	c.clear_sub()
