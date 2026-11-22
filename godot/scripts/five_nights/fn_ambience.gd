@@ -9,25 +9,26 @@ extends Node
 const AMB_DIR := "res://assets/audio/fn/amb/"
 const MASTER_DB := 0.5
 const MUTE := -60.0
+const OUT_RUMBLE_A := -3.0           # при отключении гул здания тише на столько дБ
 ## имя, точка ("" — без места, "b:" — AudioPoints будки, "c:" — AudioPoints пульта), громкость
 const LAYERS := [
-	["rumble_a", "", -7.0], ["rumble_b", "", -12.0], ["far_bed", "", -12.0],
-	["vent", "b:VentUnit", -9.0], ["draft", "b:Draft", -10.0], ["vent_air", "b:Hatch", -18.0], ["lamp_hum", "b:Lamp", -17.0],
-	["crt_whine", "c:Crt", -24.0], ["panel_hum", "b:Panel", -16.0], ["deskfan", "c:Fan", -13.0], ["tablet_noise", "", MUTE],
+	["rumble_a", "", -11.0], ["rumble_b", "", -15.0], ["far_bed", "", -13.0],
+	["vent", "b:VentUnit", -6.0], ["draft", "b:Draft", -8.0], ["vent_air", "b:Hatch", -16.0], ["lamp_hum", "b:Lamp", -15.0],
+	["crt_whine", "c:Crt", -24.0], ["panel_hum", "b:Panel", -15.0], ["deskfan", "c:Fan", -10.0], ["tablet_noise", "", MUTE],
 ]
 const ELECTRIC := ["lamp_hum", "crt_whine", "panel_hum", "tablet_noise"]
 ## id (файлы sfx/<id>_N), места (Vector3 или "@Точка"), дБ, с какой ночи, вес, можно ли при отключении
 const EVENTS := [
-	{"id": "creak", "pos": [Vector3(-3.75, 1.4, -9.5), Vector3(3.75, 1.4, -9.5), Vector3(0.5, 4.5, -3)], "db": -8.0, "night": 0, "w": 3.0, "out": true},
-	{"id": "clang", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9), Vector3(0, 1, -18)], "db": -6.0, "night": 0, "w": 2.0, "out": true},
-	{"id": "rattle", "pos": [Vector3(-1.6, 0.6, -8), Vector3(0.4, 3.8, -6)], "db": -14.0, "night": 0, "w": 2.0, "out": true},
-	{"id": "relay", "pos": ["@Panel"], "db": -14.0, "night": 0, "w": 2.0, "out": false},
-	{"id": "zap", "pos": ["@Panel", "@Lamp"], "db": -16.0, "night": 0, "w": 1.0, "out": false},
-	{"id": "knock", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9), Vector3(0, 1.5, 10)], "db": -8.0, "night": 1, "w": 2.0, "out": true},
-	{"id": "thud", "pos": [Vector3(0.5, 5, -3), Vector3(0, 1.5, 10)], "db": -6.0, "night": 1, "w": 2.0, "out": true},
-	{"id": "grind", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9)], "db": -8.0, "night": 1, "w": 1.0, "out": true},
-	{"id": "groan", "pos": [Vector3(0, 1, -18), Vector3(0.5, 4.5, -3)], "db": -7.0, "night": 2, "w": 2.0, "out": true},
-	{"id": "drag", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9), Vector3(0.5, 5, -3)], "db": -7.0, "night": 2, "w": 1.0, "out": true},
+	{"id": "creak", "pos": [Vector3(-3.75, 1.4, -9.5), Vector3(3.75, 1.4, -9.5), Vector3(0.5, 4.5, -3)], "db": 0.9, "night": 0, "w": 3.0, "out": true},
+	{"id": "clang", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9), Vector3(0, 1, -18)], "db": 7.4, "night": 0, "w": 2.0, "out": true},
+	{"id": "rattle", "pos": [Vector3(-1.6, 0.6, -8), Vector3(0.4, 3.8, -6)], "db": 0.4, "night": 0, "w": 2.0, "out": true},
+	{"id": "relay", "pos": ["@Panel"], "db": -6.4, "night": 0, "w": 2.0, "out": false},
+	{"id": "zap", "pos": ["@Panel", "@Lamp"], "db": 0.4, "night": 0, "w": 1.0, "out": false},
+	{"id": "knock", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9), Vector3(0, 1.5, 10)], "db": 13.4, "night": 1, "w": 2.0, "out": true},
+	{"id": "thud", "pos": [Vector3(0.5, 5, -3), Vector3(0, 1.5, 10)], "db": 0.1, "night": 1, "w": 2.0, "out": true},
+	{"id": "grind", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9)], "db": 2.1, "night": 1, "w": 1.0, "out": true},
+	{"id": "groan", "pos": [Vector3(0, 1, -18), Vector3(0.5, 4.5, -3)], "db": 0.4, "night": 2, "w": 2.0, "out": true},
+	{"id": "drag", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9), Vector3(0.5, 5, -3)], "db": 1.3, "night": 2, "w": 1.0, "out": true},
 ]
 
 var root: FiveNightsRoot
@@ -92,9 +93,9 @@ func build(r: FiveNightsRoot) -> void:
 		var e := AudioStreamPlayer3D.new()
 		e.bus = bus
 		e.unit_size = 10.0
-		e.max_db = 0.0
-		e.attenuation_filter_cutoff_hz = 2400.0
-		e.attenuation_filter_db = -30.0
+		e.max_db = 12.0
+		e.attenuation_filter_cutoff_hz = 3500.0
+		e.attenuation_filter_db = -10.0
 		add_child(e)
 		ev_players.append(e)
 	stall_next = randf_range(40.0, 90.0)
@@ -152,12 +153,12 @@ func pick_event(n: int, outage: bool) -> String:
 	last_event = String((pool.back() as Dictionary)["id"])
 	return last_event
 
-func play_event(id: String) -> bool:
+func play_event(id: String, at_i := -1) -> bool:
 	for e in EVENTS:
 		if String(e["id"]) != id:
 			continue
 		var spots: Array = e["pos"]
-		var at = spots[randi() % spots.size()]
+		var at = spots[(randi() if at_i < 0 else at_i) % spots.size()]
 		var pos: Vector3 = points[String(at).substr(1)] if at is String else at
 		var p: AudioStreamPlayer3D = null
 		for k in ev_players.size():
@@ -270,7 +271,7 @@ func tick(st: FNNight, state: String, dt: float) -> void:
 		g["draft"] += linear_to_db(gust)
 		g["vent"] -= 0.8 * float(n)
 		var office: FNOffice = root.office
-		g["lamp_hum"] += linear_to_db(clampf(office.lamp.light_energy / maxf(office.lamp_base, 0.001), 0.0, 1.5))
+		g["lamp_hum"] += linear_to_db(clampf(office.lamp_k, 0.0, 1.5))
 		if mon:
 			g["tablet_noise"] = -22.0
 			g["crt_whine"] += 3.0
@@ -286,9 +287,10 @@ func tick(st: FNNight, state: String, dt: float) -> void:
 		if out:
 			for k in ELECTRIC:
 				g[k] = MUTE
-			g["rumble_b"] = -20.0
-			g["far_bed"] += 2.0
-			g["draft"] += 4.0
+			g["rumble_a"] += OUT_RUMBLE_A
+			g["rumble_b"] = MUTE
+			g["draft"] += 1.5
+			g["vent_air"] -= 3.0
 		for k in g:
 			if float(g[k]) > MUTE:
 				g[k] = maxf(MUTE, float(g[k]) - 30.0 * duck_k)
