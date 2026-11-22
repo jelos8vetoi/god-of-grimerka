@@ -4,9 +4,9 @@ class_name G67Data
 extends RefCounted
 
 ## Типы комнат (SPEC, раздел 9). Сделаны: BATTLE, ELITE, FIT, STORAGE, KIOSK, BREAK, BOSS. Не сделан: EVENT (этап 4).
-const ROOM_NAMES := {"battle": "БОЙ", "elite": "ЭЛИТА", "fit": "ФИТС", "storage": "КЛАДОВКА", "kiosk": "ЛАРЁК", "break": "ПЕРЕДЫШКА", "boss": "БОСС"}
-const ROOM_HINT := {"battle": "голда", "elite": "редкий фитс и голда", "fit": "выбор фитса", "storage": "артефакт: один из двух", "kiosk": "«ШАУРМА 67» за голду", "break": "лечение", "boss": "Миша Минасян"}
-const ROOM_COLOR := {"battle": Color(0.95, 0.3, 0.25), "elite": Color(1.0, 0.55, 0.15), "fit": Color(1.0, 0.8, 0.2), "storage": Color(0.55, 0.75, 0.95), "kiosk": Color(0.95, 0.65, 0.3), "break": Color(0.45, 0.9, 0.55), "boss": Color(0.85, 0.15, 0.2)}
+const ROOM_NAMES := {"battle": "БОЙ", "ambush": "ЗАСАДА", "elite": "ЭЛИТА", "fit": "БАФ", "storage": "КЛАДОВКА", "kiosk": "ЛАРЁК", "break": "ПЕРЕДЫШКА", "boss": "БОСС"}
+const ROOM_HINT := {"battle": "голда и РЕСПЕКТ", "ambush": "голда и РЕСПЕКТ", "elite": "редкий баф, голда и РЕСПЕКТ", "fit": "баф на выбор", "storage": "артефакт: один из двух", "kiosk": "«ШАУРМА 67» за голду", "break": "восстановить здоровье", "boss": "Миша Минасян"}
+const ROOM_COLOR := {"battle": Color(0.95, 0.3, 0.25), "ambush": Color(0.95, 0.4, 0.3), "elite": Color(1.0, 0.55, 0.15), "fit": Color(1.0, 0.8, 0.2), "storage": Color(0.55, 0.75, 0.95), "kiosk": Color(0.95, 0.65, 0.3), "break": Color(0.45, 0.9, 0.55), "boss": Color(0.85, 0.15, 0.2)}
 
 ## Враги района: вид для ИИ (kind из enemy.KINDS) и облик (skin из enemy.SKINS)
 const FOES := {
@@ -15,28 +15,50 @@ const FOES := {
 	"smotr": {"kind": "troll", "skin": "g67_smotr", "name": "Смотрящий", "golda": 18},
 }
 
-## Район: шесть позиций до босса включительно. На позиции — варианты комнат (двери), из которых выбирает игрок.
-## place — оформление двора для комнаты (G67World._deco_g67_dvor читает его).
+## Район: семь этапов до босса включительно. Этап — один или два варианта, каждый вариант — настоящее место двора.
+## routes — три шаблона забега (по номеру забега: runs % 3); route — первый из них (для совместимости).
+## waves — волны по индексу этапа (0…5): список волн, волна — [[враг, сколько], …]
+const ROUTES_DVOR := [
+	[
+		[{"type": "battle", "place": "podezd"}],
+		[{"type": "battle", "place": "garages"}, {"type": "fit", "place": "playground"}],
+		[{"type": "elite", "place": "parking"}, {"type": "storage", "place": "garages"}],
+		[{"type": "battle", "place": "playground"}],
+		[{"type": "battle", "place": "parking"}, {"type": "break", "place": "gazebo"}],
+		[{"type": "ambush", "place": "proezd"}],
+		[{"type": "boss", "place": "sport"}],
+	],
+	[
+		[{"type": "battle", "place": "podezd"}],
+		[{"type": "battle", "place": "parking"}, {"type": "storage", "place": "garages"}],
+		[{"type": "elite", "place": "garages"}, {"type": "fit", "place": "playground"}],
+		[{"type": "battle", "place": "playground"}],
+		[{"type": "battle", "place": "garages"}, {"type": "break", "place": "gazebo"}],
+		[{"type": "ambush", "place": "proezd"}],
+		[{"type": "boss", "place": "sport"}],
+	],
+	[
+		[{"type": "battle", "place": "podezd"}],
+		[{"type": "battle", "place": "parking"}, {"type": "fit", "place": "playground"}],
+		[{"type": "elite", "place": "garages"}, {"type": "storage", "place": "garages"}],
+		[{"type": "battle", "place": "playground"}],
+		[{"type": "battle", "place": "garages"}, {"type": "break", "place": "gazebo"}],
+		[{"type": "ambush", "place": "proezd"}],
+		[{"type": "boss", "place": "sport"}],
+	],
+]
 const DISTRICTS := {
 	"dvor": {
 		"name": "ДВОР", "boss": "g67_misha", "unlock": "bottles", "flag": "boss_misha",
-		"route": [
-			[{"type": "battle", "place": "podezd"}],
-			[{"type": "battle", "place": "garages"}, {"type": "fit", "place": "playground"}],
-			[{"type": "elite", "place": "parking"}, {"type": "storage", "place": "garages"}],
-			[{"type": "kiosk", "place": "parking"}, {"type": "battle", "place": "garages"}],
-			[{"type": "break", "place": "gazebo"}],
-			[{"type": "boss", "place": "sport"}],
-		],
-		## волны по позиции (0…5): список волн, волна — [[враг, сколько], …]
+		"routes": ROUTES_DVOR,
+		"route": ROUTES_DVOR[0],
 		"waves": {
-			"battle": [
-				[[["shest", 3]], [["shest", 2], ["semka", 1]]],
-				[[["shest", 3], ["semka", 1]], [["shest", 3], ["semka", 2]]],
-				[[["shest", 4], ["semka", 1]], [["shest", 3], ["semka", 2]]],
-				[[["shest", 4], ["semka", 2]], [["shest", 4], ["semka", 2]], [["shest", 2], ["semka", 3]]],
-			],
-			"elite": [[["smotr", 1], ["shest", 2]], [["shest", 2], ["semka", 2]]],
+			0: [[["shest", 3]], [["shest", 2], ["semka", 1]]],
+			1: [[["shest", 3], ["semka", 1]], [["shest", 3], ["semka", 2]]],
+			2: [[["smotr", 1], ["shest", 2]], [["shest", 2], ["semka", 2]]],
+			3: [[["shest", 4], ["semka", 1]], [["shest", 3], ["semka", 2]]],
+			4: [[["shest", 4], ["semka", 2]], [["shest", 4], ["semka", 2]], [["shest", 2], ["semka", 3]]],
+			5: [[["shest", 3], ["semka", 1]], [["shest", 3], ["semka", 2]]],
 		},
 	},
 }
@@ -104,7 +126,7 @@ const FAMILY_COLOR := {"misha": Color(0.85, 0.63, 0.23)}
 const DMG_CAP := 2.0          # потолок множителя урона от фитсов
 
 ## РЕСПЕКТ (постоянная валюта, SPEC, раздел 12): за что и сколько
-const RESPECT := {"room": 2, "elite": 5, "boss": 20, "boss_first": 40}
+const RESPECT := {"room": 3, "elite": 6, "calm": 1, "boss": 20, "boss_first": 40}
 ## Голда за пройденную комнату
 ## Где герой входит в комнату (z в координатах комнаты; зона — в нуле). По умолчанию у южного края зоны; в коробке
 ## Миши край — это калитка в борту: герой стоял в ней, камера оставалась за бортом и Мишу заслоняла калитка.
@@ -117,11 +139,11 @@ const FINISHER_CAP := [25.0, 40.0, 55.0]   # не больше за одну к�
 const WIND_HEAL := [25.0, 40.0]            # ВТОРОЕ ДЫХАНИЕ: лечение по уровню (раз за комнату, здоровье ниже 30 %)
 const WIND_AT := 0.3
 
-## Ларёк «ШАУРМА 67» (APPROVALS.md, 2.2): товар → цена, эффект, сколько за посещение
+## Ларёк «ШАУРМА 67» — постоянный магазин двора: товар → цена, эффект, сколько на забег (поле per_visit)
 const KIOSK := [
-	{"id": "shawarma", "name": "ШАУРМА", "price": 35, "per_visit": 2, "desc": "Восстанавливает 40 здоровья."},
-	{"id": "double", "name": "ДВОЙНАЯ ШАУРМА", "price": 60, "per_visit": 1, "desc": "Восстанавливает 40 здоровья и +15 к максимуму здоровья до конца забега."},
-	{"id": "togo", "name": "С СОБОЙ", "price": 75, "per_visit": 1, "desc": "Случайный фитс из тех, что ещё можно взять или улучшить (15 % — редкий)."},
+	{"id": "shawarma", "name": "ШАУРМА", "price": 30, "per_visit": 4, "desc": "Восстанавливает 40 здоровья."},
+	{"id": "double", "name": "ДВОЙНАЯ ШАУРМА", "price": 55, "per_visit": 1, "desc": "Восстанавливает 40 здоровья и +15 к максимуму здоровья до конца забега."},
+	{"id": "togo", "name": "С СОБОЙ", "price": 70, "per_visit": 2, "desc": "Случайный баф из тех, что ещё можно взять или улучшить (15 % — редкий)."},
 ]
 const KIOSK_HEAL := 40.0
 const KIOSK_MAXHP := 15.0
@@ -133,18 +155,20 @@ const ART_SLOTS := 3
 const ART_EVENT := ["garlic_aura", "hamster_aura", "collar_67"]
 const DMG_CAP_ALL := 2.0                   # общий потолок урона от фитсов и артефактов вместе
 
-const ROOM_GOLDA := {"battle": 12, "elite": 30, "fit": 0, "storage": 0, "kiosk": 0, "break": 0, "boss": 67}
+const ROOM_GOLDA := {"battle": 20, "ambush": 20, "elite": 40, "fit": 0, "storage": 0, "kiosk": 0, "break": 0, "boss": 67}
 const BREAK_HEAL := 0.45      # доля максимума здоровья
 
 static func district(id: String) -> Dictionary:
 	return DISTRICTS.get(id, DISTRICTS["dvor"])
 
-static func waves_for(d: Dictionary, type: String, pos: int) -> Array:
+static func waves_for(d: Dictionary, _type: String, pos: int) -> Array:
 	var w: Dictionary = d["waves"]
-	if type == "elite":
-		return w["elite"]
-	var list: Array = w["battle"]
-	return list[clampi(pos, 0, list.size() - 1)]
+	return w[clampi(pos, 0, w.size() - 1)]
+
+## Шаблон маршрута забега: по номеру забега (первый забег — шаблон 0)
+static func route_of(d: Dictionary, tpl: int) -> Array:
+	var rs: Array = d["routes"]
+	return rs[clampi(tpl, 0, rs.size() - 1)]
 
 # ---------------------------------------------------------------- подъезд: экраны предметов (этап 2)
 ## «АВТОРИТЕТ РАЙОНА» — девять веток (LEVEL_DESIGN.md, раздел 7). live — эффект уже работает; у остальных — wait:

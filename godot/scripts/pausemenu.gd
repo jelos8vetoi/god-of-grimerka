@@ -577,6 +577,8 @@ func _confirm_menu() -> void:
 		message = "Текущий забег завершится без сохранения."
 	elif game.training != null:
 		message = "Тренировка не сохраняется. Сюжетное сохранение осталось прежним."
+	elif game.golda != null:
+		message = game.golda.quit_text()
 	_line(top, func(): return message, 18, SILVER)
 	_rows([["ОСТАТЬСЯ", func(): _open_page(5)], ["ВЫЙТИ В ГЛАВНОЕ МЕНЮ", func(): game._to_menu()]])
 

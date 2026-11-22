@@ -2,7 +2,7 @@ class_name G67KioskUI
 extends G67Diorama
 ## Ларёк «ШАУРМА 67» — окно шаурмичной с улицы: световой короб с названием, в окне вертел, на стекле изнутри
 ## приклеены ламинированные ценники товаров (G67Data.KIOSK): название, цена в голде, что даёт, сколько осталось
-## на это посещение. Недоступный — бледный с причиной (нет голды, кончилось, фитсов больше нет). «С СОБОЙ» не висит,
+## на забег. Недоступный — бледный с причиной (нет голды, кончилось, бафов больше нет). «С СОБОЙ» не висит,
 ## если брать уже нечего. Справа на прилавке — кошелёк (голда) и здоровье; после покупки из окна выдают чек.
 
 const CARD := Vector2(300, 300)
@@ -206,7 +206,7 @@ class Price extends Control:
 		if why != "":
 			draw_set_transform(Vector2(size.x * 0.42, 64), -0.18, Vector2.ONE)
 			draw_rect(Rect2(Vector2(-110, -22), Vector2(220, 44)), Color(0.7, 0.12, 0.1, 0.8), false, 3.0)
-			var s := "НЕТ" if why != "на сегодня всё" else "ВСЁ"
+			var s := "НЕТ" if why != "на забег всё" else "ВСЁ"
 			var sw := f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 30).x
 			draw_string(f, Vector2(-sw * 0.5, 11), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(0.7, 0.12, 0.1, 0.8))
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

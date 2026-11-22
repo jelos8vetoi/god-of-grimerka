@@ -1685,6 +1685,7 @@ func _to_menu() -> void:
 	get_tree().paused = false
 	Engine.time_scale = 1.0
 	if golda != null:
+		golda.on_quit()              # забег вне боя встаёт на паузу, посреди боя — поражение
 		main.end_golda67()           # из приквела — на его карточку в выборе режима
 		return
 	main.show_menu()
