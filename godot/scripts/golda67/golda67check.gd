@@ -783,6 +783,53 @@ func _misha_moves(g, G: Golda67, P, B) -> void:
 	P.hp = P.max_hp
 	P.inv = 0.0
 
+## B01: до первой концовки madk1d в забеге нет. Герой sec секунд стоит и не бьёт (урон по нему выключен), автопомощь
+## напарника включена как в обычной игре (в проверках её выключает tagteam.setup). Возвращает, что за это время делал напарник.
+func _madk_idle(g, P, sec: float) -> Dictionary:
+	var b = g.buddy
+	var T = g.tag
+	var auto: bool = T.auto_assist
+	T.auto_assist = true
+	T.auto_t = 0.0
+	var ev0: int = b.events.size()
+	var team0: int = T.events.size()
+	var near := 9999.0
+	var t0 := GameClock.ms()
+	while GameClock.ms() - t0 < int(sec * 1000.0):
+		P.inv = 1.0
+		near = minf(near, b.global_position.distance_to(P.global_position))
+		await get_tree().process_frame
+	P.inv = 0.0
+	T.auto_assist = auto
+	return {"acts": b.events.slice(ev0), "team": T.events.slice(team0), "near": near, "foe": b.foe != null}
+
+## B01: добивание на [E] без командного приёма: TEAM FINISHER нет, madk1d не появляется, перезарядка помощи не идёт
+func _madk_no_finisher(g, G: Golda67, P) -> void:
+	var e = null
+	for x in g.enemies:
+		if is_instance_valid(x) and x.alive():
+			e = x
+			break
+	if e == null:
+		ok(false, "есть живой враг для проверки добивания без madk1d")
+		return
+	var T = g.tag
+	P.inv = 1.0
+	var fwd: Vector3 = Vector3(sin(P.face), 0, cos(P.face))
+	e.global_position = P.global_position + fwd * 1.5
+	e.hp = 5.0
+	e.stun(3.0)
+	await wait(0.2)
+	T.assist_cd = 0.0
+	var team0: int = T.events.size()
+	var started: bool = P.execution.try_start()
+	await until(func(): return not P.execution.active(), 5.0)
+	ok(started and not e.alive(), "добивание на [E] началось, враг погиб")
+	ok(not T.events.slice(team0).any(func(x): return x[0] == "finisher"), "добивание на [E]: TEAM FINISHER нет — madk1d в бою не участвует")
+	ok(g.buddy.global_position.distance_to(P.global_position) > 14.0, "madk1d не появился у добитого врага")
+	ok(is_zero_approx(T.assist_cd), "перезарядка командной помощи не запускалась")
+	P.inv = 0.0
+
 ## madk1d закрыт до первой концовки: Tab, T, G, Q ничего не открывают, в HUD замок; после концовки — всё работает
 func _madk_check(g, G: Golda67, P) -> void:
 	var fl: Dictionary = G.meta().get("flags", {})
@@ -1580,6 +1627,12 @@ func _run_dvor(g, G: Golda67, P) -> void:
 		var hp0: float = e0.hp
 		e0.take_hit(10.0, Vector3.FORWARD, 0.0, false)
 		ok(e0.hp < hp0, "враг получает урон (%.0f → %.0f)" % [hp0, e0.hp])
+	# B01: в бою только Пахан — madk1d не идёт за героем, не бьёт, не отскакивает и не добивает вместе с ним
+	ok(g.madk_away(), "до первой концовки в забеге madk1d нет рядом с героем")
+	var idle: Dictionary = await _madk_idle(g, P, 8.0)
+	ok(float(idle["near"]) > 14.0, "за 8 с боя madk1d не вернулся к герою (ближе всего был в %.0f м)" % float(idle["near"]))
+	ok((idle["acts"] as Array).is_empty() and not bool(idle["foe"]), "madk1d не бьёт врагов и не отскакивает от замахов (его действия: %s)" % str(idle["acts"]))
+	await _madk_no_finisher(g, G, P)
 	ok(not G.world.actors.has("g67_krot"), "у подъезда КРОТА нет: его встреча — у шаурмичной")
 	ok(await _clear_room(g, G), "комната 1 (БОЙ) зачищена")
 	ok(G.world.gates.any(func(gt): return String(gt["option"]["place"]) == "parking"), "пока встреча 1 не пройдена, одна из дверей ведёт на парковку к ларьку")
@@ -1758,6 +1811,11 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(acted, "Миша атакует (состояние: %s)" % String(B.state))
 	await wait(0.6)
 	await shot("26_boss_attack")
+	# B01: герой не бьёт — здоровье Миши не убывает (раньше его бил невидимый madk1d)
+	var bhp: float = B.hp
+	var idle_b: Dictionary = await _madk_idle(g, P, 15.0)
+	ok(is_equal_approx(B.hp, bhp) and is_equal_approx(bhp, B.max_hp), "герой 15 с не бьёт Мишу — его здоровье не изменилось (%.0f → %.0f из %.0f)" % [bhp, B.hp, B.max_hp])
+	ok((idle_b["acts"] as Array).is_empty() and float(idle_b["near"]) > 14.0, "в бою с Мишей madk1d нет (его действия: %s, ближе всего был в %.0f м)" % [str(idle_b["acts"]), float(idle_b["near"])])
 	await _misha_moves(g, G, P, B)
 	var hp1: float = B.hp
 	B.take_hit(40.0, Vector3.FORWARD, 0.0, false)
@@ -1775,6 +1833,13 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(P.own_styles == ["vozduh", "bottles"], "в подъезде у Пахана теперь Балон и Водяра (%s)" % str(P.own_styles))
 	ok(int(G.meta()["respect"]) >= 40, "РЕСПЕКТ за забег остался (%d)" % int(G.meta()["respect"]))
 	ok(g.buddy.visible, "madk1d снова рядом в подъезде")
+	# в подъезде madk1d по-прежнему житель: стоит рядом и сам выбирает, куда встать возле героя
+	g.buddy.target = Vector3.ZERO
+	g.buddy.wait = 0.0
+	await wait(0.6)
+	ok(not g.madk_away() and g.buddy.target != Vector3.ZERO and g.buddy.global_position.distance_to(P.global_position) < 8.0 and absf(g.buddy.global_position.y - P.global_position.y) < 1.0,
+		"в подъезде madk1d ходит рядом с героем как раньше (до него %.1f м)" % g.buddy.global_position.distance_to(P.global_position))
+	await shot("27b_hub_madk")
 	await key(KEY_2)
 	await wait(1.2)
 	ok(String(P.style.id) == "bottles", "клавиша 2 включает Водяру")

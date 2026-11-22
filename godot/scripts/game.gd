@@ -1450,6 +1450,10 @@ func banner(title: String, sub: String, col: Color, sec := 2.6) -> void:
 func madk_locked() -> bool:
 	return golda != null and not golda.madk_open()
 
+## Приквел «ГОЛДА 67» до первой концовки, забег: madk1d остался в подъезде — рядом с героем его нет и в бой он не вступает
+func madk_away() -> bool:
+	return golda != null and golda.madk_away()
+
 var _madk_note_t := -9.0
 ## Попытка воспользоваться закрытым: объяснить, когда откроется (не чаще раза в 1,5 с)
 func madk_note() -> void:

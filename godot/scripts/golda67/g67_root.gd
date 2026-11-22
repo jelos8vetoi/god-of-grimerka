@@ -77,6 +77,10 @@ func meta() -> Dictionary:
 func madk_open() -> bool:
 	return bool((meta().get("flags", {}) as Dictionary).get(G67Data.MADK_FLAG, false))
 
+## madk1d нет рядом с героем: до первой концовки он ждёт в подъезде и в забег не идёт (в самом подъезде ходит рядом как житель)
+func madk_away() -> bool:
+	return place == "run" and not madk_open()
+
 ## Старт режима: хаб
 func begin(_cont := false) -> void:
 	game.mode = "golda67"

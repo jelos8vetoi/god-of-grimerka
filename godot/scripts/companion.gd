@@ -78,6 +78,10 @@ func _ready() -> void:
 	add_child(track)
 
 func _physics_process(dt: float) -> void:
+	if game.madk_away():      # приквел до первой концовки: в забеге напарника нет — не идёт за героем, не отскакивает и не дерётся
+		velocity = Vector3.ZERO
+		foe = null
+		return
 	var p = game.player
 	var pp: Vector3 = p.global_position
 	cd = max(0.0, cd - dt)

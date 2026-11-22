@@ -521,7 +521,8 @@ func try_assist_simple() -> bool:
 
 ## Командное добивание: напарник рядом и готов — бьёт вместе с последним ударом добивания
 func _team_finish(e, dir: Vector3) -> void:
-	if down[mate()] or assist_cd > 0.0 or b.global_position.distance_to(p.global_position) > 9.0 or not is_instance_valid(e):
+	# приквел до первой концовки: командного добивания нет — добивает один Пахан
+	if game.madk_locked() or down[mate()] or assist_cd > 0.0 or b.global_position.distance_to(p.global_position) > 9.0 or not is_instance_valid(e):
 		return
 	assist_cd = ASSIST_CD * 0.5
 	b.blink(e.global_position + dir * 1.4, -dir)
@@ -533,7 +534,7 @@ func _team_finish(e, dir: Vector3) -> void:
 
 # ---------------- поведение напарника ----------------
 func _ai(dt: float) -> void:
-	if not auto_assist or down[mate()] or b.ko:
+	if not auto_assist or down[mate()] or b.ko or game.madk_locked():      # приквел до первой концовки: madk1d сам в бой не вступает
 		return
 	auto_t -= dt
 	if auto_t > 0.0 or b.foe != null:
