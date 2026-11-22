@@ -2579,6 +2579,15 @@ func _ev02_check(g, G: Golda67, P) -> void:
 	ok(G.clip_seen("EV02"), "досмотренный ролик — в clips_seen")
 
 func _run_dvor(g, G: Golda67, P) -> void:
+	var snd_bad: Array = []
+	for k in G67Sound.kinds():
+		var w := G67Sound.stream(String(k))
+		var pk := G67Sound.peak(String(k))
+		if w.get_length() <= 0.05 or pk > 1.0 or pk < 0.02:
+			snd_bad.append("%s %.2f %.2f" % [k, w.get_length(), pk])
+	ok(snd_bad.is_empty(), "G67Sound: %d видов, у каждого длина > 0,05 с, пик в (0,02…1,0] (плохие: %s)" % [G67Sound.kinds().size(), str(snd_bad)])
+	ok(G67Yard.surface_at(Vector3(2, 0, -38)) == "ice" and G67Yard.surface_at(G67Yard.KIOSK_POS) == "asphalt" and G67Yard.surface_at(Vector3(0, 0, 21)) == "snow", "поверхность под ногами: лёд в коробке, асфальт на парковке, снег у подъезда")
+	ok(is_equal_approx(G67Data.FOE_DMG_K, 0.6), "множитель урона врагов двора 0,6")
 	# музыка приквела: наборы есть, в подъезде играет подъездный
 	var mus_ok := true
 	for nm in ["loc_g67_hub_base", "loc_g67_dvor_base", "loc_g67_dvor_drive", "boss_g67_misha_p1", "boss_g67_misha_p2", "boss_g67_misha_p3", "boss_g67_misha_intro", "boss_g67_misha_win"]:

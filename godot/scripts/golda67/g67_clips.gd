@@ -1010,13 +1010,13 @@ static func ev02(c: G67ClipPlayer) -> void:
 	lamp_tw.tween_property(lamp, "light_energy", 1.2, 0.2)
 	c.cam_at(Vector3(-0.1, 1.6, -0.3), Vector3(-0.5, 0.65, -1.0), 34.0)
 	for k in 6:
-		c.sfx("sfx_wave", -8.0, 1.7 if k % 2 == 0 else 1.25)
+		G67Sound.play(c, "siren", Vector3.INF, 1.0 if k % 2 == 0 else 0.8)
 		c.flash(Color(1.0, 0.1, 0.1, 0.22), 0.3)
 		await c.wait(0.5)
 	c.cam_at(Vector3(-1.7, 1.7, 2.0), Vector3(0.7, 1.0, 0.3), 56.0)
 	mk.rotation.y = 2.4
 	for k in 2:
-		c.sfx("sfx_wave", -8.0, 1.7 if k % 2 == 0 else 1.25)
+		G67Sound.play(c, "siren", Vector3.INF, 1.0 if k % 2 == 0 else 0.8)
 		c.flash(Color(1.0, 0.1, 0.1, 0.22), 0.3)
 		await c.wait(0.5)
 	mk.rotation.y = PI
@@ -1054,8 +1054,8 @@ static func ev02(c: G67ClipPlayer) -> void:
 	wp.position = from_p
 	c.world.add_child(wp)
 	wp.emitting = true
-	c.sfx("sfx_block", -2.0, 0.5)
-	c.sfx("sfx_spawn", -6.0, 0.7)
+	G67Sound.play(c, "water")
+	G67Sound.play(c, "bucket")
 	c.shake(0.7)
 	await c.wait(0.35)
 	var sp2 := GPUParticles3D.new()

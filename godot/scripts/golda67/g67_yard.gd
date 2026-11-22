@@ -137,6 +137,16 @@ static func entry_points(id: String) -> Array:
 	return [Vector3(c.x - h.x, 0.05, c.z + h.y * 0.35), Vector3(c.x + h.x, 0.05, c.z - h.y * 0.35),
 		Vector3(c.x - h.x * 0.35, 0.05, c.z - h.y), Vector3(c.x + h.x * 0.35, 0.05, c.z + h.y)]
 
+## Поверхность под ногами для шагов: «ice» в коробке, «asphalt» на парковке и проезде, иначе «snow» (в подъезде шаги — бетон)
+static func surface_at(pos: Vector3) -> String:
+	for zid in ["sport", "parking", "proezd"]:
+		var z: Dictionary = ZONES[zid]
+		var c: Vector3 = z["c"]
+		var h: Vector2 = z["h"]
+		if absf(pos.x - c.x) <= h.x and absf(pos.z - c.z) <= h.y:
+			return "ice" if zid == "sport" else "asphalt"
+	return "snow"
+
 static func zone(id: String) -> Dictionary:
 	return ZONES.get(id, ZONES["podezd"])
 

@@ -470,6 +470,7 @@ func _stash_tick(dt: float) -> void:
 		n.queue_free()
 		stash_nodes.erase(i)
 		events.append(["stash", int(i)])
+		G67Sound.play(self, "stash")
 
 ## Засада стартует сама, когда герой вошёл в прямоугольник её зоны (ужатый на 2 м)
 func _ambush_tick() -> void:
@@ -726,6 +727,7 @@ func _spawn(foe: String) -> void:
 	e.set_meta("foe", foe)
 	e.set_meta("no_portal", true)
 	game.add_child(e)
+	G67Sound.play(self, "entry", pos)
 	e.cfg["dmg"] = float(e.cfg["dmg"]) * G67Data.FOE_DMG_K
 	if bool(run.get("snow_stun", false)):
 		if wave_i <= 0:
@@ -762,6 +764,36 @@ func _keep_foes_inside(dt: float) -> void:
 			e.global_position = Vector3(c.x + clampf(e.global_position.x - c.x, -(h.x - 1.5), h.x - 1.5), e.global_position.y, c.z + clampf(e.global_position.z - c.z, -(h.y - 1.5), h.y - 1.5))
 			e.velocity = Vector3.ZERO
 			_out_t.erase(id)
+
+# ---------------------------------------------------------------- фон и случайные звуки приквела
+var amb67: AudioStreamPlayer = null
+var amb67_kind := ""
+var rnd67_t := 15.0
+
+func _g67_audio_tick(dt: float) -> void:
+	var want := "loop_hub" if place == "hub" else "loop_dvor"
+	if amb67 == null:
+		amb67 = AudioStreamPlayer.new()
+		add_child(amb67)
+	if amb67_kind != want:
+		amb67_kind = want
+		amb67.stream = G67Sound.stream(want)
+		amb67.bus = "Ambient" if AudioServer.get_bus_index("Ambient") >= 0 else "Master"
+		amb67.volume_db = float(G67Sound.KINDS[want][1])
+		amb67.play()
+	var quiet: bool = clip != null or game.mode == "dlg" or talk_on or scene_t >= 0.0
+	rnd67_t -= dt
+	if rnd67_t > 0.0:
+		return
+	rnd67_t = randf_range(12.0, 30.0) * (1.6 if room_state == "fight" else 1.0)
+	if quiet:
+		return
+	if place == "hub":
+		G67Sound.play(self, ["door", "steps_up", "doorbell"][randi() % 3])
+	else:
+		var pp: Vector3 = game.player.global_position
+		var a := randf() * TAU
+		G67Sound.play(self, ["alarm", "dog", "pigeon", "doorbell"][randi() % 4], pp + Vector3(cos(a) * 18.0, 1.5, sin(a) * 18.0))
 
 func _fight_tick(dt: float) -> void:
 	_keep_foes_inside(dt)
@@ -876,6 +908,7 @@ func _take_coin(c: Dictionary) -> void:
 			nh.queue_free()
 		game.main.ui("confirm")
 		events.append(["wrap_taken"])
+		G67Sound.play(self, "shawarma")
 		return
 	var got := add_golda(int(c["v"]))
 	var n = c["n"]
@@ -883,6 +916,7 @@ func _take_coin(c: Dictionary) -> void:
 		game.fx.twinkle(n.global_position, 6, Color(1, 0.85, 0.4), 0.5)
 		n.queue_free()
 	game.popup(game.player.global_position + Vector3(0, 2.2, 0), "+%d" % got, Color(1.0, 0.85, 0.3))
+	G67Sound.play(self, "coin")
 	game.main.ui("confirm")
 
 ## Монеты: дуга, отскок, лежат и крутятся; подбор на 1,6 м, а через 0,6 с после боя летят к герою
@@ -911,8 +945,10 @@ func _coins_tick(dt: float) -> void:
 				else:
 					c["land"] = true
 			c["vel"] = v
+		if c.has("decor"):
+			continue
 		var d: float = Vector2(pp.x - n.global_position.x, pp.z - n.global_position.z).length()
-		if calm_t > 0.6 and bool(c["land"]) and not c.has("heal"):
+		if bool(c["land"]) and ((calm_t > 0.6 and not c.has("heal")) or (c.has("heal") and d < 2.5)):
 			var to: Vector3 = pp + Vector3(0, 1.0, 0) - n.global_position
 			n.global_position += to.normalized() * minf(to.length(), 14.0 * dt)
 		if d < 1.6 and float(c["t"]) > 0.5:
@@ -981,6 +1017,12 @@ func _drop_wrap(heal := 25.0, at := Vector3.INF) -> void:
 	var c: Vector3 = game.arena_c
 	var from := Vector3(c.x + randf_range(-8.0, 8.0), 4.0, c.z - 9.5) if at == Vector3.INF else at + Vector3(0, 1.4, 0)
 	var n := MeshInstance3D.new()
+	var wl := OmniLight3D.new()
+	wl.light_color = Color(1.0, 0.85, 0.4)
+	wl.light_energy = 1.2
+	wl.omni_range = 3.5
+	wl.position = Vector3(0, 0.5, 0)
+	n.add_child(wl)
 	var bm := BoxMesh.new()
 	bm.size = Vector3(0.28, 0.18, 0.42)
 	n.mesh = bm
@@ -1096,10 +1138,14 @@ func play_event(ev: String) -> void:
 		return                          # этап закроется, когда событие отыграно
 	_stage_end()
 
+var ev_idle := 0.0
+
 func _ev_tick() -> void:
 	if room_state == "reward" and String(room.get("type", "")) == "event" and String(room.get("ev", "")) == "burmalda" and int(run.get("ev_pulls", 0)) >= 1 and not ev_busy:
 		var sp: Vector3 = G67Yard.EVENT_SPOTS["burmalda"]
-		if Vector2(game.player.global_position.x - sp.x, game.player.global_position.z - sp.z).length() > 5.0:
+		ev_idle += get_physics_process_delta_time()
+		if Vector2(game.player.global_position.x - sp.x, game.player.global_position.z - sp.z).length() > 3.0 or ev_idle > 6.0:
+			game.toast("Автомат замолчал")
 			_ev_finish()
 
 ## «ТРЯПКИ! ТРЯПКИ!»: ролик EV02 (досмотрел или пропустил — событие считается увиденным), РЕСПЕКТ мирного этапа, герой у двери бокса
@@ -1160,7 +1206,9 @@ func _burmalda_pull() -> void:
 	run["ev_pulls"] = n + 1
 	ev_busy = true
 	world.ev_spin(2.5)
-	game.main.sfx("sfx_wave", -6.0)
+	G67Sound.play(self, "lever")
+	for k in 6:
+		get_tree().create_timer(0.3 + 0.35 * k, false).timeout.connect(func(): G67Sound.play(self, "drum", Vector3.INF, 0.8 + 0.08 * k))
 	await game.get_tree().create_timer(2.5, false).timeout
 	if not is_instance_valid(game) or game.golda != self:
 		return
@@ -1176,17 +1224,36 @@ func _burmalda_pull() -> void:
 			break
 	_burmalda_outcome(pick)
 	ev_busy = false
+	ev_idle = 0.0
+	var left := 3 - int(run["ev_pulls"])
+	for pt in world.points:
+		if String(pt["id"]) == "ev_burmalda":
+			pt["hint"] = ("ещё рывок — %d голды (осталось %d)" % [G67Data.BURMALDA_COST, left]) if left > 0 else "автомат пуст"
 	if int(run["ev_pulls"]) >= 3:
 		await game.get_tree().create_timer(1.5, false).timeout
 		_ev_finish()
 
+func _drop_junk(at: Vector3) -> void:
+	var n := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.22, 0.08, 0.14)
+	n.mesh = bm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.5, 0.5, 0.52)
+	n.material_override = m
+	world.add_child(n)
+	n.global_position = at + Vector3(0, 0.3, 0)
+	coins.append({"n": n, "v": 0, "decor": true, "vel": Vector3(randf_range(-0.6, 0.6), 1.5, 1.8), "land": false, "t": 0.0, "life": 40.0})
+
 func _burmalda_outcome(id: String) -> void:
 	var tray := _ev_tray_pos()
 	events.append(["burmalda", id])
+	G67Sound.play(self, "tray")
 	match id:
 		"junk":
 			var names: Array = G67Data.BURMALDA[0]["names"]
 			game.banner(String(names[randi() % names.size()]), "хлам: ничего полезного", Color(0.8, 0.8, 0.75), 2.2)
+			_drop_junk(tray)
 		"gold":
 			var o: Dictionary = G67Data.BURMALDA[1]
 			var v := randi_range(int(o["min"]), int(o["max"]))
@@ -1240,6 +1307,7 @@ func _button_press() -> void:
 func _button_outcome(id: String) -> void:
 	var p = game.player
 	events.append(["button", id])
+	G67Sound.play(self, {"alarms": "alarm", "shock": "relay", "shawarma": "tray", "snow": "door", "lights": "relay"}.get(id, "click"))
 	match id:
 		"nothing":
 			game.banner("НИЧЕГО", "кнопка щёлкнула", Color(0.8, 0.8, 0.8), 2.0)
@@ -1310,11 +1378,22 @@ func _stage_end() -> void:
 	_open_gates()
 
 ## Подсказка у окна ларька: пока оно закрыто (позиции 1–2), говорит правду
+func _kiosk_gate() -> int:
+	if world == null:
+		return -1
+	for i in world.gates.size():
+		if String((world.gates[i]["option"] as Dictionary).get("type", "")) == "kiosk":
+			return i
+	return -1
+
 func _kiosk_hint() -> void:
 	if world == null or run.is_empty():
 		return
 	for pt in world.points:
 		if String(pt["id"]) == "kiosk":
+			if _kiosk_gate() >= 0:
+				pt["hint"] = "ЛАРЁК · твой этап: всё меню, первая шаурма бесплатно"
+				continue
 			pt["hint"] = "окно закрыто — откроется с третьей позиции" if (int(run.get("pos", 0)) < 2 and not bool(run.get("kiosk_full", false))) else "окно ларька: шаурма за голду"
 
 func _open_gates() -> void:
@@ -1545,7 +1624,7 @@ func _scene_tick(dt: float) -> void:
 		var hp: Vector3 = world.hook_points[0] if not world.hook_points.is_empty() else b.global_position + Vector3(2, 0, 0)
 		G67Misha._chain(game, b.global_position + Vector3(0, 1.3, 0), hp + Vector3(0, 1.3, 0), SCENE_FREE - SCENE_CATCH)
 		game.shake(0.25)
-		game.main.sfx("sfx_block", -4.0, 0.6)
+		G67Sound.play(self, "chain")
 	if scene_step == 3 and scene_t >= SCENE_FREE - 0.5:
 		scene_step = 4
 		b.rig.play_for("CYank" if b.rig.has_clip("CYank") else "Idle", 0.9, 0.05)       # рывок — цепь свободна
@@ -1570,7 +1649,7 @@ func _scene_tick(dt: float) -> void:
 			get_tree().create_timer(0.35 * i, false).timeout.connect(func():
 				if yard != null and is_instance_valid(yard):
 					yard.flood_on(i)
-					game.main.sfx("sfx_ui", -6.0, 0.55 + 0.1 * i))
+					G67Sound.play(self, "relay", Vector3.INF, 0.9 + 0.08 * i))
 		yard.court_k(0.8)
 		_crowd("start")
 	if scene_t >= SCENE_LEN:
@@ -2405,6 +2484,8 @@ func _physics_process(dt: float) -> void:
 		_ambush_tick()
 		_second_wind()
 	_art_tick(dt)
+	if not game.over:
+		_g67_audio_tick(dt)
 	if hints == null:
 		hints = HintsScript.new(self)
 	hints.tick(dt)
@@ -2458,6 +2539,8 @@ func use(id: String) -> void:
 			game.toast("Сначала разберись с этими")
 	elif id == "tv":
 		tv()
+	elif id == "kiosk" and _kiosk_gate() >= 0:
+		use("gate%d" % _kiosk_gate())               # на позиции с вариантом ЛАРЁК окно — это вариант этапа
 	elif id == "kiosk":
 		if place == "run" and int(run.get("pos", 0)) < 2 and not bool(run.get("kiosk_full", false)):
 			game.toast("Окно закрыто: откроется позже")
