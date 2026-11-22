@@ -2520,6 +2520,28 @@ func _events_check(g, G: Golda67, P) -> void:
 	G.wave_wait = 999.0
 	await wait(0.5)
 	await _spawn_check(g, G, P)
+	# фасад: окна меняют состояние, вывески, тарелки, дым
+	var yd3 = G.world.yard
+	var tg0: int = yd3.win_toggles
+	for k in 40:
+		yd3.win_tick(1.5)                      # 60 с ускоренного времени
+	ok(yd3.win_toggles > tg0 and yd3.win_state.size() >= 12, "окна двора меняют состояние за 60 с (переключений %d из %d окон)" % [yd3.win_toggles - tg0, yd3.win_state.size()])
+	ok(yd3.sign_texts.has("ПРОДУКТЫ") and yd3.sign_texts.has("АПТЕКА") and yd3.sign_texts.has("РЕМОНТ ОБУВИ") and yd3.smoke_nodes.size() >= 3 and yd3.facade_nodes.size() >= 12, "на фасаде вывески, тарелки, кондиционеры, козырёк, дым (%d узлов, дым %d)" % [yd3.facade_nodes.size(), yd3.smoke_nodes.size()])
+	var fc := Camera3D.new()
+	fc.fov = 60.0
+	g.add_child(fc)
+	fc.global_position = Vector3(-6, 3.2, 20)
+	fc.look_at(Vector3(-8, 9, 35), Vector3.UP)
+	fc.make_current()
+	await wait(0.5)
+	await shot("facade_windows")
+	g.cam.make_current()
+	fc.queue_free()
+	var lf: Array = []
+	for l in yd3.lifes:
+		lf.append(String(l.rig.cur) if l.get("rig") != null else "?")
+	print("GOLDA67CHECK   жители и текущие позы: %s" % str(lf))
+	ok(yd3.lifes.size() >= 4 and lf.all(func(c): return c != "" and c != "?"), "у каждого жителя работает G67Life, поза задана (%s)" % str(lf))
 	# голуби: стайки по 4, взлетают при подходе и садятся в другом месте, не исчезая
 	var yd2 = G.world.yard
 	ok(yd2.flocks.size() == 3 and yd2.flocks.all(func(f): return (f["birds"] as Array).size() == 4), "во дворе три стайки голубей по четыре")

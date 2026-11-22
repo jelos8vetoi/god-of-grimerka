@@ -818,6 +818,7 @@ func _flocks() -> void:
 		flocks.append({"home": homes[hi], "birds": birds, "alt": homes[hi] + Vector3(rng.randf_range(-9.0, 9.0), 0, rng.randf_range(-3.0, 3.0)), "at_alt": false})
 
 func _process(_dt: float) -> void:
+	win_tick(_dt)
 	if hero == null or not is_instance_valid(hero):
 		return
 	var hp := hero.global_position
@@ -937,6 +938,163 @@ func _surface_detail() -> void:
 		var sc := Vector3(rng.randf_range(1.6, 3.2), rng.randf_range(0.22, 0.42), rng.randf_range(0.7, 1.2))
 		drifts.append(Transform3D(Basis(Vector3.UP, 0.0 if side == 0 else PI * 0.5).scaled(sc), pos + Vector3(0, 0.02, 0)))
 	_mm(sph, _alpha_mat(Color(0.93, 0.95, 1.0, 1.0), 0.95), drifts)
+
+## Фасад дома у подъезда: живые окна (тёплые, «телевизор», тёмные), тарелки, кондиционеры, вывески, козырёк, дым, пятна света на снегу
+var win_mm: MultiMeshInstance3D = null
+var win_state: Array = []      # на окно: {"kind": warm/tv/dark, "a": текущая яркость, "to": целевая, "ph": фаза}
+var win_toggles := 0
+var win_timer := 25.0
+var facade_nodes: Array = []
+var smoke_nodes: Array = []
+var sign_texts: Array = []
+
+func _facade_life() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3535
+	var fz := 35.05
+	var quad := BoxMesh.new()
+	quad.size = Vector3(0.7, 0.95, 0.02)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = quad
+	var xf: Array = []
+	win_state = []
+	for row in 3:
+		for col in 15:
+			var x := -30.0 + col * 3.6
+			if absf(x) < 4.0 or rng.randf() > 0.4:
+				continue                             # у дома свои светящиеся окна: поверх — только редкие «живые»
+			var kind := "warm" if rng.randf() < 0.4 else ("tv" if rng.randf() < 0.5 else "dark")
+			xf.append(Transform3D(Basis(), Vector3(x + rng.randf_range(-0.15, 0.15), 3.4 + row * 2.9, fz)))
+			win_state.append({"kind": kind, "a": 1.0 if kind != "dark" else 0.0, "to": 1.0 if kind != "dark" else 0.0, "ph": rng.randf() * TAU})
+	mm.instance_count = xf.size()
+	for i in xf.size():
+		mm.set_instance_transform(i, xf[i])
+		mm.set_instance_color(i, _win_col(win_state[i]))
+	var wm := StandardMaterial3D.new()
+	wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	wm.vertex_color_use_as_albedo = true
+	wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	wm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	win_mm = MultiMeshInstance3D.new()
+	win_mm.multimesh = mm
+	win_mm.material_override = wm
+	win_mm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(win_mm)
+	# мягкие тёплые пятна от окон на снегу под домом
+	var glow := BoxMesh.new()
+	glow.size = Vector3(1.0, 0.004, 1.0)
+	var gm := StandardMaterial3D.new()
+	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gm.albedo_color = Color(1.0, 0.7, 0.35, 0.10)
+	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	gm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	var gx: Array = []
+	for i in 9:
+		gx.append(Transform3D(Basis().scaled(Vector3(rng.randf_range(2.2, 3.4), 1, rng.randf_range(2.0, 3.2))), Vector3(-30.0 + i * 7.5, 0.05, 32.8)))
+	var gi := MultiMeshInstance3D.new()
+	var gmm := MultiMesh.new()
+	gmm.transform_format = MultiMesh.TRANSFORM_3D
+	gmm.mesh = glow
+	gmm.instance_count = gx.size()
+	for i in gx.size():
+		gmm.set_instance_transform(i, gx[i])
+	gi.multimesh = gmm
+	gi.material_override = gm
+	gi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(gi)
+	facade_nodes.append(gi)
+	# козырёк и лампа над дверью подъезда; тарелки и кондиционеры; застеклённые балконы другим оттенком
+	var metal := _flat(Color(0.45, 0.47, 0.5), 0.5)
+	var awn := _box(HOME_DOOR + Vector3(0, 3.1, 1.3), Vector3(3.2, 0.12, 1.8), _flat(Color(0.3, 0.2, 0.15), 0.8))
+	facade_nodes.append(awn)
+	for x in [-26.0, -9.0, 14.0, 31.0]:
+		var dish := MeshInstance3D.new()
+		var dm := CylinderMesh.new()
+		dm.top_radius = 0.45
+		dm.bottom_radius = 0.05
+		dm.height = 0.18
+		dish.mesh = dm
+		dish.material_override = metal
+		dish.rotation.x = PI * 0.5 + 0.4
+		dish.position = Vector3(x, 8.8 + rng.randf_range(-1.5, 1.5), 34.8)
+		add_child(dish)
+		facade_nodes.append(dish)
+	for x in [-31.0, -3.0, 20.0]:
+		var ac := _box(Vector3(x, 6.4 + rng.randf_range(-0.5, 0.5), 34.85), Vector3(0.8, 0.5, 0.35), _flat(Color(0.82, 0.82, 0.8), 0.7))
+		facade_nodes.append(ac)
+	var glass := _flat(Color(0.35, 0.55, 0.65, 0.55), 0.2)
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for x in [8.0, 11.5, 15.0]:
+		facade_nodes.append(_box(Vector3(x, 5.2, 34.55), Vector3(2.4, 1.1, 0.25), glass))
+	for sg in [["ПРОДУКТЫ", -22.0], ["АПТЕКА", 24.0], ["РЕМОНТ ОБУВИ", -34.0]]:
+		var lb := _sign(String(sg[0]), Vector3(float(sg[1]), 2.7, 35.0), PI, Color(0.9, 0.85, 0.7), 0.012, 56)
+		sign_texts.append(String(sg[0]))
+		facade_nodes.append(lb)
+	# дым из вентшахт на крыше и из трубы ларька
+	for sp in [Vector3(-18, 11.8, 33.5), Vector3(4, 11.8, 33.5), Vector3(15, 11.8, 33.5), KIOSK_POS + Vector3(0.6, 2.6, 0.4)]:
+		var pr := GPUParticles3D.new()
+		var pm := ParticleProcessMaterial.new()
+		pm.direction = Vector3(0.35, 1, 0)
+		pm.spread = 12.0
+		pm.initial_velocity_min = 0.6
+		pm.initial_velocity_max = 1.2
+		pm.gravity = Vector3(0.5, 0.15, 0)
+		pm.scale_min = 0.5
+		pm.scale_max = 1.2
+		pr.process_material = pm
+		var sm := SphereMesh.new()
+		sm.radius = 0.3
+		sm.height = 0.6
+		var smat := StandardMaterial3D.new()
+		smat.albedo_color = Color(0.75, 0.75, 0.8, 0.22)
+		smat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sm.material = smat
+		pr.draw_pass_1 = sm
+		pr.amount = 24
+		pr.lifetime = 6.0
+		pr.position = sp
+		pr.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(pr)
+		smoke_nodes.append(pr)
+
+func _win_col(w: Dictionary) -> Color:
+	var a: float = float(w["a"])
+	match String(w["kind"]):
+		"warm":
+			return Color(1.0, 0.72, 0.35, 0.5 * a)
+		"tv":
+			return Color(0.55, 0.7, 1.0, 0.42 * a)
+	return Color(1.0, 0.72, 0.35, 0.5 * a)
+
+## Окна: «телевизор» мерцает; раз в 20–40 с одно случайное окно плавно гаснет или загорается (0,5 с)
+func win_tick(dt: float) -> void:
+	if win_mm == null or win_state.is_empty():
+		return
+	var mm := win_mm.multimesh
+	for i in win_state.size():
+		var w: Dictionary = win_state[i]
+		var changed := false
+		if String(w["kind"]) == "tv" and float(w["to"]) > 0.0:
+			w["ph"] = float(w["ph"]) + dt * 1.7
+			w["a"] = 0.55 + 0.45 * sin(float(w["ph"])) * sin(float(w["ph"]) * 0.37 + 1.0)
+			changed = true
+		elif absf(float(w["a"]) - float(w["to"])) > 0.001:
+			w["a"] = move_toward(float(w["a"]), float(w["to"]), dt * 2.0)
+			changed = true
+		if changed and (i % 3 == int(Time.get_ticks_msec() / 100) % 3 or String(w["kind"]) != "tv"):
+			mm.set_instance_color(i, _win_col(w))
+	win_timer -= dt
+	if win_timer <= 0.0:
+		win_timer = randf_range(20.0, 40.0)
+		var k := randi() % win_state.size()
+		var w2: Dictionary = win_state[k]
+		w2["to"] = 0.0 if float(w2["to"]) > 0.5 else 1.0
+		if String(w2["kind"]) == "dark":
+			w2["kind"] = "warm"
+		win_toggles += 1
 
 ## Свет у подъезда и неровно мигающая лампа у гаражей
 func _door_lamps() -> void:
@@ -1177,6 +1335,7 @@ func _zone_sport() -> void:
 	_surface_detail()
 	_flocks()
 	_door_lamps()
+	_facade_life()
 	# мачты с прожекторами по углам — свет на лёд, длинные тени
 	for c in [Vector3(x0 - 0.9, 0, z0 - 0.9), Vector3(x1 + 0.9, 0, z0 - 0.9), Vector3(x0 - 0.9, 0, z1 + 0.9), Vector3(x1 + 0.9, 0, z1 + 0.9)]:
 		if _own("g67_floodlight_mast", c, atan2(2.0 - c.x, -38.0 - c.z), 8.6, "h", false) == null:
