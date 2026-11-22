@@ -10,7 +10,7 @@ extends G67Diorama
 const PLACES := [[130, 196, 330, 404, -0.035], [500, 214, 300, 250, 0.03], [520, 512, 330, 268, -0.02]]
 
 var notes: Array = []
-var big: Note
+var big: Info
 var reader: Control
 
 static func open(g67: Golda67) -> G67BoardUI:
@@ -37,6 +37,7 @@ func _build() -> void:
 		n.locked = flag != "" and not bool(fl.get(flag, false))
 		n.why = "Появится " + String(G67Data.FLAG_WHY.get(flag, "позже")) + "." if n.locked else ""
 		n.fresh = not n.locked and not read.has(i)
+		n.flag = flag
 		n.seed_v = 31 + i * 7
 		n.position = Vector2(p[0], p[1])
 		n.size = Vector2(p[2], p[3])
@@ -53,13 +54,13 @@ func _build() -> void:
 		tw.tween_property(n, "modulate:a", 1.0, 0.16).set_delay(0.06 * i)
 		tw.tween_property(n, "scale", Vector2.ONE, 0.2).set_delay(0.06 * i).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	# справа — выбранный листок крупно
-	big = Note.new()
-	big.position = Vector2(1110, 150)
-	big.size = Vector2(440, 560)
+	big = Info.new()
+	big.position = Vector2(1110, 196)
+	big.size = Vector2(440, 400)
 	big.pivot_offset = big.size * 0.5
 	big.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	big.large = true
 	stage.add_child(big)
+	esc_hint()
 	select(0, true)
 
 func _on_select(i: int, prev: int) -> void:
@@ -67,7 +68,7 @@ func _on_select(i: int, prev: int) -> void:
 		(notes[prev] as Note).lift(false)
 	var n: Note = notes[i]
 	n.lift(true)
-	big.copy_from(n)
+	big.show_note(n)
 	big.rotation = 0.02
 	big.modulate.a = 0.6
 	var tw := big.create_tween().set_parallel(true)
@@ -119,8 +120,7 @@ func _activate(i: int) -> void:
 		G.save()
 	n.fresh = false
 	n.queue_redraw()
-	big.fresh = false
-	big.queue_redraw()
+	big.show_note(n)
 	G.events.append(["board_read", i])
 
 func _back() -> bool:
@@ -145,10 +145,16 @@ class Wall extends Control:
 			draw_circle(Vector2(rng.randf_range(0, size.x), rng.randf_range(0, 540)), rng.randf_range(3, 18), Color(0.5, 0.5, 0.46, 0.18))
 		var fr := Rect2(Vector2(70, 70), Vector2(990, 790))
 		draw_rect(Rect2(fr.position + Vector2(8, 10), fr.size), Color(0, 0, 0, 0.45))
-		draw_rect(fr, Color(0.36, 0.22, 0.12))
+		draw_rect(fr, Color(0.3, 0.18, 0.1))
+		for k in 60:                                     # прожилки дерева на раме
+			var gy := rng.randf_range(fr.position.y, fr.end.y)
+			draw_line(Vector2(fr.position.x, gy), Vector2(fr.end.x, gy + rng.randf_range(-4, 4)), Color(0.18, 0.1, 0.05, 0.5), 1.0)
+		for k in 40:
+			var gx := rng.randf_range(fr.position.x, fr.end.x)
+			draw_line(Vector2(gx, fr.position.y), Vector2(gx + rng.randf_range(-3, 3), fr.end.y), Color(0.4, 0.26, 0.14, 0.25), 1.0)
 		var cork := fr.grow(-22)
 		draw_rect(cork, Color(0.6, 0.44, 0.27))
-		for k in 900:                                    # зерно пробки
+		for k in 2200:                                   # зерно пробки
 			var p := Vector2(rng.randf_range(cork.position.x, cork.end.x), rng.randf_range(cork.position.y, cork.end.y))
 			draw_rect(Rect2(p, Vector2(2, 2)), Color(0.42, 0.29, 0.16, 0.5) if k % 2 == 0 else Color(0.72, 0.55, 0.35, 0.4))
 		# надпись на раме
@@ -174,6 +180,36 @@ class Wall extends Control:
 			draw_circle(p, 5.0, Color(0.55, 0.12, 0.1))
 			draw_circle(p - Vector2(1.5, 1.5), 2.0, Color(0.9, 0.5, 0.45))
 
+## Справа: карточка «что это» — вид документа, статус и когда появился (текст листка не повторяет)
+class Info extends Control:
+	var kind := ""
+	var status := ""
+	var when := ""
+	var fresh := false
+	const KINDS := {"poster": "АФИША", "tariff": "ТАРИФНЫЙ ЛИСТ", "official": "ОБЪЯВЛЕНИЕ С ПЕЧАТЬЮ"}
+	func show_note(n) -> void:
+		kind = String(KINDS.get(n.look, "ЛИСТОК"))
+		fresh = n.fresh
+		if n.locked:
+			status = "ЕЩЁ НЕ ПОВЕСИЛИ"
+			when = n.why
+		else:
+			status = "НОВОЕ" if n.fresh else "ПРОЧИТАНО"
+			when = "Висит с начала турнира." if n.flag == "" else "Появилось " + String(G67Data.FLAG_WHY.get(n.flag, "позже")) + "."
+		queue_redraw()
+	func _draw() -> void:
+		var r := Rect2(Vector2.ZERO, size)
+		draw_rect(Rect2(r.position + Vector2(6, 8), r.size), Color(0, 0, 0, 0.4))
+		draw_rect(r, Color(0.15, 0.13, 0.11))
+		draw_rect(r, Color(0.5, 0.4, 0.28), false, 2.0)
+		for p in [Vector2(12, 12), Vector2(size.x - 12, 12), Vector2(12, size.y - 12), Vector2(size.x - 12, size.y - 12)]:
+			draw_circle(p, 4.0, Color(0.5, 0.46, 0.4))
+		draw_string(MGUI.font("caps"), Vector2(30, 52), "ЧТО ЭТО", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.7, 0.62, 0.5))
+		draw_multiline_string(MGUI.font("display"), Vector2(30, 100), kind, HORIZONTAL_ALIGNMENT_LEFT, size.x - 60, 34, -1, Color(0.94, 0.88, 0.74))
+		draw_string(MGUI.font("caps"), Vector2(30, 190), status, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.95, 0.5, 0.35) if fresh or status.begins_with("ЕЩЁ") else Color(0.6, 0.8, 0.55))
+		draw_multiline_string(MGUI.font("ui"), Vector2(30, 240), when, HORIZONTAL_ALIGNMENT_LEFT, size.x - 60, 19, -1, Color(0.82, 0.8, 0.72))
+		draw_multiline_string(MGUI.font("ui"), Vector2(30, size.y - 40), "Enter — снять и прочитать", HORIZONTAL_ALIGNMENT_LEFT, size.x - 60, 16, -1, Color(0.6, 0.58, 0.5))
+
 ## Листок: бумага своего вида, кнопка или скотч, текст из данных, сгиб, пятно, «НОВОЕ»; закрытый — заклеен
 class Note extends Control:
 	var text := ""
@@ -182,6 +218,7 @@ class Note extends Control:
 	var why := ""
 	var fresh := false
 	var large := false
+	var flag := ""
 	var seed_v := 1
 	var rot := 0.0
 	var sel := false
