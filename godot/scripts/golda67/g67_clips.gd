@@ -833,45 +833,106 @@ static func ad01(c: G67ClipPlayer) -> void:
 # ---------------------------------------------------------------- CL01 — «КАК ЗАЙТИ ВО ДВОР» (9:16)
 static func cl01(c: G67ClipPlayer) -> void:
 	_yard(c)
-	_phone_ui(c, "ОБЛАКО LIVE", "misha_minasyan_67", "12,4K")
+	var likes := _phone_ui(c, "ОБЛАКО LIVE", "misha_minasyan_67", "12,4K")
 	var gate := Vector3(2.0, 0.0, -27.0)
 	var start := gate + Vector3(0, 0, 4.2)
 	var m := c.actor("misha", "misha", start, PI)
 	c.anim("misha", "CStand", 0.0)
-	c.cam_at(start + Vector3(0.3, 1.5, -2.6), start + Vector3(0, 1.4, 0), 52.0)
-	await c.say(L("CL01", 0), 0.1)
-	# три шага в слоу-мо, камера облетает
-	c.anim("misha", "CWalk", 0.15, 0.4)
-	c.move("misha", gate + Vector3(0, 0, 0.9), 3.6)
-	c.cam_at(gate + Vector3(2.1, 1.5, 2.3), start + Vector3(0, 1.4, 0), 50.0)
-	c.cam_to(gate + Vector3(1.9, 1.4, 0.25), gate + Vector3(0, 1.4, 0.9), 3.6, 46.0)
-	for i in 3:
-		var st := c.plate("ШАГ %d" % (i + 1), "caption", 1.0)
-		await c.wait(1.2)
-	# четвёртый шаг — цепь за калитку: стоп-кадр на рывке
+	var hand := c.create_tween().set_loops()
+	hand.tween_callback(func(): c.shake(0.14))                              # съёмка с рук
+	hand.tween_interval(0.12)
+	G67Sound.play(c, "click")
+	# 1 — блогерское вступление в камеру: лицо целиком
+	var d0 := c.say_async(L("CL01", 0))
+	var mh := (_head(m) + Vector3(0, 0.15, 0))
+	c.cam_at(mh + Vector3(0.1, 0.0, -1.3), mh, 40.0)
+	c.cam_to(mh + Vector3(0.05, 0.0, -1.0), mh, d0 + 0.1, 34.0)
+	await c.wait(d0 * 0.6)
+	G67Clips.snap_req = "intro"
+	await c.wait(d0 * 0.4 + 0.1)
+	c.clear_sub()
+	# 2 — камера на объект: калитка во двор
+	G67Sound.play(c, "hit_cut")
+	likes.text = "ЛАЙКИ\n12,9K"
+	c.cam_at(start + Vector3(-0.8, 1.2, 1.0), gate + Vector3(0, 1.0, 0), 50.0)
+	c.cam_to(start + Vector3(-0.5, 1.2, -1.2), gate + Vector3(0, 1.0, 0), 1.3, 44.0)
+	c.anim("misha", "CWalk", 0.15, 0.45)
+	c.move("misha", gate + Vector3(0, 0, 1.7), 3.4)
+	var st := c.plate("ШАГ 1", "caption", 1.0)
+	await c.wait(1.3)
+	# 3 — шаги в слоу-мо сбоку, потом спереди
+	G67Sound.play(c, "click")
+	c.plate("ШАГ 2", "caption", 1.0)
+	c.cam_at(gate + Vector3(2.4, 1.3, 2.4), gate + Vector3(0, 1.3, 1.0), 48.0)
+	c.cam_to(gate + Vector3(2.0, 1.3, 1.0), gate + Vector3(0, 1.3, 0.9), 1.2, 42.0)
+	G67Sound.play(c, "tap")
+	await c.wait(1.2)
+	G67Sound.play(c, "click")
+	c.plate("ШАГ 3", "caption", 1.0)
+	c.cam_at(gate + Vector3(1.8, 1.4, 4.0), gate + Vector3(0, 1.3, 1.0), 46.0)
+	c.cam_to(gate + Vector3(1.4, 1.4, 2.8), gate + Vector3(0, 1.3, 0.9), 1.1, 40.0)
+	await c.wait(1.0)
+	# 4 — гэг: четвёртый шаг, цепь цепляется за калитку; деталь крупно, стоп-кадр, сердечки
+	G67Sound.play(c, "hit_cut")
 	c.chain(_chest(m), gate + Vector3(0.55, 1.1, 0.0), 3.2)
 	c.anim_once("misha", "CYank", 0.5)
 	c.sfx("sfx_parry", -1.0, 0.6)
-	c.shake(0.6)
-	await c.wait(0.35)
+	c.shake(0.7)
+	c.cam_at(gate + Vector3(1.5, 1.3, 2.3), gate + Vector3(0.3, 1.1, 0.6), 38.0)
+	likes.text = "ЛАЙКИ\n13,8K"
+	_hearts(c, 8)
+	G67Clips.snap_req = "gag"
+	await c.wait(0.4)
 	if m.player != null:
 		m.player.pause()
 	c.vhs(0.4, 0.4)
-	c.plate("СТОП-КАДР", "top", 1.0)
-	await c.wait(1.2)
+	c.plate("СТОП-КАДР", "top", 0.9)
+	await c.wait(0.9)
 	if m.player != null:
 		m.player.play()
+	# 5 — перебивка: лицо-реакция
+	G67Sound.play(c, "click")
 	c.anim("misha", "CStuck", 0.2)
 	await c.wait(0.05)
-	c.cam_at(_head(m) + Vector3(1.3, 0.15, -0.5), _head(m) + Vector3(0, 0.08, 0), 40.0)
-	await c.wait(0.6)
-	await c.say(L("CL01", 1), 0.2)
-	c.plate("SIGMA WALK: 67/100", "big", 1.8)
+	var rh := (_head(m) + Vector3(0, 0.15, 0))
+	c.cam_at(rh + Vector3(1.1, 0.1, -0.9), rh, 36.0)
+	c.cam_to(rh + Vector3(0.9, 0.08, -0.75), rh, 1.0, 30.0)
+	await c.wait(0.9)
+	# 6 — вторая попытка: дёргает и идёт дальше, общий план со стороны двора
+	G67Sound.play(c, "hit_cut")
+	c.anim_once("misha", "CYank", 0.5)
+	c.shake(0.5)
+	c.cam_at(gate + Vector3(-3.0, 1.6, 3.5), gate + Vector3(0, 1.1, 0.4), 46.0)
+	c.cam_to(gate + Vector3(-2.4, 1.5, 3.0), gate + Vector3(0, 1.1, 0.4), 2.0, 42.0)
+	await c.wait(2.0)
+	# 7 — финальная реплика в камеру
+	G67Sound.play(c, "click")
+	c.anim("misha", "CStuck", 0.2)
+	var fh := (_head(m) + Vector3(0, 0.15, 0))
+	c.cam_at(fh + Vector3(0.9, 0.1, -1.2), fh, 38.0)
+	c.cam_to(fh + Vector3(0.7, 0.08, -0.95), fh, 1.8, 32.0)
+	likes.text = "ЛАЙКИ\n14,6K"
+	_hearts(c, 6)
+	c.plate("SIGMA WALK: 67/100", "top", 1.6)
 	c.sfx("sfx_ui", -3.0, 1.2)
-	await c.wait(1.8)
+	var d1 := c.say_async(L("CL01", 1))
+	await c.wait(d1 * 0.5)
+	G67Clips.snap_req = "final"
+	await c.wait(d1 * 0.5 + 0.2)
+	c.clear_sub()
+	# 8 — обрыв записи
+	hand.kill()
+	c.vhs(1.0, 0.3)
+	G67Sound.play(c, "hit_cut")
+	c.screen(func(s: Control, fs: Vector2):
+		var r := ColorRect.new()
+		r.color = Color.BLACK
+		r.size = fs
+		s.add_child(r))
+	await c.wait(0.3)
 
 ## Интерфейс вертикального ролика «Облака»: сверху ник и прямой эфир, справа сердечко и счётчик
-static func _phone_ui(c: G67ClipPlayer, app: String, nick: String, views: String) -> void:
+static func _phone_ui(c: G67ClipPlayer, app: String, nick: String, views: String) -> Label:
 	c.plate("", "small", 0.0)
 	var fs := c.frame.size
 	var ui := Control.new()
@@ -889,6 +950,32 @@ static func _phone_ui(c: G67ClipPlayer, app: String, nick: String, views: String
 	var h := c._label(ui, "ЛАЙКИ\n" + views, int(fs.x * 0.05), Color(1, 0.35, 0.45))
 	h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	h.position = Vector2(fs.x * 0.84, fs.y * 0.45)
+	return h
+
+## Сердечки всплывают снизу справа
+static func _hearts(c: G67ClipPlayer, n: int) -> void:
+	var fs := c.frame.size
+	var hl := Control.new()
+	hl.size = fs
+	hl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.over.add_child(hl)
+	for i in n:
+		var d := ColorRect.new()
+		d.color = Color(1.0, 0.3, 0.45, 0.0)
+		var sz := fs.x * randf_range(0.03, 0.055)
+		d.size = Vector2(sz, sz)
+		d.pivot_offset = d.size * 0.5
+		d.rotation = PI * 0.25
+		d.position = Vector2(fs.x * randf_range(0.78, 0.92), fs.y * 0.82)
+		hl.add_child(d)
+		var tw := c.create_tween()
+		tw.tween_interval(randf() * 0.4)
+		tw.tween_property(d, "color:a", 1.0, 0.1)
+		tw.tween_property(d, "position:y", fs.y * randf_range(0.3, 0.55), randf_range(0.8, 1.3))
+		tw.parallel().tween_property(d, "color:a", 0.0, 1.1)
+	var kill := c.create_tween()
+	kill.tween_interval(2.2)
+	kill.tween_callback(hl.queue_free)
 
 # ---------------------------------------------------------------- NEWS01 — «РАЙОННЫЙ ВЕСТНИК 67», выпуск после Миши
 static func news01(c: G67ClipPlayer) -> void:
