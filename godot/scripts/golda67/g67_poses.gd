@@ -92,6 +92,7 @@ static func clips() -> Dictionary:
 	var bag := _mix({"rarm": {"x": -0.08, "z": 0.02}, "rfa": {"x": -0.3}}, W_L)
 	C["NWalk"] = _walk(1.15, _mix(R_DOWN, L_DOWN))
 	C["NWalkBag"] = _walk(1.25, _mix(bag, {"larm": {"x": -0.2, "z": 0.05}, "lfa": {"x": -0.9, "y": -1.2}, "spine": {"x": 0.08}}))
+	C["NSitBag"] = _loop(4.2, _mix(SIT, _mix(bag, {"larm": {"x": -0.2, "z": 0.05}, "lfa": {"x": -0.9, "y": -1.2}, "spine": {"x": 0.08}, "head": {"x": 0.05}})), BREATH)
 	C["NBag"] = _loop(4.2, _mix(bag, {"larm": {"x": -0.2, "z": 0.05}, "lfa": {"x": -0.9, "y": -1.2}, "spine": {"x": 0.1}, "head": {"x": 0.05}}), BREATH)
 	C["NBagRest"] = _loop(4.6, _mix(bag, _mix(L_DOWN, {"spine": {"x": 0.12}})), BREATH)
 	C["NScarf"] = _seq(3.0, _mix(bag, {"spine": {"x": 0.1}}), [[0.0, L_DOWN], [0.3, {"larm": {"x": -0.55, "z": 0.45}, "lfa": {"x": -2.05, "y": -0.8}, "head": {"z": -0.1}}], [0.7, {"larm": {"x": -0.55, "z": 0.45}, "lfa": {"x": -2.15, "y": -0.85}, "head": {"z": -0.12}}], [1.0, L_DOWN]], false)

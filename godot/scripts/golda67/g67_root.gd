@@ -179,6 +179,7 @@ func enter_hub() -> void:
 	_build_prompt()
 	_place_krot("hub")
 	_hub_marks()
+	world.build_hub_life()
 	refresh_hints()
 	events.append(["enter", "hub"])
 	await game.get_tree().process_frame
@@ -244,6 +245,7 @@ func _build_yard_world() -> void:
 	world.add_residents()
 	world.add_life_points()
 	ylife_get()
+	duos_get()
 	world.add_home()
 	world.build_event_props()
 	_place_krot_yard()
@@ -786,11 +788,52 @@ var phone: G67Phone = null
 
 var barks: G67Barks = null
 
+var duos: G67Duos = null
+
+func duos_get() -> G67Duos:
+	if world == null or world.yard == null:
+		return null
+	if duos == null or not is_instance_valid(duos) or duos.yard != world.yard:
+		if duos != null and is_instance_valid(duos):
+			duos.queue_free()
+		duos = G67Duos.make(self, world.yard)
+		add_child(duos)
+	return duos
+
 var ylife: G67YardLife = null
 
 var read_idx := {}
 
 ## Предметы и листки двора: реплика, звук, карточка; Пахан изредка комментирует
+var hub_t := {"strip": 60.0, "sil": 40.0, "tv": 4.0, "madk": 70.0}
+var hub_log: Array = []
+
+func _hub_life_tick(dt: float) -> void:
+	if world == null or world.hub_strip == null or not is_instance_valid(world.hub_strip):
+		return
+	for k in hub_t:
+		hub_t[k] = float(hub_t[k]) - dt
+	var hp: Vector3 = game.player.global_position
+	if float(hub_t["tv"]) <= 0.0:
+		hub_t["tv"] = 3.2
+		if Vector2(hp.x - 2.3, hp.z - (-6.0)).length() < 3.5:
+			G67Sound.play(self, "tv_muffled", Vector3(2.3, 2.6, -6.0), 1.0)
+	if float(hub_t["strip"]) <= 0.0:
+		hub_t["strip"] = randf_range(90.0, 180.0)
+		world.hub_strip.visible = true
+		G67Sound.play(self, "door_slam", Vector3(2.3, 2.5, -6.0), 0.5)
+		get_tree().create_timer(3.0).timeout.connect(func():
+			if is_instance_valid(world.hub_strip):
+				world.hub_strip.visible = false)
+		hub_log.append("door_chain")
+	if float(hub_t["sil"]) <= 0.0:
+		hub_t["sil"] = randf_range(50.0, 100.0)
+		world.hub_sil.visible = true
+		get_tree().create_timer(4.0).timeout.connect(func():
+			if is_instance_valid(world.hub_sil):
+				world.hub_sil.visible = false)
+		hub_log.append("window_silhouette")
+
 func _life_use(id: String) -> void:
 	var bk: G67Barks = barks_get()
 	var y = world.yard
@@ -799,6 +842,27 @@ func _life_use(id: String) -> void:
 	add_child(mk)
 	get_tree().create_timer(12.0).timeout.connect(mk.queue_free)
 	match id:
+		"hub_btn":
+			var hm := Node3D.new()
+			add_child(hm)
+			hm.global_position = Vector3(2.3, 2.6, -6.0)
+			get_tree().create_timer(10.0).timeout.connect(hm.queue_free)
+			get_tree().create_timer(2.0).timeout.connect(func():
+				match randi() % 3:
+					0:
+						G67Sound.play(self, "flush", Vector3(0, 4.5, -3.0), 1.0)
+					1:
+						for lt in world.get_children():
+							if lt is OmniLight3D:
+								var e0: float = (lt as OmniLight3D).light_energy
+								var tw := create_tween()
+								tw.tween_property(lt, "light_energy", 0.0, 0.06)
+								tw.tween_interval(0.5)
+								tw.tween_property(lt, "light_energy", e0, 0.1)
+								break
+					2:
+						bk.say(hm, "Z2|Я же просил.", {"force": true, "dur": 3.0})
+				get_tree().create_timer(1.5).timeout.connect(func(): bk.pahan_say("hub_btn", true)))
 		"intercom":
 			mk.global_position = Vector3(-1.3, 1.5, 35.0)
 			var seq: Array = G67LifeData.INTERCOM[randi() % 4]
@@ -829,7 +893,7 @@ func _life_use(id: String) -> void:
 			G67Sound.play(self, "vacuum", Vector3(-39.0, 0.6, 8.0), 1.0)
 			get_tree().create_timer(2.6).timeout.connect(func(): bk.pahan_say("puh", true))
 		_:
-			var gp: Dictionary = y.sign_groups.get(id.substr(5), {})
+			var gp: Dictionary = (y.sign_groups if y != null else {}).get(id.substr(5), world.hub_groups.get(id.substr(5), {}))
 			if gp.is_empty():
 				return
 			var cards: Array = gp["cards"]
@@ -1599,6 +1663,7 @@ func _button_scene(id: String) -> void:
 				if is_instance_valid(lf):
 					(lf as G67Life).react("RWow")
 			world.yard.crowd_react("phase")
+			world.yard.siren_look(sp)
 			var rl := OmniLight3D.new()
 			rl.light_color = Color(1.0, 0.1, 0.08)
 			rl.omni_range = 30.0
@@ -2998,6 +3063,8 @@ func music_context() -> Dictionary:
 func _physics_process(dt: float) -> void:
 	if game == null or world == null or not is_instance_valid(world):
 		return
+	if place == "hub" and not game.get_tree().paused:
+		_hub_life_tick(dt)
 	if game.get_tree().paused:
 		if prompt != null:
 			prompt.visible = false
@@ -3096,7 +3163,7 @@ func use(id: String) -> void:
 			open_screen("kiosk")
 		else:
 			game.toast("Сначала разберись с этими")
-	elif id == "intercom" or id == "g_radio" or id == "carpet" or id == "box" or id == "puh" or id.begins_with("read_"):
+	elif id == "hub_btn" or id == "intercom" or id == "g_radio" or id == "carpet" or id == "box" or id == "puh" or id.begins_with("read_"):
 		_life_use(id)
 	elif id.begins_with("talk_"):
 		var rr = world.yard.residents.get(id.substr(5)) if world.yard != null else null

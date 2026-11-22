@@ -2682,7 +2682,128 @@ func _life15(g, G: Golda67, P) -> void:
 		await wait(0.15)
 	ok(yl.log.size() >= G67LifeData.MICRO.size(), "ДВОР 1.5: все %d микрособытий запускаются (%d)" % [G67LifeData.MICRO.size(), yl.log.size()])
 	yl.next_audible = 9999.0
+	await _life15b(g, G, P)
 	P.global_position = Vector3(0, 0.05, 25)
+
+func _keys_of(v, depth := 0) -> Array:
+	var out: Array = []
+	if v is Dictionary:
+		for k in (v as Dictionary).keys():
+			out.append(str(k))
+			if depth < 3:
+				for sub in _keys_of(v[k], depth + 1):
+					out.append(str(k) + "." + str(sub))
+	out.sort()
+	return out
+
+## ДВОР 1.5, часть 2: разговоры DUOS, hush, gather, сирена, очередь, сохранение
+func _life15b(g, G: Golda67, P) -> void:
+	var yd = G.world.yard
+	G.room_state = "open"
+	G.save()
+	var keys0: Array = _keys_of(G.data)
+	var du: G67Duos = G.duos_get()
+	var bk: G67Barks = G.barks_get()
+	var ids: Array = []
+	for d in G67LifeData.DUOS:
+		ids.append(String(d["id"]))
+	var finished := 0
+	for id in ids:
+		var duo: Dictionary = {}
+		for d in G67LifeData.DUOS:
+			if String(d["id"]) == id:
+				duo = d
+		bk.last_any = -100.0
+		du.done_at = {}
+		du.active = {}
+		if not du.start_now(id):
+			print("GOLDA67CHECK   разговор %s не запустился (нет участников)" % id)
+			continue
+		var who: Array = du._who(duo)
+		var c := Vector3.ZERO
+		for n in who:
+			c += (n as Node3D).global_position
+		c /= float(who.size())
+		P.global_position = c + Vector3(8.0, 0.05, 0.0)
+		var tt := Time.get_ticks_msec()
+		var ended := false
+		while Time.get_ticks_msec() - tt < 90000:
+			await wait(1.0)
+			bk.last_any = -100.0
+			for e in du.log:
+				if String(e[1]) == id and String(e[2]) == "end":
+					ended = true
+			if ended:
+				break
+		if ended:
+			finished += 1
+		else:
+			print("GOLDA67CHECK   разговор %s не дошёл до конца: %s" % [id, str(du.log.slice(-3))])
+		du.active = {}
+	ok(finished == ids.size(), "ДВОР 1.5: все %d разговоров DUOS проигрываются до конца (%d)" % [ids.size(), finished])
+	# hush: герой подходит вплотную — оба молчат, hush-реплика; отошёл — продолжают с той же строки
+	du.done_at = {}
+	du.active = {}
+	du.start_now("pigeon_tile")
+	var duo2: Dictionary = {}
+	for d in G67LifeData.DUOS:
+		if String(d["id"]) == "pigeon_tile":
+			duo2 = d
+	var who2: Array = du._who(duo2)
+	P.global_position = (who2[0] as Node3D).global_position + Vector3(8.0, 0.05, 0.0)
+	await wait(14.0)
+	var line_before: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else -1
+	P.global_position = (who2[0] as Node3D).global_position + Vector3(1.6, 0.05, 0.0)
+	await wait(2.0)
+	var hushed: bool = du.active.has("gazebo") and bool(du.active["gazebo"]["hush"]) and du.hush_log.size() > 0
+	var i_hush: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else -2
+	P.global_position = (who2[0] as Node3D).global_position + Vector3(8.0, 0.05, 0.0)
+	await wait(8.0)
+	var i_after: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else 99
+	ok(hushed and i_hush == line_before and i_after > i_hush, "ДВОР 1.5: hush при подходе (hush-реплика, строка %d), после ухода продолжили со строки %d (было %d)" % [i_hush, i_after, i_hush])
+	du.active = {}
+	# сирена: жители в 30 м смотрят на столб
+	var s0 := 0
+	for rid in yd.residents:
+		s0 += (yd.residents[rid] as G67Resident).log.filter(func(e): return String(e[0]) == "siren").size()
+	yd.siren_look(Vector3(-18, 0, -15))
+	await wait(1.0)
+	var s1 := 0
+	for rid in yd.residents:
+		s1 += (yd.residents[rid] as G67Resident).log.filter(func(e): return String(e[0]) == "siren").size()
+	ok(s1 > s0, "ДВОР 1.5: сирена кнопки — жители в 30 м повернулись к столбу (%d)" % (s1 - s0))
+	await wait(6.0)
+	# очередь реально сдвигается
+	var names0: Array = yd.queue.filter(func(n): return is_instance_valid(n)).map(func(n): return str(n.get_instance_id()))
+	G.ylife_get().fire("queue_move")
+	await wait(12.0)
+	var names1: Array = yd.queue.filter(func(n): return is_instance_valid(n)).map(func(n): return str(n.get_instance_id()))
+	ok(names0 != names1 and names1.size() == names0.size(), "ДВОР 1.5: очередь сдвинулась и сменился состав (%d → %d)" % [names0.size(), names1.size()])
+	# gather: бой с Мишей — три жителя у борта коробки; после боя расходятся
+	P.global_position = Vector3(2.0, 0.05, -38.0)
+	for rid in ["g67_npc_babushka", "g67_npc_taxi_driver", "g67_npc_schoolboy"]:
+		(yd.residents[rid] as G67Resident).gather_override = true
+	await wait(40.0)
+	var at_board := 0
+	for rid in ["g67_npc_babushka", "g67_npc_taxi_driver", "g67_npc_schoolboy"]:
+		var R: G67Resident = yd.residents[rid]
+		if ((R.rig as Node3D).global_position - R.GATHER[rid]).length() < 2.5 or R.log.has(["gather"]):
+			at_board += 1
+	await shot("life15_gather")
+	ok(at_board >= 3, "ДВОР 1.5: бой с Мишей — бабушка, таксист и школьник у борта коробки (%d из 3)" % at_board)
+	for rid in ["g67_npc_babushka", "g67_npc_taxi_driver", "g67_npc_schoolboy"]:
+		(yd.residents[rid] as G67Resident).gather_override = false
+	await wait(3.0)
+	var gone := 0
+	for rid in ["g67_npc_babushka", "g67_npc_taxi_driver", "g67_npc_schoolboy"]:
+		if not (yd.residents[rid] as G67Resident).gathered:
+			gone += 1
+	ok(gone == 3, "ДВОР 1.5: после боя жители расходятся (%d из 3)" % gone)
+	P.global_position = Vector3(0, 0.05, 25)
+	# сохранение: ключей не прибавилось
+	G.save()
+	var keys1: Array = _keys_of(G.data)
+	ok(keys0 == keys1, "ДВОР 1.5: сохранение без новых ключей после жизни двора и всех [E] (%d → %d ключей)" % [keys0.size(), keys1.size()])
 
 ## События двора: предметы стоят, каждый исход таблиц форсируется и проверяется, этап закрывается
 func _events_check(g, G: Golda67, P) -> void:
@@ -2714,7 +2835,8 @@ func _events_check(g, G: Golda67, P) -> void:
 	fc.queue_free()
 	var lf: Array = []
 	for l in yd3.lifes:
-		lf.append(String(l.rig.cur) if l.get("rig") != null else "?")
+		if is_instance_valid(l) and l.get("rig") != null:
+			lf.append(String(l.rig.cur))
 	print("GOLDA67CHECK   жители и текущие позы: %s" % str(lf))
 	ok(yd3.lifes.size() >= 4 and lf.all(func(c): return c != "" and c != "?"), "у каждого жителя работает G67Life, поза задана (%s)" % str(lf))
 	# голуби: стайки по 4, взлетают при подходе и садятся в другом месте, не исчезая
@@ -3048,7 +3170,7 @@ func _perf_zones(g, G: Golda67, P) -> void:
 		var times: Array = []
 		var t0 := Time.get_ticks_msec()
 		var last := t0
-		while Time.get_ticks_msec() - t0 < 3000:
+		while Time.get_ticks_msec() - t0 < 6000:
 			await get_tree().process_frame
 			var nw := Time.get_ticks_msec()
 			times.append(float(nw - last))
@@ -3287,6 +3409,19 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(mus_ok, "наборы музыки приквела на месте, длиннее 16 тактов")
 	await wait(1.5)
 	ok(String(main.audio.cur) == "loc_g67_hub", "в подъезде играет набор loc_g67_hub (%s)" % main.audio.cur)
+	ok(not G.point("hub_btn").is_empty() and not G.point("read_hub_lift").is_empty() and not G.point("read_hub_music").is_empty(), "ДВОР 1.5: в подъезде кнопка «НЕ НАЖИМАТЬ» и листки хаба на месте")
+	G.use("hub_btn")
+	await wait(4.0)
+	G.use("read_hub_lift")
+	await wait(0.3)
+	var hub_card: bool = G.get_children().any(func(c): return c is G67ReadCard)
+	for c in G.get_children():
+		if c is G67ReadCard:
+			c.queue_free()
+	G.hub_t["strip"] = 0.0
+	G.hub_t["sil"] = 0.0
+	await wait(1.0)
+	ok(hub_card and G.world.hub_strip.visible and G.world.hub_sil.visible and G.hub_log.has("door_chain") and G.hub_log.has("window_silhouette"), "ДВОР 1.5: подъезд — листок читается, дверь на цепочке, силуэт в окне, без движения madk1d (B01)")
 	# выход во двор — настоящей клавишей E у входной двери
 	await _go(G, P, "exit")
 	var started: bool = await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)

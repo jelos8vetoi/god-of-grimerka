@@ -976,6 +976,97 @@ func add_residents() -> void:
 		var r: Node3D = yard.people[rid]
 		_point("talk_" + String(rid), String(names.get(rid, "ЖИТЕЛЬ")), "поговорить", r.position)
 
+## ---- Подъезд (хаб): кнопка «НЕ НАЖИМАТЬ», листки, дверь квартиры на цепочке, силуэт в окне, телевизор за дверью
+var hub_groups := {}
+var hub_strip: MeshInstance3D = null
+var hub_sil: Node3D = null
+
+func _hub_note(kind: String, text: String, pos: Vector3, yaw: float) -> void:
+	var root := Node3D.new()
+	root.position = pos
+	root.rotation.y = yaw
+	add_child(root)
+	var lb := Label3D.new()
+	lb.text = text
+	lb.font_size = 36
+	lb.pixel_size = 0.0036
+	lb.width = 420.0
+	lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lb.outline_size = 4
+	lb.shaded = false
+	lb.modulate = Color(0.06, 0.06, 0.08)
+	lb.outline_modulate = Color(0.95, 0.95, 0.92, 1)
+	lb.position = Vector3(0, 0, 0.014)
+	root.add_child(lb)
+	var q := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.62, 0.34)
+	q.mesh = qm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.94, 0.93, 0.88) if kind == "paper" else Color(0.62, 0.64, 0.68)
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	q.material_override = m
+	q.position = Vector3(0, 0, 0.004)
+	root.add_child(q)
+
+func build_hub_life() -> void:
+	var bx := -0.85
+	var bz := Z_BACK + 0.05
+	var disc := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.07
+	cm.bottom_radius = 0.07
+	cm.height = 0.03
+	disc.mesh = cm
+	var dm := StandardMaterial3D.new()
+	dm.albedo_color = Color(0.85, 0.1, 0.1)
+	dm.emission_enabled = true
+	dm.emission = Color(0.8, 0.05, 0.05)
+	disc.material_override = dm
+	disc.rotation.x = PI * 0.5
+	disc.position = Vector3(bx, LAND_Y + 1.15, bz + 0.02)
+	add_child(disc)
+	_hub_note("plate", "НЕ НАЖИМАТЬ, Я ПРОШУ", Vector3(bx, LAND_Y + 1.5, bz + 0.01), 0.0)
+	_point("hub_btn", "КНОПКА", "нажать", Vector3(bx, LAND_Y, Z_BACK + 1.0))
+	_hub_note("paper", "Лифта в доме нет. Просьба не вызывать.", Vector3(-HUB_X + 0.04, 1.6, 3.4), PI * 0.5)
+	hub_groups["hub_lift"] = {"pos": Vector3(-2.6, 0.0, 1.6), "title": "ЛИСТОК", "cards": [{"text": "Лифта в доме нет. Просьба не вызывать.", "sub": ""}]}
+	_hub_note("paper", "Сосед! Твоя музыка слышна в 2016-м. Сделай громче.", Vector3(-1.75, LAND_Y + 1.7, Z_BACK + 0.06), 0.0)
+	hub_groups["hub_music"] = {"pos": Vector3(-1.75, LAND_Y, Z_BACK + 1.0), "title": "ЛИСТОК", "cards": [{"text": "Сосед! Твоя музыка слышна в 2016-м. Сделай громче.", "sub": ""}]}
+	for cl in hub_groups:
+		_point("read_" + String(cl), "ЛИСТОК", "прочитать", hub_groups[cl]["pos"])
+	hub_strip = MeshInstance3D.new()
+	var sq := QuadMesh.new()
+	sq.size = Vector2(0.05, 1.9)
+	hub_strip.mesh = sq
+	var sm := StandardMaterial3D.new()
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.albedo_color = Color(1.0, 0.85, 0.5)
+	hub_strip.material_override = sm
+	hub_strip.position = Vector3(2.3 - 0.45, LAND_Y + 0.95, Z_BACK + 0.07)
+	hub_strip.visible = false
+	add_child(hub_strip)
+	hub_sil = Node3D.new()
+	hub_sil.position = Vector3(0.0, 3.1, Z_FRONT + 0.3)
+	var bd := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.5, 0.5, 0.05)
+	bd.mesh = bm
+	var bmat := StandardMaterial3D.new()
+	bmat.albedo_color = Color(0.02, 0.02, 0.03)
+	bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bd.material_override = bmat
+	hub_sil.add_child(bd)
+	var hd := MeshInstance3D.new()
+	var hm := SphereMesh.new()
+	hm.radius = 0.12
+	hm.height = 0.24
+	hd.mesh = hm
+	hd.material_override = bmat
+	hd.position = Vector3(0, 0.38, 0)
+	hub_sil.add_child(hd)
+	hub_sil.visible = false
+	add_child(hub_sil)
+
 ## Предметы жизни двора и листки: домофон, радио, ковровыбивалка, коробка, ПУХОСОС-8, группы листков (по [E])
 func add_life_points() -> void:
 	if yard == null:

@@ -20,7 +20,7 @@ const KINDS := {
 	"intercom_beep": [0.5, -8.0, "SFX", false], "radio_jingle": [1.6, -14.0, "SFX", false], "crash": [0.9, -4.0, "SFX", false],
 	"snow_slide": [1.1, -7.0, "SFX", false], "lamp_crackle": [0.5, -9.0, "SFX", false], "car_alarm": [3.0, -10.0, "SFX", false],
 	"counter_click": [0.12, -10.0, "SFX", false], "swing_creak": [1.2, -16.0, "SFX", false], "carpet_beat": [0.5, -5.0, "SFX", false],
-	"cough": [0.6, -9.0, "SFX", false], "door_slam": [0.6, -4.0, "SFX", false], "vacuum": [2.0, -9.0, "SFX", false],
+	"cough": [0.6, -9.0, "SFX", false], "tv_muffled": [3.0, -16.0, "SFX", false], "flush": [2.4, -9.0, "SFX", false], "door_slam": [0.6, -4.0, "SFX", false], "vacuum": [2.0, -9.0, "SFX", false],
 	"mic_move": [0.5, -8.0, "SFX", false], "tap": [0.1, -9.0, "SFX", false], "loop_studio": [5.0, -30.0, "Ambient", true],
 	"loop_hub": [6.0, -26.0, "Ambient", true], "loop_dvor": [8.0, -24.0, "Ambient", true],
 }
@@ -88,6 +88,8 @@ static func stream(kind: String) -> AudioStreamWAV:
 			"counter_click": x = noise * exp(-t * 140.0) * 0.8 + sin(TAU * 2000.0 * t) * exp(-t * 90.0) * 0.3
 			"swing_creak": x = sin(TAU * (520.0 + 120.0 * sin(TAU * 3.0 * t)) * t) * 0.18 * sin(PI * u) + lp * 0.05
 			"carpet_beat": x = sin(TAU * 90.0 * t) * exp(-t * 14.0) * 0.8 + lp * exp(-t * 10.0) * 0.5
+			"tv_muffled": x = lp * 0.5 * (0.6 + 0.4 * sin(TAU * 3.0 * t)) + sin(TAU * 180.0 * t) * 0.08 * sin(TAU * 0.7 * t)
+			"flush": x = lp * sin(PI * u) * 0.7 + sin(TAU * 70.0 * t) * 0.2 * sin(PI * u) + lp2 * 3.0 * exp(-pow((u - 0.7) * 4.0, 2.0))
 			"cough": x = lp * (exp(-pow((t - 0.12) * 18.0, 2.0)) + exp(-pow((t - 0.32) * 18.0, 2.0))) * 0.8
 			"door_slam": x = sin(TAU * 110.0 * t) * exp(-t * 16.0) * 0.8 + noise * exp(-t * 40.0) * 0.5
 			"vacuum": x = (lp * 0.5 + sin(TAU * (90.0 + 80.0 * sin(PI * u)) * t) * 0.5) * exp(-pow((u - 0.45) * 2.5, 2.0)) * 0.7

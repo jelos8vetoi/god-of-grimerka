@@ -29,6 +29,15 @@ var log: Array = []                 # события для проверок
 var rng := RandomNumberGenerator.new()
 var stuck_t := 0.0
 var last_pos := Vector3.ZERO
+var gathered := false
+var gather_override := false
+var look_t := 0.0
+var shoo_t := 60.0
+var filming := false
+var react_t := 6.0
+const GATHER := {
+	"g67_npc_babushka": Vector3(-13.8, 0.0, -32.5), "g67_npc_taxi_driver": Vector3(-13.8, 0.0, -39.5), "g67_npc_schoolboy": Vector3(-13.8, 0.0, -42.5),
+}
 
 static func attach(yd, r: Rig, lf: G67Life, bd: StaticBody3D, rid: String, pl: Array, seed_v: int) -> G67Resident:
 	var R := G67Resident.new()
@@ -86,6 +95,13 @@ func _physics_process(dt: float) -> void:
 	if not tp.is_empty():
 		tp["pos"] = rig.global_position
 	var dist: float = rig.global_position.distance_to(h.global_position)
+	if (g.room_state == "boss" or gather_override) and GATHER.has(id):
+		_gather_tick(dt, g, h)               # к борту приходят из любого места двора
+		return
+	if gathered and not (g.room_state == "boss" or gather_override):
+		gathered = false
+		state = "stay"
+		_go(cur, 1.4)
 	if dist > FAR:
 		return
 	near_cd = maxf(0.0, near_cd - dt)
@@ -102,6 +118,16 @@ func _physics_process(dt: float) -> void:
 		_go(cur, 0.0)
 	if g.room_state == "boss":
 		return
+	elif gathered:
+		gathered = false
+		state = "stay"
+		_go(cur, 1.2)
+	if look_t > 0.0:
+		look_t -= dt
+		if look_t <= 0.0 and life != null:
+			life.resume()
+			life.watcher = h
+		return
 	match state:
 		"stay":
 			if life != null:
@@ -113,17 +139,94 @@ func _physics_process(dt: float) -> void:
 			yield_t -= dt
 			if h.global_position.distance_to(rig.global_position) > 1.6 or yield_t <= 0.0:
 				state = "walk"
+				if life != null:
+					life.stage("NWalkBag" if String(life.base) == "NBag" else "NWalk", 0.3)
+			elif yield_t < 3.5 and not path.is_empty():
+				var dirp: Vector3 = (path[0] as Vector3) - rig.position
+				dirp.y = 0.0
+				var side := Vector3(-dirp.z, 0, dirp.x).normalized()
+				var rel2 := h.global_position - rig.position
+				if side.dot(rel2) > 0.0:
+					side = -side
+				var wp: Vector3 = rig.position + side * 1.4 + dirp.normalized() * 1.2
+				if _clear(rig.position, wp):
+					path.push_front(wp)
+					log.append(["sidestep"])
+				state = "walk"
+				if life != null:
+					life.stage("NWalkBag" if String(life.base) == "NBag" else "NWalk", 0.3)
 		"act":
 			act_t -= dt
 			if act_t <= 0.0:
 				_end_act()
+
+## Бой с Мишей: бабушка, таксист и школьник приходят к борту коробки снаружи и смотрят
+func _gather_tick(dt: float, g, h: Node3D) -> void:
+	if not GATHER.has(id) or not bool(G67LifeData.REACT["boss_gather"]):
+		return
+	if not gathered:
+		gathered = true
+		var pt: Vector3 = GATHER[id]
+		if _clear(rig.position, pt):
+			path = [pt]
+			state = "walk"
+			speed = 2.4
+			rig.visible = true
+			if life != null:
+				life.stage("NWalkBag" if String(life.base) == "NBag" else "NWalk", 0.3)
+		else:
+			rig.position = pt                       # путь перекрыт — выходит из-за угла сразу к борту
+			rig.rotation.y = -PI * 0.5
+			state = "stay"
+		log.append(["gather"])
+	if state == "walk":
+		_walk_tick(dt, h)
+		if state == "stay" and life != null:
+			life.stage("Idle", 0.3)
+		return
+	var arena: Vector3 = g.game.arena_c
+	var to := Vector3(arena.x - rig.position.x, 0, arena.z - rig.position.z)
+	rig.rotation.y = lerp_angle(rig.rotation.y, atan2(to.x, to.z), 1.0 - exp(-4.0 * dt))
+	react_t -= dt
+	if react_t <= 0.0 and life != null:
+		react_t = rng.randf_range(5.0, 9.0)
+		life.react(["RWow", "RLean", "RYes"][rng.randi() % 3])
+
+## Сирена кнопки: смотрит на столб look_t секунд, реплика
+func siren(pos: Vector3, say_it: bool) -> void:
+	var g = _g()
+	if g == null or state not in ["stay", "act"]:
+		return
+	look_t = float(G67LifeData.REACT["siren_look"])
+	var to := Vector3(pos.x - rig.global_position.x, 0, pos.z - rig.global_position.z)
+	create_tween().tween_property(rig, "rotation:y", atan2(to.x, to.z), 0.5)
+	if life != null:
+		life.stage("Idle", 0.3)
+	log.append(["siren"])
+	if say_it:
+		var bk: G67Barks = g.barks_get()
+		bk.say(rig, bk.pick(id + "_siren", G67LifeData.BARKS[id]["siren"]), {"force": true})
 
 func _stay_tick(dt: float, dist: float, h: Node3D, g) -> void:
 	if g.room_state == "fight" or _busy_scene():
 		return
 	next_move -= dt
 	idle_t -= dt
+	shoo_t -= dt
 	var bk: G67Barks = g.barks_get()
+	if id == "g67_npc_babushka" and shoo_t <= 0.0:
+		shoo_t = rng.randf_range(70.0, 130.0)
+		if not yard.nearest_flock(rig.global_position).is_empty():
+			var fl: Dictionary = yard.nearest_flock(rig.global_position)
+			var fb: Vector3 = fl["alt"] if bool(fl["at_alt"]) else fl["home"]
+			if Vector2(fb.x - rig.global_position.x, fb.z - rig.global_position.z).length() < 14.0:
+				if life != null:
+					life.stage("NPoint", 0.3)
+				state = "act"
+				act_t = 2.2
+				yard.scare(fb, 3.0)
+				log.append(["act", "shoo"])
+				return
 	if dist < 2.5 and near_cd <= 0.0:
 		near_cd = 25.0
 		bk.say(rig, bk.pick(id + "_near", G67LifeData.BARKS[id]["near"]))
@@ -162,6 +265,27 @@ func _go(k: int, spd: float) -> void:
 
 func _start_flee(arena: Vector3, g) -> void:
 	flee_from = true
+	if id == "g67_npc_schoolboy":
+		var toward := Vector3(rig.global_position.x - arena.x, 0.0, rig.global_position.z - arena.z)
+		var near_enemy := false
+		for e in g.game.enemies:
+			if is_instance_valid(e) and e.state != "dead" and (e as Node3D).global_position.distance_to(rig.global_position) < 5.0:
+				near_enemy = true
+		if toward.length() < 0.5:
+			toward = Vector3(1, 0, 0)
+		var spot := Vector3(arena.x, 0.0, arena.z) + toward.normalized() * (10.0 if not near_enemy else 18.0)
+		spot.y = rig.position.y
+		if _clear(rig.position, spot):
+			path = [spot]
+			state = "flee"
+			speed = 1.9
+			filming = not near_enemy
+			if life != null:
+				life.stage("NWalk", 0.3)
+			var bk0: G67Barks = g.barks_get()
+			bk0.say(rig, bk0.pick(id + "_fight", G67LifeData.BARKS[id]["fight"]), {"fight": true})
+			log.append(["flee"])
+			return
 	var away := Vector3(rig.global_position.x - arena.x, 0.0, rig.global_position.z - arena.z)
 	if away.length() < 0.5:
 		away = Vector3(1, 0, 0)
@@ -220,7 +344,13 @@ func _arrive() -> void:
 	if state == "flee":
 		state = "stay"
 		if life != null:
-			life.stage("Idle", 0.3)
+			if filming:
+				life.base = "NFilm"
+				life.alts = []
+				life.resume()
+				log.append(["film"])
+			else:
+				life.stage("Idle", 0.3)
 			life.watcher = _hero()
 		return
 	cur = dest

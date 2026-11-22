@@ -132,15 +132,9 @@ func fire(id: String) -> void:
 		"window_light":
 			yard.win_timer = 0.0
 		"window_shout":
-			var pos := Vector3(clampf(hp.x, -30.0, 30.0), 8.0, 35.0)
-			G67Sound.play(self, "door_slam", pos, 1.6)
-			_say_at(pos, bk.pick("window", G67LifeData.WINDOW_SHOUTS))
+			_window_shout()
 		"window_shape":
-			var wins: Array = yard.win_state
-			for w in wins:
-				if String(w["kind"]) == "warm" and float(w["to"]) > 0.5:
-					w["a"] = 0.25
-					break
+			_window_shape()
 		"car_alarm":
 			G67Sound.play(self, "car_alarm", PLACE[id], 1.0)
 			yard.scare(PLACE[id], 14.0)
@@ -148,21 +142,22 @@ func fire(id: String) -> void:
 			if tx != null:
 				bk.say(tx.rig, bk.pick("tx_siren", G67LifeData.BARKS["g67_npc_taxi_driver"]["siren"]))
 		"old_car_lights":
-			var l := OmniLight3D.new()
-			yard.add_child(l)
-			l.position = PLACE[id]
-			l.light_color = Color(1.0, 0.95, 0.8)
-			l.light_energy = 3.0
-			l.omni_range = 7.0
-			golda.get_tree().create_timer(2.0).timeout.connect(l.queue_free)
+			for sx in [-0.8, 0.8]:                                    # фары у фургона у гаражей (−38,6; 14,0)
+				var l := OmniLight3D.new()
+				yard.add_child(l)
+				l.position = Vector3(-37.2, 0.7, 14.0 + sx * 1.1)
+				l.light_color = Color(1.0, 0.95, 0.8)
+				l.light_energy = 3.5
+				l.omni_range = 6.0
+				golda.get_tree().create_timer(2.0).timeout.connect(l.queue_free)
 			if rng.randf() < 0.4:
 				bk.pahan_say("car_lights")
 		"garage_crash":
-			G67Sound.play(self, "crash", PLACE[id], 1.0)
+			G67Sound.play(self, "crash", Vector3(-43.4, 1.0, 13.0), 1.0)           # закрытый гараж № 3
 			var us = _resident("g67_npc_ushanka")
 			if us != null:
 				var r: Node3D = us.rig
-				var to: Vector3 = PLACE["garage_crash"] - r.global_position
+				var to: Vector3 = Vector3(-43.4, 1.0, -6.0) - r.global_position       # смотрит на гараж № 8
 				var tw := create_tween()
 				tw.tween_property(r, "rotation:y", atan2(to.x, to.z), 0.4)
 				tw.tween_interval(2.0)
@@ -242,7 +237,12 @@ func fire(id: String) -> void:
 			if not musya_done:
 				musya_done = true
 				_say_at(PLACE[id], "Z2|Муся, это ты?")
-				golda.get_tree().create_timer(5.0).timeout.connect(func(): bk.pahan_say("musya", true))
+				golda.get_tree().create_timer(5.0).timeout.connect(func():
+					bk.pahan_say("musya", true)
+					var pg := G67Models.spawn("g67_pigeon", yard, Vector3(-46.5, 0.05, 3.0), 1.2, Vector3(0.35, 0.35, 0.35))
+					var gpm := G67Pigeon.attach(pg, 777)
+					gpm.feed(Vector3(-44.3, 0.05, 6.0))
+					golda.get_tree().create_timer(14.0).timeout.connect(pg.queue_free))
 		"filyai":
 			G67Sound.play(self, "radio_jingle", PLACE[id], 2.0)
 			for rid in ["g67_npc_ushanka", "g67_npc_schoolboy"]:
@@ -262,9 +262,199 @@ func fire(id: String) -> void:
 		"kiosk_shout":
 			G67Sound.play(self, "cough", PLACE[id], 1.0)
 			_say_at(PLACE[id], bk.pick("kiosk", G67LifeData.KIOSK_SHOUTS))
-		"queue_move", "counter_67":
-			if id == "counter_67":
-				G67Sound.play(self, "counter_click", PLACE[id], 1.0)
+		"queue_move":
+			_queue_move()
+		"counter_67":
+			var cl := _counter_node()
+			G67Sound.play(self, "counter_click", PLACE[id], 1.0)
+			if cl != null:
+				var tw7 := create_tween()
+				tw7.tween_callback(func():
+					if is_instance_valid(cl):
+						cl.text = "7")
+				tw7.tween_interval(0.5)
+				tw7.tween_callback(func():
+					if is_instance_valid(cl):
+						cl.text = "6"
+					G67Sound.play(self, "counter_click", PLACE[id], 1.0))
+
+## Окно на фасаде: тёплое стекло, свет и (при flap) створка на петле слева
+func _window_prop(x: float, flap: bool) -> Dictionary:
+	var root := Node3D.new()
+	root.position = Vector3(x, 8.0, 34.82)
+	yard.add_child(root)
+	var glow := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.9, 1.2)
+	glow.mesh = qm
+	var gm := StandardMaterial3D.new()
+	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gm.albedo_color = Color(1.0, 0.78, 0.45)
+	glow.material_override = gm
+	glow.rotation.y = PI
+	root.add_child(glow)
+	var lt := OmniLight3D.new()
+	lt.light_color = Color(1.0, 0.78, 0.45)
+	lt.light_energy = 1.4
+	lt.omni_range = 7.0
+	lt.position = Vector3(0, 0, -0.8)
+	root.add_child(lt)
+	var pivot := Node3D.new()
+	pivot.position = Vector3(-0.45, 0, -0.03)
+	root.add_child(pivot)
+	if flap:
+		var fm := MeshInstance3D.new()
+		var fq := QuadMesh.new()
+		fq.size = Vector2(0.9, 1.2)
+		fm.mesh = fq
+		var fmat := StandardMaterial3D.new()
+		fmat.albedo_color = Color(0.25, 0.2, 0.17)
+		fmat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		fm.material_override = fmat
+		fm.position = Vector3(0.45, 0, 0)
+		pivot.add_child(fm)
+	golda.get_tree().create_timer(9.0).timeout.connect(root.queue_free)
+	return {"root": root, "pivot": pivot, "glow": glow}
+
+func _window_shout() -> void:
+	var hp: Vector3 = _hero().global_position
+	var x := clampf(hp.x + rng.randf_range(-4.0, 4.0), -30.0, 30.0)
+	var w := _window_prop(x, true)
+	var pv: Node3D = w["pivot"]
+	var pos := Vector3(x, 8.0, 34.5)
+	var tw := create_tween()
+	tw.tween_property(pv, "rotation:y", 1.5, 0.4)
+	G67Sound.play(self, "door_slam", pos, 1.6)
+	var bk: G67Barks = golda.barks_get()
+	get_tree().create_timer(0.5).timeout.connect(func(): bk.say(_marker(pos, 5.0), bk.pick("window", G67LifeData.WINDOW_SHOUTS), {"force": true, "dur": 4.0}))
+	get_tree().create_timer(4.2).timeout.connect(func():
+		if is_instance_valid(pv):
+			create_tween().tween_property(pv, "rotation:y", 0.0, 0.25)
+			G67Sound.play(self, "door_slam", pos, 1.6))
+
+func _window_shape() -> void:
+	var hp: Vector3 = _hero().global_position
+	var x := clampf(hp.x + rng.randf_range(-6.0, 6.0), -30.0, 30.0)
+	var w := _window_prop(x, false)
+	var root: Node3D = w["root"]
+	var sil := Node3D.new()
+	sil.position = Vector3(0.3, -0.15, -0.06)
+	root.add_child(sil)
+	var dm := StandardMaterial3D.new()
+	dm.albedo_color = Color(0.03, 0.03, 0.04)
+	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var body := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.55, 0.5, 0.05)
+	body.mesh = bm
+	body.material_override = dm
+	body.position = Vector3(0, -0.2, 0)
+	sil.add_child(body)
+	var head := MeshInstance3D.new()
+	var hm := SphereMesh.new()
+	hm.radius = 0.13
+	hm.height = 0.26
+	head.mesh = hm
+	head.material_override = dm
+	head.position = Vector3(0, 0.15, 0)
+	sil.add_child(head)
+	var tw := create_tween()
+	tw.tween_property(sil, "position:x", 0.0, 0.8)
+	tw.tween_interval(rng.randf_range(4.0, 6.0))
+	tw.tween_property(sil, "position:x", -0.7, 1.0)
+	tw.tween_callback(root.queue_free)
+
+## Идёт пешком к точке, потом делает then
+func _walk_to(r: Node3D, to: Vector3, spd: float, then := Callable()) -> void:
+	var lf = r.get_meta("life") if r.has_meta("life") else null
+	if lf != null:
+		lf.stage("NWalk", 0.3)
+	var d := Vector3(to.x - r.position.x, 0.0, to.z - r.position.z)
+	var dur: float = maxf(0.3, d.length() / spd)
+	r.rotation.y = atan2(d.x, d.z)
+	var tw := create_tween()
+	tw.tween_property(r, "position", Vector3(to.x, r.position.y, to.z), dur)
+	tw.tween_callback(func():
+		if is_instance_valid(r) and lf != null and is_instance_valid(lf):
+			lf.resume()
+		if then.is_valid():
+			then.call())
+
+func _queue_move() -> void:
+	var q: Array = yard.queue.filter(func(n): return is_instance_valid(n))
+	if q.size() < 3:
+		return
+	var eater: Node3D = null
+	for n in q:
+		if String(n.name) == "queue_eater":
+			eater = n
+	var line: Array = q.filter(func(n): return String(n.name) != "queue_eater")
+	var spots: Array = G67Yard.QUEUE_SPOTS
+	while line.size() > spots.size():
+		var extra: Node3D = line.pop_back()
+		extra.queue_free()
+	var first: Node3D = line[0]
+	var eat_pos: Vector3 = G67Yard.EATER["pos"]
+	if eater != null:
+		_walk_to(eater, eater.position + Vector3(9.0, 0.0, 7.0), 1.1, func():
+			if is_instance_valid(eater):
+				eater.queue_free())
+		yard.queue.erase(eater)
+	_walk_to(first, eat_pos, 1.1, func():
+		if is_instance_valid(first):
+			first.rotation.y = float(G67Yard.EATER["yaw"])
+			first.name = "queue_eater"
+			var lf = first.get_meta("life") if first.has_meta("life") else null
+			if lf != null:
+				lf.base = String(G67Yard.EATER["base"])
+				lf.alts = G67Yard.EATER.get("alts", [])
+				lf.resume())
+	for i in range(1, line.size()):
+		var nd: Node3D = line[i]
+		var sp: Vector3 = spots[i - 1]
+		_walk_to(nd, sp, 0.9, func():
+			if is_instance_valid(nd):
+				nd.rotation.y = PI * 0.5)
+		nd.name = "queue%d" % (i - 1)
+	var newp: Dictionary = G67Yard.QUEUE_PEOPLE[rng.randi() % G67Yard.QUEUE_PEOPLE.size()]
+	var last: int = spots.size() - 1
+	var fresh: Rig = yard._person(String(newp["path"]), String(newp["key"]), float(newp["h"]), (spots[last] as Vector3) + Vector3(5.0, 0.0, 3.0), PI * 0.5, G67Yard.QUEUE_ROLES[last % G67Yard.QUEUE_ROLES.size()], rng.randi())
+	fresh.name = "queue%d" % last
+	_walk_to(fresh, spots[last], 1.0, func():
+		if is_instance_valid(fresh):
+			fresh.rotation.y = PI * 0.5)
+	yard.queue = line.slice(1)
+	yard.queue.append(fresh)
+	if first != null:
+		yard.queue.append(first)
+
+var counter_lb: Label3D = null
+
+func _counter_node() -> Label3D:
+	if counter_lb != null and is_instance_valid(counter_lb):
+		return counter_lb
+	var bn: Dictionary = golda.world.ev_nodes.get("burm", {})
+	if bn.is_empty():
+		return null
+	var root: Node3D = bn["root"]
+	var box := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.22, 0.12, 0.03)
+	box.mesh = bm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.03, 0.03, 0.04)
+	box.material_override = m
+	box.position = Vector3(0.3, 0.9, 0.42)
+	root.add_child(box)
+	counter_lb = Label3D.new()
+	counter_lb.text = "6"
+	counter_lb.font_size = 48
+	counter_lb.pixel_size = 0.0034
+	counter_lb.modulate = Color(0.4, 1.0, 0.5)
+	counter_lb.shaded = false
+	counter_lb.position = Vector3(0.3, 0.9, 0.445)
+	root.add_child(counter_lb)
+	return counter_lb
 
 func _snow_puff(pos: Vector3) -> void:
 	var pr := GPUParticles3D.new()
@@ -300,18 +490,52 @@ const ROUTES := [
 	[Vector3(-12, 0, 33), Vector3(-14, 0, 24), Vector3(-20, 0, -10), Vector3(-24, 0, -28)],
 ]
 
-func _spawn_walker() -> void:
-	if walkers.size() >= 1:
-		return
+func _make_walker(start: Vector3, pts: Array, hold: bool) -> Rig:
 	var who: Dictionary = G67Yard.QUEUE_PEOPLE[rng.randi() % G67Yard.QUEUE_PEOPLE.size()]
-	var route: Array = ROUTES[rng.randi() % ROUTES.size()]
-	var r: Rig = yard._person(String(who["path"]), "walker", float(who["h"]), route[0], 0.0, {"base": "NWalk", "alts": []}, rng.randi())
+	var r: Rig = yard._person(String(who["path"]), "walker", float(who["h"]), start, 0.0, {"base": "NWalk", "alts": []}, rng.randi())
 	var life: G67Life = r.get_meta("life")
 	if life != null:
 		life.stage("NWalkBag", 0.1)
+	walkers.append({"rig": r, "path": pts, "wait": 0.0, "hold": hold})
+	return r
+
+func _spawn_walker() -> void:
+	if walkers.size() >= 1:
+		return
+	var route: Array = ROUTES[rng.randi() % ROUTES.size()]
 	var pts: Array = route.duplicate()
-	pts.pop_front()
-	walkers.append({"rig": r, "path": pts, "wait": 0.0})
+	var st: Vector3 = pts.pop_front()
+	_make_walker(st, pts, false)
+
+## Прохожий для разговора: подходит к другому участнику и останавливается (роль walker в DUOS)
+var duo_walkers := {}
+
+func walker_for(duo: Dictionary) -> Node3D:
+	var id := String(duo["id"])
+	if duo_walkers.has(id) and is_instance_valid(duo_walkers[id]):
+		return duo_walkers[id]
+	var tgt = null
+	for w in duo["who"]:
+		if yard.residents.has(String(w)):
+			tgt = yard.residents[String(w)].rig
+	if tgt == null:
+		return null
+	var stop: Vector3 = (tgt as Node3D).global_position + Vector3(1.3, 0, 1.0)
+	var r := _make_walker(stop + Vector3(7.0, 0, 5.0), [stop], true)
+	r.rotation.y = 0.0
+	duo_walkers[id] = r
+	return r
+
+func release_walker(duo: Dictionary) -> void:
+	var id := String(duo["id"])
+	if not duo_walkers.has(id):
+		return
+	var r = duo_walkers[id]
+	duo_walkers.erase(id)
+	for w in walkers:
+		if w["rig"] == r:
+			w["hold"] = false
+			(w["path"] as Array).append((r as Node3D).position + Vector3(-9.0, 0, 6.0))
 
 func _walkers_tick(dt: float) -> void:
 	for w in walkers.duplicate():
@@ -321,6 +545,13 @@ func _walkers_tick(dt: float) -> void:
 			continue
 		var path: Array = w["path"]
 		if path.is_empty():
+			if bool(w.get("hold", false)):
+				var lh: G67Life = r.get_meta("life") if r.has_meta("life") else null
+				if lh != null and lh.cur != "NTalk" and lh.paused:
+					lh.base = "NTalk"
+					lh.alts = ["NIdleL"]
+					lh.resume()
+				continue
 			r.queue_free()
 			walkers.erase(w)
 			continue

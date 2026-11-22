@@ -90,6 +90,7 @@ const LIFE_PLACES := {
 	"g67_npc_babushka": [
 		{"pos": Vector3(7.6, 0.0, 30.6), "yaw": PI * 0.6, "base": "NBag", "alts": ["NBagRest"], "act": "feed", "act_clip": "NPoint", "act_len": 5.0},
 		{"pos": Vector3(1.6, 0.0, 32.4), "yaw": PI, "base": "NBag", "alts": ["NScarf"]},
+		{"pos": Vector3(3.5, 0.07, 34.3), "yaw": PI, "base": "NSitBag", "alts": ["NBagRest"]},
 	],
 	"g67_npc_taxi_driver": [
 		{"pos": Vector3(31.3, 0.02, 12.0), "yaw": PI, "base": "NHips", "alts": ["NTaxiPhone"], "act": "wipe", "act_clip": "NJacket", "act_len": 6.0},
@@ -99,12 +100,22 @@ const LIFE_PLACES := {
 	"g67_npc_ushanka": [
 		{"pos": Vector3(-40.0, 0.02, -0.8), "yaw": PI, "base": "NThink", "alts": ["NPocketsSide"]},
 		{"pos": Vector3(-38.2, 0.02, 3.6), "yaw": 1.2, "base": "NSmoke", "alts": ["NCross"]},
+		{"pos": Vector3(-41.0, 0.02, 3.0), "yaw": -0.72, "base": "NThink", "alts": ["NPocketsSide"]},
 	],
 	"g67_npc_schoolboy": [
 		{"pos": Vector3(4.0, 0.02, -4.0), "yaw": 1.6, "base": "NPhone", "alts": ["NStrap"]},
 		{"pos": Vector3(11.0, 0.02, 3.2), "yaw": -1.0, "base": "NPhone", "alts": ["NIdleL"]},
 	],
 }
+
+## Сирена кнопки: все жители в 30 м поворачиваются к столбу; у одного-двух — реплика
+func siren_look(pos: Vector3) -> void:
+	var said := 0
+	for rid in residents:
+		var R: G67Resident = residents[rid]
+		if (R.rig as Node3D).global_position.distance_to(pos) < 30.0:
+			R.siren(pos, said < 2)
+			said += 1
 
 ## Бабушка кормит голубей: ближайшая стайка сбегается к точке
 func feed_near(pos: Vector3) -> void:
@@ -863,6 +874,9 @@ func crowd_react(kind: String) -> int:
 ## ---- ДВОР 1.5: предметы жизни двора и надписи
 ## Предмет жизни: модель assets/golda67/<id>.glb, если есть, иначе серая коробка нужного размера с коллизией (модели — из Blender)
 var life_props := {}
+var gazebo_people: Array = []
+func _noop_unused() -> void:
+	pass
 var carpet_rack_node: Node3D = null
 
 func _lifeprop(id: String, pos: Vector3, yaw: float, size: Vector3) -> Node3D:
@@ -888,6 +902,14 @@ func _lifeprop(id: String, pos: Vector3, yaw: float, size: Vector3) -> Node3D:
 	return mi
 
 func _life_props() -> void:
+	# двое за столом беседки: сидят и разговаривают (DUOS gazebo1/gazebo2)
+	var seats := [[Vector3(-22.9, 0.0, -30.0), -2.39], [Vector3(-25.5, 0.0, -32.8), 0.75]]
+	for i in 2:
+		var who: Dictionary = QUEUE_PEOPLE[i % QUEUE_PEOPLE.size()]
+		if ResourceLoader.exists(String(who["path"])):
+			var r := _person(String(who["path"]), String(who["key"]), float(who["h"]), seats[i][0], float(seats[i][1]), {"base": "STalk", "alts": ["SWatch", "SLean"], "base_hold": Vector2(5.0, 9.0)}, 8100 + i)
+			r.name = "gazebo%d" % (i + 1)
+			gazebo_people.append(r)
 	carpet_rack_node = get_node_or_null("g67_carpet_rack") as Node3D
 	_lifeprop("g67_intercom", Vector3(-1.3, 0.9, 35.0), PI, Vector3(0.3, 0.45, 0.12))
 	_lifeprop("g67_garage_radio", Vector3(-42.4, 0.0, 4.8), PI * 0.5, Vector3(0.5, 0.35, 0.3))
@@ -1009,10 +1031,20 @@ func _life_signs() -> void:
 			(sign_groups[cl]["cards"] as Array).append({"text": sg["text"], "sub": String(sg.get("sub", ""))})
 
 ## Ветер колышет листки сильнее (в порыв)
+var note_cull_t := 0.0
+
 func sway_tick(t: float) -> void:
+	note_cull_t -= get_process_delta_time()
+	if note_cull_t <= 0.0 and hero != null and is_instance_valid(hero):
+		note_cull_t = 0.4
+		var hp := hero.global_position
+		for nt in notes:
+			var nd: Node3D = nt["node"]
+			if is_instance_valid(nd):
+				nd.visible = Vector2(nd.position.x - hp.x, nd.position.z - hp.z).length() < 18.0      # текст дальше 18 м не рисуется
 	var k := 0.03 + (0.08 if gust_t > 0.0 else 0.0)
 	for n in sway_notes:
-		if is_instance_valid(n):
+		if is_instance_valid(n) and (n as Node3D).visible:
 			(n as Node3D).rotation.z = sin(t * 2.0 + (n as Node3D).position.x) * k
 
 ## Стайки голубей вне зон боя: сидят, клюют; героя ближе 2,5 м — взлетают дугой и садятся в другом месте
