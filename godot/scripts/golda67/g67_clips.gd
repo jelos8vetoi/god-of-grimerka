@@ -1753,9 +1753,66 @@ static func _phone_screen(c: G67ClipPlayer, s: Control, fs: Vector2, kind: Strin
 			t.call("УЧАСТНИК ЗАРЕГИСТРИРОВАН:\nПАХАН", 0.48, 0.07, Color.WHITE)
 
 # ---------------------------------------------------------------- STORY05 — первое обращение WHYOUSOLONELY (только экран)
+static func _glitch(c: G67ClipPlayer, sec: float) -> void:
+	var fs := c.frame.size
+	var h := Control.new()
+	h.size = fs
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.over.add_child(h)
+	for i in 3:
+		var bar := ColorRect.new()
+		bar.color = Color(0.8, 0.9, 1.0, 0.35)
+		bar.size = Vector2(fs.x, fs.y * randf_range(0.01, 0.035))
+		bar.position = Vector2(0, fs.y * randf())
+		h.add_child(bar)
+		var tw := c.create_tween().set_loops()
+		tw.tween_property(bar, "position:y", fs.y * randf(), 0.05)
+		tw.tween_interval(0.03)
+	c.vhs(1.0, sec)
+	G67Sound.play(c, "click")
+	var kill := c.create_tween()
+	kill.tween_interval(sec)
+	kill.tween_callback(h.queue_free)
+
 static func story05(c: G67ClipPlayer) -> void:
 	c.set_env("black")
 	c.filters(0.28, 0.08)
+	var wh := c.actor("wh", "whyousolonely", Vector3(0, 0, 0), 0.0)
+	c.anim("wh", "Idle", 0.0)
+	c.light(Vector3(0.0, 2.6, -1.8), Color(0.55, 0.7, 1.0), 4.0, 7.0)                # холодный контровой
+	c.light(Vector3(0.0, 1.6, 2.8), Color(0.5, 0.6, 0.8), 0.3, 6.0)                    # слабый заполняющий
+	var dust := GPUParticles3D.new()                                                  # пыль в луче
+	var dm := ParticleProcessMaterial.new()
+	dm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	dm.emission_box_extents = Vector3(1.2, 1.2, 1.5)
+	dm.gravity = Vector3(0.0, 0.02, 0.0)
+	dm.initial_velocity_min = 0.02
+	dm.initial_velocity_max = 0.08
+	dm.direction = Vector3(0, 1, 0)
+	dm.spread = 180.0
+	dust.process_material = dm
+	var dsm := SphereMesh.new()
+	dsm.radius = 0.012
+	dsm.height = 0.024
+	var dmat := StandardMaterial3D.new()
+	dmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dmat.albedo_color = Color(0.7, 0.8, 1.0, 0.7)
+	dmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dsm.material = dmat
+	dust.draw_pass_1 = dsm
+	dust.amount = 80
+	dust.lifetime = 6.0
+	dust.preprocess = 5.0
+	dust.position = Vector3(0, 1.4, 0.5)
+	c.world.add_child(dust)
+	var hum := AudioStreamPlayer.new()
+	hum.stream = G67Sound.stream("loop_studio")
+	hum.volume_db = -22.0
+	hum.pitch_scale = 0.7
+	hum.bus = "Ambient" if AudioServer.get_bus_index("Ambient") >= 0 else "Master"
+	c.add_child(hum)
+	hum.play()
+	# 1 — чёрный экран, включение трансляции: полоса помех, щелчок, заставка
 	var sc := c.screen(func(s: Control, fs: Vector2):
 		var r := ColorRect.new()
 		r.color = Color(0.02, 0.02, 0.03)
@@ -1770,10 +1827,34 @@ static func story05(c: G67ClipPlayer) -> void:
 		sub.size = Vector2(fs.x, 40)
 		sub.position = Vector2(0, fs.y * 0.6)
 		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER)
-	c.vhs(0.6, 0.6)
-	await c.say(L("STORY05", 0), 0.3)
+	await c.wait(0.5)
+	_glitch(c, 0.4)
+	await c.wait(0.9)
 	sc.queue_free()
-	c.vhs(0.8, 0.3)
+	# 2 — силуэт организатора в контровом свете, медленный наезд (реплика 0)
+	_glitch(c, 0.25)
+	var d0 := c.say_async(L("STORY05", 0))
+	c.cam_at(Vector3(0.4, 1.5, 4.6), Vector3(0, 1.2, 0), 40.0)
+	c.cam_to(Vector3(0.15, 1.5, 3.4), Vector3(0, 1.2, 0), d0 * 0.34, 36.0)
+	await c.wait(d0 * 0.2)
+	G67Clips.snap_req = "silhouette"
+	await c.wait(d0 * 0.14)
+	# 3 — три четверти, продолжение наезда, сбой связи на паузе
+	_glitch(c, 0.2)
+	var hp := _bone_pos(wh, "mixamorig_Head")
+	c.cam_at(hp + Vector3(-1.1, 0.0, 1.9), hp, 36.0)
+	c.cam_to(hp + Vector3(-0.8, 0.0, 1.4), hp, d0 * 0.33, 30.0)
+	await c.wait(d0 * 0.33)
+	# 4 — крупно лицо, лёгкое «плавание» картинки
+	_glitch(c, 0.2)
+	c.cam_at(hp + Vector3(0.35, 0.03, 1.2), hp, 28.0)
+	c.cam_to(hp + Vector3(0.2, 0.0, 0.9), hp + Vector3(0, -0.02, 0), d0 * 0.33 + 0.3, 24.0)
+	await c.wait(d0 * 0.15)
+	G67Clips.snap_req = "face"
+	await c.wait(d0 * 0.18 + 0.3)
+	c.clear_sub()
+	# 5 — перебивка: экран с участником и отменой регистрации
+	_glitch(c, 0.2)
 	sc = c.screen(func(s: Control, fs: Vector2):
 		var r := ColorRect.new()
 		r.color = Color(0.06, 0.02, 0.02)
@@ -1790,17 +1871,33 @@ static func story05(c: G67ClipPlayer) -> void:
 		l.size = box.size
 		l.position = box.position + Vector2(0, fs.y * 0.04)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER)
+	var d1 := c.say_async(L("STORY05", 1))
 	await c.wait(0.4)
-	c.say_async(L("STORY05", 1))
-	await c.wait(1.4)
 	c.plate("Выбор уже подтверждён.", "small", 0.0)
-	await c.wait(maxf(0.6, _len(c, L("STORY05", 1)) - 1.0))
+	G67Clips.snap_req = "card"
+	await c.wait(1.0)
+	# 6 — возврат на крупный план: плавающая картинка, сбой, низкий удар на последнем слове, обрыв связи
+	sc.queue_free()
+	_glitch(c, 0.2)
+	c.clear_plates()
+	hp = _bone_pos(wh, "mixamorig_Head")
+	c.cam_at(hp + Vector3(0.1, 0.0, 0.8), hp, 24.0)
+	c.cam_to(hp + Vector3(-0.1, 0.02, 0.6), hp, maxf(d1 - 1.4, 0.4), 20.0)
+	await c.wait(maxf(d1 - 1.4, 0.4))
+	c.sfx("sfx_boom", 0.0, 0.4)
+	G67Sound.play(c, "hit_cut")
+	c.shake(0.6)
 	c.clear_sub()
-	await c.wait(0.6)
-	c.vhs(1.0, 0.4)
-	await c.wait(0.4)
+	await c.wait(0.3)
+	_glitch(c, 0.4)
+	c.screen(func(s: Control, fs: Vector2):
+		var r := ColorRect.new()
+		r.color = Color.BLACK
+		r.size = fs
+		s.add_child(r))
+	await c.wait(0.5)
+	hum.stop()
 
-# ---------------------------------------------------------------- EXTRA01 — «КРОТ НА ПОДКАСТЕ» (9:16)
 static func _mic(c: G67ClipPlayer, pos: Vector3, lean: float) -> MeshInstance3D:
 	c.box(Vector3(0.03, 0.34, 0.03), pos + Vector3(0, -0.2, 0.0), Color(0.1, 0.1, 0.1))
 	var mic := MeshInstance3D.new()
