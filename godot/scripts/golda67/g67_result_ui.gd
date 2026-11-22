@@ -35,7 +35,7 @@ func _build() -> void:
 		y += 76.0
 	var col := Color(0.88, 0.85, 0.78)
 	var dim := Color(0.7, 0.66, 0.58)
-	_t("ЭТАПЫ: %d из 7" % int(R.get("stage_n", 0)), "display", 28, col, Vector2(70, y))
+	_t("ЭТАПЫ: %d из 6" % int(R.get("stage_n", 0)), "display", 28, col, Vector2(70, y))
 	var stages: Array = R.get("stages", [])
 	for i in stages.size():
 		var ic := G67Icons.rect(String(G67Icons.ROOM.get(String(stages[i][0]), "icon_room_battle")), 40)

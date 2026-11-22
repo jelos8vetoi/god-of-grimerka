@@ -283,6 +283,7 @@ func _run() -> void:
 	await _ui3_check(g, G, P)
 	await _save_check(g, G)
 	await _talks_check(g, G, P)
+	_route_gen_check(G)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
 	# ================= этап 3: кладовка, ларёк, артефакты, фитсы по таблице =================
@@ -1550,6 +1551,8 @@ func _stage3(g, G: Golda67, P) -> void:
 	# ---- ларёк «ШАУРМА 67»: постоянный магазин двора, запас — на забег
 	G.run["golda"] = 300
 	G.run["kiosk"] = {}
+	G.run["kiosk_full"] = true
+	G.run["pos"] = 3
 	ok(G.room_state == "open" and not G.point("kiosk").is_empty(), "ларёк у окна есть, пока боя нет")
 	await _go(G, P, "kiosk")
 	ok(await until(func(): return G.hub_ui != null and G.hub_ui.kind == "kiosk", 3.0), "ЛАРЁК: по [E] у окна открылся экран ценников")
@@ -1829,6 +1832,7 @@ func _b13_check(g, G: Golda67, P) -> void:
 	_kill_all(g)
 	await wait(0.5)
 	G.room_state = "open"
+	G.run["pos"] = 3
 	await key(KEY_E)
 	await wait(0.4)
 	ok(G.hub_ui != null and G.hub_ui.kind == "kiosk", "без врагов E у ларька открывает ларёк")
@@ -1858,7 +1862,7 @@ func _quit_check(g, G: Golda67, P) -> void:
 	ok(await _clear_room(g, G), "первый этап зачищен")
 	var gold1 := int(G.run["golda"])
 	var pos1 := int(G.run["pos"])
-	ok(G.quit_kind() == "safe" and G.quit_text() == "Забег сохранён: этап 1 из 7 пройден. Продолжишь с двери подъезда.", "вне боя выход сохраняет забег: «%s»" % G.quit_text())
+	ok(G.quit_kind() == "safe" and G.quit_text() == "Забег сохранён: этап 1 из 6 пройден. Продолжишь с двери подъезда.", "вне боя выход сохраняет забег: «%s»" % G.quit_text())
 	G.on_quit()
 	var sv: Dictionary = G.data["run"]
 	ok(G.paused_run() and String(sv["state"]) == "open" and (sv["pos3"] as Array).size() == 3 and int((sv["run"] as Dictionary)["golda"]) == gold1, "запись забега: состояние open, место героя и голда сохранены")
@@ -1889,12 +1893,12 @@ func _quit_check(g, G: Golda67, P) -> void:
 	G.data["run"] = {"run": {"district": "dvor", "pos": 3, "golda": 50, "fits": {}, "respect": 4, "rooms": 3, "rerolls": 0, "arts": [], "kiosk": {}}, "room": {"type": "break", "place": "gazebo"}, "hp": 60.0, "state": "rest"}
 	await _go(G, P, "exit")
 	ok(await until(func(): return G.place == "run" and G.room_state == "open", 8.0), "старая запись (без шаблона) продолжается")
-	ok(int(G.run["tpl"]) == 0 and int(G.run["pos"]) == 3 and int(G.run["golda"]) == 50 and absf(P.hp - 60.0) < 0.5 and G.world.gates.size() == 2 and (G.run["stages"] as Array).is_empty() and G.run.has("stash"),
+	ok(int(G.run["tpl"]) == 0 and int(G.run["pos"]) == 3 and int(G.run["golda"]) == 50 and absf(P.hp - 60.0) < 0.5 and G.world.gates.size() == 1 and (G.run["stages"] as Array).is_empty() and G.run.has("stash"),
 		"старый забег: шаблон 0, этап 4 пройден, голда 50, варианты следующего этапа открыты (%d)" % G.world.gates.size())
 	await G.enter_hub()
 	G.data["run"] = {"run": {"district": "dvor", "pos": 5, "golda": 1}, "room": {"type": "battle", "place": "garages"}, "hp": 30.0, "state": "open"}
 	await _go(G, P, "exit")
-	ok(await until(func(): return G.place == "run" and G.room_state == "open", 8.0) and int(G.run["pos"]) == 5 and G.world.gates.size() == 1 and String(G.world.gates[0]["option"]["type"]) == "boss", "старый забег с позиции 6: следующий — босс")
+	ok(await until(func(): return G.place == "run" and G.room_state == "open", 8.0) and int(G.run["pos"]) == 4 and G.world.gates.size() == 1 and String(G.world.gates[0]["option"]["type"]) == "boss", "старый забег с позиции 6 (зажат до 5): следующий — босс")
 	await G.enter_hub()
 	G.data["run"] = {}
 	await wait(0.3)
@@ -2304,6 +2308,68 @@ func _talks_check(g, G: Golda67, P) -> void:
 	G.meta()["flurr"] = fl0
 	await wait(0.3)
 
+## Генератор маршрута: перебор всех цепочек выборов на позициях 2–4 (с обязательным «ТРЯПКИ» и без него)
+func _walk_routes(G: Golda67, p: int, st: Array, acc: Dictionary) -> void:
+	if p >= 4:
+		acc["chains"] = int(acc["chains"]) + 1
+		var battles := 0
+		var fit := false
+		var rags := false
+		var kiosk_pos := -1
+		for i in st.size():
+			var t := String(st[i][0])
+			if t in ["battle", "elite"]:
+				battles += 1
+			if t in ["fit", "elite"]:
+				fit = true
+			if t == "event" and String(st[i][2]) == "rags":
+				rags = true
+			if t == "kiosk":
+				kiosk_pos = i
+		var must_ok: bool = rags or bool(acc["seen"])
+		if battles < 2 or battles > 3 or not fit or not must_ok or (kiosk_pos != -1 and kiosk_pos != 3):
+			acc["bad"] = int(acc["bad"]) + 1
+			print("GOLDA67CHECK   плохая цепочка: %s" % str(st.map(func(x): return x[0] + ":" + x[2])))
+		return
+	G.run["stages"] = st
+	var opts: Array = G.route_options(p)
+	for o in opts:
+		var st2: Array = st.duplicate(true)
+		st2.append([String(o["type"]), String(o["place"]), String(o.get("ev", ""))])
+		_walk_routes(G, p + 1, st2, acc)
+
+func _route_gen_check(G: Golda67) -> void:
+	var run0: Dictionary = G.run
+	var must0 = G.meta().get("must", {})
+	var total := 0
+	var bad := 0
+	for seen in [false, true]:
+		G.meta()["must"] = {"ev_rags": seen}
+		G.run = {"stages": [], "tpl": 0}
+		var acc := {"chains": 0, "bad": 0, "seen": seen}
+		_walk_routes(G, 1, [["battle", "podezd", ""]], acc)
+		total += int(acc["chains"])
+		bad += int(acc["bad"])
+		print("GOLDA67CHECK   генератор: «ТРЯПКИ» %s — цепочек %d, плохих %d" % ["увидены" if seen else "не увидены", int(acc["chains"]), int(acc["bad"])])
+	ok(total > 8 and bad == 0, "генератор: перебрано %d цепочек выборов, в каждой боёв 2–3, выбор бафа есть, обязательное нельзя обойти, ларёк только на 4-й позиции" % total)
+	G.run = {"stages": [["battle", "podezd", ""], ["fit", "playground", ""]], "tpl": 0}
+	G.meta()["must"] = {"ev_rags": true}
+	var o3: Array = G.route_options(2)
+	var has_short := false
+	G.run = {"stages": [["battle", "podezd", ""]], "tpl": 0}
+	for o in G.route_options(1):
+		if String(o["type"]) == "event":
+			has_short = true
+	ok(has_short, "когда «ТРЯПКИ» увидены, на позиции 2 появляется короткое событие")
+	G.meta()["must"] = {"ev_rags": false}
+	var no_short := true
+	for o in G.route_options(1):
+		if String(o["type"]) == "event":
+			no_short = false
+	ok(no_short, "пока «ТРЯПКИ» не увидены, на позиции 2 короткого события нет")
+	G.run = run0
+	G.meta()["must"] = must0
+
 func _run_dvor(g, G: Golda67, P) -> void:
 	# выход во двор — настоящей клавишей E у входной двери
 	await _go(G, P, "exit")
@@ -2312,13 +2378,13 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	if not started:
 		return
 	var yard_world = G.world
-	ok(int(G.run["tpl"]) == 0 and G.route().size() == 7 and int(G.run["pos"]) == 0, "шаблон забега 0, семь этапов, начало с первого")
+	ok(int(G.run["tpl"]) == 0 and G.route().size() == 6 and int(G.run["pos"]) == 0, "шесть позиций, начало с первой")
 	ok(yard_world is G67World and yard_world.yard != null and yard_world.yard.position == Vector3.ZERO, "двор построен без сдвига: yard.position = (0, 0, 0)")
 	ok(yard_world.statist != null and is_instance_valid(yard_world.statist) and String(yard_world.statist.cur) == "MSit" and yard_world.statist.global_position.distance_to(G67Yard.THRONE) < 0.6, "Миша сидит на троне с самого начала забега")
 	ok(g.boss_e == null and not g.enemies.any(func(e): return is_instance_valid(e) and String(e.boss_id) != ""), "до боя на троне не враг: в списке врагов Миши нет")
 	ok(P.global_position.distance_to(G67Yard.HOME_DOOR) < 12.0, "герой вышел из двери подъезда и стоит во дворе (%s)" % str(P.global_position))
 	ok(not g.buddy.visible, "до первой концовки madk1d остаётся в подъезде — в забеге его нет")
-	ok(String(g.top_label.text).contains("ДВОР 1/7"), "строка вверху: «%s»" % g.top_label.text)
+	ok(String(g.top_label.text).contains("ДВОР 1/6"), "строка вверху: «%s»" % g.top_label.text)
 	var got: bool = await until(func(): return G.alive() >= 3, 10.0)
 	ok(got, "первая волна вышла (%d врагов)" % G.alive())
 	var skins: Array = []
@@ -2336,8 +2402,6 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	var kz: Dictionary = G67Yard.zone("parking")
 	var kp: Vector3 = G.point("kiosk")["pos"]
 	ok(absf(kp.x - (kz["c"] as Vector3).x) < (kz["h"] as Vector2).x and absf(kp.z - (kz["c"] as Vector3).z) < (kz["h"] as Vector2).y, "ларёк «ШАУРМА 67» стоит на парковке (%s)" % str(kp))
-	var rk: Array = G.route_options(1)
-	ok(rk.size() == 2 and String(rk[0]["place"]) == "garages" and String(rk[1]["place"]) == "playground", "маршрут не подменяется под КРОТА: на втором этапе гаражи и площадка (B10)")
 	await wait(1.5)
 	await shot("20_dvor_fight")
 	# обзор двора сверху и с крыш — планировка целиком (своя камера, игровую не трогаем)
@@ -2379,7 +2443,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await _b05_check(g, G, P)
 	await _n01_check(g, G, P)
 	ok(await _clear_room(g, G), "этап 1 (БОЙ у подъезда) зачищен")
-	ok(G.world.gates.size() == 2 and G.world.gates.all(func(gt): return String(gt["option"]["place"]) != "parking"), "после боя открылись два варианта: гаражи и площадка (%d)" % G.world.gates.size())
+	ok(G.world.gates.size() == 2, "после боя открылись два варианта: бой и баф (%d)" % G.world.gates.size())
 	ok(int(G.run["golda"]) > 0 and int(G.run["respect"]) == 3 and int(G.run["kills"]) >= 3, "за этап дали голду (%d) и РЕСПЕКТ (%d), убито %d" % [int(G.run["golda"]), int(G.run["respect"]), int(G.run["kills"])])
 	ok(G.room_state == "open" and (G.run["stages"] as Array).size() == 1 and G.events.has(["stage_done", "battle"]), "этап пройден: событие stage_done, состояние open")
 	ok(G.world.gates.all(func(gt): return gt.get("icon") != null and is_instance_valid(gt["icon"]) and (gt["icon"] as Sprite3D).texture != null),
@@ -2387,9 +2451,9 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(G.world.gates.all(func(gt): return (gt["root"] as Node3D).find_children("*", "MeshInstance3D", true, false).is_empty()),
 		"ни ворот, ни столба света: над вариантом только значок, подпись и слабый свет")
 	ok(G.world.get_node_or_null("gate_stand0") != null and G.world.get_node_or_null("gate_stand1") == null, "у боя стоит турнирная стойка, у баффа — нет (вешалка во дворе всегда)")
-	ok(String(G.point("gate0")["title"]) == "БОЙ · ГАРАЖИ" and String(G.point("gate0")["hint"]) == "голда и РЕСПЕКТ" and String(G.point("gate1")["title"]) == "БАФ · ДЕТСКАЯ ПЛОЩАДКА" and String(G.point("gate1")["hint"]) == "баф на выбор",
+	ok(String(G.point("gate0")["title"]) == "БОЙ · ПАРКОВКА У ЛАРЬКА" and String(G.point("gate0")["hint"]) == "голда и РЕСПЕКТ" and String(G.point("gate1")["title"]) == "БАФ · ДЕТСКАЯ ПЛОЩАДКА" and String(G.point("gate1")["hint"]) == "баф на выбор",
 		"заголовки точек: «%s», «%s»" % [G.point("gate0")["title"], G.point("gate1")["title"]])
-	ok(String(g.top_label.text).contains("ДАЛЬШЕ: ГАРАЖИ — БОЙ · ДЕТСКАЯ ПЛОЩАДКА — БАФ") and String(g.top_label.text).contains("ДВОР 1/7"), "строка «куда дальше»: «%s»" % g.top_label.text)
+	ok(String(g.top_label.text).contains("ДАЛЬШЕ: ПАРКОВКА У ЛАРЬКА — БОЙ · ДЕТСКАЯ ПЛОЩАДКА — БАФ") and String(g.top_label.text).contains("ДВОР 1/6"), "строка «куда дальше»: «%s»" % g.top_label.text)
 	var miss_ic: Array = []
 	for id in G67Icons.ROOM.values() + G67Icons.FIT.values() + ["icon_golda", "icon_respect", "icon_krot_found", "icon_new_talk", "emblem_67", "logo_golda67",
 			"icon_art_cassette_2016", "icon_art_sim", "icon_art_bracelet_67", "icon_art_one_earbud", "icon_art_energy", "icon_art_flash_drive",
@@ -2515,11 +2579,11 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	# вариант ЭЛИТА
 	await _go(G, P, "gate0")
 	var in_el: bool = await until(func(): return String(G.room.get("type", "")) == "elite" and G.room_state == "fight", 8.0)
-	ok(in_el, "вариант «ЭЛИТА» — бой с элитой на парковке")
+	ok(in_el, "вариант «ЭЛИТА» — бой с элитой")
 	var big: bool = await until(func(): return g.enemies.any(func(e): return is_instance_valid(e) and String(e.skin) == "g67_smotr"), 10.0)
 	ok(big, "в бою с элитой — Смотрящий")
 	# КРОТ — встреча 1: стоит в очереди у шаурмичной; во время боя не разговаривает
-	ok(String(G.room.get("place", "")) == "parking" and G.world.actors.has("g67_krot") and not G.point("krot").is_empty(), "КРОТ стоит у ларька «ШАУРМА 67» (встреча 1)")
+	ok(G.world.actors.has("g67_krot") and not G.point("krot").is_empty(), "КРОТ стоит у ларька «ШАУРМА 67» (встреча 1)")
 	var kpos: Vector3 = G.world.actors["g67_krot"].global_position
 	var oc2 := Camera3D.new()
 	g.add_child(oc2)
@@ -2571,46 +2635,29 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(String(G.krot_next().get("id", "")) == "krot2", "следующая встреча — вторая (ЛЮСТРА, в подъезде)")
 	var kp2: Vector3 = G.point("kiosk")["pos"]
 	ok(kp2 == kp, "встреча с КРОТОМ закончилась, ларёк стоит там же (%s)" % str(kp2))
-	# этап 4: бой на детской площадке — единственный вариант
-	ok(G.room_state == "open" and G.world.gates.size() == 1 and String(G.world.gates[0]["option"]["place"]) == "playground", "после элиты — одно место: бой на детской площадке")
+	# позиция 4: «ТРЯПКИ» не увидены и не выбраны — дверь одна, она же обязательная
+	ok(G.room_state == "open" and G.world.gates.size() == 1 and String(G.world.gates[0]["option"]["type"]) == "event" and String(G.world.gates[0]["option"]["ev"]) == "rags", "после элиты — одна дверь: «ТРЯПКИ! ТРЯПКИ!» (обязательное)")
 	await _go(G, P, "gate0")
-	ok(await until(func(): return String(G.room.get("type", "")) == "battle" and G.room_state == "fight" and int(G.run["pos"]) == 3, 8.0), "четвёртый этап — бой")
-	ok(await _clear_room(g, G, 60.0), "этап 4 зачищен")
-	ok(G.world.gates.size() == 2 and String(G.world.gates[0]["option"]["type"]) == "battle" and String(G.world.gates[1]["option"]["type"]) == "break", "на пятом этапе развилка: бой на парковке или ПЕРЕДЫШКА в беседке")
+	ok(await until(func(): return G.room_state == "open" and (G.run["stages"] as Array).size() == 4, 8.0), "событие позиции 4 пройдено (заглушка до постановки)")
+	ok(not G.must_seen() or (G.meta().get("must", {}) as Dictionary).has("ev_rags"), "заглушка «ТРЯПОК» отметку «увидено» не ставит, пока постановки нет")
+	ok(G.world.gates.size() == 1 and String(G.world.gates[0]["option"]["type"]) == "break", "позиция 5: ПЕРЕДЫШКА в беседке — всегда")
 	P.hp = 20.0
-	await _go(G, P, "gate1")
+	await _go(G, P, "gate0")
 	ok(await until(func(): return String(G.room.get("type", "")) == "break" and G.room_state == "open", 8.0), "ПЕРЕДЫШКА: герой уже у лавки, лечение сразу")
 	ok(P.hp > 20.0 + P.max_hp * 0.4, "лавка лечит (здоровье %.0f из %.0f)" % [P.hp, P.max_hp])
-	ok(G.world.gates.size() == 1 and bool(G.world.gates[0]["auto"]) and String(G.world.gates[0]["option"]["type"]) == "ambush" and G.point("gate0").is_empty(), "дальше — ЗАСАДА на северном проезде: точки [E] у неё нет")
-	ok(String(g.top_label.text).contains("ДАЛЬШЕ: СЕВЕРНЫЙ ПРОЕЗД — ЗАСАДА"), "строка «куда дальше»: «%s»" % g.top_label.text)
-	# засада стартует сама, когда герой вошёл в проезд
-	P.global_position = Vector3(-26.0, 0.05, -21.5)
-	await wait(0.8)
-	ok(G.room_state == "open", "за пределами проезда засада не начинается")
-	var az: Dictionary = G67Yard.zone("proezd")
-	P.global_position = az["c"] + Vector3(0, 0.05, 0)
-	var amb: bool = await until(func(): return String(G.room.get("type", "")) == "ambush" and G.room_state == "fight", 4.0)
-	ok(amb and int(G.run["pos"]) == 5, "засада началась сама, как только герой вошёл в проезд")
-	ok(g.arena_c == az["c"] and g.arena_h == az["h"], "арена — полоса проезда (%s × %s)" % [str(g.arena_c), str(g.arena_h)])
-	await until(func(): return G.alive() >= 3, 6.0)
-	await wait(0.8)
-	await shot("23b_ambush")
-	var ap: Array = g.enemies.filter(func(e): return is_instance_valid(e) and e.alive()).map(func(e): return e.global_position)
-	ok(not ap.is_empty() and ap.all(func(p): return g.in_arena(p, 0.5)), "враги засады — в полосе проезда")
-	ok(await _clear_room(g, G, 60.0), "засада отбита")
 	ok(G.world.gates.size() == 1 and String(G.world.gates[0]["option"]["type"]) == "boss" and not G.point("gate0").is_empty(), "дальше — калитка коробки Миши")
 	ok(G.world.statist != null and is_instance_valid(G.world.statist), "Миша всё ещё сидит на троне")
 	await _gate_shots(g, G, "t0s6")
 	# босс
 	await _go(G, P, "gate0")
 	var bossed: bool = await until(func(): return G.room_state == "boss" and g.boss_e != null and is_instance_valid(g.boss_e), 8.0)
-	ok(bossed, "седьмой этап — босс")
+	ok(bossed, "шестая позиция — босс")
 	if not bossed:
 		return
 	var B = g.boss_e
 	ok(_faces_away(g, P), "на входе к боссу герой лицом от камеры (face %.2f, cam_yaw %.2f)" % [P.face, g.cam_yaw])
 	ok(G.world == yard_world and G.world.yard.position == Vector3.ZERO, "от начала забега до босса двор не пересобирался и не сдвигался")
-	ok(G.world.statist == null and (G.run["stages"] as Array).size() == 6 and int(G.run["earned"]) == int(G.run["golda"]) + int(G.run["spent"]), "статист с трона убран, этапов пройдено 6, голда сходится (получено %d)" % int(G.run["earned"]))
+	ok(G.world.statist == null and (G.run["stages"] as Array).size() == 5 and int(G.run["earned"]) == int(G.run["golda"]) + int(G.run["spent"]), "статист с трона убран, этапов пройдено 5, голда сходится (получено %d)" % int(G.run["earned"]))
 	ok(G.scene_busy() and g.intro_busy(), "выход босса — постановка: управление на это время закрыто")
 	ok(B.global_position.distance_to(G.world.throne) < 0.6 and String(B.rig.cur) == "MSit", "Миша сидит на троне (%.2f м, клип %s)" % [B.global_position.distance_to(G.world.throne), str(B.rig.cur)])
 	await wait(1.0)
@@ -2712,8 +2759,8 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	for ch in G.hub_ui.stage.get_children():
 		if ch is TextureRect and ch.size.x <= 41.0 and ch.modulate.a > 0.9:
 			ic_n += 1
-	ok(ic_n == 7 and (RS["stages"] as Array).size() == 7, "значков этапов на экране итогов победы семь (%d)" % ic_n)
-	ok(int(RS["stage_n"]) == 7 and int(RS["kills"]) == int(G.run["kills"]) and int(RS["earned"]) == int(G.run["earned"]) and int(RS["spent"]) == int(G.run["spent"]), "числа экрана сходятся с забегом (этапов %d, врагов %d, голды %d)" % [int(RS["stage_n"]), int(RS["kills"]), int(RS["earned"])])
+	ok(ic_n == 6 and (RS["stages"] as Array).size() == 6, "значков этапов на экране итогов победы шесть (%d)" % ic_n)
+	ok(int(RS["stage_n"]) == 6 and int(RS["kills"]) == int(G.run["kills"]) and int(RS["earned"]) == int(G.run["earned"]) and int(RS["spent"]) == int(G.run["spent"]), "числа экрана сходятся с забегом (этапов %d, врагов %d, голды %d)" % [int(RS["stage_n"]), int(RS["kills"]), int(RS["earned"])])
 	await wait(0.4)
 	ok(_text_fits(G.hub_ui), "итоги: надписи внутри экрана")
 	await shot("29_result_win")
@@ -2799,7 +2846,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 				pig += 1
 		ok(G.world.actors.has("g67_krot") and pig == 5, "КРОТ на площадке среди голубей, зоны не переставлены (%d)" % pig)
 		var r2: Array = G.route_options(1)
-		ok(r2.size() == 2 and String(r2[0]["place"]) == "parking" and String(r2[1]["place"]) == "garages", "маршрут второго забега по шаблону 1: парковка и гаражи")
+		ok(r2.size() == 2 and String(r2[0]["type"]) == "battle" and String(r2[0]["place"]) != "parking" and String(r2[1]["type"]) == "fit", "места боёв второго забега другие (%s)" % String(r2[0]["place"]))
 		var pg0: Node3D = G.world.get_node("krot_pigeon0")
 		var seen_rot := {}
 		var pecked := false

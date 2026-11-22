@@ -290,7 +290,7 @@ func start_run(district_id := "dvor") -> void:
 	wind_used = false
 	_build_yard_world()
 	_stand_at_home()
-	await enter_room((route()[0] as Array)[0])
+	await enter_room({"type": "battle", "place": "podezd"})
 
 ## Домой посреди забега: дверь подъезда во дворе (между этапами, вне боя). Забег — в сохранение (data["run"]:
 ## забег, этап, здоровье, состояние), в подъезде он стоит на паузе; выход во двор продолжает его с двери подъезда —
@@ -325,7 +325,7 @@ func _save_run(state: String) -> void:
 func _migrate_run() -> void:
 	if not run.has("tpl"):
 		run["tpl"] = 0
-	run["pos"] = clampi(int(run.get("pos", 0)), 0, 5)
+	run["pos"] = clampi(int(run.get("pos", 0)), 0, 4)       # шесть позиций: старая запись из семи зажимается, этап считается пройденным
 	for k in ["kills", "earned", "spent", "stash_n"]:
 		run[k] = int(run.get(k, 0))
 	if not run.has("stages"):
@@ -610,7 +610,8 @@ func enter_room(r: Dictionary) -> void:
 	var type := String(r["type"])
 	var zid := String(r.get("place", "podezd"))
 	var zone := G67Yard.zone("sport" if type == "boss" else zid)
-	game.set_arena(zone["c"], zone["h"])
+	if type != "event":
+		game.set_arena(zone["c"], zone["h"])
 	world.clear_gates()
 	if type != "storage":
 		world.points = world.points.filter(func(pt): return String(pt["id"]) != "storage")      # открытый бокс прошлого этапа закрыт
@@ -647,6 +648,15 @@ func enter_room(r: Dictionary) -> void:
 		"break":
 			room_state = "reward"
 			rest()
+		"kiosk":
+			run["kiosk_full"] = true            # ларёк — твой этап: доступны все ценники, первая шаурма бесплатно
+			run["free_shawarma"] = true
+			room_state = "reward"
+			open_screen("kiosk")
+		"event":
+			room_state = "reward"
+			_save_run("open")
+			await play_event(String(r.get("ev", "")))
 		"boss":
 			room_state = "boss"
 			var bid := String(d["boss"])
@@ -802,21 +812,124 @@ func _room_cleared() -> void:
 	else:
 		_stage_end()
 
-## Маршрут забега: шаблон из G67Data.DISTRICTS[..].routes по номеру забега
+## Шесть позиций района: типы вариантов без конкретики (для карты, паузы, итогов); сами варианты — route_options
 func route() -> Array:
-	return G67Data.route_of(district(), int(run.get("tpl", 0)))
+	return G67Data.POSITIONS
 
-## Варианты следующего этапа — копия вариантов шаблона маршрута
+func must_seen() -> bool:
+	return bool((meta().get("must", {}) as Dictionary).get("ev_rags", false))
+
+## Типы вариантов позиции p по правилам генератора: battle, elite, fit, storage, kiosk, break, boss, event (короткое), rags
+func _tokens_at(p: int, rags_taken: bool) -> Array:
+	var unseen := not must_seen()
+	match p:
+		0: return ["battle"]
+		1: return ["battle", "fit"] + ([] if unseen else ["event"])
+		2: return ["elite", "storage"] + (["rags"] if unseen else [])
+		3:
+			if unseen and not rags_taken:
+				return ["rags"]
+			return ["kiosk", "event", "battle"]
+		4: return ["break"]
+	return ["boss"]
+
+## Можно ли из этого состояния дойти до конца четвёртой позиции: боёв 2–3 (с первой), выбор бафа, обязательное
+func _feasible(p: int, battles: int, fit: bool, rags_taken: bool) -> bool:
+	if p >= 4:
+		return battles >= 2 and battles <= 3 and fit
+	for t in _tokens_at(p, rags_taken):
+		var nb: int = battles + (1 if t in ["battle", "elite"] else 0)
+		if nb > 3:
+			continue
+		if _feasible(p + 1, nb, fit or t in ["fit", "elite"], rags_taken or t == "rags"):
+			return true
+	return false
+
+## Варианты следующего этапа: зависят от пройденного в этом забеге (run.stages) и от meta (обязательное «ТРЯПКИ»)
 func route_options(next: int) -> Array:
-	return (route()[next] as Array).duplicate(true)
+	var stages: Array = run.get("stages", [])
+	var battles := 0
+	var fit := false
+	var rags_taken := false
+	var used_ev: Array = []
+	for s in stages:
+		var t := String(s[0])
+		if t in ["battle", "elite"]:
+			battles += 1
+		if t in ["fit", "elite"]:
+			fit = true
+		if t == "event" and (s as Array).size() > 2:
+			used_ev.append(String(s[2]))
+			if String(s[2]) == "rags":
+				rags_taken = true
+	var tokens := _tokens_at(next, rags_taken)
+	if next < 4:
+		var ok_t: Array = []
+		for t in tokens:
+			var nb: int = battles + (1 if t in ["battle", "elite"] else 0)
+			if nb <= 3 and _feasible(next + 1, nb, fit or t in ["fit", "elite"], rags_taken or t == "rags"):
+				ok_t.append(t)
+		tokens = ok_t if not ok_t.is_empty() else ["battle"]
+	var tpl := int(run.get("tpl", 0))
+	var runs := int(meta().get("runs", 0))
+	var out: Array = []
+	for t in tokens:
+		match String(t):
+			"battle":
+				out.append({"type": "battle", "place": G67Data.BATTLE_PLACES[(tpl + next) % 3]})
+			"elite":
+				out.append({"type": "elite", "place": G67Data.BATTLE_PLACES[(tpl + next + 1) % 3]})
+			"fit":
+				out.append({"type": "fit", "place": "playground"})
+			"storage":
+				out.append({"type": "storage", "place": "garages"})
+			"kiosk":
+				out.append({"type": "kiosk", "place": "parking"})
+			"break":
+				out.append({"type": "break", "place": "gazebo"})
+			"boss":
+				out.append({"type": "boss", "place": "sport"})
+			"rags":
+				out.append({"type": "event", "ev": "rags", "place": "evspot"})
+			"event":
+				var ev: String = G67Data.EVENTS_SHORT[(runs + next) % 2]
+				if used_ev.has(ev):
+					ev = G67Data.EVENTS_SHORT[(runs + next + 1) % 2]
+				if not used_ev.has(ev):
+					out.append({"type": "event", "ev": ev, "place": "evspot"})
+	if out.is_empty():
+		out.append({"type": "battle", "place": G67Data.BATTLE_PLACES[(tpl + next) % 3]})
+	return out
 
 ## Этап пройден: награда уже выдана; мирные этапы дают РЕСПЕКТ здесь. Дальше — варианты следующего этапа.
+## Событие этапа: постановка «ТРЯПКИ» — следующая передача; короткие события — части 4. Пока без постановки этап
+## просто засчитывается (для «ТРЯПОК» отметка «увидено» не ставится).
+func play_event(ev: String) -> void:
+	events.append(["event", ev])
+	if ev in G67Data.EVENTS_SHORT:
+		var arch: Array = meta().get("archive", [])
+		if not arch.has("ev_" + ev):
+			arch.append("ev_" + ev)
+			meta()["archive"] = arch
+			save()
+	_stage_end()
+
+func event_seen(ev: String) -> void:
+	var m: Dictionary = meta().get("must", {})
+	m["ev_" + ev] = true
+	meta()["must"] = m
+	var arch: Array = meta().get("archive", [])
+	if not arch.has("ev_" + ev):
+		arch.append("ev_" + ev)
+		meta()["archive"] = arch
+	save()
+
 func _stage_end() -> void:
 	var type := String(room.get("type", ""))
-	if type in ["fit", "storage", "break"]:
+	if type in ["fit", "storage", "break", "kiosk", "event"]:
 		_add_respect("calm", int(G67Data.RESPECT["calm"]))
 		run["rooms"] = int(run["rooms"]) + 1
-	(run["stages"] as Array).append([type, String(room.get("place", ""))])
+	(run["stages"] as Array).append([type, String(room.get("place", "")), String(room.get("ev", ""))])
 	events.append(["stage_done", type])
 	_open_gates()
 
@@ -1482,6 +1595,8 @@ func kiosk_price(id: String) -> int:
 	var k := kiosk_item(id)
 	if k.is_empty():
 		return 0
+	if id == "shawarma" and bool(run.get("free_shawarma", false)) and int((run.get("kiosk", {}) as Dictionary).get("shawarma", 0)) == 0:
+		return 0                          # ларёк — этап: первая шаурма бесплатно
 	return int(k["price"]) + int(k.get("step", 0)) * int((run.get("kiosk", {}) as Dictionary).get(id, 0))
 
 ## Можно ли купить и почему нет («» — можно)
@@ -1489,6 +1604,8 @@ func kiosk_why(id: String) -> String:
 	var k := kiosk_item(id)
 	if k.is_empty():
 		return "нет такого"
+	if id in ["double", "togo"] and not bool(run.get("kiosk_full", false)):
+		return "только когда ларёк — твой этап"
 	if kiosk_left(id) <= 0:
 		return "на забег всё"
 	if int(run.get("golda", 0)) < kiosk_price(id):
@@ -1794,7 +1911,7 @@ func refresh_hints() -> void:
 	if paused_run():
 		var sv: Dictionary = data["run"]
 		var rr: Dictionary = sv["run"]
-		door = "продолжить забег · этап %d из 7 · здоровье %d из %d" % [int(rr.get("pos", 0)) + 1, int(float(sv.get("hp", game.player.max_hp))), int(game.player.max_hp)]
+		door = "продолжить забег · этап %d из 6 · здоровье %d из %d" % [int(rr.get("pos", 0)) + 1, int(float(sv.get("hp", game.player.max_hp))), int(game.player.max_hp)]
 		tpl = int(rr.get("tpl", 0))
 	for pt in world.points:
 		match String(pt["id"]):
@@ -1886,7 +2003,9 @@ func use(id: String) -> void:
 	elif id == "tv":
 		tv()
 	elif id == "kiosk":
-		if room_state in ["open", "reward"]:
+		if place == "run" and int(run.get("pos", 0)) < 2 and not bool(run.get("kiosk_full", false)):
+			game.toast("Окно закрыто: откроется позже")
+		elif room_state in ["open", "reward"]:
 			open_screen("kiosk")
 		else:
 			game.toast("Сначала разберись с этими")
@@ -2026,7 +2145,9 @@ func open_screen(what: String) -> void:
 		"result": hub_ui = ResultUIScript.open(self)
 	hub_ui.closed.connect(func():
 		hub_ui = null
-		refresh_hints())
+		refresh_hints()
+		if what == "kiosk" and room_state == "reward" and String(room.get("type", "")) == "kiosk":
+			_stage_end())
 
 func _tv_menu() -> void:
 	open_screen("archive")

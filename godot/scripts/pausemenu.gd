@@ -608,7 +608,7 @@ func _golda_page(i: int, top: VBoxContainer) -> void:
 					return "Голда: %d   ·   ДВОР · этап %d из %d" % [int(G.run["golda"]), int(G.run["pos"]) + 1, G.route().size()]
 				var sv: Dictionary = G.data.get("run", {})
 				if G.paused_run():
-					return "ПОДЪЕЗД   ·   ЗАБЕГ НА ПАУЗЕ · этап %d из 7" % (int((sv["run"] as Dictionary).get("pos", 0)) + 1)
+					return "ПОДЪЕЗД   ·   ЗАБЕГ НА ПАУЗЕ · этап %d из 6" % (int((sv["run"] as Dictionary).get("pos", 0)) + 1)
 				return "ПОДЪЕЗД", 19, SILVER)
 			_rows([["НАЗАД", _close_card]])
 		1:
@@ -649,11 +649,11 @@ func _golda_page(i: int, top: VBoxContainer) -> void:
 				var opts: Array = rt[n]
 				var line := ""
 				if n < stages.size():
-					line = "✓  %d · %s · %s" % [n + 1, String(G67Data.ROOM_NAMES[String(stages[n][0])]), String(G67Yard.zone(String(stages[n][1]))["name"]).to_upper()]
+					line = "✓  %d · %s" % [n + 1, G67Data.stage_title(String(stages[n][0]), String(stages[n][1]), String(stages[n][2]) if (stages[n] as Array).size() > 2 else "")]
 				elif n == pos and G.room_state != "open":
-					line = "▶  %d · %s · %s (идёт)" % [n + 1, String(G67Data.ROOM_NAMES[String(G.room["type"])]), String(G67Yard.zone(String(G.room.get("place", "")))["name"]).to_upper()]
+					line = "▶  %d · %s (идёт)" % [n + 1, G67Data.stage_title(String(G.room["type"]), String(G.room.get("place", "")), String(G.room.get("ev", "")))]
 				else:
-					var parts: Array = opts.map(func(o): return "%s · %s" % [String(G67Data.ROOM_NAMES[String(o["type"])]), String(G67Yard.zone(String(o["place"]))["name"]).to_upper()])
+					var parts: Array = opts.map(func(o): return String(G67Data.ROOM_NAMES[String(o["type"])]))
 					line = "%s  %d · %s" % ["→" if n == stages.size() else "·", n + 1, "  /  ".join(parts)]
 				txt.append(line)
 			for t in txt:

@@ -4,9 +4,9 @@ class_name G67Data
 extends RefCounted
 
 ## Типы комнат (SPEC, раздел 9). Сделаны: BATTLE, ELITE, FIT, STORAGE, KIOSK, BREAK, BOSS. Не сделан: EVENT (этап 4).
-const ROOM_NAMES := {"battle": "БОЙ", "ambush": "ЗАСАДА", "elite": "ЭЛИТА", "fit": "БАФ", "storage": "КЛАДОВКА", "kiosk": "ЛАРЁК", "break": "ПЕРЕДЫШКА", "boss": "БОСС"}
-const ROOM_HINT := {"battle": "голда и РЕСПЕКТ", "ambush": "голда и РЕСПЕКТ", "elite": "редкий баф, голда и РЕСПЕКТ", "fit": "баф на выбор", "storage": "артефакт: один из двух", "kiosk": "«ШАУРМА 67» за голду", "break": "восстановить здоровье", "boss": "Миша Минасян"}
-const ROOM_COLOR := {"battle": Color(0.95, 0.3, 0.25), "ambush": Color(0.95, 0.4, 0.3), "elite": Color(1.0, 0.55, 0.15), "fit": Color(1.0, 0.8, 0.2), "storage": Color(0.55, 0.75, 0.95), "kiosk": Color(0.95, 0.65, 0.3), "break": Color(0.45, 0.9, 0.55), "boss": Color(0.85, 0.15, 0.2)}
+const ROOM_NAMES := {"battle": "БОЙ", "ambush": "ЗАСАДА", "elite": "ЭЛИТА", "fit": "БАФ", "storage": "КЛАДОВКА", "kiosk": "ЛАРЁК", "break": "ПЕРЕДЫШКА", "boss": "БОСС", "event": "СОБЫТИЕ"}
+const ROOM_HINT := {"battle": "голда и РЕСПЕКТ", "ambush": "голда и РЕСПЕКТ", "elite": "редкий баф, голда и РЕСПЕКТ", "fit": "баф на выбор", "storage": "артефакт: один из двух", "kiosk": "«ШАУРМА 67» за голду", "break": "восстановить здоровье", "boss": "Миша Минасян", "event": "необычное место двора"}
+const ROOM_COLOR := {"battle": Color(0.95, 0.3, 0.25), "ambush": Color(0.95, 0.4, 0.3), "elite": Color(1.0, 0.55, 0.15), "fit": Color(1.0, 0.8, 0.2), "storage": Color(0.55, 0.75, 0.95), "kiosk": Color(0.95, 0.65, 0.3), "break": Color(0.45, 0.9, 0.55), "boss": Color(0.85, 0.15, 0.2), "event": Color(0.72, 0.58, 0.95)}
 
 ## Враги района: вид для ИИ (kind из enemy.KINDS) и облик (skin из enemy.SKINS)
 const FOES := {
@@ -18,6 +18,22 @@ const FOES := {
 ## Район: семь этапов до босса включительно. Этап — один или два варианта, каждый вариант — настоящее место двора.
 ## routes — три шаблона забега (по номеру забега: runs % 3); route — первый из них (для совместимости).
 ## waves — волны по индексу этапа (0…5): список волн, волна — [[враг, сколько], …]
+## Шесть позиций района (LEVEL_DESIGN, раздел 3): типы вариантов без конкретики; сами варианты строит Golda67.route_options
+const POSITIONS := [[{"type": "battle"}], [{"type": "battle"}, {"type": "fit"}, {"type": "event"}], [{"type": "elite"}, {"type": "storage"}, {"type": "event"}],
+	[{"type": "kiosk"}, {"type": "event"}, {"type": "battle"}], [{"type": "break"}], [{"type": "boss"}]]
+const BATTLE_PLACES := ["garages", "parking", "playground"]
+const TYPE_ZONES := {"battle": ["garages", "parking", "playground"], "elite": ["garages", "parking", "playground"], "fit": ["playground"], "storage": ["garages"],
+	"kiosk": ["parking"], "break": ["gazebo"], "boss": ["sport"]}
+const EVENTS_SHORT := ["burmalda", "button"]
+const EVENT_NAMES := {"rags": "ТРЯПКИ! ТРЯПКИ!", "burmalda": "БУРМАЛДА", "button": "МОЖНО. А ЗАЧЕМ?"}
+const MUST := {"ev_rags": "rags"}
+
+## Подпись этапа: тип · место (у события — его название)
+static func stage_title(type: String, place: String, ev := "") -> String:
+	if type == "event" and ev != "":
+		return String(EVENT_NAMES.get(ev, "СОБЫТИЕ"))
+	return "%s · %s" % [String(ROOM_NAMES.get(type, type)), String(G67Yard.zone(place)["name"]).to_upper()]
+
 const ROUTES_DVOR := [
 	[
 		[{"type": "battle", "place": "podezd"}],
@@ -156,20 +172,25 @@ const ART_SLOTS := 3
 const ART_EVENT := ["garlic_aura", "hamster_aura", "collar_67"]
 const DMG_CAP_ALL := 2.0                   # общий потолок урона от фитсов и артефактов вместе
 
-const ROOM_GOLDA := {"battle": 20, "ambush": 20, "elite": 40, "fit": 0, "storage": 0, "kiosk": 0, "break": 0, "boss": 67}
+const ROOM_GOLDA := {"battle": 20, "ambush": 20, "elite": 40, "fit": 0, "storage": 0, "kiosk": 0, "break": 0, "boss": 67, "event": 0}
 const BREAK_HEAL := 0.45      # доля максимума здоровья
 
 static func district(id: String) -> Dictionary:
 	return DISTRICTS.get(id, DISTRICTS["dvor"])
 
-static func waves_for(d: Dictionary, _type: String, pos: int) -> Array:
-	var w: Dictionary = d["waves"]
-	return w[clampi(pos, 0, w.size() - 1)]
+## Волны боя: позиция 1 — три волны; бой на позициях 2 и 4 — три волны; элита — три волны
+const WAVES_P1 := [[["shest", 3]], [["shest", 2], ["semka", 1]], [["shest", 3], ["semka", 1]]]
+const WAVES_BATTLE := [[["shest", 3], ["semka", 1]], [["shest", 3], ["semka", 2]], [["shest", 4], ["semka", 2]]]
+const WAVES_ELITE := [[["smotr", 1], ["shest", 2]], [["shest", 2], ["semka", 2]], [["smotr", 1], ["semka", 2]]]
+
+static func waves_for(_d: Dictionary, type: String, pos: int) -> Array:
+	if type == "elite":
+		return WAVES_ELITE
+	return WAVES_P1 if pos == 0 else WAVES_BATTLE
 
 ## Шаблон маршрута забега: по номеру забега (первый забег — шаблон 0)
-static func route_of(d: Dictionary, tpl: int) -> Array:
-	var rs: Array = d["routes"]
-	return rs[clampi(tpl, 0, rs.size() - 1)]
+static func route_of(_d: Dictionary, _tpl: int) -> Array:
+	return POSITIONS
 
 # ---------------------------------------------------------------- подъезд: экраны предметов (этап 2)
 ## «АВТОРИТЕТ РАЙОНА» — девять веток (LEVEL_DESIGN.md, раздел 7). live — эффект уже работает; у остальных — wait:

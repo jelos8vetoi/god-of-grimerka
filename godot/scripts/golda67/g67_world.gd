@@ -549,6 +549,11 @@ static func gate_spot(o: Dictionary) -> Dictionary:
 			return {"pos": G67Yard.GATE_BOSS, "mark": G67Yard.GATE_BOSS + Vector3(0, 2.7, 0)}
 		"ambush":
 			return {"mark": (z["c"] as Vector3) + Vector3(0, 2.7, 0)}
+		"kiosk":
+			return {"pos": G67Yard.KIOSK_POS, "mark": G67Yard.KIOSK_POS + Vector3(0, 2.7, 0)}
+		"event":
+			var ep: Vector3 = G67Yard.EVENT_SPOTS.get(String(o.get("ev", "")), z["c"])
+			return {"pos": ep, "mark": ep + Vector3(0, 2.6, 0)}
 	return {"pos": z["c"], "mark": (z["c"] as Vector3) + Vector3(0, 2.7, 0)}
 
 ## Варианты следующего этапа (options — [{type, place}]). Ни ворот, ни столба света: у каждого варианта — его место во
@@ -561,7 +566,7 @@ func add_gates(options: Array) -> void:
 		var type := String(o["type"])
 		var spot := gate_spot(o)
 		var col: Color = G67Data.ROOM_COLOR[type]
-		var title := "%s · %s" % [String(G67Data.ROOM_NAMES[type]), String(G67Yard.zone(String(o.get("place", "podezd")))["name"]).to_upper()]
+		var title := G67Data.stage_title(type, String(o.get("place", "podezd")), String(o.get("ev", "")))
 		var root := Node3D.new()
 		root.name = "gate_mark%d" % i
 		root.position = spot["mark"]

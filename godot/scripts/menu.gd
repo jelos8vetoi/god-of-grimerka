@@ -713,10 +713,10 @@ func _open_golda67() -> void:
 		lines.append("ДВОР: Миша Минасян побеждён" if bool((m.get("flags", {}) as Dictionary).get("boss_misha", false)) else "ДВОР: Миша Минасян ждёт в коробке")
 		var rn: Dictionary = d.get("run", {})
 		if not rn.is_empty() and rn.has("room") and not String(rn.get("state", "open")) in ["fight", "boss"]:
-			lines.append("Забег на паузе: этап %d из 7" % (int((rn["run"] as Dictionary).get("pos", 0)) + 1))
+			lines.append("Забег на паузе: этап %d из 6" % (int((rn["run"] as Dictionary).get("pos", 0)) + 1))
 	else:
 		lines.append("Турнир 67: приз — 67 000 голды. madk1d записал Пахана и заплатил взнос. Отменить регистрацию нельзя.")
-		lines.append("Подъезд — база между забегами; из него идёшь во двор: семь этапов и босс.")
+		lines.append("Подъезд — база между забегами; из него идёшь во двор: шесть этапов и босс.")
 	_open("ГОЛДА 67", lines, [["ВОЙТИ В ПОДЪЕЗД", func(): launch_golda67()], ["НАЗАД", _close]])
 
 func launch_golda67() -> void:
