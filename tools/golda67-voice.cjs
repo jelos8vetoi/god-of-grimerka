@@ -25,17 +25,6 @@ const args = process.argv.slice(2);
 const ONLY = (args.find(a => a.startsWith('--only=')) || '').slice(7).toUpperCase();
 const PLAN = args.includes('--plan'), RETRY = args.includes('--retry'), DOCS = args.includes('--docs'), RETRIM = args.includes('--retrim');
 const DOCDIR = path.join(ROOT, 'godot/docs/golda67');
-// ключи Fish Audio для madk1d — из .env основной папки или окружения; в вывод не попадают
-(function loadEnv() {
-  for (const f of [path.join(ROOT, '.env'), path.join(ROOT, '..', 'GOD OF CLOUD', '.env')]) {
-    try {
-      for (const ln of fs.readFileSync(f, 'utf8').split('\n')) {
-        const m = /^(FISH_KEY|FISH_REF_M|FISH_MODEL)=(.*)$/.exec(ln.trim());
-        if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
-      }
-    } catch (e) {}
-  }
-})();
 const STEPS = 32;                       // качество диффузии (8 — черновик, 32 — качество)
 const MATCH_OK = 0.62;                  // сходство распознанного текста с исходным, чтобы считать реплику проверенной
 
@@ -190,22 +179,6 @@ function retrim(e) {
   return p.cut_ms;
 }
 // madk1d: Fish Audio (тот же голос, что в кампании), mp3 → PCM 24 кГц через ffmpeg
-async function fishWav(text) {
-  const r = await fetch('https://api.fish.audio/v1/tts', { method: 'POST',
-    headers: { Authorization: 'Bearer ' + process.env.FISH_KEY, 'Content-Type': 'application/json', model: process.env.FISH_MODEL || 's1' },
-    body: JSON.stringify({ text, reference_id: process.env.FISH_REF_M, format: 'mp3', mp3_bitrate: 128, normalize: true, latency: 'normal' }) });
-  if (!r.ok) throw new Error('Fish Audio: HTTP ' + r.status);
-  const mp3 = Buffer.from(await r.arrayBuffer());
-  fs.mkdirSync(TMP, { recursive: true });
-  const tmp = path.join(TMP, 'fish_' + Date.now() + '.mp3');
-  fs.writeFileSync(tmp, mp3);
-  const d = cp.spawnSync(ffmpeg(), ['-loglevel', 'error', '-i', tmp, '-f', 's16le', '-ac', '1', '-ar', '24000', '-'], { maxBuffer: 1 << 28 });
-  fs.rmSync(tmp, { force: true });
-  if (d.status !== 0) throw new Error('mp3 не раскодирован');
-  const n = d.stdout.length / 2, s = new Float32Array(n);
-  for (let i = 0; i < n; i++) s[i] = d.stdout.readInt16LE(i * 2) / 32768;
-  return { rate: 24000, s };
-}
 function ffmpeg() {
   const base = path.join(process.env.APPDATA || '', 'VoiceStudioPro', 'media_tools');
   try { for (const d of fs.readdirSync(base)) for (const sub of ['win32', '']) { const f = path.join(base, d, sub, 'ffmpeg.exe'); if (fs.existsSync(f)) return f; } } catch (e) {}
@@ -263,11 +236,11 @@ function merge(man, exp) {
 }
 
 // ---------------------------------------------------------------- модели
-const NAME_HINTS = { V: /паш|пахан|pahan/i, KR: /крот|krot/i, DJ: /flurr|flürr|флюр/i, G1: /миша|misha|минасян/i,
+const NAME_HINTS = { M: /madk/i, V: /паш|пахан|pahan/i, KR: /крот|krot/i, DJ: /flurr|flürr|флюр/i, G1: /миша|misha|минасян/i,
   WH: /whyousolonely/i, FT: /fortuna/i, KX: /королев|korolev/i, BS: /бустер|buster/i };
-// голоса не из моделей владельца: ведущие — встроенные пресеты Voice Studio Pro (решение владельца), madk1d — Fish Audio
-const FIXED = { AN: { id: 'preset:narrator', name: 'пресет Narrator (Voice Studio Pro)' }, PH: { id: 'preset:casual', name: 'пресет Casual (Voice Studio Pro)' },
-  M: { id: 'fish:FISH_REF_M', name: 'madk1d (Fish Audio, голос из игры)', engine: 'fish' } };
+// голоса не из моделей владельца: ведущие — встроенные пресеты Voice Studio Pro (решение владельца).
+// Весь приквел озвучивается только через Voice Studio Pro (решение владельца от 2026-11-22): madk1d — его модель MADK1D.
+const FIXED = { AN: { id: 'preset:narrator', name: 'пресет Narrator (Voice Studio Pro)' }, PH: { id: 'preset:casual', name: 'пресет Casual (Voice Studio Pro)' } };
 async function resolveModels(exp) {
   const cfg = loadJson(MODELS, { note: 'ID моделей Voice Studio Pro по коду говорящего. Пусто — ищется по имени модели.', models: {} });
   let voices = [];
@@ -278,7 +251,7 @@ async function resolveModels(exp) {
     let v = voices.find(x => x.id === id);
     if (!v && FIXED[code]) {
       const f = FIXED[code];
-      v = (f.engine === 'fish' && !(process.env.FISH_KEY && process.env.FISH_REF_M)) ? null : { id: f.id, name: f.name, engine: f.engine };
+      v = { id: f.id, name: f.name };
     }
     if (!v) v = voices.find(x => !x.is_demo && NAME_HINTS[code] && NAME_HINTS[code].test(x.name));
     out[code] = v ? { id: v.id, name: v.name, engine: v.engine || 'vsp' } : null;
@@ -294,8 +267,7 @@ async function produce(e, model) {
   let best = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     let raw;
-    if (model.engine === 'fish') raw = await fishWav(e.text);
-    else {
+    {
       const r = await tool('generate_speech', { text: e.text, profile_id: model.id, language: 'ru', speed: e.speed || 1.0, steps: STEPS, format: 'wav' });
       const b64 = r.wav_base64 || r.audio_base64;
       if (!b64) throw new Error('генератор не вернул звук: ' + JSON.stringify(r).slice(0, 200));

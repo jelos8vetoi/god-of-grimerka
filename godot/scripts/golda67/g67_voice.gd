@@ -37,6 +37,9 @@ const CLIP_DIR := {
 }
 ## Боевые выкрики Пахана, которые доходят до приквела (остальные виды — только кампания: глава, босс кампании, гибель)
 const BARK_KINDS := ["heat", "rage", "parry", "hurt", "finish"]
+## Событие 2 «ТРЯПКИ! ТРЯПКИ!» (SPEC, раздел 14) — реплики дословно, по порядку сцены. Крики за дверью в конце —
+## та же первая реплика madk1d (отдельной строки в ТЗ нет).
+const EVENT_RAGS := ["V|ТЫ ЧЁ, БЛЯТЬ, ТВОРИШЬ?!", "M|ТРЯПКИ! ТРЯПКИ! ТРЯПКИ!", "V|Я ТОЛЬКО УСНУЛ, НАХУЙ!", "M|ТРЯПКИ, БРАТ! ВОДА ВЕЗДЕ!", "V|Я, блядь, даже спрашивать не буду."]
 ## Состояния DJ FLÜRR, доступные в главе 1: в ней всего три встречи КРОТА
 const FLURR_STATES := [0, 1, 2, 3]
 
@@ -121,6 +124,12 @@ static func chapter1_lines() -> Array:
 			var code := ln.get_slice("|", 0)
 			var dr: Array = CLIP_DIR.get(code, ["естественно", 1.0])
 			out.append(_mk("clip_" + cid, i, ln, "ролик %s «%s»" % [cid, G67Clips.title(cid)], _emo(ln, String(dr[0])), float(dr[1])))
+	# --- событие «ТРЯПКИ! ТРЯПКИ!» (ДВОР, обязательное)
+	var rags_dir := {"V": ["спросонья, в ярости, орёт", 1.05], "M": ["в панике, орёт на бегу", 1.12]}
+	for i in EVENT_RAGS.size():
+		var ln := String(EVENT_RAGS[i])
+		var dr: Array = rags_dir.get(ln.get_slice("|", 0), ["естественно", 1.0])
+		out.append(_mk("event_rags", i, ln, "событие «ТРЯПКИ! ТРЯПКИ!» (ДВОР, квартира)", "устало, сквозь зубы" if i == 4 else String(dr[0]), 0.95 if i == 4 else float(dr[1])))
 	# --- боевые выкрики Пахана в приквеле
 	var bj = JSON.parse_string(FileAccess.get_file_as_string("res://data/barks.json"))
 	if bj is Dictionary:
