@@ -858,10 +858,130 @@ func scene_busy() -> bool:
 	return scene_t >= 0.0 or clip != null or hub_ui != null
 
 func owns_camera() -> bool:
-	return scene_t >= 0.0 and scene_boss != null and is_instance_valid(scene_boss)
+	return talk_on or (scene_t >= 0.0 and scene_boss != null and is_instance_valid(scene_boss))
+
+# ---------------------------------------------------------------- камера разговоров (talk_shots)
+## План: {pos, look, fov} в мировых координатах; номер плана на реплику — talk_map. Планы строятся от положений героя и
+## собеседника, сторону выбирает _talk_camera (там, где больше места); перед показом луч от середины до камеры: стена — ближе.
+var talk_on := false
+var talk_shots: Array = []        # список планов
+var talk_map := {}                # {номер реплики: номер плана}
+var talk_cur := 0
+var talk_t := 1.0
+var talk_pos := Vector3.ZERO
+var talk_look := Vector3.ZERO
+var talk_fov := 45.0
+var talk_hidden := {}             # что спрятано на время разговора: узел → прежняя видимость
+
+## Свободная доля луча от середины до камеры (1 — стен нет)
+func _free_k(mid: Vector3, pos: Vector3) -> float:
+	var space: PhysicsDirectSpaceState3D = game.player.get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(mid, pos)
+	q.collision_mask = 8
+	var hit: Dictionary = space.intersect_ray(q)
+	return 1.0 if hit.is_empty() else (hit["position"] as Vector3).distance_to(mid) / maxf(0.01, mid.distance_to(pos))
+
+## План из двух вариантов (с одной и с другой стороны): берём тот, где меньше стен; стена на пути — камера ближе
+func _plan(mid: Vector3, pos: Vector3, look: Vector3, fov: float, alt := Vector3.INF) -> Dictionary:
+	if alt != Vector3.INF and _free_k(mid, alt) > _free_k(mid, pos):
+		pos = alt
+	var k := _free_k(mid, pos)
+	if k < 1.0:
+		pos = mid.lerp(pos, maxf(0.25, k * 0.9))
+	return {"pos": pos, "look": look, "fov": fov}
+
+## Составить планы разговора: kind — flurr / kiosk / chandelier / pigeons / krot; lines — реплики (код|текст)
+func talk_begin(partner, kind: String, lines: Array) -> void:
+	var p = game.player
+	var H: Vector3 = p.global_position
+	var Q: Vector3 = (partner as Node3D).global_position
+	var A := Q - H
+	A.y = 0.0
+	A = A.normalized() if A.length() > 0.05 else Vector3.FORWARD
+	var S := A.cross(Vector3.UP)
+	var sd: float = game.dlg_side
+	var qy := 0.95 if kind == "flurr" else 1.45          # DJ FLÜRR сидит на лавке: лицо ниже
+	var M := (H + Q) * 0.5 + Vector3(0, 1.3 if kind == "flurr" else 1.4, 0)
+	var Hh := H + Vector3(0, 1.45, 0)
+	var Qh := Q + Vector3(0, qy, 0)
+	var sep := H.distance_to(Q)
+	talk_shots = [
+		_plan(M, M + S * sd * (3.2 + sep * 0.6) + A * 0.8 + Vector3(0, 0.1, 0), M, 62.0, M - S * sd * (3.2 + sep * 0.6) + A * 0.8 + Vector3(0, 0.1, 0)),                       # 0 общий: оба в профиль
+		_plan(M, Qh + S * sd * 1.5 - A * 0.9 + Vector3(0, 0.1, 0), Qh, 38.0, Qh - S * sd * 1.5 - A * 0.9 + Vector3(0, 0.1, 0)),                          # 1 собеседник в три четверти
+		_plan(M, Qh + A * 0.9 + S * sd * 0.55 + Vector3(0, 0.25, 0), Hh, 44.0, Qh + A * 0.9 - S * sd * 0.55 + Vector3(0, 0.25, 0))]                          # 2 через плечо собеседника на Пахана
+	var extra_idx := -1
+	match kind:
+		"kiosk":
+			talk_shots.append(_plan(M, M + S * sd * (5.0 + sep * 0.6) + Vector3(0, 1.0, 0), Vector3(39.9, 1.5, 7.0), 56.0))   # 3 окно ларька и очередь
+		"chandelier":
+			# у колясочной с боков мешает кладка лестницы: средний и крупный планы — из-за плеча героя, КРОТ лицом в кадр
+			talk_shots[1] = _plan(M, Hh - A * 1.5 + S * sd * 0.5 + Vector3(0, 0.15, 0), Qh, 38.0, Hh - A * 1.5 - S * sd * 0.5 + Vector3(0, 0.15, 0))
+			talk_shots.append(_plan(M, Hh - A * 1.9 + S * sd * 0.95 + Vector3(0, 0.1, 0), Qh + Vector3(0, 0.15, 0), 38.0, Hh - A * 1.9 - S * sd * 0.95 + Vector3(0, 0.1, 0)))      # 3 крупно люстра
+		"pigeons":
+			talk_shots.append(_plan(M, Q + A * -2.6 + S * sd * 2.2 + Vector3(0, 0.55, 0), Q + Vector3(0, 0.35, 0), 58.0, Q + A * -2.6 - S * sd * 2.2 + Vector3(0, 0.55, 0)))   # 3 низко на голубей
+	talk_map = {}
+	for i in lines.size():
+		var ln := String(lines[i])
+		var who := ln.substr(0, ln.find("|"))
+		var plan := 0 if i == 0 else (2 if who.begins_with("V") else 1)
+		if kind == "kiosk" and i == lines.size() - 1:
+			plan = 3
+		elif kind == "chandelier" and ln.contains("странно смотрела"):
+			plan = 3
+		elif kind == "pigeons":
+			plan = 0 if who.begins_with("V") else 1
+			if ln.contains("голубь справа"):
+				plan = 3
+		elif kind != "flurr" and i > 0 and who.begins_with("V"):
+			plan = 0
+		talk_map[i] = plan
+	talk_cur = int(talk_map.get(0, 0))
+	var sh0: Dictionary = talk_shots[talk_cur]
+	talk_pos = sh0["pos"]
+	talk_look = sh0["look"]
+	talk_fov = float(sh0["fov"])
+	talk_t = 1.0
+	talk_on = true
+	_talk_hud(true)
+
+func talk_end() -> void:
+	if not talk_on:
+		return
+	talk_on = false
+	_talk_hud(false)
+
+## Боевой HUD, верхняя строка и значки над точками на время разговора спрятаны
+func _talk_hud(hide: bool) -> void:
+	if hide:
+		var nodes: Array = [game.combat_hud, game.hud_root, mark_talk, prompt]
+		for g in world.gates:
+			nodes.append(g.get("root"))
+		for n in nodes:
+			if n != null and is_instance_valid(n) and "visible" in n:
+				talk_hidden[n] = n.visible
+				n.visible = false
+	else:
+		for n in talk_hidden:
+			if is_instance_valid(n):
+				n.visible = talk_hidden[n]
+		talk_hidden = {}
+
+func _talk_step(dt: float) -> void:
+	var want := int(talk_map.get(clampi(game.dlg_i, 0, 99), talk_cur))
+	if want != talk_cur and want < talk_shots.size():
+		talk_cur = want
+		talk_t = 0.0
+	talk_t = minf(1.0, talk_t + dt / 0.35)
+	var sh: Dictionary = talk_shots[talk_cur]
+	var k := 1.0 - exp(-14.0 * dt) if talk_t >= 1.0 else minf(1.0, dt / 0.12)
+	talk_pos = talk_pos.lerp(sh["pos"], k)
+	talk_look = talk_look.lerp(sh["look"], k)
+	talk_fov = lerpf(talk_fov, float(sh["fov"]), k)
 
 ## где камера в этот миг постановки
 func camera() -> Transform3D:
+	if talk_on:
+		return Transform3D(Basis.looking_at(talk_look - talk_pos, Vector3.UP), talk_pos)
 	var home: Transform3D = game.spring.global_transform * Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
 	var bp: Vector3 = scene_boss.global_position
 	var chest: Vector3 = bp + Vector3(0, 1.45, 0)
@@ -1085,8 +1205,16 @@ func talk_krot() -> void:
 		p.face = atan2(to.x, to.z)
 	game.start_dialog(k["lines"], func(): _krot_done(String(k["id"])))
 	_talk_camera(kr)
+	var kind := "krot"
+	match String(k["id"]):
+		"krot1": kind = "kiosk"
+		"krot2": kind = "chandelier"
+		"krot3": kind = "pigeons"
+	if kr != null and is_instance_valid(kr):
+		talk_begin(kr, kind, k["lines"])
 
 func _krot_done(id: String) -> void:
+	talk_end()
 	game.mode = "golda67"
 	if place == "run":
 		game.buddy.global_position = Vector3(0, -50, 0)
@@ -1175,8 +1303,11 @@ func talk_flurr() -> void:
 		p.face = atan2(to.x, to.z)
 	game.start_dialog(lines, func(): _flurr_done(n, big))
 	_talk_camera(fr)
+	if fr != null and is_instance_valid(fr):
+		talk_begin(fr, "flurr", lines)
 
 func _flurr_done(n: int, big: bool) -> void:
+	talk_end()
 	game.mode = "golda67"
 	if big:
 		meta()["flurr"] = n
@@ -1683,6 +1814,8 @@ func _physics_process(dt: float) -> void:
 			prompt.visible = false
 		return
 	_t += dt
+	if talk_on:
+		_talk_step(dt)
 	if scene_t >= 0.0:
 		_scene_tick(dt)
 	_marks_tick()

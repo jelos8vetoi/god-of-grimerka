@@ -282,6 +282,7 @@ func _run() -> void:
 	await _flurr_check(g, G, P)
 	await _ui3_check(g, G, P)
 	await _save_check(g, G)
+	await _talks_check(g, G, P)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
 	# ================= этап 3: кладовка, ларёк, артефакты, фитсы по таблице =================
@@ -2145,6 +2146,109 @@ func _save_check(g, G: Golda67) -> void:
 	G67Save.wipe()
 	G67Save.path_override = ""
 	G67Save.clean = was_clean
+
+## Точка в кадре и вне плашки диалога
+func _in_frame(g, pt: Vector3, below_ok := false) -> bool:
+	var vs: Vector2 = g.get_viewport().get_visible_rect().size
+	if g.cam.is_position_behind(pt):
+		return false
+	var sp: Vector2 = g.cam.unproject_position(pt)
+	if sp.x < 20.0 or sp.x > vs.x - 20.0 or sp.y < 20.0 or sp.y > vs.y - 20.0:
+		return false
+	return below_ok or not (sp.y > vs.y - 250.0 and sp.x > vs.x * 0.12 and sp.x < vs.x * 0.88)
+
+func _ray_free(g, pt: Vector3) -> bool:
+	var q := PhysicsRayQueryParameters3D.create(g.cam.global_position, pt)
+	q.collision_mask = 8
+	var hit: Dictionary = g.player.get_world_3d().direct_space_state.intersect_ray(q)
+	return hit.is_empty() or (hit["position"] as Vector3).distance_to(pt) < 1.0       # тело самого собеседника у лица преградой не считаем
+
+## Разговор по планам: на каждой реплике лица и названный объект в кадре над плашкой, луч свободен, HUD скрыт; снимок каждого плана
+func _talk_scene(g, G: Golda67, P, partner: Node3D, nm: String, obj: Vector3, obj_name: String) -> void:
+	var ok_all := true
+	var hud_ok := true
+	var seen_plans := {}
+	var vis0 := true
+	await wait(0.4)
+	for i in 40:
+		if g.mode != "dlg":
+			break
+		await wait(0.9)
+		var plan: int = int(G.talk_map.get(g.dlg_i, G.talk_cur))
+		var hh: Vector3 = P.global_position + Vector3(0, 1.6, 0)
+		var qh: Vector3 = partner.global_position + Vector3(0, 1.05 if nm == "flurr" else 1.6, 0)
+		var need_both := plan == 0
+		var good: bool = _in_frame(g, qh) and _ray_free(g, qh) and (not need_both or (_in_frame(g, hh) and _ray_free(g, hh)))
+		if plan == 2:
+			good = _in_frame(g, hh) and _ray_free(g, hh)
+		if plan == 3 and obj != Vector3.ZERO:
+			good = _in_frame(g, obj, obj_name == "голуби") and good_obj_ray(g, obj)
+		if not good:
+			ok_all = false
+			print("GOLDA67CHECK   разговор %s: реплика %d, план %d — лица/объект вне кадра или закрыты" % [nm, g.dlg_i, plan])
+		if g.hud_root.is_visible_in_tree() or g.combat_hud.is_visible_in_tree():
+			hud_ok = false
+		if not seen_plans.has(plan):
+			seen_plans[plan] = true
+			await shot("dlg_%s_%d" % [nm, plan])
+		g._dlg_advance()
+	await wait(0.6)
+	ok(ok_all and seen_plans.size() >= 2, "разговор «%s»: на всех планах (%s) лица%s в кадре над плашкой, луч свободен" % [nm, str(seen_plans.keys()), (" и " + obj_name) if obj != Vector3.ZERO else ""])
+	ok(hud_ok and g.hud_root.visible == vis0 and g.hud_root.is_visible_in_tree(), "разговор «%s»: HUD скрыт на время диалога и вернулся после" % nm)
+
+func good_obj_ray(g, pt: Vector3) -> bool:
+	return _ray_free(g, pt)
+
+func _talks_check(g, G: Golda67, P) -> void:
+	var seen0: Array = (G.meta().get("seen", []) as Array).duplicate()
+	var fl0: int = int(G.meta().get("flurr", -1))
+	# DJ FLÜRR на лавке
+	G.meta()["seen"] = ["krot1"]
+	G.meta()["flurr"] = -1
+	var fr = G.world.actors.get("g67_dj_flurr")
+	if fr != null:
+		P.global_position = fr.global_position + Vector3(1.4, 0.0, 0.9)
+		await wait(0.5)
+		G.talk_flurr()
+		await _talk_scene(g, G, P, fr, "flurr", Vector3.ZERO, "")
+	# КРОТ с люстрой (подъезд)
+	G.meta()["seen"] = ["krot1"]
+	G.meta()["flurr"] = 1
+	G._place_krot("hub")
+	var kr = G.world.actors.get("g67_krot")
+	if kr != null:
+		P.global_position = kr.global_position + Vector3(0.0, 0.0, 1.8)
+		await wait(0.5)
+		G.talk_krot()
+		await _talk_scene(g, G, P, kr, "chandelier", kr.global_position + Vector3(0, 1.45, 0), "люстра")
+		G.world.actors.erase("g67_krot")
+	# КРОТ у ларька и КРОТ с голубями — во дворе
+	await _go(G, P, "exit")
+	if await until(func(): return G.place == "run" and G.room_state == "fight", 8.0):
+		_kill_all(g)
+		G.pending = []
+		G.wave_wait = 999.0
+		G.meta()["seen"] = []
+		G._place_krot("parking")
+		kr = G.world.actors.get("g67_krot")
+		if kr != null:
+			P.global_position = kr.global_position + Vector3(0.0, 0.0, 1.8)
+			await wait(0.5)
+			G.talk_krot()
+			await _talk_scene(g, G, P, kr, "kiosk", Vector3(39.9, 1.5, 7.0), "окно ларька")
+		G.meta()["seen"] = ["krot1", "krot2"]
+		G._place_krot("playground")
+		kr = G.world.actors.get("g67_krot")
+		if kr != null and G.meta()["seen"].size() == 2:
+			P.global_position = kr.global_position + Vector3(0.0, 0.0, 1.8)
+			await wait(0.5)
+			G.talk_krot()
+			await _talk_scene(g, G, P, kr, "pigeons", kr.global_position + Vector3(0, 0.15, 0), "голуби")
+	await G.enter_hub()
+	G.data["run"] = {}
+	G.meta()["seen"] = seen0
+	G.meta()["flurr"] = fl0
+	await wait(0.3)
 
 func _run_dvor(g, G: Golda67, P) -> void:
 	# выход во двор — настоящей клавишей E у входной двери

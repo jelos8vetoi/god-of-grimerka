@@ -1093,7 +1093,11 @@ func _process(dt: float) -> void:
 		cam.h_offset = 0.0
 		cam.v_offset = 0.0
 	elif golda != null and golda.owns_camera():
-		cam.global_transform = golda.camera()      # постановка приквела (выход босса)
+		cam.global_transform = golda.camera()      # постановка приквела (выход босса, разговоры)
+		if golda.talk_on:
+			cam.fov = golda.talk_fov
+			cam.h_offset = 0.0
+			cam.v_offset = 0.0
 	cam_attributes.dof_blur_far_enabled = ipod_focus > 0.002
 	# A restrained DOF pass establishes depth; the lightweight screen pass below
 	# supplies the remaining focus separation without turning the world to mush.
