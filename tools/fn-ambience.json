@@ -1,4 +1,7 @@
 {
+ "not_built": [
+  "Настоящие капли воды без клиппинга не нашлись: во всех каплях BigSoundBank #1383 и #1382 есть клиппинг, поэтому drip_1..3 не собраны."
+ ],
  "note": "Рецепт фона «5 ночей». Сборка: node tools/godot-fn-ambience.cjs --src <папка исходников>. Для разовых segment = [начало, длительность] в исходнике, len = итоговая длина (с хвостом эха); для петель segment = [начало, конец].",
  "items": [
   {
@@ -678,42 +681,6 @@
    "peak_db": -9
   },
   {
-   "out": "drip_1.ogg",
-   "kind": "oneshot",
-   "src": "s16_drip/bsb1383_drops-metal-sink.ogg",
-   "src_name": "bsb1383_drops-metal-sink.ogg",
-   "title": "Drops, metal sink (BigSoundBank #1383)",
-   "author": "Joseph SARDIN",
-   "url": "https://bigsoundbank.com/drops-metal-sink-s1383.html",
-   "licence": "CC0 (public domain)",
-   "use": "капля",
-   "skip": "не собрано: во всех каплях исходника bsb1383 (Drops, metal sink) есть клиппинг (13-20 отсчётов на каплю, пик ≥ 1.0), условие «пик исходника < 0.98» не выполняется"
-  },
-  {
-   "out": "drip_2.ogg",
-   "kind": "oneshot",
-   "src": "s16_drip/bsb1383_drops-metal-sink.ogg",
-   "src_name": "bsb1383_drops-metal-sink.ogg",
-   "title": "Drops, metal sink (BigSoundBank #1383)",
-   "author": "Joseph SARDIN",
-   "url": "https://bigsoundbank.com/drops-metal-sink-s1383.html",
-   "licence": "CC0 (public domain)",
-   "use": "капля",
-   "skip": "не собрано: во всех каплях исходника bsb1383 (Drops, metal sink) есть клиппинг (13-20 отсчётов на каплю, пик ≥ 1.0), условие «пик исходника < 0.98» не выполняется"
-  },
-  {
-   "out": "drip_3.ogg",
-   "kind": "oneshot",
-   "src": "s16_drip/bsb1383_drops-metal-sink.ogg",
-   "src_name": "bsb1383_drops-metal-sink.ogg",
-   "title": "Drops, metal sink (BigSoundBank #1383)",
-   "author": "Joseph SARDIN",
-   "url": "https://bigsoundbank.com/drops-metal-sink-s1383.html",
-   "licence": "CC0 (public domain)",
-   "use": "капля",
-   "skip": "не собрано: во всех каплях исходника bsb1383 (Drops, metal sink) есть клиппинг (13-20 отсчётов на каплю, пик ≥ 1.0), условие «пик исходника < 0.98» не выполняется"
-  },
-  {
    "out": "click_1.wav",
    "kind": "oneshot",
    "src": "s18_relay/bsb0321_switch-5.ogg",
@@ -814,7 +781,7 @@
    "licence": "CC0 (public domain)",
    "use": "щелчок автомата",
    "segment": [
-    0.28,
+    4.03,
     0.2
    ],
    "fade_out": 0.06,
@@ -893,6 +860,7 @@
    "filters": "highpass=f=85",
    "fade_in": 0.08,
    "fade_out": 0.08,
+   "tail_silence": 0.05,
    "len": 2.5,
    "peak_db": -8
   },

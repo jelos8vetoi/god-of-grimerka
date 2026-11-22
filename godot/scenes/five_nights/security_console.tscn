@@ -238,3 +238,11 @@ material_override = ExtResource("laminate")
 position = Vector3(0, 0.782, 0.396)
 mesh = SubResource("Box_1_72_0_009_0_009")
 material_override = ExtResource("steel")
+
+[node name="AudioPoints" type="Node3D" parent="."]
+
+[node name="Crt" type="Marker3D" parent="AudioPoints"]
+position = Vector3(-0.048, 1.294, -0.069)
+
+[node name="Fan" type="Marker3D" parent="AudioPoints"]
+position = Vector3(-0.64, 1.0, -0.3)

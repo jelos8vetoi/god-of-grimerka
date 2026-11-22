@@ -55,6 +55,15 @@ var headphone := 0.0         # 0 — обычный микс, 1 — слышны
 var headphone_on := false
 var ipod_lowpass: AudioEffectLowPassFilter
 var ipod_reverb: AudioEffectReverb
+var room_lowpass: AudioEffectLowPassFilter
+
+## шина Room: срез верха и поправка громкости (монитор «глушит» комнату)
+func room(cutoff_hz: float, gain_db: float) -> void:
+	var i := AudioServer.get_bus_index("Room")
+	if i < 0 or room_lowpass == null:
+		return
+	room_lowpass.cutoff_hz = cutoff_hz
+	AudioServer.set_bus_volume_db(i, gain_db)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -74,6 +83,15 @@ func _ready() -> void:
 				var lim := AudioEffectHardLimiter.new()
 				lim.ceiling_db = -1.0
 				AudioServer.add_bus_effect(si, lim)
+	# «Room» — комната «5 ночей» (фон и случайные звуки здания): идёт в Ambient, фильтр открывается и закрывается из room()
+	if AudioServer.get_bus_index("Room") < 0:
+		AudioServer.add_bus()
+		var ri := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(ri, "Room")
+		AudioServer.set_bus_send(ri, "Ambient")
+		room_lowpass = AudioEffectLowPassFilter.new()
+		room_lowpass.cutoff_hz = 20500.0
+		AudioServer.add_bus_effect(ri, room_lowpass)
 	# «Phone» — голос из телефонной трубки (звонки в «5 ночей»): узкая полоса и лёгкий хрип, дальше — в Voice
 	# (ползунок «Голоса» действует на него как на остальную озвучку)
 	if AudioServer.get_bus_index("Phone") < 0:

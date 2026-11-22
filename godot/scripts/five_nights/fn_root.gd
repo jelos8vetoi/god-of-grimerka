@@ -39,7 +39,6 @@ var call_t := 0.0
 var call_muted := false
 var ring_t := -1.0
 var ping_beep := 0.0
-var duck_k := 0.0
 var face_flash := 0.0
 var pending_reflection := false
 var said_door := false
@@ -48,7 +47,7 @@ var end_t := 0.0
 var finale_done := false
 var intro_t := 0.0                  # заставка ночи: пока идёт, часы стоят и враги не ходят
 # звук
-var amb := {}                       # id → AudioStreamPlayer (петли окружения)
+var ambience: FNAmbience             # фон будки и случайные звуки здания
 var crawl: AudioStreamPlayer3D      # MADK1D в шахте
 var whisper: AudioStreamPlayer      # GHOST: шёпот растёт с одержимостью
 var air_tune: AudioStreamPlayer3D   # «последний шанс»
@@ -113,14 +112,9 @@ func apply_fx() -> void:
 
 # ---------------- звук ----------------
 func _audio() -> void:
-	for a in [["hum", "Ambient", -8.0], ["fan", "Ambient", -14.0], ["buzz", "Ambient", -26.0], ["whine", "SFX", -60.0]]:
-		var p := AudioStreamPlayer.new()
-		p.stream = FNSound.get_stream(a[0])
-		p.bus = a[1]
-		p.volume_db = a[2] + FNSound.trim(a[0])
-		p.set_meta("base", a[2] + FNSound.trim(a[0]))
-		add_child(p)
-		amb[a[0]] = p
+	ambience = FNAmbience.new()
+	add_child(ambience)
+	ambience.build(self)
 	crawl = _p3("crawl")
 	crawl.volume_db = -60.0
 	air_tune = _p3("music_box_air")
@@ -197,6 +191,7 @@ func hush_begin(mode: String) -> void:
 			(p as AudioStreamPlayer).stop()
 		for p in pool3:
 			(p as AudioStreamPlayer3D).stop()
+		ambience.stop_events()
 		call_voice.stop()
 		pahan_voice.stop()
 		air_tune.stop()
@@ -221,7 +216,7 @@ func sfx3(id: String, pos: Vector3, vol := 0.0, pitch := 1.0) -> void:
 	for p in pool3:
 		var a := p as AudioStreamPlayer3D
 		if not a.playing:
-			a.stream = FNSound.get_stream(id)
+			a.stream = FNSound.pick(id)
 			a.global_position = pos
 			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
@@ -238,7 +233,7 @@ func sfx2(id: String, vol := 0.0, pitch := 1.0, bus := "SFX") -> void:
 	for p in pool2:
 		var a := p as AudioStreamPlayer
 		if not a.playing:
-			a.stream = FNSound.get_stream(id)
+			a.stream = FNSound.pick(id)
 			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
 			a.bus = FNSound.bus_for(id, bus)
@@ -247,27 +242,7 @@ func sfx2(id: String, vol := 0.0, pitch := 1.0, bus := "SFX") -> void:
 
 ## тишина перед появлением: окружение уходит почти в ноль
 func duck(on: bool) -> void:
-	duck_k = 1.0 if on else 0.0
-
-func _amb_tick(dt: float) -> void:
-	var on := _snd_ok() and state in ["night", "scare", "menu"]
-	var out := st != null and st.power_out and state == "night"
-	for id in amb:
-		var p: AudioStreamPlayer = amb[id]
-		if on and not p.playing:
-			p.play()
-		elif not on and p.playing:
-			p.stop()
-		var base: float = p.get_meta("base")
-		var want := base - duck_k * 30.0
-		if out:
-			want = -60.0                         # всё обесточено: тишина
-		if id == "whine":
-			want = (-26.0 if st != null and st.monitor and state == "night" else -60.0)
-		if state == "menu" and id in ["buzz", "whine"]:
-			want = -60.0
-		p.volume_db = move_toward(p.volume_db, want, dt * 40.0)
-	duck_k = maxf(0.0, duck_k - dt * 0.6)
+	ambience.duck(on)
 
 # ---------------- меню-терминал ----------------
 func _menu_scene() -> void:
@@ -307,21 +282,6 @@ func quit_to_menu() -> void:
 func music_set() -> String:
 	return "loc_fn" if state == "menu" else ""
 
-## страх: редкие звуки здания в разных местах (скрип в коридоре, капля в служебке, стук за спиной, железо в шахте);
-## не чаще раза в 14–30 с, только в тишине ночи и не во время скримера; ни один не означает угрозу — враги звучат своими
-var fear_t := 18.0
-const FEAR := [["creak", "hall_l", -6.0], ["creak", "hall_r", -6.0], ["drip", "vent_l", -8.0], ["knock", "behind", -10.0], ["clank", "vent_t", -16.0], ["giggle", "hall_r", -14.0]]
-func _fear_tick(dt: float) -> void:
-	if state != "night" or st == null or st.power_out or scare.busy or intro_t > 0.0:
-		return
-	fear_t -= dt
-	if fear_t > 0.0:
-		return
-	fear_t = randf_range(14.0, 30.0) - float(night) * 1.5
-	var f: Array = FEAR[randi() % (FEAR.size() if night >= 2 else 3)]
-	var pos := Vector3(0.0, 1.5, 2.2) if String(f[1]) == "behind" else FNOffice.point(String(f[1])) + Vector3(0, 1.4, 0)
-	sfx3(String(f[0]), pos, float(f[2]), randf_range(0.85, 1.1))
-
 # ---------------- ночь ----------------
 func start_night(n: int, lv := {}) -> void:
 	night = n
@@ -356,7 +316,6 @@ func start_night(n: int, lv := {}) -> void:
 	_say_clear()
 	crawl.volume_db = -60.0
 	state = "night"
-	fear_t = randf_range(16.0, 26.0)
 	sfx2("sting_night", -3.0, 1.0, "Music")
 	var title: String = "свои уровни" if n >= FNData.NIGHTS.size() else String(FNData.NIGHTS[n]["title"])
 	ui.night_card("НОЧЬ %d" % (n + 1) if n < FNData.NIGHTS.size() else "СВОЯ НОЧЬ", title)
@@ -403,8 +362,7 @@ func set_paused(on: bool) -> void:
 		return
 	paused = on
 	ui.show_pause(on)
-	for id in amb:
-		(amb[id] as AudioStreamPlayer).stream_paused = on
+	ambience.set_paused(on)
 	call_voice.stream_paused = on
 	pahan_voice.stream_paused = on
 	for id in actors.rigs:
@@ -413,8 +371,7 @@ func set_paused(on: bool) -> void:
 func _process(dt: float) -> void:
 	if state == "night" and st != null and st.power < 25.0 and not st.power_out:
 		ui.tips.tip("power")
-	_amb_tick(dt)
-	_fear_tick(dt)
+	ambience.tick(st, state, dt)
 	match state:
 		"menu":
 			_menu_tick(dt)
@@ -552,6 +509,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"adapt":
 			adapt_log.append([String(d["e"]), String(d["how"])])
 		"move":
+			ambience.hold(6.0)
 			var to := String(d["to"])
 			var e := String(d["e"])
 			if to in ["door_l", "door_r"]:
@@ -565,9 +523,11 @@ func _on_event(k: String, d: Dictionary) -> void:
 			if String(d.get("why", "")) == "retreat" and String(d["from"]).begins_with("door"):
 				sfx3("step", FNOffice.point(String(d["from"])), -12.0, 0.7)
 		"heavy_step":
+			ambience.hold(6.0)
 			sfx3("step_heavy", FNOffice.point("hall_" + String(d["side"])), 0.0, 0.75)
 			office.flick_t = 0.09
 		"bang":
+			ambience.hold(6.0)
 			var at := String(d["at"])
 			sfx3("vent_bang" if at.begins_with("vent") else "door_down", FNOffice.point(at), 4.0, 0.7)
 			office.shake = 0.5
@@ -575,6 +535,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 				said_door = true
 				pahan_say(String(FNData.PAHAN["door"][randi() % FNData.PAHAN["door"].size()]), 3.0)
 		"scrape":
+			ambience.hold(6.0)
 			sfx3("scrape", FNOffice.point("door_l"), 2.0, 1.0)
 		"flinch":
 			sfx3("scream_clipper", FNOffice.point("door_l"), -14.0, 1.6)

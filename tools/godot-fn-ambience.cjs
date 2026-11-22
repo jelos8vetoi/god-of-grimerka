@@ -82,6 +82,7 @@ function buildShot(e, src) {
   if (e.filters) chain.push(e.filters);
   if (rv) chain.push(`apad=pad_dur=${tail + 4}`, rv.f);
   chain.push('aresample=44100', `atrim=0:${len}`, 'asetpts=PTS-STARTPTS', `afade=t=in:d=${fi}`, `afade=t=out:st=${(len - fo).toFixed(3)}:d=${fo}`);
+  if (e.tail_silence) chain.push(`apad=pad_dur=${e.tail_silence}`, `atrim=0:${(len + e.tail_silence).toFixed(3)}`);
   const tmp = path.join(TMP, e.out + '.wav');
   ff(['-ss', String(e.segment[0]), '-t', String(e.segment[1]), '-i', path.join(SRC, e.src), '-af', chain.join(','), '-c:a', 'pcm_f32le', tmp]);
   const mv = maxVolume(tmp);
@@ -91,11 +92,13 @@ function buildShot(e, src) {
   return `${e.out}: len ${len.toFixed(2)} s, max ${mv.toFixed(1)} dB -> gain ${gain.toFixed(2)} dB`;
 }
 
-function writeDoc(items) {
+function writeDoc(items, notBuilt) {
   const rows = items.filter((e) => !e.skip);
   let d = '# «5 НОЧЕЙ С ПАХАНОМ» — источники фона и звуков\n\n';
   d += 'Этот файл создаёт `tools/godot-fn-ambience.cjs` из рецепта `tools/fn-ambience.json`: он всегда совпадает с тем, что собрано.\n';
-  d += 'Все записи — CC0 (общественное достояние): на странице каждой записи указана лицензия CC0, авторство не обязательно, но `Joseph SARDIN — BigSoundBank.com` просит упоминать, поэтому он в титрах.\n';
+  d += 'Все записи — CC0 (общественное достояние): на странице каждой записи указана лицензия CC0, авторство не обязательно. Страницы открыты 2026-11-22.\n';
+  d += 'Дополнительные звуки: Joseph SARDIN — BigSoundBank.com; LEGIT Audio, Longor, Cough-E и другие авторы OpenGameArt — см. таблицу.\n';
+  d += 'Файлы BigSoundBank — это OGG или FLAC, которые отдаёт сама страница звука (OGG — тот же файл, что в её плеере); учётная запись не использовалась. Файлы OpenGameArt — оригиналы со страниц.\n';
   d += 'Исходные файлы в репозиторий не входят (лежат у автора сборки, скачаны со страниц ниже); в `godot/assets/audio/fn/amb` и `.../sfx` лежат только обработанные результаты.\n';
   d += 'Сборка: `node tools/godot-fn-ambience.cjs --src <папка исходников> [--ffmpeg <ffmpeg.exe>] [--only <имя>]`, затем `Godot --headless --path godot --import`.\n\n';
   d += '| файл | вид | исходник | автор | страница | лицензия | где звучит | обработка |\n|---|---|---|---|---|---|---|---|\n';
@@ -106,16 +109,17 @@ function writeDoc(items) {
       : `${seg}; ${[e.pre, e.filters].filter(Boolean).join(', ') || '—'}${e.reverb ? `; эхо ${e.reverb}` : ''}; пик ${e.peak_db} dBFS`;
     d += `| ${e.kind === 'loop' ? 'amb/' : 'sfx/'}${e.out} | ${e.kind === 'loop' ? 'петля' : 'разовый'} | ${e.title} (${e.src_name}) | ${e.author} | ${e.url} | ${e.licence} | ${e.use} | ${proc} |\n`;
   }
-  const skipped = items.filter((e) => e.skip);
+  const skipped = items.filter((e) => e.skip).map((e) => `- \`${e.out}\` — ${e.skip}`).concat(notBuilt.map((x) => '- ' + x));
   if (skipped.length) {
-    d += '\nНе собрано:\n\n' + skipped.map((e) => `- \`${e.out}\` — ${e.skip}`).join('\n') + '\n';
+    d += '\nНе вошло:\n\n' + skipped.join('\n') + '\n';
   }
   fs.writeFileSync(DOC, d);
 }
 
 (function main() {
   if (!SRC) { console.log('нужен --src <папка исходников>'); process.exit(1); }
-  const items = JSON.parse(fs.readFileSync(MANIFEST, 'utf8')).items;
+  const manifest = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
+  const items = manifest.items;
   fs.mkdirSync(OUT_AMB, { recursive: true });
   fs.mkdirSync(OUT_SFX, { recursive: true });
   let built = 0;
@@ -125,7 +129,7 @@ function writeDoc(items) {
     console.log(e.kind === 'loop' ? buildLoop(e) : buildShot(e));
     built++;
   }
-  writeDoc(items);
+  writeDoc(items, manifest.not_built || []);
   console.log(`собрано файлов: ${built}; документ: ${path.relative(ROOT, DOC)}`);
   fs.rmSync(TMP, { recursive: true, force: true });
 })();

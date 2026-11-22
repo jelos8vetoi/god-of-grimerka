@@ -1,7 +1,9 @@
 # «5 НОЧЕЙ С ПАХАНОМ» — источники фона и звуков
 
 Этот файл создаёт `tools/godot-fn-ambience.cjs` из рецепта `tools/fn-ambience.json`: он всегда совпадает с тем, что собрано.
-Все записи — CC0 (общественное достояние): на странице каждой записи указана лицензия CC0, авторство не обязательно, но `Joseph SARDIN — BigSoundBank.com` просит упоминать, поэтому он в титрах.
+Все записи — CC0 (общественное достояние): на странице каждой записи указана лицензия CC0, авторство не обязательно. Страницы открыты 2026-11-22.
+Дополнительные звуки: Joseph SARDIN — BigSoundBank.com; LEGIT Audio, Longor, Cough-E и другие авторы OpenGameArt — см. таблицу.
+Файлы BigSoundBank — это OGG или FLAC, которые отдаёт сама страница звука (OGG — тот же файл, что в её плеере); учётная запись не использовалась. Файлы OpenGameArt — оригиналы со страниц.
 Исходные файлы в репозиторий не входят (лежат у автора сборки, скачаны со страниц ниже); в `godot/assets/audio/fn/amb` и `.../sfx` лежат только обработанные результаты.
 Сборка: `node tools/godot-fn-ambience.cjs --src <папка исходников> [--ffmpeg <ffmpeg.exe>] [--only <имя>]`, затем `Godot --headless --path godot --import`.
 
@@ -46,7 +48,7 @@
 | sfx/click_3.wav | разовый | Switch #5 (BigSoundBank #0321) (bsb0321_switch-5.ogg) | DavidGreck | https://bigsoundbank.com/switch-5-s0321.html | CC0 (public domain) | щелчок выключателя | с 2.325 с, 0.12 с; —; пик -6 dBFS |
 | sfx/relay_1.wav | разовый | Thermostat #1 (BigSoundBank #2191) (bsb2191_thermostat-1.ogg) | Joseph SARDIN | https://bigsoundbank.com/thermostat-1-s2191.html | CC0 (public domain) | щелчок реле | с 0 с, 0.08 с; —; пик -8 dBFS |
 | sfx/relay_2.wav | разовый | Electric circuit breaker (BigSoundBank #1092) (bsb1092_electric-circuit-breaker.ogg) | Joseph SARDIN | https://bigsoundbank.com/electric-circuit-breaker-s1092.html | CC0 (public domain) | щелчок реле | с 9.37 с, 0.2 с; —; пик -8 dBFS |
-| sfx/breaker_1.wav | разовый | Electric circuit breaker (BigSoundBank #1092) (bsb1092_electric-circuit-breaker.ogg) | Joseph SARDIN | https://bigsoundbank.com/electric-circuit-breaker-s1092.html | CC0 (public domain) | щелчок автомата | с 0.28 с, 0.2 с; —; пик -4 dBFS |
+| sfx/breaker_1.wav | разовый | Electric circuit breaker (BigSoundBank #1092) (bsb1092_electric-circuit-breaker.ogg) | Joseph SARDIN | https://bigsoundbank.com/electric-circuit-breaker-s1092.html | CC0 (public domain) | щелчок автомата | с 4.03 с, 0.2 с; —; пик -4 dBFS |
 | sfx/power_down_1.ogg | разовый | Machine shutting down (MachinePowerOff) (oga_MachinePowerOff_CoughE.ogg) | Cough-E | https://opengameart.org/content/machine-shutting-down | CC0 | отключение питания | с 0 с, 2.3 с; highpass=f=60; пик -4 dBFS |
 | sfx/lamp_flick_1.wav | разовый | Flashing light bulb #1 (BigSoundBank #2143) (bsb2143_flashing-light-bulb-1.ogg) | Joseph SARDIN | https://bigsoundbank.com/flashing-light-bulb-1-s2143.html | CC0 (public domain) | мигание лампы | с 0.03 с, 0.35 с; —; пик -8 dBFS |
 | sfx/lamp_flick_2.wav | разовый | Flashing light bulb #2 (BigSoundBank #2144) (bsb2144_flashing-light-bulb-2.ogg) | Joseph SARDIN | https://bigsoundbank.com/flashing-light-bulb-2-s2144.html | CC0 (public domain) | мигание лампы | с 0.02 с, 0.6 с; —; пик -8 dBFS |
@@ -54,8 +56,6 @@
 | sfx/door_down_1.ogg | разовый | Metal Barrier: Closure #2 (BigSoundBank #2359) (bsb2359_grinding-metal-barrier-closure-2.ogg) | Joseph SARDIN | https://bigsoundbank.com/grinding-metal-barrier-closure-2-s2359.html | CC0 (public domain) | ставня опускается | с 1.06 с, 1.48 с; volume=-1.5dB,alimiter=limit=0.89,highpass=f=50; пик -3 dBFS |
 | sfx/door_up_1.ogg | разовый | Metal barrier: Opening #1 (BigSoundBank #2355) (bsb2355_grinding-metal-barrier-opening-1.ogg) | Joseph SARDIN | https://bigsoundbank.com/grinding-metal-barrier-opening-1-s2355.html | CC0 (public domain) | ставня поднимается | с 0.1 с, 1.9 с; highpass=f=80; пик -5 dBFS |
 
-Не собрано:
+Не вошло:
 
-- `drip_1.ogg` — не собрано: во всех каплях исходника bsb1383 (Drops, metal sink) есть клиппинг (13-20 отсчётов на каплю, пик ≥ 1.0), условие «пик исходника < 0.98» не выполняется
-- `drip_2.ogg` — не собрано: во всех каплях исходника bsb1383 (Drops, metal sink) есть клиппинг (13-20 отсчётов на каплю, пик ≥ 1.0), условие «пик исходника < 0.98» не выполняется
-- `drip_3.ogg` — не собрано: во всех каплях исходника bsb1383 (Drops, metal sink) есть клиппинг (13-20 отсчётов на каплю, пик ≥ 1.0), условие «пик исходника < 0.98» не выполняется
+- Настоящие капли воды без клиппинга не нашлись: во всех каплях BigSoundBank #1383 и #1382 есть клиппинг, поэтому drip_1..3 не собраны.

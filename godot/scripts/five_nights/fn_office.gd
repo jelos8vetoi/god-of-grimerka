@@ -4,6 +4,9 @@
 class_name FNOffice
 extends Node3D
 
+## короткий провал света лампы над столом: на него отзываются звук лампы и треск (FNAmbience)
+signal lamp_dip
+
 const YAW_MAX := deg_to_rad(64.0)
 const LOOK_RATE := 8.0
 const W := 2.2
@@ -290,7 +293,10 @@ func _look(st: FNNight, dt: float, target: float) -> void:
 func _lighting(st: FNNight, dt: float) -> void:
 	# Короткий провал люминофора и более медленный розжиг. Все источники в будке читают одно питание.
 	supply = move_toward(supply, 1.0 if power_on else 0.0, dt * (3.8 if power_on else 8.0))
+	var was := flick_t
 	flick_t -= dt
+	if was >= 0.18 and flick_t < 0.18 and power_on:
+		lamp_dip.emit()
 	if flick_t <= 0.0:
 		flick_t = randf_range(2.2, 5.6)
 	var dip := sin(PI * clampf(flick_t / 0.18, 0.0, 1.0))

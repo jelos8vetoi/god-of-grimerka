@@ -1621,3 +1621,20 @@ material_override = SubResource("Eyes")
 position = Vector3(0.012, 0.105, 0.033)
 mesh = SubResource("Sphere_0_005_0_01_12_6")
 material_override = SubResource("Eyes")
+
+[node name="AudioPoints" type="Node3D" parent="."]
+
+[node name="VentUnit" type="Marker3D" parent="AudioPoints"]
+position = Vector3(-1.55, 2.55, -2)
+
+[node name="Draft" type="Marker3D" parent="AudioPoints"]
+position = Vector3(-1.62, 0.36, -1.9)
+
+[node name="Hatch" type="Marker3D" parent="AudioPoints"]
+position = Vector3(0.35, 2.9, -0.95)
+
+[node name="Lamp" type="Marker3D" parent="AudioPoints"]
+position = Vector3(-0.24, 2.48, -1.38)
+
+[node name="Panel" type="Marker3D" parent="AudioPoints"]
+position = Vector3(2.035, 1.5, 1.02)
