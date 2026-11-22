@@ -2023,6 +2023,17 @@ func _pause_pages(g, G: Golda67, where: String) -> void:
 	ok(names == ["СТАТУС", "БАФЫ", "АРТЕФАКТЫ", "МАРШРУТ", "МУЗЫКА", "СИСТЕМА"], "вкладки паузы приквела: %s" % str(names))
 
 func _ui3_check(g, G: Golda67, P) -> void:
+	# C5: madk1d до первой концовки — житель подъезда: стоит на месте, пока герой ходит
+	var m0: Vector3 = g.buddy.global_position
+	var moved := 0.0
+	for pt in [Vector3(0, 0.05, 5.0), Vector3(-1.0, 0.05, 3.0), Vector3(0.5, 0.05, 2.0), Vector3(0, G67World.LAND_Y + 0.05, -3.0)]:
+		P.global_position = pt
+		await wait(1.5)
+		moved = maxf(moved, g.buddy.global_position.distance_to(m0))
+	ok(g.madk_home() and g.buddy.visible and moved < 0.3, "C5: madk1d в подъезде не ходит за героем (сдвиг %.2f м)" % moved)
+	G.meta()["flags"]["ending1"] = true
+	ok(not g.madk_home(), "после первой концовки madk1d — не житель, ходит рядом")
+	G.meta()["flags"].erase("ending1")
 	await _pause_pages(g, G, "hub")
 	# письма и листки: Enter закрывает прочитанное, Esc закрывает экран
 	for pair in [["mail", "mail"], ["notices", "board"]]:
@@ -2552,11 +2563,14 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(int(G.meta()["respect"]) >= 40, "РЕСПЕКТ за забег остался (%d)" % int(G.meta()["respect"]))
 	ok(g.buddy.visible, "madk1d снова рядом в подъезде")
 	# в подъезде madk1d по-прежнему житель: стоит рядом и сам выбирает, куда встать возле героя
+	ok(g.madk_home() and g.buddy.global_position.distance_to(G.MADK_SPOT) < 0.6, "до первой концовки madk1d в подъезде стоит на своём месте (%.2f м)" % g.buddy.global_position.distance_to(G.MADK_SPOT))
+	G.meta()["flags"]["ending1"] = true
 	g.buddy.target = Vector3.ZERO
 	g.buddy.wait = 0.0
 	await wait(0.6)
 	ok(not g.madk_away() and g.buddy.target != Vector3.ZERO and g.buddy.global_position.distance_to(P.global_position) < 8.0 and absf(g.buddy.global_position.y - P.global_position.y) < 1.0,
 		"в подъезде madk1d ходит рядом с героем как раньше (до него %.1f м)" % g.buddy.global_position.distance_to(P.global_position))
+	G.meta()["flags"].erase("ending1")
 	await shot("27b_hub_madk")
 	await key(KEY_2)
 	await wait(1.2)

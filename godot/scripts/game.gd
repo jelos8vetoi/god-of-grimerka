@@ -1492,6 +1492,10 @@ func _fit_banner(title: String) -> void:
 func madk_locked() -> bool:
 	return golda != null and not golda.madk_open()
 
+## Приквел «ГОЛДА 67» до первой концовки, подъезд: madk1d — житель, стоит на своём месте и не ходит за героем
+func madk_home() -> bool:
+	return golda != null and golda.madk_home()
+
 ## Приквел «ГОЛДА 67» до первой концовки, забег: madk1d остался в подъезде — рядом с героем его нет и в бой он не вступает
 func madk_away() -> bool:
 	return golda != null and golda.madk_away()

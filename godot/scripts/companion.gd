@@ -85,6 +85,17 @@ func _physics_process(dt: float) -> void:
 	var p = game.player
 	var pp: Vector3 = p.global_position
 	cd = max(0.0, cd - dt)
+	if game.madk_home():      # приквел до первой концовки, подъезд: житель — стоит на месте, поворачивается к герою рядом
+		velocity = Vector3(0, velocity.y - 20.0 * dt, 0)
+		foe = null
+		var to := pp - global_position
+		to.y = 0.0
+		var want := atan2(to.x, to.z) if to.length() < 5.0 else PI * 0.5
+		face = lerp_angle(face, want, 1.0 - exp(-4.0 * dt))
+		rig.play("Idle", 0.3)
+		move_and_slide()
+		body.rotation.y = face
+		return
 	if game.paused_story() or game.over:      # разговор или гибель героя: стоит, не дерётся
 		velocity = Vector3(0, velocity.y - 20.0 * dt, 0)
 		rig.play("Idle", 0.3)

@@ -94,6 +94,12 @@ func madk_open() -> bool:
 func madk_away() -> bool:
 	return place == "run" and not madk_open()
 
+## madk1d — житель подъезда (до первой концовки): стоит у левой стены холла
+func madk_home() -> bool:
+	return place == "hub" and not madk_open()
+
+const MADK_SPOT := Vector3(-2.3, 0.0, 2.4)
+
 ## Старт режима: хаб
 func begin(_cont := false) -> void:
 	game.mode = "golda67"
@@ -153,7 +159,8 @@ func enter_hub() -> void:
 	game.cam_yaw = 0.0
 	game.cam_len = HUB_CAM_LEN
 	game.buddy.visible = true
-	game.buddy.global_position = world.spawn_pos + Vector3(-1.1, 0.0, -0.7)
+	game.buddy.global_position = (MADK_SPOT + Vector3(0, 0.05, 0)) if not madk_open() else (world.spawn_pos + Vector3(-1.1, 0.0, -0.7))
+	game.buddy.face = PI * 0.5
 	game.buddy.target = Vector3.ZERO
 	apply_styles()
 	game.tutorial.on = false
