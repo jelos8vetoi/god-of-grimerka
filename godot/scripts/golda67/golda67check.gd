@@ -281,6 +281,7 @@ func _run() -> void:
 	await _clip_check(g, G, P)
 	await _flurr_check(g, G, P)
 	await _ui3_check(g, G, P)
+	await _save_check(g, G)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
 	# ================= этап 3: кладовка, ларёк, артефакты, фитсы по таблице =================
@@ -1550,10 +1551,10 @@ func _stage3(g, G: Golda67, P) -> void:
 	for i in 3:
 		await key(KEY_ENTER)
 		await wait(0.2)
-	ok(int(G.run["golda"]) == 180 and G.kiosk_left("shawarma") == 0, "всего четыре шаурмы на забег — все куплены (голда %d)" % int(G.run["golda"]))
+	ok(int(G.run["golda"]) == 150 and G.kiosk_price("shawarma") == 50, "шаурма без лимита, цена растёт: 30, 35, 40, 45 (голда %d, следующая %d)" % [int(G.run["golda"]), G.kiosk_price("shawarma")])
 	await key(KEY_ENTER)
 	await wait(0.2)
-	ok(int(G.run["golda"]) == 180 and G.kiosk_why("shawarma") == "на забег всё", "пятую не продают")
+	ok(int(G.run["golda"]) == 100 and G.kiosk_why("shawarma") == "" and G.kiosk_price("shawarma") == 55, "пятая шаурма за 50 продаётся, следующая 55")
 	G.run["golda"] = 20
 	G.hub_ui._refresh()
 	ok(G.kiosk_why("double") == "не хватает голды", "на двойную не хватает голды — ценник бледный с причиной")
@@ -1584,7 +1585,7 @@ func _stage3(g, G: Golda67, P) -> void:
 	ok(await until(func(): return G.hub_ui == null, 2.0) and not G.point("kiosk").is_empty(), "Esc — отошёл от окна, ларёк остаётся")
 	await _go(G, P, "kiosk")
 	ok(await until(func(): return G.hub_ui != null and G.hub_ui.kind == "kiosk", 2.0), "к окну можно подойти снова")
-	ok(G.kiosk_left("shawarma") == 0 and G.kiosk_left("togo") == 1, "запас — на забег, а не на подход к окну (шаурмы %d, «С СОБОЙ» %d)" % [G.kiosk_left("shawarma"), G.kiosk_left("togo")])
+	ok(G.kiosk_price("shawarma") == 55 and G.kiosk_left("togo") == 1, "запас — на забег, а не на подход к окну (шаурмы %d, «С СОБОЙ» %d)" % [G.kiosk_left("shawarma"), G.kiosk_left("togo")])
 	await key(KEY_ESCAPE)
 	await until(func(): return G.hub_ui == null, 2.0)
 	# ---- домой и обратно: ларёк на месте, запас не обнулился
@@ -1594,7 +1595,7 @@ func _stage3(g, G: Golda67, P) -> void:
 	ok(P.speed_k == 1.0 and absf(P.combat.cd_k - 1.0) < 0.001, "в подъезде эффекты забега сняты")
 	await _go(G, P, "exit")
 	ok(await until(func(): return G.place == "run" and not G.point("kiosk").is_empty(), 8.0), "продолжение забега: ларёк снова у окна")
-	ok(G.kiosk_left("shawarma") == 0, "после продолжения забега запас ларька прежний")
+	ok(G.kiosk_price("shawarma") == 55, "после продолжения забега цена шаурмы прежняя")
 	# ---- конец забега: артефакты остаются в коллекции, в новом забеге карманы пусты
 	G._finish_run(false, 0.1)
 	ok(await _result_to_hub(G), "забег окончен — экран итогов, «В ПОДЪЕЗД» — подъезд")
@@ -1704,6 +1705,53 @@ func _free_spot(g, p: Vector3) -> bool:
 		if r["collider"] is StaticBody3D:
 			return false
 	return true
+
+## N01: Семечник у края зоны после «отталкивающей волны» остаётся внутри арены
+func _n01_check(g, G: Golda67, P) -> void:
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(0.3)
+	var c: Vector3 = g.arena_c
+	var h: Vector2 = g.arena_h
+	P.inv = 1.0
+	G._spawn("semka")
+	var foe = g.enemies[g.enemies.size() - 1]
+	await wait(1.6)
+	foe.global_position = Vector3(c.x - h.x + 1.3, 0.05, c.z)
+	P.global_position = Vector3(c.x - h.x + 4.0, 0.05, c.z)
+	EnemyAI.blink(foe, "away")
+	ok(g.in_arena(foe.global_position, 0.0), "N01: после «away» у края зоны Семечник внутри арены (%s)" % str(foe.global_position))
+	# страховка: за ограждением дольше секунды — переставляется внутрь
+	foe.global_position = Vector3(c.x - h.x - 6.0, 0.05, c.z)
+	G.pending = []
+	G.wave_wait = 999.0
+	for i in 12:
+		G._keep_foes_inside(0.15)
+	ok(g.in_arena(foe.global_position, 0.0), "N01: враг за ограждением дольше секунды возвращён в арену")
+	_kill_all(g)
+	P.global_position = Vector3(c.x, 0.05, c.z)
+	P.inv = 0.0
+	G.wave_wait = 0.0
+
+## N04: серия ударов героя в защитную стойку Миши — «ВЕРНУЛ» не роняет разбор попаданий
+func _n04_check(g, G: Golda67, P, B) -> void:
+	await _misha_set(B, P, "m_guard", Vector3(0, 0.05, 0.2))
+	await wait(0.4)
+	P.global_position = B.global_position + Vector3(sin(B.face), 0, cos(B.face)) * 1.7
+	P.face = atan2(-sin(B.face), -cos(B.face))
+	var swings := 0
+	for i in 14:
+		P.inv = 0.0
+		B.guard_next = 0.0
+		Input.action_press("attack")
+		await wait(0.12)
+		Input.action_release("attack")
+		await wait(0.18)
+		swings += 1
+	ok(swings == 14 and P.state != "dead" and (P.combat.cur == null or P.combat.cur is AttackData), "N04: серия ударов в стойку Миши прошла без падения (состояние героя %s)" % String(P.state))
+	P.hp = P.max_hp
+	await wait(2.0)
 
 ## Заначки: двенадцать мест проходимы, пять из них — с монетой; монета подбирается сама и даёт голду
 func _stash_check(g, G: Golda67, P) -> void:
@@ -2049,6 +2097,44 @@ func _ui3_check(g, G: Golda67, P) -> void:
 	G.data["run"] = {}
 	await wait(0.3)
 
+## E2 / E3: целые отметки в старых сохранениях; запись через временный файл; восстановление из резерва
+func _save_check(g, G: Golda67) -> void:
+	var was_clean := G67Save.clean
+	G67Save.clean = false
+	G67Save.path_override = "user://g67check_save.json"
+	G67Save.wipe()
+	# старое сохранение с дробными отметками
+	var old := G67Save.blank()
+	old["meta"]["board_read"] = [0.0, 2.0]
+	old["meta"]["mail_read"] = [1.0]
+	old["meta"]["respect"] = 12.0
+	old["meta"]["runs"] = 3.0
+	var f := FileAccess.open(G67Save.main_path(), FileAccess.WRITE)
+	f.store_string(JSON.stringify(old))
+	f.close()
+	var d := G67Save.load_all()
+	var br: Array = d["meta"]["board_read"]
+	ok(br.has(0) and br.has(2) and (d["meta"]["mail_read"] as Array).has(1) and typeof(br[0]) == TYPE_INT and typeof(d["meta"]["respect"]) == TYPE_INT, "E2: отметки и счётчики старого сохранения приведены к целым (%s)" % str(br))
+	# два обычных сохранения: основной и целый резерв
+	d["meta"]["respect"] = 20
+	ok(G67Save.save_all(d) and G67Save.save_all(d), "E3: запись проходит")
+	ok(not G67Save.read_file(G67Save.main_path()).is_empty() and not G67Save.read_file(G67Save.bak()).is_empty() and not FileAccess.file_exists(G67Save.tmp()), "после записи основной и резерв целы, временного файла нет")
+	# обрезанный основной + целый .bak → загрузка из резерва
+	var cut := FileAccess.open(G67Save.main_path(), FileAccess.WRITE)
+	cut.store_string('{"v":1,"meta":{"respe')
+	cut.close()
+	var d2 := G67Save.load_all()
+	ok(int(d2["meta"]["respect"]) == 20 and G67Save.recovered != "", "обрезанный основной: прогресс взят из резерва (%s)" % G67Save.recovered)
+	ok(G67Save.save_all(d2), "после восстановления запись проходит")
+	ok(not G67Save.read_file(G67Save.main_path()).is_empty() and not G67Save.read_file(G67Save.bak()).is_empty(), "после следующей записи основной цел и резерв цел (битый в резерв не попал)")
+	# сбой проверки временного файла не трогает основной
+	var before := FileAccess.get_file_as_string(G67Save.main_path())
+	var bad := {"v": 1, "x": 1}
+	ok(not G67Save.save_all(bad) and FileAccess.get_file_as_string(G67Save.main_path()) == before, "запись, не прошедшая проверку, основной файл не трогает")
+	G67Save.wipe()
+	G67Save.path_override = ""
+	G67Save.clean = was_clean
+
 func _run_dvor(g, G: Golda67, P) -> void:
 	# выход во двор — настоящей клавишей E у входной двери
 	await _go(G, P, "exit")
@@ -2122,6 +2208,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	G.use("kiosk")
 	ok(G.hub_ui == null, "из боя окно ларька не открывается («Сначала разберись с этими»)")
 	await _b05_check(g, G, P)
+	await _n01_check(g, G, P)
 	ok(await _clear_room(g, G), "этап 1 (БОЙ у подъезда) зачищен")
 	ok(G.world.gates.size() == 2 and G.world.gates.all(func(gt): return String(gt["option"]["place"]) != "parking"), "после боя открылись два варианта: гаражи и площадка (%d)" % G.world.gates.size())
 	ok(int(G.run["golda"]) > 0 and int(G.run["respect"]) == 3 and int(G.run["kills"]) >= 3, "за этап дали голду (%d) и РЕСПЕКТ (%d), убито %d" % [int(G.run["golda"]), int(G.run["respect"]), int(G.run["kills"])])
@@ -2393,6 +2480,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(is_equal_approx(B.hp, bhp) and is_equal_approx(bhp, B.max_hp), "герой 15 с не бьёт Мишу — его здоровье не изменилось (%.0f → %.0f из %.0f)" % [bhp, B.hp, B.max_hp])
 	ok((idle_b["acts"] as Array).is_empty() and float(idle_b["near"]) > 14.0, "в бою с Мишей madk1d нет (его действия: %s, ближе всего был в %.0f м)" % [str(idle_b["acts"]), float(idle_b["near"])])
 	await _misha_moves(g, G, P, B)
+	await _n04_check(g, G, P, B)
 	var hp1: float = B.hp
 	B.take_hit(40.0, Vector3.FORWARD, 0.0, false)
 	ok(B.hp < hp1, "босс получает урон")

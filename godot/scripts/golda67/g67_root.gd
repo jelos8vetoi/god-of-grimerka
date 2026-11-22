@@ -34,6 +34,7 @@ const HintsScript := preload("res://scripts/golda67/g67_hints.gd")
 var hints                     # подсказки по ходу забега (один раз за сохранение)
 var stash_nodes := {}         # индекс места заначки → монета во дворе
 var dlg_hint_used := false    # строка управления в окне диалога уже показывалась в этом запуске режима
+var save_recovered := ""      # основной файл сохранения был повреждён, прогресс взят из этой копии
 var recovered_respect := -1   # прошлый забег оборвался в бою: засчитан поражением, столько РЕСПЕКТА он дал
 var waves: Array = []
 var wave_i := -1
@@ -71,6 +72,7 @@ func setup(g) -> void:
 	game.player.flow.swapped.connect(_on_swapped)
 	process_mode = Node.PROCESS_MODE_ALWAYS      # подсказку [E] нужно гасить и на паузе
 	data = G67Save.load_all()
+	save_recovered = G67Save.recovered
 	# боссы и говорящие приквела — в копию сюжета этого экземпляра игры (story.json не меняется)
 	for id in G67Data.BOSSES:
 		game.story["BOSS"][id] = (G67Data.BOSSES[id] as Dictionary).duplicate(true)
@@ -101,6 +103,10 @@ func begin(_cont := false) -> void:
 	save()
 	base_hp = game.player.max_hp
 	await enter_hub()
+	if save_recovered != "":
+		game.toast("Сохранение было повреждено — прогресс восстановлен из резервной копии")
+		save()
+		save_recovered = ""
 	if recovered_respect >= 0:
 		game.toast("Прошлый забег оборвался в бою — засчитан как поражение. РЕСПЕКТ +%d" % recovered_respect)
 	unlock_clip("V00")                       # трейлер — на телевизоре в подъезде с первого входа
@@ -690,7 +696,27 @@ func alive() -> int:
 			n += 1
 	return n
 
+var _out_t := {}      # живой враг вне арены: сколько секунд подряд
+
+## Страховка: враг, оказавшийся за ограждением зоны (телепорт, отскок), дольше секунды переставляется внутрь
+func _keep_foes_inside(dt: float) -> void:
+	for e in game.enemies:
+		if not is_instance_valid(e) or e.state == "dead" or e.boss_id != "":
+			continue
+		var id: int = e.get_instance_id()
+		if game.in_arena(e.global_position, 0.0):
+			_out_t.erase(id)
+			continue
+		_out_t[id] = float(_out_t.get(id, 0.0)) + dt
+		if float(_out_t[id]) > 1.0:
+			var c: Vector3 = game.arena_c
+			var h: Vector2 = game.arena_h
+			e.global_position = Vector3(c.x + clampf(e.global_position.x - c.x, -(h.x - 1.5), h.x - 1.5), e.global_position.y, c.z + clampf(e.global_position.z - c.z, -(h.y - 1.5), h.y - 1.5))
+			e.velocity = Vector3.ZERO
+			_out_t.erase(id)
+
 func _fight_tick(dt: float) -> void:
+	_keep_foes_inside(dt)
 	if spawn_cd > 0.0:
 		spawn_cd -= dt
 	if not pending.is_empty():
@@ -1288,8 +1314,17 @@ func _on_swapped(_from: String, _to: String, perfect: bool) -> void:
 func kiosk_left(id: String) -> int:
 	for k in G67Data.KIOSK:
 		if String(k["id"]) == id:
+			if int(k["per_visit"]) <= 0:
+				return 99               # без лимита: растёт цена
 			return int(k["per_visit"]) - int((run.get("kiosk", {}) as Dictionary).get(id, 0))
 	return 0
+
+## Текущая цена: базовая + step за каждую уже купленную в этом забеге (шаурма: 30, 35, 40…)
+func kiosk_price(id: String) -> int:
+	var k := kiosk_item(id)
+	if k.is_empty():
+		return 0
+	return int(k["price"]) + int(k.get("step", 0)) * int((run.get("kiosk", {}) as Dictionary).get(id, 0))
 
 ## Можно ли купить и почему нет («» — можно)
 func kiosk_why(id: String) -> String:
@@ -1298,7 +1333,7 @@ func kiosk_why(id: String) -> String:
 		return "нет такого"
 	if kiosk_left(id) <= 0:
 		return "на забег всё"
-	if int(run.get("golda", 0)) < int(k["price"]):
+	if int(run.get("golda", 0)) < kiosk_price(id):
 		return "не хватает голды"
 	if id == "togo" and togo_pool().is_empty():
 		return "бафов больше нет"
@@ -1323,8 +1358,9 @@ func kiosk_buy(id: String) -> String:
 	if kiosk_why(id) != "":
 		return ""
 	var k := kiosk_item(id)
-	run["golda"] = int(run["golda"]) - int(k["price"])
-	run["spent"] = int(run.get("spent", 0)) + int(k["price"])
+	var paid := kiosk_price(id)
+	run["golda"] = int(run["golda"]) - paid
+	run["spent"] = int(run.get("spent", 0)) + paid
 	var bought: Dictionary = run["kiosk"]
 	bought[id] = int(bought.get(id, 0)) + 1
 	var p = game.player
@@ -1520,7 +1556,7 @@ func _finish_run(won: bool, delay: float) -> void:
 	data["run"] = {}
 	save()
 	result = {"won": won, "first": first_win, "got": got, "total": int(meta()["respect"]), "parts": (run.get("resp", {}) as Dictionary).duplicate(),
-		"stages": (run.get("stages", []) as Array).duplicate(true), "stage_n": int(run.get("pos", 0)) + (1 if won else 0), "kills": int(run.get("kills", 0)),
+		"stages": (run.get("stages", []) as Array).duplicate(true) + ([["boss", "sport"]] if won else []), "died_at": ([] if won else [String(room.get("type", "")), String(room.get("place", ""))]), "stage_n": int(run.get("pos", 0)) + (1 if won else 0), "kills": int(run.get("kills", 0)),
 		"earned": int(run.get("earned", 0)), "spent": int(run.get("spent", 0)), "left": int(run.get("golda", 0)), "fits": (run.get("fits", {}) as Dictionary).duplicate(),
 		"arts": (run.get("arts", []) as Array).duplicate(), "new": (run.get("new", []) as Array).duplicate(), "boss_death": not won and String(room.get("type", "")) == "boss"}
 	events.append(["finish", won, got])

@@ -921,6 +921,8 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 	if ward_t > 0.0:
 		dmg *= 0.4
 		game.fx.shield(global_position + Vector3(0, height * 0.6, 0) - dir * radius, -dir, Color(1.0, 0.85, 0.35), 1.4 * height / 1.7)
+	if boss_id != "" and boss.has("armor") and weak_t <= 0.0 and state != "stun":
+		dmg *= float(boss["armor"])          # броня босса: вне окон «ОТКРЫТ» урон по нему меньше (данные босса)
 	if boss_id != "" and shielded():
 		dmg *= 0.15
 		launch = 0.0

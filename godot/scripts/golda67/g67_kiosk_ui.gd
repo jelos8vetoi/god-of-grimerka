@@ -88,7 +88,8 @@ func _refresh() -> void:
 		var id := String(pc.item["id"])
 		pc.why = G.kiosk_why(id)
 		pc.left = G.kiosk_left(id)
-		pc.state_l.text = ("ОСТАЛОСЬ: %d" % pc.left) if pc.why == "" else pc.why.to_upper()
+		pc.price = G.kiosk_price(id)
+		pc.state_l.text = (("ОСТАЛОСЬ: %d" % pc.left) if int(pc.item.get("per_visit", 1)) > 0 else "+40 здоровья") if pc.why == "" else pc.why.to_upper()
 		pc.state_l.add_theme_color_override("font_color", Color(0.2, 0.36, 0.16) if pc.why == "" else Color(0.55, 0.14, 0.1))
 		pc.modulate = Color.WHITE if pc.why == "" else Color(0.72, 0.68, 0.64)
 		pc.queue_redraw()
@@ -109,6 +110,7 @@ func _activate(i: int) -> void:
 		close()
 		return
 	var pc: Price = _node(i)
+	var paid_price: int = G.kiosk_price(key)
 	var got := G.kiosk_buy(key)
 	if got == "":
 		G.game.main.ui("deny")
@@ -116,7 +118,7 @@ func _activate(i: int) -> void:
 		return
 	G.game.main.ui("confirm")
 	pc.wobble()
-	receipt_l.text = "%s — %d голды\n%s" % [String(pc.item["name"]), int(pc.item["price"]), got]
+	receipt_l.text = "%s — %d голды\n%s" % [String(pc.item["name"]), paid_price, got]
 	var tw := receipt.create_tween()
 	receipt.position.y = 690.0
 	tw.tween_property(receipt, "modulate:a", 1.0, 0.12)
@@ -166,6 +168,7 @@ class Front extends Control:
 class Price extends Control:
 	var ui
 	var item: Dictionary
+	var price := 0
 	var tex: Texture2D
 	var desc_l: Label
 	var state_l: Label
@@ -197,7 +200,7 @@ class Price extends Control:
 		var pc := Vector2(size.x - 52, 92)
 		draw_circle(pc, 40, Color(0.78, 0.12, 0.1))
 		var f := MGUI.font("display")
-		var t := str(int(item["price"]))
+		var t := str(price if price > 0 else int(item["price"]))
 		var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 32).x
 		draw_string(f, pc + Vector2(-w * 0.5, 8), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color(1, 0.95, 0.85))
 		draw_string(MGUI.font("caps"), pc + Vector2(-17, 26), "ГОЛДЫ", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1, 0.88, 0.8))

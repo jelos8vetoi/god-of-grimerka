@@ -42,6 +42,13 @@ func _build() -> void:
 		if ic != null:
 			ic.position = Vector2(70 + i * 48, y + 40)
 			stage.add_child(ic)
+	var died: Array = R.get("died_at", [])
+	if not died.is_empty() and String(died[0]) != "":
+		var di := G67Icons.rect(String(G67Icons.ROOM.get(String(died[0]), "")), 40)
+		if di != null:
+			di.position = Vector2(70 + stages.size() * 48, y + 40)
+			di.modulate = Color(1, 1, 1, 0.35)      # этап, на котором погиб, — приглушённый значок
+			stage.add_child(di)
 	y += 96.0
 	_t("ВРАГОВ ПОБЕЖДЕНО: %d" % int(R.get("kills", 0)), "display", 28, col, Vector2(70, y))
 	y += 46.0
