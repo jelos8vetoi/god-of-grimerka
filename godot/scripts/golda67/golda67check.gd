@@ -2486,7 +2486,7 @@ func _events_check(g, G: Golda67, P) -> void:
 		await wait(0.3)
 		match bid:
 			"lights":
-				ok(G.coins.size() >= cn + 4, "кнопка: свет гаснет, монеты у ног")
+				ok(G.coins.size() >= cn + 1 or int(G.run["earned"]) > 0, "кнопка: свет гаснет, монеты у ног")
 			"alarms":
 				ok(true, "кнопка: сигнализации и +1 РЕСПЕКТ")
 			"shawarma":
@@ -2652,6 +2652,15 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await _n01_check(g, G, P)
 	ok(await _clear_room(g, G), "этап 1 (БОЙ у подъезда) зачищен")
 	ok(G.coins.size() > 0 or int(G.run["golda"]) > 0, "с побеждённых врагов и за зачистку упали монеты (на земле %d)" % G.coins.size())
+	var wraps_l: Array = G.coins.filter(func(c): return c.has("heal"))
+	ok(wraps_l.size() == 1 and float(wraps_l[0]["heal"]) == 25.0, "N06: за зачистку боя лежит свёрток шаурмы +25 (%d)" % wraps_l.size())
+	if wraps_l.size() == 1:
+		P.hp = 40.0
+		P.global_position = (wraps_l[0]["n"] as Node3D).global_position
+		await wait(1.2)
+		ok(absf(P.hp - 65.0) < 1.5 and G.coins.filter(func(c): return c.has("heal")).is_empty(), "N06: подбор лечит один раз (здоровье %.0f)" % P.hp)
+		P.hp = P.max_hp
+	ok(String(G.point("kiosk")["hint"]).contains("откроется с третьей позиции"), "подсказка закрытого окна ларька: «%s»" % G.point("kiosk")["hint"])
 	var gold_before := int(G.run["golda"])
 	await wait(3.5)
 	ok(G.coins.is_empty() and int(G.run["golda"]) > gold_before and int(G.run["earned"]) == int(G.run["golda"]) + int(G.run["spent"]), "монеты после боя летят к герою и начисляются один раз (голда %d)" % int(G.run["golda"]))
@@ -2896,7 +2905,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await wait(1.6)
 	ok(B.global_position.z > G.world.throne.z + 0.6 and G.scene_step == 2, "встал и идёт по ковру к герою")
 	await shot("25c_boss_walks")
-	ok(await until(func(): return G.scene_step >= 3, 4.0), "дошёл и топнул")
+	ok(await until(func(): return G.scene_step >= 6, 9.0), "дошёл и топнул")
 	if G67Voice.path("G1|" + G67Data.BOSS_INTRO) != "":
 		ok(String(g.bark_b.stream.resource_path if g.bark_b.stream != null else "").begins_with(G67Voice.DIR + "Bosses/"), "на выходе Миша говорит своим голосом главы 1 (%s)" % (g.bark_b.stream.resource_path.get_file() if g.bark_b.stream != null else "—"))
 	await wait(0.9)

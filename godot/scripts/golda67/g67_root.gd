@@ -612,6 +612,7 @@ func district() -> Dictionary:
 ## Двор не пересобирается и не сдвигается: меняются только арена боя, ограждения и награда.
 func enter_room(r: Dictionary) -> void:
 	flush_coins()
+	_kiosk_hint()
 	busy = true
 	room = r
 	wind_used = false
@@ -725,6 +726,7 @@ func _spawn(foe: String) -> void:
 	e.set_meta("foe", foe)
 	e.set_meta("no_portal", true)
 	game.add_child(e)
+	e.cfg["dmg"] = float(e.cfg["dmg"]) * G67Data.FOE_DMG_K
 	if bool(run.get("snow_stun", false)):
 		if wave_i <= 0:
 			game.get_tree().create_timer(1.3, false).timeout.connect(func(): if is_instance_valid(e): e.stun(2.0))
@@ -766,7 +768,7 @@ func _fight_tick(dt: float) -> void:
 	if spawn_cd > 0.0:
 		spawn_cd -= dt
 	if not pending.is_empty():
-		if alive() < 7 and spawn_cd <= 0.0:
+		if alive() < G67Data.FOES_ALIVE_MAX and spawn_cd <= 0.0:
 			_spawn(pending.pop_front())
 			spawn_cd = randf_range(0.8, 1.4)          # враги входят по одному-двое, а не разом
 		return
@@ -835,6 +837,8 @@ func _room_cleared() -> void:
 	var pn := 5 if type == "elite" else 3
 	for k in pn:
 		_drop_coin(game.arena_c + Vector3(randf_range(-1.2, 1.2), 0.0, randf_range(-1.2, 1.2)), int(ceil(float(pile) / pn)), true)      # награда за зачистку — горкой в центре зоны
+	if G67Data.STAGE_HEAL.has(type):
+		_drop_wrap(float(G67Data.STAGE_HEAL[type]), game.arena_c + Vector3(randf_range(-1.5, 1.5), 0.0, randf_range(2.0, 3.0)))
 	_add_respect("elite" if type == "elite" else "battle", int(G67Data.RESPECT["elite" if type == "elite" else "room"]))
 	run["rooms"] = int(run["rooms"]) + 1
 	game.banner("ЧИСТО", "голда: %d" % int(run["golda"]), Color(1, 0.85, 0.3), 1.8)
@@ -1305,7 +1309,16 @@ func _stage_end() -> void:
 	events.append(["stage_done", type])
 	_open_gates()
 
+## Подсказка у окна ларька: пока оно закрыто (позиции 1–2), говорит правду
+func _kiosk_hint() -> void:
+	if world == null or run.is_empty():
+		return
+	for pt in world.points:
+		if String(pt["id"]) == "kiosk":
+			pt["hint"] = "окно закрыто — откроется с третьей позиции" if (int(run.get("pos", 0)) < 2 and not bool(run.get("kiosk_full", false))) else "окно ларька: шаурма за голду"
+
 func _open_gates() -> void:
+	_kiosk_hint()
 	var next := int(run["pos"]) + 1
 	if next >= route().size():
 		return

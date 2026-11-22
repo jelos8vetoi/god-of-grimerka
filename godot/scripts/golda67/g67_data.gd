@@ -193,7 +193,11 @@ static func district(id: String) -> Dictionary:
 
 ## Волны боя: позиция 1 — три волны; бой на позициях 2 и 4 — три волны; элита — три волны
 const WAVES_P1 := [[["shest", 3]], [["shest", 2], ["semka", 1]], [["shest", 3], ["semka", 1]]]
-const WAVES_BATTLE := [[["shest", 3], ["semka", 1]], [["shest", 3], ["semka", 2]], [["shest", 4], ["semka", 2]]]
+const WAVES_BATTLE := [[["shest", 3], ["semka", 1]], [["shest", 3], ["semka", 2]], [["shest", 3], ["semka", 2]]]
+## Свёрток шаурмы за зачистку боевого этапа: лечение (подобрать; непобранный пропадает при начале следующего этапа)
+const FOE_DMG_K := 0.85      # урон рядовых врагов двора и свиты Миши (сам Миша — нет); кампанию не трогает
+const FOES_ALIVE_MAX := 5   # одновременно живых врагов в бою приквела
+const STAGE_HEAL := {"battle": 25.0, "ambush": 25.0, "elite": 40.0}
 const WAVES_ELITE := [[["smotr", 1], ["shest", 2]], [["shest", 2], ["semka", 2]], [["smotr", 1], ["semka", 2]]]
 
 static func waves_for(_d: Dictionary, type: String, pos: int) -> Array:
