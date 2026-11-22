@@ -127,6 +127,14 @@ var tribune: Node3D
 var fans: Array = []           # зрители у коробки (Rig)     # меняется на каждый забег: очередь каждый раз другая
 var boss_spot := Vector3(2, 0, -44.5)        # где ждёт Миша (у своей машины, на ковре)
 
+## Точки входа врагов в зону боя: четыре места у края зоны (из-за гаражей, из соседнего подъезда, из-за машин, с проезда…)
+static func entry_points(id: String) -> Array:
+	var z: Dictionary = zone(id)
+	var c: Vector3 = z["c"]
+	var h: Vector2 = z["h"] - Vector2(1.4, 1.4)
+	return [Vector3(c.x - h.x, 0.05, c.z + h.y * 0.35), Vector3(c.x + h.x, 0.05, c.z - h.y * 0.35),
+		Vector3(c.x - h.x * 0.35, 0.05, c.z - h.y), Vector3(c.x + h.x * 0.35, 0.05, c.z + h.y)]
+
 static func zone(id: String) -> Dictionary:
 	return ZONES.get(id, ZONES["podezd"])
 

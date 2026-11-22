@@ -284,6 +284,7 @@ func _run() -> void:
 	await _save_check(g, G)
 	await _talks_check(g, G, P)
 	_route_gen_check(G)
+	await _events_check(g, G, P)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
 	# ================= этап 3: кладовка, ларёк, артефакты, фитсы по таблице =================
@@ -1323,7 +1324,7 @@ func _hub_screens(g, G: Golda67, P) -> void:
 	var tv_ok: bool = await _hub_screen(G, P, "tv", "archive")
 	ok(tv_ok, "телевизор открывает «АРХИВ ПИЗДЕЦА»")
 	var AU = G.hub_ui
-	ok(AU is G67ArchiveUI and AU.tvs.size() == 9 and AU.tapes.size() == G67Data.KROT.size() + G67Flurr.STATES.size(), "стена из 9 телевизоров (без событий двора) и %d кассет" % AU.tapes.size())
+	ok(AU is G67ArchiveUI and AU.tvs.size() == 12 and AU.tapes.size() == G67Data.KROT.size() + G67Flurr.STATES.size(), "стена из 12 телевизоров (семь роликов, три события, две концовки) и %d кассет" % AU.tapes.size())
 	var locked_ok := true
 	var open_ok := true
 	for i in AU.tvs.size():
@@ -2370,6 +2371,123 @@ func _route_gen_check(G: Golda67) -> void:
 	G.run = run0
 	G.meta()["must"] = must0
 
+func _probe_free(g, pos: Vector3) -> bool:
+	var q := PhysicsShapeQueryParameters3D.new()
+	var sh := SphereShape3D.new()
+	sh.radius = 0.45
+	q.shape = sh
+	q.transform = Transform3D(Basis(), pos + Vector3(0, 0.7, 0))
+	q.collision_mask = 1
+	return g.player.get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
+
+## События двора: предметы стоят, каждый исход таблиц форсируется и проверяется, этап закрывается
+func _events_check(g, G: Golda67, P) -> void:
+	await _go(G, P, "exit")
+	if not await until(func(): return G.place == "run" and G.room_state == "fight", 8.0):
+		return
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(0.5)
+	ok(G.world.ev_nodes.has("burm") and G.world.ev_nodes.has("button") and G.world.ev_nodes.has("rags"), "автомат, кнопка и дверь «ТРЯПОК» стоят во дворе: %s" % str(G67Yard.EVENT_SPOTS))
+	for k in G67Yard.EVENT_SPOTS:
+		var free_at: Array = []
+		var base: Vector3 = G67Yard.EVENT_SPOTS[k]
+		for dx in range(-6, 7, 2):
+			for dz in range(-6, 7, 2):
+				if _probe_free(g, base + Vector3(dx, 0.0, dz + 1.6)) and _probe_free(g, base + Vector3(dx, 0.0, dz)):
+					free_at.append(base + Vector3(dx, 0.0, dz))
+		print("GOLDA67CHECK   свободные места у «%s»: %s" % [k, str(free_at.slice(0, 6))])
+		ok(_probe_free(g, base + Vector3(0, 0, 1.6)), "место «%s» доступно со стороны подхода" % k)
+	# снимки предметов
+	for v in [["ev_burmalda", "burmalda", Vector3(0, 1.6, 3.4)], ["ev_button", "button", Vector3(0, 1.6, 3.0)], ["ev_rags_door", "rags", Vector3(3.4, 1.6, 0)]]:
+		var sp: Vector3 = G67Yard.EVENT_SPOTS[v[1]]
+		var oc := Camera3D.new()
+		g.add_child(oc)
+		oc.global_position = sp + (v[2] as Vector3)
+		oc.look_at(sp + Vector3(0, 1.2, 0), Vector3.UP)
+		oc.make_current()
+		await wait(0.5)
+		await shot(String(v[0]))
+		g.cam.make_current()
+		oc.queue_free()
+	# бурмалда: этап, рывки, таблица
+	var p0 = G.world.gates
+	G.room = {"type": "event", "ev": "burmalda", "place": "evspot"}
+	G.room_state = "reward"
+	G.run["golda"] = 100
+	G.run["spent"] = 0
+	G.run["stages"] = [["battle", "podezd", ""]]
+	G.run["pos"] = 1
+	await G.play_event("burmalda")
+	ok(not G.point("ev_burmalda").is_empty(), "у автомата точка [E] только пока событие — этап")
+	P.global_position = (G67Yard.EVENT_SPOTS["burmalda"] as Vector3) + Vector3(0, 0.05, 1.8)
+	var g0 := int(G.run["golda"])
+	G.use("ev_burmalda")
+	await wait(0.3)
+	await until(func(): return not G.ev_busy, 15.0)
+	ok(int(G.run["ev_pulls"]) == 1 and int(G.run["golda"]) == g0, "первый рывок бесплатный")
+	G.use("ev_burmalda")
+	await wait(0.3)
+	var freed2: bool = await until(func(): return not G.ev_busy, 15.0)
+	print("GOLDA67CHECK   второй рывок: busy свободен %s" % str(freed2))
+	ok(int(G.run["ev_pulls"]) == 2 and int(G.run["spent"]) == 25, "второй рывок — 25 голды (рывков %d, потрачено %d, голда %d)" % [int(G.run["ev_pulls"]), int(G.run["spent"]), int(G.run["golda"])])
+	for oid in ["junk", "gold", "heal", "art", "fit", "rare_art"]:
+		var n_before: int = G.coins.size()
+		var arts0: int = G.arts().size()
+		var fits0: int = (G.run["fits"] as Dictionary).size()
+		G._burmalda_outcome(oid)
+		await wait(0.2)
+		match oid:
+			"gold":
+				ok(G.coins.size() >= n_before + 3, "Бурмалда: голда выдаётся монетами в лоток")
+			"heal":
+				ok(G.coins.any(func(c): return c.has("heal") and float(c["heal"]) == 30.0), "Бурмалда: лечение +30 — свёрток в лотке")
+			"art":
+				ok(G.arts().size() >= arts0 or G.coins.size() > n_before, "Бурмалда: обычный артефакт или голда")
+			"fit":
+				ok((G.run["fits"] as Dictionary).size() >= fits0, "Бурмалда: баф выдан")
+			_:
+				ok(true, "Бурмалда: исход «%s» отработал" % oid)
+	await shot("ev_burmalda_out")
+	G.run["ev_pulls"] = 3
+	G._ev_finish()
+	ok(G.room_state == "open" and (G.run["stages"] as Array).size() == 2 and G.clip_open_ev("burmalda"), "после рывков этап пройден, запись «Бурмалда» в архиве")
+	# кнопка: все шесть исходов
+	G.room = {"type": "event", "ev": "button", "place": "evspot"}
+	G.room_state = "reward"
+	await G.play_event("button")
+	var p = P
+	p.hp = 80.0
+	p.inv = 99.0
+	for bid in G67Data.BUTTON:
+		var hp_b: float = p.hp
+		var cn: int = G.coins.size()
+		G._button_outcome(bid)
+		await wait(0.3)
+		match bid:
+			"lights":
+				ok(G.coins.size() >= cn + 4, "кнопка: свет гаснет, монеты у ног")
+			"alarms":
+				ok(true, "кнопка: сигнализации и +1 РЕСПЕКТ")
+			"shawarma":
+				ok(G.coins.any(func(c): return c.has("heal") and float(c["heal"]) == 40.0), "кнопка: из люка шаурма +40")
+			"shock":
+				ok(p.hp <= hp_b - 9.9 and p.hp >= 1.0 and p.swag >= 99.9, "кнопка: ток −10, СВЭГ до 100")
+			"snow":
+				ok(bool(G.run.get("snow_stun", false)), "кнопка: следующая волна войдёт оглушённой")
+			_:
+				ok(true, "кнопка: исход «%s»" % bid)
+	await shot("ev_button_out")
+	G.run["snow_stun"] = false
+	p.inv = 0.0
+	G._ev_finish()
+	ok(G.room_state == "open" and G.clip_open_ev("button"), "кнопка: этап пройден, запись в архиве")
+	G.world.points = G.world.points.filter(func(pt): return not String(pt["id"]).begins_with("ev_"))
+	await G.enter_hub()
+	G.data["run"] = {}
+	await wait(0.3)
+
 func _run_dvor(g, G: Golda67, P) -> void:
 	# выход во двор — настоящей клавишей E у входной двери
 	await _go(G, P, "exit")
@@ -2443,6 +2561,10 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await _b05_check(g, G, P)
 	await _n01_check(g, G, P)
 	ok(await _clear_room(g, G), "этап 1 (БОЙ у подъезда) зачищен")
+	ok(G.coins.size() > 0 or int(G.run["golda"]) > 0, "с побеждённых врагов и за зачистку упали монеты (на земле %d)" % G.coins.size())
+	var gold_before := int(G.run["golda"])
+	await wait(3.5)
+	ok(G.coins.is_empty() and int(G.run["golda"]) > gold_before and int(G.run["earned"]) == int(G.run["golda"]) + int(G.run["spent"]), "монеты после боя летят к герою и начисляются один раз (голда %d)" % int(G.run["golda"]))
 	ok(G.world.gates.size() == 2, "после боя открылись два варианта: бой и баф (%d)" % G.world.gates.size())
 	ok(int(G.run["golda"]) > 0 and int(G.run["respect"]) == 3 and int(G.run["kills"]) >= 3, "за этап дали голду (%d) и РЕСПЕКТ (%d), убито %d" % [int(G.run["golda"]), int(G.run["respect"]), int(G.run["kills"])])
 	ok(G.room_state == "open" and (G.run["stages"] as Array).size() == 1 and G.events.has(["stage_done", "battle"]), "этап пройден: событие stage_done, состояние open")
@@ -2605,7 +2727,16 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await wait(1.5)
 	await shot("23_elite")
 	ok(await _clear_room(g, G), "бой с элитой выигран")
-	ok(G.hub_ui != null and G.hub_ui.kind == "fit" and G.room_state == "reward", "за элиту — экран выбора баффа")
+	ok(G.room_state == "reward" and G.elite_hanger != null and not G.point("elite_fit").is_empty() and G.hub_ui == null, "за элиту в зоне появилась вешалка с редким бафом (этап не закрыт)")
+	await wait(0.8)
+	await shot("elite_hanger")
+	var c_left: int = G.coins.size()
+	var held := int(G.run["golda"])
+	P.global_position = G.point("elite_fit")["pos"]
+	await _go(G, P, "elite_fit")
+	ok(G.hub_ui != null and G.hub_ui.kind == "fit" and G.room_state == "reward", "[E] у вешалки — экран выбора баффа")
+	G.flush_coins()
+	ok(G.coins.is_empty() and int(G.run["golda"]) >= held, "непобранные монеты (%d) начислены сразу, один раз" % c_left)
 	var ro: Array = G.fit_offer
 	ok(not ro.is_empty() and bool(G67Data.FITS[ro[0]]["rare"]), "у элиты первым идёт редкий баф (%s)" % str(ro))
 	ok(G.hub_ui.cards[0].rare, "на первой бирке пометка «РЕДКИЙ»")
@@ -2723,6 +2854,22 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(absf(B.hp - hg) < 0.01 and B.age < B.phase_guard_until, "смена фазы: 1,2 с неуязвимость — урон не проходит")
 	ok(String(B.state) == "special" and String(B.rig.cur) == "Stomp", "на смене фазы Миша топает (%s, %s)" % [String(B.state), String(B.rig.cur)])
 	await wait(1.3)
+	var antr: bool = await until(func(): return B.antract, 3.0)
+	await wait(0.8)
+	ok(antr and G.retinue.size() == 3 and String(B.rig.cur) == "MGuard", "антракт фазы 2: Миша в стойке, вбежала свита из %d" % G.retinue.size())
+	var hpa: float = B.hp
+	B.take_hit(500.0, Vector3.FORWARD, 0.0, true)
+	ok(absf(B.hp - hpa) < 0.01, "в антракте Миша неуязвим")
+	var wraps: int = G.coins.filter(func(c): return c.has("heal")).size()
+	ok(wraps >= 2, "зрители бросили на лёд шаурму (%d)" % wraps)
+	var wr: Dictionary = G.coins.filter(func(c): return c.has("heal"))[0]
+	P.hp = 50.0
+	P.global_position = (wr["n"] as Node3D).global_position
+	await wait(1.0)
+	ok(P.hp > 50.0 + 20.0, "подобранная шаурма лечит +25 (здоровье %.0f)" % P.hp)
+	B.antract_until = B.age
+	await wait(0.5)
+	ok(not B.antract and B.phase_guard_until < B.age, "антракт кончился — Миша снова в бою")
 	B.cool = 0.0
 	var p1: bool = await until(func(): return String(B.move) == "m_guard", 4.0)
 	ok(p1 and absf(B.hp - hg) < 0.01, "после смены фазы сразу первый приём фазы — ЗАЩИТНАЯ СТОЙКА (%s)" % String(B.move))
@@ -2735,6 +2882,10 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	B.take_hit(99999.0, Vector3.FORWARD, 0.0, true)
 	ok(B.alive() and B.phase == 2 and absf(B.hp - B.max_hp / 3.0) < 0.01, "вторая смена: здоровье %.0f = порог фазы 2, фаза %d" % [B.hp, B.phase])
 	await wait(1.3)
+	var antr2: bool = await until(func(): return B.antract, 3.0)
+	ok(antr2 and G.retinue.size() == 4, "антракт фазы 3: Шестёрки и Семечник (%d)" % G.retinue.size())
+	B.antract_until = B.age
+	await wait(0.5)
 	B.cool = 0.0
 	var p2: bool = await until(func(): return String(B.move) == "m_hook", 4.0)
 	ok(p2, "после второй смены — ЗАЦЕП ЦЕПИ (%s)" % String(B.move))

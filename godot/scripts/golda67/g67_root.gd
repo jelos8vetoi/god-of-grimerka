@@ -230,6 +230,7 @@ func _build_yard_world() -> void:
 			(l as G67Life).watcher = game.player       # жители замечают Пахана, когда он рядом и впереди
 	world.add_kiosk()
 	world.add_home()
+	world.build_event_props()
 	_place_krot_yard()
 	_build_stash()
 
@@ -298,6 +299,7 @@ func start_run(district_id := "dvor") -> void:
 func go_home() -> void:
 	if busy or place != "run" or room_state != "open":
 		return
+	flush_coins()
 	_save_run("open")
 	events.append(["home"])
 	game.main.ui("confirm")
@@ -603,6 +605,7 @@ func district() -> Dictionary:
 ## Начать этап на месте: герой уже стоит там, где его вариант (у вешалки, у бокса, у лавки, у калитки), или в зоне боя.
 ## Двор не пересобирается и не сдвигается: меняются только арена боя, ограждения и награда.
 func enter_room(r: Dictionary) -> void:
+	flush_coins()
 	busy = true
 	room = r
 	wind_used = false
@@ -687,15 +690,24 @@ func _spawn(foe: String) -> void:
 	var h: Vector2 = game.arena_h - Vector2(1.5, 1.5)
 	var pos := Vector3.ZERO
 	var fallback := Vector3.INF
-	for n in 20:
-		pos = Vector3(c.x + randf_range(-h.x, h.x), 0, c.z + randf_range(-h.y, h.y))
-		if world.blocked(pos):
-			continue
-		if fallback == Vector3.INF:
-			fallback = pos
-		if pos.distance_to(pp) >= 6.0:
-			fallback = pos
+	# вход из точек зоны (не ближе 7 м к герою); нет подходящей — любое место зоны, как раньше
+	var zid := String(room.get("place", "podezd"))
+	var pts: Array = G67Yard.entry_points(zid)
+	pts.shuffle()
+	for q in pts:
+		if (q as Vector3).distance_to(pp) >= 7.0 and not world.blocked(q):
+			fallback = q
 			break
+	if fallback == Vector3.INF:
+		for n in 20:
+			pos = Vector3(c.x + randf_range(-h.x, h.x), 0, c.z + randf_range(-h.y, h.y))
+			if world.blocked(pos):
+				continue
+			if fallback == Vector3.INF:
+				fallback = pos
+			if pos.distance_to(pp) >= 6.0:
+				fallback = pos
+				break
 	if fallback != Vector3.INF:
 		pos = fallback
 	pos.y = 0.05
@@ -705,7 +717,14 @@ func _spawn(foe: String) -> void:
 	e.game = game
 	e.position = pos
 	e.set_meta("foe", foe)
+	e.set_meta("no_portal", true)
 	game.add_child(e)
+	if bool(run.get("snow_stun", false)):
+		if wave_i <= 0:
+			game.get_tree().create_timer(1.3, false).timeout.connect(func(): if is_instance_valid(e): e.stun(2.0))
+		else:
+			run["snow_stun"] = false
+	game.fx.dust(pos + Vector3(0, 0.15, 0), 6, game.fx.DUST, 0.8)
 	e.global_position = pos
 	e.face = atan2(pp.x - pos.x, pp.z - pos.z)
 	game.enemies.append(e)
@@ -743,7 +762,7 @@ func _fight_tick(dt: float) -> void:
 	if not pending.is_empty():
 		if alive() < 7 and spawn_cd <= 0.0:
 			_spawn(pending.pop_front())
-			spawn_cd = 0.3
+			spawn_cd = randf_range(0.8, 1.4)          # враги входят по одному-двое, а не разом
 		return
 	if alive() > 0:
 		return
@@ -785,7 +804,12 @@ func on_kill(e) -> void:
 	if not G67Data.FOES.has(foe):
 		return                            # призванные боссом голды и лечения не дают
 	run["kills"] = int(run.get("kills", 0)) + 1
-	add_golda(int(G67Data.FOES[foe]["golda"]))
+	var base_g := int(G67Data.FOES[foe]["golda"])
+	if foe == "smotr":
+		for k in 3:
+			_drop_coin(e.global_position, int(ceil(base_g / 3.0)), true)       # у Смотрящего падают три монеты
+	else:
+		_drop_coin(e.global_position, base_g)
 	if has_art("hamster_aura"):
 		run["golda"] = int(run["golda"]) + 2
 		run["earned"] = int(run.get("earned", 0)) + 2
@@ -801,16 +825,158 @@ func on_kill(e) -> void:
 func _room_cleared() -> void:
 	var type := String(room["type"])
 	events.append(["clear", type])
-	add_golda(int(G67Data.ROOM_GOLDA[type]))
+	var pile := int(G67Data.ROOM_GOLDA[type])
+	var pn := 5 if type == "elite" else 3
+	for k in pn:
+		_drop_coin(game.arena_c + Vector3(randf_range(-1.2, 1.2), 0.0, randf_range(-1.2, 1.2)), int(ceil(float(pile) / pn)), true)      # награда за зачистку — горкой в центре зоны
 	_add_respect("elite" if type == "elite" else "battle", int(G67Data.RESPECT["elite" if type == "elite" else "room"]))
 	run["rooms"] = int(run["rooms"]) + 1
 	game.banner("ЧИСТО", "голда: %d" % int(run["golda"]), Color(1, 0.85, 0.3), 1.8)
 	game.fx.twinkle(game.player.global_position + Vector3(0, 1.0, 0), 14, Color(1, 0.85, 0.4), 1.0)
 	if type == "elite":
 		room_state = "reward"
-		_offer_fit(true)
+		_place_elite_hanger()
 	else:
 		_stage_end()
+
+# ---------------------------------------------------------------- монеты и награда элиты
+var coins: Array = []             # [{n, v, vel, land, t}] — физическая голда, упавшая с врагов
+var calm_t := 0.0
+var elite_hanger: Node3D = null
+
+func _drop_coin(pos: Vector3, val: int, big := false) -> void:
+	if world == null:
+		return
+	var n := G67Models.spawn("g67_golda_coin", world, pos + Vector3(0, 0.9, 0), randf() * TAU, Vector3(99, 0.5 if big else 0.32, 99))
+	var lt := OmniLight3D.new()
+	lt.light_color = Color(1.0, 0.82, 0.35)
+	lt.light_energy = 0.4
+	lt.omni_range = 2.0
+	n.add_child(lt)
+	var a := randf() * TAU
+	var sp := randf_range(1.2, 2.8)
+	coins.append({"n": n, "v": val, "vel": Vector3(sin(a) * sp, randf_range(3.5, 5.0), cos(a) * sp), "land": false, "t": 0.0})
+
+func _take_coin(c: Dictionary) -> void:
+	if c.has("heal"):
+		game.player.hp = minf(game.player.max_hp, game.player.hp + float(c["heal"]))
+		game.popup(game.player.global_position + Vector3(0, 2.2, 0), "+%d здоровья" % int(c["heal"]), Color(0.5, 1.0, 0.55))
+		var nh = c["n"]
+		if is_instance_valid(nh):
+			nh.queue_free()
+		game.main.ui("confirm")
+		events.append(["wrap_taken"])
+		return
+	var got := add_golda(int(c["v"]))
+	var n = c["n"]
+	if is_instance_valid(n):
+		game.fx.twinkle(n.global_position, 6, Color(1, 0.85, 0.4), 0.5)
+		n.queue_free()
+	game.popup(game.player.global_position + Vector3(0, 2.2, 0), "+%d" % got, Color(1.0, 0.85, 0.3))
+	game.main.ui("confirm")
+
+## Монеты: дуга, отскок, лежат и крутятся; подбор на 1,6 м, а через 0,6 с после боя летят к герою
+func _coins_tick(dt: float) -> void:
+	calm_t = calm_t + dt if room_state != "fight" else 0.0
+	var pp: Vector3 = game.player.global_position
+	for c in coins.duplicate():
+		var n = c["n"]
+		if not is_instance_valid(n):
+			coins.erase(c)
+			continue
+		c["t"] = float(c["t"]) + dt
+		if c.has("life") and float(c["t"]) > float(c["life"]):
+			n.queue_free()
+			coins.erase(c)
+			continue
+		n.rotate_y(dt * 3.0)
+		if not bool(c["land"]):
+			var v: Vector3 = c["vel"]
+			v.y -= 14.0 * dt
+			n.global_position += v * dt
+			if n.global_position.y <= 0.25 and v.y < 0.0:
+				n.global_position.y = 0.25
+				if absf(v.y) > 2.0:
+					v = Vector3(v.x * 0.5, -v.y * 0.4, v.z * 0.5)
+				else:
+					c["land"] = true
+			c["vel"] = v
+		var d: float = Vector2(pp.x - n.global_position.x, pp.z - n.global_position.z).length()
+		if calm_t > 0.6 and bool(c["land"]) and not c.has("heal"):
+			var to: Vector3 = pp + Vector3(0, 1.0, 0) - n.global_position
+			n.global_position += to.normalized() * minf(to.length(), 14.0 * dt)
+		if d < 1.6 and float(c["t"]) > 0.5:
+			_take_coin(c)
+			coins.erase(c)
+
+## Непобранные монеты начисляются сразу (выход, домой, конец забега): ничего не теряется и ничего не удваивается
+func flush_coins() -> void:
+	for c in coins:
+		if not c.has("heal"):
+			add_golda(int(c["v"]))
+		var n = c["n"]
+		if is_instance_valid(n):
+			n.queue_free()
+	coins = []
+
+func _place_elite_hanger() -> void:
+	var pos: Vector3 = game.arena_c + Vector3(0, 0.0, 3.0)
+	elite_hanger = G67Models.spawn("g67_fit_hanger", world, pos, PI, Vector3(99, 1.9, 99))
+	var lt := OmniLight3D.new()
+	lt.light_color = Color(1.0, 0.8, 0.3)
+	lt.light_energy = 1.2
+	lt.omni_range = 5.0
+	lt.position = Vector3(0, 2.0, 0)
+	elite_hanger.add_child(lt)
+	world._point("elite_fit", "ВЕШАЛКА ЭЛИТЫ", "редкий баф на выбор", pos + Vector3(0, 0, 1.3))
+	game.banner("ВЕШАЛКА", "редкий баф — подойди и возьми", Color(1.0, 0.8, 0.3), 2.0)
+	events.append(["elite_hanger"])
+
+# ---------------------------------------------------------------- Миша: антракт, свита, шаурма с трибуны
+var retinue: Array = []
+
+func misha_retinue(phase: int) -> void:
+	retinue = []
+	var foes: Array = ["shest", "shest", "shest"] + (["semka"] if phase >= 2 else [])
+	for f in foes:
+		var before: int = game.enemies.size()
+		_spawn(String(f))
+		if game.enemies.size() > before:
+			retinue.append(game.enemies[game.enemies.size() - 1])
+	for k in 2:
+		_drop_wrap()
+	game.main.sfx("sfx_wave", -6.0)
+	events.append(["retinue", phase, retinue.size()])
+
+func retinue_dead() -> bool:
+	for e in retinue:
+		if is_instance_valid(e) and e.state != "dead":
+			return false
+	return true
+
+## Время вышло: оставшиеся убегают за борт и исчезают у калитки
+func misha_retinue_clear() -> void:
+	for e in retinue:
+		if is_instance_valid(e) and e.state != "dead":
+			game.enemies.erase(e)
+			e.queue_free()
+	retinue = []
+
+## Зрители бросают на лёд шаурму: свёрток по дуге с трибуны, лежит 20 с, подобрать — +25 здоровья
+func _drop_wrap(heal := 25.0, at := Vector3.INF) -> void:
+	var c: Vector3 = game.arena_c
+	var from := Vector3(c.x + randf_range(-8.0, 8.0), 4.0, c.z - 9.5) if at == Vector3.INF else at + Vector3(0, 1.4, 0)
+	var n := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.28, 0.18, 0.42)
+	n.mesh = bm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.85, 0.7, 0.4)
+	n.material_override = m
+	world.add_child(n)
+	n.global_position = from
+	var tgt := Vector3(c.x + randf_range(-5.0, 5.0), 0.2, c.z + randf_range(-4.0, 4.0)) if at == Vector3.INF else at + Vector3(randf_range(-0.4, 0.4), -1.2, 0.5)
+	coins.append({"n": n, "v": 0, "heal": heal, "vel": (tgt - from) / 0.9 + Vector3(0, 4.4, 0), "land": false, "t": 0.0, "life": 20.0})
 
 ## Шесть позиций района: типы вариантов без конкретики (для карты, паузы, итогов); сами варианты — route_options
 func route() -> Array:
@@ -907,12 +1073,180 @@ func route_options(next: int) -> Array:
 func play_event(ev: String) -> void:
 	events.append(["event", ev])
 	if ev in G67Data.EVENTS_SHORT:
-		var arch: Array = meta().get("archive", [])
-		if not arch.has("ev_" + ev):
-			arch.append("ev_" + ev)
-			meta()["archive"] = arch
-			save()
+		run["ev_pulls"] = 0
+		var sp: Vector3 = G67Yard.EVENT_SPOTS[ev]
+		world._point("ev_" + ev, String(G67Data.EVENT_NAMES[ev]), "дёрнуть рычаг" if ev == "burmalda" else "нажать кнопку", sp + (Vector3(0, 0, 1.4) if ev == "burmalda" else Vector3(0, 0, 1.0)))
+		return                          # этап закроется, когда событие отыграно
 	_stage_end()
+
+func _ev_tick() -> void:
+	if room_state == "reward" and String(room.get("type", "")) == "event" and String(room.get("ev", "")) == "burmalda" and int(run.get("ev_pulls", 0)) >= 1 and not ev_busy:
+		var sp: Vector3 = G67Yard.EVENT_SPOTS["burmalda"]
+		if Vector2(game.player.global_position.x - sp.x, game.player.global_position.z - sp.z).length() > 5.0:
+			_ev_finish()
+
+func _ev_finish() -> void:
+	if room_state != "reward" or String(room.get("type", "")) != "event":
+		return
+	var ev := String(room.get("ev", ""))
+	world.points = world.points.filter(func(pt): return String(pt["id"]) != "ev_" + ev)
+	var arch: Array = meta().get("archive", [])
+	if not arch.has("ev_" + ev):
+		arch.append("ev_" + ev)
+		meta()["archive"] = arch
+		save()
+	_stage_end()
+
+var ev_busy := false
+
+func _ev_tray_pos() -> Vector3:
+	return (G67Yard.EVENT_SPOTS["burmalda"] as Vector3) + Vector3(0, 0.3, 0.9)
+
+## Рывок рычага: один бесплатно, ещё два по BURMALDA_COST
+func _burmalda_pull() -> void:
+	if ev_busy or room_state != "reward" or String(room.get("ev", "")) != "burmalda":
+		return
+	var n := int(run.get("ev_pulls", 0))
+	if n >= 3:
+		return
+	if n >= 1:
+		if int(run.get("golda", 0)) < G67Data.BURMALDA_COST:
+			game.toast("Нужно %d голды" % G67Data.BURMALDA_COST)
+			return
+		run["golda"] = int(run["golda"]) - G67Data.BURMALDA_COST
+		run["spent"] = int(run.get("spent", 0)) + G67Data.BURMALDA_COST
+	run["ev_pulls"] = n + 1
+	ev_busy = true
+	world.ev_spin(2.5)
+	game.main.sfx("sfx_wave", -6.0)
+	await game.get_tree().create_timer(2.5, false).timeout
+	if not is_instance_valid(game) or game.golda != self:
+		return
+	var total := 0
+	for o in G67Data.BURMALDA:
+		total += int(o["w"])
+	var r := randi() % total
+	var pick := "junk"
+	for o in G67Data.BURMALDA:
+		r -= int(o["w"])
+		if r < 0:
+			pick = String(o["id"])
+			break
+	_burmalda_outcome(pick)
+	ev_busy = false
+	if int(run["ev_pulls"]) >= 3:
+		await game.get_tree().create_timer(1.5, false).timeout
+		_ev_finish()
+
+func _burmalda_outcome(id: String) -> void:
+	var tray := _ev_tray_pos()
+	events.append(["burmalda", id])
+	match id:
+		"junk":
+			var names: Array = G67Data.BURMALDA[0]["names"]
+			game.banner(String(names[randi() % names.size()]), "хлам: ничего полезного", Color(0.8, 0.8, 0.75), 2.2)
+		"gold":
+			var o: Dictionary = G67Data.BURMALDA[1]
+			var v := randi_range(int(o["min"]), int(o["max"]))
+			for k in 3:
+				_drop_coin(tray, int(ceil(v / 3.0)), true)
+			game.banner("ГОЛДА", "%d из лотка" % v, Color(1, 0.85, 0.3), 2.2)
+		"heal":
+			_drop_wrap(30.0, tray)
+			game.banner("ШАУРМА", "лечение +30 — подбери", Color(0.5, 1.0, 0.55), 2.2)
+		"art", "rare_art":
+			var pool: Array = storage_pool().filter(func(a): return (String(Golda67.art_info(a)["rar"]) == "редкий") == (id == "rare_art"))
+			if pool.is_empty() or arts().size() >= slots():
+				for k in 3:
+					_drop_coin(tray, 12, true)
+				game.banner("ГОЛДА", "артефакта нет — выпала голда", Color(1, 0.85, 0.3), 2.2)
+			else:
+				var aid := String(pool[randi() % pool.size()])
+				take_art(aid)
+				game.banner(String(Golda67.art_info(aid)["name"]), "артефакт из лотка", Color(0.6, 0.85, 1.0), 2.4)
+		"fit":
+			var fp := togo_pool()
+			if fp.is_empty():
+				_drop_coin(tray, 25, true)
+			else:
+				var fid := String(fp[randi() % fp.size()])
+				var fits: Dictionary = run["fits"]
+				fits[fid] = fit_lv(fid) + 1
+				apply_fits(fid)
+				game.banner(String(G67Data.FITS[fid]["name"]), "баф · ур. %d" % fit_lv(fid), G67Data.ROOM_COLOR["fit"], 2.4)
+
+## Кнопка: колпак, пауза 1,2 с, исход (не тот же, что в прошлом забеге)
+func _button_press() -> void:
+	if ev_busy or room_state != "reward" or String(room.get("ev", "")) != "button":
+		return
+	ev_busy = true
+	world.ev_lid(true)
+	game.main.sfx("sfx_wave", -8.0)
+	await game.get_tree().create_timer(1.2, false).timeout
+	if not is_instance_valid(game) or game.golda != self:
+		return
+	var last := String(meta().get("button_last", ""))
+	var pool: Array = G67Data.BUTTON.filter(func(x): return x != last)
+	var id := String(pool[randi() % pool.size()])
+	meta()["button_last"] = id
+	save()
+	_button_outcome(id)
+	await game.get_tree().create_timer(1.5, false).timeout
+	ev_busy = false
+	_ev_finish()
+
+func _button_outcome(id: String) -> void:
+	var p = game.player
+	events.append(["button", id])
+	match id:
+		"nothing":
+			game.banner("НИЧЕГО", "кнопка щёлкнула", Color(0.8, 0.8, 0.8), 2.0)
+		"lights":
+			game.banner("СВЕТ ПОГАС", "у ног звенят монеты", Color(1, 0.85, 0.3), 2.4)
+			var cl := CanvasLayer.new()
+			cl.layer = 40
+			var cr := ColorRect.new()
+			cr.color = Color(0, 0, 0, 0.0)
+			cr.set_anchors_preset(Control.PRESET_FULL_RECT)
+			cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cl.add_child(cr)
+			game.add_child(cl)
+			var tw := cl.create_tween()
+			tw.tween_property(cr, "color:a", 0.7, 0.4)
+			tw.tween_interval(7.2)
+			tw.tween_property(cr, "color:a", 0.0, 0.4)
+			tw.tween_callback(cl.queue_free)
+			for k in 4:
+				_drop_coin(p.global_position + Vector3(randf_range(-1.0, 1.0), 0, randf_range(-1.0, 1.0)), 5, true)
+		"alarms":
+			game.banner("СИГНАЛИЗАЦИИ", "машины на парковке орут", Color(1.0, 0.5, 0.3), 2.4)
+			var par: Vector3 = (G67Yard.zone("parking")["c"] as Vector3)
+			for k in 3:
+				var lt := OmniLight3D.new()
+				lt.light_color = Color(1.0, 0.6, 0.1) if k % 2 == 0 else Color(1.0, 0.15, 0.1)
+				lt.omni_range = 6.0
+				lt.position = par + Vector3(-6.0 + k * 6.0, 1.2, -3.0 + k * 3.0)
+				world.add_child(lt)
+				var tl := lt.create_tween().set_loops(8)
+				tl.tween_property(lt, "light_energy", 3.0, 0.2)
+				tl.tween_property(lt, "light_energy", 0.0, 0.2)
+				get_tree().create_timer(4.0).timeout.connect(lt.queue_free)
+			game.main.sfx("sfx_wave", -2.0)
+			_add_respect("calm", 1)
+		"shawarma":
+			game.banner("ЛЮК", "из люка вылетела шаурма — подбери", Color(0.5, 1.0, 0.55), 2.4)
+			_drop_wrap(40.0, p.global_position + Vector3(1.2, 0, 1.2))
+		"shock":
+			game.banner("ТОК", "здоровье −10, СВЭГ полный", Color(1.0, 0.9, 0.3), 2.4)
+			p.hp = maxf(1.0, p.hp - 10.0)
+			p.swag = 100.0
+			game.shake(0.6)
+		"snow":
+			game.banner("СНЕГ С КРЫШИ", "следующий бой — враги входят оглушёнными", Color(0.8, 0.9, 1.0), 2.4)
+			p.rig.play_for("Hit", 1.0, 0.1)
+			p.velocity = Vector3.ZERO
+			game.fx.dust(p.global_position + Vector3(0, 0.3, 0), 18, game.fx.DUST, 1.2)
+			run["snow_stun"] = true
 
 func event_seen(ev: String) -> void:
 	var m: Dictionary = meta().get("must", {})
@@ -1824,6 +2158,7 @@ var result: Dictionary = {}      # итоги последнего забега 
 ## Конец забега: РЕСПЕКТ — в постоянное и в сохранение ДО экрана итогов, голда сгорает, забег стирается; через delay —
 ## экран итогов (двор под ним), дальше «В ПОДЪЕЗД» или «НОВЫЙ ЗАБЕГ» (result_to_hub / result_new_run)
 func _finish_run(won: bool, delay: float) -> void:
+	flush_coins()
 	var got := int(run.get("respect", 0))
 	var first_win := won and bool((run.get("new", []) as Array).size() > 0 and (run["new"] as Array).has("Стиль «Водяра» — стойка стилей в подъезде"))
 	meta()["respect"] = int(meta().get("respect", 0)) + got
@@ -1946,6 +2281,8 @@ func _physics_process(dt: float) -> void:
 		if room_state == "fight":
 			_fight_tick(dt)
 		_stash_tick(dt)
+		_coins_tick(dt)
+		_ev_tick()
 		_ambush_tick()
 		_second_wind()
 	_art_tick(dt)
@@ -2009,6 +2346,17 @@ func use(id: String) -> void:
 			open_screen("kiosk")
 		else:
 			game.toast("Сначала разберись с этими")
+	elif id == "ev_burmalda":
+		_burmalda_pull()
+	elif id == "ev_button":
+		_button_press()
+	elif id == "elite_fit":
+		if room_state == "reward" and String(room.get("type", "")) == "elite":
+			world.points = world.points.filter(func(pt): return String(pt["id"]) != "elite_fit")
+			if elite_hanger != null and is_instance_valid(elite_hanger):
+				elite_hanger.queue_free()
+			elite_hanger = null
+			_offer_fit(true)
 	elif id == "storage":
 		open_screen("storage")
 	elif id == "krot":
@@ -2079,6 +2427,9 @@ func play_auto(cid: String) -> void:
 	meta()["clips_auto"] = au
 	save()
 	await play_clip(cid)
+
+func clip_open_ev(ev: String) -> bool:
+	return (meta().get("archive", []) as Array).has("ev_" + ev)
 
 func clip_open(cid: String) -> bool:
 	return (meta().get("archive", []) as Array).has("clip_" + cid)

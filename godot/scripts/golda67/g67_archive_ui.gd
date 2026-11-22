@@ -95,6 +95,11 @@ func _build_tvs() -> void:
 				"state": ("seen" if G.clip_seen(cid) else "new") if open else "lock", "preview": PREVIEW % cid if ResourceLoader.exists(PREVIEW % cid) else "",
 				"why": "Запись появится " + String(G67Data.CLIP_WHY.get(cid, "позже")) + "."})
 			no += 1
+	for ek in ["rags", "burmalda", "button"]:
+		var eo: bool = G.clip_open_ev(ek)
+		list.append({"type": "event", "id": "ev_" + ek, "cat": "СОБЫТИЯ", "no": no, "title": String(G67Data.EVENT_NAMES[ek]) if eo else "???", "state": "seen" if eo else "lock", "preview": "",
+			"desc": String(G67Data.EVENT_DESC[ek]), "why": "Событие двора ещё не случалось. Запись появится, когда оно произойдёт во время забега."})
+		no += 1
 	for k in G67Data.ARCHIVE_ENDINGS:
 		list.append({"type": "ending", "id": "ending%d" % (k + 1), "cat": "КОНЦОВКИ", "no": no, "title": "???", "state": "lock", "preview": "",
 			"why": "Концовка ещё не открыта." if k == 0 else "Эта концовка — дальше по сюжету."})
@@ -222,6 +227,11 @@ func _on_select(i: int, prev: int) -> void:
 				s_text.text = "Телевизор закрыт на цепь. Что на записи — пока не видно."
 				s_why.text = String(r["why"])
 				s_btn.text = "ЗАПЕРТО"
+				s_btn.disabled = true
+			elif String(r["type"]) == "event":
+				s_state.text = "ЗАПИСЬ ОТКРЫТА"
+				s_text.text = String(r["desc"])
+				s_btn.text = "БЕЗ ПЕРЕСМОТРА"
 				s_btn.disabled = true
 			else:
 				var cid := String(r["id"])

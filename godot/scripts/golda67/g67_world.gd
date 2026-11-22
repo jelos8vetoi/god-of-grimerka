@@ -604,6 +604,149 @@ func add_gates(options: Array) -> void:
 			_point("gate%d" % i, title, String(G67Data.ROOM_HINT[type]), spot["pos"])
 
 ## Варианты сняты: значки, стойки и их точки убраны (этап выбран или начался)
+# ---------------------------------------------------------------- предметы событий двора (геометрия кодом)
+var ev_nodes := {}
+
+func _ev_mesh(parent: Node, mesh: Mesh, pos: Vector3, col: Color, emit := 0.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.roughness = 0.75
+	m.metallic = 0.35
+	if emit > 0.0:
+		m.emission_enabled = true
+		m.emission = col
+		m.emission_energy_multiplier = emit
+	mi.material_override = m
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+func _ev_label(parent: Node, text: String, pos: Vector3, size: int, col: Color) -> Label3D:
+	var l := Label3D.new()
+	l.text = text
+	l.font_size = size
+	l.pixel_size = 0.004
+	l.outline_size = 8
+	l.modulate = col
+	l.position = pos
+	parent.add_child(l)
+	return l
+
+func _evb(sz: Vector3) -> BoxMesh:
+	var b := BoxMesh.new()
+	b.size = sz
+	return b
+
+## Автомат «Бурмалда», красная кнопка «Можно. А зачем?» и дверь «ТРЯПОК» — постоянные предметы двора
+func build_event_props() -> void:
+	var sp: Dictionary = G67Yard.EVENT_SPOTS
+	# автомат
+	var a := Node3D.new()
+	a.position = sp["burmalda"]
+	a.rotation.y = PI
+	add_child(a)
+	_ev_mesh(a, _evb(Vector3(1.0, 2.0, 0.8)), Vector3(0, 1.0, 0), Color(0.42, 0.1, 0.09))
+	_ev_mesh(a, _evb(Vector3(0.62, 0.5, 0.05)), Vector3(0, 1.45, 0.41), Color(0.05, 0.05, 0.06))
+	var win := _ev_label(a, "7 7 7", Vector3(0, 1.45, 0.45), 56, Color(1.0, 0.85, 0.3))
+	_ev_label(a, "БУРМАЛДА", Vector3(0, 2.1, 0.2), 48, Color(1.0, 0.8, 0.25))
+	var tray := _ev_mesh(a, _evb(Vector3(0.5, 0.22, 0.2)), Vector3(0, 0.45, 0.42), Color(0.08, 0.08, 0.09))
+	var lever := Node3D.new()
+	lever.position = Vector3(0.55, 1.2, 0.1)
+	a.add_child(lever)
+	var rod := CylinderMesh.new()
+	rod.top_radius = 0.03
+	rod.bottom_radius = 0.03
+	rod.height = 0.5
+	_ev_mesh(lever, rod, Vector3(0, 0.25, 0), Color(0.6, 0.6, 0.62))
+	var kn := SphereMesh.new()
+	kn.radius = 0.08
+	kn.height = 0.16
+	_ev_mesh(lever, kn, Vector3(0, 0.52, 0), Color(0.8, 0.1, 0.1))
+	var lamps: Array = []
+	for i in 5:
+		var s := SphereMesh.new()
+		s.radius = 0.05
+		s.height = 0.1
+		lamps.append(_ev_mesh(a, s, Vector3(-0.36 + i * 0.18, 1.8, 0.41), Color(1.0, 0.75, 0.2), 1.5))
+	var al := OmniLight3D.new()
+	al.light_color = Color(1.0, 0.7, 0.3)
+	al.light_energy = 0.9
+	al.omni_range = 4.0
+	al.position = Vector3(0, 1.6, 1.0)
+	a.add_child(al)
+	_static_box(sp["burmalda"] + Vector3(0, 1.0, 0), Vector3(1.1, 2.0, 0.9), PI)
+	ev_nodes["burm"] = {"win": win, "lever": lever, "lamps": lamps, "tray": tray, "root": a}
+	# кнопка на столбе
+	var b := Node3D.new()
+	b.position = sp["button"]
+	b.rotation.y = 0.0
+	add_child(b)
+	var post := CylinderMesh.new()
+	post.top_radius = 0.1
+	post.bottom_radius = 0.12
+	post.height = 1.3
+	_ev_mesh(b, post, Vector3(0, 0.65, 0), Color(0.36, 0.34, 0.3))
+	_ev_mesh(b, _evb(Vector3(0.45, 0.28, 0.3)), Vector3(0, 1.42, 0), Color(0.3, 0.3, 0.32))
+	var dome := SphereMesh.new()
+	dome.radius = 0.12
+	dome.height = 0.16
+	_ev_mesh(b, dome, Vector3(0, 1.58, 0.02), Color(0.9, 0.08, 0.06), 1.2)
+	var lid := Node3D.new()
+	lid.position = Vector3(0, 1.62, -0.14)
+	b.add_child(lid)
+	_ev_mesh(lid, _evb(Vector3(0.36, 0.03, 0.28)), Vector3(0, 0.04, 0.14), Color(0.7, 0.85, 0.9, 0.5))
+	_ev_label(b, "МОЖНО. А ЗАЧЕМ?", Vector3(0, 1.95, 0.05), 40, Color(1.0, 0.85, 0.8))
+	var bl := OmniLight3D.new()
+	bl.light_color = Color(1.0, 0.2, 0.15)
+	bl.light_energy = 0.6
+	bl.omni_range = 3.0
+	bl.position = Vector3(0, 1.7, 0.4)
+	b.add_child(bl)
+	_static_box(sp["button"] + Vector3(0, 0.7, 0), Vector3(0.5, 1.4, 0.4), 0.0)
+	ev_nodes["button"] = {"lid": lid, "root": b}
+	# дверь «ТРЯПОК»: гаражный бокс, тёплый свет из щели
+	var d := Node3D.new()
+	d.position = sp["rags"]
+	d.rotation.y = PI * 0.5
+	add_child(d)
+	_ev_mesh(d, _evb(Vector3(1.6, 2.2, 0.12)), Vector3(0, 1.1, 0), Color(0.3, 0.33, 0.3))
+	_ev_mesh(d, _evb(Vector3(1.4, 0.05, 0.04)), Vector3(0, 0.03, 0.08), Color(1.0, 0.8, 0.45), 3.0)
+	var dl := OmniLight3D.new()
+	dl.light_color = Color(1.0, 0.75, 0.4)
+	dl.light_energy = 0.9
+	dl.omni_range = 4.0
+	dl.position = Vector3(0, 0.4, 0.9)
+	d.add_child(dl)
+	ev_nodes["rags"] = d
+
+func ev_spin(sec: float) -> void:
+	var bn: Dictionary = ev_nodes.get("burm", {})
+	if bn.is_empty():
+		return
+	var win: Label3D = bn["win"]
+	var syms := ["7", "★", "♦", "♣", "¤", "☺"]
+	var tw := create_tween()
+	tw.tween_method(func(v: float):
+		win.text = "%s %s %s" % [syms[randi() % 6], syms[randi() % 6], syms[randi() % 6]]
+		for i in (bn["lamps"] as Array).size():
+			((bn["lamps"] as Array)[i] as MeshInstance3D).visible = (int(v * 40.0) + i) % 2 == 0, 0.0, 1.0, sec)
+	tw.tween_callback(func():
+		win.text = "7 7 7"
+		for l in bn["lamps"]:
+			(l as MeshInstance3D).visible = true)
+	var lv: Node3D = bn["lever"]
+	var tl := create_tween()
+	tl.tween_property(lv, "rotation:x", 0.9, 0.25)
+	tl.tween_property(lv, "rotation:x", 0.0, 0.4).set_delay(0.3)
+
+func ev_lid(open: bool) -> void:
+	var bn: Dictionary = ev_nodes.get("button", {})
+	if bn.is_empty():
+		return
+	create_tween().tween_property(bn["lid"], "rotation:x", -1.9 if open else 0.0, 0.45)
+
 func clear_gates() -> void:
 	for g in gates:
 		for k in ["root", "stand"]:

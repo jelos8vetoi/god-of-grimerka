@@ -25,6 +25,19 @@ const BATTLE_PLACES := ["garages", "parking", "playground"]
 const TYPE_ZONES := {"battle": ["garages", "parking", "playground"], "elite": ["garages", "parking", "playground"], "fit": ["playground"], "storage": ["garages"],
 	"kiosk": ["parking"], "break": ["gazebo"], "boss": ["sport"]}
 const EVENTS_SHORT := ["burmalda", "button"]
+## «Бурмалда»: веса исходов; голда — min…max; рывок: один бесплатно, ещё два по BURMALDA_COST
+const BURMALDA := [
+	{"id": "junk", "w": 34, "names": ["НОСОК БЕЗ ПАРЫ", "ЧЕК НА 0 ГОЛДЫ", "КРЫШКА ОТ КАСТРЮЛИ", "ПУЛЬТ ОТ НИЧЕГО"]},
+	{"id": "gold", "w": 30, "min": 15, "max": 45},
+	{"id": "heal", "w": 15, "heal": 30.0},
+	{"id": "art", "w": 12},
+	{"id": "fit", "w": 6},
+	{"id": "rare_art", "w": 3},
+]
+const BURMALDA_COST := 25
+## «Можно. А зачем?»: шесть исходов, равные веса, один и тот же не два забега подряд
+const BUTTON := ["nothing", "lights", "alarms", "shawarma", "shock", "snow"]
+const EVENT_DESC := {"rags": "Тряпки, швабра и сирена: дверь в квартиру за гаражами.", "burmalda": "Автомат во дворе: дёрнул рычаг — получил что-то. Или носок.", "button": "Красная кнопка под колпаком. Нажать можно. А зачем?"}
 const EVENT_NAMES := {"rags": "ТРЯПКИ! ТРЯПКИ!", "burmalda": "БУРМАЛДА", "button": "МОЖНО. А ЗАЧЕМ?"}
 const MUST := {"ev_rags": "rags"}
 
@@ -83,7 +96,7 @@ const DISTRICTS := {
 ## Приёмы фаз — существующие приёмы боссов; свой особый приём — enemy._special («РАЗМАХ ЦЕПЬЮ»).
 const BOSSES := {
 	"g67_misha": {
-		"n": "МИША МИНАСЯН", "sub": "главный авторитет двора", "sp": "G1", "hp": 1300, "r": 30, "spd": 116, "c": "#d9a23a", "dmg": 9, "gap": 1.4, "xp": 0, "armor": 0.75,      # armor — множитель урона по нему вне окон «ОТКРЫТ»
+		"n": "МИША МИНАСЯН", "sub": "главный авторитет двора", "sp": "G1", "hp": 2600, "r": 30, "spd": 116, "c": "#d9a23a", "dmg": 8, "gap": 1.6, "xp": 0, "armor": 0.7, "antract": true,      # armor — множитель урона по нему вне окон «ОТКРЫТ»
 		"poise": 320, "gate": true,      # фазы не проскакивают (enemy._phase_shift); равновесие выше, чем у остальных боссов
 		"phases": [["m_grab", "slam", "m_hook", "charge"], ["m_guard", "shock", "m_grab", "charge", "m_hook", "slam"], ["m_hook", "leap", "m_guard", "charge", "m_grab", "shock", "slam"]],
 		"barks": ["", "Мне даже олимпийка не нужна, чтобы быть главным.", "Это не цепь зацепилась. Это контроль пространства."],
