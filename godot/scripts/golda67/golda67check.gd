@@ -2032,6 +2032,23 @@ func _ui3_check(g, G: Golda67, P) -> void:
 		await wait(1.5)
 		moved = maxf(moved, g.buddy.global_position.distance_to(m0))
 	ok(g.madk_home() and g.buddy.visible and moved < 0.3, "C5: madk1d в подъезде не ходит за героем (сдвиг %.2f м)" % moved)
+	P.global_position = Vector3(0.6, 0.05, 0.2)
+	P.face = 0.0
+	g.cam_yaw = PI
+	g.cam_pitch = -0.2
+	await wait(1.0)
+	await shot("madk_hub_wide")
+	P.global_position = Vector3(-0.2, 0.05, 3.7)
+	P.face = atan2(-2.1, -1.3)
+	g.cam_yaw = P.face - PI
+	g.cam_pitch = -0.12
+	await wait(1.2)
+	await shot("madk_hub_close")
+	g.buddy.home_react = "Cheer"
+	g.buddy.home_until = 0.0
+	await wait(0.6)
+	ok(String(g.buddy.rig.cur) == "Cheer", "C5: при возвращении madk1d разворачивается и делает жест (%s)" % String(g.buddy.rig.cur))
+	await wait(2.2)
 	G.meta()["flags"]["ending1"] = true
 	ok(not g.madk_home(), "после первой концовки madk1d — не житель, ходит рядом")
 	G.meta()["flags"].erase("ending1")

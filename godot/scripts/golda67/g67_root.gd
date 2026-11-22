@@ -162,6 +162,10 @@ func enter_hub() -> void:
 	game.buddy.global_position = (MADK_SPOT + Vector3(0, 0.05, 0)) if not madk_open() else (world.spawn_pos + Vector3(-1.1, 0.0, -0.7))
 	game.buddy.face = PI * 0.5
 	game.buddy.target = Vector3.ZERO
+	if not madk_open() and not result.is_empty():
+		game.buddy.home_react = "Cheer" if bool(result.get("won", false)) else "StyleSwitch"
+		game.buddy.home_until = 0.0
+		result = {}
 	apply_styles()
 	game.tutorial.on = false
 	game.tutorial.persist = false
