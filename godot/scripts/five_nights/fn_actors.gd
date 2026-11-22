@@ -42,7 +42,29 @@ const OWN := {
 var owned := {}                    # id → true: у врага модель владельца
 var model_home := {}               # id → обычное место модели в риге (в скримере FNScare подводит лицо к камере)
 
+## глаза: цвет, энергия свечения (в тёмном проёме — влажный блик от настоящего света, не фонари)
+const EYE := {
+	"balon": [Color(1.0, 0.9, 0.78), 0.35], "madk1d": [Color(1.0, 0.12, 0.08), 0.8], "bot": [Color(1.0, 0.1, 0.06), 1.2],
+	"clipper": [Color(0.75, 0.9, 1.0), 0.5], "ghost": [Color(0.8, 0.85, 1.0), 0.25], "mod": [Color(1.0, 0.15, 0.1), 0.8],
+}
+const IR_SHADER := preload("res://scenes/five_nights/materials/fn_ir_pass.gdshader")
+var eye_mats := {}                 # id → материал глаз (в скримере сила растёт, потом возвращается)
+
+## глобальная переменная инфракрасной подсветки камер: регистрируется до первого материала врага
+static func ensure_ir() -> void:
+	if not RenderingServer.global_shader_parameter_get_list().has(&"fn_ir"):
+		RenderingServer.global_shader_parameter_add("fn_ir", RenderingServer.GLOBAL_VAR_TYPE_VEC4, Vector4(0, -999, 0, 0))
+
+static func ir_pass(tex: Texture2D, gain := 1.0) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = IR_SHADER
+	if tex != null:
+		m.set_shader_parameter("tex", tex)
+	m.set_shader_parameter("gain", gain)
+	return m
+
 func build(o: FNOffice, f: FNFacility) -> void:
+	ensure_ir()
 	office = o
 	fac = f
 	for id in FNData.ORDER:
@@ -86,9 +108,9 @@ func _make(id: String) -> void:
 	r.visible = false
 	r.position = Vector3(0, -60, 0)
 
-## модель владельца: свои текстуры без перекраски; чуть светится своим цветом (в тёмном коридоре иначе чёрное на
-## чёрном), GHOST — ещё и полупрозрачный
-func _own_look(r: Rig, alpha: float, emit: float) -> void:
+## модель владельца: свои текстуры без перекраски, без самосвечения — их освещает только настоящий свет; камеры видят
+## врага в инфракрасной подсветке (next_pass fn_ir_pass); GHOST — ещё и полупрозрачный
+func _own_look(r: Rig, alpha: float, _emit: float) -> void:
 	for mi in r.model.find_children("*", "MeshInstance3D", true, false):
 		var inst := mi as MeshInstance3D
 		for s in inst.mesh.get_surface_count():
@@ -96,16 +118,13 @@ func _own_look(r: Rig, alpha: float, emit: float) -> void:
 			if src == null:
 				continue
 			var mat := src.duplicate() as BaseMaterial3D
-			mat.emission_enabled = true
-			mat.emission = Color(1, 1, 1)
-			mat.emission_texture = mat.albedo_texture
-			mat.emission_energy_multiplier = 0.035 + emit
+			mat.next_pass = ir_pass(mat.albedo_texture)
 			if alpha < 1.0:
 				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
 				mat.albedo_color.a = alpha
 			inst.set_surface_override_material(s, mat)
 
-func _tint(r: Rig, c: Color, alpha: float, emit: float) -> void:
+func _tint(r: Rig, c: Color, alpha: float, _emit: float) -> void:
 	for mi in r.model.find_children("*", "MeshInstance3D", true, false):
 		var inst := mi as MeshInstance3D
 		for s in inst.mesh.get_surface_count():
@@ -118,11 +137,30 @@ func _tint(r: Rig, c: Color, alpha: float, emit: float) -> void:
 			if alpha < 1.0:
 				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
 				mat.albedo_color.a = alpha
-			if emit > 0.0:
-				mat.emission_enabled = true
-				mat.emission = c
-				mat.emission_energy_multiplier = emit
+			mat.next_pass = ir_pass(mat.albedo_texture)
 			inst.set_surface_override_material(s, mat)
+
+func _eye_mat(id: String) -> StandardMaterial3D:
+	if eye_mats.has(id):
+		return eye_mats[id]
+	var spec: Array = EYE.get(id, [Color(1, 0.9, 0.8), 0.35])
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.02, 0.02, 0.02)
+	m.roughness = 0.08
+	m.metallic_specular = 1.0
+	m.emission_enabled = true
+	m.emission = spec[0]
+	m.emission_energy_multiplier = float(spec[1])
+	m.set_meta("base_energy", float(spec[1]))
+	m.next_pass = ir_pass(null, 4.0)
+	eye_mats[id] = m
+	return m
+
+## в скримере глаза горят втрое сильнее; потом возвращаются
+func eyes_boost(id: String, k: float) -> void:
+	if eye_mats.has(id):
+		var m: StandardMaterial3D = eye_mats[id]
+		m.emission_energy_multiplier = float(m.get_meta("base_energy")) * k
 
 ## глаза и пасть: крепятся к кости головы, место считается от позы привязки (рост головы — от кости до макушки)
 func _face(id: String, r: Rig) -> void:
@@ -139,7 +177,7 @@ func _face(id: String, r: Rig) -> void:
 	var hs: float = maxf(0.18, top - hy)
 	var center := r.global_position + Vector3(0, hy + 0.42 * hs, 0) + Vector3(0, 0, 1) * 0.42 * hs
 	var sep: float = float(LOOK[id]["sep"]) * hs
-	var eye_r := 0.055 * hs
+	var eye_r := 0.055 * hs * 0.6
 	var eye_z := 0.02 * hs
 	var maw_at := Vector3(0, -0.3 * hs, 0.0)
 	if owned.has(id):
@@ -149,7 +187,7 @@ func _face(id: String, r: Rig) -> void:
 		var u: float = mx.basis.get_scale().y
 		center = mx * (O["eye"] as Vector3)
 		sep = float(O["sep"]) * u
-		eye_r = float(O["r"]) * u
+		eye_r = float(O["r"]) * u * 0.6
 		eye_z = 0.0
 		hs = float(O["ms"]) * u / 0.44                    # пасть шириной ms: её детали заданы в долях hs
 		maw_at = mx * (O["maw"] as Vector3) - center
@@ -164,19 +202,25 @@ func _face(id: String, r: Rig) -> void:
 		sm.radius = eye_r
 		sm.height = eye_r * 2.0
 		e.mesh = sm
-		e.material_override = office.mats[LOOK[id]["eye"]]
+		e.material_override = _eye_mat(id)
 		e.position = Vector3(sx * sep * 0.5, 0, eye_z)
 		eyes.add_child(e)
 	# пасть: чёрный провал с красной глубиной и зубами; закрыта — щель (scale.y маленький)
 	var maw := Node3D.new()
 	maw.position = maw_at
 	anchor.add_child(maw)
-	office.box(Vector3.ZERO, Vector3(0.44 * hs, 0.3 * hs, 0.06 * hs), office.mats["black"], maw)
-	office.box(Vector3(0, 0, -0.02 * hs), Vector3(0.36 * hs, 0.22 * hs, 0.02 * hs), office._glow(Color(0.5, 0.0, 0.0), 1.2), maw)
+	office.box(Vector3.ZERO, Vector3(0.44 * hs, 0.3 * hs, 0.06 * hs), office._glow(Color(0.015, 0.0, 0.0), 1.0), maw)
+	office.box(Vector3(0, 0, -0.02 * hs), Vector3(0.36 * hs, 0.22 * hs, 0.02 * hs), office._glow(Color(0.10, 0.0, 0.0), 0.25), maw)
+	var tooth := StandardMaterial3D.new()
+	tooth.albedo_color = Color(0.62, 0.56, 0.44)
+	tooth.roughness = 0.55
 	for k in 7:
 		var tx := -0.18 * hs + float(k) * 0.06 * hs
-		office.box(Vector3(tx, 0.13 * hs, 0.035 * hs), Vector3(0.035 * hs, 0.07 * hs, 0.02 * hs), office.mats["paper"], maw)
-		office.box(Vector3(tx + 0.03 * hs, -0.13 * hs, 0.035 * hs), Vector3(0.035 * hs, 0.07 * hs, 0.02 * hs), office.mats["paper"], maw)
+		var th := (0.045 + 0.03 * fposmod(float(k) * 0.618, 1.0)) * hs
+		var tz := deg_to_rad(8.0 * sin(float(k) * 2.1))
+		office.box(Vector3(tx, 0.15 * hs - th * 0.5, 0.035 * hs), Vector3(0.026 * hs, th, 0.02 * hs), tooth, maw, Vector3(0, 0, tz))
+		var bh := (0.045 + 0.03 * fposmod(float(k) * 0.618 + 0.4, 1.0)) * hs
+		office.box(Vector3(tx + 0.03 * hs, -0.15 * hs + bh * 0.5, 0.035 * hs), Vector3(0.026 * hs, bh, 0.02 * hs), tooth, maw, Vector3(0, 0, -tz))
 	maw.scale = Vector3(1, 0.08, 1)
 	face[id] = {"eyes": eyes, "maw": maw, "hs": hs}
 
@@ -236,6 +280,10 @@ func tick(st: FNNight, dt: float) -> void:
 			if (st.enemies[id] as FNEnemy).spot in ["door_l", "door_r"]:
 				(rigs[id] as Rig).visible = false
 
+## клип у двери своей стороны: левая нишa — FNPeekL / FNLungeL, правая — зеркальные R
+func _door_clip(sp: String, base: String) -> String:
+	return base + ("L" if sp == "door_l" else "R")
+
 func _place(id: String, e: FNEnemy, r: Rig) -> void:
 	var sp: String = e.spot
 	r.rotation = Vector3.ZERO
@@ -246,11 +294,12 @@ func _place(id: String, e: FNEnemy, r: Rig) -> void:
 			r.visible = false
 			return
 		"door_l", "door_r":
-			var p := FNOffice.point(sp)
-			r.position = p
-			r.rotation.y = PI / 2 if sp == "door_l" else -PI / 2
+			# стоит у проёма в нише, прижавшись к южной стене: косяк закрывает часть тела; лицом к охраннику
+			r.position = FNOffice.point(sp) + Vector3(0, 0, 0.18)
+			var to_guard := office.cam.global_position - r.position
+			r.basis = Basis(Vector3.RIGHT, -deg_to_rad(6.0)) * Basis(Vector3.UP, atan2(to_guard.x, to_guard.z))      # всё тело наклонено на 6° к −Z, в проём, от ступней
 			lunge_t[id] = false
-			r.play("FNPeek" if e.pose != 1 else "FNStill", 0.0)
+			r.play(_door_clip(sp, "FNPeek") if e.pose != 1 else "FNStill", 0.0)
 			return
 		"vent_l":
 			# лицо за решёткой: лежит в шахте головой к решётке
@@ -302,8 +351,8 @@ func _live(id: String, e: FNEnemy, r: Rig, dt: float) -> void:
 		var near: bool = e.door_t > e.linger * 0.7
 		if near != bool(lunge_t.get(id, false)):
 			lunge_t[id] = near
-			r.play("FNLunge" if near else "FNPeek", 0.25)
-	if stare.has(id):
+			r.play(_door_clip(e.spot, "FNLunge" if near else "FNPeek"), 0.25)
+	if stare.has(id) and not e.spot in ["door_l", "door_r"]:
 		var to: Vector3 = (stare[id] as Vector3) - r.global_position
 		r.rotation.y = rotate_toward(r.rotation.y, atan2(to.x, to.z), dt * 0.45)
 	var f: Dictionary = face.get(id, {})

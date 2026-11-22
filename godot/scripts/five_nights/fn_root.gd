@@ -47,6 +47,7 @@ var end_t := 0.0
 var finale_done := false
 var intro_t := 0.0                  # заставка ночи: пока идёт, часы стоят и враги не ходят
 # звук
+var tension := FNTension.new()      # фаза и уровень напряжения ночи
 var ambience: FNAmbience             # фон будки и случайные звуки здания
 var crawl: AudioStreamPlayer3D      # MADK1D в шахте
 var whisper: AudioStreamPlayer      # GHOST: шёпот растёт с одержимостью
@@ -373,6 +374,9 @@ func set_paused(on: bool) -> void:
 func _process(dt: float) -> void:
 	if state == "night" and st != null and st.power < 25.0 and not st.power_out:
 		ui.tips.tip("power")
+	if st != null and state in ["night", "scare"]:
+		tension.tick(st, dt, night)
+		office.tension_k = tension.level
 	ambience.tick(st, state, dt)
 	match state:
 		"menu":
@@ -519,7 +523,10 @@ func _on_event(k: String, d: Dictionary) -> void:
 				var snd := "clank" if e == "bot" else ("step" if e in ["clipper", "ghost"] else "step_heavy")
 				sfx3(snd, FNOffice.point(to), -2.0 if e != "clipper" else -6.0, 0.9)
 			elif to in ["hall_l", "hall_r"]:
-				sfx3("step", FNOffice.point(to), -10.0, 0.8)
+				var step_at := FNOffice.point(to)
+				if fac.spots.has(to) and st.enemies.has(e):
+					step_at = fac.spot(to, (st.enemies[e] as FNEnemy).pose).origin + Vector3(0, 0.2, 0)      # шаг слышен там, где враг стоит в коридоре
+				sfx3("step", step_at, -10.0, 0.8)
 			elif to in ["vent_l", "vent_t"]:
 				sfx3("vent_bang", FNOffice.point(to), 2.0, 1.0)
 			if String(d.get("why", "")) == "retreat" and String(d["from"]).begins_with("door"):

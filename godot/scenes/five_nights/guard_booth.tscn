@@ -771,9 +771,11 @@ position = Vector3(0, 0, -1.05)
 [node name="HouseLamp" type="OmniLight3D" parent="Lighting"]
 position = Vector3(-0.24, 2.42, -1.36)
 light_color = Color(1, 0.86, 0.64, 1)
-light_energy = 0.30
-omni_range = 3.6
-omni_attenuation = 1.8
+light_energy = 0.75
+omni_range = 3.4
+omni_attenuation = 1.5
+shadow_enabled = true
+shadow_bias = 0.045
 
 [node name="DeskPool" type="SpotLight3D" parent="Lighting"]
 transform = Transform3D(1, 0, 0, 0, -0.241922, 0.970296, 0, -0.970296, -0.241922, -0.24, 2.44, -1.3)

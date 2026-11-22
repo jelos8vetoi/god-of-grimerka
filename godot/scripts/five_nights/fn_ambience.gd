@@ -56,6 +56,14 @@ var stall_next := 60.0
 var stall_k := 1.0
 var was_out := false
 var cur_st: FNNight
+var breath_phase := "idle"        # задержанное дыхание: idle / fade / hold / recover
+var breath_t := 0.0               # сколько секунд идёт текущая фаза
+var breath_next := 120.0          # через сколько секунд можно начать следующую
+var breath_len := 6.0
+var breath_k := 0.0               # 0..1: насколько провалились вентиляция и вентилятор
+var breath_done := false
+var breath_at := 0.5
+var since_event := 99.0
 var later: Array = []             # [секунд до, id, точка, дБ]
 
 func build(r: FiveNightsRoot) -> void:
@@ -154,6 +162,7 @@ func pick_event(n: int, outage: bool) -> String:
 	return last_event
 
 func play_event(id: String, at_i := -1) -> bool:
+	since_event = 0.0
 	for e in EVENTS:
 		if String(e["id"]) != id:
 			continue
@@ -240,6 +249,51 @@ func _gust_step(dt: float) -> void:
 				gust = 0.25
 				gust_t = randf_range(18.0, 50.0)
 
+## задержанное дыхание: здание на мгновение стихает, один далёкий звук, потом всё возвращается; только в спокойной ночи
+func start_breath() -> void:
+	breath_phase = "fade"
+	breath_t = 0.0
+	breath_len = randf_range(5.0, 8.0)
+	breath_at = randf_range(0.4, 0.7)
+	breath_done = false
+	breath_next = randf_range(200.0, 330.0)
+
+func _breath_step(st: FNNight, dt: float, live: bool, out: bool) -> void:
+	if not live:
+		return
+	var calm: bool = root.tension == null or root.tension.state in ["CALM", "UNEASY"]
+	if breath_phase == "idle":
+		breath_next -= dt
+		if breath_next <= 0.0 and calm and not out and not events_blocked(st) and not root.scare.busy and not root.paused and root.hush_mode == "" and st.t >= 90.0 and since_event >= 25.0:
+			start_breath()
+		return
+	breath_t += dt
+	if (out or not calm) and breath_phase in ["fade", "hold"]:
+		breath_phase = "recover"
+		breath_t = (1.0 - breath_k) * 4.0
+	match breath_phase:
+		"fade":
+			breath_k = clampf(breath_t / 2.5, 0.0, 1.0)
+			if breath_t >= 2.5:
+				breath_phase = "hold"
+				breath_t = 0.0
+		"hold":
+			breath_k = 1.0
+			if not breath_done and breath_t >= breath_len * breath_at:
+				breath_done = true
+				if randi() % 2 == 0:
+					play_event("clang", randi() % 2)
+				else:
+					play_event("groan", 0)
+			if breath_t >= breath_len:
+				breath_phase = "recover"
+				breath_t = 0.0
+		"recover":
+			breath_k = clampf(1.0 - breath_t / 4.0, 0.0, 1.0)
+			if breath_t >= 4.0:
+				breath_phase = "idle"
+				breath_k = 0.0
+
 func tick(st: FNNight, state: String, dt: float) -> void:
 	t += dt
 	duck_k = maxf(0.0, duck_k - dt * 0.6)
@@ -248,12 +302,20 @@ func tick(st: FNNight, state: String, dt: float) -> void:
 	var menu := state == "menu"
 	if live and st != cur_st:
 		_new_night(st)
+		breath_phase = "idle"
+		breath_k = 0.0
+		breath_next = randf_range(100.0, 140.0)
+		since_event = 0.0
 	var n := mini(root.night, 5)
 	var out := live and st.power_out
 	var mon := live and st.monitor and not out
 	var warn := live and st.brown_warn > 0.0 and not out
 	var brown := live and st.brown_t > 0.0 and not out
 	var threat := live and events_blocked(st)
+	since_event += dt
+	var lvl: float = root.tension.level if root.tension != null else 0.0
+	if gust_phase == "idle":
+		gust_t -= dt * (1.0 / (1.0 - 0.35 * lvl) - 1.0)      # чем ближе опасность, тем чаще порывы
 	_gust_step(dt)
 	# цели слоёв, дБ
 	var g := {}
@@ -275,6 +337,9 @@ func tick(st: FNNight, state: String, dt: float) -> void:
 		if mon:
 			g["tablet_noise"] = -22.0
 			g["crt_whine"] += 3.0
+		g["rumble_a"] += 2.0 * lvl
+		g["far_bed"] -= 3.0 * lvl
+		g["vent"] -= 2.5 * lvl
 		if threat:
 			g["vent"] -= 2.0
 			g["far_bed"] -= 3.0
@@ -297,6 +362,11 @@ func tick(st: FNNight, state: String, dt: float) -> void:
 	else:
 		for k in g:
 			g[k] = MUTE
+	_breath_step(st, dt, live, out)
+	if breath_k > 0.0:
+		for k in ["vent", "vent_air", "deskfan"]:
+			if float(g[k]) > MUTE:
+				g[k] = maxf(MUTE, float(g[k]) - 9.0 * breath_k)
 	# краевые события питания
 	if live and out != was_out:
 		var panel: Vector3 = points["Panel"]
@@ -376,11 +446,11 @@ func tick(st: FNNight, state: String, dt: float) -> void:
 		root.main.audio.room(room_cutoff, room_gain)
 	# случайные звуки здания
 	if live:
-		var blocked := threat or root.intro_t > 0.0 or root.scare.busy or root.paused or root.hush_mode != "" or st.t < 20.0
+		var blocked := breath_phase != "idle" or threat or root.intro_t > 0.0 or root.scare.busy or root.paused or root.hush_mode != "" or st.t < 20.0
 		if not blocked:
 			event_t -= dt
 			if event_t <= 0.0:
 				var id := pick_event(root.night, out)
 				if id != "":
 					play_event(id)
-				event_t = next_gap(root.night) * (0.8 if out else 1.0)
+				event_t = next_gap(root.night) * (0.8 if out else 1.0) * (1.0 + 0.6 * lvl)
