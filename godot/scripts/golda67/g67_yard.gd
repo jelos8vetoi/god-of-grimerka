@@ -879,10 +879,11 @@ func _noop_unused() -> void:
 	pass
 var carpet_rack_node: Node3D = null
 
-func _lifeprop(id: String, pos: Vector3, yaw: float, size: Vector3) -> Node3D:
+func _lifeprop(id: String, pos: Vector3, yaw: float, size: Vector3, solid := true) -> Node3D:
 	if G67Models.has(id):
-		var n := G67Models.spawn(id, self, pos, yaw, size)
-		_solid_box(pos + Vector3(0, size.y * 0.5, 0), size, yaw)
+		var n := G67Models.spawn(id, self, pos, yaw, size, "1")
+		if solid:
+			_solid_box(pos + Vector3(0, size.y * 0.5, 0), size, yaw)
 		life_props[id] = n
 		return n
 	var mi := MeshInstance3D.new()
@@ -911,11 +912,19 @@ func _life_props() -> void:
 			r.name = "gazebo%d" % (i + 1)
 			gazebo_people.append(r)
 	carpet_rack_node = get_node_or_null("g67_carpet_rack") as Node3D
-	_lifeprop("g67_intercom", Vector3(-1.3, 0.9, 35.0), PI, Vector3(0.3, 0.45, 0.12))
-	_lifeprop("g67_garage_radio", Vector3(-42.4, 0.0, 4.8), PI * 0.5, Vector3(0.5, 0.35, 0.3))
-	_lifeprop("g67_box_nothing", Vector3(-40.6, 0.0, -3.2), 0.3, Vector3(0.7, 0.5, 0.6))
-	_lifeprop("g67_puhosos", Vector3(-39.0, 0.0, 8.0), 0.8, Vector3(1.1, 1.0, 0.8))
-	_lifeprop("g67_workbench", Vector3(-39.2, 0.0, -2.2), PI * 0.5, Vector3(1.6, 0.9, 0.7))
+	_lifeprop("g67_intercom", Vector3(-1.3, 0.9, 34.93), PI, Vector3(0.3, 0.52, 0.13), false)
+	_lifeprop("g67_garage_radio", Vector3(-42.4, 0.0, 4.8), PI * 0.5, Vector3(0.3, 0.4, 0.5))
+	_lifeprop("g67_box_nothing", Vector3(-40.6, 0.0, -3.2), 0.3, Vector3(0.7, 0.48, 0.6))
+	_lifeprop("g67_puhosos", Vector3(-39.0, 0.0, 8.0), 0.8, Vector3(1.1, 0.92, 0.8))
+	_lifeprop("g67_workbench", Vector3(-39.2, 0.0, -2.2), PI * 0.5, Vector3(0.7, 0.9, 1.6))
+	_lifeprop("g67_swing_set", Vector3(-1.5, 0.0, -12.5), 0.0, Vector3(2.6, 2.2, 0.3), false)
+	for sx in [-2.7, -0.3]:
+		_pillar(Vector3(sx, 0, -12.5 - 0.75), 0.07, 2.0)
+		_pillar(Vector3(sx, 0, -12.5 + 0.75), 0.07, 2.0)
+	_lifeprop("g67_lost_shovel", Vector3(-43.9, 2.95, -6.6), 0.0, Vector3(0.25, 1.4, 0.1), false)
+	if life_props.has("g67_lost_shovel"):
+		(life_props["g67_lost_shovel"] as Node3D).rotation = Vector3(PI * 0.5, 0.0, 0.5)
+	_lifeprop("g67_gazebo_set", Vector3(-24.2, 0.82, -31.4), 0.3, Vector3(0.9, 0.3, 0.6), false)
 
 ## Надпись-листок: кинд paper/graffiti/marker/plate/sticker/banner; лицом к yaw (PI — к двору от фасада z = 35)
 func _note(kind: String, text: String, pos: Vector3, yaw: float, sub := "", k := 1.0) -> Node3D:
@@ -1022,13 +1031,30 @@ func _life_signs() -> void:
 		if pool != "" and String(chosen[pool]) != id:
 			continue
 		var ad: Array = SIGN_AT[id]
-		_note(String(sg["kind"]), String(sg["text"]), ad[0], float(ad[1]), String(sg.get("sub", "")))
+		if id == "cheremsha" and ResourceLoader.exists("res://assets/golda67/g67_poster_cheremsha.png"):
+			_poster(ad[0], float(ad[1]))
+			notes.append({"node": null, "text": String(sg["text"]), "sub": String(sg.get("sub", "")), "kind": "poster"})
+		else:
+			_note(String(sg["kind"]), String(sg["text"]), ad[0], float(ad[1]), String(sg.get("sub", "")))
 		if bool(sg.get("read", false)) and String(ad[2]) != "":
 			var cl := String(ad[2])
 			if not sign_groups.has(cl):
 				var gp: Vector3 = ad[0]
 				sign_groups[cl] = {"pos": Vector3(gp.x, 0.0, gp.z) + Vector3(sin(float(ad[1])), 0, cos(float(ad[1]))) * 0.9, "cards": [], "title": "ЛИСТОК"}
 			(sign_groups[cl]["cards"] as Array).append({"text": sg["text"], "sub": String(sg.get("sub", ""))})
+
+func _poster(pos: Vector3, yaw: float) -> void:
+	var mi := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.6, 0.85)
+	mi.mesh = qm
+	var mt := StandardMaterial3D.new()
+	mt.albedo_texture = load("res://assets/golda67/g67_poster_cheremsha.png")
+	mt.roughness = 0.9
+	mi.material_override = mt
+	mi.position = pos
+	mi.rotation.y = yaw
+	add_child(mi)
 
 ## Ветер колышет листки сильнее (в порыв)
 var note_cull_t := 0.0
@@ -1039,8 +1065,8 @@ func sway_tick(t: float) -> void:
 		note_cull_t = 0.4
 		var hp := hero.global_position
 		for nt in notes:
-			var nd: Node3D = nt["node"]
-			if is_instance_valid(nd):
+			var nd = nt["node"]
+			if nd != null and is_instance_valid(nd):
 				nd.visible = Vector2(nd.position.x - hp.x, nd.position.z - hp.z).length() < 18.0      # текст дальше 18 м не рисуется
 	var k := 0.03 + (0.08 if gust_t > 0.0 else 0.0)
 	for n in sway_notes:

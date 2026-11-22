@@ -90,6 +90,13 @@ static func clips() -> Dictionary:
 	C["NTalk"] = _seq(3.4, _mix(_mix(R_TALK, L_POCKET), W_R), [[0.0, {}], [0.3, {"rfa": {"x": -0.18, "y": 0.15}, "head": {"x": 0.06}}], [0.55, {}], [0.75, {"rfa": {"x": -0.1}, "head": {"x": 0.08}}], [1.0, {}]])
 	# бабушка: авоська в правой руке (вещь держит G67Carry), левая у груди придерживает пальто или поправляет платок
 	var bag := _mix({"rarm": {"x": -0.08, "z": 0.02}, "rfa": {"x": -0.3}}, W_L)
+	# madk1d в подъезде (до первой концовки): сидит на табурете у телевизора с телефоном
+	var msit := _mix(_mix(SIT, _mix(L_PHONE, R_DOWN)), {"head": {"x": 0.42, "y": 0.1}, "neck": {"x": 0.15}, "spine": {"x": 0.12}})
+	C["MSitPhone"] = _loop(4.4, msit, {"lfa": {"y": -0.06}, "head": {"x": 0.03}})
+	C["MSitLook"] = _loop(3.0, _mix(msit, {"head": {"x": -0.05, "y": 0.55}, "lfa": {"x": -0.6}}), BREATH)
+	C["MSitSwap"] = _react(2.2, msit, {"lfa": {"x": -1.35}, "rarm": {"x": -0.7}, "rfa": {"x": -1.0, "y": 0.5}, "head": {"x": 0.1}})
+	C["MSitShift"] = _react(2.6, msit, {"spine": {"x": -0.1}, "lup": {"x": -1.15}, "lleg": {"x": 1.1}, "head": {"x": 0.16}})
+	C["MSitNod"] = _seq(1.5, msit, [[0.0, {}], [0.3, {"head": {"x": 0.0, "y": 0.45}}], [0.5, {"head": {"x": 0.28, "y": 0.45}}], [0.7, {"head": {"x": 0.0, "y": 0.45}}], [1.0, {}]])
 	C["NWalk"] = _walk(1.15, _mix(R_DOWN, L_DOWN))
 	C["NWalkBag"] = _walk(1.25, _mix(bag, {"larm": {"x": -0.2, "z": 0.05}, "lfa": {"x": -0.9, "y": -1.2}, "spine": {"x": 0.08}}))
 	C["NSitBag"] = _loop(4.2, _mix(SIT, _mix(bag, {"larm": {"x": -0.2, "z": 0.05}, "lfa": {"x": -0.9, "y": -1.2}, "spine": {"x": 0.08}, "head": {"x": 0.05}})), BREATH)

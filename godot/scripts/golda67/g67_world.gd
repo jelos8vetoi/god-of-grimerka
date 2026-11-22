@@ -976,6 +976,9 @@ func add_residents() -> void:
 		var r: Node3D = yard.people[rid]
 		_point("talk_" + String(rid), String(names.get(rid, "ЖИТЕЛЬ")), "поговорить", r.position)
 
+func G67Root_madk_spot() -> Vector3:
+	return Vector3(-1.15, 1.5, -4.95)
+
 ## ---- Подъезд (хаб): кнопка «НЕ НАЖИМАТЬ», листки, дверь квартиры на цепочке, силуэт в окне, телевизор за дверью
 var hub_groups := {}
 var hub_strip: MeshInstance3D = null
@@ -1010,6 +1013,10 @@ func _hub_note(kind: String, text: String, pos: Vector3, yaw: float) -> void:
 	root.add_child(q)
 
 func build_hub_life() -> void:
+	# табурет madk1d у телевизора на площадке и листок-кот на стене холла
+	var ms := G67Root_madk_spot()
+	_box(ms + Vector3(0, 0.22, 0), Vector3(0.4, 0.44, 0.4), m_wood)
+	_hub_note("marker", "окак", Vector3(HUB_X - 0.04, 0.95, 3.0), -PI * 0.5)
 	var bx := -0.85
 	var bz := Z_BACK + 0.05
 	var disc := MeshInstance3D.new()

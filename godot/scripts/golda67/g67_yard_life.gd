@@ -79,10 +79,30 @@ func _near_flock(hp: Vector3) -> Vector3:
 			best = home
 	return best
 
+var btn_t := 25.0
+
+func _intercom_press() -> void:
+	var ic = yard.life_props.get("g67_intercom")
+	if ic == null or not is_instance_valid(ic):
+		return
+	var b: Node3D = ic.find_child("btn8", true, false)
+	if b == null:
+		return
+	var p0 := b.position
+	var tw := create_tween()
+	tw.tween_property(b, "position", p0 + Vector3(0, 0, -0.008), 0.08)
+	tw.tween_property(b, "position", p0, 0.12)
+	G67Sound.play(self, "click", Vector3(-1.3, 1.2, 34.9), 1.0)
+
 func _physics_process(dt: float) -> void:
 	if golda == null or yard == null or not is_instance_valid(yard) or golda.place != "run":
 		return
 	clock += dt
+	btn_t -= dt
+	if btn_t <= 0.0:
+		btn_t = rng.randf_range(35.0, 45.0)
+		if _hero().global_position.distance_to(Vector3(-1.3, 1.0, 34.9)) < 20.0:
+			_intercom_press()
 	_walkers_tick(dt)
 	radio_t -= dt
 	if radio_t <= 0.0 and _ok_now({"silent": true}):
@@ -200,6 +220,14 @@ func fire(id: String) -> void:
 		"wind_gust":
 			gust = 3.0
 			yard.gust(3.0)
+			var sw = yard.life_props.get("g67_swing_set")
+			if sw != null and is_instance_valid(sw):
+				var seat: Node3D = sw.find_child("seat", true, false)
+				if seat != null:
+					var tws := create_tween()
+					for i in 4:
+						tws.tween_property(seat, "rotation:x", 0.35 * (1.0 if i % 2 == 0 else -1.0), 0.7)
+					tws.tween_property(seat, "rotation:x", 0.0, 0.8)
 			G67Sound.play(self, "swing_creak", Vector3(-1.0, 1.2, -3.0), 1.0)
 		"pigeons_turn":
 			var f: Dictionary = yard.nearest_flock(hp)
@@ -253,7 +281,15 @@ func fire(id: String) -> void:
 					for i in 4:
 						tws.tween_property(rg, "rotation:z", 0.08, 0.25)
 						tws.tween_property(rg, "rotation:z", -0.08, 0.25)
-					tws.tween_property(rg, "rotation:z", 0.0, 0.1)
+					tws.tween_property(rg, "rotation:z", 0.0, 0.0)
+					if rid == "g67_npc_ushanka":
+						tws.tween_callback(func():
+							if is_instance_valid(rr.life):
+								rr.life.stage("NCross", 0.05)         # резко замер, «ничего не было»
+							filyai_froze = clock
+							get_tree().create_timer(2.5).timeout.connect(func():
+								if is_instance_valid(rr.life):
+									rr.life.resume()))
 		"schoolboy_show":
 			var sc = _resident("g67_npc_schoolboy")
 			var tgt = _resident("g67_npc_babushka" if rng.randf() < 0.5 else "g67_npc_taxi_driver")
@@ -319,6 +355,7 @@ func _window_prop(x: float, flap: bool) -> Dictionary:
 func _window_shout() -> void:
 	var hp: Vector3 = _hero().global_position
 	var x := clampf(hp.x + rng.randf_range(-4.0, 4.0), -30.0, 30.0)
+	last_window_x = x
 	var w := _window_prop(x, true)
 	var pv: Node3D = w["pivot"]
 	var pos := Vector3(x, 8.0, 34.5)
@@ -335,6 +372,7 @@ func _window_shout() -> void:
 func _window_shape() -> void:
 	var hp: Vector3 = _hero().global_position
 	var x := clampf(hp.x + rng.randf_range(-6.0, 6.0), -30.0, 30.0)
+	last_window_x = x
 	var w := _window_prop(x, false)
 	var root: Node3D = w["root"]
 	var sil := Node3D.new()
@@ -429,6 +467,8 @@ func _queue_move() -> void:
 		yard.queue.append(first)
 
 var counter_lb: Label3D = null
+var filyai_froze := -1.0
+var last_window_x := 0.0
 
 func _counter_node() -> Label3D:
 	if counter_lb != null and is_instance_valid(counter_lb):
@@ -456,7 +496,36 @@ func _counter_node() -> Label3D:
 	root.add_child(counter_lb)
 	return counter_lb
 
+func dust_burst(pos: Vector3, count := 26, col := Color(0.93, 0.94, 0.96)) -> void:
+	var holder := Node3D.new()
+	yard.add_child(holder)
+	holder.global_position = pos
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(col.r, col.g, col.b, 0.75)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var sm := SphereMesh.new()
+	sm.radius = 0.11
+	sm.height = 0.22
+	sm.radial_segments = 8
+	sm.rings = 4
+	sm.material = mat
+	for i in count:
+		var mi := MeshInstance3D.new()
+		mi.mesh = sm
+		mi.scale = Vector3.ONE * rng.randf_range(0.6, 1.8)
+		holder.add_child(mi)
+		var dir := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(0.2, 1.1), rng.randf_range(-1.0, 1.0)).normalized()
+		var tw := create_tween().set_parallel(true)
+		tw.tween_property(mi, "position", dir * rng.randf_range(0.6, 1.6), 1.3).set_ease(Tween.EASE_OUT)
+		tw.tween_property(mi, "scale", mi.scale * 2.2, 1.3)
+	var ft := create_tween()
+	ft.tween_property(mat, "albedo_color:a", 0.0, 1.0).set_delay(0.5)
+	golda.get_tree().create_timer(2.0).timeout.connect(holder.queue_free)
+
 func _snow_puff(pos: Vector3) -> void:
+	dust_burst(pos)
+	return
 	var pr := GPUParticles3D.new()
 	var pm := ParticleProcessMaterial.new()
 	pm.direction = Vector3(0, 1, 0.3)
