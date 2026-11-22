@@ -3157,6 +3157,21 @@ func _perf_zones(g, G: Golda67, P) -> void:
 	G.pending = []
 	G.wave_wait = 999.0
 	await wait(1.0)
+	var ab := ""
+	for x in OS.get_cmdline_user_args():
+		if String(x).begins_with("--ab="):
+			ab = String(x)
+	if ab.contains("notes"):
+		for nt in G.world.yard.notes:
+			(nt["node"] as Node3D).queue_free()
+		G.world.yard.notes = []
+		G.world.yard.sway_notes = []
+	if ab.contains("life"):
+		for k in G.world.yard.residents:
+			G.world.yard.residents[k].set_physics_process(false)
+		G.ylife_get().set_physics_process(false)
+		G.duos_get().set_physics_process(false)
+		G.barks_get().set_process(false)
 	var oc := Camera3D.new()
 	oc.fov = 65.0
 	g.add_child(oc)
