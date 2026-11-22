@@ -1044,7 +1044,7 @@ static func ev02(c: G67ClipPlayer) -> void:
 	mk.rotation.y = PI
 	await c.wait(0.3)
 	# ---- план 5 (13–15 с): замах, вода, всплеск
-	c.cam_at(Vector3(0.9, 1.9, -2.5), Vector3(0.3, 0.9, 0.4), 55.0)
+	c.cam_at(Vector3(2.6, 1.7, 2.3), Vector3(0.1, 0.9, -0.5), 56.0)
 	st["mode"] = "two"                                       # берёт ведро двумя руками
 	c.anim("wh", "EBucket", 0.15)
 	var back := c.create_tween()

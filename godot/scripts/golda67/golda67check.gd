@@ -129,7 +129,7 @@ func _run() -> void:
 		G.play_clip("EV02")
 		await wait(0.3)
 		var t_last := 0.0
-		var marks: Array = [7.5, 13.2, 14.4, 17.5, 23.0, 33.5]       # ключевые моменты: вход с ведром, замах, вода, бросок, беготня, финал
+		var marks: Array = [15.0, 15.35, 17.5, 23.0, 33.5]       # ключевые моменты: вход с ведром, замах, вода, бросок, беготня, финал
 		var mi := 0
 		while G.clip != null and is_instance_valid(G.clip):
 			t_last = G.clip.t
