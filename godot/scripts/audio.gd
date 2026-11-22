@@ -308,6 +308,8 @@ func _process(dt: float) -> void:
 		game_id = game.get_instance_id()
 		_reset_game_memory()
 	var key: String = "hall" if game.in_hall else String(game.chapter()["th"]["deco"])      # арена, приквел и Survival идут под музыку первой главы: своих наборов loc_<deco> у них нет
+	var gm = game.get("golda")
+	var gm_music: bool = gm != null and is_instance_valid(gm) and gm.has_method("music_context")
 	var boss = game.boss_e if (game.mode == "boss" or game.is_survival()) and is_instance_valid(game.boss_e) else null
 	var ctxn := "explore"
 	var lay: Array = [1.0, 0.0, 0.0]
@@ -322,7 +324,7 @@ func _process(dt: float) -> void:
 		ctxn = "boss"
 		_set_state("boss")
 	else:
-		if boss_seen != "":
+		if boss_seen != "" and not gm_music:
 			# босс повержен: победная отбивка, музыка локации возвращается из-под неё
 			stinger("boss_" + boss_seen + "_win")
 			boss_seen = ""
@@ -341,18 +343,33 @@ func _process(dt: float) -> void:
 	var dk := 0.0
 	if game.get_tree().paused and game.pause_panel != null and game.pause_panel.is_open:
 		dk = -6.0      # меню паузы: игра тише, но не пропадает
-	if game.mode == "dlg":
-		dk = minf(dk, -4.0)      # в диалоге музыка тише примерно на 37%, но не пропадает
 	if dead:
 		dk = -14.0
 		ctxn = "defeat"
 	sit = {"ctx": ctxn, "cue": want_cue, "layers": lay, "pitch": 1.0, "gain_db": 0.0, "duck_db": dk}
 	# режим игры может сказать о музыке сам (ГОЛДА 67 и другие)
-	var gm = game.get("golda")
-	if gm != null and is_instance_valid(gm) and gm.has_method("music_context"):
+	if gm_music:
 		var mc: Dictionary = gm.music_context()
 		for k in mc:
 			sit[k] = mc[k]
+		# режим сам ведёт босса: набор, который он выбрал, получает вступление и победную отбивку
+		var bs := String(sit.get("boss_set", ""))
+		if bs != "" and boss_seen != bs:
+			boss_seen = bs
+			stinger(bs + "_intro")
+			_set_state("boss")
+		elif bs == "" and boss_seen != "":
+			stinger(boss_seen + "_win")
+			boss_seen = ""
+			_set_state("victory")
+		if dead:
+			sit["ctx"] = "defeat"
+			sit["duck_db"] = dk
+	var dkind := String(sit.get("dialogue", "talk"))
+	if game.mode == "dlg":
+		director.enter_dialogue(game, dkind)      # диалог — наложение с владельцем: приглушение держится на всём разговоре
+	else:
+		director.leave_dialogue(game)
 	_bed(key)
 	_shots(dt, game)
 	_finish(dt, sit)

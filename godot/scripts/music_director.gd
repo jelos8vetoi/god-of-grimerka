@@ -71,6 +71,9 @@ var cine_prog := 0.0
 var cine_goal := 0.0
 var cine_time := 0.4
 var cine_owner := 0
+var cine_ref: WeakRef
+var via_k := 0.0
+var via_cue := ""
 var clock := 0.0
 var silent := false
 var _last_ctx := ""
@@ -103,7 +106,8 @@ func _ready() -> void:
 	add_child(cine)
 	dieg = AudioStreamPlayer3D.new()
 	dieg.bus = "MusicDiegetic"
-	dieg.unit_size = 6.0
+	dieg.unit_size = 5.0
+	dieg.attenuation_filter_cutoff_hz = 4500.0
 	dieg.max_db = 0.0
 	dieg.volume_db = -80.0
 	add_child(dieg)
@@ -193,6 +197,18 @@ func _name(owner: Object) -> String:
 
 func enter_dialogue(owner: Object, kind := "talk") -> void:
 	var k: Array = KINDS.get(kind, KINDS["talk"])
+	var old = overlays.get(_key(owner))
+	if old != null and old["type"] == "dialogue":
+		if old["kind"] == kind:
+			if old["leaving"]:
+				old["leaving"] = false
+			return
+		old["kind"] = kind
+		old["db"] = float(k[0])
+		old["att"] = float(k[1])
+		old["rel"] = float(k[2])
+		old["leaving"] = false
+		return
 	overlays[_key(owner)] = {"type": "dialogue", "ref": weakref(owner), "name": _name(owner), "kind": kind, "db": float(k[0]), "att": float(k[1]), "rel": float(k[2]), "leaving": false, "until": 0.0}
 	_ev("overlay_enter", cue, _name(owner), kind)
 
@@ -208,6 +224,8 @@ func bark(p: AudioStreamPlayer) -> void:
 		barks.append(p)
 
 func enter_cinematic(owner: Object, opts := {}) -> void:
+	if overlays.has(_key(owner)) and overlays[_key(owner)]["type"] == "cinematic":
+		return
 	var mode := String(opts.get("mode", "silence"))
 	overlays[_key(owner)] = {"type": "cinematic", "ref": weakref(owner), "name": _name(owner), "kind": mode, "db": -12.0 if mode == "duck" else 0.0, "att": 0.4, "rel": 1.2, "leaving": false, "until": 0.0}
 	_ev("overlay_enter", cue, _name(owner), "cinematic " + mode)
@@ -217,11 +235,14 @@ func enter_cinematic(owner: Object, opts := {}) -> void:
 		if ResourceLoader.exists(path):
 			cine.stream = load(path)
 			cine_owner = _key(owner)
+			cine_ref = weakref(owner)
 			cine_goal = 1.0
 			cine_time = 0.3
 			cine.play()
 
 func leave_cinematic(owner: Object) -> void:
+	if owner == null:
+		return
 	var k := _key(owner)
 	if overlays.has(k):
 		overlays.erase(k)
@@ -444,7 +465,31 @@ func tick(dt: float) -> void:
 		elif title_prog <= 0.0 and title_goal == 0.0 and not title.stream_paused:
 			title.stream_paused = true
 		title.volume_db = maxf(TITLE_DB + float(base.get("gain_db", 0.0)) + linear_to_db(maxf(curve(title_prog), 0.0001)) + duck_db, -80.0)
+	# диегетический выход: тот же набор (первый стем) из точки сцены, перекрёстно с декой за 1,2 с
+	var via = base.get("via")
+	var via_ok: bool = via != null and is_instance_valid(via) and active >= 0 and decks[active].live and not silent
+	via_k = move_toward(via_k, 1.0 if via_ok else 0.0, dt / 1.2)
+	if via_ok:
+		if not dieg.playing or via_cue != decks[active].cue:
+			dieg.stream = decks[active].players[0].stream
+			dieg.play(decks[active].players[0].get_playback_position() if decks[active].players[0].playing else 0.0)
+			via_cue = decks[active].cue
+			_ev("via_start", via_cue, str((via as Node).name))
+		dieg.global_position = (via as Node3D).global_position
+	if via_k > 0.0 and active >= 0 and decks[active].live:
+		var d2: Deck = decks[active]
+		dieg.volume_db = maxf(d2.lv[0] + linear_to_db(maxf(d2.gain() * curve(via_k), 0.0001)) + duck_db + gdb, -80.0)
+		for j in d2.players.size():
+			if d2.players[j].stream != null:
+				d2.players[j].volume_db = maxf(d2.lv[j] + linear_to_db(maxf(d2.gain() * curve(1.0 - via_k), 0.0001)) + duck_db + gdb, -80.0)
+	elif via_k <= 0.0 and dieg.playing and _dieg_node == null:
+		dieg.stop()
+		via_cue = ""
 	# ролик
+	if cine_owner != 0 and cine_goal > 0.0 and (cine_ref == null or cine_ref.get_ref() == null):
+		cine_goal = 0.0
+		cine_time = 0.4
+		_ev("cine_expire", "", "", "владелец ролика удалён")
 	cine_prog = move_toward(cine_prog, cine_goal, dt / maxf(cine_time, 0.01))
 	cine.volume_db = maxf(linear_to_db(maxf(curve(cine_prog), 0.0001)), -80.0)
 	if cine_goal == 0.0 and cine_prog <= 0.0 and cine.playing:

@@ -8,6 +8,9 @@
 class_name G67Clips
 extends RefCounted
 
+## музыка на время ролика: mode — silence (по умолчанию) / duck / keep, cue — набор jingle_g67_* (играет, только если файл есть)
+const MUSIC := {}
+
 const ORDER := ["STORY01", "STORY05", "V00", "AD01", "CL01", "NEWS01", "EXTRA01"]
 const INFO := {
 	"V00": {"title": "ТУРНИР 67 — трейлер", "tall": false},
