@@ -2599,7 +2599,7 @@
 			"text": "ТРЯПКИ! ТРЯПКИ! ТРЯПКИ!",
 			"voice_id": "c792db39",
 			"path": "res://Audio/Voice/Golda67/Chapter_01/Madk1d/CH01_MADK1D_005.ogg",
-			"status": "validated",
+			"status": "obsolete",
 			"check": {
 				"duration_s": 1.36,
 				"speech_db": -20,
@@ -2645,7 +2645,7 @@
 			"text": "ТРЯПКИ, БРАТ! ВОДА ВЕЗДЕ!",
 			"voice_id": "c792db39",
 			"path": "res://Audio/Voice/Golda67/Chapter_01/Madk1d/CH01_MADK1D_006.ogg",
-			"status": "validated",
+			"status": "obsolete",
 			"check": {
 				"duration_s": 1.58,
 				"speech_db": -20,
@@ -2889,7 +2889,53 @@
 			"when": "событие «Можно. А зачем?» (ДВОР, кнопка)",
 			"emotion": "равнодушно, вежливо",
 			"speed": 0.95
+		},
+		{
+			"id": "CH01_WHY_003",
+			"code": "WH",
+			"char": "whyousolonely",
+			"char_name": "WHYOUSOLONELY",
+			"text": "ТРЯПКИ! ТРЯПКИ! ТРЯПКИ!",
+			"voice_id": "dfcf8831",
+			"path": "res://Audio/Voice/Golda67/Chapter_01/NPC/CH01_WHY_003.ogg",
+			"status": "validated",
+			"check": {
+				"duration_s": 1.33,
+				"speech_db": -20,
+				"heard": "Тряпки, тряпки, тряпки.",
+				"match": 1,
+				"bytes": 15503
+			},
+			"gen": 1,
+			"scene": "event_rags",
+			"order": 1,
+			"when": "событие «ТРЯПКИ! ТРЯПКИ!» (ДВОР, квартира)",
+			"emotion": "в панике, орёт на бегу",
+			"speed": 1.12
+		},
+		{
+			"id": "CH01_WHY_004",
+			"code": "WH",
+			"char": "whyousolonely",
+			"char_name": "WHYOUSOLONELY",
+			"text": "ТРЯПКИ, БРАТ! ВОДА ВЕЗДЕ!",
+			"voice_id": "dfcf8831",
+			"path": "res://Audio/Voice/Golda67/Chapter_01/NPC/CH01_WHY_004.ogg",
+			"status": "validated",
+			"check": {
+				"duration_s": 1.62,
+				"speech_db": -20,
+				"heard": "Тряпки, брат, вода везде.",
+				"match": 1,
+				"bytes": 18180
+			},
+			"gen": 1,
+			"scene": "event_rags",
+			"order": 3,
+			"when": "событие «ТРЯПКИ! ТРЯПКИ!» (ДВОР, квартира)",
+			"emotion": "в панике, орёт на бегу",
+			"speed": 1.12
 		}
 	],
-	"updated": "2026-11-22T09:47:47.223Z"
+	"updated": "2026-11-22T13:30:41.332Z"
 }

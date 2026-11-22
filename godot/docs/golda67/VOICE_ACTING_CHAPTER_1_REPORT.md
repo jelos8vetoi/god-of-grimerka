@@ -12,9 +12,9 @@
 | Полковник Бустеренко | Полковник Бустеренко | 81c90e8e | 1 | 1 | 0 | 0 |
 | FORTUNA 812 | FORTUNA 812 | c60ed931 | 1 | 1 | 0 | 0 |
 | Королевский XVII | королевский | 477ec948 | 1 | 1 | 0 | 0 |
-| madk1d | MADK1D | c792db39 | 6 | 6 | 0 | 0 |
+| madk1d | MADK1D | c792db39 | 4 | 4 | 0 | 0 |
 | Ведущий подкаста | пресет Casual (Voice Studio Pro) | preset:casual | 2 | 2 | 0 | 0 |
-| WHYOUSOLONELY | WHYOUSOLONELY | dfcf8831 | 2 | 2 | 0 | 0 |
+| WHYOUSOLONELY | WHYOUSOLONELY | dfcf8831 | 4 | 4 | 0 | 0 |
 | Диспетчер | пресет Audiobook UK Narrator, женский (Voice Studio Pro) | preset:audiobook_uk_narrator | 2 | 2 | 0 | 0 |
 | Громкоговоритель | пресет Corporate (Voice Studio Pro) | preset:corporate | 2 | 2 | 0 | 0 |
 
