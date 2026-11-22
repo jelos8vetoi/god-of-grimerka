@@ -240,7 +240,8 @@ const NAME_HINTS = { M: /madk/i, V: /паш|пахан|pahan/i, KR: /крот|kr
   WH: /whyousolonely/i, FT: /fortuna/i, KX: /королев|korolev/i, BS: /бустер|buster/i };
 // голоса не из моделей владельца: ведущие — встроенные пресеты Voice Studio Pro (решение владельца).
 // Весь приквел озвучивается только через Voice Studio Pro (решение владельца от 2026-11-22): madk1d — его модель MADK1D.
-const FIXED = { AN: { id: 'preset:narrator', name: 'пресет Narrator (Voice Studio Pro)' }, PH: { id: 'preset:casual', name: 'пресет Casual (Voice Studio Pro)' } };
+const FIXED = { AN: { id: 'preset:narrator', name: 'пресет Narrator (Voice Studio Pro)' }, PH: { id: 'preset:casual', name: 'пресет Casual (Voice Studio Pro)' },
+  LS: { id: 'preset:corporate', name: 'пресет Corporate (Voice Studio Pro)' }, DP: { id: 'preset:audiobook_uk_narrator', name: 'пресет Audiobook UK Narrator, женский (Voice Studio Pro)' } };
 async function resolveModels(exp) {
   const cfg = loadJson(MODELS, { note: 'ID моделей Voice Studio Pro по коду говорящего. Пусто — ищется по имени модели.', models: {} });
   let voices = [];

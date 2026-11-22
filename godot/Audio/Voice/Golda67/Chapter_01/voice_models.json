@@ -66,6 +66,18 @@
 			"id": "dfcf8831",
 			"voice_name": "WHYOUSOLONELY",
 			"status": "found"
+		},
+		"DP": {
+			"character": "Диспетчер",
+			"id": "preset:audiobook_uk_narrator",
+			"voice_name": "пресет Audiobook UK Narrator, женский (Voice Studio Pro)",
+			"status": "found"
+		},
+		"LS": {
+			"character": "Громкоговоритель",
+			"id": "preset:corporate",
+			"voice_name": "пресет Corporate (Voice Studio Pro)",
+			"status": "found"
 		}
 	}
 }
