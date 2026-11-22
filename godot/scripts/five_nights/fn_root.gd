@@ -11,6 +11,7 @@ extends Node3D
 
 var main
 @onready var office: FNOffice = $GuardBooth
+@onready var hall_l: FNCorridor = $Cam4Corridor
 var fac: FNFacility
 var actors: FNActors
 var cams: FNCams
@@ -71,7 +72,7 @@ func _ready() -> void:
 	FNSound.warm()
 	fac = FNFacility.new()
 	add_child(fac)
-	fac.build(office)
+	fac.build(office, hall_l)
 	actors = FNActors.new()
 	add_child(actors)
 	actors.build(office, fac)

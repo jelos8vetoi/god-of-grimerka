@@ -1,6 +1,7 @@
 ## Помещения «ОБЛАКО — ЦЕНТР РАЗВЛЕЧЕНИЙ И ХРАНЕНИЯ ДАННЫХ», которые видно на камерах: главный зал со сценой,
 ## игровая зона с автоматами, склад маскотов, серверная, узел вентиляции, комната питания, служебка (видна из правого
-## коридора) и «комната 9», которой нет на плане. Коридоры 4 и 5 подходят к нишам редактируемой будки.
+## коридора) и «комната 9», которой нет на плане. Коридор 4 (левый) — сцена cam4_corridor.tscn (FNCorridor), коридор 5
+## строится здесь; оба подходят к нишам будки.
 ## Модели — MGModels: .glb владельца из godot/assets/minigames (tools/tripo-minigames.json), а пока его нет —
 ## собранные кодом (MGProps). У каждой комнаты свой свет, своя история в предметах, своя камера (точка, куда смотрит,
 ## размах поворота sway) и места для врагов. Для аномалий камер (FNAnomaly) комнаты отдают: свет (lights), силуэт в
@@ -9,6 +10,7 @@ class_name FNFacility
 extends Node3D
 
 var office: FNOffice
+var hall_l: FNCorridor             # левый коридор — сцена, собранная в редакторе
 var cams := {}                     # id → {pos, look, fov, sway}
 var spots := {}                    # id → Array[Transform3D] мест в комнате (варианты поз)
 var blink: Array = []              # мигающие огоньки (материалы)
@@ -21,8 +23,9 @@ var gauges: Array = []
 var balloons: Array = []
 var t := 0.0
 
-func build(o: FNOffice) -> void:
+func build(o: FNOffice, left: FNCorridor) -> void:
 	office = o
+	hall_l = left
 	_figure("office", Vector3(-0.45, 0, 1.25), PI)   # аномалия камеры за спиной охранника
 	_stage(Vector3(60, 0, 0))
 	_arcade(Vector3(85, 0, 0))
@@ -31,13 +34,15 @@ func build(o: FNOffice) -> void:
 	_vent(Vector3(160, 0, 0))
 	_power(Vector3(185, 0, 0))
 	_room9(Vector3(210, 0, 0))
-	# коридоры у офиса: камера в дальнем конце смотрит к повороту (нишу у двери не видно)
-	for s in [-1.0, 1.0]:
-		var x: float = s * (FNOffice.W + 1.55)
-		var id := "hall_l" if s < 0 else "hall_r"
-		cams[id] = {"pos": Vector3(x - s * 0.3, 2.35, -9.5), "look": Vector3(x, 0.9, -1.0), "fov": 62.0, "sway": 4.0}
-		spots[id] = [_xf(Vector3(x, 0, -4.6), 0.0), _xf(Vector3(x + s * 0.2, 0, -6.4), 0.0), _xf(Vector3(x, 0, -3.0), 0.0)]
-		_hall(s, x, id)
+	# левый коридор — сцена: камера, места врагов и силуэт берутся из неё
+	cams["hall_l"] = left.view
+	spots["hall_l"] = left.spot_xf
+	figures["hall_l"] = left.figure
+	# правый коридор: камера в дальнем конце смотрит к повороту (нишу у двери не видно)
+	var x: float = FNOffice.W + 1.55
+	cams["hall_r"] = {"pos": Vector3(x - 0.3, 2.35, -9.5), "look": Vector3(x, 0.9, -1.0), "fov": 62.0, "sway": 4.0}
+	spots["hall_r"] = [_xf(Vector3(x, 0, -4.6), 0.0), _xf(Vector3(x + 0.2, 0, -6.4), 0.0), _xf(Vector3(x, 0, -3.0), 0.0)]
+	_hall(1.0, x, "hall_r")
 
 func _xf(p: Vector3, yaw: float) -> Transform3D:
 	return Transform3D(Basis(Vector3.UP, yaw), p)
@@ -158,34 +163,21 @@ func _hall(s: float, x: float, id: String) -> void:
 	for k in 3:
 		MGProps.cable(self, Vector3(wall_out - s * 0.05, 2.35 - k * 0.04, -0.8), Vector3(wall_out - s * 0.05, 2.32 - k * 0.04, -9.6), 0.15 + k * 0.05, 0.012, MGProps.mat("rubber"))
 	var p1 := node(Vector3(wall_out - s * 0.06, 1.5, -5.2), face)
-	MGProps.poster(p1, "НЕ БЕГАТЬ" if s < 0 else "ДЕНЬ\nРОЖДЕНИЯ\nВ ОБЛАКЕ", "по коридору ходят только сотрудники" if s < 0 else "каждую субботу · аниматоры · торт", Color(0.75, 0.05, 0.05), 0.5, 0.7)
-	if s < 0:
-		# левый: стопка стульев, сдувшиеся шары, лужа
-		for k in 3:
-			var ch := node(Vector3(x + 0.3, 0.04 + k * 0.12, -8.2), 0.2 * k)
-			MGProps.chair(ch)
-		for k in 2:
-			var b := MGProps.ball(self, Vector3(x - 0.35 + k * 0.2, 0.18, -6.0 - k * 0.3), 0.14, MGProps.mat("red") if k == 0 else MGProps.mat("cream"), Vector3(1, 0.6, 1))
-			balloons.append(b)
-		MGProps.box(self, Vector3(x, 0.002, -4.0), Vector3(0.7, 0.002, 0.5), MGProps.mat("glass"))
-		var sign := node(Vector3(x - 0.2, 0, -3.6), 0.4)
-		MGProps.box(sign, Vector3(0, 0.3, 0), Vector3(0.3, 0.6, 0.02), MGProps._yellow(), Vector3(-0.2, 0, 0))
-		MGProps.text(sign, "МОКРЫЙ\nПОЛ", Vector3(0, 0.32, 0.02), 30, Color(0.1, 0.1, 0.1))
-	else:
-		# правый: дверь служебки приоткрыта, за ней — тележка уборщика и шкафчики (служебные помещения)
-		var dz := -6.6
-		office.box(Vector3(wall_out, 1.05, dz), Vector3(0.12, 2.1, 0.95), m("black"), self)      # проём
-		var door := node(Vector3(wall_out - s * 0.05, 0, dz - 0.45), 0.0)
-		MGProps.box(door, Vector3(0, 1.05, 0.46), Vector3(0.05, 2.05, 0.9), MGProps.mat("blue_paint"))
-		door.rotation.y = 0.55
-		MGProps.text(node(Vector3(wall_out - s * 0.07, 2.25, dz), face), "СЛУЖЕБНОЕ", Vector3.ZERO, 40, Color(0.9, 0.88, 0.8))
-		var cart := node(Vector3(x + 0.25, 0, -5.4), 0.2)
-		MGProps.janitor_cart(cart)
-		var lk := node(Vector3(wall_out - s * 0.3, 0, -8.6), face)
-		MGProps.locker(lk, 0.35, "ОХРАНА")
-		var lk2 := node(Vector3(wall_out - s * 0.3, 0, -9.1), face)
-		MGProps.locker(lk2, 0.0, "АНИМАТОР")
-		movable[id] = [cart, Vector3(x - 0.2, 0, -3.4), 1.3]   # тележка «сама» переехала ближе
+	MGProps.poster(p1, "ДЕНЬ\nРОЖДЕНИЯ\nВ ОБЛАКЕ", "каждую субботу · аниматоры · торт", Color(0.75, 0.05, 0.05), 0.5, 0.7)
+	# дверь служебки приоткрыта, за ней — тележка уборщика и шкафчики (служебные помещения)
+	var dz := -6.6
+	office.box(Vector3(wall_out, 1.05, dz), Vector3(0.12, 2.1, 0.95), m("black"), self)      # проём
+	var door := node(Vector3(wall_out - s * 0.05, 0, dz - 0.45), 0.0)
+	MGProps.box(door, Vector3(0, 1.05, 0.46), Vector3(0.05, 2.05, 0.9), MGProps.mat("blue_paint"))
+	door.rotation.y = 0.55
+	MGProps.text(node(Vector3(wall_out - s * 0.07, 2.25, dz), face), "СЛУЖЕБНОЕ", Vector3.ZERO, 40, Color(0.9, 0.88, 0.8))
+	var cart := node(Vector3(x + 0.25, 0, -5.4), 0.2)
+	MGProps.janitor_cart(cart)
+	var lk := node(Vector3(wall_out - s * 0.3, 0, -8.6), face)
+	MGProps.locker(lk, 0.35, "ОХРАНА")
+	var lk2 := node(Vector3(wall_out - s * 0.3, 0, -9.1), face)
+	MGProps.locker(lk2, 0.0, "АНИМАТОР")
+	movable[id] = [cart, Vector3(x - 0.2, 0, -3.4), 1.3]   # тележка «сама» переехала ближе
 	_figure(id, Vector3(x + s * 0.25, 0, -9.3), 0.0)
 
 # ---------------- главный зал: сцена, занавес, столы праздника ----------------
@@ -453,6 +445,7 @@ func _room9(o: Vector3) -> void:
 
 func tick(dt: float) -> void:
 	t += dt
+	hall_l.tick(dt)
 	for i in blink.size():
 		var led = blink[i]
 		if led is StandardMaterial3D:

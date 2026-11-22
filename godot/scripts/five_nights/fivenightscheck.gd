@@ -344,6 +344,7 @@ func _ui_part() -> void:
 			seen_cams += 1
 		await shot("f1%d_cam_%s" % [i, FNData.CAMS[i]["id"]])
 	ok(seen_cams == 8, "1–8 — все восемь камер (%d)" % seen_cams)
+	await _hall_left(R, st)
 	await _anomalies(R, st)
 	ok(R.cams.vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS, "рисуется только выбранная камера, пока монитор поднят")
 	await key(KEY_SPACE)
@@ -633,6 +634,86 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 		R.scream_p.stop()
 
 ## чистая логика ночи: энергия, двери, маршруты, условия атаки
+## левый коридор CAM 4 — сцена: одна, звук совпадает с местом врага, свет не достаёт до двери ниши, враг виден в коридоре
+## и не виден из-за угла ниши (сырая картинка камеры без шейдера); снимки c4_*
+func _hall_left(R: FiveNightsRoot, st: FNNight) -> void:
+	var F := R.fac
+	var hl := F.hall_l
+	var found := R.find_children("*", "Node3D", true, false).filter(func(n): return n is FNCorridor)
+	var stray := F.get_children().filter(func(n): return n is Node3D and absf((n as Node3D).global_position.x + 3.8) < 0.9 and (n as Node3D).global_position.z > -10.0 and (n as Node3D).global_position.z < -1.0)
+	ok(found.size() == 1 and found[0] == hl and F.cams["hall_l"]["pos"] == hl.view["pos"] and stray.is_empty(), "левый коридор — одна сцена Cam4Corridor, камера CAM 4 берётся из неё, кодом в этом объёме ничего не строится (лишних узлов %d)" % stray.size())
+	ok((hl.spot_xf[0] as Transform3D).origin.distance_to(FNOffice.point("hall_l")) < 0.75, "шаги в коридоре слышны оттуда же, где враг стоит на камере")
+	var door := FNOffice.point("door_l") + Vector3(0, 1, 0)
+	var reach := 99.0
+	for l in hl.find_children("*", "Light3D", true, false):
+		reach = minf(reach, (l as Node3D).global_position.distance_to(door) - ((l as OmniLight3D).omni_range if l is OmniLight3D else (l as SpotLight3D).spot_range))
+	ok(reach > 0.0, "свет коридора не достаёт до двери ниши (запас %.2f м): у двери враг виден только в луче фонаря" % reach)
+	hl.freeze(true)
+	st.set_cam("hall_l")
+	R.cams.set_cam("hall_l")
+	R.cams.sway = 0.0
+	var ids := ["balon", "clipper"]
+	var saved := {}
+	for id in ids:
+		var e: FNEnemy = st.enemies[id]
+		saved[id] = [e.level, e.spot, e.prev, e.pose, e.look, e.move_t, e.linger]
+	var empty := await _hall_frame(R, st, ids, "", "away", 0)
+	for id in ids:
+		var hall := 100.0
+		for p in 3:
+			hall = minf(hall, _hall_diff(empty, await _hall_frame(R, st, ids, id, "hall_l", p)))
+		var at_door := _hall_diff(empty, await _hall_frame(R, st, ids, id, "door_l", 0))
+		ok(hall >= 0.6 and at_door <= 0.02, "%s: в коридоре на CAM 4 виден (мин. %.2f %% кадра; дальняя поза мельче всех), за углом ниши камере не виден (%.3f %%)" % [id, hall, at_door])
+		var rig := R.actors.rigs[id] as Node3D
+		ok(rig.global_basis.z.dot((R.office.cam.global_position - rig.global_position).normalized()) > 0.5, "%s у левой двери повёрнут лицом к охраннику" % id)
+	await _hall_frame(R, st, ids, "balon", "hall_l", 0)
+	hl.freeze(false)
+	await shot("c4_hall")
+	await _hall_frame(R, st, ids, "balon", "hall_l", 2)
+	R.actors.creep["balon"] = 1.1
+	await wait(0.2)
+	await shot("c4_turn")
+	for id in ids:
+		var e: FNEnemy = st.enemies[id]
+		var s: Array = saved[id]
+		e.level = s[0]
+		e.spot = s[1]
+		e.prev = s[2]
+		e.pose = s[3]
+		e.look = s[4]
+		e.move_t = s[5]
+		e.linger = s[6]
+	R.actors.place_key.clear()
+
+## сырой кадр камеры (480×270) с одним врагом в точке; id "" — пусто
+func _hall_frame(R: FiveNightsRoot, st: FNNight, ids: Array, id: String, spot: String, pose: int) -> Image:
+	for k in ids:
+		var e: FNEnemy = st.enemies[k]
+		e.level = maxi(e.level, 1)
+		e.spot = spot if k == id else "away"
+		e.prev = ""
+		e.pose = pose
+		e.look = false
+		e.move_t = 1.0e6
+		e.linger = 1.0e6
+	R.actors.place_key.clear()
+	await wait(0.35)
+	R.cams.cam.global_basis = R.cams.base_basis
+	R.cams.vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	await RenderingServer.frame_post_draw
+	return R.cams.vp.get_texture().get_image()
+
+## доля пикселей (%), у которых хоть один канал отличается больше чем на 0,06
+func _hall_diff(a: Image, b: Image) -> float:
+	var n := 0
+	for y in a.get_height():
+		for x in a.get_width():
+			var p := a.get_pixel(x, y)
+			var q := b.get_pixel(x, y)
+			if maxf(maxf(absf(p.r - q.r), absf(p.g - q.g)), absf(p.b - q.b)) > 0.06:
+				n += 1
+	return 100.0 * float(n) / float(a.get_width() * a.get_height())
+
 ## аномалии камер в настоящей сцене: силуэт, свет, головы, поворот врага, «за спиной»; снимки a_*
 func _anomalies(R: FiveNightsRoot, st: FNNight) -> void:
 	var A: FNAnomaly = R.anomaly
