@@ -1897,6 +1897,9 @@ func talk_end() -> void:
 		return
 	talk_on = false
 	_talk_hud(false)
+	# камера возвращается на пружину: иначе поворот плана разговора остаётся на ней, и она смотрит в стену
+	game.cam.transform = Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
+	game.cam.fov = float(Opts.v("fov"))
 
 ## Боевой HUD, верхняя строка и значки над точками на время разговора спрятаны
 func _talk_hud(hide: bool) -> void:

@@ -2295,6 +2295,20 @@ func _talk_scene(g, G: Golda67, P, partner: Node3D, nm: String, obj: Vector3, ob
 	await wait(0.6)
 	ok(ok_all and seen_plans.size() >= 2, "разговор «%s»: на всех планах (%s) лица%s в кадре над плашкой, луч свободен" % [nm, str(seen_plans.keys()), (" и " + obj_name) if obj != Vector3.ZERO else ""])
 	ok(hud_ok and g.hud_root.visible == vis0 and g.hud_root.is_visible_in_tree(), "разговор «%s»: HUD скрыт на время диалога и вернулся после" % nm)
+	var cam1: bool = _cam_after(g, P, nm + " +0,6 с")
+	if nm == "flurr":
+		await shot("after_talk_flurr")
+	await wait(2.4)
+	var cam2: bool = _cam_after(g, P, nm + " +3 с")
+	ok(cam1 and cam2, "разговор «%s»: после конца камера снова на пружине (единичный поворот, герой в кадре, fov из настроек)" % nm)
+
+func _cam_after(g, P, tag: String) -> bool:
+	var ident: bool = g.cam.transform.basis.orthonormalized().get_rotation_quaternion().angle_to(Quaternion()) < 0.02
+	var dist: float = g.cam.global_position.distance_to(P.global_position)
+	var vis: bool = _in_frame(g, P.global_position + Vector3(0, 1.2, 0))
+	var fov_ok: bool = absf(g.cam.fov - float(Opts.v("fov"))) < 0.5
+	print("GOLDA67CHECK   камера после разговора %s: единичный поворот %s (%s), расстояние до героя %.2f, герой в кадре %s, fov %.1f" % [tag, str(ident), str(g.cam.transform.basis.get_euler()), dist, str(vis), g.cam.fov])
+	return ident and vis and fov_ok
 
 func good_obj_ray(g, pt: Vector3) -> bool:
 	return _ray_free(g, pt)
