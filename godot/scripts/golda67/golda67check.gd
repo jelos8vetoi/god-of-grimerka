@@ -163,6 +163,10 @@ func _run() -> void:
 		await _perf_zones(g, G, g.player)
 		_finish()
 		return
+	if OS.get_cmdline_user_args().has("--g67-collwalk"):
+		await _coll_walk(g, G, g.player)
+		_finish()
+		return
 	if OS.get_cmdline_user_args().has("--g67-collprobe"):
 		await _coll_probe(g, G, g.player)
 		_finish()
@@ -2769,6 +2773,51 @@ func _clip_log(G: Golda67, cid: String) -> void:
 			note = "  ← ОБРЕЗАНА" if gap < -0.05 else ("  ← ПАУЗА > 0,8 с" if gap > 0.8 else "")
 		print("GOLDA67CHECK   LOG %s %5.1f  %s  голос %.2f с  пауза %.2f%s%s" % [cid, float(lg[i][0]), String(lg[i][1]).left(48), float(lg[i][2]), gap, note, "" if bool(lg[i][3]) else "  (НЕТ ГОЛОСА)"])
 	print("GOLDA67CHECK   LOG %s длина %.1f с" % [cid, t_last])
+
+## Проход героя сквозь центр предмета: капсула идёт по прямой через точку; true — упёрлась
+func _walk_blocked(g, c: Vector3) -> bool:
+	var space: PhysicsDirectSpaceState3D = g.get_world_3d().direct_space_state
+	var best := false
+	for ang in [0.0, PI * 0.5]:
+		var d := Vector3(cos(ang), 0, sin(ang))
+		var sh := CapsuleShape3D.new()
+		sh.radius = 0.3
+		sh.height = 1.7
+		var q := PhysicsShapeQueryParameters3D.new()
+		q.shape = sh
+		q.collision_mask = 1
+		q.transform = Transform3D(Basis(), Vector3(c.x, 0.95, c.z) - d * 3.0)
+		q.motion = d * 6.0
+		var r: Array = space.cast_motion(q)
+		if r.size() >= 2 and float(r[0]) < 0.999:
+			best = true
+	return best
+
+func _coll_walk(g, G: Golda67, P) -> void:
+	await wait(0.5)
+	await _go(G, P, "exit")
+	await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(1.0)
+	var list := [
+		["сушилка: столб 1", Vector3(8.8, 0, 20.6)], ["сушилка: столб 2", Vector3(12.2, 0, 21.4)], ["сушилка: под верёвкой", Vector3(10.5, 0, 21.0)],
+		["ковровыбивалка", Vector3(-7.0, 0, 3.6)], ["дерево (−8,5; 17,5)", Vector3(-8.5, 0, 17.5)], ["берёза (9,5; 14,5)", Vector3(9.5, 0, 14.5)],
+		["дерево (−24; 13,5)", Vector3(-24.0, 0, 13.5)], ["берёза (−9,5; −1)", Vector3(-9.5, 0, -1.0)], ["берёза (13; −2,5)", Vector3(13.0, 0, -2.5)],
+		["куст (−6; 26,3)", Vector3(-6.0, 0, 26.3)], ["куст (8,6; 26,2)", Vector3(8.6, 0, 26.2)], ["куст (−22,5; −4,5)", Vector3(-22.5, 0, -4.5)],
+		["куча мусора (−20,6; 34,6)", Vector3(-20.6, 0, 34.6)], ["куча мусора (−42,6; 21,5)", Vector3(-42.6, 0, 21.5)], ["куча мусора (40,6; 3,6)", Vector3(40.6, 0, 3.6)],
+		["барьер площадки 1", Vector3(-3.4, 0, -15.8)], ["барьер площадки 2", Vector3(1.3, 0, -15.8)], ["барьер площадки 3", Vector3(6.0, 0, -15.8)],
+		["узел (−2; 1,2)", Vector3(-2.0, 0, 1.2)], ["столб ворот коробки слева", Vector3(-0.1, 0, -27.0)], ["столб ворот коробки справа", Vector3(4.1, 0, -27.0)],
+		["ящик у трона", Vector3(5.6, 0, -47.6)], ["зритель у борта", Vector3(-12.6, 0, -36.0)], ["сугроб-модель (−18; 26,2)", Vector3(-18.0, 0, 26.2)],
+		["автомат «Бурмалда»", G67Yard.EVENT_SPOTS["burmalda"]], ["столб кнопки", G67Yard.EVENT_SPOTS["button"]], ["ларёк", Vector3(42.3, 0, 7.0)],
+		["лавка (−3,4; 34,6)", Vector3(-3.4, 0, 34.6)], ["лавка (3,4; 34,6)", Vector3(3.4, 0, 34.6)], ["урна у лавки", Vector3(-1.9, 0, 33.6)],
+		["машина (−9; 31,4)", Vector3(-9.0, 0, 31.4)], ["машина (31,4; −4,5)", Vector3(31.4, 0, -4.5)], ["фургон (17,5; 31,2)", Vector3(17.5, 0, 31.2)],
+		["турник (−8; −43,5)", Vector3(-8.0, 0, -43.5)], ["турник (12,2; −33)", Vector3(12.2, 0, -33.0)], ["покрышки у трона", Vector3(-3.6, 0, -48.2)],
+		["конус (−37,4; −8)", Vector3(-37.4, 0, -8.0)], ["горка заначки (20,5; −31)", Vector3(20.5, 0, -31.0)], ["беседка", Vector3(-27.0, 0, -33.5)],
+		["скамья у беседки", Vector3(-22.8, 0, -29.5)], ["бочка у беседки", Vector3(-24.2, 0, -31.4)]]
+	for it in list:
+		print("GOLDA67CHECK   WALK %s | %s" % [str(it[0]), "ПРОХОДИТ СКВОЗЬ" if not _walk_blocked(g, it[1]) else "упирается"])
 
 ## Разведка: предметы двора и подъезда без коллизии (проба формой в центре каждого заметного объекта)
 func _aabb_of(n: Node) -> AABB:

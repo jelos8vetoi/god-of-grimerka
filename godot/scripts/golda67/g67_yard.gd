@@ -220,6 +220,20 @@ func _solid_box(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
 	add_child(sb)
 	solids.append([Vector3(pos.x, 0, pos.z), maxf(size.x, size.z) * 0.6 + 0.5])
 
+## Столб-цилиндр для коллизии: стволы, кусты, кучи — герой обходит, враги тоже (та же маска, что у остальной статики)
+func _pillar(pos: Vector3, r: float, h: float) -> void:
+	var sb := StaticBody3D.new()
+	sb.collision_layer = 1 | 8
+	var cs := CollisionShape3D.new()
+	var cy := CylinderShape3D.new()
+	cy.radius = r
+	cy.height = h
+	cs.shape = cy
+	sb.add_child(cs)
+	sb.position = Vector3(pos.x, h * 0.5, pos.z)
+	add_child(sb)
+	solids.append([Vector3(pos.x, 0, pos.z), r + 0.4])
+
 ## Модель по пути или id: низ в pos, высота h, лицо (у моделей гонок — +X) повёрнуто на угол yaw.
 ## solid — поставить столкновение по габаритам. Возвращает корень.
 func _put(id: String, pos: Vector3, yaw: float, h: float, solid := true, wide := 99.0) -> Node3D:
@@ -231,6 +245,12 @@ func _put(id: String, pos: Vector3, yaw: float, h: float, solid := true, wide :=
 	if solid:
 		var s: Vector3 = n.get_meta("size", Vector3.ONE)
 		_solid_box(pos + Vector3(0, s.y * 0.5, 0), Vector3(s.x, s.y, s.z), yaw)
+	elif id.ends_with("_tree"):
+		_pillar(pos, 0.3, 3.0)
+	elif id == "bush":
+		_pillar(pos, 0.45, 1.0)
+	elif id == "trash_pile":
+		_pillar(pos, 0.7, 0.8)
 	return n
 
 ## Модель приквела (assets/golda67, лицо по +Z): yaw — куда смотрит лицо. fit: "h" — по высоте v, "d" — по длине
@@ -286,6 +306,7 @@ func _drift(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
 		var n := G67Models.spawn("g67_snowdrift", self, Vector3(pos.x, -0.08, pos.z), yaw + (PI * 0.5 if along_x else 0.0) + (PI if int(absf(pos.x + pos.z)) % 2 == 0 else 0.0), Vector3(99, 99, length), "d")
 		var wide := minf(size.x, size.z) / maxf(0.01, (n.get_meta("size", Vector3.ONE) as Vector3).x)
 		n.scale = Vector3(clampf(wide, 0.8, 2.2), clampf(size.y * 0.9, 0.7, 1.3), 1.0)
+		_solid_box(Vector3(pos.x, 0.45, pos.z), Vector3(minf(size.x, size.z) * 0.8, 0.9, length * 0.9) if not along_x else Vector3(length * 0.9, 0.9, minf(size.x, size.z) * 0.8), yaw)
 		return
 	var root := Node3D.new()
 	root.position = Vector3(pos.x, 0.0, pos.z)
@@ -667,6 +688,7 @@ func _zone_playground() -> void:
 		_put("fence_section", Vector3(9.8, 0, -13.0 + i * 4.7), 0.0, 1.0, false, 4.7)
 	for i in 3:
 		_put("fence_section", Vector3(-3.4 + i * 4.7, 0, -15.8), PI * 0.5, 1.0, false, 4.7)
+		_solid_box(Vector3(-3.4 + i * 4.7, 0.5, -15.8), Vector3(4.7, 1.0, 0.3))
 	_solid_box(Vector3(-5.8, 0.5, -8.4), Vector3(0.2, 1.0, 14.0))
 	_solid_box(Vector3(9.8, 0.5, -8.4), Vector3(0.2, 1.0, 14.0))
 	_put("bench", Vector3(-7.4, 0, -6.5), 0.0, 0.95)
@@ -1156,6 +1178,7 @@ func _arena_decor(x0: float, x1: float, z0: float, z1: float) -> void:
 	_banner(Vector3(x0 + 0.5, 6.8, z0 - 0.3), Vector3(x1 - 0.5, 6.8, z0 - 0.3), "ТУРНИР 67")          # за троном между мачтами
 	# реквизит у трона: ящик с магнитолой, свёрнутый ковёр, покрышки
 	var crate := _box(Vector3(5.6, 0.3, -47.6), Vector3(0.8, 0.6, 0.55), _flat(Color(0.35, 0.24, 0.14), 0.9))
+	_solid_box(Vector3(5.6, 0.3, -47.6), Vector3(0.8, 0.6, 0.55))
 	var radio := _box(Vector3(5.6, 0.75, -47.6), Vector3(0.55, 0.3, 0.25), _flat(Color(0.1, 0.1, 0.12), 0.6))
 	for sx in [-0.17, 0.17]:
 		var sp := MeshInstance3D.new()
@@ -1307,6 +1330,8 @@ func _zone_sport() -> void:
 			_put("fence_section", Vector3(x0, 0, zz), 0.0, 1.9, false, segz / 1.15)
 			_put("fence_section", Vector3(x1, 0, zz), 0.0, 1.9, false, segz / 1.15)
 	_own("g67_court_gate", Vector3(gate_x, 0, z1), 0.0, 4.4, "w", false)
+	_pillar(Vector3(gate_x - 2.05, 0, z1), 0.2, 4.0)
+	_pillar(Vector3(gate_x + 2.05, 0, z1), 0.2, 4.0)
 	_solid_box(Vector3((x0 + x1) * 0.5, 1.0, z0), Vector3(x1 - x0, 2.0, 0.3))
 	_solid_box(Vector3(x0, 1.0, (z0 + z1) * 0.5), Vector3(0.3, 2.0, z1 - z0))
 	_solid_box(Vector3(x1, 1.0, (z0 + z1) * 0.5), Vector3(0.3, 2.0, z1 - z0))
