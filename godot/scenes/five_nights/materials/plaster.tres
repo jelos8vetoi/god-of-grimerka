@@ -1,13 +1,18 @@
-[gd_resource type="StandardMaterial3D" load_steps=2 format=3]
+[gd_resource type="ShaderMaterial" load_steps=3 format=3]
 
+[ext_resource type="Shader" path="res://scenes/five_nights/materials/booth_surface.gdshader" id="Surface"]
 [ext_resource type="Texture2D" path="res://scenes/five_nights/materials/surface_grain.tres" id="Grain"]
 
 [resource]
 resource_name = "plaster"
-albedo_color = Color(0.6, 0.56, 0.48, 1)
-albedo_texture = ExtResource("Grain")
-metallic = 0
-roughness = 0.96
-uv1_scale = Vector3(0.68, 0.68, 0.68)
-uv1_triplanar = true
-uv1_world_triplanar = true
+shader = ExtResource("Surface")
+shader_parameter/grain = ExtResource("Grain")
+shader_parameter/base = Color(0.52, 0.48, 0.4, 1)
+shader_parameter/grain_scale = 0.68
+shader_parameter/rough = 0.96
+shader_parameter/grime = 0.55
+shader_parameter/streaks = 0.5
+shader_parameter/damp = 0.7
+shader_parameter/damp_height = 0.55
+shader_parameter/soot = 0.6
+shader_parameter/soot_from = 1.7

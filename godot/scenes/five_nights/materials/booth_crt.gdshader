@@ -5,6 +5,7 @@ render_mode unshaded;
 uniform bool static_channel = false;
 uniform float brightness : hint_range(0.0, 1.5) = 0.65;
 uniform vec4 phosphor : source_color = vec4(0.50, 0.78, 0.65, 1.0);
+uniform sampler2D dust : repeat_enable, filter_linear_mipmap;
 
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
@@ -23,5 +24,7 @@ void fragment() {
 		signal = 0.055 + 0.42 * snow;
 	}
 	float falloff = max(0.18, 1.0 - 0.48 * dot(p, p));
-	ALBEDO = vec3(0.005, 0.008, 0.007) + phosphor.rgb * signal * scan * falloff * brightness;
+	float vig = 1.0 - 0.28 * smoothstep(0.55, 1.15, length(p));
+	float speck = smoothstep(0.93, 0.99, texture(dust, UV * 7.0).r) * 0.05;
+	ALBEDO = vec3(0.005, 0.008, 0.007) + phosphor.rgb * (signal * scan * falloff * vig + speck) * brightness;
 }

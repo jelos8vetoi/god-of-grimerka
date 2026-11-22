@@ -1,7 +1,7 @@
-## Звук «5 НОЧЕЙ С ПАХАНОМ» — свой, синтезированный в коде (без чужих записей): гул, вентиляция, электричество,
-## реле, монитор, шаги, двери, скрежет, стук в шахте, шёпот, смешок, писк сервера, отключение, рукоятка
-## генератора, колокол шести утра и шесть разных криков скримеров. Звуки собираются один раз (кэш) и играют
-## через шины audio.gd: SFX, Ambient, Voice, Music.
+## Звук «5 НОЧЕЙ С ПАХАНОМ»: эффекты будки (стук, скрип, щелчок, отключение, треск лампы, ставни) — записи CC0 из
+## assets/audio/fn/sfx, остальное синтезировано в коде: шаги, скрежет, шёпот, смешок, рукоятка генератора, колокол шести
+## утра, крики скримеров. Синтез собирается один раз (кэш). Фон и случайные звуки здания — FNAmbience. Звуки идут через
+## шины audio.gd: SFX, Ambient, Room, Voice, Music.
 class_name FNSound
 
 const RATE := 22050
@@ -9,7 +9,7 @@ static var _cache := {}
 ## поправка громкости, дБ, поверх той, что задаёт место вызова: раньше многое звучало на −10…−16 дБ и почти целиком ниже
 ## 300 Гц — на динамиках ноутбука и в тихих наушниках этого не слышно; теперь у звуков есть «верх», а уровни выровнены
 const TRIM := {"cam": 7.0, "static": 6.0, "click": 5.0, "step": 9.0, "step_heavy": 6.0, "door_down": 3.0, "door_up": 4.0,
-	"ping": 3.0, "crawl": 7.0, "giggle": 7.0, "heart": 8.0, "whine": 6.0, "babble": 5.0, "fan": 3.0, "hum": 1.0, "buzz": 4.0,
+	"ping": 3.0, "crawl": 7.0, "giggle": 7.0, "heart": 8.0, "babble": 5.0, "hum": 1.0,
 	"crank": 4.0, "clank": 2.0, "vent_bang": 1.0, "power_down": 3.0, "breath": 5.0, "ring": 2.0}
 
 ## шина для звука: крики скримеров — отдельная Horror (с ограничителем, через SFX), остальное — как просит вызов
@@ -43,7 +43,50 @@ static func scream_pick(kind: String) -> Array:
 	_scream_last[kind] = k
 	return [load("%sscream_%s_%d.wav" % [SCREAM_DIR, kind, k + 1]), k + 1]
 
+## Записи эффектов (tools/godot-fn-ambience.cjs): assets/audio/fn/sfx/<id>_<N>.(ogg|wav). Если у id есть файлы — играет
+## случайный вариант, не один и тот же подряд; нет файлов — прежний синтез. FILE_TRIM выровнен измерением с синтезом
+## (WAV-вариант и OGG, средний уровень звучащей части; у click — по пику; knock, creak и door_down — с потолком по пику +2 дБ)
+const SFX_DIR := "res://assets/audio/fn/sfx/"
+const FILE_IDS := ["knock", "creak", "click", "power_down", "buzz", "door_down", "door_up"]
+const FILE_TRIM := {"knock": 7.5, "creak": 0.5, "click": 9.5, "power_down": 6.5, "buzz": 3.0, "door_down": 8.0, "door_up": 8.5}
+static var _file_n := {}
+static var _file_last := {}
+static var _file_streams := {}
+
+static func file_count(id: String) -> int:
+	if not _file_n.has(id):
+		var n := 0
+		while _file_path(id, n + 1) != "":
+			n += 1
+		_file_n[id] = n
+	return int(_file_n[id])
+
+static func _file_path(id: String, k: int) -> String:
+	for ext in ["ogg", "wav"]:
+		var p := "%s%s_%d.%s" % [SFX_DIR, id, k, ext]
+		if ResourceLoader.exists(p):
+			return p
+	return ""
+
+static func is_file(id: String) -> bool:
+	return file_count(id) > 0
+
+static func pick(id: String) -> AudioStream:
+	var n := file_count(id)
+	if n <= 0:
+		return get_stream(id)
+	var k := randi() % n
+	if n > 1 and k == int(_file_last.get(id, -1)):
+		k = (k + 1 + randi() % (n - 1)) % n
+	_file_last[id] = k
+	var key := "%s_%d" % [id, k]
+	if not _file_streams.has(key):
+		_file_streams[key] = load(_file_path(id, k + 1))
+	return _file_streams[key]
+
 static func trim(id: String) -> float:
+	if is_file(id):
+		return float(FILE_TRIM.get(id, 0.0))
 	return float(TRIM.get(id, 0.0))
 
 static func get_stream(id: String) -> AudioStreamWAV:
@@ -55,11 +98,13 @@ static func get_stream(id: String) -> AudioStreamWAV:
 
 ## все звуки заранее — чтобы скример не ждал синтеза
 static func warm() -> void:
-	for id in ["hum", "fan", "buzz", "whine", "click", "door_down", "door_up", "step", "step_heavy", "clank", "scrape", "crawl",
-			"vent_bang", "whisper", "giggle", "ring", "static", "ping", "power_down", "crank", "chime", "babble", "cam",
+	for id in ["step", "step_heavy", "clank", "scrape", "crawl",
+			"vent_bang", "whisper", "giggle", "ring", "static", "ping", "crank", "chime", "babble", "cam",
 			"scream_balon", "scream_madk1d", "scream_bot", "scream_clipper", "scream_ghost", "scream_mod", "scream_dark", "scream_pahan", "breath", "heart", "music_box_air",
-			"sting_night", "sting_lose", "knock", "drip", "creak", "toy"]:
+			"sting_night", "sting_lose", "toy"]:
 		get_stream(id)
+	for id in FILE_IDS:
+		pick(id)
 
 static func _wav(buf: PackedFloat32Array, loop := false) -> AudioStreamWAV:
 	var w := AudioStreamWAV.new()
@@ -104,35 +149,6 @@ static func _make(id: String) -> AudioStreamWAV:
 				# середина: дроссели ламп (120/240/360 Гц, плавают) и сухой воздух — то, что слышно и на маленьких динамиках
 				b[i] += (0.07 * sin(TAU * 120.0 * t) + 0.05 * sin(TAU * 240.3 * t + 0.4) + 0.03 * sin(TAU * 361.0 * t)) * (0.75 + 0.25 * sin(TAU * 0.5 * t)) + rng.randf_range(-1, 1) * 0.025
 			_loop_fade(b, 0.4)
-			return _wav(b, true)
-		"fan":            # старая вентиляция: шум с ритмом лопастей
-			var b := _buf(4.0)
-			var lp := 0.0
-			var lp2 := 0.0
-			for i in b.size():
-				var t := float(i) / RATE
-				lp += (rng.randf_range(-1, 1) - lp) * 0.08
-				lp2 += (lp - lp2) * 0.2
-				b[i] = lp2 * (0.7 + 0.3 * sin(TAU * 7.5 * t)) * 0.9 + 0.04 * sin(TAU * 120.0 * t)
-				b[i] += (lp - lp2) * 0.5 * (0.5 + 0.5 * sin(TAU * 7.5 * t)) + 0.02 * sin(TAU * (640.0 + 30.0 * sin(TAU * 0.2 * t)) * t)   # свист лопастей
-			_loop_fade(b, 0.3)
-			return _wav(b, true)
-		"buzz":           # лампа и фонари: 50 Гц с гармониками и треском
-			var b := _buf(3.0)
-			for i in b.size():
-				var t := float(i) / RATE
-				var x := 0.3 * sin(TAU * 100.0 * t) + 0.15 * sin(TAU * 200.0 * t) + 0.08 * signf(sin(TAU * 50.0 * t))
-				if rng.randf() < 0.0006:
-					x += rng.randf_range(-0.8, 0.8)
-				b[i] = x * 0.5
-			_loop_fade(b, 0.1)
-			return _wav(b, true)
-		"whine":          # писк монитора
-			var b := _buf(2.0)
-			for i in b.size():
-				var t := float(i) / RATE
-				b[i] = 0.12 * sin(TAU * 7800.0 * t) + 0.03 * rng.randf_range(-1, 1)
-			_loop_fade(b, 0.1)
 			return _wav(b, true)
 		"click":          # реле
 			var b := _buf(0.08)
@@ -379,12 +395,6 @@ static func _make(id: String) -> AudioStreamWAV:
 				if t < 0.2:
 					b[i] += sin(TAU * (1800.0 - 900.0 * t / 0.2) * t) * 0.4 * (1.0 - t / 0.2)    # писк пищалки
 				b[i] += rng.randf_range(-1, 1) * 0.06
-			return _wav(b)
-		"drip":           # капля в служебке
-			var b := _buf(0.5)
-			for i in b.size():
-				var t := float(i) / RATE
-				b[i] = sin(TAU * (1500.0 + 900.0 * exp(-t * 40.0)) * t) * exp(-t * 22.0) * 0.6
 			return _wav(b)
 		"creak":          # далёкий скрип двери или металла
 			var b := _buf(1.4)

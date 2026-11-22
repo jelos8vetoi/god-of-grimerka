@@ -116,6 +116,17 @@ var tip_box: PanelContainer
 var tip_l: Label
 var tip_id := ""                    # над какой плашкой мышь
 var tip_3d := ""                    # над какой кнопкой будки мышь (ставит fn_root)
+## Пульт — учебная помощь: виден первые DECK_LEARN секунд первой ночи нового сохранения, потом скрыт; F1 закрепляет его
+## (deck_pin, настройка «deck» в сохранении). Без пульта действия устройств коротко подписывает toast.
+const DECK_LEARN := 75.0
+const TOAST_LEN := 1.6
+const HINT_LEN := 6.0
+var deck_pin := false
+var deck_learn_left := 0.0
+var deck_shown := false
+var hint_left := 0.0
+var toast_l: Label
+var toast_t := 0.0
 var look_hint := false              # первая ночь: подсказка «как осмотреться»
 var cam_rows := {}                  # id камеры → строка в списке комнат планшета
 var act_lure: Dictionary = {}
@@ -202,15 +213,17 @@ func setup(r) -> void:
 	sub_skip = MGUI.hints([["F", "сбросить"]])
 	sub_skip.size_flags_vertical = Control.SIZE_SHRINK_END
 	sh2.add_child(sub_skip)
-	# клавиши будки — только пока учимся (первая ночь), плашками, справа снизу
+	# без пульта на экране первые секунды ночи напоминаем, как его вернуть и где справка
 	hint_box = MGUI.vbox(MGUI.S1)
 	hint_box.visible = false
+	hint_box.modulate.a = 0.55
+	hint_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(hint_box)
-	for row in [[["A", "левая дверь"], ["D", "правая дверь"]], [["Q", "свет слева"], ["E", "свет справа"]], [["Пробел", "камеры"], ["мышь к краю", "осмотреться"]]]:
-		var hr := MGUI.hints(row)
-		hr.alignment = BoxContainer.ALIGNMENT_END
-		hint_box.add_child(hr)
+	var hr := MGUI.hints([["F1", "пульт"], ["H", "справка"]])
+	hr.alignment = BoxContainer.ALIGNMENT_END
+	hint_box.add_child(hr)
 	_deck()
+	deck_pin = bool((FNSave.v("settings") as Dictionary).get("deck", false))
 	_tablet()
 	_dark()
 	_pause()
@@ -229,7 +242,7 @@ func _deck() -> void:
 	for D in DEVICES:
 		var id := String(D["id"])
 		var p := PanelContainer.new()
-		var sb := MGUI.box(Color(0.03, 0.03, 0.04, 0.9), 3, 1, Color(0.34, 0.34, 0.37), 8)
+		var sb := MGUI.box(Color(0.03, 0.03, 0.04, 0.62), 3, 1, Color(0.24, 0.24, 0.27), 8)
 		sb.content_margin_top = 6
 		sb.content_margin_bottom = 6
 		p.add_theme_stylebox_override("panel", sb)
@@ -256,6 +269,10 @@ func _deck() -> void:
 		p.gui_input.connect(func(e: InputEvent):
 			if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
 				root.deck_press(id, e.pressed))
+	toast_l = _out(MGUI.label("", "mono", Color(0.92, 0.9, 0.84)))
+	hud.add_child(toast_l)
+	toast_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast_l.visible = false
 	tip_box = MGUI.panel(true, null, MGUI.S3)
 	tip_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tip_box.visible = false
@@ -304,7 +321,11 @@ func dev_tip(st: FNNight, id: String) -> String:
 
 func _deck_tick(st: FNNight) -> void:
 	var show: bool = tablet_k < 0.5 and not st.power_out and (card == null or card.get_child_count() == 0) and not pause_box.visible and String(root.state) == "night"
+	show = show and (deck_pin or deck_learn_left > 0.0)
 	deck.visible = show
+	if show != deck_shown:
+		deck_shown = show
+		_layout.call_deferred()
 	var hover := tip_id if tip_id != "" else tip_3d
 	for id in deck_rows:
 		var r: Dictionary = deck_rows[id]
@@ -314,8 +335,8 @@ func _deck_tick(st: FNNight) -> void:
 		var sb: StyleBoxFlat = r["sb"]
 		var on: bool = s[2]
 		var dis: bool = s[3]
-		sb.bg_color = Color(0.2, 0.03, 0.03, 0.92) if on and (s[1] as Color) == RED else (Color(0.2, 0.16, 0.04, 0.92) if on else Color(0.03, 0.03, 0.04, 0.9))
-		sb.border_color = (s[1] as Color) if on else (Color(0.95, 0.93, 0.88) if hover == id else Color(0.34, 0.34, 0.37))
+		sb.bg_color = Color(0.2, 0.03, 0.03, 0.62) if on and (s[1] as Color) == RED else (Color(0.2, 0.16, 0.04, 0.62) if on else Color(0.03, 0.03, 0.04, 0.62))
+		sb.border_color = (s[1] as Color) if on else (Color(0.95, 0.93, 0.88) if hover == id else Color(0.24, 0.24, 0.27))
 		sb.set_border_width_all(2 if on or hover == id else 1)
 		(r["name"] as Label).add_theme_color_override("font_color", MGUI.TEXT_3 if dis else MGUI.TEXT)
 		(r["panel"] as Control).modulate.a = 0.6 if dis else 1.0
@@ -328,6 +349,38 @@ func _deck_tick(st: FNNight) -> void:
 		_layout.call_deferred()
 	elif tip == "" and tip_box.visible:
 		tip_box.visible = false
+
+## начало ночи: на первой ночи нового сохранения пульт виден, в остальные — только если закреплён (F1)
+func night_begin(n: int, first_time: bool) -> void:
+	deck_learn_left = DECK_LEARN if n == 0 and first_time else 0.0
+	hint_left = 0.0 if deck_pin or deck_learn_left > 0.0 else HINT_LEN
+	toast_t = 0.0
+	toast_l.visible = false
+
+## F1: закрепить пульт или убрать
+func toggle_deck_pin() -> void:
+	deck_pin = not deck_pin
+	deck_learn_left = 0.0
+	hint_left = 0.0
+	var cfg: Dictionary = FNSave.v("settings")
+	cfg["deck"] = deck_pin
+	FNSave.save()
+
+## без пульта: «<устройство> — <состояние>» внизу по центру на TOAST_LEN секунд
+func toast(id: String) -> void:
+	if deck_shown or tablet_k > 0.5 or root.st == null or root.st.power_out or not deck_rows.has(id):
+		return
+	var D: Dictionary = deck_rows[id]["d"]
+	toast_l.text = "%s — %s" % [D["name"], dev_state(root.st, id)[0]]
+	toast_t = TOAST_LEN
+	toast_l.visible = true
+	_layout.call_deferred()
+
+func _toast_tick(st: FNNight, dt: float) -> void:
+	toast_t = maxf(0.0, toast_t - dt)
+	var k := minf(minf(toast_t, TOAST_LEN - toast_t) / 0.15, 1.0)
+	toast_l.modulate.a = clampf(k, 0.0, 1.0)
+	toast_l.visible = toast_t > 0.0 and not deck_shown and tablet_k < 0.5 and not st.power_out
 
 ## надпись поверх сцены: тёмная обводка, чтобы читалась на любом фоне
 func _out(l: Label) -> Label:
@@ -359,7 +412,7 @@ func _layout() -> void:
 		deck.reset_size()
 		var dw := deck.get_combined_minimum_size().x
 		deck.position = Vector2((s.x - dw) * 0.5, s.y - 12.0 - DECK_H)
-		deck_top = deck.position.y
+		deck_top = deck.position.y if deck_shown else s.y - EDGE + 10.0
 		tip_box.reset_size()
 		var ts := tip_box.get_combined_minimum_size()
 		tip_box.position = Vector2((s.x - ts.x) * 0.5, deck_top - ts.y - 8.0)
@@ -373,7 +426,9 @@ func _layout() -> void:
 	# звонок — над плашкой генератора, если она на экране (обе живут снизу по центру)
 	var lift := 110.0 if dark_box != null and dark_box.visible else 0.0
 	var tip_h: float = (tip_box.get_combined_minimum_size().y + 8.0) if tip_box != null and tip_box.visible else 0.0
-	sub_box.position = Vector2((s.x - sub_box.get_combined_minimum_size().x) * 0.5, s.y - EDGE - sub_box.get_combined_minimum_size().y - 70 - lift - tip_h)
+	sub_box.position = Vector2((s.x - sub_box.get_combined_minimum_size().x) * 0.5, s.y - EDGE - sub_box.get_combined_minimum_size().y - (70 if deck_shown or lift > 0.0 else 10) - lift - tip_h)
+	toast_l.reset_size()
+	toast_l.position = Vector2((s.x - toast_l.get_combined_minimum_size().x) * 0.5, s.y - 12.0 - 34.0)
 	hint_box.reset_size()
 	hint_box.position = Vector2(s.x - EDGE - hint_box.get_combined_minimum_size().x, s.y - EDGE - hint_box.get_combined_minimum_size().y)
 	if tablet != null:
@@ -626,7 +681,12 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 	power_box.visible = not st.power_out
 	# планшет поднят — часы и энергия будки не нужны (на планшете свои), клавиши будки тоже
 	clock_box.visible = tablet_k < 0.5
+	if String(root.state) == "night" and not root.paused and root.intro_t <= 0.0:
+		deck_learn_left = maxf(0.0, deck_learn_left - dt)
+		hint_left = maxf(0.0, hint_left - dt)
+	hint_box.visible = hint_left > 0.0 and not deck_shown and String(root.state) == "night"
 	_deck_tick(st)
+	_toast_tick(st, dt)
 	# ложная тревога MOD
 	alarm_t = maxf(0.0, alarm_t - dt)
 	alarm_l.visible = alarm_t > 0.0 and fposmod(t, 0.5) < 0.35

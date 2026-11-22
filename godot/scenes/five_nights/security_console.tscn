@@ -1,10 +1,11 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=25 format=3]
 
 [ext_resource type="PackedScene" path="res://assets/minigames/fn_security_desk.glb" id="fn_security_desk"]
 [ext_resource type="Material" path="res://scenes/five_nights/materials/laminate.tres" id="laminate"]
 [ext_resource type="Material" path="res://scenes/five_nights/materials/steel.tres" id="steel"]
 [ext_resource type="Material" path="res://scenes/five_nights/materials/enamel.tres" id="enamel"]
 [ext_resource type="Shader" path="res://scenes/five_nights/materials/booth_crt.gdshader" id="CRT"]
+[ext_resource type="Texture2D" path="res://scenes/five_nights/materials/surface_grain.tres" id="Dust"]
 [ext_resource type="FontFile" path="res://assets/fonts/RussoOne-Regular.ttf" id="Russo"]
 
 [sub_resource type="StandardMaterial3D" id="ResetCap"]
@@ -30,11 +31,13 @@ metallic = 0
 [sub_resource type="ShaderMaterial" id="Signal"]
 resource_local_to_scene = true
 shader = ExtResource("CRT")
+shader_parameter/dust = ExtResource("Dust")
 shader_parameter/brightness = 0.58
 
 [sub_resource type="ShaderMaterial" id="Auxiliary"]
 resource_local_to_scene = true
 shader = ExtResource("CRT")
+shader_parameter/dust = ExtResource("Dust")
 shader_parameter/static_channel = true
 shader_parameter/brightness = 0.46
 
@@ -106,10 +109,10 @@ cast_shadow = 0
 
 [node name="ScreenGlow" type="OmniLight3D" parent="."]
 position = Vector3(-0.05, 1.17, 0.13)
-light_color = Color(0.63, 0.89, 0.8, 1)
+light_color = Color(0.45, 0.95, 0.62, 1)
 light_energy = 0.25
-omni_range = 1.5
-omni_attenuation = 1.65
+omni_range = 1.7
+omni_attenuation = 1.4
 
 [node name="PhoneHit" type="Marker3D" parent="."]
 position = Vector3(0.667, 0.856, 0.12)
@@ -238,3 +241,11 @@ material_override = ExtResource("laminate")
 position = Vector3(0, 0.782, 0.396)
 mesh = SubResource("Box_1_72_0_009_0_009")
 material_override = ExtResource("steel")
+
+[node name="AudioPoints" type="Node3D" parent="."]
+
+[node name="Crt" type="Marker3D" parent="AudioPoints"]
+position = Vector3(-0.048, 1.294, -0.069)
+
+[node name="Fan" type="Marker3D" parent="AudioPoints"]
+position = Vector3(-0.64, 1.0, -0.3)

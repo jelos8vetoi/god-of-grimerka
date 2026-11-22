@@ -4,6 +4,12 @@
 class_name FNOffice
 extends Node3D
 
+## короткий провал света лампы над столом: на него отзываются звук лампы и треск (FNAmbience)
+signal lamp_dip
+
+## «единица» света лампы: в ней всё считают (энергии из FNScare и событий ночи — в этих единицах)
+const LAMP_UNIT := 1.08
+
 const YAW_MAX := deg_to_rad(64.0)
 const LOOK_RATE := 8.0
 const W := 2.2
@@ -15,7 +21,11 @@ const DOOR_Z := -0.4
 @onready var lamp: OmniLight3D = $Lighting/HouseLamp
 @onready var reserve: OmniLight3D = $Lighting/ReserveLamp
 @onready var reserve_rated := reserve.light_energy
-@onready var lamp_rated := lamp.light_energy
+@onready var desk: SpotLight3D = $Lighting/DeskPool
+@onready var spill_rated := lamp.light_energy
+@onready var desk_rated := desk.light_energy
+@onready var glass_rated: float = $Lighting/StripFixture/Diffuser.material_override.emission_energy_multiplier
+@onready var lamp_rated := LAMP_UNIT
 @onready var lamp_base := lamp_rated
 @onready var lamp_tint := lamp.light_color
 @onready var diffuser: StandardMaterial3D = $Lighting/StripFixture/Diffuser.material_override
@@ -56,6 +66,11 @@ var buttons := {}
 var leds := {}
 var t := 0.0
 var flick_t := 2.4
+var lamp_k := 1.0                 # текущий свет лампы относительно её обычного (для звука лампы)
+var instab := 0.0                 # нестабильность питания: растёт к поздним ночам (только вид)
+var crt_next := 12.0
+var crt_dip := 0.0
+var led_glow := {}
 var event_gain := 1.0
 var supply := 1.0
 var power_on := true
@@ -77,6 +92,7 @@ func _bind_door(side: String, doorway: Node3D, controls: Node3D, door_key: Strin
 	doors[side] = doorway.get_node("Track/Shutter")
 	lights[side] = doorway.get_node("Beam")
 	leds["door_" + side] = controls.get_node("LED")
+	led_glow[side] = controls.get_node("LedGlow")
 	_bind_button("door_" + side, controls.get_node("DoorHit"), 0.13)
 	_bind_button("light_" + side, controls.get_node("LightHit"), 0.12)
 	(controls.get_node("DoorLabel") as Label3D).text = "ДВЕРЬ  ·  " + door_key
@@ -238,6 +254,7 @@ func dress(n: int) -> void:
 		var l3 := label("НЕ ДОЛЖЕН БЫЛ ВЫЖИТЬ", Vector3(W - 0.06, 1.75, 0.7), 46, Color(0.5, 0.0, 0.0), Vector3(0, -deg_to_rad(90), 0.03), dress_root)
 		l3.shaded = false
 	lamp_base = lamp_rated * float([0.9, 0.9, 0.85, 0.78, 0.7, 0.6, 0.75][k]) / 0.9
+	instab = [0.0, 0.15, 0.3, 0.5, 0.7, 1.0, 0.6][k]
 
 ## аварийная лампа над правой дверью: медленно пульсирует, когда кто-то стоит у любой двери или шахты
 func alarm_pulse(danger: bool, dt: float) -> void:
@@ -290,32 +307,53 @@ func _look(st: FNNight, dt: float, target: float) -> void:
 func _lighting(st: FNNight, dt: float) -> void:
 	# Короткий провал люминофора и более медленный розжиг. Все источники в будке читают одно питание.
 	supply = move_toward(supply, 1.0 if power_on else 0.0, dt * (3.8 if power_on else 8.0))
+	var was := flick_t
 	flick_t -= dt
+	if was >= 0.18 and flick_t < 0.18 and power_on:
+		lamp_dip.emit()
 	if flick_t <= 0.0:
-		flick_t = randf_range(2.2, 5.6)
+		flick_t = randf_range(2.2, 5.6) * lerpf(1.6, 0.6, instab) * (0.5 if st.power < 15.0 else 1.0)
 	var dip := sin(PI * clampf(flick_t / 0.18, 0.0, 1.0))
-	var output := (0.985 + 0.015 * sin(t * 11.0) - 0.24 * dip) * supply
+	var output := (0.985 + 0.015 * sin(t * 11.0) + 0.02 * sin(t * 0.7 + 1.3) * instab - lerpf(0.14, 0.42, instab) * dip) * supply
+	output *= 1.0 - 0.03 * maxf(0.0, float(st.usage) - 3.0)
 	if st.brown_warn > 0.0:
 		output *= 0.68 + 0.31 * cos(st.brown_warn * 17.0)
 	elif st.brown_t > 0.0:
 		output *= 0.22
 	set_lamp_energy(lamp_base * event_gain * output)
-	reserve.light_energy = reserve_rated * lerpf(0.26, 1.0, supply)
-	glow.light_energy = (0.47 if st.monitor else 0.25) * supply
-	screen_mat.set_shader_parameter("brightness", (0.95 if st.monitor else 0.62) * supply)
-	aux_mat.set_shader_parameter("brightness", 0.46 * supply)
+	reserve.light_energy = reserve_rated * lerpf(1.0, 0.55, supply)
+	crt_next -= dt
+	if crt_next <= 0.0:
+		crt_dip = 0.06
+		crt_next = randf_range(5.0, 14.0) if instab >= 0.7 else randf_range(9.0, 25.0)
+	crt_dip = maxf(0.0, crt_dip - dt)
+	var crt_k := (1.0 + 0.035 * sin(t * 2.3) + 0.02 * sin(t * 7.1)) * (0.75 if crt_dip > 0.0 else 1.0)
+	glow.light_energy = (0.46 if st.monitor else 0.30) * supply * crt_k
+	screen_mat.set_shader_parameter("brightness", (0.95 if st.monitor else 0.62) * supply * crt_k)
+	aux_mat.set_shader_parameter("brightness", 0.46 * supply * crt_k)
 	record_light.visible = power_on and fposmod(t, 1.6) < 1.1
 
 ## Скример и события ночи меняют и сам источник, и стекло светильника.
 func set_lamp_energy(energy: float) -> void:
-	lamp.light_energy = energy
-	diffuser.emission_energy_multiplier = energy * 0.9
+	var k := energy / LAMP_UNIT
+	lamp_k = clampf(energy / maxf(lamp_base, 0.001), 0.0, 3.0)
+	lamp.light_energy = spill_rated * k
+	desk.light_energy = desk_rated * k
+	diffuser.emission_energy_multiplier = glass_rated * k
+
+## цвет света лампы (скримеры красят комнату): и рассеянный свет, и пятно на столе
+func set_lamp_color(c: Color) -> void:
+	lamp.light_color = c
+	desk.light_color = c
 
 func _indicators(st: FNNight) -> void:
 	# индикаторы (MOD может врать — настоящая правда только в ставнях и фонарях)
 	for s in ["l", "r"]:
 		var v := st.door_led(s) if power_on else -1
 		(leds["door_" + s] as MeshInstance3D).material_override = mats["red_led"] if v == 1 else (mats["green_led"] if v == 0 else mats["off_led"])
+		var lg: OmniLight3D = led_glow[s]
+		lg.light_energy = 0.05 if v >= 0 else 0.0
+		lg.light_color = Color(1.0, 0.08, 0.05) if v == 1 else Color(0.25, 1.0, 0.35)
 	for s in ["l", "t"]:
 		var on2: bool = st.seal[s] and power_on and not st.glitches.has("leds_off")
 		(leds["seal_" + s] as MeshInstance3D).material_override = mats["red_led"] if on2 else mats["off_led"]

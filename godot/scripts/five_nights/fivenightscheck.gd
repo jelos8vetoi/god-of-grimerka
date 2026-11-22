@@ -242,6 +242,12 @@ func _ui_part() -> void:
 	ok(not st.door["l"] and not st.door["r"] and R.office.door_y["l"] > 0.9, "двери открылись")
 	# ---- ПУЛЬТ: у каждого устройства видно клавишу, название и состояние ----
 	var UI: FNUI = R.ui
+	var learn_on: bool = UI.deck_learn_left > 0.0
+	ok(learn_on and UI.deck.visible, "первая ночь нового сохранения: пульт виден из-за учёбы (осталось %.0f с)" % UI.deck_learn_left)
+	var pin_was := UI.deck_pin
+	if not learn_on:
+		UI.deck_pin = true
+		await wait(0.2)
 	var deck_names_ok := true
 	var deck_txt: Array = []
 	var deck_screen := Rect2(Vector2.ZERO, UI._vs())
@@ -308,6 +314,8 @@ func _ui_part() -> void:
 	var led_txt: String = (UI.deck_rows["door_l"]["state"] as Label).text
 	st.glitches.erase("leds_off")
 	ok(String(rs[0]) == "МАЛО ЭНЕРГИИ" and bool(rs[3]) and led_txt == "НЕТ ДАННЫХ", "недоступное видно: сброс «%s», при сбое индикаторов дверь «%s»" % [rs[0], led_txt])
+	await _deck_hidden(R, st)
+	UI.deck_pin = pin_was
 	# свет держится, пока держишь
 	var q := InputEventKey.new()
 	q.keycode = KEY_Q
@@ -345,6 +353,7 @@ func _ui_part() -> void:
 		await shot("f1%d_cam_%s" % [i, FNData.CAMS[i]["id"]])
 	ok(seen_cams == 8, "1–8 — все восемь камер (%d)" % seen_cams)
 	await _hall_left(R, st)
+	await _ambience(R, st)
 	await _anomalies(R, st)
 	ok(R.cams.vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS, "рисуется только выбранная камера, пока монитор поднят")
 	await key(KEY_SPACE)
@@ -636,6 +645,46 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 ## чистая логика ночи: энергия, двери, маршруты, условия атаки
 ## левый коридор CAM 4 — сцена: одна, звук совпадает с местом врага, свет не достаёт до двери ниши, враг виден в коридоре
 ## и не виден из-за угла ниши (сырая картинка камеры без шейдера); снимки c4_*
+## пульт скрыт (учёба кончилась): энергия и часы на месте, F1 возвращает пульт и запоминает выбор, действия подписывает toast
+func _deck_hidden(R: FiveNightsRoot, st: FNNight) -> void:
+	var UI: FNUI = R.ui
+	var pin_was := UI.deck_pin
+	var learn_was := UI.deck_learn_left
+	var cfg: Dictionary = FNSave.v("settings")
+	var cfg_was = cfg.get("deck", null)
+	UI.deck_learn_left = 0.0
+	UI.deck_pin = false
+	await wait(0.3)
+	ok(not UI.deck.visible and UI.power_box.visible and UI.clock_box.visible, "учёба кончилась — пульта нет, энергия и часы на месте")
+	await key(KEY_F1)
+	await wait(0.3)
+	var pinned_on: bool = UI.deck.visible and bool(cfg.get("deck", false))
+	await key(KEY_F1)
+	await wait(0.3)
+	ok(pinned_on and not UI.deck.visible and not bool(cfg.get("deck", false)), "F1 показывает пульт и запоминает это в настройках, второй F1 убирает")
+	await key(KEY_A)
+	await wait(0.25)
+	var toast_txt: String = UI.toast_l.text
+	var toast_vis: bool = UI.toast_l.visible
+	await key(KEY_A)
+	await wait(0.4)
+	ok(toast_vis and toast_txt == "ЛЕВАЯ ДВЕРЬ — ЗАКРЫТА", "пульта нет — дверь по клавише A подписана на экране: «%s»" % toast_txt)
+	UI.deck_pin = true
+	UI.toast_t = 0.0
+	await wait(0.3)
+	await key(KEY_A)
+	await wait(0.25)
+	var no_toast: bool = not UI.toast_l.visible
+	await key(KEY_A)
+	await wait(0.4)
+	ok(no_toast, "пока пульт на экране, подпись действия не нужна")
+	UI.deck_pin = pin_was
+	UI.deck_learn_left = learn_was
+	if cfg_was == null:
+		cfg.erase("deck")
+	else:
+		cfg["deck"] = cfg_was
+
 func _hall_left(R: FiveNightsRoot, st: FNNight) -> void:
 	var F := R.fac
 	var hl := F.hall_l
@@ -683,6 +732,99 @@ func _hall_left(R: FiveNightsRoot, st: FNNight) -> void:
 		e.look = s[4]
 		e.move_t = s[5]
 		e.linger = s[6]
+	R.actors.place_key.clear()
+
+## фон будки (FNAmbience): слои из записей, монитор глушит комнату, угроза запрещает случайные звуки, отключение питания
+## останавливает электрику и раскручивает вентиляторы вниз, возвращение — обратно, случайные звуки и пауза
+func _ambience(R: FiveNightsRoot, st: FNNight) -> void:
+	var A := R.ambience
+	var loops := 0
+	for k in A.layers:
+		var s = (A.layers[k]["p"] as Node).get("stream")
+		if s is AudioStreamOggVorbis and (s as AudioStreamOggVorbis).loop and String((s as AudioStreamOggVorbis).resource_path).begins_with(FNAmbience.AMB_DIR):
+			loops += 1
+	ok(A != null and loops >= 10 and loops == A.layers.size() and FNSound.is_file("knock") and FNSound.is_file("door_down") and not FNSound.is_file("step"), "фон: %d слоёв-петель из assets/audio/fn/amb, стук и ставни — записи, шаги — синтез" % loops)
+	var saved := {}
+	for id in st.enemies:
+		var e: FNEnemy = st.enemies[id]
+		saved[id] = [e.level, e.spot, e.prev, e.move_t, e.linger]
+		e.spot = "away"
+		e.move_t = 1.0e6
+		e.linger = 1.0e6
+	var keep := [st.monitor, st.power, st.crank_p, st.dark_need, st.emergency_used]
+	st.monitor = false
+	A.hold_t = 0.0
+	A.gust_phase = "idle"
+	A.gust_t = 1.0e6
+	A.gust = 0.25
+	await wait(1.0)
+	ok(A.level("vent") > -40.0 and A.room_cutoff > 15000.0, "фон в обычном режиме слышен (вентиляция %.1f дБ), комната открыта (%.0f Гц)" % [A.level("vent"), A.room_cutoff])
+	st.monitor = true
+	await wait(1.0)
+	var open_ok: bool = A.room_cutoff < 2500.0 and A.level("tablet_noise") > -40.0
+	st.monitor = false
+	await wait(1.2)
+	ok(open_ok and A.room_cutoff > 15000.0 and A.level("tablet_noise") <= -55.0, "монитор глушит комнату (срез < 2,5 кГц, шум планшета слышен), закрыли — всё вернулось")
+	var b: FNEnemy = st.enemies["balon"]
+	b.level = maxi(b.level, 1)
+	b.spot = "door_l"
+	var near: bool = A.events_blocked(st)
+	b.spot = "away"
+	A.hold_t = 0.0
+	ok(near and not A.events_blocked(st), "враг у двери — случайных звуков нет; ушёл и отсчёт угрозы кончился — разрешены")
+	var draft0 := A.level("draft")
+	st.power = 0.001
+	var went: bool = await until(func(): return st.power_out, 6.0)
+	st.dark_need = 60.0
+	await wait(1.5)
+	var cut_ok: bool = A.level("lamp_hum") <= -55.0 and A.level("crt_whine") <= -55.0 and A.level("panel_hum") <= -55.0 and A.pitch("deskfan") < 0.9
+	await wait(5.5)
+	var ev_ok := true
+	for i in 200:
+		var pe := A.pick_event(2, true)
+		if pe == "zap" or pe == "relay":
+			ev_ok = false
+	ok(went and cut_ok and A.level("deskfan") <= -55.0 and A.level("rumble_a") > -30.0 and A.level("draft") >= draft0 and ev_ok, "отключение: электрика молчит, вентилятор остановился (%.0f дБ), гул здания и сквозняк на месте, при тьме нет реле и искр" % A.level("deskfan"))
+	st.emergency_used = false
+	st.crank_p = 5.99
+	st.crank()
+	await wait(4.5)
+	ok(not st.power_out and A.level("lamp_hum") > -40.0 and A.pitch("deskfan") > 0.95, "питание вернулось: лампа гудит (%.1f дБ), вентилятор раскрутился (%.2f)" % [A.level("lamp_hum"), A.pitch("deskfan")])
+	var bad := false
+	var prev := ""
+	var gaps: Array = []
+	for i in 300:
+		var pe := A.pick_event(0, false)
+		bad = bad or pe == prev or pe in ["knock", "thud", "grind", "groan", "drag"]
+		prev = pe
+		gaps.append(A.next_gap(0))
+	ok(not bad and gaps.min() >= 27.5 and gaps.max() <= 85.0 and gaps.max() / gaps.min() >= 2.0, "случайные звуки: ночью 1 только скрипы, лязг, дребезг, реле и искры, подряд не повторяются, паузы %.0f–%.0f с" % [gaps.min(), gaps.max()])
+	var played := A.play_event("clang")
+	var far := (A.ev_players[(A.ev_i + A.ev_players.size() - 1) % A.ev_players.size()] as AudioStreamPlayer3D).global_position.distance_to(R.office.cam.global_position)
+	ok(played and far >= 8.0, "далёкий лязг звучит издалека (%.0f м)" % far)
+	R.set_paused(true)
+	var all_paused := A.layers.values().all(func(d): return (d["p"] as Node).get("stream_paused"))
+	R.set_paused(false)
+	var none_paused := A.layers.values().all(func(d): return not (d["p"] as Node).get("stream_paused"))
+	ok(all_paused and none_paused, "пауза останавливает все слои фона, снятие паузы запускает")
+	R.hush_begin("dead")
+	var quiet_ev := A.ev_players.all(func(p): return not (p as AudioStreamPlayer3D).playing)
+	R.hush_end()
+	ok(quiet_ev, "мёртвая тишина обрывает случайные звуки")
+	ok(R.find_children("*", "Node", true, false).filter(func(n): return n is FNAmbience).size() == 1, "под корнем один FNAmbience")
+	for id in st.enemies:
+		var e: FNEnemy = st.enemies[id]
+		var s: Array = saved[id]
+		e.level = s[0]
+		e.spot = s[1]
+		e.prev = s[2]
+		e.move_t = s[3]
+		e.linger = s[4]
+	st.monitor = keep[0]
+	st.power = keep[1]
+	st.crank_p = keep[2]
+	st.dark_need = keep[3]
+	st.emergency_used = keep[4]
 	R.actors.place_key.clear()
 
 ## сырой кадр камеры (480×270) с одним врагом в точке; id "" — пусто
