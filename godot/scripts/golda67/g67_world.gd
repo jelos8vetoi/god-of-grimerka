@@ -299,7 +299,6 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	# ---------- холл: стена под площадкой с дверью колясочной ----------
 	_put("g67_service_door", Vector3(0.0, 0, Z_EDGE + 0.12), 0.0, Vector3(1.0, LAND_Y - 0.08, 0.6), "h", false)
 	_static_box(Vector3(0.0, 0.7, Z_EDGE + 0.1), Vector3(1.1, 1.4, 0.3))
-	_point("door", "КОЛЯСОЧНАЯ", "заколочена", Vector3(0.0, 0, Z_EDGE + 0.9))
 	# почтовые ящики — на левой стене у входа, на уровне глаз
 	_put("g67_mailboxes", Vector3(-X + 0.12, 1.05, 4.3), PI * 0.5, Vector3(1.5, 0.8, 0.5), "h", false)
 	_point("mail", "ПОЧТОВЫЕ ЯЩИКИ", "листовки турнира", Vector3(-X + 0.9, 0, 4.3))

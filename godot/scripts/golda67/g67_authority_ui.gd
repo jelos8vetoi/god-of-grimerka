@@ -133,6 +133,7 @@ func _header() -> void:
 	spent_l = _lab("", "caps", 11, G67UpCard.BEIGE_DIM, Vector2(1236, 114))
 
 func _grid() -> void:
+	var ups: Array = G67Data.UPGRADES.filter(func(u): return bool(u["live"]))      # неработающие ветки не показываем
 	var x0 := 120.0
 	var y0 := 178.0
 	for gi in GROUPS.size():
@@ -146,10 +147,10 @@ func _grid() -> void:
 		stage.add_child(tab)
 		for ci in 3:
 			var i := gi * 3 + ci
-			if i >= G67Data.UPGRADES.size():
+			if i >= ups.size():
 				break
 			var c := G67UpCard.new()
-			c.setup(G67Data.UPGRADES[i], i, GROUPS[gi])
+			c.setup(ups[i], i, GROUPS[gi])
 			c.position = Vector2(x0 + ci * 322.0, y)
 			c.mouse_entered.connect(func(): _select(i))
 			c.gui_input.connect(func(e):
@@ -215,6 +216,8 @@ func _refresh_all() -> void:
 	var spent := 0
 	var total := 0
 	for u in G67Data.UPGRADES:
+		if not bool(u["live"]):
+			continue
 		var lvl: int = G.up(String(u["id"]))
 		for k in int(u["max"]):
 			total += int(G67Data.UP_COST[k])

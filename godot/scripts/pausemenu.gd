@@ -23,6 +23,8 @@ const TABS := [
 	["МУЗЫКА", Vector2(150, 566), 112, -13.0],
 	["СИСТЕМА", Vector2(380, 716), 92, -23.0],
 ]
+## Вкладки приквела «ГОЛДА 67» (позиции те же, названия и страницы свои)
+const G67_TABS := ["СТАТУС", "БАФЫ", "АРТЕФАКТЫ", "МАРШРУТ", "МУЗЫКА", "СИСТЕМА"]
 const HINTS := ["Здоровье, СВЭГ, перегруз, глава", "Улучшения за прослушивания", "Пахан и madk1d", "Что сейчас делать", "iPod: трек и управление", "Настройки и выход"]
 ## Подложка меню: замерший мир почти без цвета, слева (под вкладками) уходит в черноту, справа, где Пахан, светлее;
 ## поверх — редкие диагональные штрихи и плёночное зерно.
@@ -67,6 +69,9 @@ var card_sel := 0
 var hp_text: Label
 var hp_fill: ColorRect
 var progress_text: Label
+var panel_caps: Array = []      # подписи двух белых панелей
+var hints_root: Control         # нижняя строка «Enter Выбрать / Esc Назад»
+var _g67_done := false
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -183,6 +188,27 @@ func _build_logo() -> void:
 	_text(logo, "GRIMERKA", 78, WHITE, Vector2(0, 66), serif, true)
 	_layer(logo)
 
+## Меню строится при создании игры, до приквела: когда режим приквела уже подключён, вкладки и панели переименовываются
+func _apply_golda() -> void:
+	if _g67_done or game.golda == null:
+		return
+	_g67_done = true
+	for i in tabs.size():
+		var tb: Dictionary = tabs[i]
+		var size: int = TABS[i][2]
+		var w: float = serif.get_string_size(G67_TABS[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		(tb["label"] as Label).text = G67_TABS[i]
+		(tb["root"] as Control).size = Vector2(w + 20, size * 1.1)
+		(tb["band"] as Polygon2D).polygon = torn(w + 60.0, size * 1.02, 31 + i, 40.0)
+		(tb["tag"] as Polygon2D).position = Vector2(w * 0.55, size * 0.98)
+	if panel_caps.size() > 1:
+		(panel_caps[1] as Label).text = "РЕСПЕКТ"
+	if hints_root != null:
+		hints_root.visible = false
+
+func _tab_name(i: int) -> String:
+	return G67_TABS[i] if game.golda != null else String(TABS[i][0])
+
 func _build_tabs() -> void:
 	for i in TABS.size():
 		var d: Array = TABS[i]
@@ -190,7 +216,8 @@ func _build_tabs() -> void:
 		var root := Control.new()
 		root.position = d[1]
 		root.rotation = deg_to_rad(float(d[3]))
-		var w: float = serif.get_string_size(d[0], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		var tname: String = _tab_name(i)
+		var w: float = serif.get_string_size(tname, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 		root.size = Vector2(w + 20, size * 1.1)
 		root.mouse_filter = Control.MOUSE_FILTER_STOP
 		root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -201,7 +228,7 @@ func _build_tabs() -> void:
 		band.color = WHITE
 		band.material = worn
 		root.add_child(band)
-		var lab := _text(root, d[0], size, WHITE, Vector2.ZERO, serif, true)
+		var lab := _text(root, tname, size, WHITE, Vector2.ZERO, serif, true)
 		var tag := Polygon2D.new()
 		tag.polygon = torn(190.0, 34.0, 60 + i, 10.0)
 		tag.color = RED
@@ -230,8 +257,8 @@ func _build_panels() -> void:
 		plate.color = WHITE
 		plate.material = worn
 		p.add_child(plate)
-		var caption := "ВРАГИ ПОВЕРЖЕНЫ" if game.is_survival() else "ПРОСЛУШИВАНИЯ"
-		_text(p, "ЗДОРОВЬЕ" if i == 0 else caption, 12, INK, Vector2(44, 3), serif)
+		var caption := "ВРАГИ ПОВЕРЖЕНЫ" if game.is_survival() else ("РЕСПЕКТ" if game.golda != null else "ПРОСЛУШИВАНИЯ")
+		panel_caps.append(_text(p, "ЗДОРОВЬЕ" if i == 0 else caption, 12, INK, Vector2(44, 3), serif))
 		var mark := Polygon2D.new()
 		mark.polygon = PackedVector2Array([Vector2(0, -9), Vector2(9, 0), Vector2(0, 9), Vector2(-9, 0)]) if i == 0 else PackedVector2Array([Vector2(-7, -9), Vector2(9, 0), Vector2(-7, 9)])
 		mark.color = INK
@@ -261,6 +288,7 @@ func _build_panels() -> void:
 			progress_text = val
 		_layer(p)
 	var hints := Control.new()
+	hints_root = hints
 	hints.position = Vector2(1210, 846)
 	hints.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(hints)
@@ -374,6 +402,7 @@ func _cam_to(k: float, sec: float) -> Tween:
 
 # ---------------- открыть / закрыть ----------------
 func open() -> void:
+	_apply_golda()
 	if state == "opening" or state == "open":
 		return
 	var resume := state == "closing"            # Esc посреди закрытия: разворачиваемся обратно
@@ -449,7 +478,10 @@ func _select(i: int, sound := true) -> void:
 
 func _open_page(i: int) -> void:
 	game.main.sfx("sfx_ui")
-	var top := _card(TABS[i][0])
+	var top := _card(_tab_name(i))
+	if game.golda != null and i < 4:
+		_golda_page(i, top)
+		return
 	match i:
 		0:
 			_big(top, "ПАХАН", 46)
@@ -548,14 +580,86 @@ func _open_page(i: int) -> void:
 			var acts: Array = [["ВЕРНУТЬСЯ В ИГРУ", close]]
 			for r in Opts.rows(get_window(), game.main.audio, game.ipod):
 				acts.append([r[0]] if r.size() == 1 else [r[0], null, r[1]])
-			acts.append(["#ОБУЧЕНИЕ"])
-			acts.append([func(): return "БОЕВЫЕ ПОДСКАЗКИ (%d)" % game.tutorial.seen_list().size(), func(): _tutorial_list()])
+			if game.golda == null:
+				acts.append(["#ОБУЧЕНИЕ"])
+				acts.append([func(): return "БОЕВЫЕ ПОДСКАЗКИ (%d)" % game.tutorial.seen_list().size(), func(): _tutorial_list()])
 			acts.append(["#УПРАВЛЕНИЕ"])
-			acts.append(["#WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — тяжёлый удар (держать — заряд) · 1/2/3 — стиль · F — приём стиля · E — Heat и добивание · Пробел — прыжок · Shift — уклонение · C — блок · Tab — смена героя · T — дуэт-атака · СКМ — захват цели, колесо — сменить цель · G — Team Overdrive · Q — ад-либ · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"])
+			var keys := "WASD — бег · мышь — камера · ЛКМ — удары · ПКМ — тяжёлый удар (держать — заряд) · 1/2/3 — стиль · F — приём стиля · E — Heat и добивание · Пробел — прыжок · Shift — уклонение · C — блок · Tab — смена героя · T — дуэт-атака · СКМ — захват цели, колесо — сменить цель · G — Team Overdrive · Q — ад-либ · R — ПЕРЕГРУЗ · ↑ — iPod · Esc — пауза · F11 — полный экран"
+			if game.madk_locked():
+				keys = keys.replace(" · Tab — смена героя · T — дуэт-атака", "").replace(" · G — Team Overdrive · Q — ад-либ", "")
+			acts.append(["#" + keys])
 			acts.append(["#ИГРА"])
 			acts.append(["В ГЛАВНОЕ МЕНЮ", func(): _confirm_menu()])
 			acts.append(["НАЗАД", _close_card])
 			_rows(acts)
+
+## Страницы вкладок приквела: СТАТУС, БАФЫ, АРТЕФАКТЫ, МАРШРУТ
+func _golda_page(i: int, top: VBoxContainer) -> void:
+	var G = game.golda
+	match i:
+		0:
+			_big(top, "ПАХАН", 46)
+			_bar(top, "ЗДОРОВЬЕ", func(): return game.player.hp / game.player.max_hp, func(): return "%d / %d" % [ceili(game.player.hp), int(game.player.max_hp)])
+			_bar(top, "СВЭГ", func(): return game.player.swag / 100.0, func(): return "%d / 100" % int(game.player.swag))
+			_plate(top, func(): return "ПЕРЕГРУЗ: " + ("идёт, ещё %.0f с" % game.player.rage if game.player.rage > 0.0 else ("готов — [R]" if game.player.swag >= 100.0 else "копится, нужен полный СВЭГ")))
+			_line(top, func(): return "РЕСПЕКТ: %d" % int(G.meta().get("respect", 0)), 26, WHITE, serif)
+			_line(top, func():
+				if G.place == "run" and not G.run.is_empty():
+					return "Голда: %d   ·   ДВОР · этап %d из %d" % [int(G.run["golda"]), int(G.run["pos"]) + 1, G.route().size()]
+				var sv: Dictionary = G.data.get("run", {})
+				if G.paused_run():
+					return "ПОДЪЕЗД   ·   ЗАБЕГ НА ПАУЗЕ · этап %d из 7" % (int((sv["run"] as Dictionary).get("pos", 0)) + 1)
+				return "ПОДЪЕЗД", 19, SILVER)
+			_rows([["НАЗАД", _close_card]])
+		1:
+			var fits: Dictionary = G.run.get("fits", {}) if G.place == "run" else {}
+			if fits.is_empty():
+				_line(top, func(): return "Пока нет. Вешалка на детской площадке, «С СОБОЙ» в «ШАУРМЕ 67», награда за элиту.", 19, SILVER)
+			for id in fits:
+				var f: Dictionary = G67Data.FITS[id]
+				_line(top, func(): return "%s · ур. %d" % [String(f["name"]), G.fit_lv(id)], 24, WHITE, serif)
+				_line(top, func(): return String(f["desc"]), 16, SILVER)
+			_rows([["НАЗАД", _close_card]])
+		2:
+			var arts: Array = G.arts() if G.place == "run" else []
+			_line(top, func(): return "Карманы: %d из %d" % [G.arts().size(), G.slots()], 24, WHITE, serif)
+			if arts.is_empty():
+				_line(top, func(): return "Пока нет. Открытый бокс в гаражах.", 19, SILVER)
+			for id in arts:
+				var a: Dictionary = Golda67.art_info(id)
+				_line(top, func(): return String(a["name"]), 24, WHITE, serif)
+				_line(top, func(): return String(a["desc"]), 16, SILVER)
+			_rows([["НАЗАД", _close_card]])
+		3:
+			var rt: Array
+			var stages: Array = []
+			var pos := -1
+			if G.place == "run" and not G.run.is_empty():
+				rt = G.route()
+				stages = G.run["stages"]
+				pos = int(G.run["pos"])
+			else:
+				var tpl := int(G.meta().get("runs", 0)) % 3
+				if G.paused_run():
+					tpl = int(((G.data["run"] as Dictionary).get("run", {}) as Dictionary).get("tpl", 0))
+					stages = ((G.data["run"] as Dictionary).get("run", {}) as Dictionary).get("stages", [])
+				rt = G67Data.route_of(G67Data.district("dvor"), tpl)
+			var txt: Array = []
+			for n in rt.size():
+				var opts: Array = rt[n]
+				var line := ""
+				if n < stages.size():
+					line = "✓  %d · %s · %s" % [n + 1, String(G67Data.ROOM_NAMES[String(stages[n][0])]), String(G67Yard.zone(String(stages[n][1]))["name"]).to_upper()]
+				elif n == pos and G.room_state != "open":
+					line = "▶  %d · %s · %s (идёт)" % [n + 1, String(G67Data.ROOM_NAMES[String(G.room["type"])]), String(G67Yard.zone(String(G.room.get("place", "")))["name"]).to_upper()]
+				else:
+					var parts: Array = opts.map(func(o): return "%s · %s" % [String(G67Data.ROOM_NAMES[String(o["type"])]), String(G67Yard.zone(String(o["place"]))["name"]).to_upper()])
+					line = "%s  %d · %s" % ["→" if n == stages.size() else "·", n + 1, "  /  ".join(parts)]
+				txt.append(line)
+			for t in txt:
+				var lt: String = t
+				_line(top, func(): return lt, 18, WHITE if lt.begins_with("▶") or lt.begins_with("→") else SILVER)
+			_rows([["НАЗАД", _close_card]])
 
 ## Список увиденных карточек боевого обучения: пункт открывает карточку поверх паузы (закрытие паузу не снимает)
 func _tutorial_list() -> void:
@@ -862,7 +966,7 @@ func _refresh() -> void:
 		return
 	hp_text.text = "%d / %d" % [ceili(game.player.hp), int(game.player.max_hp)]
 	hp_fill.size.x = 300.0 * clampf(game.player.hp / game.player.max_hp, 0.0, 1.0)
-	progress_text.text = str(game.kills if game.is_survival() else game.xp)
+	progress_text.text = str(game.kills if game.is_survival() else (int(game.golda.meta().get("respect", 0)) if game.golda != null else game.xp))
 	for fn in card_live:
 		(fn as Callable).call()
 	for k in card_rows.size():

@@ -5,7 +5,7 @@
 class_name Opts
 
 const PATH := "user://grimerka_display.json"
-const DEFAULT := {"fullscreen": false, "vsync": true, "fps": 0, "window": 0, "fov": 62.0, "sens": 1.0, "invert_y": false, "master": 1.0, "shake": 1.0, "less_flash": false, "practice": true}
+const DEFAULT := {"fullscreen": false, "vsync": true, "fps": 0, "window": 0, "fov": 62.0, "sens": 1.0, "invert_y": false, "master": 1.0, "shake": 1.0, "less_flash": false, "practice": true, "show_fps": false}
 const FPS := [0, 30, 60, 120, 144]
 const WINDOWS := [[1280, 720], [1600, 900], [1920, 1080], [2560, 1440]]
 static var data := {}
@@ -70,6 +70,7 @@ static func rows(w: Window, audio, ipod) -> Array:
 	r.append(["#ЭКРАН"])
 	r.append([func(): return "ПОЛНЫЙ ЭКРАН: " + ("ВКЛ" if bool(v("fullscreen")) else "ВЫКЛ"), func(_d: int): put("fullscreen", not bool(v("fullscreen")), w)])
 	r.append([func(): return "РАЗМЕР ОКНА: %d × %d%s" % [WINDOWS[int(v("window"))][0], WINDOWS[int(v("window"))][1], "" if not bool(v("fullscreen")) else "  (в окне)"], func(d: int): set_window(w, int(v("window")) + d)])
+	r.append([func(): return "СЧЁТЧИК FPS: " + ("ВКЛ" if bool(v("show_fps")) else "ВЫКЛ"), func(_d: int): put("show_fps", not bool(v("show_fps")), w)])
 	r.append([func(): return "ВЕРТ. СИНХРОНИЗАЦИЯ: " + ("ВКЛ" if bool(v("vsync")) else "ВЫКЛ"), func(_d: int): put("vsync", not bool(v("vsync")), w)])
 	r.append([func(): return "ОГРАНИЧЕНИЕ FPS: " + ("НЕТ" if int(v("fps")) == 0 else str(int(v("fps")))), func(d: int): put("fps", FPS[posmod(FPS.find(int(v("fps"))) + d, FPS.size())], w)])
 	r.append(["#КАМЕРА"])

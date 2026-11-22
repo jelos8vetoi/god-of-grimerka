@@ -99,6 +99,7 @@ var top_label: Label
 var q_label: Label
 var xp_label: Label
 var fps_label: Label
+var dlg_hint: Label        # строка «ЛКМ / ПРОБЕЛ — ДАЛЕЕ…» (в приквеле — только на первой реплике первого диалога)
 var banner_title: Label
 var banner_sub: Label
 var banner_t := 0.0
@@ -1307,6 +1308,9 @@ func start_dialog(lines: Array, after: Callable) -> void:
 	dlg = lines
 	dlg_i = -1
 	dlg_after = after
+	dlg_hint.visible = golda == null or not golda.dlg_hint_used
+	if golda != null:
+		golda.dlg_hint_used = true
 	dlg_box.visible = true
 	player.velocity = Vector3.ZERO
 	# кент встаёт рядом
@@ -1325,6 +1329,8 @@ func _dlg_advance() -> void:
 	voice.stop()
 	_hush()
 	dlg_i += 1
+	if dlg_i >= 1 and golda != null:
+		dlg_hint.visible = false
 	if dlg_i >= dlg.size():
 		_dlg_finish()
 		return
@@ -1478,8 +1484,7 @@ func _fit_banner(title: String) -> void:
 			if absf(l - r) < best_d:
 				best_d = absf(l - r)
 				best = i
-		text = " ".join(words.slice(0, best)) + "
-" + " ".join(words.slice(best))
+		text = " ".join(words.slice(0, best)) + "\n" + " ".join(words.slice(best))
 	banner_title.add_theme_font_size_override("font_size", size)
 	banner_title.text = text
 
@@ -1646,9 +1651,9 @@ func _build_hud() -> void:
 	dlg_text.position = Vector2(28, 52)
 	dlg_text.size = Vector2(vs.x * 0.76 - 56, 110)
 	dlg_box.add_child(dlg_text)
-	var hint := _lbl("ЛКМ / ПРОБЕЛ — ДАЛЕЕ   ·   TAB — ПРОПУСТИТЬ СЦЕНУ", 13, Color(0.55, 0.6, 0.7))
-	hint.position = Vector2(28, 162)
-	dlg_box.add_child(hint)
+	dlg_hint = _lbl("ЛКМ / ПРОБЕЛ — ДАЛЕЕ   ·   TAB — ПРОПУСТИТЬ СЦЕНУ", 13, Color(0.55, 0.6, 0.7))
+	dlg_hint.position = Vector2(28, 162)
+	dlg_box.add_child(dlg_hint)
 	# меню паузы целиком — scripts/pausemenu.gd (вкладки, сцена с Паханом, анимация открытия)
 	var pm := PauseMenu.new()
 	pm.game = self
@@ -1832,6 +1837,7 @@ func _update_hud(dt: float) -> void:
 	if golda != null:
 		top_label.text = golda.hud_line()
 	fps_label.text = "%d FPS" % Engine.get_frames_per_second()
+	fps_label.visible = bool(Opts.v("show_fps"))
 	boss_box.visible = (mode == "boss" or training != null or golda != null or is_survival()) and boss_e != null and is_instance_valid(boss_e) and boss_e.state != "dead"
 	if is_survival() and boss_box.visible:
 		boss_fill.size.x = 596.0 * clampf(boss_e.hp / boss_e.max_hp, 0.0, 1.0)

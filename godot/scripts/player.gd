@@ -53,6 +53,7 @@ var combat: Combat          # ядро боя: буфер ввода, окна �
 var bottles: Bottles         # водяра: в руке, в полёте, всплеск (bottles.gd)
 var tyaga: Tyaga             # пылесос ТЯГА-812: езда, притягивание, выброс (tyaga.gd)
 var own_styles: Array = ["vozduh", "bottles", "tyaga812"]   # стили Пахана: [1], [2], [3]
+var _style_note_t := -9.0
 var switch_to := ""          # идёт смена стиля: на какой
 var switch_t := 0.0
 var switch_buf := false      # во время смены нажали удар: сработает сразу после
@@ -562,6 +563,11 @@ func _physics_process(dt: float) -> void:
 	for i in own_styles.size():
 		if pressed("style%d" % (i + 1)):
 			set_style(own_styles[i])
+	if game.golda != null:
+		for k in range(own_styles.size() + 1, 4):
+			if pressed("style%d" % k) and game.clock - _style_note_t >= 1.5:
+				_style_note_t = game.clock
+				game.toast("Водяра — после победы над Мишей Минасяном" if k == 2 else "ТЯГА-812 — после победы над FORTUNA 812")
 	if pressed("tag"):
 		if game.tag.try_tag():      # смена героя и командные приёмы — tagteam.gd
 			return
