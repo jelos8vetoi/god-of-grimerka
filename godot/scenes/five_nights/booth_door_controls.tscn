@@ -1,0 +1,97 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Material" path="res://scenes/five_nights/materials/laminate.tres" id="laminate"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/steel.tres" id="steel"]
+[ext_resource type="PackedScene" path="res://assets/minigames/fn_door_panel.glb" id="fn_door_panel"]
+[ext_resource type="FontFile" path="res://assets/fonts/RussoOne-Regular.ttf" id="Russo"]
+
+[sub_resource type="StandardMaterial3D" id="LensOff"]
+albedo_color = Color(0.09, 0.075, 0.06, 1)
+roughness = 0.45
+metallic = 0
+
+[sub_resource type="BoxMesh" id="Box_0_47_0_133_0_027"]
+size = Vector3(0.47, 0.133, 0.027)
+
+[sub_resource type="BoxMesh" id="Box_0_47_0_123_0_027"]
+size = Vector3(0.47, 0.123, 0.027)
+
+[sub_resource type="BoxMesh" id="Box_0_439_0_008_0_006"]
+size = Vector3(0.439, 0.008, 0.006)
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_034_0_034_0_017_16_1"]
+top_radius = 0.034
+bottom_radius = 0.034
+height = 0.017
+radial_segments = 16
+rings = 1
+
+[sub_resource type="SphereMesh" id="Sphere_0_022_0_044_12_6"]
+radius = 0.022
+height = 0.044
+radial_segments = 12
+rings = 6
+
+[node name="DoorControls" type="Node3D"]
+
+[node name="PanelModel" parent="." instance=ExtResource("fn_door_panel")]
+rotation = Vector3(0, -1.570796, 0)
+scale = Vector3(0.5825, 0.5825, 0.5825)
+
+[node name="DoorHit" type="Marker3D" parent="."]
+position = Vector3(0, 0.445, 0.14)
+rotation = Vector3(1.570796, 0, 0)
+gizmo_extents = 0.075
+
+[node name="LightHit" type="Marker3D" parent="."]
+position = Vector3(0, 0.236, 0.145)
+rotation = Vector3(1.570796, 0, 0)
+gizmo_extents = 0.075
+
+[node name="UpperPlate" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.7, 0.037)
+mesh = SubResource("Box_0_47_0_133_0_027")
+material_override = ExtResource("laminate")
+
+[node name="LowerPlate" type="MeshInstance3D" parent="."]
+position = Vector3(0, -0.105, 0.037)
+mesh = SubResource("Box_0_47_0_123_0_027")
+material_override = ExtResource("laminate")
+
+[node name="UpperLip" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.756, 0.052)
+mesh = SubResource("Box_0_439_0_008_0_006")
+material_override = ExtResource("steel")
+
+[node name="DoorLabel" type="Label3D" parent="."]
+position = Vector3(0, 0.699, 0.057)
+font = ExtResource("Russo")
+text = "ДВЕРЬ"
+font_size = 33
+pixel_size = 0.00155
+modulate = Color(0.94, 0.91, 0.8, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="LightLabel" type="Label3D" parent="."]
+position = Vector3(0, -0.105, 0.057)
+font = ExtResource("Russo")
+text = "СВЕТ"
+font_size = 33
+pixel_size = 0.00155
+modulate = Color(0.94, 0.91, 0.8, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="LampSocket" type="MeshInstance3D" parent="."]
+position = Vector3(-0.135, 0.599, 0.042)
+rotation = Vector3(1.570796, 0, 0)
+mesh = SubResource("Cylinder_0_034_0_034_0_017_16_1")
+material_override = ExtResource("steel")
+
+[node name="LED" type="MeshInstance3D" parent="."]
+position = Vector3(-0.135, 0.599, 0.059)
+mesh = SubResource("Sphere_0_022_0_044_12_6")
+material_override = SubResource("LensOff")

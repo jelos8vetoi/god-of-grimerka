@@ -13,13 +13,16 @@
 
 | Файл | Что внутри |
 |---|---|
-| `scenes/five_nights/five_nights.tscn` | сцена режима: корень `Node3D` со скриптом `fn_root.gd` |
-| `scripts/five_nights/fn_root.gd` | `FiveNightsRoot` — мир и свет, звук и его места, ввод, ход ночи, звонок, 6 AM, гибель, пауза, выход |
+| `scenes/five_nights/five_nights.tscn` | корень режима, `WorldEnvironment` и экземпляр будки `GuardBooth` |
+| `scenes/five_nights/guard_booth.tscn` | редактируемая комната, ниши, вентиляция, освещение и камера игрока |
+| `scenes/five_nights/security_console.tscn` | стол с моделью пульта, двумя ЭЛТ, телефоном и клавишами заслонок |
+| `scenes/five_nights/booth_doorway.tscn`, `booth_door_controls.tscn` | ставня с направляющими и фонарём, настенная панель с двумя точками нажатия |
+| `scripts/five_nights/fn_root.gd` | `FiveNightsRoot` — сборка режима, звук и его места, ввод, ход ночи, звонок, 6 AM, гибель, пауза, выход |
 | `scripts/five_nights/fn_data.gd` | `FNData` — все числа и тексты: камеры, враги, ночи и уровни по часам, энергия, звонки, реплики, записки, концовки, наборы Custom Night |
 | `scripts/five_nights/fn_night.gd` | `FNNight` — логика ночи без сцены: часы, энергия, двери, свет, заслонки, монитор, сбои MOD, отключение и генератор, победа и гибель |
 | `scripts/five_nights/fn_enemy.gd` | `FNEnemy` — основа врага: ход по d20, логика у двери (стучит / входит), отсрочка из-за монитора |
 | `fn_balon.gd`, `fn_madk1d.gd`, `fn_bot.gd`, `fn_clipper.gd`, `fn_ghost.gd`, `fn_mod.gd` | у каждого врага свой маршрут и своя особенность |
-| `scripts/five_nights/fn_office.gd` | `FNOffice` — будка от первого лица: стол, ЭЛТ-монитор, пульт, ставни, кнопки, фонари, решётка, люк, стены |
+| `scripts/five_nights/fn_office.gd` | `FNOffice` — привязка устройств будки к вводу, движение ставен и камеры, питание ламп и ЭЛТ, следы прошедших смен |
 | `scripts/five_nights/fn_facility.gd` | `FNFacility` — помещения на камерах и места врагов в них |
 | `scripts/five_nights/fn_actors.gd` | `FNActors` — враги на сцене: настоящие модели игры, глаза, пасть, костюм Балона |
 | `scripts/five_nights/fn_poses.gd` | `FNPoses` — клипы врагов: неподвижность, взгляд в камеру, походки, выглядывание, ползание, скримеры |
@@ -53,6 +56,8 @@
 | пауза | Esc | — |
 
 ## Будка
+
+Для расстановки откройте `res://scenes/five_nights/guard_booth.tscn` и включите предпросмотр `PlayerCamera`. Границы будки, игровые точки и порядок проверки при переносе описаны в [аудите окружения](FIVE_NIGHTS_POLISH.md#редактируемая-будка).
 
 Перед Паханом стол с ЭЛТ-монитором, пульт (заслонки, лампа СЕРВЕР, СБРОС), телефон, кружка «ПАХАН»,
 холодная шаурма, инструкция («НЕ КОРМИТЬ BOT ПОСЛЕ 22:00»), фото «ОТКРЫТИЕ ОБЛАКА», объявление «НЕ СПАТЬ.

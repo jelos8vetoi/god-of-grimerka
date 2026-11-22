@@ -1,0 +1,8 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3]
+
+[ext_resource type="Shader" path="res://scenes/five_nights/materials/booth_floor.gdshader" id="Floor"]
+[ext_resource type="Texture2D" path="res://scenes/five_nights/materials/surface_grain.tres" id="Grain"]
+
+[resource]
+shader = ExtResource("Floor")
+shader_parameter/grain = ExtResource("Grain")

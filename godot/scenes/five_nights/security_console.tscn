@@ -1,0 +1,240 @@
+[gd_scene load_steps=24 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/minigames/fn_security_desk.glb" id="fn_security_desk"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/laminate.tres" id="laminate"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/steel.tres" id="steel"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/enamel.tres" id="enamel"]
+[ext_resource type="Shader" path="res://scenes/five_nights/materials/booth_crt.gdshader" id="CRT"]
+[ext_resource type="FontFile" path="res://assets/fonts/RussoOne-Regular.ttf" id="Russo"]
+
+[sub_resource type="StandardMaterial3D" id="ResetCap"]
+albedo_color = Color(0.62, 0.055, 0.035, 1)
+roughness = 0.43
+metallic = 0
+
+[sub_resource type="StandardMaterial3D" id="KeyCap"]
+albedo_color = Color(0.62, 0.65, 0.59, 1)
+roughness = 0.43
+metallic = 0
+
+[sub_resource type="StandardMaterial3D" id="Rubber"]
+albedo_color = Color(0.058, 0.065, 0.066, 1)
+roughness = 0.9
+metallic = 0
+
+[sub_resource type="StandardMaterial3D" id="LensOff"]
+albedo_color = Color(0.085, 0.065, 0.055, 1)
+roughness = 0.42
+metallic = 0
+
+[sub_resource type="ShaderMaterial" id="Signal"]
+resource_local_to_scene = true
+shader = ExtResource("CRT")
+shader_parameter/brightness = 0.58
+
+[sub_resource type="ShaderMaterial" id="Auxiliary"]
+resource_local_to_scene = true
+shader = ExtResource("CRT")
+shader_parameter/static_channel = true
+shader_parameter/brightness = 0.46
+
+[sub_resource type="QuadMesh" id="Quad_0_447_0_331"]
+size = Vector2(0.447, 0.331)
+
+[sub_resource type="QuadMesh" id="Quad_0_255_0_211"]
+size = Vector2(0.255, 0.211)
+
+[sub_resource type="StandardMaterial3D" id="Silhouette"]
+albedo_color = Color(0.014, 0.018, 0.016, 0.9)
+roughness = 0.9
+metallic = 0
+transparency = 1
+shading_mode = 0
+
+[sub_resource type="QuadMesh" id="Quad_0_105_0_245"]
+size = Vector2(0.105, 0.245)
+
+[sub_resource type="BoxMesh" id="Box_0_68_0_065_0_215"]
+size = Vector3(0.68, 0.065, 0.215)
+
+[sub_resource type="BoxMesh" id="Box_0_658_0_017_0_201"]
+size = Vector3(0.658, 0.017, 0.201)
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_046_0_047_0_014_16_1"]
+top_radius = 0.046
+bottom_radius = 0.047
+height = 0.014
+radial_segments = 16
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_036_0_036_0_023_16_1"]
+top_radius = 0.036
+bottom_radius = 0.036
+height = 0.023
+radial_segments = 16
+rings = 1
+
+[sub_resource type="SphereMesh" id="Sphere_0_012_0_024_12_6"]
+radius = 0.012
+height = 0.024
+radial_segments = 12
+rings = 6
+
+[sub_resource type="BoxMesh" id="Box_1_73_0_039_0_019"]
+size = Vector3(1.73, 0.039, 0.019)
+
+[sub_resource type="BoxMesh" id="Box_1_72_0_009_0_009"]
+size = Vector3(1.72, 0.009, 0.009)
+
+[node name="SecurityConsole" type="Node3D"]
+
+[node name="DeskModel" parent="." instance=ExtResource("fn_security_desk")]
+scale = Vector3(0.018282, 0.018282, 0.018282)
+
+[node name="MainScreen" type="MeshInstance3D" parent="."]
+position = Vector3(-0.048, 1.294, -0.069)
+mesh = SubResource("Quad_0_447_0_331")
+material_override = SubResource("Signal")
+cast_shadow = 0
+
+[node name="AuxScreen" type="MeshInstance3D" parent="."]
+position = Vector3(0.52, 1.099, -0.119)
+rotation = Vector3(0, -0.12, 0)
+mesh = SubResource("Quad_0_255_0_211")
+material_override = SubResource("Auxiliary")
+cast_shadow = 0
+
+[node name="ScreenGlow" type="OmniLight3D" parent="."]
+position = Vector3(-0.05, 1.17, 0.13)
+light_color = Color(0.63, 0.89, 0.8, 1)
+light_energy = 0.25
+omni_range = 1.5
+omni_attenuation = 1.65
+
+[node name="PhoneHit" type="Marker3D" parent="."]
+position = Vector3(0.667, 0.856, 0.12)
+gizmo_extents = 0.08
+
+[node name="Reflection" type="MeshInstance3D" parent="."]
+position = Vector3(0.065, 1.27, -0.064)
+mesh = SubResource("Quad_0_105_0_245")
+material_override = SubResource("Silhouette")
+cast_shadow = 0
+visible = false
+
+[node name="Switchboard" type="Node3D" parent="."]
+position = Vector3(0.05, 0.839, 0.285)
+rotation = Vector3(0.23, 0, 0)
+
+[node name="Enclosure" type="MeshInstance3D" parent="Switchboard"]
+position = Vector3(0, -0.027, 0)
+mesh = SubResource("Box_0_68_0_065_0_215")
+material_override = ExtResource("enamel")
+
+[node name="BakeliteFace" type="MeshInstance3D" parent="Switchboard"]
+position = Vector3(0, 0.009, 0)
+mesh = SubResource("Box_0_658_0_017_0_201")
+material_override = ExtResource("laminate")
+
+[node name="LeftSealCollar" type="MeshInstance3D" parent="Switchboard"]
+position = Vector3(-0.215, 0.024, -0.019)
+mesh = SubResource("Cylinder_0_046_0_047_0_014_16_1")
+material_override = ExtResource("steel")
+
+[node name="LeftSeal" type="MeshInstance3D" parent="Switchboard"]
+position = Vector3(-0.215, 0.038, -0.019)
+mesh = SubResource("Cylinder_0_036_0_036_0_023_16_1")
+material_override = SubResource("KeyCap")
+
+[node name="LeftSealLabel" type="Label3D" parent="Switchboard"]
+position = Vector3(-0.215, 0.019, 0.056)
+rotation = Vector3(-1.570796, 0, 0)
+font = ExtResource("Russo")
+text = "ВЕНТ  Z"
+font_size = 29
+pixel_size = 0.00135
+modulate = Color(0.92, 0.9, 0.8, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="LeftSealLED" type="MeshInstance3D" parent="Switchboard"]
+position = Vector3(-0.283, 0.027, -0.028)
+mesh = SubResource("Sphere_0_012_0_024_12_6")
+material_override = SubResource("LensOff")
+
+[node name="TopSealCollar" type="MeshInstance3D" parent="Switchboard"]
+position = Vector3(0, 0.024, -0.019)
+mesh = SubResource("Cylinder_0_046_0_047_0_014_16_1")
+material_override = ExtResource("steel")
+
+[node name="TopSeal" type="MeshInstance3D" parent="Switchboard"]
+position = Vector3(0, 0.038, -0.019)
+mesh = SubResource("Cylinder_0_036_0_036_0_023_16_1")
+material_override = SubResource("KeyCap")
+
+[node name="TopSealLabel" type="Label3D" parent="Switchboard"]
+position = Vector3(0, 0.019, 0.056)
+rotation = Vector3(-1.570796, 0, 0)
+font = ExtResource("Russo")
+text = "ЛЮК  X"
+font_size = 29
+pixel_size = 0.00135
+modulate = Color(0.92, 0.9, 0.8, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="TopSealLED" type="MeshInstance3D" parent="Switchboard"]
+position = Vector3(-0.068, 0.027, -0.028)
+mesh = SubResource("Sphere_0_012_0_024_12_6")
+material_override = SubResource("LensOff")
+
+[node name="ResetCollar" type="MeshInstance3D" parent="Switchboard"]
+position = Vector3(0.215, 0.024, -0.019)
+mesh = SubResource("Cylinder_0_046_0_047_0_014_16_1")
+material_override = ExtResource("steel")
+
+[node name="Reset" type="MeshInstance3D" parent="Switchboard"]
+position = Vector3(0.215, 0.038, -0.019)
+mesh = SubResource("Cylinder_0_036_0_036_0_023_16_1")
+material_override = SubResource("ResetCap")
+
+[node name="ResetLabel" type="Label3D" parent="Switchboard"]
+position = Vector3(0.215, 0.019, 0.056)
+rotation = Vector3(-1.570796, 0, 0)
+font = ExtResource("Russo")
+text = "СБРОС  R"
+font_size = 29
+pixel_size = 0.00135
+modulate = Color(0.92, 0.9, 0.8, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="ResetLED" type="MeshInstance3D" parent="Switchboard"]
+position = Vector3(0.147, 0.027, -0.028)
+mesh = SubResource("Sphere_0_012_0_024_12_6")
+material_override = SubResource("LensOff")
+
+[node name="ServerLabel" type="Label3D" parent="Switchboard"]
+position = Vector3(0.141, 0.019, -0.073)
+rotation = Vector3(-1.570796, 0, 0)
+font = ExtResource("Russo")
+text = "СЕРВЕР"
+font_size = 17
+pixel_size = 0.00086
+modulate = Color(0.88, 0.64, 0.4, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="DeskEdge" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.766, 0.383)
+mesh = SubResource("Box_1_73_0_039_0_019")
+material_override = ExtResource("laminate")
+
+[node name="EdgeBead" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.782, 0.396)
+mesh = SubResource("Box_1_72_0_009_0_009")
+material_override = ExtResource("steel")

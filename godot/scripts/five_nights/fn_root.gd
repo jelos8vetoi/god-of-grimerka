@@ -10,8 +10,7 @@ class_name FiveNightsRoot
 extends Node3D
 
 var main
-var env: WorldEnvironment
-var office: FNOffice
+@onready var office: FNOffice = $GuardBooth
 var fac: FNFacility
 var actors: FNActors
 var cams: FNCams
@@ -70,10 +69,6 @@ func _ready() -> void:
 	quiet = main != null and main.testing() != ""
 	FNSave.load_all()
 	FNSound.warm()
-	_env()
-	office = FNOffice.new()
-	add_child(office)
-	office.build()
 	fac = FNFacility.new()
 	add_child(fac)
 	fac.build(office)
@@ -109,27 +104,6 @@ func _ready() -> void:
 	apply_fx()
 	_menu_scene()
 	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
-
-func _env() -> void:
-	env = WorldEnvironment.new()
-	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color(0, 0, 0)
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.5, 0.52, 0.55)
-	e.ambient_light_energy = 0.05
-	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.tonemap_exposure = 1.1
-	e.glow_enabled = true
-	e.glow_intensity = 0.7
-	e.glow_bloom = 0.05
-	e.ssao_enabled = true
-	e.ssao_intensity = 2.5
-	e.fog_enabled = true
-	e.fog_light_color = Color(0.05, 0.05, 0.06)
-	e.fog_density = 0.035
-	env.environment = e
-	add_child(env)
 
 func apply_fx() -> void:
 	var k := float(FNSave.v("settings")["fx"])
@@ -475,11 +449,6 @@ func _night_tick(dt: float) -> void:
 	if state != "night":
 		return
 	office.tick(st, dt, look_in)
-	# перебой: перед ним лампа будки мигает и гудит, во время — еле тлеет
-	if st.brown_warn > 0.0:
-		office.lamp.light_energy *= 0.35 if randf() < 0.45 else 1.0
-	elif st.brown_t > 0.0:
-		office.lamp.light_energy *= 0.22
 	if fix_hold:
 		st.fix_cam(dt)
 	else:
@@ -513,12 +482,18 @@ func _night_tick(dt: float) -> void:
 		_finale()
 
 func _finale() -> void:
+	var shift := st
 	sfx2("giggle", -4.0, 0.8)
 	for k in 6:
-		office.lamp.light_energy = 0.0 if k % 2 == 0 else 1.6
+		if st != shift or state != "night" or st.power_out:
+			break
+		office.event_gain = 0.0 if k % 2 == 0 else 2.0
 		office.dark_eyes.visible = k % 2 == 0
 		await get_tree().create_timer(0.35, true, false, true).timeout
-	office.dark_eyes.visible = false
+	if st == shift:
+		office.event_gain = 1.0
+		if not st.power_out:
+			office.dark_eyes.visible = false
 
 # ---------------- события ночи → звук и картинка ----------------
 ## Каждый час ночи — своё событие (не вредят, только давят): час 1 — тихо; час 2 — свет проседает; час 3 — всё
@@ -528,11 +503,16 @@ func _hour_event(h: int) -> void:
 		return
 	match h:
 		2:
+			var shift := st
 			for q in 5:
-				office.lamp.light_energy = office.lamp_base * (0.15 if q % 2 == 0 else 0.7)
+				if st != shift or state != "night" or st.power_out:
+					break
+				office.event_gain = 0.15 if q % 2 == 0 else 0.7
 				await get_tree().create_timer(0.16, true, false, true).timeout
-			office.lamp.light_energy = office.lamp_base
-			sfx2("power_down", -14.0, 1.8)
+			if st == shift:
+				office.event_gain = 1.0
+				if state == "night" and not st.power_out:
+					sfx2("power_down", -14.0, 1.8)
 		3:
 			hush_begin("amb")
 			await get_tree().create_timer(2.0, true, false, true).timeout
@@ -564,6 +544,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"scrape":
 			ui.tips.tip("clipper")
 		"power_out":
+			office.dark_eyes.visible = false
 			ui.tips.tip("dark")
 		"hour":
 			_hour_event(int(d["h"]))
@@ -584,7 +565,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 				sfx3("step", FNOffice.point(String(d["from"])), -12.0, 0.7)
 		"heavy_step":
 			sfx3("step_heavy", FNOffice.point("hall_" + String(d["side"])), 0.0, 0.75)
-			office.lamp.light_energy = 0.1
+			office.flick_t = 0.09
 		"bang":
 			var at := String(d["at"])
 			sfx3("vent_bang" if at.begins_with("vent") else "door_down", FNOffice.point(at), 4.0, 0.7)
