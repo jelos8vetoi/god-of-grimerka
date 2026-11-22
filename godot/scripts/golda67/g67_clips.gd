@@ -1518,7 +1518,8 @@ static func extra01(c: G67ClipPlayer) -> void:
 	var mic_h := _mic(c, R + Vector3(-0.2, 1.0, 0.85), -0.3)
 	c.light(R + Vector3(1.4, 2.2, 1.8), Color(1.0, 0.85, 0.65), 2.2, 7.0, true)             # тёплый боковой
 	c.light(R + Vector3(-1.2, 2.4, -0.9), Color(0.55, 0.7, 1.0), 1.4, 6.0)                    # холодный контровой
-	var k := c.actor("krot", "krot", R + Vector3(0, 0.0, -0.25), 0.0)
+	c.box(Vector3(0.5, 0.5, 0.5), R + Vector3(0, 0.25, -0.32), Color(0.14, 0.12, 0.11))      # стул КРОТА
+	var k := c.actor("krot", "krot", R + Vector3(0, 0.24, -0.25), 0.0)
 	c.anim("krot", "CPod", 0.0)
 	var hst := c.actor("host", "anchor", R + Vector3(0, 0.0, 1.05), PI)
 	c.anim("host", "NCross", 0.0)
@@ -1555,8 +1556,8 @@ static func extra01(c: G67ClipPlayer) -> void:
 	(lamp.material_override as StandardMaterial3D).emission_energy_multiplier = 3.0
 	lamp_l.light_energy = 2.0
 	c.plate("ПОДКАСТ", "top", 2.5)
-	c.cam_at(R + Vector3(6.2, 1.7, 0.9), R + Vector3(0, 1.1, 0.45), 46.0)
-	c.cam_to(R + Vector3(5.4, 1.65, 1.0), R + Vector3(0, 1.1, 0.45), 1.4, 24.0)
+	c.cam_at(R + Vector3(6.2, 1.7, 0.9), R + Vector3(0, 1.1, 0.4), 46.0)
+	c.cam_to(R + Vector3(5.4, 1.65, 1.0), R + Vector3(0, 1.1, 0.4), 1.4, 40.0)
 	await c.wait(1.3)
 	hk = Vector3(0.0, 0.9, 0.0)                    # голова КРОТА за столом (сидит низко)
 	hp = Vector3(0.0, 1.6, 1.05)                   # голова ведущего
@@ -1570,8 +1571,8 @@ static func extra01(c: G67ClipPlayer) -> void:
 	c.anim("host", "NIdleL", 0.2)
 	await c.wait(d0 * 0.5)
 	G67Sound.play(c, "click")
-	c.cam_at(R + Vector3(5.8, 1.65, 0.9), R + Vector3(0, 1.1, 0.45), 46.0)
-	c.cam_to(R + Vector3(5.0, 1.6, 0.9), R + Vector3(0, 1.1, 0.45), d0 * 0.5, 25.0)
+	c.cam_at(R + Vector3(5.8, 1.65, 0.9), R + Vector3(0, 1.1, 0.4), 46.0)
+	c.cam_to(R + Vector3(5.0, 1.6, 0.9), R + Vector3(0, 1.1, 0.4), d0 * 0.5, 40.0)
 	await c.wait(d0 * 0.5)
 	# КРОТ тянется к микрофону и придвигает его к себе
 	G67Sound.play(c, "mic_move")
@@ -1580,11 +1581,11 @@ static func extra01(c: G67ClipPlayer) -> void:
 	await c.wait(0.45)
 	# 3 — реплика КРОТА: камера B (КРОТ в три четверти), перебивка — руки стучат по столу, «на ты» — откидывается на спинку
 	hk = _bone_pos(k, "mixamorig_Head")
-	c.light(hk + Vector3(-0.9, 0.5, 1.3), Color(1.0, 0.85, 0.65), 1.8, 3.5)       # ключевой свет на лицо КРОТА
+	c.light(hk + Vector3(0.9, 0.45, 1.2), Color(1.0, 0.85, 0.65), 2.6, 4.0)       # ключевой свет на лицо КРОТА
 	var d1 := c.say_async(L("EXTRA01", 1))
 	c.anim("krot", "CPodTalk", 0.2)
-	c.cam_at(hk + Vector3(-1.3, 0.05, 1.8), hk, 34.0)
-	c.cam_to(hk + Vector3(-0.9, 0.03, 1.5), hk, d1 * 0.4, 28.0)
+	c.cam_at(_bone_pos(k, "mixamorig_Head") + Vector3(0.85, 0.05, 1.3), _bone_pos(k, "mixamorig_Head") + Vector3(0, -0.04, 0), 44.0)
+	c.cam_to(_bone_pos(k, "mixamorig_Head") + Vector3(0.75, 0.05, 1.12), _bone_pos(k, "mixamorig_Head") + Vector3(0, -0.04, 0), d1 * 0.4, 38.0)
 	await c.wait(d1 * 0.4)
 	G67Sound.play(c, "hit_cut")
 	c.cam_at(R + Vector3(-0.9, 1.2, 0.9), R + Vector3(0.0, 0.85, 0.2), 36.0)          # деталь: руки на столе
@@ -1592,9 +1593,9 @@ static func extra01(c: G67ClipPlayer) -> void:
 		G67Sound.play(c, "tap")
 		await c.wait(d1 * 0.1)
 	G67Sound.play(c, "hit_cut")
-	c.cam_at(hk + Vector3(-1.3, 0.05, 1.8), hk, 32.0)
+	c.cam_at(_bone_pos(k, "mixamorig_Head") + Vector3(0.85, 0.05, 1.3), _bone_pos(k, "mixamorig_Head") + Vector3(0, -0.04, 0), 42.0)
 	var lean := c.create_tween()
-	lean.tween_property(k, "position", R + Vector3(0, 0.0, -0.45), 0.5)
+	lean.tween_property(k, "position", R + Vector3(0, 0.24, -0.45), 0.5)
 	lean.parallel().tween_property(k, "rotation:x", -0.1, 0.5)
 	await c.wait(d1 * 0.5)
 	c.clear_sub()
@@ -1609,22 +1610,23 @@ static func extra01(c: G67ClipPlayer) -> void:
 	# 5 — последняя реплика КРОТА: наклоняется к микрофону вплотную и смотрит в камеру; общий — перебивка; крупный в финале
 	G67Sound.play(c, "hit_cut")
 	var back := c.create_tween()
-	back.tween_property(k, "position", R + Vector3(0, 0.0, -0.1), 0.4)
+	back.tween_property(k, "position", R + Vector3(0, 0.24, -0.1), 0.4)
 	back.parallel().tween_property(k, "rotation:x", 0.12, 0.4)
 	hk = _bone_pos(k, "mixamorig_Head")
 	var d3 := c.say_async(L("EXTRA01", 3))
 	c.anim("krot", "CPodTalk", 0.2)
-	c.cam_at(hk + Vector3(-1.3, 0.05, 1.8), hk, 34.0)
-	c.cam_to(hk + Vector3(-0.9, 0.03, 1.5), hk, d3 * 0.3, 30.0)
+	await c.wait(0.42)
+	c.cam_at(_bone_pos(k, "mixamorig_Head") + Vector3(0.85, 0.05, 1.3), _bone_pos(k, "mixamorig_Head") + Vector3(0, -0.04, 0), 44.0)
+	c.cam_to(_bone_pos(k, "mixamorig_Head") + Vector3(0.75, 0.05, 1.12), _bone_pos(k, "mixamorig_Head") + Vector3(0, -0.04, 0), d3 * 0.3, 40.0)
 	await c.wait(d3 * 0.3)
 	G67Sound.play(c, "click")
-	c.cam_at(R + Vector3(5.6, 1.65, 0.9), R + Vector3(0, 1.1, 0.45), 46.0)
-	c.cam_to(R + Vector3(4.9, 1.6, 0.9), R + Vector3(0, 1.1, 0.45), d3 * 0.25, 25.0)
+	c.cam_at(R + Vector3(5.6, 1.65, 0.9), R + Vector3(0, 1.1, 0.4), 46.0)
+	c.cam_to(R + Vector3(4.9, 1.6, 0.9), R + Vector3(0, 1.1, 0.4), d3 * 0.25, 40.0)
 	await c.wait(d3 * 0.25)
 	G67Sound.play(c, "hit_cut")
 	c.anim_once("krot", "CPodNod", 1.6)
-	c.cam_at(hk + Vector3(-1.3, 0.05, 1.8), hk, 28.0)                                       # крупный: смотрит в камеру
-	c.cam_to(hk + Vector3(-0.9, 0.03, 1.5), hk, d3 * 0.45 + 0.1, 24.0)
+	c.cam_at(_bone_pos(k, "mixamorig_Head") + Vector3(0.85, 0.05, 1.3), _bone_pos(k, "mixamorig_Head") + Vector3(0, -0.04, 0), 38.0)                                       # крупный: смотрит в камеру
+	c.cam_to(_bone_pos(k, "mixamorig_Head") + Vector3(0.75, 0.05, 1.12), _bone_pos(k, "mixamorig_Head") + Vector3(0, -0.04, 0), d3 * 0.45 + 0.1, 34.0)
 	await c.wait(0.6)
 	hk = _bone_pos(k, "mixamorig_Head")
 	G67Clips.snap_req = "krot_mic"
