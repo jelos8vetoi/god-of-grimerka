@@ -134,7 +134,7 @@ func _run() -> void:
 			t_last = G.clip.t
 			if t_last >= nxt:
 				await shot("evs_%02d" % int(nxt))
-				nxt += 1.0
+				nxt += 5.0
 			await get_tree().process_frame
 		print("GOLDA67CHECK   EV02 длина %.1f с" % t_last)
 		_finish()
@@ -2706,7 +2706,7 @@ func _clip_log(G: Golda67, cid: String) -> void:
 		t_last = G.clip.t
 		if t_last >= nxt:
 			await shot("clip_%s_%02d" % [cid, int(nxt)])
-			nxt += 1.0
+			nxt += 5.0
 		await get_tree().process_frame
 	var lg: Array = G67ClipPlayer.last_log
 	for i in lg.size():
@@ -2776,7 +2776,7 @@ func _ev_scene_shots(g, G: Golda67, P, kind: String) -> void:
 		var tt := float(GameClock.ms() - t0) / 1000.0
 		if tt >= nxt:
 			await shot("ev_%s_%04.1f" % [id, nxt])
-			nxt += 0.5
+			nxt += 1.2
 		await get_tree().process_frame
 	print("GOLDA67CHECK   СЦЕНА %s длилась %.1f с" % [kind, float(GameClock.ms() - t0) / 1000.0])
 
@@ -2802,7 +2802,7 @@ func _boss_scene_shots(g, G: Golda67, P, skip: bool) -> void:
 			steps.append(G.scene_step)
 		if G.scene_t >= nxt:
 			await shot("boss_%04.1f" % nxt)
-			nxt += 0.5
+			nxt += 3.0
 		if skip and G.scene_t > 3.0 and not held:
 			held = true
 			var ee := InputEventKey.new()
