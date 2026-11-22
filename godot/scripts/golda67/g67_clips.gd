@@ -625,6 +625,94 @@ static func _logo(c: G67ClipPlayer) -> Control:
 			s.add_child(sub))
 
 # ---------------------------------------------------------------- AD01 — «СТАНЬ АВТОРИТЕТОМ»
+## Вспышки-звёзды по углам кадра: ромбики вспыхивают и гаснут
+static func _sparkles(c: G67ClipPlayer, sec: float) -> void:
+	var fs := c.frame.size
+	var h := Control.new()
+	h.size = fs
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.over.add_child(h)
+	for i in 10:
+		var d := ColorRect.new()
+		d.color = Color(1.0, 0.95, 0.6, 0.0)
+		var sz := fs.y * randf_range(0.025, 0.05)
+		d.size = Vector2(sz, sz)
+		d.pivot_offset = d.size * 0.5
+		d.rotation = PI * 0.25
+		d.position = Vector2(fs.x * (0.08 + 0.84 * float(i % 2)) + randf_range(-fs.x * 0.05, fs.x * 0.05), fs.y * (0.1 + 0.8 * randf()))
+		h.add_child(d)
+		var tw := c.create_tween().set_loops()
+		tw.tween_interval(randf_range(0.0, 0.4))
+		tw.tween_property(d, "color:a", 1.0, 0.07)
+		tw.parallel().tween_property(d, "scale", Vector2(1.8, 1.8), 0.07)
+		tw.tween_property(d, "color:a", 0.0, 0.18)
+		tw.parallel().tween_property(d, "scale", Vector2.ONE, 0.18)
+		tw.tween_interval(randf_range(0.1, 0.35))
+	var kill := c.create_tween()
+	kill.tween_interval(sec)
+	kill.tween_callback(h.queue_free)
+
+## Карточка «товара» влетает с вращением, ценник «ударом» со звуком кассы, рамка мигает
+static func _price_card(c: G67ClipPlayer, sec: float) -> Control:
+	var fs := c.frame.size
+	var h := Control.new()
+	h.size = fs
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.over.add_child(h)
+	var card := ColorRect.new()
+	card.color = Color(0.95, 0.78, 0.2, 0.96)
+	card.size = Vector2(fs.x * 0.7, fs.y * 0.3)
+	card.pivot_offset = card.size * 0.5
+	card.position = Vector2(fs.x * 0.15, fs.y * 0.56)
+	h.add_child(card)
+	var inner := ColorRect.new()
+	inner.color = Color(0.45, 0.04, 0.1, 1.0)
+	inner.size = card.size - Vector2(fs.y * 0.03, fs.y * 0.03)
+	inner.position = Vector2(fs.y * 0.015, fs.y * 0.015)
+	card.add_child(inner)
+	var t := c._label(card, "АВТОРИТЕТ 67", int(fs.y * 0.06), Color(1.0, 0.85, 0.3))
+	t.position = Vector2(fs.x * 0.04, fs.y * 0.07)
+	var tag := ColorRect.new()
+	tag.color = Color(0.9, 0.1, 0.1, 1.0)
+	tag.size = Vector2(fs.y * 0.17, fs.y * 0.17)
+	tag.pivot_offset = tag.size * 0.5
+	tag.position = Vector2(fs.x * 0.64, fs.y * 0.76)
+	tag.rotation = 0.2
+	tag.scale = Vector2(3.0, 3.0)
+	tag.modulate.a = 0.0
+	h.add_child(tag)
+	var pl := c._label(tag, "67", int(fs.y * 0.1), Color.WHITE)
+	pl.position = Vector2(fs.y * 0.02, fs.y * 0.025)
+	card.position.x = fs.x * 1.2
+	card.rotation = 1.4
+	card.scale = Vector2(0.3, 0.3)
+	G67Sound.play(c, "mic_move")
+	var tw := c.create_tween().set_parallel(true)
+	tw.tween_property(card, "position:x", fs.x * 0.15, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(card, "rotation", -0.06, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(card, "scale", Vector2.ONE, 0.4)
+	var tw2 := c.create_tween()
+	tw2.tween_interval(0.55)
+	tw2.tween_callback(func():
+		c.sfx("sfx_ui", -2.0, 2.2)
+		G67Sound.play(c, "hit_cut")
+		c.shake(0.4))
+	tw2.tween_property(tag, "scale", Vector2.ONE, 0.12)
+	tw2.parallel().tween_property(tag, "modulate:a", 1.0, 0.05)
+	tw2.tween_interval(0.25)
+	tw2.tween_callback(func(): snap_req = "price")
+	var blink := c.create_tween().set_loops()
+	blink.tween_property(card, "color", Color(1, 1, 1, 0.96), 0.12)
+	blink.tween_property(card, "color", Color(0.95, 0.78, 0.2, 0.96), 0.12)
+	var shake := c.create_tween().set_loops()
+	shake.tween_property(card, "rotation", -0.03, 0.08)
+	shake.tween_property(card, "rotation", -0.09, 0.08)
+	var out := c.create_tween()
+	out.tween_interval(sec)
+	out.tween_callback(h.queue_free)
+	_sparkles(c, sec)
+	return h
+
 static func ad01(c: G67ClipPlayer) -> void:
 	var y := _yard(c)
 	var at := Vector3(2.0, 0.03, -36.5)
@@ -632,28 +720,63 @@ static func ad01(c: G67ClipPlayer) -> void:
 	c.anim("misha", "CStand", 0.0)
 	_snow(c, at + Vector3(0, 6, 4), Vector3(8, 3, 8))
 	c.light(at + Vector3(0, 3.5, -3.0), Color(1.0, 0.85, 0.6), 4.0, 10.0)
-	# кадр 1: снизу, контровой свет, снег навстречу
-	c.cam_at(at + Vector3(0.8, 0.35, 4.2), at + Vector3(0, 1.7, 0), 48.0)
-	c.cam_to(at + Vector3(0.5, 0.5, 3.4), at + Vector3(0, 1.75, 0), 4.0, 44.0)
-	await c.say(L("AD01", 0), 0.2)
-	# кадр 2: крупно — надевает очки; «АВТОРИТЕТ 67»; показывает на плакат
-	c.cam_at(_head(m) + Vector3(0.2, 0.0, 1.5), _head(m), 32.0)
-	c.anim_once("misha", "CGlasses", 1.4)
+	# 1 — заставка: джингл, золотой экран, удар
+	var intro := c.screen(func(s: Control, fs: Vector2):
+		var r := ColorRect.new()
+		r.color = Color(0.45, 0.04, 0.1)
+		r.size = fs
+		s.add_child(r)
+		var l := c._label(s, "АВТОРИТЕТ 67", int(fs.y * 0.09), Color(1.0, 0.85, 0.3))
+		l.position = Vector2(fs.x * 0.2, fs.y * 0.42))
+	G67Sound.play(c, "jingle")
+	_sparkles(c, 1.0)
 	await c.wait(1.0)
-	c.plate("АВТОРИТЕТ 67", "lower", 3.5)
+	intro.queue_free()
+	G67Sound.play(c, "hit_cut")
+	# 2 — реплика 0: снизу, контровой свет, наезд; на середине жёсткая склейка на лицо крупно
+	var d0 := c.say_async(L("AD01", 0))
+	c.cam_at(at + Vector3(0.8, 0.35, 4.2), at + Vector3(0, 1.7, 0), 48.0)
+	c.cam_to(at + Vector3(0.5, 0.5, 3.4), at + Vector3(0, 1.75, 0), d0 * 0.5, 44.0)
+	await c.wait(d0 * 0.5)
+	G67Sound.play(c, "click")
+	c.vhs(0.5, 0.15)
+	c.cam_at((_head(m) + Vector3(0, 0.12, 0)) + Vector3(0.15, 0.02, 1.6), (_head(m) + Vector3(0, 0.12, 0)), 32.0)
+	c.cam_to((_head(m) + Vector3(0, 0.12, 0)) + Vector3(0.1, 0.02, 1.2), (_head(m) + Vector3(0, 0.12, 0)), d0 * 0.3, 26.0)
+	await c.wait(d0 * 0.15)
+	G67Clips.snap_req = "face"
+	await c.wait(d0 * 0.15)
+	# 3 — карточка с ценником влетает на кадр (перебивка графикой)
+	var card := _price_card(c, d0 * 0.2 + 0.2)
+	c.cam_at((_head(m) + Vector3(0, 0.12, 0)) + Vector3(-0.3, 0.1, 1.9), (_head(m) + Vector3(0, 0.12, 0)) + Vector3(0, -0.1, 0), 34.0)
+	c.anim_once("misha", "CGlasses", 1.4)
+	await c.wait(d0 * 0.2 + 0.0)
+	c.clear_sub()
+	await c.wait(0.2)
+	# 4 — реплика 1: надевает очки, указывает на плакат, панорама; склейка на 90° сбоку
+	var d1 := c.say_async(L("AD01", 1))
+	c.plate("АВТОРИТЕТ 67", "lower", d1 * 0.6)
 	c.anim("misha", "CPoint", 0.25)
 	var poster := Vector3(-2.4, 1.6, -48.4)
-	c.cam_to(at + Vector3(2.8, 1.6, 2.6), poster, 1.2, 46.0)
-	await c.say(L("AD01", 1), 0.2)
-	# кадр 3: садится на капот — цепь за зеркало, машина качается, лицо не меняется
+	c.cam_at((_head(m) + Vector3(0, 0.12, 0)) + Vector3(0.2, 0.0, 1.5), (_head(m) + Vector3(0, 0.12, 0)), 32.0)
+	c.cam_to(at + Vector3(2.8, 1.6, 2.6), poster, d1 * 0.5, 46.0)
+	await c.wait(d1 * 0.5)
+	G67Sound.play(c, "click")
+	c.cam_at(at + Vector3(3.4, 1.5, 0.3), (_head(m) + Vector3(0, 0.12, 0)), 40.0)
+	c.cam_to(at + Vector3(2.7, 1.5, 0.5), (_head(m) + Vector3(0, 0.12, 0)), d1 * 0.5, 34.0)
+	await c.wait(d1 * 0.5 + 0.1)
+	c.clear_sub()
+	c.clear_plates()
+	# 5 — реплика 2: садится на капот, цепь цепляется за зеркало (деталь), машина качается
+	G67Sound.play(c, "hit_cut")
 	var car_at := Vector3(8.6, 0.03, -45.6)
 	var mirror := car_at + Vector3(-0.9, 1.05, 1.05)
 	m.position = car_at + Vector3(-0.2, 0.62, 1.5)
 	m.rotation.y = 0.6
 	c.anim("misha", "CSitHood", 0.0)
+	var d2 := c.say_async(L("AD01", 2))
 	c.cam_at(car_at + Vector3(4.6, 1.5, 3.4), car_at + Vector3(0, 1.0, 1.0), 44.0)
 	await c.wait(0.6)
-	c.chain(_chest(m), mirror, 3.0)
+	c.chain(_chest(m), mirror, 2.6)
 	c.sfx("sfx_parry", -4.0, 0.8)
 	var car: Node3D = y.misha_car
 	if car != null:
@@ -662,19 +785,50 @@ static func ad01(c: G67ClipPlayer) -> void:
 		for i in 4:
 			tw.tween_property(car, "rotation:z", r0 + (0.035 if i % 2 == 0 else -0.03) * (1.0 - i * 0.2), 0.18)
 		tw.tween_property(car, "rotation:z", r0, 0.2)
-	c.cam_to(_head(m) + Vector3(1.2, 0.1, 1.4), _head(m), 2.6, 30.0)
-	await c.say(L("AD01", 2), 0.2)
-	# кадр 4: крупно, в объектив
+	c.cam_at(mirror + Vector3(0.7, 0.2, 0.9), mirror, 34.0)                              # деталь: зеркало и цепь
+	c.cam_to(mirror + Vector3(0.45, 0.15, 0.6), mirror, 0.9, 28.0)
+	await c.wait(0.9)
+	G67Sound.play(c, "click")
+	c.cam_at((_head(m) + Vector3(0, 0.12, 0)) + Vector3(1.2, 0.1, 1.4), (_head(m) + Vector3(0, 0.12, 0)), 32.0)
+	c.cam_to((_head(m) + Vector3(0, 0.12, 0)) + Vector3(0.9, 0.1, 1.1), (_head(m) + Vector3(0, 0.12, 0)), maxf(d2 - 1.5, 0.3), 27.0)
+	await c.wait(maxf(d2 - 1.5, 0.3) + 0.15)
+	c.clear_sub()
+	# 6 — реплика 3: крупно в объектив, два плана
+	G67Sound.play(c, "hit_cut")
 	m.position = at
 	m.rotation.y = 0.0
 	c.anim("misha", "CTalk", 0.0)
 	await c.wait(0.05)
-	c.cam_at(_head(m) + Vector3(0.1, 0.1, 1.6), _head(m) + Vector3(0, 0.08, 0), 30.0)
-	await c.say(L("AD01", 3), 0.2)
-	# финальная плашка
-	c.plate("ТУРНИР 67 — ПОДНИМИ СВОЙ РАЙОННЫЙ СТАТУС", "big", 2.2)
+	var d3 := c.say_async(L("AD01", 3))
+	c.cam_at((_head(m) + Vector3(0, 0.12, 0)) + Vector3(0.1, 0.1, 1.6), (_head(m) + Vector3(0, 0.12, 0)) + Vector3(0, 0.08, 0), 30.0)
+	c.cam_to((_head(m) + Vector3(0, 0.12, 0)) + Vector3(0.05, 0.08, 1.2), (_head(m) + Vector3(0, 0.12, 0)) + Vector3(0, 0.08, 0), d3 * 0.5, 25.0)
+	await c.wait(d3 * 0.5)
+	G67Sound.play(c, "click")
+	c.vhs(0.5, 0.15)
+	c.cam_at(at + Vector3(-2.2, 1.4, 3.0), (_head(m) + Vector3(0, 0.12, 0)), 38.0)
+	c.cam_to(at + Vector3(-1.6, 1.45, 2.4), (_head(m) + Vector3(0, 0.12, 0)), d3 * 0.5, 32.0)
+	await c.wait(d3 * 0.5 + 0.2)
+	c.clear_sub()
+	# 7 — финал: логотип со вспышками-звёздами, аккорд, стоп-кадр и резкий обрыв
+	G67Sound.play(c, "jingle")
+	c.plate("ТУРНИР 67", "big", 1.8)
+	c.plate("ПОДНИМИ СВОЙ РАЙОННЫЙ СТАТУС", "caption", 1.8)
 	c.sfx("sfx_boom", -3.0, 0.8)
-	await c.wait(2.2)
+	c.flash(Color(1, 1, 1), 0.2)
+	_sparkles(c, 1.8)
+	c.cam_at((_head(m) + Vector3(0, 0.12, 0)) + Vector3(0.0, 0.0, 2.4), (_head(m) + Vector3(0, 0.12, 0)), 40.0)
+	c.cam_to((_head(m) + Vector3(0, 0.12, 0)) + Vector3(0.0, 0.0, 1.8), (_head(m) + Vector3(0, 0.12, 0)), 1.6, 34.0)
+	await c.wait(0.9)
+	G67Clips.snap_req = "logo"
+	await c.wait(0.9)
+	c.vhs(1.0, 0.3)
+	G67Sound.play(c, "hit_cut")
+	c.screen(func(s: Control, fs: Vector2):
+		var r := ColorRect.new()
+		r.color = Color.BLACK
+		r.size = fs
+		s.add_child(r))
+	await c.wait(0.3)
 
 # ---------------------------------------------------------------- CL01 — «КАК ЗАЙТИ ВО ДВОР» (9:16)
 static func cl01(c: G67ClipPlayer) -> void:
