@@ -152,8 +152,8 @@ func _process(dt: float) -> void:
 	clock += dt
 	var pl: Node3D = golda.game.player if golda != null and golda.game != null else null
 	for b in bubbles.duplicate():
-		var who: Node3D = b["who"]
-		var n: Node3D = b["node"]
+		var who = b["who"]
+		var n = b["node"]
 		b["t"] = float(b["t"]) + dt
 		if not is_instance_valid(who) or not is_instance_valid(n) or float(b["t"]) > float(b["dur"]) or not can_keep():
 			if is_instance_valid(n):

@@ -159,6 +159,19 @@ func _run() -> void:
 			await _clip_log(G, String(arg).substr(11))
 			_finish()
 			return
+	for arg in OS.get_cmdline_user_args():
+		if String(arg).begins_with("--g67-micro="):
+			await _go(G, g.player, "exit")
+			await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+			_kill_all(g)
+			G.pending = []
+			G.wave_wait = 999.0
+			await wait(1.0)
+			G.ylife_get().fire(String(arg).substr(12))
+			await wait(1.5)
+			await shot("micro_" + String(arg).substr(12))
+			_finish()
+			return
 	if OS.get_cmdline_user_args().has("--g67-perfzones"):
 		await _perf_zones(g, G, g.player)
 		_finish()
@@ -2542,6 +2555,115 @@ func _spawn_check(g, G: Golda67, P) -> void:
 		g.cam.make_current()
 		oc.queue_free()
 
+## ДВОР 1.5: жители ходят по расписанию и не застревают, реплики-пузыри, [E] у жителей, отход от боя
+func _life15(g, G: Golda67, P) -> void:
+	var yd = G.world.yard
+	ok(yd.residents.size() == 4, "ДВОР 1.5: у четырёх жителей есть поведение G67Resident (%d)" % yd.residents.size())
+	var start: Dictionary = {}
+	for rid in yd.residents:
+		var R: G67Resident = yd.residents[rid]
+		start[rid] = (R.rig as Node3D).position
+		R.next_move = 0.5
+	P.global_position = Vector3(0, 0.05, 20)
+	G.pending = []
+	G.wave_wait = 999.0
+	_kill_all(g)
+	await wait(2.0)
+	var moved := {}
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 30000:
+		for rid in yd.residents:
+			var R2: G67Resident = yd.residents[rid]
+			if (R2.rig as Node3D).position.distance_to(start[rid]) > 1.5:
+				moved[rid] = true
+		if moved.size() >= 3:
+			break
+		await wait(0.5)
+	print("GOLDA67CHECK   жители, сдвинулись: ", str(moved.keys()))
+	ok(moved.size() >= 3, "ДВОР 1.5: жители идут по расписанию (сдвинулись %d из 4)" % moved.size())
+	for rid in yd.residents:
+		var R3: G67Resident = yd.residents[rid]
+		R3.next_move = 9999.0
+	await wait(25.0)
+	var settled := true
+	for rid in yd.residents:
+		var R4: G67Resident = yd.residents[rid]
+		if R4.state not in ["stay", "act"]:
+			settled = false
+			print("GOLDA67CHECK   житель %s не дошёл: состояние %s, застрял %.1f с" % [rid, R4.state, R4.stuck_t])
+	ok(settled, "ДВОР 1.5: жители дошли до места и стоят (никто не застрял)")
+	# реплика-пузырь над бабушкой при подходе и по [E]
+	var bk: G67Barks = G.barks_get()
+	var bab: G67Resident = yd.residents["g67_npc_babushka"]
+	bk.last_any = -100.0
+	bk.last_line = {}
+	P.global_position = (bab.rig as Node3D).global_position + Vector3(1.5, 0.05, 0)
+	var n0: int = bk.log.size()
+	G.use("talk_g67_npc_babushka")
+	await wait(0.5)
+	ok(bk.log.size() > n0 and String(bk.log.back()[1]) == "BB" and bk.bubbles.size() >= 1, "ДВОР 1.5: [E] у бабушки — реплика-пузырь («%s»)" % str(bk.log.back()[2]))
+	# в ролике пузырей нет
+	bk.last_any = -100.0
+	G.clip = G67ClipPlayer.new()
+	var silent: bool = not bk.can_talk()
+	G.clip.free()
+	G.clip = null
+	ok(silent, "ДВОР 1.5: во время ролика жители молчат")
+	# надписи: дословная строка минимум в двух местах, листки, карточка по [E]
+	var serega := 0
+	for nt in yd.notes:
+		if String(nt["text"]).begins_with("Серега РПлюс заебал бухать"):
+			serega += 1
+	ok(serega >= 2, "ДВОР 1.5: «Серега РПлюс заебал бухать» дословно в %d местах" % serega)
+	var wall8 := 0
+	for nt in yd.notes:
+		if String(nt["text"]).begins_with("ОБЪЯВЛЕНИЕ"):
+			wall8 += 1
+	ok(wall8 == 8, "ДВОР 1.5: восемь листков в ряд (%d)" % wall8)
+	var must := ["jelos_all", "uk", "g8_no", "mognut", "rocket", "cheremsha", "court_rules"]
+	var have_txt := {}
+	for nt in yd.notes:
+		have_txt[String(nt["text"])] = true
+	var missing_sg: Array = []
+	for sg in G67LifeData.SIGNS:
+		if not yd.SIGN_AT.has(String(sg["id"])) or String(sg.get("pool", "")) != "":
+			continue
+		if not have_txt.has(String(sg["text"])):
+			missing_sg.append(sg["id"])
+	ok(missing_sg.is_empty(), "ДВОР 1.5: надписи двора стоят на своих местах (нет: %s)" % str(missing_sg))
+	# точки взаимодействия не ближе 1,2 м друг к другу
+	var pts: Array = G.world.points
+	var close_pair := ""
+	for i in pts.size():
+		for j in range(i + 1, pts.size()):
+			var a: Vector3 = pts[i]["pos"]
+			var b: Vector3 = pts[j]["pos"]
+			if Vector2(a.x - b.x, a.z - b.z).length() < 1.2 and not (String(pts[i]["id"]).begins_with("talk_") or String(pts[j]["id"]).begins_with("talk_") or String(pts[i]["id"]).begins_with("gate") or String(pts[j]["id"]).begins_with("gate")):
+				close_pair = "%s/%s" % [pts[i]["id"], pts[j]["id"]]
+	ok(close_pair == "", "ДВОР 1.5: новые точки не ближе 1,2 м к старым (%s)" % close_pair)
+	var ev0: int = G.events.size()
+	for uid in ["intercom", "g_radio", "carpet", "box", "puh", "read_board", "read_g8", "read_gazebo", "read_kiosk"]:
+		if G.point(uid).is_empty():
+			print("GOLDA67CHECK   нет точки ", uid)
+			continue
+		G.use(uid)
+		await wait(0.3)
+	var used := G.events.slice(ev0).filter(func(e): return String(e[0]) == "life_use").size()
+	ok(used >= 8, "ДВОР 1.5: предметы и листки отвечают по [E] (%d)" % used)
+	ok(G.get_children().any(func(c): return c is G67ReadCard), "ДВОР 1.5: карточка-листок открыта")
+	await shot("life15_card")
+	for c in G.get_children():
+		if c is G67ReadCard:
+			c.queue_free()
+	# микрособытия: каждое запускается и не роняет игру
+	var yl: G67YardLife = G.ylife_get()
+	for e in G67LifeData.MICRO:
+		yl.fire(String(e["id"]))
+		await wait(0.15)
+	ok(yl.log.size() >= G67LifeData.MICRO.size(), "ДВОР 1.5: все %d микрособытий запускаются (%d)" % [G67LifeData.MICRO.size(), yl.log.size()])
+	yl.next_audible = 9999.0
+	P.global_position = Vector3(0, 0.05, 25)
+
 ## События двора: предметы стоят, каждый исход таблиц форсируется и проверяется, этап закрывается
 func _events_check(g, G: Golda67, P) -> void:
 	await _go(G, P, "exit")
@@ -2552,6 +2674,7 @@ func _events_check(g, G: Golda67, P) -> void:
 	G.wave_wait = 999.0
 	await wait(0.5)
 	await _spawn_check(g, G, P)
+	await _life15(g, G, P)
 	# фасад: окна меняют состояние, вывески, тарелки, дым
 	var yd3 = G.world.yard
 	var tg0: int = yd3.win_toggles
@@ -2576,10 +2699,10 @@ func _events_check(g, G: Golda67, P) -> void:
 	ok(yd3.lifes.size() >= 4 and lf.all(func(c): return c != "" and c != "?"), "у каждого жителя работает G67Life, поза задана (%s)" % str(lf))
 	# голуби: стайки по 4, взлетают при подходе и садятся в другом месте, не исчезая
 	var yd2 = G.world.yard
-	ok(yd2.flocks.size() == 3 and yd2.flocks.all(func(f): return (f["birds"] as Array).size() == 4), "во дворе три стайки голубей по четыре")
+	ok(yd2.flocks.size() == 4 and yd2.flocks.all(func(f): return (f["birds"] as Array).size() == 4), "во дворе четыре стайки голубей по четыре")
 	var fl0: Dictionary = yd2.flocks[0]
-	var home0: Vector3 = fl0["home"]
-	var alt0: Vector3 = fl0["alt"]
+	var home0: Vector3 = fl0["alt"] if bool(fl0["at_alt"]) else fl0["home"]
+	var alt0: Vector3 = fl0["home"] if bool(fl0["at_alt"]) else fl0["alt"]
 	P.global_position = home0 + Vector3(1.5, 0.05, 0)
 	await wait(0.6)
 	var mid_hi := false

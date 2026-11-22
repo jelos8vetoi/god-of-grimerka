@@ -241,6 +241,9 @@ func _build_yard_world() -> void:
 	if world.yard != null:
 		world.yard.hero = game.player
 	world.add_kiosk()
+	world.add_residents()
+	world.add_life_points()
+	ylife_get()
 	world.add_home()
 	world.build_event_props()
 	_place_krot_yard()
@@ -780,6 +783,79 @@ func _keep_foes_inside(dt: float) -> void:
 
 # ---------------------------------------------------------------- фон и случайные звуки приквела
 var phone: G67Phone = null
+
+var barks: G67Barks = null
+
+var ylife: G67YardLife = null
+
+var read_idx := {}
+
+## Предметы и листки двора: реплика, звук, карточка; Пахан изредка комментирует
+func _life_use(id: String) -> void:
+	var bk: G67Barks = barks_get()
+	var y = world.yard
+	var hp: Vector3 = game.player.global_position
+	var mk := Node3D.new()
+	add_child(mk)
+	get_tree().create_timer(12.0).timeout.connect(mk.queue_free)
+	match id:
+		"intercom":
+			mk.global_position = Vector3(-1.3, 1.5, 35.0)
+			var seq: Array = G67LifeData.INTERCOM[randi() % 4]
+			G67Sound.play(self, "intercom_beep", mk.global_position, 1.0)
+			for i in seq.size():
+				get_tree().create_timer(0.8 + i * 2.2).timeout.connect(func(): bk.say(mk, String(seq[i]), {"force": true, "dur": 2.4}))
+			get_tree().create_timer(1.0 + seq.size() * 2.2).timeout.connect(func(): bk.pahan_say("intercom", true))
+		"g_radio":
+			mk.global_position = Vector3(-42.4, 0.9, 4.8)
+			G67Sound.play(self, "radio_jingle", mk.global_position, 1.0)
+			get_tree().create_timer(1.2).timeout.connect(func(): bk.say(mk, bk.pick("radio", G67LifeData.RADIO), {"force": true, "dur": 6.0}))
+			get_tree().create_timer(7.5).timeout.connect(func(): bk.pahan_say("radio", true))
+		"carpet":
+			var rk: Node3D = y.carpet_rack_node
+			for i in 3:
+				get_tree().create_timer(i * 0.55).timeout.connect(func():
+					G67Sound.play(self, "carpet_beat", Vector3(-7.0, 1.0, 3.6), 1.0)
+					if rk != null and is_instance_valid(rk):
+						var tw := create_tween()
+						tw.tween_property(rk, "rotation:z", 0.05, 0.1)
+						tw.tween_property(rk, "rotation:z", 0.0, 0.2))
+			get_tree().create_timer(0.3).timeout.connect(func(): ylife_get()._snow_puff(Vector3(-7.0, 1.2, 3.8)))
+			get_tree().create_timer(1.9).timeout.connect(func(): bk.pahan_say("carpet", true))
+		"box":
+			G67Sound.play(self, "crash", Vector3(-40.6, 0.4, -3.2), 0.5)
+			get_tree().create_timer(1.2).timeout.connect(func(): bk.pahan_say("box", true))
+		"puh":
+			G67Sound.play(self, "vacuum", Vector3(-39.0, 0.6, 8.0), 1.0)
+			get_tree().create_timer(2.6).timeout.connect(func(): bk.pahan_say("puh", true))
+		_:
+			var gp: Dictionary = y.sign_groups.get(id.substr(5), {})
+			if gp.is_empty():
+				return
+			var cards: Array = gp["cards"]
+			var k := int(read_idx.get(id, -1)) + 1
+			k = k % cards.size()
+			read_idx[id] = k
+			G67ReadCard.open(self, game.player, String(cards[k]["text"]), String(cards[k].get("sub", "")))
+			if randf() < 0.3:
+				bk.pahan_say("read")
+	events.append(["life_use", id])
+
+func ylife_get() -> G67YardLife:
+	if world == null or world.yard == null:
+		return null
+	if ylife == null or not is_instance_valid(ylife) or ylife.yard != world.yard:
+		if ylife != null and is_instance_valid(ylife):
+			ylife.queue_free()
+		ylife = G67YardLife.make(self, world.yard)
+		add_child(ylife)
+	return ylife
+
+func barks_get() -> G67Barks:
+	if barks == null or not is_instance_valid(barks):
+		barks = G67Barks.make(self)
+		add_child(barks)
+	return barks
 
 func phone_get() -> G67Phone:
 	if phone == null:
@@ -3020,6 +3096,12 @@ func use(id: String) -> void:
 			open_screen("kiosk")
 		else:
 			game.toast("Сначала разберись с этими")
+	elif id == "intercom" or id == "g_radio" or id == "carpet" or id == "box" or id == "puh" or id.begins_with("read_"):
+		_life_use(id)
+	elif id.begins_with("talk_"):
+		var rr = world.yard.residents.get(id.substr(5)) if world.yard != null else null
+		if rr != null:
+			rr.use()
 	elif id == "ev_burmalda":
 		_burmalda_pull()
 	elif id == "ev_button":

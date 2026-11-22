@@ -967,6 +967,28 @@ func add_home() -> void:
 			return
 	_point("home", "ПОДЪЕЗД", "домой: забег сохранится, продолжишь отсюда же", G67Yard.HOME_DOOR)
 
+## Жители двора: точка «поговорить» следует за жителем (позицию обновляет G67Resident)
+func add_residents() -> void:
+	if yard == null:
+		return
+	var names := {"g67_npc_babushka": "БАБУШКА", "g67_npc_taxi_driver": "ТАКСИСТ", "g67_npc_ushanka": "МУЖИК В УШАНКЕ", "g67_npc_schoolboy": "ШКОЛЬНИК"}
+	for rid in yard.residents:
+		var r: Node3D = yard.people[rid]
+		_point("talk_" + String(rid), String(names.get(rid, "ЖИТЕЛЬ")), "поговорить", r.position)
+
+## Предметы жизни двора и листки: домофон, радио, ковровыбивалка, коробка, ПУХОСОС-8, группы листков (по [E])
+func add_life_points() -> void:
+	if yard == null:
+		return
+	_point("intercom", "ДОМОФОН", "нажать", Vector3(-2.2, 0, 34.0))
+	_point("g_radio", "ГАРАЖНОЕ РАДИО", "послушать", Vector3(-41.4, 0, 4.8))
+	_point("carpet", "КОВРОВЫБИВАЛКА", "выбить ковёр", Vector3(-7.0, 0, 4.7))
+	_point("box", "КОРОБКА", "не открывать", Vector3(-40.6, 0, -4.5))
+	_point("puh", "ПУХОСОС-8", "завести", Vector3(-39.0, 0, 9.2))
+	for cl in yard.sign_groups:
+		var gp: Dictionary = yard.sign_groups[cl]
+		_point("read_" + String(cl), String(gp.get("title", "ЛИСТОК")), "прочитать", gp["pos"])
+
 ## Ларёк «ШАУРМА 67»: окно шаурмичной на парковке — постоянный магазин двора
 func add_kiosk() -> void:
 	if yard != null:

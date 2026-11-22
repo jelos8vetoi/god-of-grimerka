@@ -84,6 +84,43 @@ const QUEUE_PEOPLE := [
 	{"path": "res://assets/minigames/npc_neighbor.glb", "h": 1.58, "rig": true, "key": "npc_neighbor"},
 ]
 var people := {}               # фоновые жители двора: id → Rig
+var residents := {}            # id → G67Resident
+## Запасные места жителей (первое место — из PEOPLE): они ходят между ними по расписанию
+const LIFE_PLACES := {
+	"g67_npc_babushka": [
+		{"pos": Vector3(7.6, 0.0, 30.6), "yaw": PI * 0.6, "base": "NBag", "alts": ["NBagRest"], "act": "feed", "act_clip": "NPoint", "act_len": 5.0},
+		{"pos": Vector3(1.6, 0.0, 32.4), "yaw": PI, "base": "NBag", "alts": ["NScarf"]},
+	],
+	"g67_npc_taxi_driver": [
+		{"pos": Vector3(31.3, 0.02, 12.0), "yaw": PI, "base": "NHips", "alts": ["NTaxiPhone"], "act": "wipe", "act_clip": "NJacket", "act_len": 6.0},
+		{"pos": Vector3(27.2, 0.02, 12.8), "yaw": PI * 0.5, "base": "NSmoke", "alts": ["NTaxiPhone"]},
+		{"pos": Vector3(29.6, 0.02, 9.6), "yaw": -PI * 0.5, "base": "NLeanBack", "alts": ["NHips"], "act": "car", "act_len": 8.0, "hide": true},
+	],
+	"g67_npc_ushanka": [
+		{"pos": Vector3(-40.0, 0.02, -0.8), "yaw": PI, "base": "NThink", "alts": ["NPocketsSide"]},
+		{"pos": Vector3(-38.2, 0.02, 3.6), "yaw": 1.2, "base": "NSmoke", "alts": ["NCross"]},
+	],
+	"g67_npc_schoolboy": [
+		{"pos": Vector3(4.0, 0.02, -4.0), "yaw": 1.6, "base": "NPhone", "alts": ["NStrap"]},
+		{"pos": Vector3(11.0, 0.02, 3.2), "yaw": -1.0, "base": "NPhone", "alts": ["NIdleL"]},
+	],
+}
+
+## Бабушка кормит голубей: ближайшая стайка сбегается к точке
+func feed_near(pos: Vector3) -> void:
+	var best: Dictionary = {}
+	var bd := 1e9
+	for f in flocks:
+		var d: float = Vector2(pos.x - (f["home"] as Vector3).x, pos.z - (f["home"] as Vector3).z).length()
+		if d < bd:
+			bd = d
+			best = f
+	if best.is_empty() or bd > 14.0:
+		return
+	for b in best["birds"]:
+		var gp: G67Pigeon = b["p"]
+		if is_instance_valid(gp):
+			gp.feed(pos)
 ## Фоновые жители (решение владельца: четверо, без квестов, без толпы): модель, рост, место, поворот, вещь в руке.
 ## Стоят там, где им естественно быть; пройти сквозь них нельзя; в бою не участвуют.
 const PEOPLE := [
@@ -207,7 +244,7 @@ func _path(a: Vector3, b: Vector3, w := 1.5) -> void:
 	var d := b - a
 	_box((a + b) * 0.5 + Vector3(0, 0.012, 0), Vector3(w, 0.024, d.length()), m_path, atan2(d.x, d.z))
 
-func _solid_box(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
+func _solid_box(pos: Vector3, size: Vector3, yaw := 0.0) -> StaticBody3D:
 	var sb := StaticBody3D.new()
 	sb.collision_layer = 1 | 8
 	var cs := CollisionShape3D.new()
@@ -219,6 +256,7 @@ func _solid_box(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
 	sb.rotation.y = yaw
 	add_child(sb)
 	solids.append([Vector3(pos.x, 0, pos.z), maxf(size.x, size.z) * 0.6 + 0.5])
+	return sb
 
 ## Столб-цилиндр для коллизии: стволы, кусты, кучи — герой обходит, враги тоже (та же маска, что у остальной статики)
 func _pillar(pos: Vector3, r: float, h: float) -> void:
@@ -295,7 +333,7 @@ func _light(pos: Vector3, col: Color, energy: float, rng: float, shadow := false
 func _lamp(pos: Vector3, energy := 3.4, shadow := false) -> void:
 	_put("street_lamp", pos, 0.0, 5.2, false)
 	_solid_box(pos + Vector3(0, 1.5, 0), Vector3(0.3, 3.0, 0.3))
-	_light(pos + Vector3(0, 4.6, 0), Color(1.0, 0.72, 0.42), energy, 15.0, shadow)
+	lamps.append(_light(pos + Vector3(0, 4.6, 0), Color(1.0, 0.72, 0.42), energy, 15.0, shadow))
 
 ## сугроб: несколько слипшихся наметённых бугров разного размера (у бордюров, под деревьями, куда счищают дворники)
 func _drift(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
@@ -614,7 +652,8 @@ func _zone_podezd() -> void:
 	if _own("g67_urn", Vector3(-1.9, 0.07, 33.9), PI, 0.8) == null:             # урна у лавки
 		_put("barrel", Vector3(-1.9, 0.07, 33.6), 0.0, 0.75)
 	# сушилка с бельём на газоне перед домом: бельё замёрзло колом
-	if _own("g67_laundry_lines", Vector3(10.5, 0, 21.0), 0.25, 3.6, "w", false) != null:
+	laundry = _own("g67_laundry_lines", Vector3(10.5, 0, 21.0), 0.25, 3.6, "w", false)
+	if laundry != null:
 		_solid_box(Vector3(8.8, 1.1, 20.6), Vector3(0.3, 2.2, 0.3))
 		_solid_box(Vector3(12.2, 1.1, 21.4), Vector3(0.3, 2.2, 0.3))
 	_put("res://assets/golda67/g67_poster_stand.glb", Vector3(5.4, 0, 26.0), PI * 0.5, 2.2)      # реклама турнира у дороги
@@ -821,15 +860,173 @@ func crowd_react(kind: String) -> int:
 		n += 1
 	return n
 
+## ---- ДВОР 1.5: предметы жизни двора и надписи
+## Предмет жизни: модель assets/golda67/<id>.glb, если есть, иначе серая коробка нужного размера с коллизией (модели — из Blender)
+var life_props := {}
+var carpet_rack_node: Node3D = null
+
+func _lifeprop(id: String, pos: Vector3, yaw: float, size: Vector3) -> Node3D:
+	if G67Models.has(id):
+		var n := G67Models.spawn(id, self, pos, yaw, size)
+		_solid_box(pos + Vector3(0, size.y * 0.5, 0), size, yaw)
+		life_props[id] = n
+		return n
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color(0.5, 0.52, 0.55)
+	mt.roughness = 0.9
+	mi.material_override = mt
+	mi.position = pos + Vector3(0, size.y * 0.5, 0)
+	mi.rotation.y = yaw
+	mi.name = id + "_stub"
+	add_child(mi)
+	_solid_box(pos + Vector3(0, size.y * 0.5, 0), size, yaw)
+	life_props[id] = mi
+	return mi
+
+func _life_props() -> void:
+	carpet_rack_node = get_node_or_null("g67_carpet_rack") as Node3D
+	_lifeprop("g67_intercom", Vector3(-1.3, 0.9, 35.0), PI, Vector3(0.3, 0.45, 0.12))
+	_lifeprop("g67_garage_radio", Vector3(-42.4, 0.0, 4.8), PI * 0.5, Vector3(0.5, 0.35, 0.3))
+	_lifeprop("g67_box_nothing", Vector3(-40.6, 0.0, -3.2), 0.3, Vector3(0.7, 0.5, 0.6))
+	_lifeprop("g67_puhosos", Vector3(-39.0, 0.0, 8.0), 0.8, Vector3(1.1, 1.0, 0.8))
+	_lifeprop("g67_workbench", Vector3(-39.2, 0.0, -2.2), PI * 0.5, Vector3(1.6, 0.9, 0.7))
+
+## Надпись-листок: кинд paper/graffiti/marker/plate/sticker/banner; лицом к yaw (PI — к двору от фасада z = 35)
+func _note(kind: String, text: String, pos: Vector3, yaw: float, sub := "") -> Node3D:
+	var root := Node3D.new()
+	root.position = pos
+	root.rotation.y = yaw
+	add_child(root)
+	var big := kind == "graffiti"
+	var small := kind == "marker" or kind == "sticker"
+	var lb := Label3D.new()
+	lb.text = text
+	lb.font_size = 56 if big else (30 if small else 36)
+	lb.pixel_size = 0.0075 if big else (0.0035 if small else 0.0042)
+	lb.outline_size = 10 if big else 4
+	lb.width = 520.0 if not big else 760.0
+	lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lb.position = Vector3(0, 0, 0.012)
+	lb.shaded = false
+	match kind:
+		"graffiti":
+			lb.modulate = Color(0.95, 0.35, 0.3)
+			lb.rotation.z = randf_range(-0.05, 0.05)
+		"marker":
+			lb.modulate = Color(0.1, 0.1, 0.12)
+			lb.outline_modulate = Color(0.85, 0.85, 0.8, 0.0)
+		"sticker":
+			lb.modulate = Color(1.0, 0.9, 0.2)
+			lb.outline_modulate = Color(0, 0, 0, 1)
+		"plate":
+			lb.modulate = Color(0.08, 0.08, 0.1)
+			lb.outline_modulate = Color(0.75, 0.75, 0.78, 1)
+		"banner":
+			lb.modulate = Color(0.95, 0.9, 0.5)
+			lb.outline_modulate = Color(0.1, 0.35, 0.15, 1)
+		_:
+			lb.modulate = Color(0.06, 0.06, 0.08)
+			lb.outline_modulate = Color(0.95, 0.95, 0.92, 1)
+	root.add_child(lb)
+	if kind in ["paper", "plate", "banner"]:
+		var q := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		var lines := maxi(1, int(ceil(text.length() / 17.0)))
+		qm.size = Vector2(0.62 if kind != "banner" else 1.4, 0.16 + 0.1 * lines)
+		q.mesh = qm
+		var m := StandardMaterial3D.new()
+		m.albedo_color = {"paper": Color(0.94, 0.93, 0.88), "plate": Color(0.62, 0.64, 0.68), "banner": Color(0.18, 0.4, 0.2)}[kind]
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		q.material_override = m
+		q.position = Vector3(0, 0, 0.004)
+		root.add_child(q)
+		(lb as Label3D).position = Vector3(0, 0, 0.014)
+	if kind == "paper":
+		sway_notes.append(root)
+	notes.append({"node": root, "text": text, "sub": sub, "kind": kind})
+	return root
+
+var notes: Array = []
+var sway_notes: Array = []
+## Что где висит. cl — группа для [E]: одна точка на группу, повторное нажатие листает листки группы
+const SIGN_AT := {
+	"jelos_all": [Vector3(6.4, 1.55, 34.82), PI, "board"], "uk": [Vector3(6.9, 1.25, 34.82), PI, "board"], "serega_board": [Vector3(6.3, 1.0, 34.82), PI, "board"],
+	"y2016": [Vector3(6.85, 0.95, 34.82), PI, "board"], "okak1": [Vector3(7.5, 0.7, 34.82), PI, ""],
+	"niche": [Vector3(-5.4, 0.9, 34.88), PI, "basement"], "shovel": [Vector3(5.7, 1.3, 33.4), PI, "shovel"],
+	"jelos_was": [Vector3(-18.0, 2.2, 35.1), PI, ""], "in_this1": [Vector3(-21.8, 1.4, 35.1), PI, ""],
+	"g8_plate": [Vector3(-43.1, 2.6, -6.0), PI * 0.5, ""], "g8_no": [Vector3(-43.1, 1.5, -6.0), PI * 0.5, "g8"], "serega_wall": [Vector3(-43.1, 1.0, 13.0), PI * 0.5, ""],
+	"mognut": [Vector3(-43.1, 1.6, 9.5), PI * 0.5, ""], "b42": [Vector3(-43.1, 0.9, 16.0), PI * 0.5, ""], "six7": [Vector3(-43.1, 2.3, 18.5), PI * 0.5, ""],
+	"jelos_note": [Vector3(-39.2, 1.0, -2.2), PI, "bench"], "jelos_ok": [Vector3(33.0, 1.0, -14.0), PI, ""], "box_no": [Vector3(-40.6, 0.8, -3.6), PI, ""],
+	"puh": [Vector3(-39.0, 1.1, 7.55), PI, ""], "in_this2": [Vector3(-43.1, 1.0, 11.0), PI * 0.5, ""], "okak2": [Vector3(-43.1, 0.8, 20.0), PI * 0.5, ""],
+	"rocket": [Vector3(2.5, 1.6, -7.0), 0.0, "rocket"], "carpet": [Vector3(-7.0, 1.7, 4.4), 0.0, ""], "cheremsha": [Vector3(9.7, 1.3, -10.0), -PI * 0.5, "cheremsha"],
+	"okak3": [Vector3(0.0, 0.9, -12.6), 0.0, ""], "kiosk_a": [Vector3(41.9, 1.5, 6.2), -PI * 0.5, "kiosk"], "kiosk_b": [Vector3(41.9, 1.5, 6.2), -PI * 0.5, "kiosk"],
+	"kiosk_c": [Vector3(41.9, 1.5, 6.2), -PI * 0.5, "kiosk"], "kiosk_d": [Vector3(41.9, 1.5, 6.2), -PI * 0.5, "kiosk"], "place": [Vector3(28.6, 1.0, 9.6), -PI * 0.5, ""],
+	"in_this3": [Vector3(31.3, 0.7, 11.3), 0.0, ""], "tp": [Vector3(19.5, 1.7, -12.7), 0.0, ""],
+	"gz_note_a": [Vector3(-24.2, 0.92, -31.1), 0.0, "gazebo"], "gz_note_b": [Vector3(-24.2, 0.92, -31.1), 0.0, "gazebo"], "gz_note_c": [Vector3(-24.2, 0.92, -31.1), 0.0, "gazebo"],
+	"gz_paper": [Vector3(-23.9, 0.92, -31.4), 0.0, "gazebo"], "court_rules": [Vector3(2.0, 2.6, -26.6), 0.0, "court"], "court_bets": [Vector3(14.6, 1.2, -38.5), -PI * 0.5, "court"],
+}
+var sign_groups := {}                  # группа → [{pos (точка [E]), cards: [{text, sub}]}]
+
+func _life_signs() -> void:
+	var seed_v := G67Yard.crowd_seed
+	var pools := {}
+	for sg in G67LifeData.SIGNS:
+		var id := String(sg["id"])
+		if not SIGN_AT.has(id):
+			continue
+		var pool := String(sg.get("pool", ""))
+		if pool != "":
+			if not pools.has(pool):
+				pools[pool] = []
+			(pools[pool] as Array).append(sg)
+	var chosen := {}
+	for pl in pools:
+		var arr: Array = pools[pl]
+		chosen[pl] = String(arr[seed_v % arr.size()]["id"])
+	var wall8 := false
+	for sg in G67LifeData.SIGNS:
+		var id := String(sg["id"])
+		if not SIGN_AT.has(id):
+			if id == "seven_ads":
+				for i in 8:
+					_note("paper", String(sg["text"]).substr(0, 14), Vector3(-7.9 + i * 0.3, 1.55, 34.9), PI)
+				sign_groups["wall8"] = {"pos": Vector3(-6.9, 0.0, 34.0), "cards": [{"text": sg["text"], "sub": sg["sub"]}], "title": "ОБЪЯВЛЕНИЯ"}
+			continue
+		var pool := String(sg.get("pool", ""))
+		if pool != "" and String(chosen[pool]) != id:
+			continue
+		var ad: Array = SIGN_AT[id]
+		_note(String(sg["kind"]), String(sg["text"]), ad[0], float(ad[1]), String(sg.get("sub", "")))
+		if bool(sg.get("read", false)) and String(ad[2]) != "":
+			var cl := String(ad[2])
+			if not sign_groups.has(cl):
+				var gp: Vector3 = ad[0]
+				sign_groups[cl] = {"pos": Vector3(gp.x, 0.0, gp.z) + Vector3(sin(float(ad[1])), 0, cos(float(ad[1]))) * 0.9, "cards": [], "title": "ЛИСТОК"}
+			(sign_groups[cl]["cards"] as Array).append({"text": sg["text"], "sub": String(sg.get("sub", ""))})
+
+## Ветер колышет листки сильнее (в порыв)
+func sway_tick(t: float) -> void:
+	var k := 0.03 + (0.08 if gust_t > 0.0 else 0.0)
+	for n in sway_notes:
+		if is_instance_valid(n):
+			(n as Node3D).rotation.z = sin(t * 2.0 + (n as Node3D).position.x) * k
+
 ## Стайки голубей вне зон боя: сидят, клюют; героя ближе 2,5 м — взлетают дугой и садятся в другом месте
 var hero: Node3D = null
+var lamps: Array = []
+var gust_t := 0.0
+var laundry: Node3D = null
 var flocks: Array = []
 
 func _flocks() -> void:
 	flocks = []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 909
-	var homes := [Vector3(28, 0.05, -17), Vector3(-20, 0.05, -16), Vector3(-38, 0.05, -17)]
+	var homes := [Vector3(28, 0.05, -17), Vector3(-20, 0.05, -16), Vector3(-38, 0.05, -17), Vector3(9.4, 0.05, 29.4)]
 	for hi in homes.size():
 		var birds: Array = []
 		for k in 4:
@@ -841,6 +1038,8 @@ func _flocks() -> void:
 
 func _process(_dt: float) -> void:
 	win_tick(_dt)
+	gust_t = maxf(0.0, gust_t - _dt)
+	sway_tick(float(Time.get_ticks_msec()) * 0.001)
 	if hero == null or not is_instance_valid(hero):
 		return
 	var hp := hero.global_position
@@ -848,25 +1047,55 @@ func _process(_dt: float) -> void:
 		var base: Vector3 = f["alt"] if bool(f["at_alt"]) else f["home"]
 		if Vector2(hp.x - base.x, hp.z - base.z).length() > 2.5:
 			continue
-		var dest: Vector3 = f["home"] if bool(f["at_alt"]) else f["alt"]
-		f["at_alt"] = not bool(f["at_alt"])
-		for b in f["birds"]:
-			var n: Node3D = b["n"]
-			if not is_instance_valid(n):
-				continue
-			var from := n.global_position
-			var to: Vector3 = dest + (b["off"] as Vector3)
-			var h := randf_range(6.0, 8.0)
-			var gp: G67Pigeon = b["p"]
-			gp.flight = true
-			var tw := n.create_tween()
-			tw.tween_method(func(k: float):
-				if is_instance_valid(n):
-					n.global_position = from.lerp(to, k) + Vector3(0, sin(PI * k) * h, 0), 0.0, 1.0, randf_range(1.6, 2.2)).set_delay(randf_range(0.0, 0.25))
-			tw.tween_callback(func():
-				if is_instance_valid(gp):
-					gp.home = to
-					gp.flight = false)
+		_flee_flock(f)
+
+func _flee_flock(f: Dictionary) -> void:
+	var dest: Vector3 = f["home"] if bool(f["at_alt"]) else f["alt"]
+	f["at_alt"] = not bool(f["at_alt"])
+	for b in f["birds"]:
+		var n: Node3D = b["n"]
+		if not is_instance_valid(n):
+			continue
+		var from := n.global_position
+		var to: Vector3 = dest + (b["off"] as Vector3)
+		var h := randf_range(6.0, 8.0)
+		var gp: G67Pigeon = b["p"]
+		gp.flight = true
+		var tw := n.create_tween()
+		tw.tween_method(func(k: float):
+			if is_instance_valid(n):
+				n.global_position = from.lerp(to, k) + Vector3(0, sin(PI * k) * h, 0), 0.0, 1.0, randf_range(1.6, 2.2)).set_delay(randf_range(0.0, 0.25))
+		tw.tween_callback(func():
+			if is_instance_valid(gp):
+				gp.home = to
+				gp.flight = false)
+
+func scare(pos: Vector3, r: float) -> void:
+	for f in flocks:
+		var base: Vector3 = f["alt"] if bool(f["at_alt"]) else f["home"]
+		if Vector2(pos.x - base.x, pos.z - base.z).length() < r:
+			_flee_flock(f)
+
+func nearest_flock(pos: Vector3) -> Dictionary:
+	var best: Dictionary = {}
+	var bd := 1e9
+	for f in flocks:
+		var base: Vector3 = f["alt"] if bool(f["at_alt"]) else f["home"]
+		var d: float = Vector2(pos.x - base.x, pos.z - base.z).length()
+		if d < bd:
+			bd = d
+			best = f
+	return best
+
+## Порыв ветра: бельё и качели колышутся сильнее
+func gust(sec: float) -> void:
+	gust_t = sec
+	if laundry != null and is_instance_valid(laundry):
+		var tw := create_tween()
+		for i in 4:
+			tw.tween_property(laundry, "rotation:z", 0.05, 0.4)
+			tw.tween_property(laundry, "rotation:z", -0.05, 0.4)
+		tw.tween_property(laundry, "rotation:z", 0.0, 0.3)
 
 ## Поверхности двора: колеи, цепочки следов, наледь и лужи, заплатки и трещины асфальта, разметка, сугробы — MultiMesh, без коллизий и теней
 var detail_nodes: Array = []
@@ -1261,8 +1490,16 @@ func _people() -> void:
 		r.name = id
 		if who.has("carry"):
 			G67Carry.attach(r, String(who["carry"]))
-		_solid_box((who["pos"] as Vector3) + Vector3(0, 0.9, 0), Vector3(0.6, 1.8, 0.6))
+		var bd := _solid_box((who["pos"] as Vector3) + Vector3(0, 0.9, 0), Vector3(0.6, 1.8, 0.6))
+		remove_child(bd)                                         # тело жителя едет вместе с ним
+		r.add_child(bd)
+		bd.position = Vector3(0, 0.9, 0)
+		bd.rotation = Vector3.ZERO
 		people[id] = r
+		var pls: Array = [{"pos": who["pos"], "yaw": float(who["yaw"]), "base": String(who["base"]), "alts": who.get("alts", [])}]
+		for extra in LIFE_PLACES.get(id, []):
+			pls.append(extra)
+		residents[id] = G67Resident.attach(self, r, r.get_meta("life"), bd, id, pls, 7000 + i * 53)
 
 ## F — беседка: тихий угол за гаражами, где сидят по вечерам. Здесь передышка перед коробкой.
 func _zone_gazebo() -> void:
@@ -1359,6 +1596,8 @@ func _zone_sport() -> void:
 	_arena_decor(x0, x1, z0, z1)
 	_surface_detail()
 	_flocks()
+	_life_props()
+	_life_signs()
 	_door_lamps()
 	_facade_life()
 	# мачты с прожекторами по углам — свет на лёд, длинные тени
