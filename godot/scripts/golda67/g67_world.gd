@@ -645,7 +645,6 @@ func build_event_props() -> void:
 	# автомат
 	var a := Node3D.new()
 	a.position = sp["burmalda"]
-	a.rotation.y = PI
 	add_child(a)
 	_ev_mesh(a, _evb(Vector3(1.0, 2.0, 0.8)), Vector3(0, 1.0, 0), Color(0.42, 0.1, 0.09))
 	_ev_mesh(a, _evb(Vector3(0.62, 0.5, 0.05)), Vector3(0, 1.45, 0.41), Color(0.05, 0.05, 0.06))
@@ -676,7 +675,7 @@ func build_event_props() -> void:
 	al.omni_range = 4.0
 	al.position = Vector3(0, 1.6, 1.0)
 	a.add_child(al)
-	_static_box(sp["burmalda"] + Vector3(0, 1.0, 0), Vector3(1.1, 2.0, 0.9), PI)
+	_static_box(sp["burmalda"] + Vector3(0, 1.0, 0), Vector3(1.1, 2.0, 0.9), 0.0)
 	ev_nodes["burm"] = {"win": win, "lever": lever, "lamps": lamps, "tray": tray, "root": a}
 	# кнопка на столбе
 	var b := Node3D.new()
