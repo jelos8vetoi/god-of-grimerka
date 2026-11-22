@@ -95,3 +95,9 @@ material_override = ExtResource("steel")
 position = Vector3(-0.135, 0.599, 0.059)
 mesh = SubResource("Sphere_0_022_0_044_12_6")
 material_override = SubResource("LensOff")
+
+[node name="LedGlow" type="OmniLight3D" parent="."]
+position = Vector3(-0.135, 0.599, 0.07)
+light_color = Color(0.25, 1, 0.35, 1)
+light_energy = 0.05
+omni_range = 0.4

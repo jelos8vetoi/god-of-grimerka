@@ -1,6 +1,6 @@
 shader_type spatial;
 
-uniform vec4 tile : source_color = vec4(0.40, 0.415, 0.39, 1.0);
+uniform vec4 tile : source_color = vec4(0.30, 0.31, 0.29, 1.0);
 uniform vec4 joint : source_color = vec4(0.095, 0.10, 0.10, 1.0);
 uniform sampler2D grain : source_color, repeat_enable, filter_linear_mipmap;
 uniform float tile_size : hint_range(0.2, 1.0) = 0.45;
@@ -18,5 +18,7 @@ void fragment() {
 	float grain_value = texture(grain, floor_pos * 1.9).r;
 	float variation = fract(dot(floor(uv), vec2(0.37, 0.61)));
 	ALBEDO = mix(joint.rgb, tile.rgb * (0.67 + 0.23 * grain_value + 0.10 * variation), face.x * face.y);
-	ROUGHNESS = 0.73 + 0.18 * grain_value;
+	float wet = smoothstep(0.62, 0.8, texture(grain, floor_pos * 0.23).r);
+	ALBEDO *= 1.0 - 0.25 * wet;
+	ROUGHNESS = clamp(0.73 + 0.18 * grain_value - 0.35 * wet, 0.1, 1.0);
 }

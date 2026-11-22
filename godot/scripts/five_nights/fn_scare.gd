@@ -147,7 +147,7 @@ func _wait(sec: float) -> void:
 func _hit(scream: String, lamp_col: Color, fov_to := 58.0) -> void:
 	scream_len = root.scream(scream.trim_prefix("scream_"))          # крик — в тот же кадр, что и рывок
 	aim_id = scare_id
-	office.lamp.light_color = lamp_col
+	office.set_lamp_color(lamp_col)
 	office.set_lamp_energy(3.2)
 	office.scare_light.light_color = Color(1.0, 0.95, 0.9).lerp(lamp_col, 0.45)
 	office.scare_light.light_energy = 4.0
@@ -357,7 +357,7 @@ func restore() -> void:
 	office.scare_light.light_energy = 0.0
 	office.cam.fov = office.rest_fov
 	office.cam.transform = cam_from
-	office.lamp.light_color = office.lamp_tint
+	office.set_lamp_color(office.lamp_tint)
 	office.set_lamp_energy(office.lamp_base)
 	office.hatch.rotation.x = 0.0
 	for id in actors.rigs:

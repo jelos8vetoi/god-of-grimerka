@@ -71,6 +71,7 @@ func build(f: FNFacility, world: World3D) -> void:
 	add_child(vp)
 	cam = Camera3D.new()
 	cam.far = 60.0
+	cam.environment = preload("res://scenes/five_nights/materials/cctv_environment.tres")
 	vp.add_child(cam)
 	mat = ShaderMaterial.new()
 	var sh := Shader.new()
