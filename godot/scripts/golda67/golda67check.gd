@@ -148,6 +148,11 @@ func _run() -> void:
 			await _ev_scene_shots(g, G, g.player, String(arg).substr(14))
 			_finish()
 			return
+	for arg in OS.get_cmdline_user_args():
+		if String(arg).begins_with("--g67-clip="):
+			await _clip_log(G, String(arg).substr(11))
+			_finish()
+			return
 	if OS.get_cmdline_user_args().has("--g67-cam"):
 		await _cam_check(g, G, g.player)
 		_finish()
@@ -2567,6 +2572,29 @@ func _events_check(g, G: Golda67, P) -> void:
 	G.data["run"] = {}
 	await wait(0.3)
 
+## Один ролик: кадр каждую секунду и журнал «время → реплика → длина голоса → пауза до следующей»
+func _clip_log(G: Golda67, cid: String) -> void:
+	G67ClipPlayer.last_log = []
+	G.play_clip(cid)
+	await wait(0.3)
+	var t_last := 0.0
+	var nxt := 0.0
+	while G.clip != null and is_instance_valid(G.clip):
+		t_last = G.clip.t
+		if t_last >= nxt:
+			await shot("clip_%s_%02d" % [cid, int(nxt)])
+			nxt += 1.0
+		await get_tree().process_frame
+	var lg: Array = G67ClipPlayer.last_log
+	for i in lg.size():
+		var gap := 0.0
+		var note := ""
+		if i + 1 < lg.size():
+			gap = float(lg[i + 1][0]) - (float(lg[i][0]) + float(lg[i][2]))
+			note = "  ← ОБРЕЗАНА" if gap < -0.05 else ("  ← ПАУЗА > 0,8 с" if gap > 0.8 else "")
+		print("GOLDA67CHECK   LOG %s %5.1f  %s  голос %.2f с  пауза %.2f%s%s" % [cid, float(lg[i][0]), String(lg[i][1]).left(48), float(lg[i][2]), gap, note, "" if bool(lg[i][3]) else "  (НЕТ ГОЛОСА)"])
+	print("GOLDA67CHECK   LOG %s длина %.1f с" % [cid, t_last])
+
 ## Сцена события: kind = burm:<исход> или btn:<исход>; кадр каждые 0,5 с
 func _ev_scene_shots(g, G: Golda67, P, kind: String) -> void:
 	await _go(G, P, "exit")
@@ -2823,12 +2851,23 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	var wraps_l: Array = G.coins.filter(func(c): return c.has("heal"))
 	ok(wraps_l.size() == 1 and float(wraps_l[0]["heal"]) == 25.0, "N06: за зачистку боя лежит свёрток шаурмы +25 (%d)" % wraps_l.size())
 	if wraps_l.size() == 1:
+		ok(not wraps_l[0].has("life"), "N11: свёрток за зачистку лежит без срока (до начала следующего этапа)")
 		P.hp = 40.0
 		P.global_position = (wraps_l[0]["n"] as Node3D).global_position
 		await wait(1.2)
 		ok(absf(P.hp - 65.0) < 1.5 and G.coins.filter(func(c): return c.has("heal")).is_empty(), "N06: подбор лечит один раз (здоровье %.0f)" % P.hp)
 		P.hp = P.max_hp
-	ok(String(G.point("kiosk")["hint"]).contains("откроется с третьей позиции"), "подсказка закрытого окна ларька: «%s»" % G.point("kiosk")["hint"])
+	var pos_keep: int = int(G.run["pos"])
+	G.run["pos"] = 1
+	G.hub_ui = null
+	G.use("kiosk")
+	ok(G.hub_ui != null and G.hub_ui.kind == "kiosk", "N12: окно ларька торгует, когда пройдены две позиции")
+	if G.hub_ui != null:
+		G.hub_ui.close()
+		await wait(0.3)
+	G.run["pos"] = pos_keep
+	G._kiosk_hint()
+	ok(String(G.point("kiosk")["hint"]).contains("откроется после второй позиции"), "подсказка закрытого окна ларька: «%s»" % G.point("kiosk")["hint"])
 	var gold_before := int(G.run["golda"])
 	await wait(3.5)
 	ok(G.coins.is_empty() and int(G.run["golda"]) > gold_before and int(G.run["earned"]) == int(G.run["golda"]) + int(G.run["spent"]), "монеты после боя летят к герою и начисляются один раз (голда %d)" % int(G.run["golda"]))

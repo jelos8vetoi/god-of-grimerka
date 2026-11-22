@@ -134,8 +134,7 @@ func _first_clips() -> void:
 		await game.get_tree().process_frame
 	if not is_instance_valid(self) or clip != null:
 		return
-	await play_auto("STORY01")               # регистрация — до первого забега
-	await play_auto("STORY05")               # первое обращение организатора
+	await play_auto("STORY01")               # регистрация — до первого забега (STORY05 — при первом возвращении после забега)
 
 func _swap_world(build: Callable) -> void:
 	game._clear_fight()
@@ -183,6 +182,10 @@ func enter_hub() -> void:
 	events.append(["enter", "hub"])
 	await game.get_tree().process_frame
 	game.banner(TITLE, "ПОДЪЕЗД · РЕСПЕКТ: %d" % int(meta().get("respect", 0)), Color(1.0, 0.8, 0.2), 3.5)
+	if auto_clips and int(meta().get("runs", 0)) >= 1 and not auto_played("STORY05") and clip == null and place == "hub":
+		await game.get_tree().create_timer(1.2).timeout
+		if is_instance_valid(self) and place == "hub" and clip == null and not auto_played("STORY05"):
+			await play_auto("STORY05")       # первое обращение организатора — первое возвращение в подъезд после забега
 
 func _build_prompt() -> void:
 	if prompt != null and is_instance_valid(prompt):
@@ -878,7 +881,7 @@ func _room_cleared() -> void:
 	for k in pn:
 		_drop_coin(game.arena_c + Vector3(randf_range(-1.2, 1.2), 0.0, randf_range(-1.2, 1.2)), int(ceil(float(pile) / pn)), true)      # награда за зачистку — горкой в центре зоны
 	if G67Data.STAGE_HEAL.has(type):
-		_drop_wrap(float(G67Data.STAGE_HEAL[type]), game.arena_c + Vector3(randf_range(-1.5, 1.5), 0.0, randf_range(2.0, 3.0)))
+		_drop_wrap(float(G67Data.STAGE_HEAL[type]), game.arena_c + Vector3(randf_range(-1.5, 1.5), 0.0, randf_range(2.0, 3.0)), 0.0)
 	_add_respect("elite" if type == "elite" else "battle", int(G67Data.RESPECT["elite" if type == "elite" else "room"]))
 	run["rooms"] = int(run["rooms"]) + 1
 	game.banner("ЧИСТО", "голда: %d" % int(run["golda"]), Color(1, 0.85, 0.3), 1.8)
@@ -1021,7 +1024,7 @@ func misha_retinue_clear() -> void:
 	retinue = []
 
 ## Зрители бросают на лёд шаурму: свёрток по дуге с трибуны, лежит 20 с, подобрать — +25 здоровья
-func _drop_wrap(heal := 25.0, at := Vector3.INF) -> void:
+func _drop_wrap(heal := 25.0, at := Vector3.INF, life := 20.0) -> void:
 	var c: Vector3 = game.arena_c
 	var from := Vector3(c.x + randf_range(-8.0, 8.0), 4.0, c.z - 9.5) if at == Vector3.INF else at + Vector3(0, 1.4, 0)
 	var n := MeshInstance3D.new()
@@ -1040,7 +1043,10 @@ func _drop_wrap(heal := 25.0, at := Vector3.INF) -> void:
 	world.add_child(n)
 	n.global_position = from
 	var tgt := Vector3(c.x + randf_range(-5.0, 5.0), 0.2, c.z + randf_range(-4.0, 4.0)) if at == Vector3.INF else at + Vector3(randf_range(-0.4, 0.4), -1.2, 0.5)
-	coins.append({"n": n, "v": 0, "heal": heal, "vel": (tgt - from) / 0.9 + Vector3(0, 4.4, 0), "land": false, "t": 0.0, "life": 20.0})
+	var ent := {"n": n, "v": 0, "heal": heal, "vel": (tgt - from) / 0.9 + Vector3(0, 4.4, 0), "land": false, "t": 0.0}
+	if life > 0.0:
+		ent["life"] = life                 # у шаурмы зрителей срок 20 с; свёрток за зачистку лежит, пока не начат следующий этап
+	coins.append(ent)
 
 ## Шесть позиций района: типы вариантов без конкретики (для карты, паузы, итогов); сами варианты — route_options
 func route() -> Array:
@@ -1741,7 +1747,7 @@ func _kiosk_hint() -> void:
 			if _kiosk_gate() >= 0:
 				pt["hint"] = "ЛАРЁК · твой этап: всё меню, первая шаурма бесплатно"
 				continue
-			pt["hint"] = "окно закрыто — откроется с третьей позиции" if (int(run.get("pos", 0)) < 2 and not bool(run.get("kiosk_full", false))) else "окно ларька: шаурма за голду"
+			pt["hint"] = "окно закрыто — откроется после второй позиции" if (int(run.get("pos", 0)) < 1 and not bool(run.get("kiosk_full", false))) else "окно ларька: шаурма за голду"
 
 func _open_gates() -> void:
 	_kiosk_hint()
@@ -2898,8 +2904,8 @@ func use(id: String) -> void:
 	elif id == "kiosk" and _kiosk_gate() >= 0:
 		use("gate%d" % _kiosk_gate())               # на позиции с вариантом ЛАРЁК окно — это вариант этапа
 	elif id == "kiosk":
-		if place == "run" and int(run.get("pos", 0)) < 2 and not bool(run.get("kiosk_full", false)):
-			game.toast("Окно закрыто: откроется позже")
+		if place == "run" and int(run.get("pos", 0)) < 1 and not bool(run.get("kiosk_full", false)):
+			game.toast("Окно закрыто: откроется после второй позиции")
 		elif room_state in ["open", "reward"]:
 			open_screen("kiosk")
 		else:

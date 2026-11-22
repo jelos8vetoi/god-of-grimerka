@@ -53,6 +53,8 @@ static func L(id: String, i: int) -> String:
 	return String(LINES[id][i])
 
 static func run(c: G67ClipPlayer, id: String) -> void:
+	G67Sound.play(c, "click")                     # щелчок включения записи
+	c.vhs(0.7, 0.35)
 	match id:
 		"V00": await v00(c)
 		"AD01": await ad01(c)
@@ -694,7 +696,10 @@ static func news01(c: G67ClipPlayer) -> void:
 	# ведущий в кадре, средний план
 	c.cam_at(S + Vector3(-0.5, 1.75, 3.1), S + Vector3(0.1, 1.45, -0.55), 40.0)
 	c.plate("РАЙОННЫЙ ВЕСТНИК 67", "lower", 3.0)
+	c.cam_to(S + Vector3(-0.2, 1.65, 2.3), S + Vector3(0.05, 1.5, -0.55), _len(c, L("NEWS01", 0)), 33.0)
 	await c.say(L("NEWS01", 0), 0.15)
+	c.vhs(0.9, 0.4)
+	G67Sound.play(c, "click")
 	# повтор боя: последний удар по Мише, замедленно
 	var M := Vector3(2.0, 0.03, -38.0)
 	var mi := c.actor("misha", "misha", M, 0.0)
@@ -709,6 +714,7 @@ static func news01(c: G67ClipPlayer) -> void:
 	await c.wait(2.3)
 	c.mono(0.0)
 	c.clear_plates()
+	c.vhs(0.9, 0.4)
 	# Миша на лавке поправляет цепь, не глядя в камеру
 	c.actors.erase("pahan")
 	pa.queue_free()
@@ -740,6 +746,7 @@ static func story01(c: G67ClipPlayer) -> void:
 	var ph := c.screen(func(s: Control, fs: Vector2):
 		_phone_screen(c, s, fs, "ad"))
 	c.say_async(L("STORY01", 0))
+	c.cam_to(H + Vector3(-0.1, 1.38, 0.1), H + Vector3(-0.8, 1.25, -1.6), _len(c, L("STORY01", 0)) + 0.2, 52.0)
 	await c.wait(_len(c, L("STORY01", 0)) + 0.2)
 	await c.say(L("STORY01", 1), 0.1)
 	# нажимает «ЗАРЕГИСТРИРОВАТЬСЯ» → взнос
@@ -747,14 +754,14 @@ static func story01(c: G67ClipPlayer) -> void:
 	ph.queue_free()
 	ph = c.screen(func(s: Control, fs: Vector2):
 		_phone_screen(c, s, fs, "pay"))
-	await c.wait(0.8)
+	await c.wait(0.35)
 	await c.say(L("STORY01", 2), 0.1)
 	c.sfx("sfx_ui", -2.0, 1.7)
 	c.sfx("sfx_ui", -2.0, 2.2)
 	ph.queue_free()
 	ph = c.screen(func(s: Control, fs: Vector2):
 		_phone_screen(c, s, fs, "done"))
-	await c.wait(1.2)
+	await c.wait(0.5)
 	# камера телефона: Пахан входит в кадр вплотную
 	ph.queue_free()
 	c.anim("pahan", "Run", 0.1, 1.2)
