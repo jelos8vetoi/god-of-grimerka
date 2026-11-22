@@ -799,10 +799,17 @@ static func ev_clips() -> Dictionary:
 		"ESit": P._loop(3.0, P._mix(P.SIT, {"drop": 0.3, "spine": {"x": 0.12}, "head": {"x": 0.1}, "rarm": {"x": -0.3}, "larm": {"x": -0.3}, "rfa": {"x": -0.5}, "lfa": {"x": -0.5}}), P.BREATH),
 		"ESitBed": P._loop(3.0, P._mix(P.SIT, {"drop": 0.3, "rleg": {"x": 0.12}, "lleg": {"x": 0.12}, "rup": {"x": -1.45}, "lup": {"x": -1.45}, "spine": {"x": 0.02}, "head": {"x": 0.05}, "rarm": {"x": -0.2, "z": -0.15}, "larm": {"x": -0.2, "z": 0.15}}), P.BREATH),
 		"EBucket": P._loop(2.0, carry, P.BREATH),
+		"ESwingR": P._seq(0.9, {}, [[0.0, {"rarm": {"x": 0.25, "z": -0.1}, "rfa": {"x": -0.2}}], [0.55, {"rarm": {"x": 0.6, "z": -0.15}, "rfa": {"x": -0.3}, "spine": {"x": 0.12}}, "out"],
+			[0.8, {"rarm": {"x": -1.7, "z": -0.1}, "rfa": {"x": -0.1}, "spine": {"x": -0.2}}], [1.0, {"rarm": {"x": -1.5}, "rfa": {"x": -0.1}, "spine": {"x": -0.15}}]], false),
 		"EWalkBucket": P._walk(1.5, {"rarm": {"x": 0.05, "z": -0.3}, "rfa": {"x": -0.08}, "larm": {"z": 0.12}, "spine": {"x": 0.1, "z": 0.07}, "head": {"x": 0.05}}),
 		"ESwing": P._seq(0.9, carry, [[0.0, carry], [0.5, {"rarm": {"x": -1.9}, "larm": {"x": -1.9}, "rfa": {"x": -0.3}, "lfa": {"x": -0.3}, "spine": {"x": -0.3}}, "out"],
 			[1.0, {"rarm": {"x": -0.5}, "larm": {"x": -0.5}, "rfa": {"x": -0.2}, "lfa": {"x": -0.2}, "spine": {"x": 0.2}}]], false),
 	}
+
+static var snap_req := ""      # проверка просит снимок в ключевой момент сцены
+
+static func get_tree_snap_after(c: G67ClipPlayer) -> void:
+	c.get_tree().create_timer(1.0).timeout.connect(func(): snap_req = "after")
 
 static func _bone_pos(r: Rig, nm: String) -> Vector3:
 	var b: int = r.skel.find_bone(nm)
@@ -989,7 +996,7 @@ static func ev02(c: G67ClipPlayer) -> void:
 	c.anim("pahan", "ESleep", 0.0)
 	var mk := c.actor("wh", "whyousolonely", Vector3(3.4, 0, 1.5), -PI * 0.5)
 	c.anim("wh", "EWalkBucket", 0.0, 0.7)
-	var st := {"carry": true, "tilt": 0.0, "mode": "hang"}
+	var st := {"carry": true, "tilt": 0.0, "mode": "hang", "force": false, "swa": 0.1}
 	var carry_tw := c.create_tween().set_loops()
 	carry_tw.tween_callback(func():
 		if bool(st["carry"]) and is_instance_valid(mk):
@@ -997,6 +1004,8 @@ static func ev02(c: G67ClipPlayer) -> void:
 			if String(st["mode"]) == "hang":
 				# несёт за дужку правой рукой: ведро висит под кистью, покачивается маятником в такт шагу
 				var sw := 0.1 + 0.22 * sin(float(Time.get_ticks_msec()) * 0.0065)
+				if bool(st["force"]):
+					sw = float(st["swa"])                                  # мах: ведро на дужке из руки
 				bucket.global_position = _bone_pos(mk, "mixamorig_RightHand") + fw * sin(sw) * 0.27 + Vector3(0, -cos(sw) * 0.27, 0)
 				bucket.rotation = Vector3(0, mk.rotation.y, 0)
 				bucket.rotate_object_local(Vector3.RIGHT, sw + float(st["tilt"]))
@@ -1056,15 +1065,18 @@ static func ev02(c: G67ClipPlayer) -> void:
 	await c.wait(0.3)
 	# ---- план 5 (13–15 с): замах, вода, всплеск
 	c.cam_at(Vector3(2.6, 1.7, 2.3), Vector3(0.1, 0.9, -0.5), 56.0)
-	st["mode"] = "two"                                       # берёт ведро двумя руками
-	c.anim("wh", "EBucket", 0.15)
+	# мах одной рукой: правая с ведром на дужке уходит назад, затем выбрасывается вперёд-вверх, ведро переворачивается горлом к Пахану
+	st["force"] = true
+	st["swa"] = 0.1
+	c.anim("wh", "ESwingR", 0.1)
 	var back := c.create_tween()
-	back.tween_method(func(v: float): st["tilt"] = v, 0.0, 0.5, 0.5)       # замах назад-вниз
+	back.tween_method(func(v: float): st["swa"] = v, 0.1, -0.9, 0.5)
 	await c.wait(0.5)
-	c.anim("wh", "ESwing", 0.05)
-	var tilt := c.create_tween()
-	tilt.tween_method(func(v: float): st["tilt"] = v, 0.5, -1.4, 0.3)      # мах вперёд-вверх: горло к Пахану
-	await c.wait(0.3)
+	G67Clips.snap_req = "hold"
+	await c.wait(0.12)
+	var fwd := c.create_tween()
+	fwd.tween_method(func(v: float): st["swa"] = v, -0.9, 2.0, 0.28)
+	await c.wait(0.28)
 	var from_p: Vector3 = bucket.global_position + bucket.global_transform.basis.y.normalized() * 0.17
 	var to_p := Vector3(-0.1, 0.8, -1.0)
 	var wp := GPUParticles3D.new()
@@ -1095,7 +1107,40 @@ static func ev02(c: G67ClipPlayer) -> void:
 	G67Sound.play(c, "water")
 	G67Sound.play(c, "bucket")
 	c.shake(0.7)
-	await c.wait(0.35)
+	# струя лентой: крупные вытянутые капли по параболе от горла ведра до груди Пахана (≥ 0,6 с на каждую)
+	var drops: Array = []
+	var dm := CapsuleMesh.new()
+	dm.radius = 0.04
+	dm.height = 0.22
+	dm.material = wm
+	for di in 16:
+		var dr := MeshInstance3D.new()
+		dr.mesh = dm
+		dr.visible = false
+		c.world.add_child(dr)
+		drops.append(dr)
+	var chest := Vector3(-0.3, 0.85, -1.0)
+	var rib := c.create_tween()
+	rib.tween_method(func(t: float):
+		for di in drops.size():
+			var k: float = (t - float(di) * 0.045) / 0.75
+			var dr: MeshInstance3D = drops[di]
+			if k <= 0.0 or k >= 1.0:
+				dr.visible = false
+				continue
+			var p0 := from_p.lerp(chest, k) + Vector3(0, sin(PI * k) * 0.45, 0)
+			var p1 := from_p.lerp(chest, k + 0.03) + Vector3(0, sin(PI * (k + 0.03)) * 0.45, 0)
+			dr.visible = true
+			dr.global_position = p0
+			if p1.distance_to(p0) > 0.001:
+				dr.look_at(p1, Vector3.UP)
+				dr.rotate_object_local(Vector3.RIGHT, PI * 0.5), 0.0, 1.6, 1.6)
+	rib.tween_callback(func():
+		for dr in drops:
+			dr.queue_free())
+	await c.wait(0.3)
+	G67Clips.snap_req = "water"
+	await c.wait(0.6)
 	var sp2 := GPUParticles3D.new()
 	var pm2 := ParticleProcessMaterial.new()
 	pm2.direction = Vector3(0, 1, 0)
@@ -1121,9 +1166,12 @@ static func ev02(c: G67ClipPlayer) -> void:
 	pa.position = Vector3(-0.3, 0.52, -1.3)
 	c.anim("pahan", "ESitBed", 0.05)
 	# ведро пустое и снова в правой руке; бросит его на реплике «ТРЯПКИ!»
-	st["mode"] = "hang"
-	var untilt := c.create_tween()
-	untilt.tween_method(func(v: float): st["tilt"] = v, -1.4, 0.0, 0.4)
+	var lower := c.create_tween()
+	lower.tween_method(func(v: float): st["swa"] = v, 2.0, 0.1, 0.5)
+	lower.tween_callback(func(): st["force"] = false)
+	await c.wait(0.8)
+	G67Clips.snap_req = "after"
+	await c.wait(0.3)
 	c.shake(0.8)
 	# ---- план 6: Пахан в упор спереди — реплика 0
 	c.cam_at(Vector3(-0.3, 1.5, 0.5), Vector3(-0.3, 1.25, -1.3), 38.0)

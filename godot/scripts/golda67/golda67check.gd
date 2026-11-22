@@ -129,12 +129,17 @@ func _run() -> void:
 		G.play_clip("EV02")
 		await wait(0.3)
 		var t_last := 0.0
-		var marks: Array = [15.0, 15.35, 17.5, 23.0, 33.5]       # ключевые моменты: вход с ведром, замах, вода, бросок, беготня, финал
+		var marks: Array = [19.0, 24.0]       # ключевые моменты: вход с ведром, замах, вода, бросок, беготня, финал
 		var mi := 0
 		while G.clip != null and is_instance_valid(G.clip):
 			t_last = G.clip.t
+			if G67Clips.snap_req != "":
+				var nm: String = G67Clips.snap_req
+				G67Clips.snap_req = ""
+				var hp: Vector3 = Vector3.ZERO
+				await shot("ev02k_" + nm)
 			if mi < marks.size() and t_last >= float(marks[mi]):
-				await shot("evs_%02d" % int(float(marks[mi]) * 10.0))
+				await shot("ev02k_t%02d" % int(float(marks[mi]) * 10.0))
 				mi += 1
 			await get_tree().process_frame
 		print("GOLDA67CHECK   EV02 длина %.1f с" % t_last)
