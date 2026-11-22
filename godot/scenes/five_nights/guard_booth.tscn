@@ -1,0 +1,1702 @@
+[gd_scene load_steps=123 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/minigames/fn_office_photo.png" id="OpeningPhoto"]
+[ext_resource type="Script" path="res://scripts/five_nights/fn_office.gd" id="Controller"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/plaster.tres" id="plaster"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/enamel.tres" id="enamel"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/steel.tres" id="steel"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/laminate.tres" id="laminate"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/floor.tres" id="floor"]
+[ext_resource type="PackedScene" path="res://scenes/five_nights/booth_doorway.tscn" id="booth_doorway"]
+[ext_resource type="PackedScene" path="res://scenes/five_nights/booth_door_controls.tscn" id="booth_door_controls"]
+[ext_resource type="FontFile" path="res://assets/fonts/RussoOne-Regular.ttf" id="Russo"]
+[ext_resource type="PackedScene" path="res://scenes/five_nights/security_console.tscn" id="security_console"]
+
+[sub_resource type="StandardMaterial3D" id="Rubber"]
+albedo_color = Color(0.065, 0.071, 0.074, 1)
+roughness = 0.9
+metallic = 0
+
+[sub_resource type="StandardMaterial3D" id="Paper"]
+albedo_color = Color(0.84, 0.8, 0.68, 1)
+roughness = 0.91
+metallic = 0
+
+[sub_resource type="StandardMaterial3D" id="EnamelIvory"]
+albedo_color = Color(0.72, 0.7, 0.61, 1)
+roughness = 0.62
+metallic = 0.18
+
+[sub_resource type="StandardMaterial3D" id="OxideRed"]
+albedo_color = Color(0.52, 0.073, 0.044, 1)
+roughness = 0.61
+metallic = 0.13
+
+[sub_resource type="StandardMaterial3D" id="SafetyOchre"]
+albedo_color = Color(0.7, 0.45, 0.21, 1)
+roughness = 0.59
+metallic = 0.22
+
+[sub_resource type="StandardMaterial3D" id="LampGlass"]
+albedo_color = Color(0.66, 0.69, 0.65, 1)
+roughness = 0.35
+metallic = 0
+resource_local_to_scene = true
+emission_enabled = true
+emission = Color(0.98, 0.91, 0.75, 1)
+emission_energy_multiplier = 0.6
+
+[sub_resource type="StandardMaterial3D" id="Eyes"]
+albedo_color = Color(0.99, 0.9, 0.79, 1)
+roughness = 0.5
+metallic = 0
+shading_mode = 0
+
+[sub_resource type="StandardMaterial3D" id="VentEyes"]
+albedo_color = Color(0.98, 0.072, 0.04, 1)
+roughness = 0.5
+metallic = 0
+shading_mode = 0
+
+[sub_resource type="BoxMesh" id="Box_4_4_0_1_3_5"]
+size = Vector3(4.4, 0.1, 3.5)
+
+[sub_resource type="BoxMesh" id="Box_4_4_1_69_0_1"]
+size = Vector3(4.4, 1.69, 0.1)
+
+[sub_resource type="BoxMesh" id="Box_0_24_1_01_0_1"]
+size = Vector3(0.24, 1.01, 0.1)
+
+[sub_resource type="BoxMesh" id="Box_3_5_1_01_0_1"]
+size = Vector3(3.5, 1.01, 0.1)
+
+[sub_resource type="BoxMesh" id="Box_0_66_0_132_0_1"]
+size = Vector3(0.66, 0.132, 0.1)
+
+[sub_resource type="BoxMesh" id="Box_0_66_0_426_0_1"]
+size = Vector3(0.66, 0.426, 0.1)
+
+[sub_resource type="BoxMesh" id="Box_4_4_0_049_0_026"]
+size = Vector3(4.4, 0.049, 0.026)
+
+[sub_resource type="BoxMesh" id="Box_4_4_0_1_0_026"]
+size = Vector3(4.4, 0.1, 0.026)
+
+[sub_resource type="BoxMesh" id="Box_4_4_1_01_0_1"]
+size = Vector3(4.4, 1.01, 0.1)
+
+[sub_resource type="BoxMesh" id="Box_4_4_0_1_0_49"]
+size = Vector3(4.4, 0.1, 0.49)
+
+[sub_resource type="BoxMesh" id="Box_4_4_0_1_2_29"]
+size = Vector3(4.4, 0.1, 2.29)
+
+[sub_resource type="BoxMesh" id="Box_2_19_0_1_0_72"]
+size = Vector3(2.19, 0.1, 0.72)
+
+[sub_resource type="BoxMesh" id="Box_1_49_0_1_0_72"]
+size = Vector3(1.49, 0.1, 0.72)
+
+[sub_resource type="BoxMesh" id="Box_4_4_0_088_0_095"]
+size = Vector3(4.4, 0.088, 0.095)
+
+[sub_resource type="BoxMesh" id="Box_0_1_1_69_0_8"]
+size = Vector3(0.1, 1.69, 0.8)
+
+[sub_resource type="BoxMesh" id="Box_0_1_1_01_0_8"]
+size = Vector3(0.1, 1.01, 0.8)
+
+[sub_resource type="BoxMesh" id="Box_0_03_0_049_0_8"]
+size = Vector3(0.03, 0.049, 0.8)
+
+[sub_resource type="BoxMesh" id="Box_0_03_0_098_0_8"]
+size = Vector3(0.03, 0.098, 0.8)
+
+[sub_resource type="BoxMesh" id="Box_0_1_1_69_1_5"]
+size = Vector3(0.1, 1.69, 1.5)
+
+[sub_resource type="BoxMesh" id="Box_0_1_1_01_1_5"]
+size = Vector3(0.1, 1.01, 1.5)
+
+[sub_resource type="BoxMesh" id="Box_0_03_0_049_1_5"]
+size = Vector3(0.03, 0.049, 1.5)
+
+[sub_resource type="BoxMesh" id="Box_0_03_0_098_1_5"]
+size = Vector3(0.03, 0.098, 1.5)
+
+[sub_resource type="BoxMesh" id="Box_0_1_0_55_1_1"]
+size = Vector3(0.1, 0.55, 1.1)
+
+[sub_resource type="BoxMesh" id="Box_2_25_0_1_1_3"]
+size = Vector3(2.25, 0.1, 1.3)
+
+[sub_resource type="BoxMesh" id="Box_2_25_2_4_0_1"]
+size = Vector3(2.25, 2.4, 0.1)
+
+[sub_resource type="BoxMesh" id="Box_0_1_2_4_1_3"]
+size = Vector3(0.1, 2.4, 1.3)
+
+[sub_resource type="BoxMesh" id="Box_0_85_2_4_0_1"]
+size = Vector3(0.85, 2.4, 0.1)
+
+[sub_resource type="BoxMesh" id="Box_0_029_0_075_1_22"]
+size = Vector3(0.029, 0.075, 1.22)
+
+[sub_resource type="BoxMesh" id="Box_0_04_0_036_1_26"]
+size = Vector3(0.04, 0.036, 1.26)
+
+[sub_resource type="BoxMesh" id="Box_0_85_0_146_0_014"]
+size = Vector3(0.85, 0.146, 0.014)
+
+[sub_resource type="BoxMesh" id="Box_1_27_0_07_0_145"]
+size = Vector3(1.27, 0.07, 0.145)
+
+[sub_resource type="BoxMesh" id="Box_1_17_0_046_0_107"]
+size = Vector3(1.17, 0.046, 0.107)
+
+[sub_resource type="BoxMesh" id="Box_0_048_0_081_0_145"]
+size = Vector3(0.048, 0.081, 0.145)
+
+[sub_resource type="BoxMesh" id="Box_0_68_0_48_0_045"]
+size = Vector3(0.68, 0.48, 0.045)
+
+[sub_resource type="BoxMesh" id="Box_0_04_0_473_0_06"]
+size = Vector3(0.04, 0.473, 0.06)
+
+[sub_resource type="BoxMesh" id="Box_0_63_0_03_0_06"]
+size = Vector3(0.63, 0.03, 0.06)
+
+[sub_resource type="BoxMesh" id="Box_0_615_0_029_0_04"]
+size = Vector3(0.615, 0.029, 0.04)
+
+[sub_resource type="BoxMesh" id="Box_0_615_0_416_0_018"]
+size = Vector3(0.615, 0.416, 0.018)
+
+[sub_resource type="SphereMesh" id="Sphere_0_019_0_038_12_6"]
+radius = 0.019
+height = 0.038
+radial_segments = 12
+rings = 6
+
+[sub_resource type="BoxMesh" id="Box_0_74_0_03_0_74"]
+size = Vector3(0.74, 0.03, 0.74)
+
+[sub_resource type="BoxMesh" id="Box_0_045_0_035_0_72"]
+size = Vector3(0.045, 0.035, 0.72)
+
+[sub_resource type="BoxMesh" id="Box_0_64_0_035_0_055"]
+size = Vector3(0.64, 0.035, 0.055)
+
+[sub_resource type="BoxMesh" id="Box_0_08_0_02_0_63"]
+size = Vector3(0.08, 0.02, 0.63)
+
+[sub_resource type="BoxMesh" id="Box_0_67_0_018_0_67"]
+size = Vector3(0.67, 0.018, 0.67)
+
+[sub_resource type="BoxMesh" id="Box_1_87_0_235_0_042"]
+size = Vector3(1.87, 0.235, 0.042)
+
+[sub_resource type="BoxMesh" id="Box_1_84_0_203_0_014"]
+size = Vector3(1.84, 0.203, 0.014)
+
+[sub_resource type="BoxMesh" id="Box_0_47_0_178_0_008"]
+size = Vector3(0.47, 0.178, 0.008)
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_014_0_014_0_008_8_1"]
+top_radius = 0.014
+bottom_radius = 0.014
+height = 0.008
+radial_segments = 8
+rings = 1
+
+[sub_resource type="BoxMesh" id="Box_0_54_0_63_0_031"]
+size = Vector3(0.54, 0.63, 0.031)
+
+[sub_resource type="BoxMesh" id="Box_0_499_0_57_0_005"]
+size = Vector3(0.499, 0.57, 0.005)
+
+[sub_resource type="BoxMesh" id="Box_0_19_0_037_0_018"]
+size = Vector3(0.19, 0.037, 0.018)
+
+[sub_resource type="BoxMesh" id="Box_0_422_0_007_0_002"]
+size = Vector3(0.422, 0.007, 0.002)
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_169_0_169_0_042_32_1"]
+top_radius = 0.169
+bottom_radius = 0.169
+height = 0.042
+radial_segments = 32
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_147_0_147_0_012_32_1"]
+top_radius = 0.147
+bottom_radius = 0.147
+height = 0.012
+radial_segments = 32
+rings = 1
+
+[sub_resource type="BoxMesh" id="Box_0_013_0_029_0_002"]
+size = Vector3(0.013, 0.029, 0.002)
+
+[sub_resource type="BoxMesh" id="Box_0_006_0_017_0_002"]
+size = Vector3(0.006, 0.017, 0.002)
+
+[sub_resource type="BoxMesh" id="Box_0_012_0_081_0_007"]
+size = Vector3(0.012, 0.081, 0.007)
+
+[sub_resource type="BoxMesh" id="Box_0_009_0_108_0_005"]
+size = Vector3(0.009, 0.108, 0.005)
+
+[sub_resource type="BoxMesh" id="Box_0_48_0_63_0_016"]
+size = Vector3(0.48, 0.63, 0.016)
+
+[sub_resource type="BoxMesh" id="Box_0_431_0_453_0_005"]
+size = Vector3(0.431, 0.453, 0.005)
+
+[sub_resource type="BoxMesh" id="Box_0_65_0_4_0_016"]
+size = Vector3(0.65, 0.4, 0.016)
+
+[sub_resource type="BoxMesh" id="Box_0_024_0_36_0_004"]
+size = Vector3(0.024, 0.36, 0.004)
+
+[sub_resource type="BoxMesh" id="Box_0_425_0_342_0_033"]
+size = Vector3(0.425, 0.342, 0.033)
+
+[sub_resource type="BoxMesh" id="Box_0_394_0_308_0_006"]
+size = Vector3(0.394, 0.308, 0.006)
+
+[sub_resource type="StandardMaterial3D" id="Photograph"]
+albedo_texture = ExtResource("OpeningPhoto")
+albedo_color = Color(0.89, 0.88, 0.85, 1)
+roughness = 0.77
+metallic = 0
+resource_local_to_scene = true
+
+[sub_resource type="QuadMesh" id="Quad_0_345_0_257"]
+size = Vector2(0.345, 0.257)
+
+[sub_resource type="BoxMesh" id="Box_0_045_0_15_0_045"]
+size = Vector3(0.045, 0.15, 0.045)
+
+[sub_resource type="BoxMesh" id="Box_0_136_0_115_0_232"]
+size = Vector3(0.136, 0.115, 0.232)
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_038_0_045_0_045_16_1"]
+top_radius = 0.038
+bottom_radius = 0.045
+height = 0.045
+radial_segments = 16
+rings = 1
+
+[sub_resource type="SphereMesh" id="Sphere_0_009_0_018_12_6"]
+radius = 0.009
+height = 0.018
+radial_segments = 12
+rings = 6
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_012_0_012_4_24_10_1"]
+top_radius = 0.012
+bottom_radius = 0.012
+height = 4.24
+radial_segments = 10
+rings = 1
+
+[sub_resource type="BoxMesh" id="Box_0_037_0_108_0_047"]
+size = Vector3(0.037, 0.108, 0.047)
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_085_0_076_0_49_16_1"]
+top_radius = 0.085
+bottom_radius = 0.076
+height = 0.49
+radial_segments = 16
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_029_0_084_0_052_16_1"]
+top_radius = 0.029
+bottom_radius = 0.084
+height = 0.052
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxMesh" id="Box_0_11_0_022_0_044"]
+size = Vector3(0.11, 0.022, 0.044)
+
+[sub_resource type="BoxMesh" id="Box_0_09_0_14_0_006"]
+size = Vector3(0.09, 0.14, 0.006)
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_116_0_099_0_32_16_1"]
+top_radius = 0.116
+bottom_radius = 0.099
+height = 0.32
+radial_segments = 16
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_107_0_107_0_01_16_1"]
+top_radius = 0.107
+bottom_radius = 0.107
+height = 0.01
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxMesh" id="Box_0_08_0_052_0_073"]
+size = Vector3(0.08, 0.052, 0.073)
+
+[sub_resource type="BoxMesh" id="Box_0_29_0_4_0_085"]
+size = Vector3(0.29, 0.4, 0.085)
+
+[sub_resource type="BoxMesh" id="Box_0_245_0_335_0_014"]
+size = Vector3(0.245, 0.335, 0.014)
+
+[sub_resource type="BoxMesh" id="Box_0_039_0_076_0_031"]
+size = Vector3(0.039, 0.076, 0.031)
+
+[sub_resource type="BoxMesh" id="Box_0_55_0_38_0_024"]
+size = Vector3(0.55, 0.38, 0.024)
+
+[sub_resource type="BoxMesh" id="Box_0_46_0_021_0_012"]
+size = Vector3(0.46, 0.021, 0.012)
+
+[sub_resource type="BoxMesh" id="Box_0_47_0_49_0_2"]
+size = Vector3(0.47, 0.49, 0.2)
+
+[sub_resource type="BoxMesh" id="Box_0_42_0_445_0_019"]
+size = Vector3(0.42, 0.445, 0.019)
+
+[sub_resource type="BoxMesh" id="Box_0_375_0_092_0_009"]
+size = Vector3(0.375, 0.092, 0.009)
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_084_0_084_0_04_16_1"]
+top_radius = 0.084
+bottom_radius = 0.084
+height = 0.04
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxMesh" id="Box_0_044_0_146_0_022"]
+size = Vector3(0.044, 0.146, 0.022)
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_023_0_024_0_099_16_1"]
+top_radius = 0.023
+bottom_radius = 0.024
+height = 0.099
+radial_segments = 16
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_028_0_028_0_022_16_1"]
+top_radius = 0.028
+bottom_radius = 0.028
+height = 0.022
+radial_segments = 16
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_017_0_017_0_65_16_1"]
+top_radius = 0.017
+bottom_radius = 0.017
+height = 0.65
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxMesh" id="Box_0_039_1_97_0_61"]
+size = Vector3(0.039, 1.97, 0.61)
+
+[sub_resource type="BoxMesh" id="Box_0_047_0_095_0_045"]
+size = Vector3(0.047, 0.095, 0.045)
+
+[sub_resource type="SphereMesh" id="Sphere_0_035_0_07_12_6"]
+radius = 0.035
+height = 0.07
+radial_segments = 12
+rings = 6
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_035_0_035_0_14_16_1"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.14
+radial_segments = 16
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Cylinder_0_017_0_017_0_025_16_1"]
+top_radius = 0.017
+bottom_radius = 0.017
+height = 0.025
+radial_segments = 16
+rings = 1
+
+[sub_resource type="SphereMesh" id="Sphere_0_005_0_01_12_6"]
+radius = 0.005
+height = 0.01
+radial_segments = 12
+rings = 6
+
+[sub_resource type="StandardMaterial3D" id="DecayCable"]
+albedo_color = Color(0.03, 0.032, 0.034, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="DecayStain"]
+transparency = 1
+albedo_color = Color(0.02, 0.02, 0.018, 0.55)
+roughness = 1.0
+
+[sub_resource type="BoxMesh" id="DecayCableSeg"]
+size = Vector3(0.012, 0.42, 0.012)
+
+[sub_resource type="BoxMesh" id="DecayCeilingStain"]
+size = Vector3(0.9, 0.006, 0.62)
+
+[sub_resource type="BoxMesh" id="DecayWallStreak"]
+size = Vector3(0.006, 1.15, 0.13)
+
+[node name="GuardBooth" type="Node3D"]
+script = ExtResource("Controller")
+
+[node name="Shell" type="Node3D" parent="."]
+
+[node name="FrontWall" type="Node3D" parent="Shell"]
+position = Vector3(0, 0, -1.75)
+
+[node name="Floor" type="MeshInstance3D" parent="Shell"]
+position = Vector3(0, -0.05, -0.05)
+mesh = SubResource("Box_4_4_0_1_3_5")
+material_override = ExtResource("floor")
+
+[node name="Plaster" type="MeshInstance3D" parent="Shell/FrontWall"]
+position = Vector3(0, 1.855, 0)
+mesh = SubResource("Box_4_4_1_69_0_1")
+material_override = ExtResource("plaster")
+
+[node name="LeftPanel" type="MeshInstance3D" parent="Shell/FrontWall"]
+position = Vector3(-2.08, 0.505, 0)
+mesh = SubResource("Box_0_24_1_01_0_1")
+material_override = ExtResource("enamel")
+
+[node name="RightPanel" type="MeshInstance3D" parent="Shell/FrontWall"]
+position = Vector3(0.45, 0.505, 0)
+mesh = SubResource("Box_3_5_1_01_0_1")
+material_override = ExtResource("enamel")
+
+[node name="SillPanel" type="MeshInstance3D" parent="Shell/FrontWall"]
+position = Vector3(-1.63, 0.066, 0)
+mesh = SubResource("Box_0_66_0_132_0_1")
+material_override = ExtResource("enamel")
+
+[node name="LintelPanel" type="MeshInstance3D" parent="Shell/FrontWall"]
+position = Vector3(-1.63, 0.797, 0)
+mesh = SubResource("Box_0_66_0_426_0_1")
+material_override = ExtResource("enamel")
+
+[node name="ChairRail" type="MeshInstance3D" parent="Shell/FrontWall"]
+position = Vector3(0, 1.011, 0.061)
+mesh = SubResource("Box_4_4_0_049_0_026")
+material_override = ExtResource("steel")
+
+[node name="KickRail" type="MeshInstance3D" parent="Shell/FrontWall"]
+position = Vector3(0, 0.051, 0.061)
+mesh = SubResource("Box_4_4_0_1_0_026")
+material_override = ExtResource("laminate")
+
+[node name="RearWall" type="Node3D" parent="Shell"]
+position = Vector3(0, 0, 1.65)
+
+[node name="Upper" type="MeshInstance3D" parent="Shell/RearWall"]
+position = Vector3(0, 1.855, 0)
+mesh = SubResource("Box_4_4_1_69_0_1")
+material_override = ExtResource("plaster")
+
+[node name="Lower" type="MeshInstance3D" parent="Shell/RearWall"]
+position = Vector3(0, 0.505, 0)
+mesh = SubResource("Box_4_4_1_01_0_1")
+material_override = ExtResource("enamel")
+
+[node name="Ceiling" type="Node3D" parent="Shell"]
+
+[node name="Front" type="MeshInstance3D" parent="Shell/Ceiling"]
+position = Vector3(0, 2.75, -1.555)
+mesh = SubResource("Box_4_4_0_1_0_49")
+material_override = ExtResource("laminate")
+
+[node name="Back" type="MeshInstance3D" parent="Shell/Ceiling"]
+position = Vector3(0, 2.75, 0.555)
+mesh = SubResource("Box_4_4_0_1_2_29")
+material_override = ExtResource("laminate")
+
+[node name="Left" type="MeshInstance3D" parent="Shell/Ceiling"]
+position = Vector3(-1.105, 2.75, -0.95)
+mesh = SubResource("Box_2_19_0_1_0_72")
+material_override = ExtResource("laminate")
+
+[node name="Right" type="MeshInstance3D" parent="Shell/Ceiling"]
+position = Vector3(1.455, 2.75, -0.95)
+mesh = SubResource("Box_1_49_0_1_0_72")
+material_override = ExtResource("laminate")
+
+[node name="FrontBeam" type="MeshInstance3D" parent="Shell/Ceiling"]
+position = Vector3(0, 2.654, -0.36)
+mesh = SubResource("Box_4_4_0_088_0_095")
+material_override = ExtResource("steel")
+
+[node name="BackBeam" type="MeshInstance3D" parent="Shell/Ceiling"]
+position = Vector3(0, 2.654, 0.86)
+mesh = SubResource("Box_4_4_0_088_0_095")
+material_override = ExtResource("steel")
+
+[node name="LeftWall" type="Node3D" parent="Shell"]
+position = Vector3(-2.25, 0, 0)
+
+[node name="FrontUpper" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0, 1.855, -1.35)
+mesh = SubResource("Box_0_1_1_69_0_8")
+material_override = ExtResource("plaster")
+
+[node name="FrontLower" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0, 0.505, -1.35)
+mesh = SubResource("Box_0_1_1_01_0_8")
+material_override = ExtResource("enamel")
+
+[node name="FrontRail" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0.06, 1.01, -1.35)
+mesh = SubResource("Box_0_03_0_049_0_8")
+material_override = ExtResource("steel")
+
+[node name="FrontSkirting" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0.06, 0.05, -1.35)
+mesh = SubResource("Box_0_03_0_098_0_8")
+material_override = ExtResource("laminate")
+
+[node name="BackUpper" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0, 1.855, 0.9)
+mesh = SubResource("Box_0_1_1_69_1_5")
+material_override = ExtResource("plaster")
+
+[node name="BackLower" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0, 0.505, 0.9)
+mesh = SubResource("Box_0_1_1_01_1_5")
+material_override = ExtResource("enamel")
+
+[node name="BackRail" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0.06, 1.01, 0.9)
+mesh = SubResource("Box_0_03_0_049_1_5")
+material_override = ExtResource("steel")
+
+[node name="BackSkirting" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0.06, 0.05, 0.9)
+mesh = SubResource("Box_0_03_0_098_1_5")
+material_override = ExtResource("laminate")
+
+[node name="Header" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0, 2.425, -0.4)
+mesh = SubResource("Box_0_1_0_55_1_1")
+material_override = ExtResource("plaster")
+
+[node name="LeftRecess" type="Node3D" parent="Shell"]
+
+[node name="Floor" type="MeshInstance3D" parent="Shell/LeftRecess"]
+position = Vector3(-3.325, -0.05, -0.4)
+mesh = SubResource("Box_2_25_0_1_1_3")
+material_override = ExtResource("floor")
+
+[node name="Ceiling" type="MeshInstance3D" parent="Shell/LeftRecess"]
+position = Vector3(-3.325, 2.46, -0.4)
+mesh = SubResource("Box_2_25_0_1_1_3")
+material_override = ExtResource("laminate")
+
+[node name="RearWall" type="MeshInstance3D" parent="Shell/LeftRecess"]
+position = Vector3(-3.325, 1.2, 0.25)
+mesh = SubResource("Box_2_25_2_4_0_1")
+material_override = ExtResource("enamel")
+
+[node name="EndWall" type="MeshInstance3D" parent="Shell/LeftRecess"]
+position = Vector3(-4.4, 1.2, -0.4)
+mesh = SubResource("Box_0_1_2_4_1_3")
+material_override = ExtResource("enamel")
+
+[node name="BlindReturn" type="MeshInstance3D" parent="Shell/LeftRecess"]
+position = Vector3(-2.625, 1.2, -1.05)
+mesh = SubResource("Box_0_85_2_4_0_1")
+material_override = ExtResource("plaster")
+
+[node name="Bumper" type="MeshInstance3D" parent="Shell/LeftRecess"]
+position = Vector3(-4.338, 0.8, -0.4)
+mesh = SubResource("Box_0_029_0_075_1_22")
+material_override = ExtResource("steel")
+
+[node name="Conduit" type="MeshInstance3D" parent="Shell/LeftRecess"]
+position = Vector3(-4.327, 1.68, -0.41)
+mesh = SubResource("Box_0_04_0_036_1_26")
+material_override = ExtResource("steel")
+
+[node name="LeftDoor" parent="." instance=ExtResource("booth_doorway")]
+position = Vector3(-2.18, 0, -0.4)
+rotation = Vector3(0, 1.570796, 0)
+
+[node name="LeftControls" parent="." instance=ExtResource("booth_door_controls")]
+position = Vector3(-2.16, 0.83, 0.53)
+rotation = Vector3(0, 1.570796, 0)
+
+[node name="Sign" type="Node3D" parent="LeftDoor"]
+position = Vector3(0, 2.285, 0.184)
+
+[node name="Face" type="MeshInstance3D" parent="LeftDoor/Sign"]
+position = Vector3(0, 0, 0)
+mesh = SubResource("Box_0_85_0_146_0_014")
+material_override = ExtResource("enamel")
+
+[node name="Text" type="Label3D" parent="LeftDoor/Sign"]
+position = Vector3(0, 0, 0.01)
+font = ExtResource("Russo")
+text = "ЛЕВЫЙ КОРИДОР"
+font_size = 36
+pixel_size = 0.00165
+modulate = Color(0.5, 0.45, 0.34, 1)
+outline_size = 0
+double_sided = false
+shaded = false
+
+[node name="RightWall" type="Node3D" parent="Shell"]
+position = Vector3(2.25, 0, 0)
+
+[node name="FrontUpper" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(0, 1.855, -1.35)
+mesh = SubResource("Box_0_1_1_69_0_8")
+material_override = ExtResource("plaster")
+
+[node name="FrontLower" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(0, 0.505, -1.35)
+mesh = SubResource("Box_0_1_1_01_0_8")
+material_override = ExtResource("enamel")
+
+[node name="FrontRail" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(-0.06, 1.01, -1.35)
+mesh = SubResource("Box_0_03_0_049_0_8")
+material_override = ExtResource("steel")
+
+[node name="FrontSkirting" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(-0.06, 0.05, -1.35)
+mesh = SubResource("Box_0_03_0_098_0_8")
+material_override = ExtResource("laminate")
+
+[node name="BackUpper" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(0, 1.855, 0.9)
+mesh = SubResource("Box_0_1_1_69_1_5")
+material_override = ExtResource("plaster")
+
+[node name="BackLower" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(0, 0.505, 0.9)
+mesh = SubResource("Box_0_1_1_01_1_5")
+material_override = ExtResource("enamel")
+
+[node name="BackRail" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(-0.06, 1.01, 0.9)
+mesh = SubResource("Box_0_03_0_049_1_5")
+material_override = ExtResource("steel")
+
+[node name="BackSkirting" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(-0.06, 0.05, 0.9)
+mesh = SubResource("Box_0_03_0_098_1_5")
+material_override = ExtResource("laminate")
+
+[node name="Header" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(0, 2.425, -0.4)
+mesh = SubResource("Box_0_1_0_55_1_1")
+material_override = ExtResource("plaster")
+
+[node name="RightRecess" type="Node3D" parent="Shell"]
+
+[node name="Floor" type="MeshInstance3D" parent="Shell/RightRecess"]
+position = Vector3(3.325, -0.05, -0.4)
+mesh = SubResource("Box_2_25_0_1_1_3")
+material_override = ExtResource("floor")
+
+[node name="Ceiling" type="MeshInstance3D" parent="Shell/RightRecess"]
+position = Vector3(3.325, 2.46, -0.4)
+mesh = SubResource("Box_2_25_0_1_1_3")
+material_override = ExtResource("laminate")
+
+[node name="RearWall" type="MeshInstance3D" parent="Shell/RightRecess"]
+position = Vector3(3.325, 1.2, 0.25)
+mesh = SubResource("Box_2_25_2_4_0_1")
+material_override = ExtResource("enamel")
+
+[node name="EndWall" type="MeshInstance3D" parent="Shell/RightRecess"]
+position = Vector3(4.4, 1.2, -0.4)
+mesh = SubResource("Box_0_1_2_4_1_3")
+material_override = ExtResource("enamel")
+
+[node name="BlindReturn" type="MeshInstance3D" parent="Shell/RightRecess"]
+position = Vector3(2.625, 1.2, -1.05)
+mesh = SubResource("Box_0_85_2_4_0_1")
+material_override = ExtResource("plaster")
+
+[node name="Bumper" type="MeshInstance3D" parent="Shell/RightRecess"]
+position = Vector3(4.338, 0.8, -0.4)
+mesh = SubResource("Box_0_029_0_075_1_22")
+material_override = ExtResource("steel")
+
+[node name="Conduit" type="MeshInstance3D" parent="Shell/RightRecess"]
+position = Vector3(4.327, 1.68, -0.41)
+mesh = SubResource("Box_0_04_0_036_1_26")
+material_override = ExtResource("steel")
+
+[node name="RightDoor" parent="." instance=ExtResource("booth_doorway")]
+position = Vector3(2.18, 0, -0.4)
+rotation = Vector3(0, -1.570796, 0)
+
+[node name="RightControls" parent="." instance=ExtResource("booth_door_controls")]
+position = Vector3(2.16, 0.83, 0.53)
+rotation = Vector3(0, -1.570796, 0)
+
+[node name="Sign" type="Node3D" parent="RightDoor"]
+position = Vector3(0, 2.285, 0.184)
+
+[node name="Face" type="MeshInstance3D" parent="RightDoor/Sign"]
+position = Vector3(0, 0, 0)
+mesh = SubResource("Box_0_85_0_146_0_014")
+material_override = ExtResource("enamel")
+
+[node name="Text" type="Label3D" parent="RightDoor/Sign"]
+position = Vector3(0, 0, 0.01)
+font = ExtResource("Russo")
+text = "ПРАВЫЙ КОРИДОР"
+font_size = 36
+pixel_size = 0.00165
+modulate = Color(0.5, 0.45, 0.34, 1)
+outline_size = 0
+double_sided = false
+shaded = false
+
+[node name="Console" parent="." instance=ExtResource("security_console")]
+position = Vector3(0, 0, -1.05)
+
+[node name="Lighting" type="Node3D" parent="."]
+
+[node name="HouseLamp" type="OmniLight3D" parent="Lighting"]
+position = Vector3(-0.24, 2.42, -1.36)
+light_color = Color(1, 0.86, 0.64, 1)
+light_energy = 0.75
+omni_range = 3.4
+omni_attenuation = 1.5
+shadow_enabled = true
+shadow_bias = 0.045
+
+[node name="DeskPool" type="SpotLight3D" parent="Lighting"]
+transform = Transform3D(1, 0, 0, 0, -0.241922, 0.970296, 0, -0.970296, -0.241922, -0.24, 2.44, -1.3)
+light_color = Color(1, 0.87, 0.64, 1)
+light_energy = 2.6
+shadow_enabled = true
+shadow_bias = 0.04
+spot_range = 4.6
+spot_attenuation = 1.2
+spot_angle = 50.0
+spot_angle_attenuation = 1.3
+
+[node name="StripFixture" type="Node3D" parent="Lighting"]
+position = Vector3(-0.24, 2.53, -1.38)
+
+[node name="Tray" type="MeshInstance3D" parent="Lighting/StripFixture"]
+position = Vector3(0, 0, 0)
+mesh = SubResource("Box_1_27_0_07_0_145")
+material_override = ExtResource("steel")
+
+[node name="Diffuser" type="MeshInstance3D" parent="Lighting/StripFixture"]
+position = Vector3(0, -0.045, 0.016)
+mesh = SubResource("Box_1_17_0_046_0_107")
+material_override = SubResource("LampGlass")
+
+[node name="LeftCap" type="MeshInstance3D" parent="Lighting/StripFixture"]
+position = Vector3(-0.605, -0.021, 0.006)
+mesh = SubResource("Box_0_048_0_081_0_145")
+material_override = ExtResource("laminate")
+
+[node name="RightCap" type="MeshInstance3D" parent="Lighting/StripFixture"]
+position = Vector3(0.605, -0.021, 0.006)
+mesh = SubResource("Box_0_048_0_081_0_145")
+material_override = ExtResource("laminate")
+
+[node name="ReserveLamp" type="OmniLight3D" parent="Lighting"]
+position = Vector3(0.16, 1.56, 1.12)
+light_color = Color(0.6, 0.75, 0.9, 1)
+light_energy = 0.25
+omni_range = 3.6
+omni_attenuation = 0.92
+light_specular = 0.45
+
+[node name="ScareLight" type="OmniLight3D" parent="Lighting"]
+position = Vector3(0, 1.07, 0.47)
+light_energy = 0
+omni_range = 3.2
+
+[node name="PlayerCamera" type="Camera3D" parent="."]
+position = Vector3(0, 1.32, 0.62)
+rotation = Vector3(-0.1, 0, 0)
+fov = 74
+near = 0.03
+far = 220
+current = true
+
+[node name="Ventilation" type="Node3D" parent="."]
+
+[node name="WallGrate" type="Node3D" parent="Ventilation"]
+position = Vector3(-1.62, 0.36, -1.676)
+
+[node name="Throat" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, 0, -0.61)
+mesh = SubResource("Box_0_68_0_48_0_045")
+material_override = SubResource("Rubber")
+
+[node name="Left" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(-0.327, 0, 0.015)
+mesh = SubResource("Box_0_04_0_473_0_06")
+material_override = ExtResource("steel")
+
+[node name="Right" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0.327, 0, 0.015)
+mesh = SubResource("Box_0_04_0_473_0_06")
+material_override = ExtResource("steel")
+
+[node name="Top" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, 0.222, 0.015)
+mesh = SubResource("Box_0_63_0_03_0_06")
+material_override = ExtResource("steel")
+
+[node name="Bottom" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, -0.222, 0.015)
+mesh = SubResource("Box_0_63_0_03_0_06")
+material_override = ExtResource("steel")
+
+[node name="Louver1" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, -0.175, 0.012)
+rotation = Vector3(-0.23, 0, 0)
+mesh = SubResource("Box_0_615_0_029_0_04")
+material_override = ExtResource("steel")
+
+[node name="Louver2" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, -0.104, 0.012)
+rotation = Vector3(-0.23, 0, 0)
+mesh = SubResource("Box_0_615_0_029_0_04")
+material_override = ExtResource("steel")
+
+[node name="Louver3" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, -0.033, 0.012)
+rotation = Vector3(-0.23, 0, 0)
+mesh = SubResource("Box_0_615_0_029_0_04")
+material_override = ExtResource("steel")
+
+[node name="Louver4" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, 0.038, 0.012)
+rotation = Vector3(-0.23, 0, 0)
+mesh = SubResource("Box_0_615_0_029_0_04")
+material_override = ExtResource("steel")
+
+[node name="Louver5" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, 0.109, 0.012)
+rotation = Vector3(-0.23, 0, 0)
+mesh = SubResource("Box_0_615_0_029_0_04")
+material_override = ExtResource("steel")
+
+[node name="Louver6" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, 0.18, 0.012)
+rotation = Vector3(-0.23, 0, 0)
+mesh = SubResource("Box_0_615_0_029_0_04")
+material_override = ExtResource("steel")
+
+[node name="Damper" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, 0, -0.084)
+mesh = SubResource("Box_0_615_0_416_0_018")
+material_override = ExtResource("enamel")
+visible = false
+
+[node name="Eyes" type="Node3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, 0.02, -0.166)
+visible = false
+
+[node name="Left" type="MeshInstance3D" parent="Ventilation/WallGrate/Eyes"]
+position = Vector3(-0.07, 0, 0)
+mesh = SubResource("Sphere_0_019_0_038_12_6")
+material_override = SubResource("VentEyes")
+
+[node name="Right" type="MeshInstance3D" parent="Ventilation/WallGrate/Eyes"]
+position = Vector3(0.07, 0, 0)
+mesh = SubResource("Sphere_0_019_0_038_12_6")
+material_override = SubResource("VentEyes")
+
+[node name="VentMark" type="Label3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, 0.299, 0.002)
+font = ExtResource("Russo")
+text = "ВЕНТИЛЯЦИЯ"
+font_size = 26
+pixel_size = 0.0011
+modulate = Color(0.9, 0.86, 0.74, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="CeilingHatch" type="Node3D" parent="Ventilation"]
+position = Vector3(0.35, 2.69, -0.95)
+
+[node name="Socket" type="MeshInstance3D" parent="Ventilation"]
+position = Vector3(0.35, 3.04, -0.95)
+mesh = SubResource("Box_0_74_0_03_0_74")
+material_override = SubResource("Rubber")
+
+[node name="LeftRail" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(-0.342, -0.014, 0)
+mesh = SubResource("Box_0_045_0_035_0_72")
+material_override = ExtResource("steel")
+
+[node name="RightRail" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(0.342, -0.014, 0)
+mesh = SubResource("Box_0_045_0_035_0_72")
+material_override = ExtResource("steel")
+
+[node name="FrontRail" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(0, -0.014, -0.338)
+mesh = SubResource("Box_0_64_0_035_0_055")
+material_override = ExtResource("steel")
+
+[node name="BackRail" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(0, -0.014, 0.338)
+mesh = SubResource("Box_0_64_0_035_0_055")
+material_override = ExtResource("steel")
+
+[node name="Slat1" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(-0.259, -0.02, 0)
+rotation = Vector3(0, 0, -0.35)
+mesh = SubResource("Box_0_08_0_02_0_63")
+material_override = ExtResource("enamel")
+
+[node name="Slat2" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(-0.156, -0.02, 0)
+rotation = Vector3(0, 0, -0.35)
+mesh = SubResource("Box_0_08_0_02_0_63")
+material_override = ExtResource("enamel")
+
+[node name="Slat3" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(-0.053, -0.02, 0)
+rotation = Vector3(0, 0, -0.35)
+mesh = SubResource("Box_0_08_0_02_0_63")
+material_override = ExtResource("enamel")
+
+[node name="Slat4" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(0.05, -0.02, 0)
+rotation = Vector3(0, 0, -0.35)
+mesh = SubResource("Box_0_08_0_02_0_63")
+material_override = ExtResource("enamel")
+
+[node name="Slat5" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(0.153, -0.02, 0)
+rotation = Vector3(0, 0, -0.35)
+mesh = SubResource("Box_0_08_0_02_0_63")
+material_override = ExtResource("enamel")
+
+[node name="Slat6" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(0.256, -0.02, 0)
+rotation = Vector3(0, 0, -0.35)
+mesh = SubResource("Box_0_08_0_02_0_63")
+material_override = ExtResource("enamel")
+
+[node name="Damper" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(0, 0.028, 0)
+mesh = SubResource("Box_0_67_0_018_0_67")
+material_override = ExtResource("steel")
+visible = false
+
+[node name="WallFixtures" type="Node3D" parent="."]
+
+[node name="PostSign" type="Node3D" parent="WallFixtures"]
+position = Vector3(0, 2.16, -1.669)
+
+[node name="Back" type="MeshInstance3D" parent="WallFixtures/PostSign"]
+position = Vector3(0, 0, 0)
+mesh = SubResource("Box_1_87_0_235_0_042")
+material_override = ExtResource("steel")
+
+[node name="Face" type="MeshInstance3D" parent="WallFixtures/PostSign"]
+position = Vector3(0, 0, 0.026)
+mesh = SubResource("Box_1_84_0_203_0_014")
+material_override = ExtResource("laminate")
+
+[node name="Badge" type="MeshInstance3D" parent="WallFixtures/PostSign"]
+position = Vector3(-0.664, 0, 0.036)
+mesh = SubResource("Box_0_47_0_178_0_008")
+material_override = SubResource("OxideRed")
+
+[node name="Site" type="Label3D" parent="WallFixtures/PostSign"]
+position = Vector3(-0.664, 0, 0.043)
+font = ExtResource("Russo")
+text = "ОБЛАКО"
+font_size = 38
+pixel_size = 0.00168
+modulate = Color(0.9, 0.86, 0.74, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="Post" type="Label3D" parent="WallFixtures/PostSign"]
+position = Vector3(0.212, 0.003, 0.04)
+font = ExtResource("Russo")
+text = "ПОСТ ОХРАНЫ"
+font_size = 62
+pixel_size = 0.00164
+modulate = Color(0.9, 0.86, 0.74, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="LeftScrew" type="MeshInstance3D" parent="WallFixtures/PostSign"]
+position = Vector3(-0.899, 0, 0.038)
+rotation = Vector3(1.570796, 0, 0)
+mesh = SubResource("Cylinder_0_014_0_014_0_008_8_1")
+material_override = ExtResource("steel")
+
+[node name="RightScrew" type="MeshInstance3D" parent="WallFixtures/PostSign"]
+position = Vector3(0.899, 0, 0.038)
+rotation = Vector3(1.570796, 0, 0)
+mesh = SubResource("Cylinder_0_014_0_014_0_008_8_1")
+material_override = ExtResource("steel")
+
+[node name="ShiftInstructions" type="Node3D" parent="WallFixtures"]
+position = Vector3(-0.95, 1.59, -1.664)
+rotation = Vector3(0, 0, 0.014)
+
+[node name="Clipboard" type="MeshInstance3D" parent="WallFixtures/ShiftInstructions"]
+position = Vector3(0, 0, 0)
+mesh = SubResource("Box_0_54_0_63_0_031")
+material_override = ExtResource("laminate")
+
+[node name="Sheet" type="MeshInstance3D" parent="WallFixtures/ShiftInstructions"]
+position = Vector3(0, -0.009, 0.02)
+mesh = SubResource("Box_0_499_0_57_0_005")
+material_override = SubResource("Paper")
+
+[node name="Clip" type="MeshInstance3D" parent="WallFixtures/ShiftInstructions"]
+position = Vector3(0, 0.272, 0.031)
+mesh = SubResource("Box_0_19_0_037_0_018")
+material_override = ExtResource("steel")
+
+[node name="Heading" type="Label3D" parent="WallFixtures/ShiftInstructions"]
+position = Vector3(0, 0.192, 0.026)
+font = ExtResource("Russo")
+text = "ИНСТРУКЦИЯ"
+font_size = 32
+pixel_size = 0.00127
+modulate = Color(0.13, 0.12, 0.1, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="Rule" type="MeshInstance3D" parent="WallFixtures/ShiftInstructions"]
+position = Vector3(0, 0.141, 0.025)
+mesh = SubResource("Box_0_422_0_007_0_002")
+material_override = SubResource("OxideRed")
+
+[node name="Rules" type="Label3D" parent="WallFixtures/ShiftInstructions"]
+position = Vector3(0, 0.011, 0.027)
+font = ExtResource("Russo")
+text = "1. Смотреть камеры до 6:00\n2. Не открывать незнакомым\n3. Из вентиляции зовут —\n     не отвечать"
+font_size = 20
+pixel_size = 0.00123
+modulate = Color(0.13, 0.12, 0.1, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="Notice" type="Label3D" parent="WallFixtures/ShiftInstructions"]
+position = Vector3(0, -0.196, 0.027)
+font = ExtResource("Russo")
+text = "НЕ КОРМИТЬ BOT\nПОСЛЕ 22:00"
+font_size = 24
+pixel_size = 0.0012
+modulate = Color(0.48, 0.053, 0.032, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="Clock" type="Node3D" parent="WallFixtures"]
+position = Vector3(-1.65, 2.1, -1.656)
+
+[node name="Case" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(0, 0, 0)
+rotation = Vector3(1.570796, 0, 0)
+mesh = SubResource("Cylinder_0_169_0_169_0_042_32_1")
+material_override = ExtResource("laminate")
+
+[node name="Dial" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(0, 0, 0.025)
+rotation = Vector3(1.570796, 0, 0)
+mesh = SubResource("Cylinder_0_147_0_147_0_012_32_1")
+material_override = SubResource("Paper")
+
+[node name="Index1" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(0, 0.127, 0.033)
+rotation = Vector3(0, 0, 0)
+mesh = SubResource("Box_0_013_0_029_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Index2" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(0.0635, 0.109985, 0.033)
+rotation = Vector3(0, 0, -0.523599)
+mesh = SubResource("Box_0_006_0_017_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Index3" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(0.109985, 0.0635, 0.033)
+rotation = Vector3(0, 0, -1.047198)
+mesh = SubResource("Box_0_006_0_017_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Index4" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(0.127, 0, 0.033)
+rotation = Vector3(0, 0, -1.570796)
+mesh = SubResource("Box_0_013_0_029_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Index5" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(0.109985, -0.0635, 0.033)
+rotation = Vector3(0, 0, -2.094395)
+mesh = SubResource("Box_0_006_0_017_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Index6" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(0.0635, -0.109985, 0.033)
+rotation = Vector3(0, 0, -2.617994)
+mesh = SubResource("Box_0_006_0_017_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Index7" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(0, -0.127, 0.033)
+rotation = Vector3(0, 0, -3.141593)
+mesh = SubResource("Box_0_013_0_029_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Index8" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(-0.0635, -0.109985, 0.033)
+rotation = Vector3(0, 0, -3.665191)
+mesh = SubResource("Box_0_006_0_017_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Index9" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(-0.109985, -0.0635, 0.033)
+rotation = Vector3(0, 0, -4.18879)
+mesh = SubResource("Box_0_006_0_017_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Index10" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(-0.127, 0, 0.033)
+rotation = Vector3(0, 0, -4.712389)
+mesh = SubResource("Box_0_013_0_029_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Index11" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(-0.109985, 0.0635, 0.033)
+rotation = Vector3(0, 0, -5.235988)
+mesh = SubResource("Box_0_006_0_017_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Index12" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(-0.0635, 0.109985, 0.033)
+rotation = Vector3(0, 0, -5.759587)
+mesh = SubResource("Box_0_006_0_017_0_002")
+material_override = ExtResource("laminate")
+cast_shadow = 0
+
+[node name="Hour" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(-0.028, 0.024, 0.038)
+rotation = Vector3(0, 0, 0.83)
+mesh = SubResource("Box_0_012_0_081_0_007")
+material_override = ExtResource("laminate")
+
+[node name="Minute" type="MeshInstance3D" parent="WallFixtures/Clock"]
+position = Vector3(0.033, 0.041, 0.039)
+rotation = Vector3(0, 0, -0.67)
+mesh = SubResource("Box_0_009_0_108_0_005")
+material_override = SubResource("OxideRed")
+
+[node name="MascotPoster" type="Node3D" parent="WallFixtures"]
+position = Vector3(-1.67, 1.42, -1.671)
+rotation = Vector3(0, 0, 0.0436)
+
+[node name="Card" type="MeshInstance3D" parent="WallFixtures/MascotPoster"]
+position = Vector3(0, 0, 0)
+mesh = SubResource("Box_0_48_0_63_0_016")
+material_override = SubResource("Paper")
+
+[node name="Print" type="MeshInstance3D" parent="WallFixtures/MascotPoster"]
+position = Vector3(0, 0.059, 0.009)
+mesh = SubResource("Box_0_431_0_453_0_005")
+material_override = SubResource("OxideRed")
+
+[node name="Headline" type="Label3D" parent="WallFixtures/MascotPoster"]
+position = Vector3(0, 0.069, 0.014)
+font = ExtResource("Russo")
+text = "БАЛОН —\nЛИЦО\nОБЛАКА"
+font_size = 43
+pixel_size = 0.0014
+modulate = Color(0.9, 0.86, 0.74, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="Caption" type="Label3D" parent="WallFixtures/MascotPoster"]
+position = Vector3(0, -0.237, 0.014)
+font = ExtResource("Russo")
+text = "Улыбайся. Он видит."
+font_size = 20
+pixel_size = 0.00124
+modulate = Color(0.13, 0.12, 0.1, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="StaffNotice" type="Node3D" parent="WallFixtures"]
+position = Vector3(1.18, 1.74, -1.662)
+rotation = Vector3(0.04, -0.05, -0.0314)
+
+[node name="Card" type="MeshInstance3D" parent="WallFixtures/StaffNotice"]
+position = Vector3(0, 0, 0)
+mesh = SubResource("Box_0_65_0_4_0_016")
+material_override = SubResource("Paper")
+
+[node name="Rule" type="MeshInstance3D" parent="WallFixtures/StaffNotice"]
+position = Vector3(-0.295, 0, 0.01)
+mesh = SubResource("Box_0_024_0_36_0_004")
+material_override = SubResource("OxideRed")
+
+[node name="Text" type="Label3D" parent="WallFixtures/StaffNotice"]
+position = Vector3(0.015, 0, 0.011)
+font = ExtResource("Russo")
+text = "НЕ СПАТЬ.\nНЕ УМИРАТЬ.\nНЕ ПИТЬ ИЗ КУЛЕРА."
+font_size = 34
+pixel_size = 0.00161
+modulate = Color(0.48, 0.053, 0.032, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="OpeningPhoto" type="Node3D" parent="WallFixtures"]
+position = Vector3(0.36, 1.795, -1.66)
+rotation = Vector3(0, 0, -0.0524)
+
+[node name="Frame" type="MeshInstance3D" parent="WallFixtures/OpeningPhoto"]
+position = Vector3(0, 0, 0)
+mesh = SubResource("Box_0_425_0_342_0_033")
+material_override = ExtResource("laminate")
+
+[node name="Mount" type="MeshInstance3D" parent="WallFixtures/OpeningPhoto"]
+position = Vector3(0, 0, 0.019)
+mesh = SubResource("Box_0_394_0_308_0_006")
+material_override = SubResource("Paper")
+
+[node name="Photo" type="MeshInstance3D" parent="WallFixtures/OpeningPhoto"]
+position = Vector3(0, 0.01, 0.027)
+mesh = SubResource("Quad_0_345_0_257")
+material_override = SubResource("Photograph")
+cast_shadow = 0
+
+[node name="Caption" type="Label3D" parent="WallFixtures/OpeningPhoto"]
+position = Vector3(0, -0.129, 0.027)
+font = ExtResource("Russo")
+text = "ОТКРЫТИЕ ОБЛАКА"
+font_size = 16
+pixel_size = 0.00095
+modulate = Color(0.13, 0.12, 0.1, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="Employee" type="Label3D" parent="WallFixtures"]
+position = Vector3(1.4, 1.35, -1.686)
+font = ExtResource("Russo")
+text = "СОТРУДНИК МЕСЯЦА: БАЛОН"
+font_size = 19
+pixel_size = 0.00137
+modulate = Color(0.13, 0.12, 0.1, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="SecurityCamera" type="Node3D" parent="WallFixtures"]
+position = Vector3(1.93, 2.47, -1.48)
+rotation = Vector3(0, 2.513274, 0)
+
+[node name="Bracket" type="MeshInstance3D" parent="WallFixtures/SecurityCamera"]
+position = Vector3(0, 0.07, -0.02)
+mesh = SubResource("Box_0_045_0_15_0_045")
+material_override = ExtResource("steel")
+
+[node name="Body" type="MeshInstance3D" parent="WallFixtures/SecurityCamera"]
+position = Vector3(0, 0, 0.008)
+rotation = Vector3(0.33, 0, 0)
+mesh = SubResource("Box_0_136_0_115_0_232")
+material_override = SubResource("EnamelIvory")
+
+[node name="Lens" type="MeshInstance3D" parent="WallFixtures/SecurityCamera"]
+position = Vector3(0, -0.033, 0.125)
+rotation = Vector3(1.900796, 0, 0)
+mesh = SubResource("Cylinder_0_038_0_045_0_045_16_1")
+material_override = ExtResource("laminate")
+
+[node name="RecordLight" type="MeshInstance3D" parent="WallFixtures/SecurityCamera"]
+position = Vector3(0.049, 0.024, 0.13)
+mesh = SubResource("Sphere_0_009_0_018_12_6")
+material_override = SubResource("VentEyes")
+
+[node name="CableTray" type="Node3D" parent="WallFixtures"]
+position = Vector3(0, 2.56, -1.626)
+
+[node name="Conduit1" type="MeshInstance3D" parent="WallFixtures/CableTray"]
+position = Vector3(0, 0, 0)
+rotation = Vector3(0, 0, 1.570796)
+mesh = SubResource("Cylinder_0_012_0_012_4_24_10_1")
+material_override = ExtResource("laminate")
+
+[node name="Conduit2" type="MeshInstance3D" parent="WallFixtures/CableTray"]
+position = Vector3(0, -0.029, 0.009)
+rotation = Vector3(0, 0, 1.570796)
+mesh = SubResource("Cylinder_0_012_0_012_4_24_10_1")
+material_override = ExtResource("steel")
+
+[node name="Conduit3" type="MeshInstance3D" parent="WallFixtures/CableTray"]
+position = Vector3(0, -0.058, 0.018)
+rotation = Vector3(0, 0, 1.570796)
+mesh = SubResource("Cylinder_0_012_0_012_4_24_10_1")
+material_override = ExtResource("laminate")
+
+[node name="Clip27" type="MeshInstance3D" parent="WallFixtures/CableTray"]
+position = Vector3(-1.73, -0.025, 0.018)
+mesh = SubResource("Box_0_037_0_108_0_047")
+material_override = ExtResource("steel")
+
+[node name="Clip117" type="MeshInstance3D" parent="WallFixtures/CableTray"]
+position = Vector3(-0.83, -0.025, 0.018)
+mesh = SubResource("Box_0_037_0_108_0_047")
+material_override = ExtResource("steel")
+
+[node name="Clip257" type="MeshInstance3D" parent="WallFixtures/CableTray"]
+position = Vector3(0.57, -0.025, 0.018)
+mesh = SubResource("Box_0_037_0_108_0_047")
+material_override = ExtResource("steel")
+
+[node name="Clip367" type="MeshInstance3D" parent="WallFixtures/CableTray"]
+position = Vector3(1.67, -0.025, 0.018)
+mesh = SubResource("Box_0_037_0_108_0_047")
+material_override = ExtResource("steel")
+
+[node name="Extinguisher" type="Node3D" parent="WallFixtures"]
+position = Vector3(2.029, 0.1, 1.11)
+rotation = Vector3(0, -1.570796, 0)
+
+[node name="Bottle" type="MeshInstance3D" parent="WallFixtures/Extinguisher"]
+position = Vector3(0, 0.27, 0)
+mesh = SubResource("Cylinder_0_085_0_076_0_49_16_1")
+material_override = SubResource("OxideRed")
+
+[node name="Shoulder" type="MeshInstance3D" parent="WallFixtures/Extinguisher"]
+position = Vector3(0, 0.539, 0)
+mesh = SubResource("Cylinder_0_029_0_084_0_052_16_1")
+material_override = SubResource("OxideRed")
+
+[node name="Grip" type="MeshInstance3D" parent="WallFixtures/Extinguisher"]
+position = Vector3(0.027, 0.601, 0)
+mesh = SubResource("Box_0_11_0_022_0_044")
+material_override = ExtResource("laminate")
+
+[node name="Label" type="MeshInstance3D" parent="WallFixtures/Extinguisher"]
+position = Vector3(0, 0.3, 0.082)
+mesh = SubResource("Box_0_09_0_14_0_006")
+material_override = SubResource("Paper")
+
+[node name="Wastebasket" type="Node3D" parent="WallFixtures"]
+position = Vector3(1.61, 0, -1.31)
+
+[node name="Can" type="MeshInstance3D" parent="WallFixtures/Wastebasket"]
+position = Vector3(0, 0.161, 0)
+mesh = SubResource("Cylinder_0_116_0_099_0_32_16_1")
+material_override = ExtResource("steel")
+
+[node name="Mouth" type="MeshInstance3D" parent="WallFixtures/Wastebasket"]
+position = Vector3(0, 0.322, 0)
+mesh = SubResource("Cylinder_0_107_0_107_0_01_16_1")
+material_override = SubResource("Rubber")
+
+[node name="Paper1" type="MeshInstance3D" parent="WallFixtures/Wastebasket"]
+position = Vector3(-0.047, 0.338, 0)
+rotation = Vector3(0, 0, 0)
+mesh = SubResource("Box_0_08_0_052_0_073")
+material_override = SubResource("Paper")
+
+[node name="Paper2" type="MeshInstance3D" parent="WallFixtures/Wastebasket"]
+position = Vector3(-0.002, 0.35, 0.02)
+rotation = Vector3(0.2, 0.7, 0.2)
+mesh = SubResource("Box_0_08_0_052_0_073")
+material_override = SubResource("Paper")
+
+[node name="Paper3" type="MeshInstance3D" parent="WallFixtures/Wastebasket"]
+position = Vector3(0.043, 0.362, 0.04)
+rotation = Vector3(0.4, 1.4, 0.4)
+mesh = SubResource("Box_0_08_0_052_0_073")
+material_override = SubResource("Paper")
+
+[node name="FuseBox" type="Node3D" parent="WallFixtures"]
+position = Vector3(2.135, 1.5, 1.02)
+rotation = Vector3(0, -1.570796, 0)
+
+[node name="Cabinet" type="MeshInstance3D" parent="WallFixtures/FuseBox"]
+position = Vector3(0, 0, 0)
+mesh = SubResource("Box_0_29_0_4_0_085")
+material_override = ExtResource("enamel")
+
+[node name="Face" type="MeshInstance3D" parent="WallFixtures/FuseBox"]
+position = Vector3(0, 0, 0.048)
+mesh = SubResource("Box_0_245_0_335_0_014")
+material_override = ExtResource("steel")
+
+[node name="Label" type="Label3D" parent="WallFixtures/FuseBox"]
+position = Vector3(0, 0.087, 0.06)
+font = ExtResource("Russo")
+text = "БУДКА"
+font_size = 21
+pixel_size = 0.0012
+modulate = Color(0.13, 0.12, 0.1, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="Breaker1" type="MeshInstance3D" parent="WallFixtures/FuseBox"]
+position = Vector3(-0.068, -0.048, 0.07)
+mesh = SubResource("Box_0_039_0_076_0_031")
+material_override = ExtResource("laminate")
+
+[node name="Breaker2" type="MeshInstance3D" parent="WallFixtures/FuseBox"]
+position = Vector3(0, -0.048, 0.07)
+mesh = SubResource("Box_0_039_0_076_0_031")
+material_override = ExtResource("laminate")
+
+[node name="Breaker3" type="MeshInstance3D" parent="WallFixtures/FuseBox"]
+position = Vector3(0.068, -0.048, 0.07)
+mesh = SubResource("Box_0_039_0_076_0_031")
+material_override = ExtResource("laminate")
+
+[node name="ReturnAir" type="Node3D" parent="WallFixtures"]
+position = Vector3(0.8, 2.669, 0.7)
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="Flange" type="MeshInstance3D" parent="WallFixtures/ReturnAir"]
+position = Vector3(0, 0, 0)
+mesh = SubResource("Box_0_55_0_38_0_024")
+material_override = ExtResource("steel")
+
+[node name="Slot1" type="MeshInstance3D" parent="WallFixtures/ReturnAir"]
+position = Vector3(0, -0.127, 0.016)
+mesh = SubResource("Box_0_46_0_021_0_012")
+material_override = SubResource("Rubber")
+
+[node name="Slot2" type="MeshInstance3D" parent="WallFixtures/ReturnAir"]
+position = Vector3(0, -0.076, 0.016)
+mesh = SubResource("Box_0_46_0_021_0_012")
+material_override = SubResource("Rubber")
+
+[node name="Slot3" type="MeshInstance3D" parent="WallFixtures/ReturnAir"]
+position = Vector3(0, -0.025, 0.016)
+mesh = SubResource("Box_0_46_0_021_0_012")
+material_override = SubResource("Rubber")
+
+[node name="Slot4" type="MeshInstance3D" parent="WallFixtures/ReturnAir"]
+position = Vector3(0, 0.026, 0.016)
+mesh = SubResource("Box_0_46_0_021_0_012")
+material_override = SubResource("Rubber")
+
+[node name="Slot5" type="MeshInstance3D" parent="WallFixtures/ReturnAir"]
+position = Vector3(0, 0.077, 0.016)
+mesh = SubResource("Box_0_46_0_021_0_012")
+material_override = SubResource("Rubber")
+
+[node name="Slot6" type="MeshInstance3D" parent="WallFixtures/ReturnAir"]
+position = Vector3(0, 0.128, 0.016)
+mesh = SubResource("Box_0_46_0_021_0_012")
+material_override = SubResource("Rubber")
+
+[node name="HandGenerator" type="Node3D" parent="WallFixtures"]
+position = Vector3(1.36, 0.86, -1.573)
+
+[node name="Housing" type="MeshInstance3D" parent="WallFixtures/HandGenerator"]
+position = Vector3(0, 0, 0)
+mesh = SubResource("Box_0_47_0_49_0_2")
+material_override = ExtResource("enamel")
+
+[node name="Cover" type="MeshInstance3D" parent="WallFixtures/HandGenerator"]
+position = Vector3(0, 0, 0.109)
+mesh = SubResource("Box_0_42_0_445_0_019")
+material_override = ExtResource("steel")
+
+[node name="Badge" type="MeshInstance3D" parent="WallFixtures/HandGenerator"]
+position = Vector3(0, 0.148, 0.123)
+mesh = SubResource("Box_0_375_0_092_0_009")
+material_override = ExtResource("laminate")
+
+[node name="Label" type="Label3D" parent="WallFixtures/HandGenerator"]
+position = Vector3(0, 0.148, 0.13)
+font = ExtResource("Russo")
+text = "ГЕНЕРАТОР"
+font_size = 28
+pixel_size = 0.00126
+modulate = Color(0.9, 0.86, 0.74, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+
+[node name="Bearing" type="MeshInstance3D" parent="WallFixtures/HandGenerator"]
+position = Vector3(0, -0.047, 0.143)
+rotation = Vector3(1.570796, 0, 0)
+mesh = SubResource("Cylinder_0_084_0_084_0_04_16_1")
+material_override = ExtResource("laminate")
+
+[node name="Crank" type="Node3D" parent="WallFixtures/HandGenerator"]
+position = Vector3(0, -0.047, 0.176)
+rotation = Vector3(0, 0, -0.56)
+
+[node name="Arm" type="MeshInstance3D" parent="WallFixtures/HandGenerator/Crank"]
+position = Vector3(0, -0.061, 0)
+mesh = SubResource("Box_0_044_0_146_0_022")
+material_override = SubResource("SafetyOchre")
+
+[node name="Grip" type="MeshInstance3D" parent="WallFixtures/HandGenerator/Crank"]
+position = Vector3(0, -0.126, 0.043)
+rotation = Vector3(1.570796, 0, 0)
+mesh = SubResource("Cylinder_0_023_0_024_0_099_16_1")
+material_override = SubResource("Rubber")
+
+[node name="Hub" type="MeshInstance3D" parent="WallFixtures/HandGenerator/Crank"]
+position = Vector3(0, 0, 0.018)
+rotation = Vector3(1.570796, 0, 0)
+mesh = SubResource("Cylinder_0_028_0_028_0_022_16_1")
+material_override = ExtResource("steel")
+
+[node name="Cable" type="MeshInstance3D" parent="WallFixtures/HandGenerator"]
+position = Vector3(0.117, -0.54, -0.042)
+mesh = SubResource("Cylinder_0_017_0_017_0_65_16_1")
+material_override = ExtResource("laminate")
+
+[node name="NightEffects" type="Node3D" parent="."]
+
+[node name="ClosetDoor" type="Node3D" parent="NightEffects"]
+position = Vector3(-2.14, 0, 1.18)
+
+[node name="Leaf" type="MeshInstance3D" parent="NightEffects/ClosetDoor"]
+position = Vector3(0, 1, -0.31)
+mesh = SubResource("Box_0_039_1_97_0_61")
+material_override = ExtResource("enamel")
+
+[node name="Pull" type="MeshInstance3D" parent="NightEffects/ClosetDoor"]
+position = Vector3(0.039, 0.995, -0.55)
+mesh = SubResource("Box_0_047_0_095_0_045")
+material_override = ExtResource("steel")
+
+[node name="Writing" type="Label3D" parent="NightEffects"]
+position = Vector3(-2.132, 1.91, 0.9)
+rotation = Vector3(0, 1.570796, 0)
+font = ExtResource("Russo")
+text = "ОН УЖЕ ВНУТРИ"
+font_size = 64
+pixel_size = 0.0015
+modulate = Color(0.48, 0.053, 0.032, 1)
+outline_size = 0
+double_sided = false
+shaded = true
+visible = false
+
+[node name="BlackoutEyes" type="Node3D" parent="NightEffects"]
+position = Vector3(-2.9, 1.62, -0.4)
+visible = false
+
+[node name="Left" type="MeshInstance3D" parent="NightEffects/BlackoutEyes"]
+position = Vector3(0, 0, -0.09)
+mesh = SubResource("Sphere_0_035_0_07_12_6")
+material_override = SubResource("Eyes")
+
+[node name="Right" type="MeshInstance3D" parent="NightEffects/BlackoutEyes"]
+position = Vector3(0, 0, 0.09)
+mesh = SubResource("Sphere_0_035_0_07_12_6")
+material_override = SubResource("Eyes")
+
+[node name="Figurine" type="Node3D" parent="Console"]
+position = Vector3(-0.33, 0.79, 0.25)
+visible = false
+
+[node name="Body" type="MeshInstance3D" parent="Console/Figurine"]
+position = Vector3(0, 0.07, 0)
+mesh = SubResource("Cylinder_0_035_0_035_0_14_16_1")
+material_override = SubResource("OxideRed")
+
+[node name="Valve" type="MeshInstance3D" parent="Console/Figurine"]
+position = Vector3(0, 0.147, 0)
+mesh = SubResource("Cylinder_0_017_0_017_0_025_16_1")
+material_override = ExtResource("steel")
+
+[node name="LeftEye" type="MeshInstance3D" parent="Console/Figurine"]
+position = Vector3(-0.012, 0.105, 0.033)
+mesh = SubResource("Sphere_0_005_0_01_12_6")
+material_override = SubResource("Eyes")
+
+[node name="RightEye" type="MeshInstance3D" parent="Console/Figurine"]
+position = Vector3(0.012, 0.105, 0.033)
+mesh = SubResource("Sphere_0_005_0_01_12_6")
+material_override = SubResource("Eyes")
+
+[node name="AudioPoints" type="Node3D" parent="."]
+
+[node name="VentUnit" type="Marker3D" parent="AudioPoints"]
+position = Vector3(-1.55, 2.55, -2)
+
+[node name="Draft" type="Marker3D" parent="AudioPoints"]
+position = Vector3(-1.62, 0.36, -1.9)
+
+[node name="Hatch" type="Marker3D" parent="AudioPoints"]
+position = Vector3(0.35, 2.9, -0.95)
+
+[node name="Lamp" type="Marker3D" parent="AudioPoints"]
+position = Vector3(-0.24, 2.48, -1.38)
+
+[node name="Panel" type="Marker3D" parent="AudioPoints"]
+position = Vector3(2.035, 1.5, 1.02)
+
+[node name="Decay" type="Node3D" parent="WallFixtures"]
+
+[node name="CableA" type="MeshInstance3D" parent="WallFixtures/Decay"]
+transform = Transform3D(1, 0, 0, 0, 0.9998, -0.02, 0, 0.02, 0.9998, 1.9, 2.38, 1.42)
+mesh = SubResource("DecayCableSeg")
+material_override = SubResource("DecayCable")
+cast_shadow = 0
+
+[node name="CableB" type="MeshInstance3D" parent="WallFixtures/Decay"]
+transform = Transform3D(0.9848, 0.1736, 0, -0.1736, 0.9848, 0, 0, 0, 1, 1.93, 2.0, 1.42)
+mesh = SubResource("DecayCableSeg")
+material_override = SubResource("DecayCable")
+cast_shadow = 0
+
+[node name="CableC" type="MeshInstance3D" parent="WallFixtures/Decay"]
+transform = Transform3D(0.94, -0.342, 0, 0.342, 0.94, 0, 0, 0, 1, 1.89, 1.64, 1.42)
+mesh = SubResource("DecayCableSeg")
+material_override = SubResource("DecayCable")
+cast_shadow = 0
+
+[node name="CeilingStain" type="MeshInstance3D" parent="WallFixtures/Decay"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.8, 2.592, 1.2)
+mesh = SubResource("DecayCeilingStain")
+material_override = SubResource("DecayStain")
+cast_shadow = 0
+
+[node name="WallStreak" type="MeshInstance3D" parent="WallFixtures/Decay"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.196, 2.0, 1.2)
+mesh = SubResource("DecayWallStreak")
+material_override = SubResource("DecayStain")
+cast_shadow = 0

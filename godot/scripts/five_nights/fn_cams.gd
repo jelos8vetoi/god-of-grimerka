@@ -16,6 +16,9 @@ uniform float jam = 0.0;          // помехи BOT: 0..1
 uniform float haunt = 0.0;        // GHOST: картинка плывёт, краснеет
 uniform float switch_k = 0.0;     // вспышка помех при переключении
 uniform float lost = 0.0;         // потеря сигнала
+uniform float gain = 1.0;         // яркость камеры
+uniform vec3 tint = vec3(0.62, 0.78, 0.62);
+uniform float wobble = 0.0;       // медленное «дыхание» экспозиции / сетевой гул
 uniform float fx = 1.0;           // интенсивность эффектов (настройка)
 float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void fragment() {
@@ -32,7 +35,7 @@ void fragment() {
 	}
 	float l = dot(c, vec3(0.3, 0.55, 0.15));
 	l = pow(l, 0.85) * 1.35;
-	vec3 tint = vec3(0.62, 0.78, 0.62);
+	l *= gain * (1.0 + 0.06 * wobble * sin(t * 1.26));
 	vec3 col = vec3(l) * tint;
 	col = mix(col, vec3(l * 1.3, l * 0.2, l * 0.15), haunt * 0.55);
 	float n = h(UV * 900.0 + t * 37.0);
@@ -71,12 +74,32 @@ func build(f: FNFacility, world: World3D) -> void:
 	add_child(vp)
 	cam = Camera3D.new()
 	cam.far = 60.0
+	cam.environment = preload("res://scenes/five_nights/materials/cctv_environment.tres")
 	vp.add_child(cam)
 	mat = ShaderMaterial.new()
 	var sh := Shader.new()
 	sh.code = SHADER
 	mat.shader = sh
 	mat.set_shader_parameter("feed", vp.get_texture())
+
+## характер каждой камеры: шум, яркость, оттенок, дыхание экспозиции
+const LOOKS := {
+	"stage": {"noise": 0.12, "gain": 1.08, "tint": Color(0.64, 0.8, 0.64), "wobble": 0.0},
+	"arcade": {"noise": 0.24, "gain": 1.0, "tint": Color(0.58, 0.76, 0.7), "wobble": 0.0},
+	"storage": {"noise": 0.2, "gain": 0.9, "tint": Color(0.72, 0.76, 0.58), "wobble": 0.0},
+	"hall_l": {"noise": 0.18, "gain": 1.0, "tint": Color(0.62, 0.78, 0.62), "wobble": 0.15},
+	"hall_r": {"noise": 0.18, "gain": 1.0, "tint": Color(0.62, 0.78, 0.62), "wobble": 0.15},
+	"server": {"noise": 0.1, "gain": 1.0, "tint": Color(0.55, 0.72, 0.8), "wobble": 0.0},
+	"vent": {"noise": 0.3, "gain": 0.85, "tint": Color(0.62, 0.78, 0.62), "wobble": 0.0},
+	"power": {"noise": 0.2, "gain": 1.0, "tint": Color(0.62, 0.78, 0.62), "wobble": 0.3},
+	"room9": {"noise": 0.2, "gain": 1.0, "tint": Color(0.78, 0.62, 0.58), "wobble": 0.0},
+}
+
+## сила инфракрасной подсветки врагов на камерах (fn_ir.w, см. materials/fn_ir_pass.gdshader)
+const IR := 0.85
+
+func _ir() -> void:
+	RenderingServer.global_shader_parameter_set("fn_ir", Vector4(cam.global_position.x, cam.global_position.y, cam.global_position.z, IR))
 
 func set_cam(id: String) -> void:
 	if not fac.cams.has(id):
@@ -87,6 +110,12 @@ func set_cam(id: String) -> void:
 	cam.look_at(c["look"], Vector3.UP)
 	cam.fov = float(c["fov"])
 	base_basis = cam.global_basis
+	_ir()
+	var lk: Dictionary = LOOKS.get(id, {"noise": 0.18, "gain": 1.0, "tint": Color(0.62, 0.78, 0.62), "wobble": 0.0})
+	mat.set_shader_parameter("noise_k", float(lk["noise"]))
+	mat.set_shader_parameter("gain", float(lk["gain"]))
+	mat.set_shader_parameter("tint", Vector3((lk["tint"] as Color).r, (lk["tint"] as Color).g, (lk["tint"] as Color).b))
+	mat.set_shader_parameter("wobble", float(lk["wobble"]))
 	sway = deg_to_rad(float(c.get("sway", 0.0)))
 	switch_t = 0.22
 
@@ -96,6 +125,7 @@ func peek_office() -> void:
 	cam.look_at(Vector3(-0.2, 1.0, -0.7), Vector3.UP)
 	cam.fov = 76.0
 	base_basis = cam.global_basis
+	_ir()
 	sway = 0.0
 	switch_t = 0.12
 

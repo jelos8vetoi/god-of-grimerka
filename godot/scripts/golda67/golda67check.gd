@@ -2902,10 +2902,10 @@ func _phone_check(g, G: Golda67) -> void:
 	await wait(0.8)
 	ok(ph.position() > p0 and ph.active(), "трек играет: позиция растёт (%.1f → %.1f)" % [p0, ph.position()])
 	await wait(1.2)
-	ok(main.audio.duck < -30.0, "пока играет плейлист, музыка локации заглушена (%.1f дБ)" % main.audio.duck)
+	ok(String(main.audio.cur) == "", "пока играет плейлист, музыка режима молчит (набор: «%s»)" % main.audio.cur)
 	ph.toggle()
 	await wait(2.0)
-	ok(ph.paused and not ph.active() and main.audio.duck > -30.0, "пауза плейлиста возвращает музыку локации (%.1f дБ)" % main.audio.duck)
+	ok(ph.paused and not ph.active() and String(main.audio.cur) != "", "пауза плейлиста возвращает музыку режима (набор: «%s»)" % main.audio.cur)
 	ph.toggle()
 	ph.step(1)
 	ok(ph.cur == 2, "следующий трек — №2")
@@ -2989,7 +2989,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	var got: bool = await until(func(): return G.alive() >= 3, 10.0)
 	ok(got, "первая волна вышла (%d врагов)" % G.alive())
 	await wait(1.5)
-	ok(String(main.audio.cur) == "loc_g67_dvor" and main.audio.want.size() >= 2 and float(main.audio.want[1]) > 0.5, "во дворе играет loc_g67_dvor, в бою включён слой drive (%s %s)" % [main.audio.cur, str(main.audio.want)])
+	ok(String(main.audio.cur) == "loc_g67_dvor" and (main.audio.director.base["layers"] as Array).size() >= 2 and float(main.audio.director.base["layers"][1]) > 0.5, "во дворе играет loc_g67_dvor, в бою включён слой drive (%s %s)" % [main.audio.cur, str(main.audio.director.base["layers"])])
 	var skins: Array = []
 	for e in g.enemies:
 		if is_instance_valid(e):
@@ -3297,8 +3297,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await _go(G, P, "gate0")
 	var bossed: bool = await until(func(): return G.room_state == "boss" and g.boss_e != null and is_instance_valid(g.boss_e), 8.0)
 	ok(bossed, "шестая позиция — босс")
-	await wait(0.1)
-	ok(String(main.audio.cur) == "boss_g67_misha", "у Миши играет boss_g67_misha (%s)" % main.audio.cur)
+	ok(String(main.audio.cur) == "", "в постановке выхода Миши музыка режима молчит (набор: «%s»)" % main.audio.cur)
 	if not bossed:
 		return
 	var B = g.boss_e
@@ -3323,6 +3322,8 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(B.global_position.distance_to(G.world.yard.boss_spot + Vector3(0, 0.05, 0)) < 0.3, "к началу боя Миша на своём месте в коробке")
 	var first_mv: bool = await until(func(): return String(B.move) != "", 8.0)
 	ok(first_mv and String(B.move) == "m_grab", "первый приём боя — ЗАХВАТ (%s)" % String(B.move))
+	await until(func(): return String(main.audio.cur) == "boss_g67_misha", 4.0)
+	ok(String(main.audio.cur) == "boss_g67_misha", "после постановки у Миши играет boss_g67_misha (%s)" % main.audio.cur)
 	ok(String(B.boss_id) == "g67_misha" and String(g.boss_name.text).begins_with("МИША МИНАСЯН"), "босс — Миша Минасян («%s»)" % g.boss_name.text)
 	ok(String(B.cfg.get("path", "")).ends_with("g67_misha.glb"), "модель босса — своя, не босс кампании")
 	ok(B.rig.skel.find_children("*", "BoneAttachment3D", true, false).size() > 0, "на Мише цепь")

@@ -1,0 +1,17 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3]
+
+[ext_resource type="Shader" path="res://scenes/five_nights/materials/booth_surface.gdshader" id="Surface"]
+[ext_resource type="Texture2D" path="res://scenes/five_nights/materials/surface_grain.tres" id="Grain"]
+
+[resource]
+resource_name = "laminate"
+shader = ExtResource("Surface")
+shader_parameter/grain = ExtResource("Grain")
+shader_parameter/base = Color(0.13, 0.145, 0.15, 1)
+shader_parameter/grain_scale = 2.7
+shader_parameter/rough = 0.68
+shader_parameter/metal = 0.1
+shader_parameter/grime = 0.4
+shader_parameter/streaks = 0.15
+shader_parameter/damp = 0.3
+shader_parameter/damp_height = 0.35

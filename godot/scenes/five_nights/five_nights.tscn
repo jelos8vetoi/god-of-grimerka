@@ -1,6 +1,36 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/five_nights/fn_root.gd" id="1_fn"]
+[ext_resource type="PackedScene" path="res://scenes/five_nights/guard_booth.tscn" id="Booth"]
+[ext_resource type="PackedScene" path="res://scenes/five_nights/cam4_corridor.tscn" id="Cam4"]
+
+[sub_resource type="Environment" id="NightEnvironment"]
+background_mode = 1
+background_color = Color(0, 0, 0, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.38, 0.45, 0.52, 1)
+ambient_light_energy = 0.014
+tonemap_mode = 2
+tonemap_exposure = 1.0
+glow_enabled = true
+glow_intensity = 0.7
+glow_bloom = 0.05
+ssao_enabled = true
+ssao_intensity = 3.5
+fog_enabled = true
+fog_light_color = Color(0.012, 0.014, 0.016, 1)
+fog_density = 0.05
+adjustment_enabled = true
+adjustment_contrast = 1.08
+adjustment_saturation = 0.95
 
 [node name="FiveNights" type="Node3D"]
 script = ExtResource("1_fn")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("NightEnvironment")
+
+[node name="GuardBooth" parent="." instance=ExtResource("Booth")]
+
+[node name="Cam4Corridor" parent="." instance=ExtResource("Cam4")]
+position = Vector3(-3.75, 0, -1.05)

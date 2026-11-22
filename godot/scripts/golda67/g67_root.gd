@@ -149,6 +149,7 @@ func _swap_world(build: Callable) -> void:
 	near = ""
 
 func enter_hub() -> void:
+	hub_back_t = 8.0 if place == "run" else 0.0
 	place = "hub"
 	room_state = ""
 	run = {}
@@ -2036,6 +2037,7 @@ func _scene_end() -> void:
 	_talk_hud(false)
 	scene_t = -1.0
 	skip_hold = 0.0
+	bark_hold = 4.0
 	if scene_boss != null and is_instance_valid(scene_boss):
 		scene_boss.global_position = scene_to
 		scene_boss.set_physics_process(true)
@@ -2836,6 +2838,84 @@ func point(id: String) -> Dictionary:
 				return pt
 	return {}
 
+## Музыка режима (MusicDirector): единственное место, где она решается. Состояние только читается, таймеров два:
+## 8 с «эфира из телевизора» после забега и 4 с ожидания конца реплики босса после постановки.
+var hub_back_t := 0.0
+var bark_hold := 0.0
+var last_district := "dvor"
+var tv_marker: Marker3D
+
+func _tv_node() -> Node3D:
+	if tv_marker != null and is_instance_valid(tv_marker) and tv_marker.get_parent() == world:
+		return tv_marker
+	var pt := point("tv")
+	if pt.is_empty() or world == null:
+		return null
+	tv_marker = Marker3D.new()
+	tv_marker.name = "TvSpeaker"
+	world.add_child(tv_marker)
+	tv_marker.global_position = Vector3(pt["pos"]) + Vector3(0, 1.0, 0)
+	return tv_marker
+
+func music_context() -> Dictionary:
+	var dir = game.main.audio.director
+	var res := {"dialogue": "talk", "boss_set": ""}
+	var ph = phone_get()
+	var phone_on: bool = ph != null and ph.active()
+	if place == "hub":
+		var back := hub_back_t > 0.0
+		res["ctx"] = "explore"
+		res["cue"] = dir.resolve_cue("loc_g67_" + last_district, "loc_snow") if back else dir.resolve_cue("loc_g67_hub", "loc_hall")
+		res["layers"] = [1.0, 0.0, 0.0]
+		res["transition"] = "cross"
+		var tv := _tv_node()
+		if tv != null:
+			res["via"] = tv
+		if phone_on:                                     # играет плейлист iPhone: музыка режима молчит
+			res["ctx"] = "story"
+			res["cue"] = ""
+		return res
+	last_district = String(run.get("district", last_district))
+	var yard: String = dir.resolve_cue("loc_g67_" + last_district, "loc_snow")
+	res["cue"] = yard
+	res["layers"] = [1.0, 0.0, 0.0]
+	res["ctx"] = "explore"
+	res["transition"] = "gap"
+	if room_state == "boss":
+		var boss = game.boss_e
+		var staging: bool = scene_t >= 0.0 or ev_cam or ev_busy or (bark_hold > 0.0 and game.bark_b.playing)
+		if staging:
+			res["ctx"] = "story"
+			res["cue"] = ""
+		elif boss != null and is_instance_valid(boss) and boss.state != "dead":
+			var want := "boss_" + String(boss.boss_id)
+			var set_used: String = dir.resolve_cue(want, "boss_courier")
+			res["ctx"] = "boss"
+			res["transition"] = "boss_in"
+			if set_used != "":
+				res["cue"] = set_used
+				res["boss_set"] = set_used
+				var lay := [1.0, 1.0 if boss.phase >= 1 else 0.0, 1.0 if boss.phase >= 2 else 0.0]
+				if boss.phase >= 2 and float(boss.get("weak_t")) > 0.0:
+					lay[0] = 0.0                         # окно «ОТКРЫТ» в третьей фазе: бас уходит
+				if bool(boss.get("antract")):
+					lay = [1.0, 0.0, 0.0]                # антракт: тема тише, остаётся один слой
+				res["layers"] = lay
+	elif room_state == "over":
+		res["ctx"] = "victory"
+		res["transition"] = "cross"
+	elif ev_cam or ev_busy:
+		res["ctx"] = "story"
+		res["cue"] = ""
+	elif game.enemies.any(func(e): return is_instance_valid(e) and e.state != "dead"):
+		res["ctx"] = "combat"
+		res["layers"] = [1.0, 1.0, 0.0]
+	if phone_on:                                         # плейлист главнее музыки режима и темы Миши
+		res["ctx"] = "story"
+		res["cue"] = ""
+		res["boss_set"] = ""
+	return res
+
 func _physics_process(dt: float) -> void:
 	if game == null or world == null or not is_instance_valid(world):
 		return
@@ -2844,6 +2924,8 @@ func _physics_process(dt: float) -> void:
 			prompt.visible = false
 		return
 	_t += dt
+	hub_back_t = maxf(0.0, hub_back_t - dt)
+	bark_hold = maxf(0.0, bark_hold - dt)
 	if talk_on:
 		_talk_step(dt)
 	if ev_cam:

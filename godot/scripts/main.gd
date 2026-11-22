@@ -13,8 +13,10 @@ const ACTIONS := {
 
 var game: Node
 var menu: Control
-var music: AudioStreamPlayer
+var music: AudioStreamPlayer      # заглавный трек: проигрыватель принадлежит MusicDirector (только чтение)
 var audio                 # менеджер звука (audio.gd)
+var musiclog := false      # --musiclog: журнал решений режиссёра музыки (MUSICDIR …)
+var musiccheck := ""       # --musiccheck=<папка>: музыкальный режиссёр (scripts/musiccheck.gd)
 var audiolog := false     # --audiolog: печатать состояние музыки раз в секунду (и не глушить её в проверках)
 var ipodcheck := ""        # --ipodcheck=<папка>: автопроверка iPod по кадрам (scripts/ipodcheck.gd)
 var transcheck := ""        # --transcheck=<папка>: проверка переходов из меню в игру и паузы (scripts/transcheck.gd)
@@ -114,11 +116,6 @@ func _ready() -> void:
 	if AudioServer.get_bus_index("Voice") < 0:
 		AudioServer.add_bus()
 		AudioServer.set_bus_name(AudioServer.bus_count - 1, "Voice")
-	music = AudioStreamPlayer.new()
-	music.stream = load("res://assets/audio/music_dynasty.mp3")
-	(music.stream as AudioStreamMP3).loop = true
-	music.volume_db = -8.0
-	add_child(music)
 	for i in 16:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
@@ -228,6 +225,10 @@ func _ready() -> void:
 			ipodhand = true
 		elif arg == "--audiolog":
 			audiolog = true
+		elif arg == "--musiclog":
+			musiclog = true
+		elif arg.begins_with("--musiccheck="):
+			musiccheck = arg.substr(13)
 		elif arg == "--voicecheck":
 			voicecheck = true
 			audiolog = true
@@ -290,6 +291,11 @@ func _ready() -> void:
 			snd.main = self
 			snd.out = soundcheck
 			add_child(snd)
+		if musiccheck != "":
+			var mcc = preload("res://scripts/musiccheck.gd").new()
+			mcc.main = self
+			mcc.out = musiccheck
+			add_child(mcc)
 		if golda67check != "":
 			var g67c = preload("res://scripts/golda67/golda67check.gd").new()
 			g67c.main = self
@@ -382,9 +388,6 @@ func show_menu() -> void:
 		minigame.queue_free()
 		minigame = null
 	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
-	music.volume_db = -6.0
-	if not music.playing:
-		music.play()
 	# меню целиком — scripts/menu.gd (композиция, герои, экраны загрузки, настроек и дополнительного)
 	var m := Menu.new()
 	m.main = self
@@ -525,9 +528,6 @@ func start_golda67() -> void:
 		menu = null
 	if game:
 		game.queue_free()
-	music.volume_db = -16.0
-	if not music.playing:
-		music.play()
 	game = preload("res://scripts/game.gd").new()
 	game.main = self
 	add_child(game)
@@ -649,9 +649,6 @@ func start_training(hero: String, style: String) -> void:
 		menu = null
 	if game:
 		game.queue_free()
-	music.volume_db = -16.0
-	if not music.playing:
-		music.play()
 	game = preload("res://scripts/game.gd").new()
 	game.main = self
 	add_child(game)
@@ -687,9 +684,6 @@ func start_game(from_save := false, chapter := -1, cinematic := false, run_type 
 	if game:
 		game.process_mode = Node.PROCESS_MODE_DISABLED
 		game.queue_free()
-	music.volume_db = -16.0
-	if not music.playing and trailer == "":
-		music.play()
 	game = preload("res://scripts/game.gd").new()
 	game.main = self
 	game.run_type = run_type

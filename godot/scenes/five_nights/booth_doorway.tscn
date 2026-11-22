@@ -1,0 +1,198 @@
+[gd_scene load_steps=16 format=3]
+
+[ext_resource type="Material" path="res://scenes/five_nights/materials/laminate.tres" id="laminate"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/steel.tres" id="steel"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/enamel.tres" id="enamel"]
+
+[sub_resource type="StandardMaterial3D" id="SafetyOchre"]
+albedo_color = Color(0.72, 0.45, 0.2, 1)
+roughness = 0.63
+metallic = 0
+
+[sub_resource type="StandardMaterial3D" id="Gasket"]
+albedo_color = Color(0.055, 0.065, 0.065, 1)
+roughness = 0.9
+metallic = 0
+
+[sub_resource type="BoxMesh" id="Box_1_32_0_268_0_222"]
+size = Vector3(1.32, 0.268, 0.222)
+
+[sub_resource type="BoxMesh" id="Box_0_084_2_164_0_1"]
+size = Vector3(0.084, 2.164, 0.1)
+
+[sub_resource type="BoxMesh" id="Box_0_023_2_146_0_105"]
+size = Vector3(0.023, 2.146, 0.105)
+
+[sub_resource type="BoxMesh" id="Box_1_16_0_018_0_21"]
+size = Vector3(1.16, 0.018, 0.21)
+
+[sub_resource type="BoxMesh" id="Box_1_06_0_005_0_08"]
+size = Vector3(1.06, 0.005, 0.08)
+
+[sub_resource type="BoxMesh" id="Box_1_1_2_15_0_065"]
+size = Vector3(1.1, 2.15, 0.065)
+
+[sub_resource type="BoxMesh" id="Box_1_07_0_033_0_018"]
+size = Vector3(1.07, 0.033, 0.018)
+
+[sub_resource type="BoxMesh" id="Box_1_095_0_13_0_024"]
+size = Vector3(1.095, 0.13, 0.024)
+
+[sub_resource type="BoxMesh" id="Box_0_076_0_086_0_005"]
+size = Vector3(0.076, 0.086, 0.005)
+
+[sub_resource type="BoxMesh" id="Box_0_035_0_28_0_014"]
+size = Vector3(0.035, 0.28, 0.014)
+
+[node name="Doorway" type="Node3D"]
+
+[node name="Housing" type="MeshInstance3D" parent="."]
+position = Vector3(0, 2.292, 0.054)
+mesh = SubResource("Box_1_32_0_268_0_222")
+material_override = ExtResource("laminate")
+
+[node name="GuideLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-0.585, 1.082, 0.032)
+mesh = SubResource("Box_0_084_2_164_0_1")
+material_override = ExtResource("steel")
+
+[node name="GuideRight" type="MeshInstance3D" parent="."]
+position = Vector3(0.585, 1.082, 0.032)
+mesh = SubResource("Box_0_084_2_164_0_1")
+material_override = ExtResource("steel")
+
+[node name="LeftGasket" type="MeshInstance3D" parent="."]
+position = Vector3(-0.549, 1.073, 0.047)
+mesh = SubResource("Box_0_023_2_146_0_105")
+material_override = SubResource("Gasket")
+
+[node name="RightGasket" type="MeshInstance3D" parent="."]
+position = Vector3(0.549, 1.073, 0.047)
+mesh = SubResource("Box_0_023_2_146_0_105")
+material_override = SubResource("Gasket")
+
+[node name="Sill" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.01, -0.025)
+mesh = SubResource("Box_1_16_0_018_0_21")
+material_override = ExtResource("steel")
+
+[node name="SillGrip" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.021, 0.002)
+mesh = SubResource("Box_1_06_0_005_0_08")
+material_override = SubResource("Gasket")
+
+[node name="Track" type="Node3D" parent="."]
+position = Vector3(0, 1.075, -0.023)
+
+[node name="Shutter" type="MeshInstance3D" parent="Track"]
+position = Vector3(0, 2.15, 0)
+mesh = SubResource("Box_1_1_2_15_0_065")
+material_override = ExtResource("enamel")
+
+[node name="Fold1" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, -0.85, 0.038)
+mesh = SubResource("Box_1_07_0_033_0_018")
+material_override = ExtResource("steel")
+
+[node name="Fold2" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, -0.61, 0.038)
+mesh = SubResource("Box_1_07_0_033_0_018")
+material_override = ExtResource("steel")
+
+[node name="Fold3" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, -0.37, 0.038)
+mesh = SubResource("Box_1_07_0_033_0_018")
+material_override = ExtResource("steel")
+
+[node name="Fold4" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, -0.13, 0.038)
+mesh = SubResource("Box_1_07_0_033_0_018")
+material_override = ExtResource("steel")
+
+[node name="Fold5" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, 0.11, 0.038)
+mesh = SubResource("Box_1_07_0_033_0_018")
+material_override = ExtResource("steel")
+
+[node name="Fold6" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, 0.35, 0.038)
+mesh = SubResource("Box_1_07_0_033_0_018")
+material_override = ExtResource("steel")
+
+[node name="Fold7" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, 0.59, 0.038)
+mesh = SubResource("Box_1_07_0_033_0_018")
+material_override = ExtResource("steel")
+
+[node name="Fold8" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, 0.83, 0.038)
+mesh = SubResource("Box_1_07_0_033_0_018")
+material_override = ExtResource("steel")
+
+[node name="PullRail" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, -0.995, 0.043)
+mesh = SubResource("Box_1_095_0_13_0_024")
+material_override = ExtResource("laminate")
+
+[node name="Reflector1" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(-0.445, -0.992, 0.058)
+rotation = Vector3(0, 0, -0.41)
+mesh = SubResource("Box_0_076_0_086_0_005")
+material_override = SubResource("SafetyOchre")
+cast_shadow = 0
+
+[node name="Reflector2" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(-0.269, -0.992, 0.058)
+rotation = Vector3(0, 0, -0.41)
+mesh = SubResource("Box_0_076_0_086_0_005")
+material_override = SubResource("SafetyOchre")
+cast_shadow = 0
+
+[node name="Reflector3" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(-0.093, -0.992, 0.058)
+rotation = Vector3(0, 0, -0.41)
+mesh = SubResource("Box_0_076_0_086_0_005")
+material_override = SubResource("SafetyOchre")
+cast_shadow = 0
+
+[node name="Reflector4" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0.083, -0.992, 0.058)
+rotation = Vector3(0, 0, -0.41)
+mesh = SubResource("Box_0_076_0_086_0_005")
+material_override = SubResource("SafetyOchre")
+cast_shadow = 0
+
+[node name="Reflector5" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0.259, -0.992, 0.058)
+rotation = Vector3(0, 0, -0.41)
+mesh = SubResource("Box_0_076_0_086_0_005")
+material_override = SubResource("SafetyOchre")
+cast_shadow = 0
+
+[node name="Reflector6" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0.435, -0.992, 0.058)
+rotation = Vector3(0, 0, -0.41)
+mesh = SubResource("Box_0_076_0_086_0_005")
+material_override = SubResource("SafetyOchre")
+cast_shadow = 0
+
+[node name="StopLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-0.564, 0.34, 0.103)
+mesh = SubResource("Box_0_035_0_28_0_014")
+material_override = SubResource("SafetyOchre")
+
+[node name="StopRight" type="MeshInstance3D" parent="."]
+position = Vector3(0.564, 0.34, 0.103)
+mesh = SubResource("Box_0_035_0_28_0_014")
+material_override = SubResource("SafetyOchre")
+
+[node name="Beam" type="SpotLight3D" parent="."]
+position = Vector3(0, 1.93, 0.115)
+rotation = Vector3(-0.55, 0, 0)
+light_color = Color(0.86, 0.9, 1, 1)
+light_energy = 0
+shadow_enabled = true
+spot_range = 4.2
+spot_attenuation = 1.3
+spot_angle = 54
+spot_angle_attenuation = 0.75

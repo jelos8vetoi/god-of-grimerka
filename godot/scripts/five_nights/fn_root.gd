@@ -10,8 +10,8 @@ class_name FiveNightsRoot
 extends Node3D
 
 var main
-var env: WorldEnvironment
-var office: FNOffice
+@onready var office: FNOffice = $GuardBooth
+@onready var hall_l: FNCorridor = $Cam4Corridor
 var fac: FNFacility
 var actors: FNActors
 var cams: FNCams
@@ -39,7 +39,6 @@ var call_t := 0.0
 var call_muted := false
 var ring_t := -1.0
 var ping_beep := 0.0
-var duck_k := 0.0
 var face_flash := 0.0
 var pending_reflection := false
 var said_door := false
@@ -48,7 +47,8 @@ var end_t := 0.0
 var finale_done := false
 var intro_t := 0.0                  # заставка ночи: пока идёт, часы стоят и враги не ходят
 # звук
-var amb := {}                       # id → AudioStreamPlayer (петли окружения)
+var tension := FNTension.new()      # фаза и уровень напряжения ночи
+var ambience: FNAmbience             # фон будки и случайные звуки здания
 var crawl: AudioStreamPlayer3D      # MADK1D в шахте
 var whisper: AudioStreamPlayer      # GHOST: шёпот растёт с одержимостью
 var air_tune: AudioStreamPlayer3D   # «последний шанс»
@@ -70,13 +70,9 @@ func _ready() -> void:
 	quiet = main != null and main.testing() != ""
 	FNSave.load_all()
 	FNSound.warm()
-	_env()
-	office = FNOffice.new()
-	add_child(office)
-	office.build()
 	fac = FNFacility.new()
 	add_child(fac)
-	fac.build(office)
+	fac.build(office, hall_l)
 	actors = FNActors.new()
 	add_child(actors)
 	actors.build(office, fac)
@@ -110,27 +106,6 @@ func _ready() -> void:
 	_menu_scene()
 	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
 
-func _env() -> void:
-	env = WorldEnvironment.new()
-	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color(0, 0, 0)
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.5, 0.52, 0.55)
-	e.ambient_light_energy = 0.05
-	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.tonemap_exposure = 1.1
-	e.glow_enabled = true
-	e.glow_intensity = 0.7
-	e.glow_bloom = 0.05
-	e.ssao_enabled = true
-	e.ssao_intensity = 2.5
-	e.fog_enabled = true
-	e.fog_light_color = Color(0.05, 0.05, 0.06)
-	e.fog_density = 0.035
-	env.environment = e
-	add_child(env)
-
 func apply_fx() -> void:
 	var k := float(FNSave.v("settings")["fx"])
 	ui.fx_k = k
@@ -138,14 +113,9 @@ func apply_fx() -> void:
 
 # ---------------- звук ----------------
 func _audio() -> void:
-	for a in [["hum", "Ambient", -8.0], ["fan", "Ambient", -14.0], ["buzz", "Ambient", -26.0], ["whine", "SFX", -60.0]]:
-		var p := AudioStreamPlayer.new()
-		p.stream = FNSound.get_stream(a[0])
-		p.bus = a[1]
-		p.volume_db = a[2] + FNSound.trim(a[0])
-		p.set_meta("base", a[2] + FNSound.trim(a[0]))
-		add_child(p)
-		amb[a[0]] = p
+	ambience = FNAmbience.new()
+	add_child(ambience)
+	ambience.build(self)
 	crawl = _p3("crawl")
 	crawl.volume_db = -60.0
 	air_tune = _p3("music_box_air")
@@ -222,6 +192,7 @@ func hush_begin(mode: String) -> void:
 			(p as AudioStreamPlayer).stop()
 		for p in pool3:
 			(p as AudioStreamPlayer3D).stop()
+		ambience.stop_events()
 		call_voice.stop()
 		pahan_voice.stop()
 		air_tune.stop()
@@ -246,7 +217,7 @@ func sfx3(id: String, pos: Vector3, vol := 0.0, pitch := 1.0) -> void:
 	for p in pool3:
 		var a := p as AudioStreamPlayer3D
 		if not a.playing:
-			a.stream = FNSound.get_stream(id)
+			a.stream = FNSound.pick(id)
 			a.global_position = pos
 			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
@@ -263,7 +234,7 @@ func sfx2(id: String, vol := 0.0, pitch := 1.0, bus := "SFX") -> void:
 	for p in pool2:
 		var a := p as AudioStreamPlayer
 		if not a.playing:
-			a.stream = FNSound.get_stream(id)
+			a.stream = FNSound.pick(id)
 			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
 			a.bus = FNSound.bus_for(id, bus)
@@ -272,27 +243,7 @@ func sfx2(id: String, vol := 0.0, pitch := 1.0, bus := "SFX") -> void:
 
 ## тишина перед появлением: окружение уходит почти в ноль
 func duck(on: bool) -> void:
-	duck_k = 1.0 if on else 0.0
-
-func _amb_tick(dt: float) -> void:
-	var on := _snd_ok() and state in ["night", "scare", "menu"]
-	var out := st != null and st.power_out and state == "night"
-	for id in amb:
-		var p: AudioStreamPlayer = amb[id]
-		if on and not p.playing:
-			p.play()
-		elif not on and p.playing:
-			p.stop()
-		var base: float = p.get_meta("base")
-		var want := base - duck_k * 30.0
-		if out:
-			want = -60.0                         # всё обесточено: тишина
-		if id == "whine":
-			want = (-26.0 if st != null and st.monitor and state == "night" else -60.0)
-		if state == "menu" and id in ["buzz", "whine"]:
-			want = -60.0
-		p.volume_db = move_toward(p.volume_db, want, dt * 40.0)
-	duck_k = maxf(0.0, duck_k - dt * 0.6)
+	ambience.duck(on)
 
 # ---------------- меню-терминал ----------------
 func _menu_scene() -> void:
@@ -332,25 +283,11 @@ func quit_to_menu() -> void:
 func music_set() -> String:
 	return "loc_fn" if state == "menu" else ""
 
-## страх: редкие звуки здания в разных местах (скрип в коридоре, капля в служебке, стук за спиной, железо в шахте);
-## не чаще раза в 14–30 с, только в тишине ночи и не во время скримера; ни один не означает угрозу — враги звучат своими
-var fear_t := 18.0
-const FEAR := [["creak", "hall_l", -6.0], ["creak", "hall_r", -6.0], ["drip", "vent_l", -8.0], ["knock", "behind", -10.0], ["clank", "vent_t", -16.0], ["giggle", "hall_r", -14.0]]
-func _fear_tick(dt: float) -> void:
-	if state != "night" or st == null or st.power_out or scare.busy or intro_t > 0.0:
-		return
-	fear_t -= dt
-	if fear_t > 0.0:
-		return
-	fear_t = randf_range(14.0, 30.0) - float(night) * 1.5
-	var f: Array = FEAR[randi() % (FEAR.size() if night >= 2 else 3)]
-	var pos := Vector3(0.0, 1.5, 2.2) if String(f[1]) == "behind" else FNOffice.point(String(f[1])) + Vector3(0, 1.4, 0)
-	sfx3(String(f[0]), pos, float(f[2]), randf_range(0.85, 1.1))
-
 # ---------------- ночь ----------------
 func start_night(n: int, lv := {}) -> void:
 	night = n
 	levels = lv
+	var first_time: bool = (FNSave.v("beaten") as Array).is_empty()
 	FNSave.played()
 	if n < 5:
 		FNSave.put("current", n)
@@ -358,6 +295,7 @@ func start_night(n: int, lv := {}) -> void:
 	st.setup(n, int(Time.get_ticks_usec() % 2147483647), lv)
 	menu.visible = false
 	ui.hud.visible = true
+	ui.night_begin(n, first_time)
 	ui.show_pause(false)
 	ui.show_dark(false)
 	paused = false
@@ -381,7 +319,6 @@ func start_night(n: int, lv := {}) -> void:
 	_say_clear()
 	crawl.volume_db = -60.0
 	state = "night"
-	fear_t = randf_range(16.0, 26.0)
 	sfx2("sting_night", -3.0, 1.0, "Music")
 	var title: String = "свои уровни" if n >= FNData.NIGHTS.size() else String(FNData.NIGHTS[n]["title"])
 	ui.night_card("НОЧЬ %d" % (n + 1) if n < FNData.NIGHTS.size() else "СВОЯ НОЧЬ", title)
@@ -428,8 +365,7 @@ func set_paused(on: bool) -> void:
 		return
 	paused = on
 	ui.show_pause(on)
-	for id in amb:
-		(amb[id] as AudioStreamPlayer).stream_paused = on
+	ambience.set_paused(on)
 	call_voice.stream_paused = on
 	pahan_voice.stream_paused = on
 	for id in actors.rigs:
@@ -438,8 +374,10 @@ func set_paused(on: bool) -> void:
 func _process(dt: float) -> void:
 	if state == "night" and st != null and st.power < 25.0 and not st.power_out:
 		ui.tips.tip("power")
-	_amb_tick(dt)
-	_fear_tick(dt)
+	if st != null and state in ["night", "scare"]:
+		tension.tick(st, dt, night)
+		office.tension_k = tension.level
+	ambience.tick(st, state, dt)
 	match state:
 		"menu":
 			_menu_tick(dt)
@@ -475,11 +413,6 @@ func _night_tick(dt: float) -> void:
 	if state != "night":
 		return
 	office.tick(st, dt, look_in)
-	# перебой: перед ним лампа будки мигает и гудит, во время — еле тлеет
-	if st.brown_warn > 0.0:
-		office.lamp.light_energy *= 0.35 if randf() < 0.45 else 1.0
-	elif st.brown_t > 0.0:
-		office.lamp.light_energy *= 0.22
 	if fix_hold:
 		st.fix_cam(dt)
 	else:
@@ -513,12 +446,18 @@ func _night_tick(dt: float) -> void:
 		_finale()
 
 func _finale() -> void:
+	var shift := st
 	sfx2("giggle", -4.0, 0.8)
 	for k in 6:
-		office.lamp.light_energy = 0.0 if k % 2 == 0 else 1.6
+		if st != shift or state != "night" or st.power_out:
+			break
+		office.event_gain = 0.0 if k % 2 == 0 else 2.0
 		office.dark_eyes.visible = k % 2 == 0
 		await get_tree().create_timer(0.35, true, false, true).timeout
-	office.dark_eyes.visible = false
+	if st == shift:
+		office.event_gain = 1.0
+		if not st.power_out:
+			office.dark_eyes.visible = false
 
 # ---------------- события ночи → звук и картинка ----------------
 ## Каждый час ночи — своё событие (не вредят, только давят): час 1 — тихо; час 2 — свет проседает; час 3 — всё
@@ -528,11 +467,16 @@ func _hour_event(h: int) -> void:
 		return
 	match h:
 		2:
+			var shift := st
 			for q in 5:
-				office.lamp.light_energy = office.lamp_base * (0.15 if q % 2 == 0 else 0.7)
+				if st != shift or state != "night" or st.power_out:
+					break
+				office.event_gain = 0.15 if q % 2 == 0 else 0.7
 				await get_tree().create_timer(0.16, true, false, true).timeout
-			office.lamp.light_energy = office.lamp_base
-			sfx2("power_down", -14.0, 1.8)
+			if st == shift:
+				office.event_gain = 1.0
+				if state == "night" and not st.power_out:
+					sfx2("power_down", -14.0, 1.8)
 		3:
 			hush_begin("amb")
 			await get_tree().create_timer(2.0, true, false, true).timeout
@@ -564,12 +508,14 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"scrape":
 			ui.tips.tip("clipper")
 		"power_out":
+			office.dark_eyes.visible = false
 			ui.tips.tip("dark")
 		"hour":
 			_hour_event(int(d["h"]))
 		"adapt":
 			adapt_log.append([String(d["e"]), String(d["how"])])
 		"move":
+			ambience.hold(6.0)
 			var to := String(d["to"])
 			var e := String(d["e"])
 			if to in ["door_l", "door_r"]:
@@ -577,15 +523,20 @@ func _on_event(k: String, d: Dictionary) -> void:
 				var snd := "clank" if e == "bot" else ("step" if e in ["clipper", "ghost"] else "step_heavy")
 				sfx3(snd, FNOffice.point(to), -2.0 if e != "clipper" else -6.0, 0.9)
 			elif to in ["hall_l", "hall_r"]:
-				sfx3("step", FNOffice.point(to), -10.0, 0.8)
+				var step_at := FNOffice.point(to)
+				if fac.spots.has(to) and st.enemies.has(e):
+					step_at = fac.spot(to, (st.enemies[e] as FNEnemy).pose).origin + Vector3(0, 0.2, 0)      # шаг слышен там, где враг стоит в коридоре
+				sfx3("step", step_at, -10.0, 0.8)
 			elif to in ["vent_l", "vent_t"]:
 				sfx3("vent_bang", FNOffice.point(to), 2.0, 1.0)
 			if String(d.get("why", "")) == "retreat" and String(d["from"]).begins_with("door"):
 				sfx3("step", FNOffice.point(String(d["from"])), -12.0, 0.7)
 		"heavy_step":
+			ambience.hold(6.0)
 			sfx3("step_heavy", FNOffice.point("hall_" + String(d["side"])), 0.0, 0.75)
-			office.lamp.light_energy = 0.1
+			office.flick_t = 0.09
 		"bang":
+			ambience.hold(6.0)
 			var at := String(d["at"])
 			sfx3("vent_bang" if at.begins_with("vent") else "door_down", FNOffice.point(at), 4.0, 0.7)
 			office.shake = 0.5
@@ -593,6 +544,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 				said_door = true
 				pahan_say(String(FNData.PAHAN["door"][randi() % FNData.PAHAN["door"].size()]), 3.0)
 		"scrape":
+			ambience.hold(6.0)
 			sfx3("scrape", FNOffice.point("door_l"), 2.0, 1.0)
 		"flinch":
 			sfx3("scream_clipper", FNOffice.point("door_l"), -14.0, 1.6)
@@ -605,12 +557,14 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"door":
 			sfx3("door_down" if d["closed"] else "door_up", FNOffice.point("door_" + String(d["s"])) * Vector3(0.75, 1, 1) + Vector3(0, 1.6, 0), -2.0)
 			office.press("door_" + String(d["s"]))
+			ui.toast("door_" + String(d["s"]))
 		"light":
 			if d["on"]:
 				sfx3("click", office.lights[String(d["s"])].global_position, -10.0, 1.3)
 		"seal":
 			sfx3("click", FNOffice.point("vent_" + String(d["s"])), -4.0, 0.8)
 			office.press("seal_" + String(d["s"]))
+			ui.toast("seal_" + String(d["s"]))
 		"monitor":
 			sfx2("cam", -10.0, 0.8 if d["on"] else 0.6)
 			if not d["on"]:
@@ -625,6 +579,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"reset":
 			sfx2("power_down", -10.0, 1.8)
 			office.press("reset")
+			ui.toast("reset")
 		"force_open":
 			sfx3("door_up", FNOffice.point("door_r") + Vector3(-0.5, 1.6, 0), 2.0, 0.85)
 			ui.alarm("ПРАВАЯ ДВЕРЬ ОТКРЫТА СИСТЕМОЙ")
@@ -996,6 +951,8 @@ func _unhandled_input(e: InputEvent) -> void:
 				_toggle("seal_t")
 			KEY_R:
 				_toggle("reset")
+			KEY_F1:
+				ui.toggle_deck_pin()
 			KEY_F:
 				mute_call()
 			KEY_L:
