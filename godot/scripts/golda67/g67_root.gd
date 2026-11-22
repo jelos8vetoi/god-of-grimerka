@@ -52,10 +52,16 @@ var cass_next := -9.0         # и когда сработает снова
 var _last_hp := -1.0
 var _last_swag := -1.0
 # ---- постановка (выход босса): камеру и ввод на это время держит контроллер
-const SCENE_LEN := 7.6        # выход Миши: сидит на троне → встаёт → идёт по ковру → топает → бой
-const SCENE_SIT := 1.7        # до этой секунды сидит
-const SCENE_WALK := 2.5       # с этой идёт
-const SCENE_STOP := 5.4       # к этой дошёл
+const SCENE_LEN := 11.0       # выход Миши: трон → встаёт → идёт по ковру → цепь за стойку → «Так и задумано.» → топот, прожекторы → бой
+const SCENE_SIT := 1.6        # до этой секунды сидит (общий план арены)
+const SCENE_STAND := 2.6      # с этой идёт
+const SCENE_WALK := 2.6
+const SCENE_CATCH := 4.8      # цепь цепляется за стойку растяжки
+const SCENE_FREE := 6.2       # рывок — освободилась
+const SCENE_STOP := 8.6       # дошёл и топнул
+const SKIP_HOLD := 0.8
+var scene_fov := 50.0
+var skip_hold := 0.0
 var scene_step := 0
 var scene_from := Vector3.ZERO
 var scene_to := Vector3.ZERO
@@ -937,6 +943,8 @@ var retinue: Array = []
 
 func misha_retinue(phase: int) -> void:
 	retinue = []
+	if world.yard != null:
+		world.yard.court_k(0.4)               # антракт: свет на Мишу, по краям темнее
 	var foes: Array = ["shest", "shest", "shest"] + (["semka"] if phase >= 2 else [])
 	for f in foes:
 		var before: int = game.enemies.size()
@@ -956,6 +964,8 @@ func retinue_dead() -> bool:
 
 ## Время вышло: оставшиеся убегают за борт и исчезают у калитки
 func misha_retinue_clear() -> void:
+	if world.yard != null:
+		world.yard.court_k(0.8)
 	for e in retinue:
 		if is_instance_valid(e) and e.state != "dead":
 			game.enemies.erase(e)
@@ -1331,6 +1341,9 @@ func _boss_intro(b) -> void:
 	b.face = 0.0
 	b.body.rotation.y = 0.0
 	b.rig.play("MSit", 0.0)
+	if world.yard != null:
+		world.yard.court_k(0.3)
+		world.yard.flood_all(0.25)
 	events.append(["boss_intro"])
 
 func scene_busy() -> bool:
@@ -1463,19 +1476,39 @@ func camera() -> Transform3D:
 		return Transform3D(Basis.looking_at(talk_look - talk_pos, Vector3.UP), talk_pos)
 	var home: Transform3D = game.spring.global_transform * Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
 	var bp: Vector3 = scene_boss.global_position
-	var chest: Vector3 = bp + Vector3(0, 1.45, 0)
-	var k := clampf((scene_t - 0.9) / (SCENE_LEN - 1.9), 0.0, 1.0)
-	var ang := lerpf(0.55, -0.4, k * k * (3.0 - 2.0 * k))            # обход от правого плеча к левому
-	var dist := lerpf(6.2, 3.6, k)
-	var pos: Vector3 = chest + Vector3(sin(ang) * dist, lerpf(-0.7, 0.15, k), cos(ang) * dist)
-	var shot := Transform3D(Basis.looking_at(chest + Vector3(0, 0.25, 0) - pos, Vector3.UP), pos)
+	var pos: Vector3
+	var look: Vector3
+	if scene_t < SCENE_SIT:
+		pos = Vector3(2.0, 2.8, -31.0)                                        # общий план от калитки: трон, трибуна, ковёр
+		look = Vector3(2.0, 1.6, -47.0)
+		scene_fov = 58.0
+	elif scene_t < SCENE_WALK:
+		pos = world.throne + Vector3(2.8, 1.5, 3.4)
+		look = bp + Vector3(0, 1.3, 0)
+		scene_fov = 46.0
+	else:
+		pos = bp + Vector3(3.2, 1.5, 1.9)                                      # сбоку-спереди, ведёт его по ковру
+		look = bp + Vector3(0, 1.3, 0)
+		scene_fov = 48.0
+	var shot := Transform3D(Basis.looking_at(look - pos, Vector3.UP), pos)
 	var w := 1.0
-	if scene_t < 0.9:
-		w = scene_t / 0.9
-	elif scene_t > SCENE_LEN - 1.0:
-		w = clampf((SCENE_LEN - scene_t) / 1.0, 0.0, 1.0)
+	if scene_t > SCENE_LEN - 1.4:
+		w = clampf((SCENE_LEN - scene_t) / 1.4, 0.0, 1.0)
+		scene_fov = lerpf(float(Opts.v("fov")), scene_fov, w)
 	w = w * w * (3.0 - 2.0 * w)
 	return Transform3D(Basis(home.basis.get_rotation_quaternion().slerp(shot.basis.get_rotation_quaternion(), w)), home.origin.lerp(shot.origin, w))
+
+func _scene_pos(t: float) -> Vector3:
+	var f := 0.0
+	if t >= SCENE_STOP:
+		f = 1.0
+	elif t >= SCENE_FREE:
+		f = lerpf(0.55, 1.0, (t - SCENE_FREE) / (SCENE_STOP - SCENE_FREE))
+	elif t >= SCENE_CATCH:
+		f = 0.55
+	elif t >= SCENE_WALK:
+		f = 0.55 * (t - SCENE_WALK) / (SCENE_CATCH - SCENE_WALK)
+	return scene_from.lerp(scene_to, f)
 
 func _scene_tick(dt: float) -> void:
 	scene_t += dt
@@ -1483,34 +1516,68 @@ func _scene_tick(dt: float) -> void:
 		_scene_end()
 		return
 	var b = scene_boss
+	var yard = world.yard
 	if scene_step == 0 and scene_t >= SCENE_SIT:
 		scene_step = 1
-		b.rig.play("Idle", 0.5)                    # встаёт
+		b.rig.play("Idle", 0.5)                    # встаёт с трона
+		_crowd("rise")
 	if scene_step == 1 and scene_t >= SCENE_WALK:
 		scene_step = 2
 		b.rig.play("Run", 0.25, 0.5)               # идёт не спеша
-	if scene_step == 2:
-		var wk := clampf((scene_t - SCENE_WALK) / (SCENE_STOP - SCENE_WALK), 0.0, 1.0)
-		b.global_position = scene_from.lerp(scene_to, wk)
-		if wk >= 1.0:
-			scene_step = 3
-			b.rig.play_for("Stomp", 1.2, 0.12)       # встал напротив и топнул
-	if scene_step == 3 and scene_t >= SCENE_STOP + 0.75:
+	if scene_step >= 2 and scene_step < 5:
+		b.global_position = _scene_pos(scene_t)
+	if scene_step == 2 and scene_t >= SCENE_CATCH:
+		scene_step = 3
+		b.rig.play("CStuck" if b.rig.has_clip("CStuck") else "Idle", 0.15)
+		var hp: Vector3 = world.hook_points[0] if not world.hook_points.is_empty() else b.global_position + Vector3(2, 0, 0)
+		G67Misha._chain(game, b.global_position + Vector3(0, 1.3, 0), hp + Vector3(0, 1.3, 0), SCENE_FREE - SCENE_CATCH)
+		game.shake(0.25)
+		game.main.sfx("sfx_block", -4.0, 0.6)
+	if scene_step == 3 and scene_t >= SCENE_FREE - 0.5:
 		scene_step = 4
+		b.rig.play_for("CYank" if b.rig.has_clip("CYank") else "Idle", 0.9, 0.05)       # рывок — цепь свободна
+		_crowd("laugh")
+		var bd0: Dictionary = game.story["BOSS"][String(b.boss_id)]
+		game.boss_bark(String(bd0["n"]), G67Clips.L("V00", 1).get_slice("|", 1), Color(bd0["c"]), String(bd0["sp"]))        # «Так и задумано.»
+	if scene_step == 4 and scene_t >= SCENE_FREE:
+		scene_step = 5
+		b.rig.play("Run", 0.25, 0.5)
+	if scene_step == 5 and scene_t >= SCENE_STOP:
+		scene_step = 6
+		b.global_position = scene_to
+		b.rig.play_for("Stomp", 1.2, 0.12)
 		game.shake(0.45)
 		game.main.sfx("sfx_boom", -3.0, 0.8)
 		game.fx.slam(b.global_position, 1.4, Color(game.story["BOSS"][String(b.boss_id)]["c"]))
-	if not scene_said and scene_t >= SCENE_SIT + 0.2:
-		scene_said = true
-		var bd: Dictionary = game.story["BOSS"][String(scene_boss.boss_id)]
-		game.banner(String(bd["n"]), String(bd["sub"]), Color(bd["c"]), 3.4)
+		var bd: Dictionary = game.story["BOSS"][String(b.boss_id)]
+		game.banner(String(bd["n"]), String(bd["sub"]), Color(bd["c"]), 3.0)
 		game.boss_bark(String(bd["n"]), G67Data.BOSS_INTRO, Color(bd["c"]), String(bd["sp"]))
 		game.main.sfx("sfx_rage", -4.0, 0.7)
+		for i in 4:
+			get_tree().create_timer(0.35 * i, false).timeout.connect(func():
+				if yard != null and is_instance_valid(yard):
+					yard.flood_on(i)
+					game.main.sfx("sfx_ui", -6.0, 0.55 + 0.1 * i))
+		yard.court_k(0.8)
+		_crowd("start")
 	if scene_t >= SCENE_LEN:
 		_scene_end()
 
+## Пропуск постановки: Миша на месте боя, прожекторы включены
+func _scene_skip() -> void:
+	if scene_boss == null or not is_instance_valid(scene_boss):
+		return
+	scene_boss.global_position = scene_to
+	if world.yard != null:
+		for i in 4:
+			world.yard.flood_on(i)
+		world.yard.court_k(0.8)
+	events.append(["scene_skip"])
+	_scene_end()
+
 func _scene_end() -> void:
 	scene_t = -1.0
+	skip_hold = 0.0
 	if scene_boss != null and is_instance_valid(scene_boss):
 		scene_boss.global_position = scene_to
 		scene_boss.set_physics_process(true)
@@ -2144,6 +2211,9 @@ func _boss_down(e) -> void:
 	game.slowmo(1.4)
 	game.shake(0.8)
 	game.fx.slam(e.global_position, 1.8, Color(e.boss["c"]))
+	if world.yard != null:
+		world.yard.flood_all(3.0)
+		get_tree().create_timer(2.0, false).timeout.connect(flood_rest)
 	if game.boss_e == e:
 		game.boss_e = null
 	var fl: Dictionary = meta().get("flags", {})
@@ -2172,6 +2242,8 @@ func on_dead() -> void:
 	room_state = "over"
 	game.slowmo(1.0)
 	events.append(["dead"])
+	_crowd("lose")
+	flood_rest()
 	game.banner("ЗАБЕГ ОКОНЧЕН", "РЕСПЕКТ и открытое остаются с тобой", Color(0.9, 0.3, 0.25), 3.0)
 	for en in game.enemies:       # погиб: враги замирают и больше не бьют
 		if is_instance_valid(en) and en.state != "dead":
@@ -2301,7 +2373,13 @@ func _physics_process(dt: float) -> void:
 	if talk_on:
 		_talk_step(dt)
 	if scene_t >= 0.0:
-		_scene_tick(dt)
+		var held := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A)
+		skip_hold = skip_hold + dt if held else maxf(0.0, skip_hold - dt * 3.0)
+		if skip_hold >= SKIP_HOLD:
+			skip_hold = 0.0
+			_scene_skip()
+		else:
+			_scene_tick(dt)
 	_marks_tick()
 	_krot_tick(dt)
 	_crowd_tick()
@@ -2424,6 +2502,26 @@ func _on_feedback(nm: String, _pos: Vector3, power: float) -> void:
 	_crowd("hit")
 
 ## Смена фазы босса — реагируют почти все
+## Смена фазы: короткое мигание прожекторов и оттенок (фаза 2 теплее, фаза 3 — красноватый акцент на двух мачтах)
+func _flood_phase(ph: int) -> void:
+	var y = world.yard if world != null else null
+	if y == null:
+		return
+	y.flood_all(0.0)
+	get_tree().create_timer(0.3, false).timeout.connect(func():
+		if y == null or not is_instance_valid(y):
+			return
+		y.flood_all(1.6, Color(1.0, 0.82, 0.55) if ph == 1 else Color(1.0, 0.92, 0.75))
+		if ph >= 2:
+			for i in [0, 3]:
+				(y.flood[i] as OmniLight3D).light_color = Color(1.0, 0.35, 0.28))
+
+func flood_rest() -> void:
+	var y = world.yard if world != null else null
+	if y != null and is_instance_valid(y):
+		y.court_k(0.3)
+		y.flood_all(0.25)
+
 func _crowd_tick() -> void:
 	var b = game.boss_e
 	if b == null or not is_instance_valid(b):
@@ -2431,6 +2529,7 @@ func _crowd_tick() -> void:
 		return
 	if crowd_phase >= 0 and int(b.phase) != crowd_phase:
 		_crowd("phase")
+		_flood_phase(int(b.phase))
 	crowd_phase = int(b.phase)
 
 # ---------------------------------------------------------------- ролики главы 1 (G67Clips, G67ClipPlayer)

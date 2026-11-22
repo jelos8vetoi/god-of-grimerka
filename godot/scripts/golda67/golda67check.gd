@@ -139,6 +139,10 @@ func _run() -> void:
 		print("GOLDA67CHECK   EV02 длина %.1f с" % t_last)
 		_finish()
 		return
+	if OS.get_cmdline_user_args().has("--g67-boss"):
+		await _boss_scene_shots(g, G, g.player, OS.get_cmdline_user_args().has("--g67-skip"))
+		_finish()
+		return
 	if OS.get_cmdline_user_args().has("--g67-cam"):
 		await _cam_check(g, G, g.player)
 		_finish()
@@ -2502,6 +2506,53 @@ func _events_check(g, G: Golda67, P) -> void:
 	await G.enter_hub()
 	G.data["run"] = {}
 	await wait(0.3)
+
+## Постановка выхода Миши: кадр каждые 0,5 с; прожекторы до и после; пропуск удержанием
+func _boss_scene_shots(g, G: Golda67, P, skip: bool) -> void:
+	await _go(G, P, "exit")
+	await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(0.4)
+	G.enter_room({"type": "boss", "place": "sport"})
+	await until(func(): return G.scene_t >= 0.0, 4.0)
+	var y = G.world.yard
+	var e_dim: float = (y.flood[0] as OmniLight3D).light_energy
+	var steps: Array = []
+	var t_last := 0.0
+	var nxt := 0.0
+	var held := false
+	while G.scene_t >= 0.0:
+		t_last = G.scene_t
+		if not steps.has(G.scene_step):
+			steps.append(G.scene_step)
+		if G.scene_t >= nxt:
+			await shot("boss_%04.1f" % nxt)
+			nxt += 0.5
+		if skip and G.scene_t > 3.0 and not held:
+			held = true
+			var ee := InputEventKey.new()
+			ee.keycode = KEY_ENTER
+			ee.physical_keycode = KEY_ENTER
+			ee.pressed = true
+			Input.parse_input_event(ee)
+		await get_tree().process_frame
+	if held:
+		var ee2 := InputEventKey.new()
+		ee2.keycode = KEY_ENTER
+		ee2.physical_keycode = KEY_ENTER
+		ee2.pressed = false
+		Input.parse_input_event(ee2)
+	var e_on: float = (y.flood[0] as OmniLight3D).light_energy
+	ok(e_dim < 0.5 and e_on > 1.0, "прожекторы: до постановки приглушены (%.2f), после — включены (%.2f)" % [e_dim, e_on])
+	ok(steps.size() >= (2 if skip else 6), "постановка: шаги %s" % str(steps))
+	ok(skip or (t_last >= 10.0 and t_last <= 12.0), "длина постановки %.1f с (≤ 12)" % t_last)
+	ok(not skip or t_last < G.SCENE_LEN - 1.0, "пропуск удержанием Enter прервал постановку на %.1f с" % t_last)
+	ok(G.room_state == "boss" and is_instance_valid(g.boss_e) and g.boss_e.global_position.distance_to(G.scene_to) < 0.8, "бой начался, Миша на месте")
+	await wait(1.0)
+	await shot("boss_fight_start")
+	print("GOLDA67CHECK   BOSS длина %.1f с шаги %s" % [t_last, str(steps)])
 
 ## Событие «ТРЯПКИ! ТРЯПКИ!»: реплики озвучены, предметы на месте, длина 30–42 с, снимки по фазам
 func _ev02_check(g, G: Golda67, P) -> void:

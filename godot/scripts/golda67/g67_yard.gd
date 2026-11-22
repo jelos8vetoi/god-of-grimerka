@@ -124,6 +124,8 @@ const FANS := [
 	{"pos": Vector3(-12.6, 0, -36.0), "base": "NCross", "alts": ["NIdleL"], "excited": 0.15},      # просто стоит у борта и смотрит
 ]
 var tribune: Node3D
+var flood: Array = []          # лампы четырёх мачт (OmniLight3D): до боя приглушены, включаются по очереди
+var court_lights: Array = []   # общий свет коробки: [лампа, базовая энергия]
 var fans: Array = []           # зрители у коробки (Rig)     # меняется на каждый забег: очередь каждый раз другая
 var boss_spot := Vector3(2, 0, -44.5)        # где ждёт Миша (у своей машины, на ковре)
 
@@ -768,7 +770,8 @@ func crowd_react(kind: String) -> int:
 	var n := 0
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
-	var pool: Array = {"hit": ["RWow", "RLean"], "phase": ["RWow", "RUp", "RLean"], "win": ["RUp", "RYes"]}.get(kind, ["RLean"])
+	var pool: Array = {"hit": ["RWow", "RLean"], "phase": ["RWow", "RUp", "RLean"], "win": ["RUp", "RYes"], "laugh": ["RYes", "RLean", "RWow"], "start": ["RUp", "RWow"],
+		"special": ["RWow", "RUp"], "rise": ["RLean", "RWow", "RUp"], "lose": ["RLean", "RWow"]}.get(kind, ["RLean"])
 	for fan in fans:
 		if not is_instance_valid(fan) or not fan.has_meta("life"):
 			continue
@@ -785,6 +788,22 @@ func crowd_react(kind: String) -> int:
 				life.react(clip))
 		n += 1
 	return n
+
+## Свет коробки: общий свет k (0…1 от нормы); прожекторы мачт — по очереди (flood_on), все сразу (flood_all)
+func court_k(k: float) -> void:
+	for e in court_lights:
+		if is_instance_valid(e[0]):
+			(e[0] as OmniLight3D).light_energy = float(e[1]) * k
+
+func flood_on(i: int, on := true) -> void:
+	if i >= 0 and i < flood.size() and is_instance_valid(flood[i]):
+		(flood[i] as OmniLight3D).light_energy = 1.6 if on else 0.25
+
+func flood_all(e: float, col := Color(1.0, 0.92, 0.75)) -> void:
+	for l in flood:
+		if is_instance_valid(l):
+			(l as OmniLight3D).light_energy = e
+			(l as OmniLight3D).light_color = col
 
 ## Жители двора: по одному каждого вида, со скелетом — стоят и дышат, каждый в своём такте
 func _people() -> void:
@@ -896,9 +915,12 @@ func _zone_sport() -> void:
 		if _own("g67_floodlight_mast", c, atan2(2.0 - c.x, -38.0 - c.z), 8.6, "h", false) == null:
 			_put("street_lamp", c, 0.0, 7.5, false)
 		_solid_box(c + Vector3(0, 1.5, 0), Vector3(0.5, 3.0, 0.5))
-	_light(Vector3(x0 + 3.0, 7.0, z0 + 3.0), Color(1.0, 0.93, 0.8), 4.2, 24.0, true)
-	_light(Vector3(x1 - 3.0, 7.0, z1 - 3.0), Color(1.0, 0.9, 0.75), 3.6, 24.0)
-	_light(Vector3(x1 - 3.0, 7.0, z0 + 3.0), Color(0.95, 0.9, 1.0), 2.4, 20.0)
+		var fl := _light(c + Vector3(0, 8.0, 0) + (Vector3(2.0, 0, -38.0) - c).normalized() * 0.8, Color(1.0, 0.92, 0.75), 0.25, 17.0)
+		flood.append(fl)
+	for cl in [[Vector3(x0 + 3.0, 7.0, z0 + 3.0), Color(1.0, 0.93, 0.8), 4.2, 24.0, true], [Vector3(x1 - 3.0, 7.0, z1 - 3.0), Color(1.0, 0.9, 0.75), 3.6, 24.0, false],
+			[Vector3(x1 - 3.0, 7.0, z0 + 3.0), Color(0.95, 0.9, 1.0), 2.4, 20.0, false]]:
+		var lt := _light(cl[0], cl[1], float(cl[2]) * 0.3, cl[3], cl[4])
+		court_lights.append([lt, float(cl[2])])
 	# зрители: районная трибуна у восточного борта (модель смотрит рядами по +X — развёрнута к площадке) и люди на ней;
 	# пока модели нет — лавки вдоль борта
 	# зрители: районная трибуна у восточного борта (ряды модели смотрят по +X — развёрнута к площадке).
