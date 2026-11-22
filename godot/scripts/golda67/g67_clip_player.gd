@@ -73,6 +73,7 @@ static func open(g, clip_id: String, seen: bool) -> G67ClipPlayer:
 	p.skippable = seen
 	p.layer = 60
 	g.add_child(p)
+	g.main.audio.director.enter_cinematic(p, G67Clips.MUSIC.get(clip_id, {"mode": "silence"}))
 	p._build()
 	p._run.call_deferred()
 	return p
@@ -188,6 +189,7 @@ func _end() -> void:
 		return
 	done = true
 	voice.stop()
+	game.main.audio.director.leave_cinematic(self)
 	finished.emit(id)
 	queue_free()
 
