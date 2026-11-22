@@ -822,50 +822,145 @@ static func news01(c: G67ClipPlayer) -> void:
 # ---------------------------------------------------------------- STORY01 — регистрация (9:16, камера телефона madk1d)
 static func story01(c: G67ClipPlayer) -> void:
 	c.set_env("room")
-	# подъезд: зелёная стена, лампа — для «живой» части в конце
+	# подъезд: зелёная стена, лампа
 	var H := Vector3(0, 0, 0)
-	c.box(Vector3(8, 0.1, 8), H + Vector3(0, -0.05, 0), Color(0.32, 0.31, 0.29))
+	c.box(Vector3(8, 0.1, 10), H + Vector3(0, -0.05, 1.0), Color(0.32, 0.31, 0.29))
 	c.box(Vector3(8, 1.5, 0.1), H + Vector3(0, 0.75, -2.0), Color(0.31, 0.42, 0.34))
 	c.box(Vector3(8, 1.6, 0.1), H + Vector3(0, 2.3, -2.0), Color(0.8, 0.79, 0.74))
+	c.box(Vector3(8, 1.5, 0.1), H + Vector3(0, 0.75, 4.6), Color(0.31, 0.42, 0.34))
+	c.box(Vector3(8, 1.6, 0.1), H + Vector3(0, 2.3, 4.6), Color(0.8, 0.79, 0.74))
 	c.light(H + Vector3(0, 2.7, 0.5), Color(1.0, 0.85, 0.62), 2.5, 8.0, true)
-	var pa := c.actor("pahan", "pahan", H + Vector3(-2.2, 0, -0.6), PI * 0.5)
+	c.light(H + Vector3(0, 2.7, 3.2), Color(1.0, 0.85, 0.62), 1.8, 7.0)
+	var pa := c.actor("pahan", "pahan", H + Vector3(-1.9, 0, -0.9), PI * 0.5)
 	var mk := c.actor("madk1d", "madk1d", H + Vector3(0.6, 0, 1.6), PI)
-	c.cam_at(H + Vector3(0.0, 1.35, 0.4), H + Vector3(-0.6, 1.25, -1.6), 58.0)
-	# экран телефона: реклама турнира с QR
+	c.anim("madk1d", "CSelfie", 0.0)
+	# запись с телефона: REC и таймер, заряд; постоянная ручная тряска, палец на краю объектива
+	var rec := c.screen(func(s: Control, fs: Vector2):
+		var dot := c._label(s, "● REC", int(fs.x * 0.045), Color(1, 0.2, 0.2))
+		dot.position = Vector2(fs.x * 0.06, fs.y * 0.035)
+		var bat := c._label(s, "BAT 62%", int(fs.x * 0.035), Color(1, 1, 1))
+		bat.position = Vector2(fs.x * 0.72, fs.y * 0.04)
+		var tl := c._label(s, "00:00", int(fs.x * 0.04), Color(1, 1, 1))
+		tl.position = Vector2(fs.x * 0.06, fs.y * 0.085)
+		tl.name = "t")
+	var rec_tw := c.create_tween()
+	rec_tw.tween_method(func(v: float):
+		(rec.get_node("t") as Label).text = "00:%02d" % int(v), 0.0, 20.0, 20.0)
+	var hand := c.create_tween().set_loops()
+	hand.tween_callback(func(): c.shake(0.16))                                   # съёмка с рук
+	hand.tween_interval(0.1)
+	var finger := c.screen(func(s: Control, fs: Vector2):
+		var f := ColorRect.new()
+		f.color = Color(0.45, 0.28, 0.2, 0.96)
+		f.size = Vector2(fs.x * 0.5, fs.y * 0.2)
+		f.position = Vector2(-fs.x * 0.1, fs.y * 0.86)
+		f.rotation = -0.35
+		f.name = "f"
+		s.add_child(f))
+	var ftw := c.create_tween()
+	ftw.tween_interval(0.7)
+	ftw.tween_property(finger.get_node("f"), "position:y", get_viewport_rect_hack(c) * 1.2, 0.35)
+	G67Sound.play(c, "click")
+	# план 1 — селфи madk1d: лицо в кадре целиком, говорит в камеру
+	var d0 := c.say_async(L("STORY01", 0))
+	var mh := _head(mk)
+	c.cam_at(mh + Vector3(0.12, 0.04, -0.95), mh, 55.0)
+	c.cam_to(mh + Vector3(0.05, 0.04, -0.75), mh, d0 * 0.45, 48.0)
+	await c.wait(d0 * 0.3)
+	G67Clips.snap_req = "selfie"
+	await c.wait(d0 * 0.15)
+	# план 3 — экран телефона крупно: реклама турнира с QR
+	c.vhs(0.4, 0.2)
+	G67Sound.play(c, "mic_move")
 	var ph := c.screen(func(s: Control, fs: Vector2):
 		_phone_screen(c, s, fs, "ad"))
-	c.say_async(L("STORY01", 0))
-	c.cam_to(H + Vector3(-0.1, 1.38, 0.1), H + Vector3(-0.8, 1.25, -1.6), _len(c, L("STORY01", 0)) + 0.2, 52.0)
-	await c.wait(_len(c, L("STORY01", 0)) + 0.2)
-	await c.say(L("STORY01", 1), 0.1)
-	# нажимает «ЗАРЕГИСТРИРОВАТЬСЯ» → взнос
-	c.sfx("sfx_ui", -4.0, 1.3)
+	await c.wait(d0 * 0.55 + 0.2)
 	ph.queue_free()
+	# план 2 — резкий разворот телефона на Пахана: смаз, Пахан тянется отобрать телефон
+	c.vhs(1.0, 0.35)
+	G67Sound.play(c, "mic_move")
+	G67Sound.play(c, "hit_cut")
+	pa.rotation.y = PI * 0.5
+	c.anim("pahan", "Run", 0.1, 1.0)
+	c.move("pahan", H + Vector3(-0.2, 0, 0.1), 0.9)
+	var ph0 := _head(pa)
+	c.cam_at(Vector3(0.9, ph0.y, 0.7), ph0 + Vector3(-0.5, 0.0, 0.0), 50.0)
+	c.cam_to(Vector3(0.6, ph0.y, 0.5), _head(pa), 0.9, 40.0)
+	var d1 := c.say_async(L("STORY01", 1))
+	await c.wait(0.9)
+	c.anim_once("pahan", "Light1", 0.5)
+	await c.wait(maxf(d1 - 0.9, 0.2) + 0.1)
+	c.clear_sub()
+	# план 4 — палец жмёт «ОПЛАТИТЬ»: взнос, кнопка проседает, вспышка, дзынь
+	c.vhs(0.6, 0.25)
 	ph = c.screen(func(s: Control, fs: Vector2):
 		_phone_screen(c, s, fs, "pay"))
-	await c.wait(0.35)
-	await c.say(L("STORY01", 2), 0.1)
+	var d2 := c.say_async(L("STORY01", 2))
+	await c.wait(d2 * 0.4)
+	G67Clips.snap_req = "pay"
+	await c.wait(d2 * 0.4)
+	c.sfx("sfx_ui", -4.0, 1.3)
+	c.flash(Color(1, 1, 1), 0.2)
+	c.shake(0.5)
+	await c.wait(d2 * 0.2 + 0.1)
+	c.clear_sub()
+	# план 5 — «УЧАСТНИК ЗАРЕГИСТРИРОВАН» и списание
+	ph.queue_free()
 	c.sfx("sfx_ui", -2.0, 1.7)
 	c.sfx("sfx_ui", -2.0, 2.2)
-	ph.queue_free()
 	ph = c.screen(func(s: Control, fs: Vector2):
 		_phone_screen(c, s, fs, "done"))
-	await c.wait(0.5)
-	# камера телефона: Пахан входит в кадр вплотную
+	await c.wait(0.6)
 	ph.queue_free()
-	c.anim("pahan", "Run", 0.1, 1.2)
-	c.move("pahan", H + Vector3(-0.1, 0, -0.4), 0.45)
-	await c.wait(0.45)
-	c.anim("pahan", "Idle", 0.2)
+	# план 6 — Пахан крупно орёт, камера отшатывается
+	c.vhs(0.8, 0.3)
+	G67Sound.play(c, "hit_cut")
 	pa.rotation.y = 0.0
-	c.cam_at(H + Vector3(0.05, 1.45, 0.75), _head(pa) + Vector3(0, -0.05, 0), 48.0)
+	pa.position = H + Vector3(-0.1, 0, -0.4)
+	c.anim("pahan", "Idle", 0.1)
+	var ph1 := _head(pa)
+	c.cam_at(ph1 + Vector3(0.05, -0.02, 0.85), ph1, 46.0)
+	c.cam_to(ph1 + Vector3(0.1, 0.05, 1.9), ph1 + Vector3(0, -0.05, 0), 1.7, 58.0)
 	c.shake(0.8)
-	await c.say(L("STORY01", 3), 0.1)
-	# madk1d разворачивает телефон на себя
-	c.anim("madk1d", "CSelfie", 0.1)
-	c.vhs(0.3, 0.25)
-	c.cam_at(_head(mk) + Vector3(0.2, 0.05, -0.85), _head(mk), 52.0)
-	await c.say(L("STORY01", 4), 0.4)
+	c.anim_once("pahan", "Light1", 0.6)
+	var d3 := c.say_async(L("STORY01", 3))
+	await c.wait(d3 * 0.5)
+	G67Clips.snap_req = "angry"
+	await c.wait(d3 * 0.5 + 0.1)
+	c.clear_sub()
+	# план 7 — madk1d снова в селфи, довольный; за его плечом Пахан идёт на него
+	c.vhs(1.0, 0.3)
+	G67Sound.play(c, "mic_move")
+	pa.position = H + Vector3(0.9, 0, 3.8)
+	pa.rotation.y = PI
+	c.anim("pahan", "Run", 0.1, 1.0)
+	c.move("pahan", H + Vector3(0.7, 0, 2.5), 1.4)
+	var m2 := _head(mk)
+	c.cam_at(m2 + Vector3(0.1, 0.05, -0.85), m2, 52.0)
+	c.cam_to(m2 + Vector3(0.0, 0.05, -0.7), m2, 1.4, 46.0)
+	await c.say(L("STORY01", 4), 0.2)
+	# план 8 — телефон выронили: кадр заваливается набок, удар, чёрный экран
+	hand.kill()
+	G67Sound.play(c, "hit_cut")
+	var fall := c.create_tween()
+	fall.tween_method(func(v: float):
+		c.cam.rotation.z = v * 1.4
+		c.cam.global_position = c.cam.global_position + Vector3(0, -0.04 * v, 0.0), 0.0, 1.0, 0.45)
+	await c.wait(0.4)
+	G67Clips.snap_req = "drop"
+	await c.wait(0.4)
+	c.sfx("sfx_boom", -3.0, 0.7)
+	c.shake(0.9)
+	c.screen(func(s: Control, fs: Vector2):
+		var r := ColorRect.new()
+		r.color = Color.BLACK
+		r.size = fs
+		s.add_child(r))
+	await c.wait(0.5)
+	rec_tw.kill()
+
+static func get_viewport_rect_hack(c: G67ClipPlayer) -> float:
+	return c.frame.size.y
 
 # ---------------------------------------------------------------- EV02 — событие «ТРЯПКИ! ТРЯПКИ!» (квартира за гаражной дверью)
 ## Позы сценки: Пахан спит и сидит на кровати, madk1d с ведром, замах, пустая стойка
