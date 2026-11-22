@@ -765,6 +765,8 @@ func enemies_near(r := 10.0) -> bool:
 
 ## события внутри клипов (rig.clip_event): шаги — пыль на рывке ровно в момент касания стопы
 func _on_clip_event(_clip: String, ev: String) -> void:
+	if ev.begins_with("step") and game.golda != null and state == "move" and Vector2(velocity.x, velocity.z).length() > 1.0:
+		game.golda.play_step(global_position)          # приквел: шаг по поверхности (кампания не затронута)
 	if ev.begins_with("step") and state == "move" and (held("sprint") or rage > 0.0) and Vector2(velocity.x, velocity.z).length() > 3.0:
 		game.feedback("step", global_position + Vector3(0, 0.12, 0))
 

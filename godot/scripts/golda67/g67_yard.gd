@@ -799,6 +799,154 @@ func crowd_react(kind: String) -> int:
 		n += 1
 	return n
 
+## Стайки голубей вне зон боя: сидят, клюют; героя ближе 2,5 м — взлетают дугой и садятся в другом месте
+var hero: Node3D = null
+var flocks: Array = []
+
+func _flocks() -> void:
+	flocks = []
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 909
+	var homes := [Vector3(28, 0.05, -17), Vector3(-20, 0.05, -16), Vector3(-38, 0.05, -17)]
+	for hi in homes.size():
+		var birds: Array = []
+		for k in 4:
+			var p: Vector3 = homes[hi] + Vector3(rng.randf_range(-1.2, 1.2), 0, rng.randf_range(-1.2, 1.2))
+			var pg := G67Models.spawn("g67_pigeon", self, p, rng.randf() * TAU, Vector3(0.35, 0.35, 0.35))
+			var gp := G67Pigeon.attach(pg, hi * 4 + k)
+			birds.append({"n": pg, "p": gp, "off": p - homes[hi], "busy": false})
+		flocks.append({"home": homes[hi], "birds": birds, "alt": homes[hi] + Vector3(rng.randf_range(-9.0, 9.0), 0, rng.randf_range(-3.0, 3.0)), "at_alt": false})
+
+func _process(_dt: float) -> void:
+	if hero == null or not is_instance_valid(hero):
+		return
+	var hp := hero.global_position
+	for f in flocks:
+		var base: Vector3 = f["alt"] if bool(f["at_alt"]) else f["home"]
+		if Vector2(hp.x - base.x, hp.z - base.z).length() > 2.5:
+			continue
+		var dest: Vector3 = f["home"] if bool(f["at_alt"]) else f["alt"]
+		f["at_alt"] = not bool(f["at_alt"])
+		for b in f["birds"]:
+			var n: Node3D = b["n"]
+			if not is_instance_valid(n):
+				continue
+			var from := n.global_position
+			var to: Vector3 = dest + (b["off"] as Vector3)
+			var h := randf_range(6.0, 8.0)
+			var gp: G67Pigeon = b["p"]
+			gp.flight = true
+			var tw := n.create_tween()
+			tw.tween_method(func(k: float):
+				if is_instance_valid(n):
+					n.global_position = from.lerp(to, k) + Vector3(0, sin(PI * k) * h, 0), 0.0, 1.0, randf_range(1.6, 2.2)).set_delay(randf_range(0.0, 0.25))
+			tw.tween_callback(func():
+				if is_instance_valid(gp):
+					gp.home = to
+					gp.flight = false)
+
+## Поверхности двора: колеи, цепочки следов, наледь и лужи, заплатки и трещины асфальта, разметка, сугробы — MultiMesh, без коллизий и теней
+var detail_nodes: Array = []
+
+func _mm(mesh: Mesh, mat: Material, xf: Array) -> MultiMeshInstance3D:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = xf.size()
+	for i in xf.size():
+		mm.set_instance_transform(i, xf[i])
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	detail_nodes.append(mi)
+	return mi
+
+func _alpha_mat(col: Color, rough := 0.9, metal := 0.0) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.roughness = rough
+	m.metallic = metal
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	return m
+
+func _surface_detail() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var flat := BoxMesh.new()
+	flat.size = Vector3(1, 0.006, 1)
+	# колеи на проезде: две тёмные полосы утоптанного снега
+	var pz: Dictionary = ZONES["proezd"]
+	var rut: Array = []
+	for lane in [-1.1, 1.1]:
+		for i in 22:
+			var x: float = (pz["c"] as Vector3).x - 19.0 + i * 1.75
+			var t := Transform3D(Basis().scaled(Vector3(1.9, 1, 0.5 + rng.randf() * 0.15)), Vector3(x, 0.03, (pz["c"] as Vector3).z + lane + rng.randf_range(-0.12, 0.12)))
+			rut.append(t)
+	_mm(flat, _alpha_mat(Color(0.12, 0.13, 0.17, 0.55)), rut)
+	# цепочки следов: подъезд — ларёк, подъезд — гаражи, подъезд — беседка
+	var steps: Array = []
+	for path in [[HOME_DOOR + Vector3(0, 0, -2), KIOSK_POS + Vector3(-1.5, 0, 0)], [HOME_DOOR + Vector3(0, 0, -2), STORAGE_POS + Vector3(3, 0, 0)], [HOME_DOOR + Vector3(-1, 0, -2), Vector3(-25, 0, -29)]]:
+		var a: Vector3 = path[0]
+		var b: Vector3 = path[1]
+		var L := a.distance_to(b)
+		var n := int(L / 0.75)
+		var dir := (b - a).normalized()
+		var side := dir.cross(Vector3.UP)
+		var yaw := atan2(dir.x, dir.z)
+		for i in n:
+			var p := a + dir * (float(i) * 0.75) + side * (0.17 if i % 2 == 0 else -0.17) + Vector3(rng.randf_range(-0.05, 0.05), 0.035, rng.randf_range(-0.05, 0.05))
+			steps.append(Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3(0.14, 1, 0.32)), p))
+	_mm(flat, _alpha_mat(Color(0.22, 0.24, 0.3, 0.6)), steps)
+	# наледь и лужи на парковке, трещины и заплатки асфальта
+	var par: Dictionary = ZONES["parking"]
+	var pc: Vector3 = par["c"]
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.5
+	cyl.bottom_radius = 0.5
+	cyl.height = 0.006
+	var pud: Array = []
+	for i in 9:
+		pud.append(Transform3D(Basis().scaled(Vector3(rng.randf_range(1.0, 2.6), 1, rng.randf_range(0.8, 1.8))), Vector3(pc.x + rng.randf_range(-12.0, 12.0), 0.04, pc.z + rng.randf_range(-9.0, 9.0))))
+	_mm(cyl, _alpha_mat(Color(0.08, 0.12, 0.2, 0.8), 0.04, 0.6), pud)
+	var cracks: Array = []
+	for i in 40:
+		var zc: Vector3 = ZONES["parking"]["c"] if i % 2 == 0 else ZONES["proezd"]["c"]
+		var rx := 12.0 if i % 2 == 0 else 18.0
+		cracks.append(Transform3D(Basis(Vector3.UP, rng.randf_range(0.0, PI)).scaled(Vector3(rng.randf_range(0.6, 2.2), 1, 0.04)), Vector3(zc.x + rng.randf_range(-rx, rx), 0.04, zc.z + rng.randf_range(-4.0, 4.0))))
+	_mm(flat, _alpha_mat(Color(0.03, 0.03, 0.04, 0.8)), cracks)
+	var patches: Array = []
+	for i in 10:
+		patches.append(Transform3D(Basis(Vector3.UP, rng.randf_range(-0.2, 0.2)).scaled(Vector3(rng.randf_range(1.0, 2.2), 1, rng.randf_range(0.8, 1.6))), Vector3(pc.x + rng.randf_range(-13.0, 13.0), 0.038, pc.z + rng.randf_range(-9.0, 9.0))))
+	_mm(flat, _alpha_mat(Color(0.1, 0.1, 0.12, 0.9), 0.95), patches)
+	# потёртая разметка парковочных мест
+	var marks: Array = []
+	for i in 9:
+		marks.append(Transform3D(Basis().scaled(Vector3(0.1, 1, 4.2)), Vector3(pc.x - 11.0 + i * 2.8, 0.045, pc.z - 8.0)))
+	_mm(flat, _alpha_mat(Color(0.78, 0.78, 0.74, 0.4), 0.95), marks)
+	# сугробы у стен, бордюров и гаражей: низкие пологие бугры
+	var sph := SphereMesh.new()
+	sph.radius = 0.5
+	sph.height = 1.0
+	var drifts: Array = []
+	for i in 70:
+		var t := rng.randf()
+		var side := i % 3
+		var pos := Vector3(lerpf(-44.0, 42.0, t), 0.0, 35.4) if side == 0 else (Vector3(-46.2, 0.0, lerpf(-30.0, 33.0, t)) if side == 1 else Vector3(43.8, 0.0, lerpf(-30.0, 33.0, t)))
+		var sc := Vector3(rng.randf_range(1.6, 3.2), rng.randf_range(0.22, 0.42), rng.randf_range(0.7, 1.2))
+		drifts.append(Transform3D(Basis(Vector3.UP, 0.0 if side == 0 else PI * 0.5).scaled(sc), pos + Vector3(0, 0.02, 0)))
+	_mm(sph, _alpha_mat(Color(0.93, 0.95, 1.0, 1.0), 0.95), drifts)
+
+## Свет у подъезда и неровно мигающая лампа у гаражей
+func _door_lamps() -> void:
+	_light(HOME_DOOR + Vector3(0, 3.2, 1.5), Color(1.0, 0.82, 0.5), 1.4, 9.0)
+	var gl := _light(STORAGE_POS + Vector3(2.5, 3.6, 0.0), Color(1.0, 0.85, 0.55), 1.6, 10.0)
+	var tw := gl.create_tween().set_loops()
+	for k in [[1.6, 0.9], [0.2, 0.07], [1.5, 0.12], [0.1, 0.05], [1.7, 1.4], [0.5, 0.08]]:
+		tw.tween_property(gl, "light_energy", float(k[0]), 0.03)
+		tw.tween_interval(float(k[1]))
+
 ## Оформление арены Миши: растяжки «ТУРНИР 67», реквизит у трона, царапины на льду, сугробы у бортов
 var arena_nodes: Array = []
 
@@ -1026,6 +1174,9 @@ func _zone_sport() -> void:
 		_put("res://assets/golda67/g67_workout_bars.glb", Vector3(bp[0], 0.03, bp[1]), bp[2], bp[3])
 	_put("tire_stack", Vector3(-8.6, 0.03, -31.5), 0.6, 1.0)
 	_arena_decor(x0, x1, z0, z1)
+	_surface_detail()
+	_flocks()
+	_door_lamps()
 	# мачты с прожекторами по углам — свет на лёд, длинные тени
 	for c in [Vector3(x0 - 0.9, 0, z0 - 0.9), Vector3(x1 + 0.9, 0, z0 - 0.9), Vector3(x0 - 0.9, 0, z1 + 0.9), Vector3(x1 + 0.9, 0, z1 + 0.9)]:
 		if _own("g67_floodlight_mast", c, atan2(2.0 - c.x, -38.0 - c.z), 8.6, "h", false) == null:

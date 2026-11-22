@@ -237,6 +237,8 @@ func _build_yard_world() -> void:
 	if world.yard != null:
 		for l in world.yard.lifes:
 			(l as G67Life).watcher = game.player       # жители замечают Пахана, когда он рядом и впереди
+	if world.yard != null:
+		world.yard.hero = game.player
 	world.add_kiosk()
 	world.add_home()
 	world.build_event_props()
@@ -2373,7 +2375,22 @@ func _open_storage() -> void:
 	open_screen("storage")
 
 ## Взять артефакт (replace — какой выложить, если слоты заняты). Найденный остаётся в коллекции подъезда.
+var step_log: Array = []
+
+## Шаг героя в приквеле: подъезд — бетон (лестница выше пола), двор — по поверхности под ногами
+func play_step(pos: Vector3) -> void:
+	var kind := "step_concrete"
+	if place == "hub":
+		kind = "step_stairs" if pos.y > 0.45 else "step_concrete"
+	else:
+		kind = "step_" + G67Yard.surface_at(pos)
+	step_log.append(kind)
+	if step_log.size() > 40:
+		step_log.pop_front()
+	G67Sound.play(self, kind)
+
 func take_art(id: String, replace := "") -> bool:
+	G67Sound.play(self, "artifact")
 	if art_info(id).is_empty() or has_art(id):
 		return false
 	var a: Array = run["arts"]
@@ -2595,6 +2612,7 @@ func fit_reroll(rare: bool) -> void:
 	_offer_fit(rare)
 
 func take_fit(id: String) -> void:
+	G67Sound.play(self, "fit")
 	if not G67Data.FITS.has(id) or fit_lv(id) >= int(G67Data.FITS[id]["lv"]):
 		return
 	var fits: Dictionary = run["fits"]
@@ -3091,7 +3109,9 @@ func open_screen(what: String) -> void:
 		"storage": hub_ui = G67StorageUI.open(self)
 		"kiosk": hub_ui = G67KioskUI.open(self)
 		"fit": hub_ui = FitUIScript.open(self, fit_offer, fit_rare)
-		"result": hub_ui = ResultUIScript.open(self)
+		"result":
+			hub_ui = ResultUIScript.open(self)
+			G67Sound.play(self, "respect")
 	hub_ui.closed.connect(func():
 		hub_ui = null
 		refresh_hints()

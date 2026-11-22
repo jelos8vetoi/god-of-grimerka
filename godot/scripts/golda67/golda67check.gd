@@ -153,6 +153,10 @@ func _run() -> void:
 			await _clip_log(G, String(arg).substr(11))
 			_finish()
 			return
+	if OS.get_cmdline_user_args().has("--g67-perf"):
+		await _perf_flyover(g, G, g.player)
+		_finish()
+		return
 	if OS.get_cmdline_user_args().has("--g67-cam"):
 		await _cam_check(g, G, g.player)
 		_finish()
@@ -2516,6 +2520,28 @@ func _events_check(g, G: Golda67, P) -> void:
 	G.wave_wait = 999.0
 	await wait(0.5)
 	await _spawn_check(g, G, P)
+	# голуби: стайки по 4, взлетают при подходе и садятся в другом месте, не исчезая
+	var yd2 = G.world.yard
+	ok(yd2.flocks.size() == 3 and yd2.flocks.all(func(f): return (f["birds"] as Array).size() == 4), "во дворе три стайки голубей по четыре")
+	var fl0: Dictionary = yd2.flocks[0]
+	var home0: Vector3 = fl0["home"]
+	var alt0: Vector3 = fl0["alt"]
+	P.global_position = home0 + Vector3(1.5, 0.05, 0)
+	await wait(0.6)
+	var mid_hi := false
+	for k in 8:
+		for b in fl0["birds"]:
+			if is_instance_valid(b["n"]) and (b["n"] as Node3D).global_position.y > 2.0:
+				mid_hi = true
+		await wait(0.3)
+	await wait(1.5)
+	var all_ok: bool = true
+	for b in fl0["birds"]:
+		var nn = b["n"]
+		if not is_instance_valid(nn) or (nn as Node3D).global_position.distance_to(alt0) > 4.0 or (nn as Node3D).global_position.y > 1.0:
+			all_ok = false
+	ok(mid_hi and all_ok, "голуби взлетели дугой (выше 2 м: %s) и сели в другом месте, никто не пропал" % str(mid_hi))
+	P.global_position = Vector3(2, 0.05, 25)
 	ok(G.world.ev_nodes.has("burm") and G.world.ev_nodes.has("button") and G.world.ev_nodes.has("rags"), "автомат, кнопка и дверь «ТРЯПОК» стоят во дворе: %s" % str(G67Yard.EVENT_SPOTS))
 	for k in G67Yard.EVENT_SPOTS:
 		var free_at: Array = []
@@ -2692,6 +2718,39 @@ func _clip_log(G: Golda67, cid: String) -> void:
 		print("GOLDA67CHECK   LOG %s %5.1f  %s  голос %.2f с  пауза %.2f%s%s" % [cid, float(lg[i][0]), String(lg[i][1]).left(48), float(lg[i][2]), gap, note, "" if bool(lg[i][3]) else "  (НЕТ ГОЛОСА)"])
 	print("GOLDA67CHECK   LOG %s длина %.1f с" % [cid, t_last])
 
+## Замер кадра: облёт двора 10 с, средний FPS и 1 % худших
+func _perf_flyover(g, G: Golda67, P) -> void:
+	await _go(G, P, "exit")
+	await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(1.0)
+	var oc := Camera3D.new()
+	oc.fov = 60.0
+	g.add_child(oc)
+	oc.make_current()
+	var times: Array = []
+	var t0 := Time.get_ticks_msec()
+	var last := t0
+	while Time.get_ticks_msec() - t0 < 10000:
+		var a := float(Time.get_ticks_msec() - t0) / 10000.0 * TAU
+		oc.global_position = Vector3(2.0 + sin(a) * 38.0, 9.0, -8.0 + cos(a) * 34.0)
+		oc.look_at(Vector3(2, 1.5, -8.0), Vector3.UP)
+		await get_tree().process_frame
+		var nw := Time.get_ticks_msec()
+		times.append(float(nw - last))
+		last = nw
+	times.sort()
+	var tot := 0.0
+	for x in times:
+		tot += float(x)
+	var worst: int = maxi(1, int(times.size() * 0.01))
+	var wsum := 0.0
+	for i in worst:
+		wsum += float(times[times.size() - 1 - i])
+	print("GOLDA67CHECK   PERF кадров %d, средний FPS %.1f, 1%% худших: %.1f FPS" % [times.size(), 1000.0 / (tot / times.size()), 1000.0 / (wsum / worst)])
+
 ## Сцена события: kind = burm:<исход> или btn:<исход>; кадр каждые 0,5 с
 func _ev_scene_shots(g, G: Golda67, P, kind: String) -> void:
 	await _go(G, P, "exit")
@@ -2851,6 +2910,19 @@ func _phone_check(g, G: Golda67) -> void:
 
 func _run_dvor(g, G: Golda67, P) -> void:
 	await _phone_check(g, G)
+	# шаги в приквеле: подъезд — бетон, двор — по поверхности
+	G.step_log.clear()
+	G.play_step(Vector3(0, 0.0, 0))
+	ok(G.step_log.back() == "step_concrete", "шаг в подъезде — бетон (%s)" % str(G.step_log.back()))
+	G.step_log.clear()
+	var kinds_ok := true
+	var place_old: String = G.place
+	G.place = "run"
+	for sp in [[Vector3(2, 0, -38), "step_ice"], [G67Yard.KIOSK_POS, "step_asphalt"], [Vector3(0, 0, 21), "step_snow"]]:
+		G.play_step(sp[0])
+		kinds_ok = kinds_ok and G.step_log.back() == sp[1]
+	G.place = place_old
+	ok(kinds_ok, "шаг во дворе: лёд в коробке, асфальт на парковке, снег у подъезда (%s)" % str(G.step_log))
 	var snd_bad: Array = []
 	for k in G67Sound.kinds():
 		var w := G67Sound.stream(String(k))
