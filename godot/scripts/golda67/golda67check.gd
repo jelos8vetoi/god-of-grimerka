@@ -2734,7 +2734,7 @@ func _clip_log(G: Golda67, cid: String) -> void:
 		t_last = G.clip.t
 		if t_last >= nxt:
 			await shot("clip_%s_%02d" % [cid, int(nxt)])
-			nxt += 5.0
+			nxt += 8.0
 		await get_tree().process_frame
 	var lg: Array = G67ClipPlayer.last_log
 	for i in lg.size():

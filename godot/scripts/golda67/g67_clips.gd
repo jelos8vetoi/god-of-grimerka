@@ -215,70 +215,132 @@ static func _coin_fall(c: G67ClipPlayer, coin: Node2D, i: int, r: float, fs: Vec
 		tw.chain().tween_callback(coin.queue_free)
 
 # ---------------------------------------------------------------- V00 — трейлер «ТУРНИР 67»
+## Плашка имени влетает сбоку на стоп-кадре
+static func _nameplate(c: G67ClipPlayer, text: String) -> void:
+	var fs := c.frame.size
+	var h := Control.new()
+	h.size = fs
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.over.add_child(h)
+	var bar := ColorRect.new()
+	bar.color = Color(0.72, 0.08, 0.08, 0.94)
+	bar.size = Vector2(fs.x * 0.5, fs.y * 0.09)
+	bar.position = Vector2(fs.x * 1.05, fs.y * 0.7)
+	h.add_child(bar)
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", c.game.main.font)
+	l.add_theme_font_size_override("font_size", int(fs.y * 0.06))
+	l.add_theme_color_override("font_color", Color.WHITE)
+	l.position = Vector2(fs.x * 0.02, fs.y * 0.01)
+	bar.add_child(l)
+	var tw := c.create_tween()
+	tw.tween_property(bar, "position:x", fs.x * 0.06, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.55)
+	tw.tween_property(bar, "modulate:a", 0.0, 0.15)
+	tw.tween_callback(h.queue_free)
+
+## Реплика двумя планами с наездом, на последнем слове — стоп-кадр: удар, сдвиг каналов, плашка с именем
+static func _beat(c: G67ClipPlayer, line: String, who: String, a: Array, b: Array, extra := 0.1) -> void:
+	var d := c.say_async(line)
+	c.cam_at(a[0], a[1], a[2])
+	c.cam_to(a[3], a[4], d * 0.5, a[5])
+	await c.wait(d * 0.5)
+	G67Sound.play(c, "hit_cut")
+	c.vhs(0.5, 0.15)
+	var d2 := maxf(d * 0.5 - 0.45, 0.2)
+	c.cam_at(b[0], b[1], b[2])
+	c.cam_to(b[3], b[4], d2, b[5])
+	await c.wait(d2)
+	G67Sound.play(c, "hit_cut")
+	c.vhs(1.0, 0.5)
+	c.shake(0.15)
+	_nameplate(c, who)
+	await c.wait(0.45 + extra)
+	c.clear_sub()
+
+static func _tariffs_async(c: G67ClipPlayer, fort: Control) -> void:
+	for tx in ["ВХОД — 67", "ВЫХОД — 67", "ПОСМОТРЕТЬ НА ТУРНИКЕТ — 6,7"]:
+		if not c.alive():
+			return
+		_tariff(c, fort, tx, tx.length() > 12)
+		c.sfx("sfx_ui", -6.0, 0.9)
+		await c.wait(0.6)
+
 static func v00(c: G67ClipPlayer) -> void:
 	var y := _yard(c)
 	_snow(c, Vector3(0, 12, 25), Vector3(30, 4, 30))
 	var door := Vector3(0.0, 0.0, 35.6)
 	var m := c.actor("misha", "misha", door + Vector3(0, 0, -0.6), PI)
-	# 0:00–0:02 — чёрный экран, удар, золотые буквы
+	# 1 — чёрный экран, тишина 1,5 с, одна строка-титр, удар
 	var blk := c.screen(func(s: Control, fs: Vector2):
 		var r := ColorRect.new()
 		r.color = Color.BLACK
 		r.size = fs
 		s.add_child(r))
+	c.plate("ТЫ ГОТОВ ИЗМЕНИТЬ СВОЙ РАЙОН?", "big", 1.6)
+	await c.wait(1.5)
+	G67Sound.play(c, "hit_cut")
 	c.sfx("sfx_boom", 0.0, 0.6)
-	c.plate("ТЫ ГОТОВ ИЗМЕНИТЬ СВОЙ РАЙОН?", "big", 1.9)
-	await c.wait(2.1)
+	await c.wait(0.4)
 	blk.queue_free()
-	# 0:02–0:05 — пролёт над ДВОРОМ, призовой фонд, монеты
-	c.cam_at(Vector3(-34, 30, 46), Vector3(0, 0, 10), 55.0)
-	c.cam_to(Vector3(18, 22, 4), Vector3(0, 0, 18), 3.2)
-	c.plate("ПРИЗОВОЙ ФОНД — 67 000 ГОЛДЫ", "big", 3.0)
-	_coins(c, 14)
-	await c.wait(3.1)
 	c.clear_plates()
-	# 0:05–0:08 — Миша выходит из подъезда в слоу-мо: кроссовки → цепь → лицо
-	c.anim("misha", "CWalk", 0.1, 0.45)
-	c.move("misha", door + Vector3(0, 0, -2.4), 2.4)
+	# 2 — пролёт над двором и дождь монет, призовой фонд
+	c.cam_at(Vector3(-34, 30, 46), Vector3(0, 0, 10), 55.0)
+	c.cam_to(Vector3(18, 22, 4), Vector3(0, 0, 18), 2.6)
+	c.plate("ПРИЗОВОЙ ФОНД — 67 000 ГОЛДЫ", "big", 2.4)
+	_coins(c, 14)
+	await c.wait(2.5)
+	c.clear_plates()
+	# 3 — Миша выходит: кроссовки → цепь → лицо, три коротких плана на ударах
+	G67Sound.play(c, "hit_cut")
+	c.anim("misha", "CWalk", 0.1, 0.5)
+	c.move("misha", door + Vector3(0, 0, -2.4), 1.4)
 	c.cam_at(door + Vector3(0.7, 0.25, -3.2), door + Vector3(0, 0.15, -1.0), 38.0)
-	await c.wait(0.9)
+	c.cam_to(door + Vector3(0.5, 0.3, -3.0), door + Vector3(0, 0.15, -1.2), 0.7, 34.0)
+	await c.wait(0.7)
+	G67Sound.play(c, "hit_cut")
 	c.cam_at(door + Vector3(-0.9, 1.4, -3.6), _chest(m), 30.0)
-	await c.wait(0.8)
-	var hd := _head(m) - m.global_position
+	c.cam_to(door + Vector3(-0.6, 1.35, -3.2), _chest(m), 0.7, 26.0)
+	await c.wait(0.7)
+	G67Sound.play(c, "hit_cut")
+	var hd := _head(m) - m.global_position + Vector3(0, 0.3, 0)
 	var stop := door + Vector3(0, 0, -2.4)
-	c.cam_at(stop + hd + Vector3(0.45, 0.12, -1.9), stop + hd + Vector3(0, 0.12, 0), 30.0)
-	c.say_async(L("V00", 0))
-	await c.wait(2.2)
-	# цепь цепляется за ручку двери — рывок, склейка на серьёзное лицо
+	var a0 := stop + hd + Vector3(0.45, 0.12, -1.9)
+	await _beat(c, L("V00", 0), "МИША МИНАСЯН", [a0, stop + hd, 30.0, a0 + Vector3(-0.1, 0, 0.5), stop + hd, 26.0],
+		[stop + hd + Vector3(-0.8, 0.0, -1.4), stop + hd, 28.0, stop + hd + Vector3(-0.5, 0.0, -1.0), stop + hd, 24.0])
+	# цепь цепляется за ручку двери — рывок крупно, ручная тряска
 	c.chain(_chest(m), door + Vector3(0.45, 1.05, 0.05), 2.6)
 	c.anim_once("misha", "CYank", 0.9)
 	c.sfx("sfx_parry", -2.0, 0.7)
-	c.shake(0.7)
+	c.shake(0.9)
+	c.cam_at(door + Vector3(1.4, 1.3, -2.6), door + Vector3(0.2, 1.1, -0.8), 38.0)
+	c.cam_to(door + Vector3(1.0, 1.25, -2.2), door + Vector3(0.25, 1.1, -0.8), 0.9, 32.0)
 	await c.wait(0.9)
 	c.anim("misha", "CStuck", 0.2)
-	await c.wait(0.05)
-	c.cam_at(_head(m) + Vector3(-0.5, 0.15, -1.7), _head(m) + Vector3(0, 0.12, 0), 28.0)
-	await c.say(L("V00", 1), 0.2)
-	# 0:08–0:11 — FORTUNA 812 у турникета ПОДЗЕМКИ открывает створку жестом ведущего; тарифы вылетают плашками
+	var hp2 := _head(m)
+	await _beat(c, L("V00", 1), "МИША МИНАСЯН", [hp2 + Vector3(-0.5, 0.15, -1.7), hp2, 28.0, hp2 + Vector3(-0.3, 0.1, -1.1), hp2, 24.0],
+		[hp2 + Vector3(0.6, -0.05, -1.2), hp2, 26.0, hp2 + Vector3(0.4, -0.05, -0.8), hp2, 22.0])
+	# 4 — «вжух»: помеха и быстрый переход в ПОДЗЕМКУ; FORTUNA 812 открывает створку, тарифы вылетают плашками
+	c.vhs(1.0, 0.4)
+	G67Sound.play(c, "hit_cut")
+	c.sfx("sfx_wave", -6.0, 1.8)
 	var U := Vector3(60, 0, 0)
 	_metro(c, U)
 	var ft := c.actor("fortuna", "fortuna", U + Vector3(-0.9, 0, 0.6), 0.5)
 	c.anim("fortuna", "CPresent", 0.0)
 	var flap := c.box(Vector3(0.05, 0.75, 0.6), U + Vector3(0.0, 0.85, 0.3), Color(0.75, 0.85, 0.95, 1.0), 0.2)
-	c.cam_at(U + Vector3(1.6, 1.5, 3.4), U + Vector3(-0.3, 1.1, 0.3), 46.0)
-	c.cam_to(U + Vector3(1.0, 1.4, 2.8), U + Vector3(-0.4, 1.15, 0.3), 3.0)
-	c.create_tween().tween_property(flap, "rotation:y", -1.3, 0.5).set_delay(0.3)
-	c.say_async(L("V00", 2))
+	c.create_tween().tween_property(flap, "rotation:y", -1.3, 0.5).set_delay(0.6)
 	var fort := Control.new()
 	fort.size = c.frame.size
 	c.over.add_child(fort)
-	for tx in ["ВХОД — 67", "ВЫХОД — 67", "ПОСМОТРЕТЬ НА ТУРНИКЕТ — 6,7"]:
-		_tariff(c, fort, tx, tx.length() > 12)
-		c.sfx("sfx_ui", -6.0, 0.9)
-		await c.wait(0.75)
-	await c.wait(0.8)
+	_tariffs_async(c, fort)
+	await _beat(c, L("V00", 2), "FORTUNA 812", [U + Vector3(1.8, 1.5, 3.6), U + Vector3(-0.3, 1.1, 0.3), 46.0, U + Vector3(1.2, 1.45, 2.9), U + Vector3(-0.4, 1.15, 0.3), 40.0],
+		[U + Vector3(-0.3, 1.55, 2.4), _head(ft), 32.0, U + Vector3(-0.5, 1.55, 1.9), _head(ft), 26.0])
 	fort.queue_free()
-	# 0:11–0:14 — Королевский XVII щёлкает кольцевой лампой: Пахан пропадает в белом
+	# 5 — Королевский XVII перед кольцевой лампой: Пахан пропадает в белом
+	c.vhs(0.8, 0.3)
+	G67Sound.play(c, "hit_cut")
 	var K := Vector3(120, 0, 0)
 	var p := c.actor("pahan", "pahan", K, 0.0)
 	var kx := c.actor("korolevsky", "korolevsky", K + Vector3(1.3, 0, 1.0), -2.2)
@@ -302,8 +364,10 @@ static func v00(c: G67ClipPlayer) -> void:
 	c.box(Vector3(0.04, 1.5, 0.04), K + Vector3(0.0, 0.75, 1.62), Color(0.1, 0.1, 0.1))
 	c.light(K + Vector3(0, 2.5, 2.8), Color(0.9, 0.9, 1.0), 1.2, 8.0)
 	c.cam_at(K + Vector3(-1.4, 1.5, 3.4), K + Vector3(0.3, 1.25, 0.3), 42.0)
-	await c.wait(0.5)
+	c.cam_to(K + Vector3(-0.9, 1.5, 3.0), K + Vector3(0.6, 1.3, 0.6), 0.6, 38.0)
+	await c.wait(0.6)
 	c.sfx("sfx_ui", -2.0, 1.8)
+	G67Sound.play(c, "hit_cut")
 	rmat.emission_energy_multiplier = 6.0
 	var flash := c.light(K + Vector3(0, 1.5, 1.4), Color(1, 1, 1), 3.0, 5.0)
 	var white := c.screen(func(s: Control, fs: Vector2):
@@ -315,49 +379,63 @@ static func v00(c: G67ClipPlayer) -> void:
 	var wt := c.create_tween()
 	wt.tween_property(white.get_node("w"), "color:a", 0.7, 0.12)
 	wt.tween_property(white.get_node("w"), "color:a", 0.12, 0.5)
-	c.cam_at(K + Vector3(-0.2, 1.5, 3.6), K + Vector3(0.9, 1.3, 0.6), 40.0)
-	await c.say(L("V00", 3), 0.1)
-	c.cam_at(K + Vector3(0.3, 1.5, 2.4), _head(p), 34.0)
+	await _beat(c, L("V00", 3), "КОРОЛЕВСКИЙ XVII", [K + Vector3(-0.2, 1.5, 3.6), _head(kx), 40.0, K + Vector3(0.4, 1.5, 3.0), _head(kx), 34.0],
+		[_head(kx) + Vector3(-0.2, 0.0, 1.3), _head(kx), 30.0, _head(kx) + Vector3(-0.1, 0.0, 1.0), _head(kx), 26.0])
 	var wt2 := c.create_tween()
-	wt2.tween_property(white.get_node("w"), "color:a", 0.72, 1.4)
-	wt2.parallel().tween_property(flash, "light_energy", 7.0, 1.4)
-	await c.say(L("V00", 4), 0.2)
+	wt2.tween_property(white.get_node("w"), "color:a", 0.72, 1.3)
+	wt2.parallel().tween_property(flash, "light_energy", 7.0, 1.3)
+	await _beat(c, L("V00", 4), "ПАХАН", [K + Vector3(0.3, 1.5, 2.4), _head(p), 34.0, K + Vector3(0.2, 1.5, 1.9), _head(p), 28.0],
+		[_head(p) + Vector3(-0.5, 0.0, 1.0), _head(p), 28.0, _head(p) + Vector3(-0.3, 0.0, 0.8), _head(p), 24.0])
 	white.queue_free()
-	# 0:14–0:17 — Полковник Бустеренко запускает счётчик; отъезд — один компьютер, один профиль на всех мониторах
+	# 6 — Бустеренко запускает счётчик, отъезд: один профиль на всех мониторах
+	c.vhs(0.9, 0.35)
+	G67Sound.play(c, "hit_cut")
 	var B := Vector3(180, 0, 0)
 	_botfarm(c, B)
-	var bs := c.actor("busterenko", "busterenko", B + Vector3(0, 0, 0.6), PI)
+	var bs := c.actor("busterenko", "busterenko", B + Vector3(-1.2, 0, 0.6), PI)
 	c.anim("busterenko", "CDesk", 0.0)
+	c.create_tween().tween_property(bs, "position", B + Vector3(0.0, 0, 0.6), 0.9)        # шагает вдоль строя
 	var bus := Control.new()
 	bus.size = c.frame.size
 	c.over.add_child(bus)
-	var cnt := _counter(c, bus, 67000000, 1.6)
-	await c.wait(0.05)
-	c.cam_at(B + Vector3(0.95, 1.45, -0.75), _head(bs) + Vector3(0, 0.1, 0), 36.0)
-	c.say_async(L("V00", 5))
-	await c.wait(1.6)
+	var cnt := _counter(c, bus, 67000000, 1.8)
+	await _beat(c, L("V00", 5), "ПОЛКОВНИК БУСТЕРЕНКО", [B + Vector3(1.0, 1.45, -0.75), _head(bs) + Vector3(0, 0.1, 0), 36.0, B + Vector3(0.7, 1.45, -0.4), _head(bs) + Vector3(0, 0.1, 0), 30.0],
+		[B + Vector3(-0.8, 1.55, 1.8), _head(bs), 34.0, B + Vector3(-0.4, 1.55, 1.4), _head(bs), 28.0])
 	var tw := c.create_tween()
-	tw.tween_property(cnt, "modulate:a", 0.0, 0.4)
+	tw.tween_property(cnt, "modulate:a", 0.0, 0.3)
 	c.cam_at(B + Vector3(0.6, 1.6, 2.2), B + Vector3(0, 1.3, -1.0), 40.0)
-	c.cam_to(B + Vector3(3.8, 3.2, 6.5), B + Vector3(0, 1.6, -1.2), 1.8, 50.0)
-	await c.wait(1.9)
+	c.cam_to(B + Vector3(3.8, 3.2, 6.5), B + Vector3(0, 1.6, -1.2), 1.4, 50.0)
+	await c.wait(1.4)
 	bus.queue_free()
 	c.actors.erase("pahan")
 	p.queue_free()
-	# 0:17–0:21 — madk1d суёт телефон Пахану; «СПИСАНО 6 700 ГОЛДЫ»
+	# 7 — madk1d вбегает в кадр и суёт телефон Пахану в лицо, Пахан отмахивается; ручная тряска
+	c.vhs(0.8, 0.3)
+	G67Sound.play(c, "hit_cut")
 	var p2 := c.actor("pahan", "pahan", door + Vector3(1.2, 0, -6.0), PI * 0.1)
-	var mk := c.actor("madk1d", "madk1d", door + Vector3(1.0, 0, -7.1), PI * 0.05)
+	var mk := c.actor("madk1d", "madk1d", door + Vector3(1.0, 0, -10.5), PI * 0.05)
+	c.anim("madk1d", "Run", 0.1, 1.1)
+	c.create_tween().tween_property(mk, "position", door + Vector3(1.0, 0, -7.1), 0.9)
+	c.cam_at(door + Vector3(2.8, 1.5, -9.4), door + Vector3(1.1, 1.2, -6.6), 44.0)
+	c.shake(0.5)
+	await c.wait(0.9)
 	c.anim("madk1d", "CPhoneOut", 0.1)
-	c.cam_at(door + Vector3(2.4, 1.45, -8.6), door + Vector3(1.1, 1.2, -6.4), 42.0)
-	c.shake(0.3)
-	await c.say(L("V00", 6), 0.1)
-	c.cam_at(_head(p2) + Vector3(-0.6, 0.0, 1.4), _head(p2), 34.0)
-	await c.say(L("V00", 7), 0.1)
-	c.plate("СПИСАНО 6 700 ГОЛДЫ", "stamp", 1.4)
+	c.anim_once("pahan", "Hit", 0.5)
+	await _beat(c, L("V00", 6), "MADK1D", [door + Vector3(2.4, 1.45, -8.6), door + Vector3(1.1, 1.2, -6.4), 42.0, door + Vector3(2.0, 1.4, -8.0), door + Vector3(1.1, 1.2, -6.4), 36.0],
+		[_head(mk) + Vector3(0.4, 0.0, -1.2), _head(mk), 30.0, _head(mk) + Vector3(0.3, 0.0, -0.9), _head(mk), 26.0])
+	c.shake(0.4)
+	await _beat(c, L("V00", 7), "ПАХАН", [_head(p2) + Vector3(-0.6, 0.0, 1.4), _head(p2), 34.0, _head(p2) + Vector3(-0.4, 0.0, 1.0), _head(p2), 28.0],
+		[_head(p2) + Vector3(0.7, 0.0, 1.0), _head(p2), 28.0, _head(p2) + Vector3(0.5, 0.0, 0.8), _head(p2), 24.0])
+	c.plate("СПИСАНО 6 700 ГОЛДЫ", "stamp", 1.2)
 	c.sfx("sfx_ui", -4.0, 0.6)
+	_coins(c, 30)
+	c.cam_at(_head(p2) + Vector3(0.0, 1.8, 1.8), _head(p2), 50.0)
+	c.cam_to(_head(p2) + Vector3(0.0, -0.2, 0.6), _head(p2) + Vector3(0, 0.6, 0), 1.2, 36.0)         # пролёт камеры сквозь дождь монет
 	await c.wait(1.2)
-	# 0:21–0:25 — логотип; Пахан за кадром; джингл обрывается
+	c.clear_plates()
+	# 8 — логотип; Пахан за кадром; джингл обрывается
 	var lg := _logo(c)
+	G67Sound.play(c, "hit_cut")
 	c.sfx("sfx_boom", -2.0, 1.0)
 	await c.say(L("V00", 8), 0.2)
 	c.vhs(1.0, 0.5)
