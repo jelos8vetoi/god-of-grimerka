@@ -766,6 +766,14 @@ func _keep_foes_inside(dt: float) -> void:
 			_out_t.erase(id)
 
 # ---------------------------------------------------------------- фон и случайные звуки приквела
+var phone: G67Phone = null
+
+func phone_get() -> G67Phone:
+	if phone == null:
+		phone = G67Phone.new()
+		add_child(phone)
+	return phone
+
 var amb67: AudioStreamPlayer = null
 var amb67_kind := ""
 var rnd67_t := 15.0

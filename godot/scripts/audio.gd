@@ -319,6 +319,8 @@ func _process(dt: float) -> void:
 		ducking = -6.0      # меню паузы: игра тише, но не пропадает
 	if game.mode == "dlg":
 		ducking = min(ducking, -8.0 if g67 else -4.0)      # в диалоге музыка тише (приквел — на 8 дБ), но не пропадает
+	if g67 and game.golda.phone != null and game.golda.phone.active():
+		ducking = -60.0                    # играет плейлист iPhone: музыка локации и тема босса молчат
 	if g67 and game.golda.clip != null:
 		ducking = -45.0                    # ролик: музыка локации уходит под него
 	if sting.playing:

@@ -1600,6 +1600,7 @@ func _stage3(g, G: Golda67, P) -> void:
 	ok(G.kiosk_why("double") == "не хватает голды", "на двойную не хватает голды — ценник бледный с причиной")
 	await wait(0.3)
 	await shot("s3_05_kiosk_refused")
+	G.flush_coins()
 	G.run["golda"] = 200
 	G.hub_ui._refresh()
 	var mh: float = P.max_hp
@@ -2666,7 +2667,65 @@ func _ev02_check(g, G: Golda67, P) -> void:
 	ok(last_t >= 30.0 and last_t <= 42.0, "длительность события %.1f с (30–42)" % last_t)
 	ok(G.clip_seen("EV02"), "досмотренный ролик — в clips_seen")
 
+## iPhone Пахана: плейлист, управление, заглушение музыки локации, список скрыт в бою, остановка
+func _phone_check(g, G: Golda67) -> void:
+	var ph: G67Phone = G.phone_get()
+	ph.scan()
+	print("GOLDA67CHECK   треков плейлиста найдено: %d из 16" % ph.available())
+	ok(G67Data.PLAYLIST.size() == 16, "плейлист из 16 строк")
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = 22050
+	var buf := PackedByteArray()
+	buf.resize(22050 * 8 * 2)
+	for i in 22050 * 8:
+		buf.encode_s16(i * 2, int(sin(TAU * 440.0 * float(i) / 22050.0) * 3000.0))
+	wav.data = buf
+	ph.injected = {1: wav, 2: wav}
+	ok(ph.play(1) and ph.cur == 1, "трек 1 запущен")
+	await wait(0.8)
+	var p0 := ph.position()
+	await wait(0.8)
+	ok(ph.position() > p0 and ph.active(), "трек играет: позиция растёт (%.1f → %.1f)" % [p0, ph.position()])
+	await wait(1.2)
+	ok(main.audio.duck < -30.0, "пока играет плейлист, музыка локации заглушена (%.1f дБ)" % main.audio.duck)
+	ph.toggle()
+	await wait(2.0)
+	ok(ph.paused and not ph.active() and main.audio.duck > -30.0, "пауза плейлиста возвращает музыку локации (%.1f дБ)" % main.audio.duck)
+	ph.toggle()
+	ph.step(1)
+	ok(ph.cur == 2, "следующий трек — №2")
+	ph.step(-1)
+	ok(ph.cur == 1, "предыдущий трек — №1")
+	g.set_paused(true)
+	await wait(0.9)
+	g.pause_panel._open_page(4)
+	await wait(0.3)
+	var t_calm: String = _all_text(g.pause_panel)
+	ok(t_calm.contains("BANDZ") and t_calm.contains("ЛЮБИМЫЕ ТРЕКИ ПАХАНА"), "в подъезде на вкладке МУЗЫКА виден iPhone со списком")
+	await shot("phone_hub")
+	g.pause_panel._close_card()
+	g.set_paused(false)
+	await wait(0.6)
+	var rs_old: String = G.room_state
+	G.room_state = "fight"
+	g.set_paused(true)
+	await wait(0.9)
+	g.pause_panel._open_page(4)
+	await wait(0.3)
+	var t_fight: String = _all_text(g.pause_panel)
+	ok(not t_fight.contains("BANDZ") and t_fight.contains("ЛЮБИМЫЕ ТРЕКИ ПАХАНА"), "в бою список скрыт, виден только текущий трек")
+	await shot("phone_fight")
+	g.pause_panel._close_card()
+	g.set_paused(false)
+	await wait(0.6)
+	G.room_state = rs_old
+	ph.stop()
+	ok(not ph.active() and ph.cur < 0, "остановка плейлиста")
+	ph.injected = {}
+
 func _run_dvor(g, G: Golda67, P) -> void:
+	await _phone_check(g, G)
 	var snd_bad: Array = []
 	for k in G67Sound.kinds():
 		var w := G67Sound.stream(String(k))
