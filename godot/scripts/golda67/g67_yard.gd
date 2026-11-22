@@ -896,7 +896,7 @@ func _life_props() -> void:
 	_lifeprop("g67_workbench", Vector3(-39.2, 0.0, -2.2), PI * 0.5, Vector3(1.6, 0.9, 0.7))
 
 ## Надпись-листок: кинд paper/graffiti/marker/plate/sticker/banner; лицом к yaw (PI — к двору от фасада z = 35)
-func _note(kind: String, text: String, pos: Vector3, yaw: float, sub := "") -> Node3D:
+func _note(kind: String, text: String, pos: Vector3, yaw: float, sub := "", k := 1.0) -> Node3D:
 	var root := Node3D.new()
 	root.position = pos
 	root.rotation.y = yaw
@@ -906,7 +906,7 @@ func _note(kind: String, text: String, pos: Vector3, yaw: float, sub := "") -> N
 	var lb := Label3D.new()
 	lb.text = text
 	lb.font_size = 56 if big else (30 if small else 36)
-	lb.pixel_size = 0.0075 if big else (0.0035 if small else 0.0042)
+	lb.pixel_size = (0.0075 if big else (0.0035 if small else 0.0042)) * k
 	lb.outline_size = 10 if big else 4
 	lb.width = 520.0 if not big else 760.0
 	lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -936,7 +936,7 @@ func _note(kind: String, text: String, pos: Vector3, yaw: float, sub := "") -> N
 		var q := MeshInstance3D.new()
 		var qm := QuadMesh.new()
 		var lines := maxi(1, int(ceil(text.length() / 17.0)))
-		qm.size = Vector2(0.62 if kind != "banner" else 1.4, 0.16 + 0.1 * lines)
+		qm.size = Vector2(0.62 if kind != "banner" else 1.4, 0.16 + 0.1 * lines) * k
 		q.mesh = qm
 		var m := StandardMaterial3D.new()
 		m.albedo_color = {"paper": Color(0.94, 0.93, 0.88), "plate": Color(0.62, 0.64, 0.68), "banner": Color(0.18, 0.4, 0.2)}[kind]
@@ -993,7 +993,7 @@ func _life_signs() -> void:
 		if not SIGN_AT.has(id):
 			if id == "seven_ads":
 				for i in 8:
-					_note("paper", String(sg["text"]).substr(0, 14), Vector3(-7.9 + i * 0.3, 1.55, 34.9), PI)
+					_note("paper", "№ 7", Vector3(-7.9 + i * 0.34, 1.55, 34.9), PI, "", 0.45)
 				sign_groups["wall8"] = {"pos": Vector3(-6.9, 0.0, 34.0), "cards": [{"text": sg["text"], "sub": sg["sub"]}], "title": "ОБЪЯВЛЕНИЯ"}
 			continue
 		var pool := String(sg.get("pool", ""))

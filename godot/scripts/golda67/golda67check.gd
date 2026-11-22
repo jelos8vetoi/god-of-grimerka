@@ -2555,6 +2555,18 @@ func _spawn_check(g, G: Golda67, P) -> void:
 		g.cam.make_current()
 		oc.queue_free()
 
+func _cam_shot(g, name: String, pos: Vector3, look: Vector3) -> void:
+	var oc := Camera3D.new()
+	oc.fov = 55.0
+	g.add_child(oc)
+	oc.global_position = pos
+	oc.look_at(look, Vector3.UP)
+	oc.make_current()
+	await wait(0.4)
+	await shot(name)
+	g.cam.make_current()
+	oc.queue_free()
+
 ## ДВОР 1.5: жители ходят по расписанию и не застревают, реплики-пузыри, [E] у жителей, отход от боя
 func _life15(g, G: Golda67, P) -> void:
 	var yd = G.world.yard
@@ -2584,7 +2596,11 @@ func _life15(g, G: Golda67, P) -> void:
 	for rid in yd.residents:
 		var R3: G67Resident = yd.residents[rid]
 		R3.next_move = 9999.0
-	await wait(25.0)
+	var tw_s := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - tw_s < 70000:
+		await wait(1.0)
+		if yd.residents.values().all(func(r): return r.state in ["stay", "act"]):
+			break
 	var settled := true
 	for rid in yd.residents:
 		var R4: G67Resident = yd.residents[rid]
@@ -2602,6 +2618,7 @@ func _life15(g, G: Golda67, P) -> void:
 	G.use("talk_g67_npc_babushka")
 	await wait(0.5)
 	ok(bk.log.size() > n0 and String(bk.log.back()[1]) == "BB" and bk.bubbles.size() >= 1, "ДВОР 1.5: [E] у бабушки — реплика-пузырь («%s»)" % str(bk.log.back()[2]))
+	await _cam_shot(g, "life15_bubble_babushka", (bab.rig as Node3D).global_position + Vector3(1.6, 1.7, 3.2), (bab.rig as Node3D).global_position + Vector3(0, 1.8, 0))
 	# в ролике пузырей нет
 	bk.last_any = -100.0
 	G.clip = G67ClipPlayer.new()
@@ -2614,10 +2631,11 @@ func _life15(g, G: Golda67, P) -> void:
 	for nt in yd.notes:
 		if String(nt["text"]).begins_with("Серега РПлюс заебал бухать"):
 			serega += 1
+	await _cam_shot(g, "life15_seven_papers", Vector3(-6.8, 1.6, 31.5), Vector3(-6.4, 1.5, 35.0))
 	ok(serega >= 2, "ДВОР 1.5: «Серега РПлюс заебал бухать» дословно в %d местах" % serega)
 	var wall8 := 0
 	for nt in yd.notes:
-		if String(nt["text"]).begins_with("ОБЪЯВЛЕНИЕ"):
+		if String(nt["text"]).begins_with("№ 7"):
 			wall8 += 1
 	ok(wall8 == 8, "ДВОР 1.5: восемь листков в ряд (%d)" % wall8)
 	var must := ["jelos_all", "uk", "g8_no", "mognut", "rocket", "cheremsha", "court_rules"]
@@ -2652,6 +2670,8 @@ func _life15(g, G: Golda67, P) -> void:
 	ok(used >= 8, "ДВОР 1.5: предметы и листки отвечают по [E] (%d)" % used)
 	ok(G.get_children().any(func(c): return c is G67ReadCard), "ДВОР 1.5: карточка-листок открыта")
 	await shot("life15_card")
+	G.use("carpet")
+	await _cam_shot(g, "life15_carpet", Vector3(-4.2, 1.8, 7.5), Vector3(-7.0, 1.4, 3.8))
 	for c in G.get_children():
 		if c is G67ReadCard:
 			c.queue_free()
