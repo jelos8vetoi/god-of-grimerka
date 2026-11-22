@@ -67,8 +67,9 @@ const DISTRICTS := {
 ## Приёмы фаз — существующие приёмы боссов; свой особый приём — enemy._special («РАЗМАХ ЦЕПЬЮ»).
 const BOSSES := {
 	"g67_misha": {
-		"n": "МИША МИНАСЯН", "sub": "главный авторитет двора", "sp": "G1", "hp": 600, "r": 30, "spd": 116, "c": "#d9a23a", "dmg": 14, "gap": 1.6, "xp": 0,
-		"phases": [["slam", "charge"], ["slam", "charge", "shock"], ["charge", "shock", "slam", "leap"]],
+		"n": "МИША МИНАСЯН", "sub": "главный авторитет двора", "sp": "G1", "hp": 1160, "r": 30, "spd": 116, "c": "#d9a23a", "dmg": 14, "gap": 1.4, "xp": 0,
+		"poise": 320, "gate": true,      # фазы не проскакивают (enemy._phase_shift); равновесие выше, чем у остальных боссов
+		"phases": [["m_grab", "slam", "m_hook", "charge"], ["m_guard", "shock", "m_grab", "charge", "m_hook", "slam"], ["m_hook", "leap", "m_guard", "charge", "m_grab", "shock", "slam"]],
 		"barks": ["", "Мне даже олимпийка не нужна, чтобы быть главным.", "Это не цепь зацепилась. Это контроль пространства."],
 	},
 }

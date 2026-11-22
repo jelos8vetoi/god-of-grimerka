@@ -103,6 +103,9 @@ const REACT := {
 var tilt := Vector2.ZERO      # наклон от удара: x — вперёд-назад, y — вбок (рад); гаснет с покачиванием
 var tilt_t := 9.0
 var hit_side := ""           # откуда пришёл последний удар: front, back, left, right
+const PHASE_GUARD := 1.2        # смена фазы: столько босс неуязвим, с
+const PHASE_PUSH_R := 4.0       # волна смены фазы отталкивает героя, если он ближе, м
+const PHASE_PUSH_V := 9.0       # скорость отталкивания, м/с
 var wall_cd := 0.0
 var wall_hits := 0           # для проверок: сколько раз врага впечатало в стену
 var kb_hit := false          # отбрасывание задал полученный удар (рывок врага — нет): только такого впечатывает в стену
@@ -132,6 +135,9 @@ var charge_len := 0.8
 var charge_v := 13.0
 var counter_at := 0.0       # босс: когда снова можно приём против поведения игрока
 var combo_left := 0         # босс: сколько приёмов подряд ещё (растёт с фазой)
+var phase_guard_until := -1.0     # босс с boss["gate"]: смена фазы — неуязвим до этого age
+var phase_next := false     # смена фазы кончилась: сразу первый приём новой фазы, без отдыха
+var phase_note := -9.0      # когда в последний раз писали «НЕ СЕЙЧАС»
 var moves_used := {}        # для проверок: какие приёмы делал
 var sp_lock := false        # особый приём: взгляд замер (зона на земле не поворачивается за героем)
 var guard_until := -1.0     # Миша Минасян: защитная стойка держится до этого age (golda67/g67_misha.gd)
@@ -251,8 +257,11 @@ func _setup_boss() -> void:
 	if look["model"] == "pahan":
 		cfg["clip"] = "Light1"
 	max_hp = float(boss["hp"]) * Balance.BOSS_HP * float(game.diff_hp)       # было 0,75 — фазы проскакивали (balance.gd)
-	poise_max = 200.0      # босса сбить труднее: нужна серия тяжёлых
+	poise_max = float(boss.get("poise", 200.0))      # босса сбить труднее: нужна серия тяжёлых
 	poise = poise_max
+	if bool(boss.get("gate", false)):
+		special_cd = float(boss.get("special_first", 8.0))      # первым в бою идёт приём фазы, а не фирменный размах
+		counter_at = float(BossMoves.COUNTER_CD)
 
 func _tint(c: Color, alpha: float, emit: float) -> void:
 	for mi in rig.model.find_children("*", "MeshInstance3D", true, false):
@@ -461,7 +470,12 @@ func _physics_process(dt: float) -> void:
 			if boss_id != "hype" and not sp_lock:
 				face = lerp_angle(face, atan2(dir.x, dir.z), 1.0 - exp(-5.0 * dt))
 			if t > sp_dur:
-				state = "recover"
+				if phase_next:
+					phase_next = false
+					state = "chase"
+					cool = 0.0
+				else:
+					state = "recover"
 				t = 0.0
 		"recover":
 			if cfg.has("lunge") and t < 0.15:
@@ -795,6 +809,8 @@ func _boss_strike(dist: float, dir: Vector3) -> void:
 func stun(sec: float) -> void:
 	if state == "dead" or state == "spawn":
 		return
+	if boss_id != "" and age < phase_guard_until:
+		return
 	if boss_id != "":
 		sec *= 0.35
 	state = "stun"
@@ -888,6 +904,9 @@ func _react(dir: Vector3, heavy: bool) -> void:
 func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 0.0, hit: HitInfo = null, source_id := "", source_hero := "") -> void:
 	if not alive():
 		return
+	if boss_id != "" and age < phase_guard_until:
+		_phase_deny(dir)
+		return
 	var raw_damage := dmg
 	if cfg.get("shield", false) and not heavy:
 		var front := Vector3(sin(face), 0, cos(face))
@@ -906,12 +925,24 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		dmg *= 0.15
 		launch = 0.0
 		game.fx.shield(global_position + Vector3(0, height * 0.6, 0) - dir * radius, -dir, Color(1.0, 0.82, 0.3), 1.6 * height / 1.7)
+	# фазы не проскакивают: удар через порог снимает здоровье до порога, остаток пропадает, начинается смена фазы
+	var gate_np := -1
+	var gate_hp := 0.0
+	if boss_id != "" and bool(boss.get("gate", false)):
+		var pn: int = (boss["phases"] as Array).size()
+		if phase < pn - 1:
+			gate_hp = max_hp * (1.0 - float(phase + 1) / float(pn))
+			if hp - dmg <= gate_hp:
+				dmg = maxf(0.0, hp - gate_hp)
+				gate_np = phase + 1
 	var shown := dmg                  # цифра над целью — урон удара, даже если учебная цель его не «приняла»
 	if train_guard and not executed:
 		dmg = minf(dmg, maxf(0.0, hp - maxf(1.0, max_hp * 0.05)))      # учебная цель: здоровье не ниже 5 %
 	if game.telemetry != null:
 		game.telemetry.outgoing(self, clampf(dmg, 0.0, maxf(hp, 0.0)), dmg, hit, source_id, source_hero, raw_damage)
 	hp -= dmg
+	if gate_np >= 0:
+		hp = gate_hp
 	if train_immortal and hp <= 0.0:
 		hp = max_hp                    # манекен арены «убит» (ударом или добиванием) — встаёт заново
 		executed = false
@@ -923,7 +954,9 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 	_react(dir, heavy)
 	if game.show_dmg:
 		game.popup(global_position + Vector3(0, height + 0.2, 0), str(int(shown)), Color(1, 0.9, 0.4) if heavy else Color.WHITE)
-	if boss_id != "":
+	if gate_np >= 0:
+		_phase_shift(gate_np)
+	elif boss_id != "" and not bool(boss.get("gate", false)):
 		var phases: Array = boss["phases"]
 		var np: int = clamp(int(floor((1.0 - hp / max_hp) * phases.size())), 0, phases.size() - 1)
 		if np > phase:
@@ -976,6 +1009,54 @@ func _hit_static() -> bool:
 			return true
 	return false
 
+## Смена фазы босса с boss["gate"]: 1,2 с неуязвимости, приём и оглушение оборваны, топот с волной, фраза фазы;
+## дальше — сразу первый приём новой фазы (порядок приёмов задан в данных босса)
+func _phase_shift(np: int) -> void:
+	if game.telemetry != null:
+		game.telemetry.phase_change(self, np)
+	phase = np
+	game.fx.lightning(global_position, height * 2.2, Color(boss["c"]))
+	game.fx.boss_phase(self)
+	var barks: Array = boss.get("barks", [])
+	if phase < barks.size() and String(barks[phase]) != "":
+		game.boss_bark(String(boss["n"]), String(barks[phase]), Color(boss["c"]), String(boss.get("sp", "")))
+	phase_guard_until = age + PHASE_GUARD
+	_tell_end()
+	ring.visible = false
+	sp_events = []
+	guard_until = -1.0
+	stun_t = 0.0
+	weak_t = 0.0
+	amove = {}
+	move_n = 0
+	combo_left = 0
+	special_cd = maxf(special_cd, 6.0)
+	phase_next = true
+	state = "special"
+	t = 0.0
+	sp_lock = true
+	sp_dur = PHASE_GUARD
+	rig.play_for("Stomp", PHASE_GUARD, 0.08)
+	var col: Color = cfg["tint"]
+	_at(0.45, func():
+		game.fx.slam(global_position, 2.2, col)
+		game.shake(0.5)
+		game.main.sfx("sfx_boom", -2.0, 0.8)
+		var P = game.player
+		var away: Vector3 = P.global_position - global_position
+		away.y = 0.0
+		if away.length() < PHASE_PUSH_R:
+			away = away.normalized() if away.length() > 0.05 else Vector3(sin(face), 0, cos(face))
+			P.velocity = Vector3(away.x * PHASE_PUSH_V, P.velocity.y, away.z * PHASE_PUSH_V))
+
+## Удар по неуязвимому боссу в смене фазы: щит и надпись не чаще раза в 0,6 с
+func _phase_deny(dir: Vector3) -> void:
+	game.fx.shield(global_position + Vector3(0, height * 0.6, 0) - dir * radius, -dir, Color(1.0, 0.82, 0.3), 1.6 * height / 1.7)
+	if age - phase_note >= 0.6:
+		phase_note = age
+		game.popup(global_position + Vector3(0, height + 0.6, 0), "НЕ СЕЙЧАС", Color(1.0, 0.85, 0.4))
+		game.main.sfx("sfx_block", -4.0)
+
 ## Отброшенного врага впечатало в стену: урон, оглушение, отскок.
 func _wall_hit() -> void:
 	wall_cd = 1.2
@@ -1021,6 +1102,9 @@ func reaction_for(h: HitInfo) -> String:
 ## Попадание от ядра боя (combat.gd): урон, реакция по массе и броне, оглушение атаки и равновесие.
 func take_hit_info(h: HitInfo) -> void:
 	if not alive():
+		return
+	if boss_id != "" and age < phase_guard_until:
+		_phase_deny(h.dir)
 		return
 	if guard_until > 0.0 and G67Misha.guard_hit(self, h):
 		return                        # защитная стойка Миши: удар спереди принят и может вернуться
