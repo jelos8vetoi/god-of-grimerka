@@ -2579,6 +2579,16 @@ func _ev02_check(g, G: Golda67, P) -> void:
 	ok(G.clip_seen("EV02"), "досмотренный ролик — в clips_seen")
 
 func _run_dvor(g, G: Golda67, P) -> void:
+	# музыка приквела: наборы есть, в подъезде играет подъездный
+	var mus_ok := true
+	for nm in ["loc_g67_hub_base", "loc_g67_dvor_base", "loc_g67_dvor_drive", "boss_g67_misha_p1", "boss_g67_misha_p2", "boss_g67_misha_p3", "boss_g67_misha_intro", "boss_g67_misha_win"]:
+		var st = load("res://assets/music/%s.wav" % nm)
+		if st == null or st.get_length() < (24.0 if "boss" not in nm or nm.ends_with("p1") or nm.ends_with("p2") or nm.ends_with("p3") else 4.0):
+			mus_ok = false
+			print("GOLDA67CHECK   набор музыки не годится: ", nm)
+	ok(mus_ok, "наборы музыки приквела на месте, длиннее 16 тактов")
+	await wait(1.5)
+	ok(String(main.audio.cur) == "loc_g67_hub", "в подъезде играет набор loc_g67_hub (%s)" % main.audio.cur)
 	# выход во двор — настоящей клавишей E у входной двери
 	await _go(G, P, "exit")
 	var started: bool = await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
@@ -2595,6 +2605,8 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(String(g.top_label.text).contains("ДВОР 1/6"), "строка вверху: «%s»" % g.top_label.text)
 	var got: bool = await until(func(): return G.alive() >= 3, 10.0)
 	ok(got, "первая волна вышла (%d врагов)" % G.alive())
+	await wait(1.5)
+	ok(String(main.audio.cur) == "loc_g67_dvor" and main.audio.want.size() >= 2 and float(main.audio.want[1]) > 0.5, "во дворе играет loc_g67_dvor, в бою включён слой drive (%s %s)" % [main.audio.cur, str(main.audio.want)])
 	var skins: Array = []
 	for e in g.enemies:
 		if is_instance_valid(e):
@@ -2890,6 +2902,8 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await _go(G, P, "gate0")
 	var bossed: bool = await until(func(): return G.room_state == "boss" and g.boss_e != null and is_instance_valid(g.boss_e), 8.0)
 	ok(bossed, "шестая позиция — босс")
+	await wait(0.1)
+	ok(String(main.audio.cur) == "boss_g67_misha", "у Миши играет boss_g67_misha (%s)" % main.audio.cur)
 	if not bossed:
 		return
 	var B = g.boss_e

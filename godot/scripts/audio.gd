@@ -281,7 +281,11 @@ func _process(dt: float) -> void:
 		if main.music.volume_db <= -59.0:
 			main.music.stop()
 	var key: String = "hall" if game.in_hall else String(game.chapter()["th"]["deco"])      # арена, приквел и Survival идут под музыку первой главы: своих наборов loc_<deco> у них нет
-	var boss = game.boss_e if (game.mode == "boss" or game.is_survival()) and is_instance_valid(game.boss_e) else null
+	var g67: bool = game.golda != null
+	var bed_key := key
+	if g67:
+		key = "g67_hub" if String(game.golda.place) == "hub" else "g67_dvor"       # приквел: свои наборы музыки; фон остаётся прежним
+	var boss = game.boss_e if (game.mode == "boss" or game.is_survival() or g67) and is_instance_valid(game.boss_e) else null
 	var ducking := 0.0
 	if boss != null and boss.state != "dead":
 		var id: String = boss.boss_id
@@ -290,6 +294,10 @@ func _process(dt: float) -> void:
 			stinger("boss_" + id + "_intro")
 		play_set("boss_" + id)
 		_want([1.0, 1.0 if boss.phase >= 1 else 0.0, 1.0 if boss.phase >= 2 else 0.0])
+		if g67 and boss.phase >= 2 and float(boss.get("weak_t")) > 0.0:
+			_want([0.0, 1.0, 1.0])                 # окно «ОТКРЫТ» в третьей фазе: бас и ударные слоя p1 уходят
+		if g67 and boss.antract:
+			ducking = -4.0                          # антракт: тема ниже на 4 дБ
 		_set_state("boss")
 	else:
 		if boss_seen != "":
@@ -298,7 +306,7 @@ func _process(dt: float) -> void:
 			boss_seen = ""
 			_set_state("victory")
 		play_set("loc_" + key)
-		var fighting: bool = (game.mode == "fight" or game.mode == "training") and game.enemies.any(func(e): return is_instance_valid(e) and e.state != "dead")
+		var fighting: bool = (game.mode == "fight" or game.mode == "training" or (g67 and String(game.golda.room_state) == "fight")) and game.enemies.any(func(e): return is_instance_valid(e) and e.state != "dead")
 		_want([1.0, 1.0 if fighting else 0.0])
 		if not sting.playing:
 			_set_state("dialogue" if game.mode == "dlg" else ("combat" if fighting else "explore"))
@@ -310,12 +318,14 @@ func _process(dt: float) -> void:
 	if game.get_tree().paused and game.pause_panel != null and game.pause_panel.is_open:
 		ducking = -6.0      # меню паузы: игра тише, но не пропадает
 	if game.mode == "dlg":
-		ducking = min(ducking, -4.0)      # в диалоге музыка тише примерно на 37%, но не пропадает
+		ducking = min(ducking, -8.0 if g67 else -4.0)      # в диалоге музыка тише (приквел — на 8 дБ), но не пропадает
+	if g67 and game.golda.clip != null:
+		ducking = -45.0                    # ролик: музыка локации уходит под него
 	if sting.playing:
 		ducking = min(ducking, -7.0)
 	if dead:
 		ducking = -14.0
-	_bed(key)
+	_bed(bed_key)
 	_shots(dt, game)
 	_mix(dt, ducking)
 	if main.audiolog:
