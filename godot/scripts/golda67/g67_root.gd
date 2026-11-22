@@ -116,7 +116,7 @@ func begin(_cont := false) -> void:
 	if recovered_respect >= 0:
 		game.toast("Прошлый забег оборвался в бою — засчитан как поражение. РЕСПЕКТ +%d" % recovered_respect)
 	unlock_clip("V00")                       # трейлер — на телевизоре в подъезде с первого входа
-	if auto_clips and not clip_seen("STORY01"):
+	if auto_clips and not auto_played("STORY01"):
 		_first_clips()                       # не ждём: переход из меню сначала открывает подъезд
 
 ## Первые ролики — после того, как шторка перехода из меню открыла подъезд и вернула цвет. Раньше begin() ждал
@@ -128,8 +128,8 @@ func _first_clips() -> void:
 		await game.get_tree().process_frame
 	if not is_instance_valid(self) or clip != null:
 		return
-	await play_clip("STORY01")               # регистрация — до первого забега
-	await play_clip("STORY05")               # первое обращение организатора
+	await play_auto("STORY01")               # регистрация — до первого забега
+	await play_auto("STORY05")               # первое обращение организатора
 
 func _swap_world(build: Callable) -> void:
 	game._clear_fight()
@@ -1744,8 +1744,8 @@ func result_to_hub() -> void:
 	game.toast("РЕСПЕКТ +%d" % got)
 	if won and bool((meta().get("flags", {}) as Dictionary).get("boss_misha", false)):
 		unlock_clip("NEWS01")
-		if auto_clips and not clip_seen("NEWS01"):
-			await play_clip("NEWS01")        # «РАЙОННЫЙ ВЕСТНИК 67» после первой победы над Мишей
+		if auto_clips and not auto_played("NEWS01"):
+			await play_auto("NEWS01")        # «РАЙОННЫЙ ВЕСТНИК 67» после первой победы над Мишей
 
 ## «НОВЫЙ ЗАБЕГ»: сразу во двор (здоровье и стиль — как при выходе из подъезда)
 func result_new_run() -> void:
@@ -1872,8 +1872,8 @@ func use(id: String) -> void:
 		return
 	events.append(["use", id])
 	if id == "exit":
-		if auto_clips and not clip_seen("AD01"):
-			await play_clip("AD01")          # реклама турнира — перед первым выходом во ДВОР
+		if auto_clips and not auto_played("AD01"):
+			await play_auto("AD01")          # реклама турнира — перед первым выходом во ДВОР
 		if paused_run():
 			resume_run()
 		else:
@@ -1946,6 +1946,20 @@ var auto_clips := true
 
 func clip_seen(cid: String) -> bool:
 	return (meta().get("clips_seen", []) as Array).has(cid)
+
+## Ролик уже запускался сам (досмотрен или пропущен); у старых сохранений всё из clips_seen считается запускавшимся
+func auto_played(cid: String) -> bool:
+	return (meta().get("clips_auto", []) as Array).has(cid) or clip_seen(cid)
+
+## Автозапуск: помечаем сразу и в сохранение — пропущенный ролик сам больше не повторяется (в архиве остаётся «новой записью»)
+func play_auto(cid: String) -> void:
+	if auto_played(cid):
+		return
+	var au: Array = meta().get("clips_auto", [])
+	au.append(cid)
+	meta()["clips_auto"] = au
+	save()
+	await play_clip(cid)
 
 func clip_open(cid: String) -> bool:
 	return (meta().get("archive", []) as Array).has("clip_" + cid)
