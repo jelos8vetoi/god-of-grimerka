@@ -415,11 +415,13 @@ func actor(key: String, kind: String, pos: Vector3, yaw: float) -> Rig:
 			path = "res://assets/models/pahan.glb"
 			h = 1.74
 			C = Poses.pahan()
+			C.merge(G67Clips.ev_clips(), true)
 		"madk1d":
 			path = "res://assets/models/madk1d.glb"
 			h = 1.68
 			C = Poses.madk1d()
 			C.merge(G67Clips.madk_clips(), true)
+			C.merge(G67Clips.ev_clips(), true)
 		"krot":
 			path = G67Models.DIR + "g67_krot.glb"
 			h = 1.62

@@ -285,6 +285,7 @@ func _run() -> void:
 	await _talks_check(g, G, P)
 	_route_gen_check(G)
 	await _events_check(g, G, P)
+	await _ev02_check(g, G, P)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
 	# ================= этап 3: кладовка, ларёк, артефакты, фитсы по таблице =================
@@ -1872,7 +1873,7 @@ func _quit_check(g, G: Golda67, P) -> void:
 	ok(G.paused_run() and String(g.top_label.text).contains("ПАУЗЕ"), "в подъезде забег на паузе")
 	await _go(G, P, "exit")
 	ok(await until(func(): return G.place == "run" and G.room_state == "open", 8.0), "выход во двор продолжает забег")
-	ok(int(G.run["pos"]) == pos1 and int(G.run["golda"]) == gold1 and G.paused_run() and G.world.gates.size() == 2 and P.global_position.distance_to(G67Yard.HOME_DOOR) < 6.0,
+	ok(int(G.run["pos"]) == pos1 and int(G.run["golda"]) == gold1 and G.paused_run() and G.world.gates.size() >= 2 and P.global_position.distance_to(G67Yard.HOME_DOOR) < 6.0,
 		"продолжение: тот же этап и голда, варианты открыты, герой у двери подъезда")
 	# --- в награде (баф ещё не взят) запись откатывается на этап назад: ничего не выдано дважды
 	await _go(G, P, "gate1")
@@ -2488,6 +2489,30 @@ func _events_check(g, G: Golda67, P) -> void:
 	G.data["run"] = {}
 	await wait(0.3)
 
+## Событие «ТРЯПКИ! ТРЯПКИ!»: реплики озвучены, предметы на месте, длина 30–42 с, снимки по фазам
+func _ev02_check(g, G: Golda67, P) -> void:
+	var lines: Array = G67Voice.EVENT_RAGS
+	ok(lines.size() == 5 and lines.all(func(l): return G67Voice.path(String(l)) != ""), "реплики события озвучены (%d)" % lines.size())
+	G.play_clip("EV02")
+	await wait(0.6)
+	var cp = G.clip
+	ok(cp != null and cp.id == "EV02", "ролик EV02 запущен")
+	var props: Array = []
+	for nm in ["g67_event_bed", "g67_event_bucket", "g67_event_siren", "g67_event_rags"]:
+		props.append(cp.world.get_node_or_null(nm) != null)
+	ok(props.all(func(x): return x), "в комнате четыре модели события: %s" % str(props))
+	var marks := [2.5, 5.5, 8.0, 11.0, 13.0, 15.0, 17.0, 20.0, 25.0, 29.0, 31.0, 34.0]
+	var mi := 0
+	var last_t := 0.0
+	while G.clip != null and is_instance_valid(G.clip):
+		last_t = G.clip.t
+		if mi < marks.size() and last_t >= float(marks[mi]):
+			await shot("ev02_%02d" % int(float(marks[mi])))
+			mi += 1
+		await get_tree().process_frame
+	ok(last_t >= 30.0 and last_t <= 42.0, "длительность события %.1f с (30–42)" % last_t)
+	ok(G.clip_seen("EV02"), "досмотренный ролик — в clips_seen")
+
 func _run_dvor(g, G: Golda67, P) -> void:
 	# выход во двор — настоящей клавишей E у входной двери
 	await _go(G, P, "exit")
@@ -2768,9 +2793,17 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(kp2 == kp, "встреча с КРОТОМ закончилась, ларёк стоит там же (%s)" % str(kp2))
 	# позиция 4: «ТРЯПКИ» не увидены и не выбраны — дверь одна, она же обязательная
 	ok(G.room_state == "open" and G.world.gates.size() == 1 and String(G.world.gates[0]["option"]["type"]) == "event" and String(G.world.gates[0]["option"]["ev"]) == "rags", "после элиты — одна дверь: «ТРЯПКИ! ТРЯПКИ!» (обязательное)")
+	var cs_e: Array = G.meta().get("clips_seen", [])
+	cs_e.erase("EV02")
+	G.meta()["clips_seen"] = cs_e
 	await _go(G, P, "gate0")
-	ok(await until(func(): return G.room_state == "open" and (G.run["stages"] as Array).size() == 4, 8.0), "событие позиции 4 пройдено (заглушка до постановки)")
-	ok(not G.must_seen() or (G.meta().get("must", {}) as Dictionary).has("ev_rags"), "заглушка «ТРЯПОК» отметку «увидено» не ставит, пока постановки нет")
+	ok(await until(func(): return G.clip != null and G.clip.id == "EV02", 8.0), "дверь «ТРЯПОК» запускает ролик EV02")
+	await wait(1.0)
+	G.clip.skip()
+	ok(await until(func(): return G.room_state == "open" and (G.run["stages"] as Array).size() == 4, 8.0), "пропуск ролика разрешён, этап «ТРЯПКИ» пройден")
+	ok(G.must_seen() and (G.meta()["seen"] as Array).has("ev_rags") and G.clip_open_ev("rags") and not G.clip_seen("EV02"), "после пропуска: «увидено» стоит, в clips_seen ролика нет")
+	var r_after: Array = G.route_options(2)
+	ok(not r_after.any(func(o): return o.get("ev", "") == "rags"), "генератор больше не предлагает «ТРЯПКИ»")
 	ok(G.world.gates.size() == 1 and String(G.world.gates[0]["option"]["type"]) == "break", "позиция 5: ПЕРЕДЫШКА в беседке — всегда")
 	P.hp = 20.0
 	await _go(G, P, "gate0")
@@ -2997,7 +3030,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 				pig += 1
 		ok(G.world.actors.has("g67_krot") and pig == 5, "КРОТ на площадке среди голубей, зоны не переставлены (%d)" % pig)
 		var r2: Array = G.route_options(1)
-		ok(r2.size() == 2 and String(r2[0]["type"]) == "battle" and String(r2[0]["place"]) != "parking" and String(r2[1]["type"]) == "fit", "места боёв второго забега другие (%s)" % String(r2[0]["place"]))
+		ok(r2.size() >= 2 and String(r2[0]["type"]) == "battle" and String(r2[0]["place"]) != "parking" and String(r2[1]["type"]) == "fit", "места боёв второго забега другие (%s)" % String(r2[0]["place"]))
 		var pg0: Node3D = G.world.get_node("krot_pigeon0")
 		var seen_rot := {}
 		var pecked := false

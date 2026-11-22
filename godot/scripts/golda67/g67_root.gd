@@ -1072,6 +1072,9 @@ func route_options(next: int) -> Array:
 ## просто засчитывается (для «ТРЯПОК» отметка «увидено» не ставится).
 func play_event(ev: String) -> void:
 	events.append(["event", ev])
+	if ev == "rags":
+		await _play_rags()
+		return
 	if ev in G67Data.EVENTS_SHORT:
 		run["ev_pulls"] = 0
 		var sp: Vector3 = G67Yard.EVENT_SPOTS[ev]
@@ -1084,6 +1087,31 @@ func _ev_tick() -> void:
 		var sp: Vector3 = G67Yard.EVENT_SPOTS["burmalda"]
 		if Vector2(game.player.global_position.x - sp.x, game.player.global_position.z - sp.z).length() > 5.0:
 			_ev_finish()
+
+## «ТРЯПКИ! ТРЯПКИ!»: ролик EV02 (досмотрел или пропустил — событие считается увиденным), РЕСПЕКТ мирного этапа, герой у двери бокса
+func _play_rags() -> void:
+	var door: Vector3 = G67Yard.EVENT_SPOTS["rags"]
+	game.player.global_position = door + Vector3(0, 0.05, 1.8)
+	game.player.velocity = Vector3.ZERO
+	await play_clip("EV02")
+	if not is_instance_valid(game) or game.golda != self:
+		return
+	var m: Dictionary = meta().get("must", {})
+	m["ev_rags"] = true
+	meta()["must"] = m
+	var seen: Array = meta().get("seen", [])
+	if not seen.has("ev_rags"):
+		seen.append("ev_rags")
+		meta()["seen"] = seen
+	var arch: Array = meta().get("archive", [])
+	if not arch.has("ev_rags"):
+		arch.append("ev_rags")
+		meta()["archive"] = arch
+	save()
+	game.player.global_position = door + Vector3(0, 0.05, 1.8)
+	game.player.face = 0.0
+	game.cam_yaw = PI
+	_stage_end()
 
 func _ev_finish() -> void:
 	if room_state != "reward" or String(room.get("type", "")) != "event":

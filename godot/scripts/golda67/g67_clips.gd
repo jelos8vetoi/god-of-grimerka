@@ -17,6 +17,7 @@ const INFO := {
 	"STORY01": {"title": "Регистрация", "tall": true},
 	"STORY05": {"title": "Обращение WHYOUSOLONELY", "tall": false},
 	"EXTRA01": {"title": "КРОТ НА ПОДКАСТЕ", "tall": true},
+	"EV02": {"title": "ТРЯПКИ! ТРЯПКИ!", "tall": false},
 }
 const NAMES := {"V": "ПАХАН", "M": "MADK1D", "G1": "МИША МИНАСЯН", "KR": "КРОТ", "AN": "ВЕДУЩИЙ", "PH": "ВЕДУЩИЙ ПОДКАСТА",
 	"WH": "WHYOUSOLONELY", "FT": "FORTUNA 812", "KX": "КОРОЛЕВСКИЙ XVII", "BS": "ПОЛКОВНИК БУСТЕРЕНКО"}
@@ -60,6 +61,7 @@ static func run(c: G67ClipPlayer, id: String) -> void:
 		"STORY01": await story01(c)
 		"STORY05": await story05(c)
 		"EXTRA01": await extra01(c)
+		"EV02": await ev02(c)
 	await c.wait(0.3)
 
 # ---------------------------------------------------------------- клипы персонажей для роликов
@@ -768,6 +770,266 @@ static func story01(c: G67ClipPlayer) -> void:
 	c.vhs(0.3, 0.25)
 	c.cam_at(_head(mk) + Vector3(0.2, 0.05, -0.85), _head(mk), 52.0)
 	await c.say(L("STORY01", 4), 0.4)
+
+# ---------------------------------------------------------------- EV02 — событие «ТРЯПКИ! ТРЯПКИ!» (квартира за гаражной дверью)
+## Позы сценки: Пахан спит и сидит на кровати, madk1d с ведром, замах, пустая стойка
+static func ev_clips() -> Dictionary:
+	var P = G67Poses
+	var carry := {"rarm": {"x": -0.95}, "larm": {"x": -0.95}, "rfa": {"x": -1.0}, "lfa": {"x": -1.0}, "spine": {"x": 0.05}}
+	return {
+		"ESleep": P._loop(4.0, {"rarm": {"z": -0.12}, "larm": {"z": 0.12}, "head": {"x": -0.05}}, {"spine": {"x": -0.03}, "head": {"x": 0.02}}),
+		"ESit": P._loop(3.0, P._mix(P.SIT, {"drop": 0.3, "spine": {"x": 0.12}, "head": {"x": 0.1}, "rarm": {"x": -0.3}, "larm": {"x": -0.3}, "rfa": {"x": -0.5}, "lfa": {"x": -0.5}}), P.BREATH),
+		"EBucket": P._loop(2.0, carry, P.BREATH),
+		"ESwing": P._seq(0.9, carry, [[0.0, carry], [0.5, {"rarm": {"x": -1.9}, "larm": {"x": -1.9}, "rfa": {"x": -0.3}, "lfa": {"x": -0.3}, "spine": {"x": -0.3}}, "out"],
+			[1.0, {"rarm": {"x": -0.5}, "larm": {"x": -0.5}, "rfa": {"x": -0.2}, "lfa": {"x": -0.2}, "spine": {"x": 0.2}}]], false),
+	}
+
+static func _hand_pos(r: Rig) -> Vector3:
+	var a: int = r.skel.find_bone("mixamorig_RightHand")
+	var b: int = r.skel.find_bone("mixamorig_LeftHand")
+	if a < 0 or b < 0:
+		return r.global_position + Vector3(0, 1.0, 0.3)
+	var pa: Vector3 = r.skel.global_transform * r.skel.get_bone_global_pose(a).origin
+	var pb: Vector3 = r.skel.global_transform * r.skel.get_bone_global_pose(b).origin
+	return (pa + pb) * 0.5
+
+## Дальний голос из-за двери: строка через фильтр низких частот и тише на 10 дБ
+static func _muffled(c: G67ClipPlayer, line: String) -> void:
+	var path := G67Voice.path(line)
+	if path == "":
+		return
+	var bi := AudioServer.get_bus_index("EvMuffle")
+	if bi < 0:
+		AudioServer.add_bus()
+		bi = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(bi, "EvMuffle")
+		AudioServer.set_bus_send(bi, "Voice")
+		var lp := AudioEffectLowPassFilter.new()
+		lp.cutoff_hz = 650.0
+		AudioServer.add_bus_effect(bi, lp)
+		AudioServer.set_bus_volume_db(bi, -10.0)
+	var pl := AudioStreamPlayer.new()
+	pl.stream = load(path)
+	pl.bus = "EvMuffle"
+	c.add_child(pl)
+	pl.play()
+	pl.finished.connect(pl.queue_free)
+
+static func ev02(c: G67ClipPlayer) -> void:
+	var L := G67Voice.EVENT_RAGS
+	c.set_env("room")
+	c.filters(0.12, 0.05)
+	# ---- комната 4,5 × 5 м без передней стены (с неё снимает камера)
+	var wall := Color(0.52, 0.47, 0.38)
+	c.box(Vector3(4.5, 0.1, 5.0), Vector3(0, -0.05, 0), Color(0.34, 0.24, 0.17))
+	c.box(Vector3(4.5, 2.8, 0.1), Vector3(0, 1.4, -2.55), wall)
+	c.box(Vector3(0.1, 2.8, 5.0), Vector3(-2.3, 1.4, 0), wall)
+	c.box(Vector3(0.1, 2.8, 5.0), Vector3(2.3, 1.4, 0), wall)
+	c.box(Vector3(4.5, 0.12, 0.1), Vector3(0, 0.06, -2.5), Color(0.2, 0.15, 0.1))
+	c.box(Vector3(1.0, 1.0, 0.06), Vector3(0.9, 1.75, -2.48), Color(0.12, 0.18, 0.4), 0.7)        # окно в ночной двор
+	c.box(Vector3(1.1, 0.08, 0.1), Vector3(0.9, 1.2, -2.45), Color(0.8, 0.78, 0.7))
+	c.box(Vector3(0.05, 1.5, 1.1), Vector3(-2.24, 1.55, -0.3), Color(0.55, 0.12, 0.1))             # ковёр на стене
+	c.box(Vector3(0.06, 1.3, 0.9), Vector3(-2.22, 1.55, -0.3), Color(0.8, 0.6, 0.3))
+	c.box(Vector3(0.5, 0.6, 0.4), Vector3(-1.95, 0.3, -2.2), Color(0.3, 0.2, 0.12))                # тумбочка
+	c.box(Vector3(0.14, 0.14, 0.14), Vector3(-1.95, 0.68, -2.2), Color(1.0, 0.85, 0.5), 2.0)       # лампа
+	c.box(Vector3(2.4, 0.02, 1.6), Vector3(0, 0.01, 0.9), Color(0.4, 0.15, 0.12))                  # ковёр на полу
+	c.light(Vector3(-1.95, 1.0, -2.0), Color(1.0, 0.8, 0.5), 1.2, 4.5)
+	c.light(Vector3(0, 2.6, 0.5), Color(0.9, 0.85, 0.75), 0.5, 6.0, true)
+	# дверь в правой стене
+	var door := Node3D.new()
+	door.position = Vector3(2.25, 0, 1.0)
+	c.world.add_child(door)
+	var dm := c.box(Vector3(0.06, 2.0, 0.9), Vector3(0, 1.0, 0.45), Color(0.4, 0.28, 0.18))
+	dm.get_parent().remove_child(dm)
+	door.add_child(dm)
+	dm.position = Vector3(0, 1.0, 0.45)
+	c.box(Vector3(0.12, 2.1, 1.0), Vector3(2.27, 1.05, 1.0), Color(0.05, 0.05, 0.06))               # проём
+	# кровать, тряпки и швабра, сирена
+	var bed := c.prop("g67_event_bed", Vector3(0, 0, -0.5), PI * 0.5, Vector3(1.0, 0.7, 2.0), "d")
+	c.prop("g67_event_rags", Vector3(-1.75, 0, 1.6), 0.6, Vector3(0.7, 0.9, 0.7), "h")
+	var siren := c.prop("g67_event_siren", Vector3(0, 2.35, -2.42), 0.0, Vector3(0.3, 0.35, 0.3), "h")
+	var bucket := c.prop("g67_event_bucket", Vector3(2.8, 1.0, 1.4), 0.0, Vector3(0.3, 0.35, 0.3), "h")
+	var sl := OmniLight3D.new()
+	sl.light_color = Color(1.0, 0.1, 0.08)
+	sl.omni_range = 5.0
+	sl.light_energy = 0.0
+	sl.position = Vector3(0, 2.2, -2.0)
+	c.world.add_child(sl)
+	var sirening := false
+	# ---- актёры
+	var pa := c.actor("pahan", "pahan", Vector3(0.88, 0.66, -0.5), 0.0)
+	pa.rotation = Vector3(-PI * 0.5, PI * 0.5, 0.0)
+	c.anim("pahan", "ESleep", 0.0)
+	var mk := c.actor("madk1d", "madk1d", Vector3(3.0, 0, 1.45), -PI * 0.5)
+	c.anim("madk1d", "EBucket", 0.0)
+	var carrying := true
+	var carry_tw := c.create_tween().set_loops()
+	carry_tw.tween_callback(func():
+		if carrying and is_instance_valid(mk):
+			bucket.global_position = _hand_pos(mk) + Vector3(0, -0.12, 0.1))
+	carry_tw.tween_interval(0.016)
+	# ---- 0–6 с: Пахан спит, камера над кроватью, медленный наезд
+	c.cam_at(Vector3(0.2, 3.0, 0.9), Vector3(0, 0.6, -0.5), 50.0)
+	c.cam_to(Vector3(0.1, 1.9, 0.3), Vector3(0, 0.6, -0.5), 6.0, 42.0)
+	var breath := c.create_tween().set_loops()
+	breath.tween_property(pa, "scale", Vector3(1.0, 1.0, 1.03), 1.6)
+	breath.tween_property(pa, "scale", Vector3.ONE, 1.6)
+	c.sfx("sfx_ui", -20.0, 0.4)
+	await c.wait(2.8)
+	c.sfx("sfx_ui", -20.0, 0.38)
+	await c.wait(3.2)
+	# ---- 6–9 с: открывается дверь, madk1d с ведром крадётся
+	c.cam_at(Vector3(-1.2, 1.5, 2.4), Vector3(1.4, 0.9, 1.0), 55.0)
+	var dt := c.create_tween()
+	dt.tween_property(door, "rotation:y", -1.5, 0.7)
+	c.sfx("sfx_ui", -6.0, 0.6)
+	await c.wait(0.5)
+	c.anim("madk1d", "Run", 0.1, 0.5)
+	c.move("madk1d", Vector3(0.7, 0, 0.5), 2.6)
+	c.cam_to(Vector3(-0.8, 1.4, 2.3), Vector3(0.9, 0.9, 0.6), 2.6, 55.0)
+	mk.rotation.y = -PI * 0.5
+	await c.wait(1.2)
+	mk.rotation.y = -2.2
+	await c.wait(1.4)
+	c.anim("madk1d", "EBucket", 0.2)
+	mk.rotation.y = PI
+	await c.wait(0.9)
+	# ---- 9–14 с: сирена, красные вспышки, крупный план спящего лица
+	sirening = true
+	var sir := c.create_tween().set_loops()
+	sir.tween_property(sl, "light_energy", 6.0, 0.25)
+	sir.tween_property(sl, "light_energy", 0.3, 0.25)
+	var spin := c.create_tween().set_loops()
+	spin.tween_property(siren, "rotation:y", TAU, 1.2).as_relative()
+	for k in 6:
+		c.sfx("sfx_wave", -8.0, 1.7 if k % 2 == 0 else 1.25)
+		c.flash(Color(1.0, 0.1, 0.1, 0.25), 0.3)
+		await c.wait(0.55)
+	c.cam_at(Vector3(-0.15, 1.15, 0.2), Vector3(-0.8, 0.85, -0.5), 36.0)
+	for k in 4:
+		c.sfx("sfx_wave", -8.0, 1.7 if k % 2 == 0 else 1.25)
+		c.flash(Color(1.0, 0.1, 0.1, 0.25), 0.3)
+		await c.wait(0.55)
+	c.cam_at(Vector3(-0.6, 1.5, 2.0), Vector3(0.3, 0.9, -0.2), 58.0)
+	mk.rotation.y = 0.6
+	await c.wait(0.8)
+	mk.rotation.y = PI
+	# ---- 14–16 с: замах, вода, Пахан садится
+	c.cam_at(Vector3(2.0, 1.4, 0.9), Vector3(0.2, 0.8, -0.4), 52.0)
+	c.anim("madk1d", "ESwing", 0.05)
+	await c.wait(0.45)
+	carrying = false
+	var wp := GPUParticles3D.new()
+	var pm := ParticleProcessMaterial.new()
+	pm.direction = Vector3(-0.35, 0.25, -1.0)
+	pm.spread = 22.0
+	pm.initial_velocity_min = 3.0
+	pm.initial_velocity_max = 5.0
+	pm.gravity = Vector3(0, -9.0, 0)
+	pm.scale_min = 0.6
+	pm.scale_max = 1.2
+	wp.process_material = pm
+	var sm := SphereMesh.new()
+	sm.radius = 0.04
+	sm.height = 0.08
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color(0.55, 0.75, 1.0, 0.8)
+	wm.emission_enabled = true
+	wm.emission = Color(0.5, 0.7, 1.0)
+	sm.material = wm
+	wp.draw_pass_1 = sm
+	wp.amount = 90
+	wp.lifetime = 0.9
+	wp.one_shot = true
+	wp.explosiveness = 0.9
+	wp.position = _hand_pos(mk) + Vector3(0, 0.1, -0.2)
+	c.world.add_child(wp)
+	wp.emitting = true
+	c.sfx("sfx_block", -2.0, 0.5)
+	c.sfx("sfx_spawn", -6.0, 0.7)
+	c.shake(0.6)
+	bucket.global_position = mk.global_position + Vector3(0, 0.3, -0.7)
+	var bt := c.create_tween()
+	bt.tween_property(bucket, "global_position", Vector3(-0.9, 0.12, 1.2), 0.7)
+	bt.parallel().tween_property(bucket, "rotation:z", 1.5, 0.7)
+	await c.wait(0.4)
+	c.box(Vector3(1.6, 0.012, 1.1), Vector3(0.2, 0.012, 0.9), Color(0.1, 0.13, 0.2))             # лужа у кровати
+	pa.scale = Vector3.ONE
+	breath.kill()
+	pa.rotation = Vector3(0, 0.0, 0)
+	pa.position = Vector3(0.0, 0.5, 0.0)
+	c.anim("pahan", "ESit", 0.05)
+	c.cam_at(Vector3(0.6, 1.3, 1.5), Vector3(0.0, 1.1, 0.0), 38.0)
+	c.shake(0.8)
+	await c.say(L[0], 0.1)
+	# ---- 16–30 с: madk1d бегает вокруг кровати, Пахан провожает взглядом
+	c.anim("madk1d", "Run", 0.1, 1.2)
+	var lap := {"a": 0.0, "prints": 0}
+	var runtw := c.create_tween()
+	runtw.tween_method(func(a: float):
+		if not is_instance_valid(mk):
+			return
+		var np := Vector3(cos(a) * 2.0, 0.0, -0.5 + sin(a) * 1.5)
+		var dv := np - mk.position
+		if dv.length() > 0.001:
+			mk.rotation.y = atan2(dv.x, dv.z)
+		mk.position = np
+		lap["a"] = a
+		if int(a / 0.45) != int(lap["prints"]) and int(lap["prints"]) < 60:
+			lap["prints"] = int(a / 0.45)
+			c.box(Vector3(0.22, 0.01, 0.12), Vector3(np.x, 0.012, np.z), Color(0.08, 0.1, 0.16))
+		if is_instance_valid(pa):
+			var tv: Vector3 = np - pa.position
+			pa.rotation.y = lerp_angle(pa.rotation.y, atan2(tv.x, tv.z), 0.12), 0.0, TAU * 2.5, 12.0)
+	c.cam_at(Vector3(0.2, 3.4, 2.6), Vector3(0, 0.4, -0.6), 55.0)
+	c.cam_to(Vector3(-0.8, 3.0, 2.8), Vector3(0, 0.4, -0.6), 4.0, 55.0)
+	await c.say(L[1], 0.1)
+	c.cam_at(Vector3(0.0, 1.4, 1.2), Vector3(0.0, 1.0, 0.0), 40.0)
+	await c.say(L[2], 0.1)
+	var follow := c.create_tween().set_loops()
+	follow.tween_callback(func():
+		if is_instance_valid(mk):
+			var back := -Vector3(sin(mk.rotation.y), 0, cos(mk.rotation.y))
+			c.cam.global_position = mk.global_position + back * 1.6 + Vector3(0, 1.4, 0)
+			c.cam.look_at(mk.global_position + Vector3(0, 1.0, 0), Vector3.UP)
+			c.cam.fov = 62.0)
+	follow.tween_interval(0.016)
+	await c.say(L[3], 0.2)
+	follow.kill()
+	runtw.kill()
+	# ---- 30–36 с: Пахан встаёт и уходит, камера в пустой комнате
+	c.anim("madk1d", "Run", 0.1, 1.4)
+	c.move("madk1d", Vector3(3.2, 0, 1.4), 1.2)
+	mk.rotation.y = PI * 0.5
+	c.cam_at(Vector3(-1.4, 1.6, 2.2), Vector3(0.4, 0.8, 0.0), 55.0)
+	pa.position = Vector3(0.4, 0, 0.7)
+	pa.rotation = Vector3(0, PI * 0.5, 0)
+	c.anim("pahan", "Idle", 0.2)
+	await c.wait(0.9)
+	mk.visible = false
+	_muffled(c, L[1])
+	pa.rotation.y = 0.0
+	await c.say(L[4], 0.2)
+	pa.rotation.y = PI * 0.5
+	c.anim("pahan", "Run", 0.15, 0.7)
+	c.move("pahan", Vector3(3.0, 0, 1.4), 2.0)
+	c.cam_to(Vector3(-1.5, 1.7, 2.3), Vector3(0.6, 0.7, -0.4), 3.0, 55.0)
+	await c.wait(1.5)
+	pa.visible = false
+	var blk := c.screen(func(s: Control, fs: Vector2):
+		var r := ColorRect.new()
+		r.color = Color(0, 0, 0, 1)
+		r.size = fs
+		r.modulate.a = 0.0
+		s.add_child(r)
+		s.create_tween().tween_property(r, "modulate:a", 1.0, 1.5))
+	await c.wait(1.8)
+	carry_tw.kill()
+	sir.kill()
+	spin.kill()
+	var bi := AudioServer.get_bus_index("EvMuffle")
+	if bi >= 0:
+		AudioServer.remove_bus(bi)
 
 static func _len(c: G67ClipPlayer, line: String) -> float:
 	var pth := G67Voice.path(line)

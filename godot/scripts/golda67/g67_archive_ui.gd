@@ -231,8 +231,8 @@ func _on_select(i: int, prev: int) -> void:
 			elif String(r["type"]) == "event":
 				s_state.text = "ЗАПИСЬ ОТКРЫТА"
 				s_text.text = String(r["desc"])
-				s_btn.text = "БЕЗ ПЕРЕСМОТРА"
-				s_btn.disabled = true
+				s_btn.text = "СМОТРЕТЬ ЗАПИСЬ" if String(r["id"]) == "ev_rags" else "БЕЗ ПЕРЕСМОТРА"
+				s_btn.disabled = String(r["id"]) != "ev_rags"
 			else:
 				var cid := String(r["id"])
 				s_state.text = "НОВАЯ ЗАПИСЬ" if st == "new" else "ПРОСМОТРЕНО"
@@ -289,7 +289,10 @@ func _activate(i: int) -> void:
 				return
 			_watch(i)
 		"event", "ending":
-			_deny(items[i]["node"])
+			if String(r["type"]) == "event" and String(r["id"]) == "ev_rags" and G.clip_open_ev("rags"):
+				_watch(i)
+			else:
+				_deny(items[i]["node"])
 		_:
 			if not bool(r["has"]):
 				_deny(items[i]["node"])
@@ -313,6 +316,8 @@ func _watch(i: int) -> void:
 	voice.stop()
 	G.game.main.ui("confirm")
 	var cid := String(recs[i]["id"])
+	if cid == "ev_rags":
+		cid = "EV02"
 	G.events.append(["arch_watch", cid])
 	await G.play_clip(cid)
 	if not is_inside_tree():
