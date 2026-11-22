@@ -788,9 +788,16 @@ static func ev_clips() -> Dictionary:
 		"ESit": P._loop(3.0, P._mix(P.SIT, {"drop": 0.3, "spine": {"x": 0.12}, "head": {"x": 0.1}, "rarm": {"x": -0.3}, "larm": {"x": -0.3}, "rfa": {"x": -0.5}, "lfa": {"x": -0.5}}), P.BREATH),
 		"ESitBed": P._loop(3.0, P._mix(P.SIT, {"drop": 0.3, "rleg": {"x": 0.12}, "lleg": {"x": 0.12}, "rup": {"x": -1.45}, "lup": {"x": -1.45}, "spine": {"x": 0.02}, "head": {"x": 0.05}, "rarm": {"x": -0.2, "z": -0.15}, "larm": {"x": -0.2, "z": 0.15}}), P.BREATH),
 		"EBucket": P._loop(2.0, carry, P.BREATH),
+		"EWalkBucket": P._walk(1.5, {"rarm": {"x": 0.05, "z": -0.3}, "rfa": {"x": -0.08}, "larm": {"z": 0.12}, "spine": {"x": 0.1, "z": 0.07}, "head": {"x": 0.05}}),
 		"ESwing": P._seq(0.9, carry, [[0.0, carry], [0.5, {"rarm": {"x": -1.9}, "larm": {"x": -1.9}, "rfa": {"x": -0.3}, "lfa": {"x": -0.3}, "spine": {"x": -0.3}}, "out"],
 			[1.0, {"rarm": {"x": -0.5}, "larm": {"x": -0.5}, "rfa": {"x": -0.2}, "lfa": {"x": -0.2}, "spine": {"x": 0.2}}]], false),
 	}
+
+static func _bone_pos(r: Rig, nm: String) -> Vector3:
+	var b: int = r.skel.find_bone(nm)
+	if b < 0:
+		return r.global_position + Vector3(0, 0.9, 0.2)
+	return r.skel.global_transform * r.skel.get_bone_global_pose(b).origin
 
 static func _hand_pos(r: Rig) -> Vector3:
 	var a: int = r.skel.find_bone("mixamorig_RightHand")
@@ -969,16 +976,24 @@ static func ev02(c: G67ClipPlayer) -> void:
 	var pa := c.actor("pahan", "pahan", Vector3(0.88, 0.62, -1.0), 0.0)
 	pa.rotation = Vector3(-PI * 0.5, PI * 0.5, 0.0)
 	c.anim("pahan", "ESleep", 0.0)
-	var mk := c.actor("madk1d", "madk1d", Vector3(3.4, 0, 1.5), -PI * 0.5)
-	c.anim("madk1d", "EBucket", 0.0)
-	var st := {"carry": true, "tilt": 0.0}
+	var mk := c.actor("wh", "whyousolonely", Vector3(3.4, 0, 1.5), -PI * 0.5)
+	c.anim("wh", "EWalkBucket", 0.0, 0.7)
+	var st := {"carry": true, "tilt": 0.0, "mode": "hang"}
 	var carry_tw := c.create_tween().set_loops()
 	carry_tw.tween_callback(func():
 		if bool(st["carry"]) and is_instance_valid(mk):
 			var fw := Vector3(sin(mk.rotation.y), 0, cos(mk.rotation.y))
-			bucket.global_position = mk.global_position + fw * 0.42 + Vector3(0, 0.95, 0)
-			bucket.rotation = Vector3(float(st["tilt"]) * 0.0, mk.rotation.y, 0)
-			bucket.rotate_object_local(Vector3.RIGHT, float(st["tilt"])))
+			if String(st["mode"]) == "hang":
+				# несёт за дужку правой рукой: ведро висит под кистью, покачивается маятником в такт шагу
+				var sw := 0.1 + 0.22 * sin(float(Time.get_ticks_msec()) * 0.0065)
+				bucket.global_position = _bone_pos(mk, "mixamorig_RightHand") + fw * sin(sw) * 0.27 + Vector3(0, -cos(sw) * 0.27, 0)
+				bucket.rotation = Vector3(0, mk.rotation.y, 0)
+				bucket.rotate_object_local(Vector3.RIGHT, sw + float(st["tilt"]))
+			else:
+				# двумя руками: левая под дно, ведро между кистями перед грудью
+				bucket.global_position = (_bone_pos(mk, "mixamorig_RightHand") + _bone_pos(mk, "mixamorig_LeftHand")) * 0.5 + fw * 0.1 + Vector3(0, 0.02, 0)
+				bucket.rotation = Vector3(0, mk.rotation.y, 0)
+				bucket.rotate_object_local(Vector3.RIGHT, float(st["tilt"])))
 	carry_tw.tween_interval(0.016)
 	var breath := c.create_tween().set_loops()
 	breath.tween_property(pa, "scale", Vector3(1.0, 1.0, 1.07), 1.5)
@@ -990,20 +1005,20 @@ static func ev02(c: G67ClipPlayer) -> void:
 	await c.wait(3.0)
 	c.sfx("sfx_ui", -20.0, 0.38)
 	await c.wait(3.0)
-	# ---- план 2 (6–9 с): дверь открывается внутрь, madk1d входит
+	# ---- план 2 (6–9 с): дверь открывается внутрь, WHYOUSOLONELY входит
 	c.cam_at(Vector3(-0.8, 1.7, 2.9), Vector3(2.4, 1.0, 1.4), 58.0)
 	c.sfx("sfx_ui", -6.0, 0.6)
 	c.create_tween().tween_property(door, "rotation:y", PI * 0.5, 0.8)
 	await c.wait(0.9)
-	c.anim("madk1d", "Run", 0.1, 0.5)
-	c.move("madk1d", Vector3(1.6, 0, 1.5), 1.6)
+	c.anim("wh", "EWalkBucket", 0.1, 0.75)
+	c.move("wh", Vector3(1.6, 0, 1.5), 1.6)
 	await c.wait(1.6)
 	mk.rotation.y = atan2(-0.9, -1.4)
-	c.move("madk1d", Vector3(0.7, 0, 0.5), 1.4)
+	c.move("wh", Vector3(0.7, 0, 0.5), 1.4)
 	await c.wait(1.4)
-	c.anim("madk1d", "EBucket", 0.2)
+	c.anim("wh", "Idle", 0.2)
 	mk.rotation.y = PI
-	# ---- планы 3–4 (9–13 с): сирена, красные вспышки, лицо спящего, madk1d оглядывается
+	# ---- планы 3–4 (9–13 с): сирена, красные вспышки, лицо спящего, WHYOUSOLONELY оглядывается
 	var sir := c.create_tween().set_loops()
 	sir.tween_property(sl, "light_energy", 7.0, 0.25)
 	sir.tween_property(sl, "light_energy", 0.2, 0.25)
@@ -1030,11 +1045,16 @@ static func ev02(c: G67ClipPlayer) -> void:
 	await c.wait(0.3)
 	# ---- план 5 (13–15 с): замах, вода, всплеск
 	c.cam_at(Vector3(0.9, 1.9, -2.5), Vector3(0.3, 0.9, 0.4), 55.0)
-	c.anim("madk1d", "ESwing", 0.05)
-	var tilt := c.create_tween()
-	tilt.tween_method(func(v: float): st["tilt"] = v, 0.0, -1.3, 0.45)
+	st["mode"] = "two"                                       # берёт ведро двумя руками
+	c.anim("wh", "EBucket", 0.15)
+	var back := c.create_tween()
+	back.tween_method(func(v: float): st["tilt"] = v, 0.0, 0.5, 0.5)       # замах назад-вниз
 	await c.wait(0.5)
-	var from_p: Vector3 = bucket.global_position + Vector3(0, 0.1, -0.15)
+	c.anim("wh", "ESwing", 0.05)
+	var tilt := c.create_tween()
+	tilt.tween_method(func(v: float): st["tilt"] = v, 0.5, -1.4, 0.3)      # мах вперёд-вверх: горло к Пахану
+	await c.wait(0.3)
+	var from_p: Vector3 = bucket.global_position + bucket.global_transform.basis.y.normalized() * 0.17
 	var to_p := Vector3(-0.1, 0.8, -1.0)
 	var wp := GPUParticles3D.new()
 	var pm := ParticleProcessMaterial.new()
@@ -1089,19 +1109,16 @@ static func ev02(c: G67ClipPlayer) -> void:
 	pa.rotation = Vector3(0, 0.0, 0)
 	pa.position = Vector3(-0.3, 0.52, -1.3)
 	c.anim("pahan", "ESitBed", 0.05)
-	# ведро — на пол: летит, катится и остаётся лежать в кадре
-	st["carry"] = false
-	var bt := c.create_tween()
-	bt.tween_property(bucket, "global_position", Vector3(0.9, 0.18, 1.1), 0.55)
-	bt.parallel().tween_property(bucket, "rotation:z", 1.5, 0.55)
-	bt.tween_property(bucket, "global_position", Vector3(-0.1, 0.18, 1.7), 1.2)
-	bt.parallel().tween_property(bucket, "rotation:y", 2.4, 1.2)
+	# ведро пустое и снова в правой руке; бросит его на реплике «ТРЯПКИ!»
+	st["mode"] = "hang"
+	var untilt := c.create_tween()
+	untilt.tween_method(func(v: float): st["tilt"] = v, -1.4, 0.0, 0.4)
 	c.shake(0.8)
 	# ---- план 6: Пахан в упор спереди — реплика 0
 	c.cam_at(Vector3(-0.3, 1.5, 0.5), Vector3(-0.3, 1.25, -1.3), 38.0)
-	c.anim("madk1d", "Run", 0.1, 1.2)
+	c.anim("wh", "Run", 0.1, 1.2)
 	await c.say(L[0], 0.1)
-	# ---- 16–25 с: madk1d бегает вокруг кровати, Пахан провожает взглядом
+	# ---- 16–25 с: WHYOUSOLONELY бегает вокруг кровати, Пахан провожает взглядом
 	var lap := {"prints": 0}
 	var runtw := c.create_tween()
 	runtw.tween_method(func(a: float):
@@ -1119,6 +1136,15 @@ static func ev02(c: G67ClipPlayer) -> void:
 		pa.rotation.y = lerp_angle(pa.rotation.y, atan2(tv.x, tv.z), 0.1), -0.5, TAU * 2.3, 8.5)
 	c.cam_at(Vector3(-2.0, 3.5, 3.0), Vector3(0, 0.5, -1.0), 56.0)
 	c.cam_to(Vector3(-1.0, 3.2, 3.1), Vector3(0, 0.5, -1.0), 2.4, 56.0)
+	# бросок ведра: по дуге из руки на пол, катится и остаётся у стены в кадре
+	st["carry"] = false
+	var b0: Vector3 = bucket.global_position
+	var bthrow := c.create_tween()
+	bthrow.tween_method(func(k: float):
+		bucket.global_position = b0.lerp(Vector3(-2.35, 0.17, 2.0), k) + Vector3(0, sin(PI * k) * 1.0, 0)
+		bucket.rotation.z = k * 4.5, 0.0, 1.0, 0.8)
+	bthrow.tween_property(bucket, "global_position", Vector3(-2.55, 0.17, 1.2), 0.6)
+	bthrow.parallel().tween_property(bucket, "rotation:z", 6.6 + 1.5, 0.6)
 	await c.say(L[1], 0.1)
 	c.cam_at(Vector3(0.9, 1.5, 0.4), Vector3(-0.3, 1.25, -1.3), 42.0)
 	await c.say(L[2], 0.1)
@@ -1132,13 +1158,13 @@ static func ev02(c: G67ClipPlayer) -> void:
 	await c.say(L[3], 0.2)
 	follow.kill()
 	runtw.kill()
-	# ---- madk1d вылетает в дверь, Пахан встаёт с кровати
+	# ---- WHYOUSOLONELY вылетает в дверь, Пахан встаёт с кровати
 	mk.rotation.y = atan2(1.6 - mk.position.x, 1.5 - mk.position.z)
-	c.move("madk1d", Vector3(1.8, 0, 1.5), 0.9)
+	c.move("wh", Vector3(1.8, 0, 1.5), 0.9)
 	c.cam_at(Vector3(-1.4, 1.7, 2.4), Vector3(0.3, 1.0, -0.2), 56.0)
 	await c.wait(0.9)
 	mk.rotation.y = PI * 0.5
-	c.move("madk1d", Vector3(3.5, 0, 1.5), 0.6)
+	c.move("wh", Vector3(3.5, 0, 1.5), 0.6)
 	await c.wait(0.6)
 	mk.visible = false
 	_muffled(c, L[1])
