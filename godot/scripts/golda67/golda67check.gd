@@ -2478,6 +2478,33 @@ func _spawn_check(g, G: Golda67, P) -> void:
 	G.wave_wait = 999.0
 	G.room_state = "open"
 	G.world.open_bounds()
+	var yd = G.world.yard
+	var bn: Array = yd.arena_nodes.filter(func(n): return is_instance_valid(n))
+	var texts: Array = []
+	for b in bn:
+		for lb in (b as Node).find_children("*", "Label3D", true, false):
+			texts.append((lb as Label3D).text)
+	ok(bn.size() == 2 and texts.size() >= 2 and texts.all(func(t): return t == "ТУРНИР 67"), "две растяжки арены на месте, надпись «ТУРНИР 67» (%d узлов, %d надписей)" % [bn.size(), texts.size()])
+	# реакции зрителей на приёмы не чаще раза в 2 с
+	G.crowd_last_ms = -10000
+	var c0: int = G.events.filter(func(e): return String(e[0]) == "crowd").size()
+	G.place = "run"
+	G.room = {"type": "boss", "place": "sport"}
+	G._crowd("laugh")
+	G._crowd("laugh")
+	ok(G.events.filter(func(e): return String(e[0]) == "crowd").size() - c0 <= 1, "реакция зрителей на приём не чаще раза в 2 с")
+	var sh_pos := [["arena_gate", Vector3(2, 9, -24.0), Vector3(2, 2, -44)], ["arena_throne", Vector3(2, 4.5, -50.5), Vector3(2, 1.5, -36)], ["arena_top", Vector3(2.1, 60, -37), Vector3(2, 0, -38)]]
+	for v in sh_pos:
+		var oc := Camera3D.new()
+		oc.fov = 55.0
+		g.add_child(oc)
+		oc.global_position = v[1]
+		oc.look_at(v[2], Vector3.UP)
+		oc.make_current()
+		await wait(0.5)
+		await shot(String(v[0]))
+		g.cam.make_current()
+		oc.queue_free()
 
 ## События двора: предметы стоят, каждый исход таблиц форсируется и проверяется, этап закрывается
 func _events_check(g, G: Golda67, P) -> void:

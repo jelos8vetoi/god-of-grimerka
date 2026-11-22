@@ -2951,7 +2951,13 @@ const CROWD_HITS := ["hit_super", "vz_finisher", "vz_slam", "vz_quake", "knockdo
 var crowd_t := -9.0
 var crowd_phase := -1
 
+var crowd_last_ms := -10000
+
 func _crowd(kind: String) -> void:
+	if kind in ["hit", "laugh"]:
+		if GameClock.ms() - crowd_last_ms < 2000:
+			return                       # на приёмы Миши зрители реагируют не чаще раза в 2 с
+		crowd_last_ms = GameClock.ms()
 	if place != "run" or world == null or world.yard == null or String(room.get("place", "")) != "sport":
 		return                       # зрители видят только свою коробку
 	world.yard.crowd_react(kind)

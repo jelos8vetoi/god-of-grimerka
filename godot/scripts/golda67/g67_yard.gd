@@ -799,6 +799,111 @@ func crowd_react(kind: String) -> int:
 		n += 1
 	return n
 
+## Оформление арены Миши: растяжки «ТУРНИР 67», реквизит у трона, царапины на льду, сугробы у бортов
+var arena_nodes: Array = []
+
+func _banner(a: Vector3, b: Vector3, text: String) -> Node3D:
+	var root := Node3D.new()
+	root.name = "banner_" + text.to_lower().replace(" ", "_")
+	add_child(root)
+	var n := 14
+	var cloth := _flat(Color(0.45, 0.05, 0.12), 0.9)
+	var gold := _flat(Color(0.85, 0.66, 0.25), 0.5)
+	var sag := 0.7
+	var span := a.distance_to(b)
+	for i in n:
+		var t0 := float(i) / n
+		var t1 := float(i + 1) / n
+		var p0 := a.lerp(b, t0) - Vector3(0, sag * sin(PI * t0), 0)
+		var p1 := a.lerp(b, t1) - Vector3(0, sag * sin(PI * t1), 0)
+		var seg := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(p0.distance_to(p1) + 0.02, 1.5, 0.03)
+		seg.mesh = bm
+		seg.material_override = cloth
+		root.add_child(seg)
+		seg.global_position = (p0 + p1) * 0.5 - Vector3(0, 0.75, 0)
+		seg.rotation.z = atan2(p1.y - p0.y, p1.x - p0.x)          # растяжка идёт вдоль X
+		for k in [0.0, 1.42]:
+			var edge := MeshInstance3D.new()
+			var em := BoxMesh.new()
+			em.size = Vector3(p0.distance_to(p1) + 0.02, 0.08, 0.05)
+			edge.mesh = em
+			edge.material_override = gold
+			seg.add_child(edge)
+			edge.position = Vector3(0, 0.75 - k - 0.04, 0)
+	var mid := a.lerp(b, 0.5) - Vector3(0, sag + 0.75, 0)
+	var lb := _sign(text, mid + Vector3(0, 0, 0.05), 0.0, Color(0.95, 0.8, 0.35), 0.022, 64)
+	lb.name = "banner_text"
+	var lb2 := _sign(text, mid + Vector3(0, 0, -0.05), PI, Color(0.95, 0.8, 0.35), 0.022, 64)
+	for tl in [lb, lb2]:
+		tl.get_parent().remove_child(tl)
+		root.add_child(tl)
+	var sw := root.create_tween().set_loops()
+	sw.tween_property(root, "rotation:x", 0.012, 1.8).set_trans(Tween.TRANS_SINE)
+	sw.tween_property(root, "rotation:x", -0.012, 1.8).set_trans(Tween.TRANS_SINE)
+	arena_nodes.append(root)
+	return root
+
+func _arena_decor(x0: float, x1: float, z0: float, z1: float) -> void:
+	_banner(Vector3(x0 + 0.5, 6.4, z1 + 0.3), Vector3(x1 - 0.5, 6.4, z1 + 0.3), "ТУРНИР 67")          # над калиткой
+	_banner(Vector3(x0 + 0.5, 6.8, z0 - 0.3), Vector3(x1 - 0.5, 6.8, z0 - 0.3), "ТУРНИР 67")          # за троном между мачтами
+	# реквизит у трона: ящик с магнитолой, свёрнутый ковёр, покрышки
+	var crate := _box(Vector3(5.6, 0.3, -47.6), Vector3(0.8, 0.6, 0.55), _flat(Color(0.35, 0.24, 0.14), 0.9))
+	var radio := _box(Vector3(5.6, 0.75, -47.6), Vector3(0.55, 0.3, 0.25), _flat(Color(0.1, 0.1, 0.12), 0.6))
+	for sx in [-0.17, 0.17]:
+		var sp := MeshInstance3D.new()
+		var cy := CylinderMesh.new()
+		cy.top_radius = 0.07
+		cy.bottom_radius = 0.07
+		cy.height = 0.03
+		sp.mesh = cy
+		sp.material_override = _flat(Color(0.3, 0.3, 0.32), 0.7)
+		sp.rotation.x = PI * 0.5
+		sp.position = Vector3(5.6 + sx, 0.75, -47.46)
+		add_child(sp)
+	var rug := MeshInstance3D.new()
+	var rc := CylinderMesh.new()
+	rc.top_radius = 0.2
+	rc.bottom_radius = 0.2
+	rc.height = 1.3
+	rug.mesh = rc
+	rug.material_override = m_carpet
+	rug.rotation.z = PI * 0.5
+	rug.position = Vector3(-1.9, 0.2, -47.9)
+	add_child(rug)
+	_put("tire_stack", Vector3(-3.6, 0.03, -48.2), 0.4, 0.7)
+	_put("tire_stack", Vector3(-4.3, 0.03, -47.7), 1.1, 0.5)
+	# царапины от коньков на льду и наметённый у бортов снег (без коллизии)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6767
+	var scr := _flat(Color(0.92, 0.96, 1.0), 0.5)
+	for i in 38:
+		var cx := rng.randf_range(x0 + 2.0, x1 - 2.0)
+		var cz := rng.randf_range(z0 + 2.0, z1 - 2.0)
+		var l := MeshInstance3D.new()
+		var lm := BoxMesh.new()
+		lm.size = Vector3(rng.randf_range(1.0, 3.2), 0.004, 0.025)
+		l.mesh = lm
+		l.material_override = scr
+		l.rotation.y = rng.randf_range(0.0, PI)
+		l.position = Vector3(cx, 0.045, cz)
+		add_child(l)
+	var drift := _flat(Color(0.93, 0.95, 1.0), 0.95)
+	for i in 26:
+		var side := i % 4
+		var t := rng.randf()
+		var pos := Vector3(lerpf(x0, x1, t), 0.0, z1 + 0.2) if side == 0 else (Vector3(lerpf(x0, x1, t), 0.0, z0 - 0.2) if side == 1 else (Vector3(x0 - 0.2, 0.0, lerpf(z0, z1, t)) if side == 2 else Vector3(x1 + 0.2, 0.0, lerpf(z0, z1, t))))
+		var d := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.5
+		sm.height = 1.0
+		d.mesh = sm
+		d.material_override = drift
+		d.scale = Vector3(rng.randf_range(1.2, 2.4), rng.randf_range(0.25, 0.45), rng.randf_range(0.5, 0.9))
+		d.position = pos + Vector3(0, 0.05, 0)
+		add_child(d)
+
 ## Свет коробки: общий свет k (0…1 от нормы); прожекторы мачт — по очереди (flood_on), все сразу (flood_all)
 func court_k(k: float) -> void:
 	for e in court_lights:
@@ -920,6 +1025,7 @@ func _zone_sport() -> void:
 	for bp in BARS:
 		_put("res://assets/golda67/g67_workout_bars.glb", Vector3(bp[0], 0.03, bp[1]), bp[2], bp[3])
 	_put("tire_stack", Vector3(-8.6, 0.03, -31.5), 0.6, 1.0)
+	_arena_decor(x0, x1, z0, z1)
 	# мачты с прожекторами по углам — свет на лёд, длинные тени
 	for c in [Vector3(x0 - 0.9, 0, z0 - 0.9), Vector3(x1 + 0.9, 0, z0 - 0.9), Vector3(x0 - 0.9, 0, z1 + 0.9), Vector3(x1 + 0.9, 0, z1 + 0.9)]:
 		if _own("g67_floodlight_mast", c, atan2(2.0 - c.x, -38.0 - c.z), 8.6, "h", false) == null:
