@@ -78,6 +78,7 @@ var clock := 0.0
 var silent := false
 var _last_ctx := ""
 var _dieg_db := 0.0
+var gain_cur := 0.0                    # gain_db базовой ситуации, сглаженный 12 дБ/с
 var _dieg_node: Node3D
 
 func _ready() -> void:
@@ -432,7 +433,8 @@ func tick(dt: float) -> void:
 	duck_db = move_toward(duck_db, goal, span / (_att if goal < duck_db else _rel) * dt)
 	# деки
 	var layers: Array = base.get("layers", [])
-	var gdb := float(base.get("gain_db", 0.0))
+	gain_cur = move_toward(gain_cur, float(base.get("gain_db", 0.0)), 12.0 * dt)
+	var gdb := gain_cur
 	for i in decks.size():
 		var d: Deck = decks[i]
 		if not d.live:
@@ -464,7 +466,7 @@ func tick(dt: float) -> void:
 			title.stream_paused = false
 		elif title_prog <= 0.0 and title_goal == 0.0 and not title.stream_paused:
 			title.stream_paused = true
-		title.volume_db = maxf(TITLE_DB + float(base.get("gain_db", 0.0)) + linear_to_db(maxf(curve(title_prog), 0.0001)) + duck_db, -80.0)
+		title.volume_db = maxf(TITLE_DB + gain_cur + linear_to_db(maxf(curve(title_prog), 0.0001)) + duck_db, -80.0)
 	# диегетический выход: тот же набор (первый стем) из точки сцены, перекрёстно с декой за 1,2 с
 	var via = base.get("via")
 	var via_ok: bool = via != null and is_instance_valid(via) and active >= 0 and decks[active].live and not silent

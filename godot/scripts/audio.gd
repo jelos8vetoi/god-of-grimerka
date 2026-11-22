@@ -9,6 +9,7 @@
 extends Node
 
 const DIR := "res://assets/music/"
+const BOSS_HEADROOM_DB := -4.5      # три стема босса по 0 дБ в сумме выше 0 дБFS: в бою запас на шине
 const BUSES := ["Music", "SFX", "Ambient", "Voice"]
 const TITLES := {"Music": "Музыка", "SFX": "Эффекты", "Ambient": "Окружение", "Voice": "Голос"}
 const SETTINGS := "user://grimerka_audio.json"
@@ -268,6 +269,8 @@ func _set_state(st: String) -> void:
 
 # ---------- каждый кадр: смотрим на игру ----------
 func _finish(dt: float, sit: Dictionary) -> void:
+	if String(sit.get("ctx", "")) == "boss":
+		sit["gain_db"] = float(sit.get("gain_db", 0.0)) + BOSS_HEADROOM_DB
 	director.set_base(sit)
 	director.tick(dt)
 	cur = "" if director.cue == "title" else director.cue
