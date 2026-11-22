@@ -2732,9 +2732,11 @@ func _clip_log(G: Golda67, cid: String) -> void:
 	var nxt := 0.0
 	while G.clip != null and is_instance_valid(G.clip):
 		t_last = G.clip.t
-		if t_last >= nxt:
-			await shot("clip_%s_%02d" % [cid, int(nxt)])
-			nxt += 8.0
+		if G67Clips.snap_req != "":
+			var nm: String = G67Clips.snap_req
+			G67Clips.snap_req = ""
+			print("GOLDA67CHECK   LOG cam %s %s fov %.0f" % [nm, str(G.clip.cam.global_position), G.clip.cam.fov])
+			await shot("clip_%s_%s" % [cid, nm])
 		await get_tree().process_frame
 	var lg: Array = G67ClipPlayer.last_log
 	for i in lg.size():

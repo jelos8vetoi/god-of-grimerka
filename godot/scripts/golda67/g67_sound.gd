@@ -17,6 +17,7 @@ const KINDS := {
 	"step_ice": [0.2, -15.0, "SFX", false], "step_concrete": [0.14, -15.0, "SFX", false], "step_stairs": [0.16, -14.0, "SFX", false],
 	"jingle": [3.4, -8.0, "SFX", false],
 	"hit_cut": [0.28, -6.0, "SFX", false],
+	"mic_move": [0.5, -8.0, "SFX", false], "tap": [0.1, -9.0, "SFX", false], "loop_studio": [5.0, -30.0, "Ambient", true],
 	"loop_hub": [6.0, -26.0, "Ambient", true], "loop_dvor": [8.0, -24.0, "Ambient", true],
 }
 static var _cache := {}
@@ -70,6 +71,9 @@ static func stream(kind: String) -> AudioStreamWAV:
 			"step_ice": x = (noise - lp) * exp(-t * 22.0) * 0.4 + sin(TAU * 2200.0 * t) * exp(-t * 35.0) * 0.15
 			"step_concrete": x = lp * exp(-t * 50.0) * 0.7 + sin(TAU * 150.0 * t) * exp(-t * 35.0) * 0.4
 			"step_stairs": x = lp * exp(-t * 45.0) * 0.6 + sin(TAU * 180.0 * t) * exp(-t * 28.0) * 0.4
+			"mic_move": x = lp * (0.4 + 0.6 * sin(PI * u)) * 0.8 + sin(TAU * 90.0 * t) * 0.15 * sin(PI * u)
+			"tap": x = sin(TAU * 220.0 * t) * exp(-t * 55.0) * 0.8 + noise * exp(-t * 120.0) * 0.3
+			"loop_studio": x = sin(TAU * 60.0 * t) * 0.3 + sin(TAU * 120.0 * t) * 0.12 + lp2 * 2.0
 			"hit_cut": x = sin(TAU * (160.0 - 90.0 * u) * t) * exp(-t * 14.0) * 0.8 + noise * exp(-t * 60.0) * 0.5
 			"jingle": x = (sin(TAU * [523.0, 659.0, 784.0, 1047.0][int(t * 8.0) % 4] * t) * 0.5 + sin(TAU * 262.0 * t) * 0.25 * (1.0 if int(t * 4.0) % 2 == 0 else 0.2)) * 0.6
 			"loop_hub": x = (sin(TAU * 50.0 * t) * 0.5 + sin(TAU * 100.0 * t) * 0.2 + lp2 * 3.0) * 0.5

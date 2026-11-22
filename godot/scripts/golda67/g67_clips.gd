@@ -236,8 +236,8 @@ static func _nameplate(c: G67ClipPlayer, text: String) -> void:
 	bar.add_child(l)
 	var tw := c.create_tween()
 	tw.tween_property(bar, "position:x", fs.x * 0.06, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(0.55)
-	tw.tween_property(bar, "modulate:a", 0.0, 0.15)
+	tw.tween_interval(0.2)
+	tw.tween_property(bar, "modulate:a", 0.0, 0.1)
 	tw.tween_callback(h.queue_free)
 
 ## Реплика двумя планами с наездом, на последнем слове — стоп-кадр: удар, сдвиг каналов, плашка с именем
@@ -1465,6 +1465,22 @@ static func story05(c: G67ClipPlayer) -> void:
 	await c.wait(0.4)
 
 # ---------------------------------------------------------------- EXTRA01 — «КРОТ НА ПОДКАСТЕ» (9:16)
+static func _mic(c: G67ClipPlayer, pos: Vector3, lean: float) -> MeshInstance3D:
+	c.box(Vector3(0.03, 0.34, 0.03), pos + Vector3(0, -0.2, 0.0), Color(0.1, 0.1, 0.1))
+	var mic := MeshInstance3D.new()
+	var cm := CapsuleMesh.new()
+	cm.radius = 0.05
+	cm.height = 0.2
+	mic.mesh = cm
+	mic.position = pos
+	mic.rotation.x = lean
+	var mm := StandardMaterial3D.new()
+	mm.albedo_color = Color(0.15, 0.15, 0.17)
+	mm.metallic = 0.6
+	mic.material_override = mm
+	c.world.add_child(mic)
+	return mic
+
 static func extra01(c: G67ClipPlayer) -> void:
 	c.set_env("studio")
 	var R := Vector3(0, 0, 0)
@@ -1473,40 +1489,157 @@ static func extra01(c: G67ClipPlayer) -> void:
 	for i in 6:
 		for j in 3:
 			c.box(Vector3(0.5, 0.5, 0.08), R + Vector3(-1.4 + i * 0.56, 0.9 + j * 0.56, -1.52), Color(0.16, 0.15, 0.18) if (i + j) % 2 == 0 else Color(0.2, 0.12, 0.12))
-	c.box(Vector3(1.6, 0.06, 0.8), R + Vector3(0, 0.78, 0.55), Color(0.35, 0.24, 0.15))
-	c.box(Vector3(0.08, 0.75, 0.08), R + Vector3(-0.7, 0.38, 0.55), Color(0.2, 0.2, 0.2))
-	c.box(Vector3(0.08, 0.75, 0.08), R + Vector3(0.7, 0.38, 0.55), Color(0.2, 0.2, 0.2))
-	# микрофон на подставке
-	var arm := c.box(Vector3(0.03, 0.3, 0.03), R + Vector3(0.3, 0.95, 0.75), Color(0.1, 0.1, 0.1))
-	var mic := MeshInstance3D.new()
-	var cm := CapsuleMesh.new()
-	cm.radius = 0.05
-	cm.height = 0.2
-	mic.mesh = cm
-	mic.position = R + Vector3(0.27, 1.15, 0.66)
-	mic.rotation.x = 0.5
-	mic.rotation.z = 0.35
-	var mm := StandardMaterial3D.new()
-	mm.albedo_color = Color(0.15, 0.15, 0.17)
-	mm.metallic = 0.6
-	mic.material_override = mm
-	c.world.add_child(mic)
-	c.light(R + Vector3(0.6, 2.4, 1.8), Color(1.0, 0.9, 0.75), 2.4, 7.0, true)
-	c.light(R + Vector3(-1.5, 1.4, -0.5), Color(0.9, 0.3, 0.4), 1.2, 5.0)
-	var k := c.actor("krot", "krot", R + Vector3(0, 0.0, 0.05), 0.0)
+	# светящаяся вывеска подкаста, лампа записи (красная), стол, кружка
+	var logo := Label3D.new()
+	logo.text = "ОБЛАКО LIVE"
+	logo.font_size = 72
+	logo.pixel_size = 0.006
+	logo.modulate = Color(1.0, 0.85, 0.5)
+	logo.outline_size = 12
+	logo.position = R + Vector3(0, 2.3, -1.45)
+	c.world.add_child(logo)
+	var lamp := c.box(Vector3(0.28, 0.28, 0.06), R + Vector3(1.6, 2.3, -1.5), Color(0.15, 0.02, 0.02), 0.0)
+	var lamp_l := c.light(R + Vector3(1.6, 2.3, -1.2), Color(1.0, 0.1, 0.1), 0.0, 3.0)
+	c.box(Vector3(1.6, 0.06, 0.9), R + Vector3(0, 0.78, 0.45), Color(0.35, 0.24, 0.15))
+	for sx in [-0.7, 0.7]:
+		c.box(Vector3(0.08, 0.75, 0.08), R + Vector3(sx, 0.38, 0.45), Color(0.2, 0.2, 0.2))
+	var mug := MeshInstance3D.new()
+	var mgm := CylinderMesh.new()
+	mgm.top_radius = 0.05
+	mgm.bottom_radius = 0.045
+	mgm.height = 0.1
+	mug.mesh = mgm
+	mug.position = R + Vector3(-0.55, 0.86, 0.6)
+	var mgmat := StandardMaterial3D.new()
+	mgmat.albedo_color = Color(0.85, 0.85, 0.8)
+	mug.material_override = mgmat
+	c.world.add_child(mug)
+	var mic_k := _mic(c, R + Vector3(0.45, 1.0, 0.1), 0.3)         # микрофон КРОТА: стоит далеко, он его придвинет
+	var mic_h := _mic(c, R + Vector3(-0.2, 1.0, 0.85), -0.3)
+	c.light(R + Vector3(1.4, 2.2, 1.8), Color(1.0, 0.85, 0.65), 2.2, 7.0, true)             # тёплый боковой
+	c.light(R + Vector3(-1.2, 2.4, -0.9), Color(0.55, 0.7, 1.0), 1.4, 6.0)                    # холодный контровой
+	var k := c.actor("krot", "krot", R + Vector3(0, 0.0, -0.25), 0.0)
 	c.anim("krot", "CPod", 0.0)
+	var hst := c.actor("host", "anchor", R + Vector3(0, 0.0, 1.05), PI)
+	c.anim("host", "NCross", 0.0)
+	var hh := MeshInstance3D.new()                                                            # наушники ведущего
+	var ht := TorusMesh.new()
+	ht.inner_radius = 0.13
+	ht.outer_radius = 0.16
+	hh.mesh = ht
+	hh.material_override = mgmat
+	hh.position = _head(hst) + Vector3(0, 0.05, 0)
+	c.world.add_child(hh)
+	var hum := AudioStreamPlayer.new()
+	hum.stream = G67Sound.stream("loop_studio")
+	hum.volume_db = float(G67Sound.KINDS["loop_studio"][1])
+	hum.bus = "Ambient" if AudioServer.get_bus_index("Ambient") >= 0 else "Master"
+	c.add_child(hum)
+	hum.play()
 	_phone_ui(c, "ОБЛАКО LIVE", "podcast_67", "3,1K")
-	c.plate("ПОДКАСТ", "top", 0.0)
-	c.cam_at(R + Vector3(-0.45, 1.35, 2.6), R + Vector3(-0.05, 1.15, 0.2), 48.0)
-	await c.say(L("EXTRA01", 0), 0.2)
+	var hk := _head(k)
+	var hp := _head(hst)
+	var hh_pos := hp
+	# 1 — чёрный, щелчок, лампа записи загорается, титр эпизода влетает; общий план двоих, медленный проезд
+	var blk := c.screen(func(s: Control, fs: Vector2):
+		var r := ColorRect.new()
+		r.color = Color.BLACK
+		r.size = fs
+		s.add_child(r))
+	await c.wait(0.4)
+	G67Sound.play(c, "click")
+	blk.queue_free()
+	(lamp.material_override as StandardMaterial3D).albedo_color = Color(1.0, 0.1, 0.1)
+	(lamp.material_override as StandardMaterial3D).emission_enabled = true
+	(lamp.material_override as StandardMaterial3D).emission = Color(1.0, 0.1, 0.1)
+	(lamp.material_override as StandardMaterial3D).emission_energy_multiplier = 3.0
+	lamp_l.light_energy = 2.0
+	c.plate("ПОДКАСТ", "top", 2.5)
+	c.cam_at(R + Vector3(6.2, 1.7, 0.9), R + Vector3(0, 1.1, 0.45), 46.0)
+	c.cam_to(R + Vector3(5.4, 1.65, 1.0), R + Vector3(0, 1.1, 0.45), 1.4, 24.0)
+	await c.wait(1.3)
+	hk = Vector3(0.0, 1.3, -0.25)                  # голова КРОТА за столом (сидит)
+	hp = Vector3(0.0, 1.6, 1.05)                   # голова ведущего
+	G67Clips.snap_req = "wide"
+	await c.wait(0.4)
+	# 2 — реплика ведущего: камера A (ведущий в три четверти) → перебивка на общий; жесты
+	G67Sound.play(c, "hit_cut")
+	var d0 := c.say_async(L("EXTRA01", 0))
+	c.cam_at(R + Vector3(-1.7, 1.55, -1.0), hp, 36.0)
+	c.cam_to(R + Vector3(-1.4, 1.5, -0.6), hp, d0 * 0.5, 31.0)
+	c.anim("host", "NIdleL", 0.2)
+	await c.wait(d0 * 0.5)
+	G67Sound.play(c, "click")
+	c.cam_at(R + Vector3(5.8, 1.65, 0.9), R + Vector3(0, 1.1, 0.45), 46.0)
+	c.cam_to(R + Vector3(5.0, 1.6, 0.9), R + Vector3(0, 1.1, 0.45), d0 * 0.5, 25.0)
+	await c.wait(d0 * 0.5)
+	# КРОТ тянется к микрофону и придвигает его к себе
+	G67Sound.play(c, "mic_move")
+	c.create_tween().tween_property(mic_k, "position", R + Vector3(0.1, 1.0, 0.15), 0.5)
+	c.cam_at(R + Vector3(1.6, 1.2, 0.9), R + Vector3(0.3, 0.95, 0.1), 34.0)
+	await c.wait(0.45)
+	# 3 — реплика КРОТА: камера B (КРОТ в три четверти), перебивка — руки стучат по столу, «на ты» — откидывается на спинку
+	var d1 := c.say_async(L("EXTRA01", 1))
 	c.anim("krot", "CPodTalk", 0.2)
-	await c.say(L("EXTRA01", 1), 0.2)
-	c.anim("krot", "CPod", 0.2)
-	await c.say(L("EXTRA01", 2), 0.15)
+	c.cam_at(hk + Vector3(-1.3, 0.05, 1.8), hk, 34.0)
+	c.cam_to(hk + Vector3(-0.9, 0.03, 1.5), hk, d1 * 0.4, 28.0)
+	await c.wait(d1 * 0.4)
+	G67Sound.play(c, "hit_cut")
+	c.cam_at(R + Vector3(-0.9, 1.2, 0.9), R + Vector3(0.0, 0.85, 0.2), 36.0)          # деталь: руки на столе
+	for t in 4:
+		G67Sound.play(c, "tap")
+		await c.wait(d1 * 0.1)
+	G67Sound.play(c, "hit_cut")
+	c.cam_at(hk + Vector3(-1.3, 0.05, 1.8), hk, 32.0)
+	var lean := c.create_tween()
+	lean.tween_property(k, "position", R + Vector3(0, 0.0, -0.45), 0.5)
+	lean.parallel().tween_property(k, "rotation:x", -0.1, 0.5)
+	await c.wait(d1 * 0.5)
+	c.clear_sub()
+	# 4 — «А конкретно?»: ведущий кивает, быстрый план
+	G67Sound.play(c, "hit_cut")
+	var d2 := c.say_async(L("EXTRA01", 2))
+	c.cam_at(R + Vector3(-1.5, 1.5, -0.7), hp, 34.0)
+	c.cam_to(R + Vector3(-1.3, 1.5, -0.4), hp, d2 + 0.2, 30.0)
+	c.create_tween().tween_property(hst, "rotation:x", 0.08, 0.3)
+	await c.wait(d2 + 0.25)
+	c.clear_sub()
+	# 5 — последняя реплика КРОТА: наклоняется к микрофону вплотную и смотрит в камеру; общий — перебивка; крупный в финале
+	G67Sound.play(c, "hit_cut")
+	var back := c.create_tween()
+	back.tween_property(k, "position", R + Vector3(0, 0.0, -0.1), 0.4)
+	back.parallel().tween_property(k, "rotation:x", 0.12, 0.4)
+	var d3 := c.say_async(L("EXTRA01", 3))
 	c.anim("krot", "CPodTalk", 0.2)
-	await c.say(L("EXTRA01", 3), 0.1)
-	# медленный кивок, зум, подпись
+	c.cam_at(hk + Vector3(-1.3, 0.05, 1.8), hk, 34.0)
+	c.cam_to(hk + Vector3(-0.9, 0.03, 1.5), hk, d3 * 0.3, 30.0)
+	await c.wait(d3 * 0.3)
+	G67Sound.play(c, "click")
+	c.cam_at(R + Vector3(5.6, 1.65, 0.9), R + Vector3(0, 1.1, 0.45), 46.0)
+	c.cam_to(R + Vector3(4.9, 1.6, 0.9), R + Vector3(0, 1.1, 0.45), d3 * 0.25, 25.0)
+	await c.wait(d3 * 0.25)
+	G67Sound.play(c, "hit_cut")
 	c.anim_once("krot", "CPodNod", 1.6)
-	c.cam_to(_head(k) + Vector3(-0.3, 0.12, 1.4), _head(k) + Vector3(0, 0.1, 0), 1.6, 36.0)
-	c.plate("ЭКСПЕРТ ПО ВРЕМЕНИ", "caption", 2.2)
-	await c.wait(2.2)
+	c.cam_at(hk + Vector3(-1.3, 0.05, 1.8), hk, 28.0)                                       # крупный: смотрит в камеру
+	c.cam_to(hk + Vector3(-0.9, 0.03, 1.5), hk, d3 * 0.45 + 0.1, 24.0)
+	await c.wait(0.6)
+	G67Clips.snap_req = "krot_mic"
+	await c.wait(d3 * 0.45 - 0.4)
+	c.clear_sub()
+	# 6 — финал: ведущий молча смотрит на КРОТА, потом в камеру, пауза 1 с, лампа гаснет, обрыв
+	G67Sound.play(c, "hit_cut")
+	c.cam_at(R + Vector3(-1.7, 1.55, -1.0), hp, 36.0)
+	c.cam_to(R + Vector3(-1.4, 1.5, -0.7), hp, 1.4, 32.0)
+	await c.wait(0.9)
+	c.create_tween().tween_property(hst, "rotation:y", PI + 0.9, 0.5)
+	G67Clips.snap_req = "final"
+	await c.wait(1.0)
+	G67Sound.play(c, "click")
+	lamp_l.light_energy = 0.0
+	(lamp.material_override as StandardMaterial3D).emission_energy_multiplier = 0.0
+	(lamp.material_override as StandardMaterial3D).albedo_color = Color(0.15, 0.02, 0.02)
+	c.vhs(1.0, 0.4)
+	await c.wait(0.4)
+	hum.stop()
+
+
