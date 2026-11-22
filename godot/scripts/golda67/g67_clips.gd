@@ -696,8 +696,19 @@ static func news01(c: G67ClipPlayer) -> void:
 	# ведущий в кадре, средний план
 	c.cam_at(S + Vector3(-0.5, 1.75, 3.1), S + Vector3(0.1, 1.45, -0.55), 40.0)
 	c.plate("РАЙОННЫЙ ВЕСТНИК 67", "lower", 3.0)
-	c.cam_to(S + Vector3(-0.2, 1.65, 2.3), S + Vector3(0.05, 1.5, -0.55), _len(c, L("NEWS01", 0)), 33.0)
-	await c.say(L("NEWS01", 0), 0.15)
+	var d0 := c.say_async(L("NEWS01", 0))
+	c.cam_to(S + Vector3(-0.2, 1.7, 2.7), S + Vector3(0.05, 1.5, -0.55), d0 * 0.34, 36.0)            # общий → наезд
+	await c.wait(d0 * 0.34)
+	c.vhs(0.6, 0.2)
+	G67Sound.play(c, "click")
+	c.cam_at(S + Vector3(-1.9, 1.55, 1.7), S + Vector3(0.05, 1.45, -0.55), 38.0)                      # перебивка: ведущий сбоку
+	c.cam_to(S + Vector3(-1.5, 1.55, 1.3), S + Vector3(0.05, 1.45, -0.55), d0 * 0.3, 34.0)
+	await c.wait(d0 * 0.3)
+	c.vhs(0.6, 0.2)
+	c.cam_at(S + Vector3(0.9, 1.5, 2.0), S + Vector3(0.0, 1.5, -0.55), 32.0)                           # крупный план с другой стороны
+	c.cam_to(S + Vector3(0.4, 1.5, 1.5), S + Vector3(0.0, 1.5, -0.55), d0 * 0.36 + 0.2, 28.0)
+	await c.wait(d0 * 0.36 + 0.35)
+	c.clear_sub()
 	c.vhs(0.9, 0.4)
 	G67Sound.play(c, "click")
 	# повтор боя: последний удар по Мише, замедленно
