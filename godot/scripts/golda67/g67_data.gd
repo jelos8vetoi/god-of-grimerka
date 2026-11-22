@@ -103,7 +103,7 @@ const KROT := [
 		"lines": ["KR|Пахан, брат, я тебе говорил, что у меня знакомые в Forbes?", "V|Нет.",
 			"KR|Ну вот. Они мне вчера звонили, предлагали войти в список. Я отказался, у меня дела были.", "V|Какие нахуй дела?",
 			"KR|Да я в очереди за шаурмой стоял. Там нельзя было выходить, я уже был следующий."]},
-	{"id": "krot2", "title": "ЛЮСТРА", "where": "hub", "pos": Vector3(-0.9, 0, 3.4), "yaw": 0.4, "needs": "g67_chandelier", "carry": "g67_chandelier",
+	{"id": "krot2", "title": "ЛЮСТРА", "where": "hub", "pos": Vector3(0.9, 0, 2.6), "yaw": 0.0, "needs": "g67_chandelier", "carry": "g67_chandelier",
 		"pose": "K2", "talk_clip": "K2Look", "acts": {3: "K2Show"}, "after": "walk",
 		"lines": ["V|Ты чё делаешь?", "KR|Люстру снимаю.", "V|ЗАЧЕМ?!", "KR|Она на меня странно смотрела."]},
 	{"id": "krot3", "title": "ГОЛУБИНОЕ ПРАВИТЕЛЬСТВО", "where": "playground", "pos": Vector3(-9.4, 0, -10.2), "yaw": 1.1, "needs": "g67_pigeon", "pigeons": 5,

@@ -930,6 +930,8 @@ func _place_krot(where: String) -> void:
 		return
 	if String(k.get("needs", "")) != "" and not G67Models.has(String(k["needs"])):
 		return
+	if where == "hub" and String(k["id"]) == "krot2" and int(meta().get("flurr", -1)) < 1:
+		return                         # люстра — после того, как DJ FLÜRR сказал про неё (состояние 1): сначала он, потом КРОТ
 	var pos: Vector3 = k["pos"] as Vector3
 	var kc: Dictionary = Poses.pahan()
 	kc.merge(G67Poses.krot(), true)           # позы встреч КРОТА (одна модель на все десять)
@@ -988,12 +990,24 @@ func _krot_tick(dt: float) -> void:
 		if w == null:
 			krot_walk = -1.0
 			return
-		(w as Node3D).global_position += (w as Node3D).global_transform.basis.z * 0.95 * dt
-		if krot_walk > 3.2:
-			game.fx.dust((w as Node3D).global_position + Vector3(0, 0.2, 0), 8, game.fx.DUST, 0.9)
+		# к входной двери по прямой; героя на пути обходит (смещается в свободную сторону), исчезает за дверью
+		var wp: Vector3 = (w as Node3D).global_position
+		var goal := Vector3(0.0, wp.y, G67World.Z_DOOR - 0.4)
+		var dirw: Vector3 = goal - wp
+		dirw.y = 0.0
+		var hp: Vector3 = game.player.global_position - wp
+		hp.y = 0.0
+		if dirw.length() < 0.2 or krot_walk > 12.0:
 			w.queue_free()
 			krot_item = null
 			krot_walk = -1.0
+			return
+		dirw = dirw.normalized()
+		if hp.length() < 1.6 and hp.dot(dirw) > -0.2:
+			var side := Vector3(-dirw.z, 0, dirw.x)
+			dirw = (dirw + side * (-1.0 if hp.dot(side) > 0.0 else 1.0) * 1.2).normalized()
+		(w as Node3D).global_position += dirw * 1.15 * dt
+		(w as Node3D).rotation.y = lerp_angle((w as Node3D).rotation.y, atan2(dirw.x, dirw.z), 1.0 - exp(-8.0 * dt))
 		return
 	if kr == null or not is_instance_valid(kr) or krot_life == null:
 		return
@@ -1167,6 +1181,8 @@ func _flurr_done(n: int, big: bool) -> void:
 		meta()["archive"] = arch
 		save()
 	events.append(["flurr_done", n, big])
+	if big and place == "hub" and not world.actors.has("g67_krot") and krot_next().get("id", "") == "krot2":
+		_place_krot("hub")             # КРОТ с люстрой появляется сразу после разговора с DJ FLÜRR
 
 # ---------------------------------------------------------------- артефакты (APPROVALS.md, 2.3)
 func arts() -> Array:

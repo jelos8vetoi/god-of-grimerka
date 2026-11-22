@@ -2562,6 +2562,21 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	await wait(1.2)
 	ok(String(P.style.id) == "bottles", "клавиша 2 включает Водяру")
 	await shot("28_hub_after")
+	# B8: КРОТ с люстрой — только после разговора с DJ FLÜRR (состояние 1)
+	G.meta()["flurr"] = -1
+	G.world.actors.erase("g67_krot")
+	ok(not G.world.actors.has("g67_krot") and String(G.krot_next().get("id", "")) == "krot2", "до разговора с DJ FLÜRR КРОТА с люстрой в подъезде нет")
+	G.talk_flurr()
+	await wait(0.3)
+	for i in 30:
+		if g.mode != "dlg":
+			break
+		g._dlg_advance()
+		await wait(0.05)
+	await wait(0.6)
+	ok(int(G.meta().get("flurr", -1)) >= 1 and G.world.actors.has("g67_krot"), "поговорил с DJ FLÜRR — КРОТ с люстрой появился (flurr %d)" % int(G.meta().get("flurr", -1)))
+	var kp0: Vector3 = G.world.actors["g67_krot"].global_position if G.world.actors.has("g67_krot") else Vector3.ZERO
+	ok(kp0.distance_to(Vector3(0.9, 0, 2.6)) < 0.3, "КРОТ стоит у двери колясочной (%s)" % str(kp0))
 	# КРОТ — встреча 2 «ЛЮСТРА»: стоит в холле подъезда с люстрой в руках
 	if G67Models.has("g67_chandelier"):
 		ok(G.world.actors.has("g67_krot") and G.krot_item != null and is_instance_valid(G.krot_item), "КРОТ стоит в подъезде с люстрой (встреча 2)")
@@ -2579,7 +2594,15 @@ func _run_dvor(g, G: Golda67, P) -> void:
 		ok((G.meta()["seen"] as Array).has("krot2") and G.world.get_node_or_null("krot_leaving") != null, "встреча 2 засчитана, КРОТ разворачивается и уходит с люстрой в руках")
 		await wait(1.2)
 		await _krot_shot(g, G.world.get_node_or_null("krot_leaving"), "40b_krot_leaves", 1.9, 1.0)
-		ok(await until(func(): return G.world.get_node_or_null("krot_leaving") == null and G.krot_item == null, 5.0), "ушёл и унёс люстру")
+		var near_min := 99.0
+		var t_w := GameClock.ms()
+		P.global_position = Vector3(0.0, 0.05, 4.8)
+		while G.world.get_node_or_null("krot_leaving") != null and GameClock.ms() - t_w < 14000:
+			var lv = G.world.get_node_or_null("krot_leaving")
+			near_min = minf(near_min, Vector2(lv.global_position.x - P.global_position.x, lv.global_position.z - P.global_position.z).length())
+			await get_tree().process_frame
+		ok(G.world.get_node_or_null("krot_leaving") == null and G.krot_item == null, "ушёл к двери и унёс люстру")
+		ok(near_min >= 0.5, "КРОТ обошёл героя, стоявшего на его пути (ближе всего %.2f м)" % near_min)
 		ok(G.flurr_state() == 2, "DJ FLÜRR теперь в состоянии 2 (подсказка на голубей)")
 	else:
 		print("GOLDA67CHECK   модели люстры нет — встреча 2 ждёт")
