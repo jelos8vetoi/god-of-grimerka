@@ -1,4 +1,5 @@
-## Менеджер звука: музыка локаций и боссов слоями, окружение, отбивки, громкость по шинам.
+## Менеджер звука: громкость по шинам, фон окружения, режимы шин (iPod, наушники, мёртвая тишина). Музыкой занимается
+## MusicDirector (audio.director): здесь только считается «базовая ситуация» из состояния игры и отдаётся ему.
 ## Файлы делает tools/godot-music.cjs (godot/assets/music). Набор находится по имени, поэтому новая локация или босс —
 ## это просто новые файлы loc_<имя>_base/_drive или boss_<id>_p1/_p2/_p3/_intro/_win: код менять не нужно.
 ## Сам следит за игрой (локация, бой, босс и его фаза, диалог, победа, поражение) и плавно переключает состояние:
@@ -29,14 +30,18 @@ var vol := {"Music": 0.8, "SFX": 1.0, "Ambient": 0.8, "Voice": 1.0}
 var sets := {}
 var cur := ""                   # имя звучащего набора
 var state := ""                 # menu / explore / combat / dialogue / boss / victory / defeat
-var layers: Array[AudioStreamPlayer] = []
-var want: Array[float] = []     # целевая громкость слоёв 0..1
+var director: MusicDirector
+var layers: Array[AudioStreamPlayer]:       # слои звучащего набора (для проверок)
+	get:
+		return director.active_players()
 var sting: AudioStreamPlayer
+var game_id := 0
+var race_pitch := 1.0
 var bed: AudioStreamPlayer
 var bed_key := ""
 var spots: Array[AudioStreamPlayer3D] = []
 var shot_t := 3.0
-var duck := 0.0                 # дБ, на сколько сейчас приглушена музыка
+var duck := 0.0                 # дБ, на сколько сейчас приглушена музыка (считает режиссёр)
 var boss_seen := ""
 var dead_seen := false
 var log_t := 0.0
@@ -114,6 +119,20 @@ func _ready() -> void:
 		var plim := AudioEffectHardLimiter.new()
 		plim.ceiling_db = -2.0
 		AudioServer.add_bus_effect(pi, plim)
+	# подшины музыки: все идут в Music, поэтому ползунок, Master, фокус iPod и мёртвая тишина действуют на всё сразу
+	for sub in ["MusicBG", "MusicMenu", "MusicCine", "MusicDiegetic"]:
+		if AudioServer.get_bus_index(sub) < 0:
+			AudioServer.add_bus()
+			var mi := AudioServer.bus_count - 1
+			AudioServer.set_bus_name(mi, sub)
+			AudioServer.set_bus_send(mi, "Music")
+			if sub == "MusicDiegetic":
+				var dh := AudioEffectHighPassFilter.new()
+				dh.cutoff_hz = 220.0
+				AudioServer.add_bus_effect(mi, dh)
+				var dl := AudioEffectLowPassFilter.new()
+				dl.cutoff_hz = 3800.0
+				AudioServer.add_bus_effect(mi, dl)
 	# ограничители: эффекты (скример поверх двери и шагов) и общий выход не хрипят
 	var sfx_lim := AudioEffectHardLimiter.new()
 	sfx_lim.ceiling_db = -1.0
@@ -143,10 +162,11 @@ func _ready() -> void:
 		_apply(b)
 	for p in main.sfx_pool:
 		p.bus = "SFX"
-	main.music.bus = "Music"
-	sting = AudioStreamPlayer.new()
-	sting.bus = "Music"
-	add_child(sting)
+	director = MusicDirector.new()
+	director.audio = self
+	add_child(director)
+	main.music = director.title
+	sting = director.sting
 	bed = AudioStreamPlayer.new()
 	bed.bus = "Ambient"
 	bed.volume_db = -60.0
@@ -228,10 +248,6 @@ func get_set(nm: String) -> AudioSet:
 		return sets[nm]
 	var s := AudioSet.new()
 	s.name = nm
-	for part in (["p1", "p2", "p3"] if nm.begins_with("boss_") else ["base", "drive"]):
-		var st := _loop(DIR + nm + "_" + part + ".wav")
-		if st:
-			s.stems.append(st)
 	if nm.begins_with("loc_"):
 		var key := nm.substr(4)
 		s.bed = _loop(DIR + "amb_" + key + ".wav")
@@ -241,73 +257,69 @@ func get_set(nm: String) -> AudioSet:
 	sets[nm] = s
 	return s
 
-## переключить музыку на набор: прежний гаснет и освобождается, новый стартует всеми слоями разом (они одной длины)
-func play_set(nm: String) -> void:
-	if nm == cur:
-		return
-	cur = nm
-	for p in layers:
-		var tw := p.create_tween()
-		tw.tween_property(p, "volume_db", -60.0, 1.4)
-		tw.tween_callback(p.queue_free)
-	layers = []
-	want = []
-	if nm == "":
-		return
-	for st in get_set(nm).stems:
-		var p := AudioStreamPlayer.new()
-		p.bus = "Music"
-		p.stream = st
-		p.volume_db = -60.0
-		add_child(p)
-		p.play()
-		layers.append(p)
-		want.append(0.0)
-
+## отбивка: проигрывает режиссёр
 func stinger(file: String) -> void:
-	var path := DIR + file + ".wav"
-	if ResourceLoader.exists(path):
-		sting.stream = load(path)
-		sting.volume_db = 0.0
-		sting.play()
+	director.stinger(file)
 
-func _set_state(s: String) -> void:
-	if s != state:
-		state = s
-		state_changed.emit(s)
+func _set_state(st: String) -> void:
+	if st != state:
+		state = st
+		state_changed.emit(st)
 
 # ---------- каждый кадр: смотрим на игру ----------
+func _finish(dt: float, sit: Dictionary) -> void:
+	director.set_base(sit)
+	director.tick(dt)
+	cur = "" if director.cue == "title" else director.cue
+	duck = director.duck_db
+	_mix(dt)
+
+func _reset_game_memory() -> void:
+	boss_seen = ""
+	dead_seen = false
+	director.stop_stinger()
+
 func _process(dt: float) -> void:
 	var game = main.game
 	var quiet: bool = main.testing() != "" and not main.audiolog
-	if main.race != null and is_instance_valid(main.race) and not quiet:
-		_race(dt, main.race)
-		return
-	if main.minigame != null and is_instance_valid(main.minigame) and not quiet:
-		_minigame(dt, main.minigame)
-		return
-	if game == null or not is_instance_valid(game) or quiet:
-		# меню: играет заглавный трек, наборы молчат
-		play_set("")
+	var sit := {"ctx": "menu", "cue": "title", "layers": [0.0, 0.0, 0.0], "pitch": 1.0, "gain_db": 0.0, "duck_db": 0.0}
+	if quiet:
+		sit["ctx"] = "quiet"
+		sit["cue"] = ""
 		_bed("")
 		_set_state("menu")
-		_mix(dt, 0.0)
+		_finish(dt, sit)
 		return
-	# заглавный трек в игре уходит
-	if main.music.playing:
-		main.music.volume_db = move_toward(main.music.volume_db, -60.0, dt * 22.0)      # заглавный трек меню уходит за ~2,5 с
-		if main.music.volume_db <= -59.0:
-			main.music.stop()
+	if main.race != null and is_instance_valid(main.race):
+		_finish(dt, _race(dt, main.race))
+		return
+	if main.minigame != null and is_instance_valid(main.minigame):
+		_finish(dt, _minigame(main.minigame))
+		return
+	if game == null or not is_instance_valid(game):
+		if game_id != 0:
+			game_id = 0
+			_reset_game_memory()
+		_bed("")
+		_set_state("menu")
+		_finish(dt, sit)
+		return
+	if game.get_instance_id() != game_id:
+		game_id = game.get_instance_id()
+		_reset_game_memory()
 	var key: String = "hall" if game.in_hall else String(game.chapter()["th"]["deco"])      # арена, приквел и Survival идут под музыку первой главы: своих наборов loc_<deco> у них нет
 	var boss = game.boss_e if (game.mode == "boss" or game.is_survival()) and is_instance_valid(game.boss_e) else null
-	var ducking := 0.0
+	var ctxn := "explore"
+	var lay: Array = [1.0, 0.0, 0.0]
+	var want_cue := ""
 	if boss != null and boss.state != "dead":
 		var id: String = boss.boss_id
 		if boss_seen != id:
 			boss_seen = id
 			stinger("boss_" + id + "_intro")
-		play_set("boss_" + id)
-		_want([1.0, 1.0 if boss.phase >= 1 else 0.0, 1.0 if boss.phase >= 2 else 0.0])
+		want_cue = director.resolve_cue("boss_" + id, "loc_" + key)
+		lay = [1.0, 1.0 if boss.phase >= 1 else 0.0, 1.0 if boss.phase >= 2 else 0.0]
+		ctxn = "boss"
 		_set_state("boss")
 	else:
 		if boss_seen != "":
@@ -315,73 +327,59 @@ func _process(dt: float) -> void:
 			stinger("boss_" + boss_seen + "_win")
 			boss_seen = ""
 			_set_state("victory")
-		play_set("loc_" + key)
+		want_cue = director.resolve_cue("loc_" + key)
 		var fighting: bool = (game.mode == "fight" or game.mode == "training") and game.enemies.any(func(e): return is_instance_valid(e) and e.state != "dead")
-		_want([1.0, 1.0 if fighting else 0.0])
-		if not sting.playing:
+		lay = [1.0, 1.0 if fighting else 0.0, 0.0]
+		ctxn = "combat" if fighting else "explore"
+		if not director.sting.playing:
 			_set_state("dialogue" if game.mode == "dlg" else ("combat" if fighting else "explore"))
 	var dead: bool = game.player.state == "dead"
 	if dead and not dead_seen:
 		stinger("defeat")
 		_set_state("defeat")
 	dead_seen = dead
+	var dk := 0.0
 	if game.get_tree().paused and game.pause_panel != null and game.pause_panel.is_open:
-		ducking = -6.0      # меню паузы: игра тише, но не пропадает
+		dk = -6.0      # меню паузы: игра тише, но не пропадает
 	if game.mode == "dlg":
-		ducking = min(ducking, -4.0)      # в диалоге музыка тише примерно на 37%, но не пропадает
-	if sting.playing:
-		ducking = min(ducking, -7.0)
+		dk = minf(dk, -4.0)      # в диалоге музыка тише примерно на 37%, но не пропадает
 	if dead:
-		ducking = -14.0
+		dk = -14.0
+		ctxn = "defeat"
+	sit = {"ctx": ctxn, "cue": want_cue, "layers": lay, "pitch": 1.0, "gain_db": 0.0, "duck_db": dk}
+	# режим игры может сказать о музыке сам (ГОЛДА 67 и другие)
+	var gm = game.get("golda")
+	if gm != null and is_instance_valid(gm) and gm.has_method("music_context"):
+		var mc: Dictionary = gm.music_context()
+		for k in mc:
+			sit[k] = mc[k]
 	_bed(key)
 	_shots(dt, game)
-	_mix(dt, ducking)
+	_finish(dt, sit)
 	if main.audiolog:
 		log_t -= dt
 		if log_t <= 0.0:
 			log_t = 1.0
-			print("MUSIC набор=%s состояние=%s слои=%s приглушение=%.1f дБ наушники=%.2f шины: Music %.1f SFX %.1f Ambient %.1f Voice %.1f дБ · пик музыки=%.1f дБ пик окружения=%.1f дБ" % [cur, state, str(want), duck, headphone,
+			print("MUSIC набор=%s состояние=%s слои=%s приглушение=%.1f дБ наушники=%.2f шины: Music %.1f SFX %.1f Ambient %.1f Voice %.1f дБ · пик музыки=%.1f дБ пик окружения=%.1f дБ" % [cur, state, str(lay), duck, headphone,
 				AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Music")), AudioServer.get_bus_volume_db(AudioServer.get_bus_index("SFX")), AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Ambient")), AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Voice")),
 				AudioServer.get_bus_peak_volume_left_db(AudioServer.get_bus_index("Music"), 0), AudioServer.get_bus_peak_volume_left_db(AudioServer.get_bus_index("Ambient"), 0)])
 
-## гонка на пылесосах: свой набор (loc_race: драйв и ударные), заглавный трек меню уходит, на паузе тише
-func _race(dt: float, race) -> void:
-	if main.music.playing:
-		main.music.volume_db = move_toward(main.music.volume_db, -60.0, dt * 22.0)
-		if main.music.volume_db <= -59.0:
-			main.music.stop()
-	play_set("loc_race" if ResourceLoader.exists(DIR + "loc_race_base.wav") else "loc_snow")
-	_want([1.0, 1.0 if race.go or race.state == "countdown" else 0.0])
+## гонка на пылесосах: свой набор (loc_race: драйв и ударные), на паузе тише, на последнем круге чуть быстрее и выше
+func _race(dt: float, race) -> Dictionary:
 	_set_state("race" if race.state != "results" else "victory")
 	_bed("")
-	_mix(dt, -6.0 if race.paused else (-3.0 if race.state == "results" else 0.0))
-	# последний круг: музыка чуть быстрее и выше — напряжение до финиша (после него — обратно)
 	var hot: bool = race.local != null and race.laps > 1 and race.local.lap >= race.laps - 1 and not race.local.finished and race.go
-	for p in layers:
-		if is_instance_valid(p):
-			p.pitch_scale = move_toward(p.pitch_scale, 1.07 if hot else 1.0, dt * 0.06)
+	race_pitch = move_toward(race_pitch, 1.07 if hot else 1.0, dt * 0.06)
+	return {"ctx": "race", "cue": director.resolve_cue("loc_race", "loc_snow"), "layers": [1.0, 1.0 if race.go or race.state == "countdown" else 0.0, 0.0],
+		"pitch": race_pitch, "gain_db": 0.0, "duck_db": -6.0 if race.paused else (-3.0 if race.state == "results" else 0.0)}
 
-## мини-игра со своей сценой: заглавный трек уходит, набор — какой попросит сама игра ("" — тишина, у неё свой звук)
-func _minigame(dt: float, mg) -> void:
-	if main.music.playing:
-		main.music.volume_db = move_toward(main.music.volume_db, -60.0, dt * 22.0)
-		if main.music.volume_db <= -59.0:
-			main.music.stop()
+## мини-игра со своей сценой: набор — какой попросит сама игра ("" — тишина, у неё свой звук)
+func _minigame(mg) -> Dictionary:
 	var nm: String = mg.music_set() if mg.has_method("music_set") else ""
-	if nm != "" and not ResourceLoader.exists(DIR + nm + "_base.wav"):
-		nm = ""
-	play_set(nm)
-	# слои: игра сама говорит, насколько громко base и drive (микрозаймы: drive — когда горит срок); по умолчанию — только base
 	var lv: Array = mg.music_layers() if mg.has_method("music_layers") else [0.7, 0.0]
-	_want(lv)
 	_set_state("minigame")
-	# фон окружения из набора amb_<имя> (у «5 ночей» свой синтез — она отдаёт "")
 	_bed(String(mg.bed_set()) if mg.has_method("bed_set") else "")
-	_mix(dt, 0.0)
-
-func _want(v: Array) -> void:
-	for i in want.size():
-		want[i] = float(v[i]) if i < v.size() else 0.0
+	return {"ctx": "minigame", "cue": director.resolve_cue(nm), "layers": lv, "pitch": 1.0, "gain_db": 0.0, "duck_db": 0.0}
 
 ## Мёртвая тишина (скримеры «5 ночей»): фон и/или музыка пропадают сразу, без затухания; возвращаются плавно.
 ## Шины глушит только этот файл — режим просит через hush(). SFX не трогаем: через неё идёт сам крик.
@@ -400,11 +398,10 @@ func hush(amb: bool, mus: bool) -> void:
 		if mus:
 			AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), -80.0)
 
-func _mix(dt: float, ducking: float) -> void:
+func _mix(dt: float) -> void:
 	if not hush_hold:                            # отпустили — фон возвращается за секунду с лишним, без скачка
 		hush_amb = move_toward(hush_amb, 0.0, dt * 0.8)
 		hush_mus = move_toward(hush_mus, 0.0, dt * 0.8)
-	duck = lerpf(duck, ducking, 1.0 - exp(-3.0 * dt))
 	headphone_on = listening()
 	headphone = move_toward(headphone, 1.0 if headphone_on else 0.0, dt / (HP_IN if headphone_on else HP_OUT))
 	var hk := headphone * headphone * (3.0 - 2.0 * headphone)
@@ -413,13 +410,10 @@ func _mix(dt: float, ducking: float) -> void:
 		AudioServer.set_bus_volume_db(AudioServer.get_bus_index(b), linear_to_db(max(0.0001, float(vol[b]))) + HP_MUFFLE_DB * hk - (80.0 * hush_amb * hush_amb if b == "Ambient" else 0.0))
 	ipod_focus = lerpf(ipod_focus, ipod_focus_target, 1.0 - exp(-3.2 * dt))
 	var focus_volume := lerpf(1.0, 0.68, ipod_focus)
-	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(max(0.0001, float(vol["Music"]) * focus_volume)) + duck + hp_db - 80.0 * hush_mus * hush_mus)
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Music"), linear_to_db(max(0.0001, float(vol["Music"]) * focus_volume)) + hp_db - 80.0 * hush_mus * hush_mus)
 	ipod_lowpass.cutoff_hz = lerpf(22000.0, 5600.0, ipod_focus)
 	ipod_reverb.wet = 0.16 * ipod_focus
 	ipod_reverb.dry = 1.0 - 0.08 * ipod_focus
-	for i in layers.size():
-		var target := linear_to_db(max(0.001, want[i]))
-		layers[i].volume_db = lerpf(layers[i].volume_db, target, 1.0 - exp(-(2.5 if target > layers[i].volume_db else 1.2) * dt))
 
 ## Низкий короткий удар под надпись «ПАХАН УМЕР»: синтезируется на лету, идёт через шину Music.
 var accent_p: AudioStreamPlayer
@@ -441,7 +435,7 @@ func death_accent() -> void:
 		w.data = bytes
 		accent_p = AudioStreamPlayer.new()
 		accent_p.stream = w
-		accent_p.bus = "Music"
+		accent_p.bus = "MusicBG"
 		accent_p.volume_db = 4.0
 		add_child(accent_p)
 	if main.testing() == "":
