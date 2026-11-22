@@ -49,7 +49,7 @@ const STASH := [
 ]
 const STASH_N := 5
 ## Места коротких событий и дверь «ТРЯПОК»: постоянные предметы двора
-const EVENT_SPOTS := {"burmalda": Vector3(33.0, 0.0, -14.0), "button": Vector3(-12.0, 0.0, -15.0), "rags": Vector3(-43.4, 0.0, 8.2)}
+const EVENT_SPOTS := {"burmalda": Vector3(33.0, 0.0, -14.0), "button": Vector3(-18.0, 0.0, -15.0), "rags": Vector3(-43.4, 0.0, 8.2)}
 const STASH_R := 1.2
 const HOME_DOOR := Vector3(0.0, 0.0, 34.2)      # перед дверью подъезда (сама дверь — z 35.2): отсюда домой в хаб
 

@@ -704,10 +704,9 @@ func build_event_props() -> void:
 	var plate := _ev_mesh(a, _evb(Vector3(0.9, 0.2, 0.012)), Vector3(0.0, 1.07, 0.408), Color(0.82, 0.78, 0.62))
 	var l2 := _ev_label(a, "Мы не знаем, что внутри.\nНо оно работает", Vector3(0.0, 1.07, 0.416), 30, Color(0.12, 0.1, 0.08))
 	l2.pixel_size = 0.0019
-	var l3 := _ev_label(a, "Гарантия до первого использования", Vector3(0.0, 0.36, 0.416), 22, Color(0.9, 0.88, 0.8))
-	l3.pixel_size = 0.0016
-	l3.position.x = -0.08
-	l3.position.y = 0.3
+	var l3 := _ev_label(a, "Гарантия до первого\nиспользования", Vector3(0.0, 0.3, 0.416), 22, Color(0.9, 0.88, 0.8))
+	l3.pixel_size = 0.0034
+	l3.position.x = -0.12
 	l3.rotation.z = 0.02
 	# наклейки: стрелка к рычагу, знак «!», облезлая круглая
 	_ev_mesh(a, _evb(Vector3(0.16, 0.04, 0.01)), Vector3(0.28, 1.6, 0.41), Color(1.0, 0.85, 0.1))

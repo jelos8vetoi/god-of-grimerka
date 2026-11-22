@@ -1235,6 +1235,19 @@ func _ev_say(line: String) -> void:
 	game.banner(text, G67Clips.speaker(code), Color(1.0, 0.9, 0.7), 2.4)
 	events.append(["ev_say", line])
 
+## Свободная точка камеры: из кандидатов — первая, от которой до цели нет геометрии (луч), и не ближе 1,3 м к герою
+func _ev_free_cam(target: Vector3, cands: Array) -> Vector3:
+	var space: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
+	var pp: Vector3 = game.player.global_position
+	for c in cands:
+		var q := PhysicsRayQueryParameters3D.create(c, target)
+		q.collision_mask = 1
+		var hit: Dictionary = space.intersect_ray(q)
+		var free: bool = hit.is_empty() or c.distance_to(hit["position"]) >= c.distance_to(target) - 0.35
+		if free and Vector2(c.x - pp.x, c.z - pp.z).length() >= 1.3:
+			return c
+	return cands[cands.size() - 1]
+
 func _ev_face(to: Vector3) -> void:
 	var pp: Vector3 = game.player.global_position
 	game.player.face = atan2(to.x - pp.x, to.z - pp.z)
@@ -1310,9 +1323,9 @@ func _burmalda_scene(pick: String, first: bool) -> void:
 	_ev_begin()
 	_ev_face(sp + Vector3(0.6, 0, 0))
 	ev_arc = randf() < 0.5
-	_ev_shot(sp + Vector3(-3.4, 2.0, 4.2), sp + Vector3(0.2, 1.2, 0.3), 56.0)           # автомат целиком, рычаг и герой
+	_ev_shot(sp + Vector3(1.8, 1.9, 5.0), sp + Vector3(-0.1, 1.2, 0.3), 54.0)           # автомат целиком, рычаг (справа) и герой
 	await _ev_wait(0.6)
-	_ev_shot(sp + Vector3(-2.6, 1.7, 3.2), sp + Vector3(0.2, 1.2, 0.4), 50.0)
+	_ev_shot(sp + Vector3(1.4, 1.7, 3.8), sp + Vector3(0.0, 1.2, 0.4), 48.0)
 	if first or randf() < 0.35:
 		_ev_say(L[0])
 		await _ev_wait(1.8)
@@ -1327,7 +1340,7 @@ func _burmalda_scene(pick: String, first: bool) -> void:
 	if variant == 2:
 		_ev_sparks(sp + Vector3(0, 1.0, 0.5), Color(1.0, 0.6, 0.2), 15)       # «заело»
 	await _ev_wait(2.9)
-	_ev_shot(sp + Vector3(-2.2, 1.5, 3.0), sp + Vector3(0.0, 0.7, 0.8), 48.0)
+	_ev_shot(sp + Vector3(0.6, 1.6, 3.4), sp + Vector3(0.0, 0.6, 0.8), 48.0)
 	_burmalda_outcome(pick)
 	if rare:
 		G67Sound.play(self, "respect")
@@ -1457,12 +1470,14 @@ func _button_scene(id: String) -> void:
 	var L := G67Voice.EVENT_BUTTON
 	var sp: Vector3 = G67Yard.EVENT_SPOTS["button"]
 	var p = game.player
+	p.global_position = sp + Vector3(-0.9, 0.05, 0.9)                           # левее кнопки: не перекрывает её
 	var pp: Vector3 = p.global_position
 	_ev_begin()
-	_ev_face(sp)
-	_ev_shot(pp + Vector3(1.4, 1.8, 1.8), sp + Vector3(0, 1.5, 0), 55.0)
+	_ev_face(sp + Vector3(0, 0, 0))
+	var kt := sp + Vector3(0, 1.5, 0)
+	_ev_shot(_ev_free_cam(kt, [sp + Vector3(1.6, 1.9, 2.8), sp + Vector3(0.0, 1.9, 3.0), sp + Vector3(2.4, 2.0, 1.0)]), kt, 52.0)
 	await _ev_wait(0.4)
-	_ev_shot(sp + Vector3(0.5, 1.7, 1.3), sp + Vector3(0, 1.55, 0), 34.0)       # наезд на кнопку
+	_ev_shot(_ev_free_cam(kt, [sp + Vector3(1.2, 1.7, 2.0), sp + Vector3(0.4, 1.7, 2.1), sp + Vector3(1.9, 1.8, 1.2)]), kt, 40.0)       # наезд: коробка, надписи, табличка
 	world.ev_lid(true)
 	G67Sound.play(self, "door")
 	await _ev_wait(0.8)
@@ -1501,17 +1516,23 @@ func _button_scene(id: String) -> void:
 		"snow":
 			_button_outcome(id)
 			var pigs: Array = []
+			var away := Vector3(pp.x - sp.x, 0, pp.z - sp.z).normalized()
+			p.face = atan2(away.x, away.z)                                         # Пахан смотрит от столба, на открытый снег
 			for i in 6:
-				var a := TAU * float(i) / 6.0
-				var pg := G67Models.spawn("g67_pigeon", world, sp + Vector3(cos(a) * 5.0, 0.0, sin(a) * 5.0), a + PI, Vector3(0.3, 0.3, 0.3))
+				var a := -1.0 + 0.4 * float(i)
+				var dirv := away.rotated(Vector3.UP, a)
+				var tgt := pp + dirv * (1.7 + 0.15 * (i % 2))
+				var pg := G67Models.spawn("g67_pigeon", world, tgt + dirv * 6.0, atan2(-dirv.x, -dirv.z), Vector3(0.35, 0.35, 0.35))
 				pigs.append(pg)
-				var tw := pg.create_tween()
-				tw.tween_property(pg, "position", pp + Vector3(cos(a) * (0.9 if i > 0 else 0.6), 0.0, sin(a) * (0.9 if i > 0 else 0.6)), 1.6)
-			_ev_shot(pp + Vector3(2.5, 2.2, 2.5), pp + Vector3(0, 0.4, 0), 55.0)
-			await _ev_wait(1.8)
-			var fwd := Vector3(sin(p.face), 0, cos(p.face))
-			_ev_shot(pp + fwd * 1.6 + Vector3(0, 0.35, 0), pp + Vector3(0, 1.25, 0), 42.0)           # голубь снизу и Пахан лицом к лицу
+				var tw: Tween = pg.create_tween()
+				tw.tween_property(pg, "position", tgt, 1.4)
+			_ev_shot(pp + away * 4.2 + Vector3(2.0, 2.4, 0), pp + away * 1.5 + Vector3(0, 0.3, 0), 55.0)
+			await _ev_wait(1.6)
+			var side := away.cross(Vector3.UP)
+			var low := _ev_free_cam(pp + away * 1.0 + Vector3(0, 0.5, 0), [pp + away * 1.0 + side * 2.6 + Vector3(0, 0.45, 0), pp + away * 1.0 - side * 2.6 + Vector3(0, 0.45, 0)])
+			_ev_shot(low, pp + away * 0.9 + Vector3(0, 0.55, 0), 52.0)             # низкий план: голуби снизу смотрят на Пахана, оба в кадре
 			await _ev_wait(1.3)
+			_ev_shot(_ev_free_cam(pp + Vector3(0, 1.4, 0), [pp + away * 3.3 + Vector3(0, 1.1, 0), pp + away * 3.3 + away.cross(Vector3.UP) * 1.5 + Vector3(0, 1.1, 0)]), pp + Vector3(0, 1.4, 0), 44.0)       # встречный средний на Пахана
 			_ev_say(L[2])
 			await _ev_wait(1.6)
 			for pg in pigs:
@@ -1606,7 +1627,7 @@ func _button_scene(id: String) -> void:
 			paper.position = sp + Vector3(0.8, 0.6, 0.9)
 			world.add_child(paper)
 			var ptw := paper.create_tween()
-			ptw.tween_property(paper, "position", sp + Vector3(1.4, 0.03, 0.5), 0.7)
+			ptw.tween_property(paper, "position", sp + Vector3(2.0, 0.03, 0.3), 0.7)
 			var pl := Label3D.new()
 			pl.text = "Пошел нахуй"
 			pl.font_size = 40
@@ -1616,9 +1637,9 @@ func _button_scene(id: String) -> void:
 			pl.position = sp + Vector3(0.8, 0.6, 0.9)
 			world.add_child(pl)
 			var ltw := pl.create_tween()
-			ltw.tween_property(pl, "position", sp + Vector3(1.4, 0.045, 0.5), 0.7)
+			ltw.tween_property(pl, "position", sp + Vector3(2.0, 0.045, 0.3), 0.7)
 			G67Sound.play(self, "tray")
-			_ev_shot(sp + Vector3(1.4, 1.2, 1.3), sp + Vector3(1.4, 0.0, 0.5), 40.0)
+			_ev_shot(sp + Vector3(1.6, 1.9, 1.3), sp + Vector3(1.4, 0.0, 0.3), 42.0)
 			_button_outcome(id)
 			await _ev_wait(2.6)
 			get_tree().create_timer(20.0).timeout.connect(func():
