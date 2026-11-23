@@ -56,3 +56,16 @@ const ARRIVE_DB := -8.0                # шаг прихода к двери (б
 const RETREAT_DB := [-8.0, -12.0, -16.0]   # три удаляющихся шага
 const RETREAT_GAP := [0.45, 0.6]
 const RETREAT_AT := [0.0, 0.45, 0.9]   # доля пути от двери к коридору
+
+## MADK1D в шахте: события по состоянию вместо петли. steps: [доля пути duct_t/duct_need, id, дБ, доля расстояния от дальней точки к решётке]
+const DUCT := {
+	"enter": {"id": "duct_far", "db": -6.0},
+	"steps": [[0.38, "duct_move", -11.0, 0.35], [0.68, "duct_move", -6.0, 0.75]],
+	"burst": [2, 3], "burst_gap": [0.28, 0.5],
+	"quiet_from": 0.8,
+	"arrive": {"id": "grate_hit", "db": 2.0},
+	"at_grate": {"id": "rustle", "gap": [1.3, 2.2], "db": -8.0},
+	"bang": {"id": "grate_hit", "db": 4.0},
+	"leave": {"id": "duct_far", "db": [-8.0, -13.0], "gap": [0.6, 0.9]},
+}
+const DUCT_FAR := {"l": Vector3(-4.5, 0.6, -6.5), "t": Vector3(0.35, 3.4, -7.0)}   # дальний конец шахты; ближний — FNOffice.point("vent_" + s)

@@ -36,6 +36,7 @@ var tut_vent_t := false
 var levels := {}
 var quiet := false
 var look_key := 0.0
+var look_up_key := false           # стрелка вверх: взгляд на люк
 var light_hold := {"l": false, "r": false}
 var crank_last := ""
 var call_lines: Array = []
@@ -63,7 +64,9 @@ var intro_t := 0.0                  # заставка ночи: пока идё
 # звук
 var tension := FNTension.new()      # фаза и уровень напряжения ночи
 var ambience: FNAmbience             # фон будки и случайные звуки здания
-var crawl: AudioStreamPlayer3D      # MADK1D в шахте
+var duct_prev := ""               # где был MADK1D в прошлом кадре (для событий шахты)
+var duct_fired := [false, false]  # какие серии ударов по пути уже были
+var duct_grate_t := -1.0          # до следующего шороха за решёткой
 var whisper: AudioStreamPlayer      # GHOST: шёпот растёт с одержимостью
 var air_tune: AudioStreamPlayer3D   # «последний шанс»
 var pool3: Array = []
@@ -131,8 +134,6 @@ func _audio() -> void:
 	ambience = FNAmbience.new()
 	add_child(ambience)
 	ambience.build(self)
-	crawl = _p3("crawl")
-	crawl.volume_db = -60.0
 	air_tune = _p3("music_box_air")
 	air_tune.position = FNOffice.point("door_l") + Vector3(0, 1.6, 0)
 	whisper = AudioStreamPlayer.new()
@@ -233,7 +234,6 @@ func hush_begin(mode: String) -> void:
 		call_voice.stop()
 		pahan_voice.stop()
 		air_tune.stop()
-		crawl.volume_db = -80.0
 		whisper.volume_db = -80.0
 	if mode in ["dead", "amb"] and main != null and main.audio != null:
 		main.audio.hush(true, true)
@@ -309,6 +309,73 @@ func _presence_tick(dt: float) -> void:
 			else:
 				say("Справа кто-то стоит. D — закрыть дверь, E — посветить.", 4.5)
 
+## MADK1D в шахте: звуки по состоянию (вход, две серии ударов ближе к решётке, тишина, приход, шорох за решёткой, уход); ожидание в очереди звуков не даёт
+func _duct_reset() -> void:
+	duct_prev = ""
+	duct_fired = [false, false]
+	duct_grate_t = -1.0
+
+## удар шахты: через delay секунд, в точке pos
+func _duct_hit(id: String, pos: Vector3, db: float, delay: float, tag: String) -> void:
+	var pitch := randf_range(0.95, 1.05)
+	cue_log.append([st.t + delay, "madk1d", duct_prev, "duct", id, pos, db, tag])
+	if delay <= 0.0:
+		sfx3(id, pos, db, pitch)
+	else:
+		far_q.append([delay, id, pos, db, pitch, "near"])
+
+func _duct_tick(dt: float) -> void:
+	var m: FNEnemy = st.enemies["madk1d"]
+	if m.level <= 0 or st.power_out or m.queued != "" or scare.busy:
+		duct_prev = m.spot if m.level > 0 else ""
+		return
+	var sp: String = m.spot
+	var D: Dictionary = FNCues.DUCT
+	var from := duct_prev
+	if sp != from:
+		duct_prev = sp
+		if sp.begins_with("duct_"):
+			var sd := sp.substr(5)
+			duct_fired = [false, false]
+			if from.begins_with("duct_"):
+				var old := from.substr(5)
+				_duct_hit("duct_far", FNCues.DUCT_FAR[old], float(D["enter"]["db"]), 0.0, "switch")
+				_duct_hit("duct_far", FNCues.DUCT_FAR[sd], float(D["enter"]["db"]), 0.4, "switch")
+			elif from.begins_with("vent_") or from == "":
+				_duct_hit(D["enter"]["id"], FNCues.DUCT_FAR[sd], float(D["enter"]["db"]), 0.0, "enter")
+				if randf() < 0.5:
+					_duct_hit(D["enter"]["id"], FNCues.DUCT_FAR[sd], float(D["enter"]["db"]) - 3.0, 0.45, "enter")
+		elif sp.begins_with("vent_"):
+			_duct_hit(D["arrive"]["id"], FNOffice.point(sp), float(D["arrive"]["db"]), 0.0, "arrive")
+			duct_grate_t = randf_range(D["at_grate"]["gap"][0], D["at_grate"]["gap"][1])
+		elif from.begins_with("duct_") or from.begins_with("vent_"):
+			var fs := from.substr(5)
+			var lv: Array = D["leave"]["db"]
+			var lg: Array = D["leave"]["gap"]
+			_duct_hit(D["leave"]["id"], FNCues.DUCT_FAR[fs], float(lv[0]), 0.0, "leave")
+			_duct_hit(D["leave"]["id"], FNCues.DUCT_FAR[fs], float(lv[1]), randf_range(lg[0], lg[1]), "leave")
+		return
+	if sp.begins_with("duct_") and m is FNMadk1d:
+		var md := m as FNMadk1d
+		var frac: float = md.duct_t / maxf(0.1, md.duct_need)
+		var sd2 := sp.substr(5)
+		if frac < float(D["quiet_from"]):
+			for i in D["steps"].size():
+				var stp: Array = D["steps"][i]
+				if not bool(duct_fired[i]) and frac >= float(stp[0]):
+					duct_fired[i] = true
+					var pos := (FNCues.DUCT_FAR[sd2] as Vector3).lerp(FNOffice.point("vent_" + sd2), float(stp[3]))
+					var n_hits := randi_range(int(D["burst"][0]), int(D["burst"][1]))
+					var at_t := 0.0
+					for k2 in n_hits:
+						_duct_hit(String(stp[1]), pos, float(stp[2]), at_t, "steps")
+						at_t += randf_range(D["burst_gap"][0], D["burst_gap"][1])
+	elif sp.begins_with("vent_"):
+		duct_grate_t -= dt
+		if duct_grate_t <= 0.0:
+			duct_grate_t = randf_range(D["at_grate"]["gap"][0], D["at_grate"]["gap"][1])
+			_duct_hit(D["at_grate"]["id"], FNOffice.point(sp), float(D["at_grate"]["db"]), 0.0, "at_grate")
+
 ## дальний ход врага: звук из комнаты, где он встал; молчит при угрозе рядом, в первые секунды ночи, при скримере и чаще раза в FAR_GAP
 func _far_cue(e: String, to: String, blocked: bool) -> void:
 	if blocked or st.t < FNCues.FAR_FROM or scare.busy or FNCues.far_pos(to) == Vector3.ZERO or not st.enemies.has(e):
@@ -361,9 +428,7 @@ func clear_transients(keep_scream := false) -> void:
 		(p as AudioStreamPlayer3D).stop()
 	if air_tune != null:
 		air_tune.stop()
-	if crawl != null:
-		crawl.stop()
-		crawl.volume_db = -60.0
+	_duct_reset()
 	if whisper != null:
 		whisper.stop()
 		whisper.volume_db = -60.0
@@ -517,7 +582,7 @@ func start_night(n: int, lv := {}) -> void:
 	air_tune.stop()
 	call_voice.stop()
 	_say_clear()
-	crawl.volume_db = -60.0
+	_duct_reset()
 	state = "night"
 	sfx2("sting_night", -3.0, 1.0, "Music")
 	var title: String = "свои уровни" if n >= FNData.NIGHTS.size() else String(FNData.NIGHTS[n]["title"])
@@ -612,6 +677,8 @@ func _night_tick(dt: float) -> void:
 	var mouse_ok: bool = main == null or main.user_play() or has_meta("look_mouse")
 	if st.monitor or not mouse_ok:
 		look_in = look_key if not st.monitor else 0.0
+	var my := get_viewport().get_mouse_position().y / maxf(1.0, vs.y)
+	office.pitch_target = 1.0 if (not st.monitor and (look_up_key or (mouse_ok and my < 0.18))) else 0.0
 	# свет держится, пока держишь кнопку
 	for s in ["l", "r"]:
 		st.set_light(s, light_hold[s])
@@ -758,8 +825,6 @@ func _on_event(k: String, d: Dictionary) -> void:
 				var hid := FNCues.hall_id(e)
 				cue_log.append([st.t, e, to, "hall", hid, step_at])
 				sfx3(hid, step_at, -9.0, 0.85)
-			elif to in ["vent_l", "vent_t"]:
-				sfx3("vent_bang", FNOffice.point(to), 2.0, 1.0)
 			if String(d.get("why", "")) == "retreat" and String(d["from"]).begins_with("door"):
 				var side := String(d["from"]).substr(5)
 				var rid := FNCues.hall_id(e)
@@ -782,7 +847,10 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"bang":
 			ambience.hold(6.0)
 			var at := String(d["at"])
-			sfx3("vent_bang" if at.begins_with("vent") else "door_down", FNOffice.point(at), 4.0, 0.7)
+			if at.begins_with("vent"):
+				_duct_hit(FNCues.DUCT["bang"]["id"], FNOffice.point(at), float(FNCues.DUCT["bang"]["db"]), 0.0, "bang")
+			else:
+				sfx3("door_down", FNOffice.point(at), 4.0, 0.7)
 			if at.begins_with("vent"):
 				office.seal_bang(at.substr(5))
 			office.shake = 0.5
@@ -833,7 +901,6 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"power_out":
 			sfx2("power_down", 0.0)
 			pahan_say(String(FNData.PAHAN["dark"][0]), 3.0)
-			crawl.volume_db = -60.0
 		"dark_eyes":
 			office.dark_eyes.visible = true
 			if _snd_ok():
@@ -882,16 +949,7 @@ func _cam_name(id: String) -> String:
 ## звуки угрозы, которые идут, пока угроза есть: MADK1D в шахте, шёпот GHOST, писк сервера
 func _threat_sounds(dt: float) -> void:
 	var m: FNEnemy = st.enemies["madk1d"]
-	var near := m.spot in ["duct_l", "duct_t", "vent_l", "vent_t"] and m.level > 0 and not st.power_out
-	if near and _snd_ok():
-		if not crawl.playing:
-			crawl.play()
-		crawl.global_position = FNOffice.point(m.spot)
-		crawl.volume_db = move_toward(crawl.volume_db, (-4.0 if m.spot.begins_with("vent") else -12.0), dt * 30.0)
-	else:
-		crawl.volume_db = move_toward(crawl.volume_db, -60.0, dt * 30.0)
-		if crawl.volume_db <= -59.0 and crawl.playing:
-			crawl.stop()
+	_duct_tick(dt)
 	var g: FNGhost = st.enemies["ghost"]
 	var wv := -60.0 if g.haunt <= 0.02 else lerpf(-26.0, 2.0, clampf(g.haunt, 0.0, 1.0))
 	if wv > -59.0 and not whisper.playing and _snd_ok():
@@ -1012,7 +1070,6 @@ func _attack(eid: String, at: String) -> void:
 	ui.hints("")
 	ui.sub("")
 	air_tune.stop()
-	crawl.stop()
 	whisper.stop()
 	FNSave.died(eid)
 	await scare.play("dark" if at == "dark" else eid, at, randi() % 3)
@@ -1036,7 +1093,6 @@ func _six() -> void:
 	call_voice.stop()
 	_say_clear()
 	air_tune.stop()
-	crawl.stop()
 	whisper.stop()
 	sfx2("chime", 0.0, 1.0, "Music")
 	var pay: int = FNData.PAY[mini(night, FNData.PAY.size() - 1)]
@@ -1154,6 +1210,9 @@ func _input(e: InputEvent) -> void:
 	if state != "night" or not (e is InputEventKey) or e.echo:
 		return
 	var k: int = e.keycode
+	if k == KEY_UP:
+		look_up_key = e.pressed
+		get_viewport().set_input_as_handled()
 	if k == KEY_LEFT or k == KEY_RIGHT:
 		var dir := -1.0 if k == KEY_LEFT else 1.0
 		if e.pressed:

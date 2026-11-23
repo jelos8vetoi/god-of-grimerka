@@ -55,7 +55,7 @@ const SEAL_OPEN_ANGLE := 1.5        # рад: заслонка откинута 
 const LOCK_BLINK_HZ := 8.0          # янтарная лампа блокировки мигает в ходу, горит 60 % периода
 const LOCK_BLINK_DUTY := 0.6
 const LOCK_E_MOVE := 0.55           # свет лампы: янтарный в ходу и при догорании после открытия
-const LOCK_E_CLOSED := 0.3          # красный свет у закрытой
+const LOCK_E_CLOSED := 0.5          # красный свет у закрытой
 const LOCK_E_RATE := 6.0            # ед./с: плавная смена вне мигания
 const LOCK_AFTERGLOW := 0.8         # с: янтарное догорание после упора открытой
 const LOCK_AMBER := Color(1.0, 0.6, 0.2)
@@ -85,6 +85,10 @@ var photo_tex := {
 }
 var yaw := 0.0                     # −1 налево .. +1 направо (как в FNNight)
 var yaw_v := 0.0
+const PITCH_UP := deg_to_rad(36.0)   # взгляд вверх (на люк над столом): pitch_k 0…1
+var pitch_k := 0.0
+var pitch_v := 0.0
+var pitch_target := 0.0            # 0 — прямо, 1 — вверх; ставит ввод (FiveNightsRoot)
 var shake := 0.0
 var font: Font = preload("res://assets/fonts/RussoOne-Regular.ttf")
 var mats := {}
@@ -511,10 +515,14 @@ func _look(st: FNNight, dt: float, target: float) -> void:
 	yaw = clampf(target + (offset + speed * dt) * decay, -1.0, 1.0)
 	yaw_v = (yaw_v - LOOK_RATE * speed * dt) * decay
 	st.yaw = yaw
+	var p_off := pitch_k - pitch_target
+	var p_speed := pitch_v + LOOK_RATE * p_off
+	pitch_k = clampf(pitch_target + (p_off + p_speed * dt) * decay, 0.0, 1.0)
+	pitch_v = (pitch_v - LOOK_RATE * p_speed * dt) * decay
 	var sh := Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake * 0.03
 	shake = maxf(0.0, shake - dt * 2.5)
 	cam.position = rest_view.origin
-	cam.basis = Basis(Vector3.UP, -yaw * YAW_MAX + sh.x) * rest_view.basis * Basis.from_euler(Vector3(sh.y, 0, sh.x * 0.3))
+	cam.basis = Basis(Vector3.UP, -yaw * YAW_MAX + sh.x) * rest_view.basis * Basis(Vector3.RIGHT, PITCH_UP * pitch_k) * Basis.from_euler(Vector3(sh.y, 0, sh.x * 0.3))
 
 func _lighting(st: FNNight, dt: float) -> void:
 	# Короткий провал люминофора и более медленный розжиг. Все источники в будке читают одно питание.
