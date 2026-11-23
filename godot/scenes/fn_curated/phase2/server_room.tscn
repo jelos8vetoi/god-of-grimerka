@@ -1,0 +1,156 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://assets/fn_curated/materials/concrete_floor_worn_02.tres" id="r1"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase2/materials/ceiling_interior.tres" id="r2"]
+[ext_resource type="Material" path="res://assets/fn_curated/materials/worn_plaster_wall.tres" id="r3"]
+[ext_resource type="Material" path="res://assets/fn_curated/materials/grey_plaster.tres" id="r4"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/rack_console.glb" id="r5"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/utility_box_01/utility_box_01.gltf" id="r6"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/wiring/cable_straight_long.gltf" id="r7"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/wiring/cable_box_4way.gltf" id="r8"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/pipes/pipe01.gltf" id="r9"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/straight.gltf" id="r10"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/flange_thin.gltf" id="r11"]
+
+[sub_resource type="BoxMesh" id="b0"]
+size = Vector3(4.4, 0.12, 4.3)
+material = ExtResource("r1")
+
+[sub_resource type="BoxMesh" id="b4"]
+size = Vector3(4.4, 0.12, 4.3)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b8"]
+size = Vector3(0.12, 2.9, 4.3)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b12"]
+size = Vector3(0.12, 2.9, 4.3)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b16"]
+size = Vector3(4.4, 2.9, 0.14)
+material = ExtResource("r4")
+
+[sub_resource type="Environment" id="room"]
+background_mode = 1
+background_color = Color(0.07, 0.082, 0.09, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.68, 0.75, 1)
+ambient_light_energy = 0.38
+tonemap_mode = 2
+
+[node name="ServerRoom" type="Node3D" ]
+
+[node name="Floor" type="MeshInstance3D" parent="." ]
+position = Vector3(0, -0.06, 0)
+mesh = SubResource("b0")
+
+[node name="Ceiling" type="MeshInstance3D" parent="." ]
+position = Vector3(0, 2.96, 0)
+mesh = SubResource("b4")
+
+[node name="LeftWall" type="MeshInstance3D" parent="." ]
+position = Vector3(-2.26, 1.45, 0)
+mesh = SubResource("b8")
+
+[node name="RightWall" type="MeshInstance3D" parent="." ]
+position = Vector3(2.26, 1.45, 0)
+mesh = SubResource("b12")
+
+[node name="BackWall" type="MeshInstance3D" parent="." ]
+position = Vector3(0, 1.45, -2.15)
+mesh = SubResource("b16")
+
+[node name="World" type="WorldEnvironment" parent="." ]
+environment = SubResource("room")
+
+[node name="Rack0" parent="." instance=ExtResource("r5")]
+position = Vector3(-1.13, 0, -1.44)
+rotation_degrees = Vector3(0, -89, 0)
+
+[node name="Rack1" parent="." instance=ExtResource("r5")]
+position = Vector3(0.29, 0, -1.44)
+rotation_degrees = Vector3(0, -89, 0)
+
+[node name="Utility" parent="." instance=ExtResource("r6")]
+position = Vector3(1.58, 0, -1.48)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Conduit0" parent="." instance=ExtResource("r7")]
+position = Vector3(-1.35, 2.29, -2.03)
+rotation_degrees = Vector3(0, 0, 90)
+
+[node name="Conduit1" parent="." instance=ExtResource("r7")]
+position = Vector3(-0.75, 2.29, -2.03)
+rotation_degrees = Vector3(0, 0, 90)
+
+[node name="Conduit2" parent="." instance=ExtResource("r7")]
+position = Vector3(-0.15, 2.29, -2.03)
+rotation_degrees = Vector3(0, 0, 90)
+
+[node name="Conduit3" parent="." instance=ExtResource("r7")]
+position = Vector3(0.45, 2.29, -2.03)
+rotation_degrees = Vector3(0, 0, 90)
+
+[node name="Junction" parent="." instance=ExtResource("r8")]
+position = Vector3(-1.67, 2.29, -2.03)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Pipe0" parent="." instance=ExtResource("r9")]
+position = Vector3(1.93, 0.42, -1.92)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Pipe1" parent="." instance=ExtResource("r9")]
+position = Vector3(1.93, 1.27, -1.92)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Pipe2" parent="." instance=ExtResource("r9")]
+position = Vector3(1.93, 2.12, -1.92)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Straight0" parent="." instance=ExtResource("r10")]
+position = Vector3(-1.57, 2.57, -1.6)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Flange0" parent="." instance=ExtResource("r11")]
+position = Vector3(-1.57, 2.57, -1.12889)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Straight1" parent="." instance=ExtResource("r10")]
+position = Vector3(-1.57, 2.57, -0.65778)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Flange1" parent="." instance=ExtResource("r11")]
+position = Vector3(-1.57, 2.57, -0.18667)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Straight2" parent="." instance=ExtResource("r10")]
+position = Vector3(-1.57, 2.57, 0.28444)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Flange2" parent="." instance=ExtResource("r11")]
+position = Vector3(-1.57, 2.57, 0.75555)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="WorkLight" type="OmniLight3D" parent="." ]
+position = Vector3(-0.86, 2.45, 0.34)
+light_color = Color(0.77, 0.88, 1, 1)
+light_energy = 2.4
+omni_range = 5
+omni_attenuation = 1.1
+shadow_enabled = true
+
+[node name="Maintenance" type="OmniLight3D" parent="." ]
+position = Vector3(1.4, 2.35, -1.7)
+light_color = Color(1, 0.66, 0.36, 1)
+light_energy = 1.8
+omni_range = 3.1
+omni_attenuation = 1.1
+shadow_enabled = true
+
+[node name="Camera" type="Camera3D" parent="." ]
+position = Vector3(1.32, 1.48, 1.95)
+rotation = Vector3(-0.128729, 0.410557, 0)
+fov = 58
+current = true
