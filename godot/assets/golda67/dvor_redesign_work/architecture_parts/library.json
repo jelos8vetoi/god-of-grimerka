@@ -1,0 +1,366 @@
+{
+ "res_block_a": {
+  "section": "buildings",
+  "source": "soviet_apartment_building__russian_far_east",
+  "size": [
+   31.95,
+   17.96,
+   13.28
+  ],
+  "tris": 25228,
+  "mats": 6,
+  "mb": 13.2,
+  "note": "четырёхэтажка, западный корпус"
+ },
+ "res_block_b": {
+  "section": "buildings",
+  "source": "soviet_apartment_building__russian_far_east",
+  "size": [
+   34.93,
+   18.32,
+   13.28
+  ],
+  "tris": 24299,
+  "mats": 6,
+  "mb": 13.1,
+  "note": "четырёхэтажка, восточный корпус"
+ },
+ "tower_16_wide": {
+  "section": "buildings",
+  "source": "street_city_7_for_games_free",
+  "size": [
+   40.99,
+   37.88,
+   48.38
+  ],
+  "tris": 56,
+  "mats": 1,
+  "mb": 0.2,
+  "note": "панельная башня-оболочка: только дальний план за границей района"
+ },
+ "tower_16_slab": {
+  "section": "buildings",
+  "source": "street_city_7_for_games_free",
+  "size": [
+   16.49,
+   40.66,
+   48.38
+  ],
+  "tris": 56,
+  "mats": 1,
+  "mb": 0.2,
+  "note": "панельная башня-оболочка: только дальний план за границей района"
+ },
+ "tower_9_wide": {
+  "section": "buildings",
+  "source": "street_city_7_for_games_free",
+  "size": [
+   31.76,
+   35.56,
+   31.69
+  ],
+  "tris": 80,
+  "mats": 2,
+  "mb": 7.9,
+  "note": "панельная башня-оболочка: только дальний план за границей района"
+ },
+ "tower_9_slab": {
+  "section": "buildings",
+  "source": "street_city_7_for_games_free",
+  "size": [
+   19.59,
+   32.69,
+   31.69
+  ],
+  "tris": 80,
+  "mats": 2,
+  "mb": 7.9,
+  "note": "панельная башня-оболочка: только дальний план за границей района"
+ },
+ "fastfood_lot": {
+  "section": "buildings",
+  "source": "mcdonalds-restaurant-low-poly",
+  "size": [
+   31.8,
+   30.5,
+   7.0
+  ],
+  "tris": 1893,
+  "mats": 3,
+  "mb": 11.5,
+  "note": "ресторан с проездом и забором; пилоны с логотипом сняты"
+ },
+ "garage_shell_graffiti": {
+  "section": "garages",
+  "source": "garage_rusty_01",
+  "size": [
+   6.3,
+   2.71,
+   1.87
+  ],
+  "tris": 352,
+  "mats": 1,
+  "mb": 1.0,
+  "note": "металлический гараж в граффити"
+ },
+ "garage_brick_double": {
+  "section": "garages",
+  "source": "old_garage",
+  "size": [
+   7.15,
+   11.29,
+   4.39
+  ],
+  "tris": 2204,
+  "mats": 11,
+  "mb": 12.2,
+  "note": "кирпичный бокс на двое ворот, шиферная крыша"
+ },
+ "garage_concrete_45": {
+  "section": "garages",
+  "source": "russian_garage_low-poly_game_model_4k_pbr_tex",
+  "size": [
+   3.8,
+   6.02,
+   2.78
+  ],
+  "tris": 2922,
+  "mats": 1,
+  "mb": 38.7,
+  "note": "бетонный гараж № 45, красные ворота"
+ },
+ "garage_tin_1": {
+  "section": "garages",
+  "source": "low_poly_garages",
+  "size": [
+   4.33,
+   2.8,
+   2.46
+  ],
+  "tris": 28,
+  "mats": 1,
+  "mb": 1.6,
+  "note": "жестяной гараж, цвет 1"
+ },
+ "garage_tin_2": {
+  "section": "garages",
+  "source": "low_poly_garages",
+  "size": [
+   4.38,
+   2.86,
+   2.4
+  ],
+  "tris": 40,
+  "mats": 1,
+  "mb": 1.7,
+  "note": "жестяной гараж, цвет 2"
+ },
+ "garage_tin_3": {
+  "section": "garages",
+  "source": "low_poly_garages",
+  "size": [
+   4.36,
+   2.8,
+   2.4
+  ],
+  "tris": 64,
+  "mats": 1,
+  "mb": 1.9,
+  "note": "жестяной гараж, цвет 3"
+ },
+ "garage_tin_4": {
+  "section": "garages",
+  "source": "low_poly_garages",
+  "size": [
+   4.41,
+   2.73,
+   2.46
+  ],
+  "tris": 52,
+  "mats": 1,
+  "mb": 1.7,
+  "note": "жестяной гараж, цвет 4"
+ },
+ "garage_tin_5": {
+  "section": "garages",
+  "source": "low_poly_garages",
+  "size": [
+   4.3,
+   2.95,
+   2.4
+  ],
+  "tris": 40,
+  "mats": 1,
+  "mb": 1.7,
+  "note": "жестяной гараж, цвет 5"
+ },
+ "car_vaz_21099": {
+  "section": "props",
+  "source": "1991_vaz_21099",
+  "size": [
+   2.02,
+   4.29,
+   1.41
+  ],
+  "tris": 1958,
+  "mats": 1,
+  "mb": 8.6,
+  "note": "ВАЗ-21099"
+ },
+ "bench_siberian": {
+  "section": "props",
+  "source": "bench_siberian_classic_01",
+  "size": [
+   2.13,
+   0.5,
+   0.67
+  ],
+  "tris": 1056,
+  "mats": 1,
+  "mb": 6.0,
+  "note": "лавка"
+ },
+ "dumpster_blue": {
+  "section": "props",
+  "source": "dumpster_russian_blue",
+  "size": [
+   1.35,
+   1.35,
+   1.19
+  ],
+  "tris": 44,
+  "mats": 1,
+  "mb": 2.4,
+  "note": "мусорный бак"
+ },
+ "elbox_green": {
+  "section": "props",
+  "source": "electrical_box_-_free",
+  "size": [
+   2.0,
+   0.51,
+   1.63
+  ],
+  "tris": 1475,
+  "mats": 1,
+  "mb": 19.8,
+  "note": "электрошкаф"
+ },
+ "elbox_rusty_pair": {
+  "section": "props",
+  "source": "rusty_street_electrical_boxes_1",
+  "size": [
+   2.03,
+   0.42,
+   1.85
+  ],
+  "tris": 898,
+  "mats": 1,
+  "mb": 2.2,
+  "note": "два ржавых шкафа"
+ },
+ "bus_stop_blue": {
+  "section": "streets",
+  "source": "old_russian_bus_stop",
+  "size": [
+   5.67,
+   5.58,
+   3.1
+  ],
+  "tris": 2494,
+  "mats": 4,
+  "mb": 37.4,
+  "note": "остановка из профлиста со знаком"
+ },
+ "fence_concrete": {
+  "section": "walls",
+  "source": "wall_low_poly",
+  "size": [
+   6.49,
+   0.69,
+   2.46
+  ],
+  "tris": 94,
+  "mats": 1,
+  "mb": 19.4,
+  "note": "бетонная плита забора и два столба"
+ },
+ "tree_leafy_pair": {
+  "section": "props",
+  "source": "tree_low_poly_lowpoly",
+  "size": [
+   10.73,
+   5.22,
+   8.99
+  ],
+  "tris": 1629,
+  "mats": 1,
+  "mb": 0.2,
+  "note": "два лиственных дерева (летние)"
+ },
+ "lamp_tube": {
+  "section": "props",
+  "source": "ceiling_lamp-10mb",
+  "size": [
+   1.5,
+   0.21,
+   0.08
+  ],
+  "tris": 2220,
+  "mats": 1,
+  "mb": 7.2,
+  "note": "линейный светильник"
+ },
+ "snow_pine_1": {
+  "section": "props",
+  "source": "snow_pine_tree_and_bush_pack_lowpoly",
+  "size": [
+   5.35,
+   5.12,
+   7.2
+  ],
+  "tris": 828,
+  "mats": 2,
+  "mb": 40.3,
+  "note": "заснеженная ель или куст"
+ },
+ "snow_pine_2": {
+  "section": "props",
+  "source": "snow_pine_tree_and_bush_pack_lowpoly",
+  "size": [
+   4.2,
+   4.34,
+   5.24
+  ],
+  "tris": 240,
+  "mats": 2,
+  "mb": 40.3,
+  "note": "заснеженная ель или куст"
+ },
+ "snow_pine_3": {
+  "section": "props",
+  "source": "snow_pine_tree_and_bush_pack_lowpoly",
+  "size": [
+   2.24,
+   2.3,
+   3.23
+  ],
+  "tris": 144,
+  "mats": 1,
+  "mb": 1.8,
+  "note": "заснеженная ель или куст"
+ },
+ "snow_pine_4": {
+  "section": "props",
+  "source": "snow_pine_tree_and_bush_pack_lowpoly",
+  "size": [
+   3.1,
+   3.02,
+   2.59
+  ],
+  "tris": 32,
+  "mats": 1,
+  "mb": 0.2,
+  "note": "заснеженная ель или куст"
+ }
+}
