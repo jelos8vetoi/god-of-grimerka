@@ -1260,12 +1260,17 @@ func _fortuna_checks() -> void:
 		cam_free += float(rep[i]["cam_free"])
 		stuck_max = maxf(stuck_max, float(rep[i]["stuck"]))
 		lines.append("#%d: %s, %.0f с, здоровье героя %.0f, голды потеряно %d, фаза %d, босс %.0f %%, от своих зон %.1f %%, кадров с камерой свободно %.0f %%, босс без движения до %.1f с" % [i + 1, "ПОБЕДА" if bool(rep[i]["won"]) else "поражение/время", float(rep[i]["t"]), float(rep[i]["hp"]), int(rep[i]["gold_lost"]), int(rep[i]["phase"]), float(rep[i]["boss_pct"]), float(rep[i]["zone_pct"]), float(rep[i]["cam_free"]) * 100.0, float(rep[i]["stuck"])])
+	var dsum := {"монеты": 0.0, "зона": 0.0, "ближний удар": 0.0, "прочее": 0.0}
+	for r in rep:
+		for k in dsum:
+			dsum[k] += float(r["dmg"][k])
+	print("GOLDA67CHECK   FORTUNA бот: потеря здоровья героя по источникам за 5 боёв: %s" % str(dsum))
 	print("GOLDA67CHECK   FORTUNA бот: побед %d из 5" % wins)
 	var deep := 0
 	for r in rep:
 		if int(r["phase"]) >= 3:
 			deep += 1
-	ok(rep.size() == 5 and deep >= 2, "бот-клавишник против FORTUNA (пять попыток, побед %d): %s" % [wins, " | ".join(lines)])
+	ok(rep.size() == 5 and wins >= 2, "бот-клавишник против FORTUNA (пять попыток, побед %d): %s" % [wins, " | ".join(lines)])
 	var cam_all := 0.0
 	for r in rep:
 		cam_all += float(r["cam_free_all"])
@@ -1277,6 +1282,7 @@ func _fortuna_checks() -> void:
 		zone_avg += float(r["zone_pct"])
 	ok(zone_avg / 5.0 < 8.0, "босс теряет от собственных зон в среднем %.1f %% здоровья за бой (< 8 %%)" % (zone_avg / 5.0))
 	await _fortuna_finale()
+	await _fortuna_debts()
 	G.arena_teardown()
 
 ## Сколько урона в секунду бот наносит боссу: лёгкие, тяжёлые, окно (босс оглушён); босс не атакует (физика выключена)
@@ -1333,6 +1339,11 @@ func _boss_bot(b, ar: G67FortunaArena, limit: float) -> Dictionary:
 	var last_bp: Vector3 = b.global_position
 	var sp: PhysicsDirectSpaceState3D = P.get_world_3d().direct_space_state
 	var won := false
+	var dmg := {"монеты": 0.0, "зона": 0.0, "ближний удар": 0.0, "прочее": 0.0}
+	var hp_prev: float = P.hp
+	var zt_prev: int = ar.zone_dmg_ticks
+	var near_bolt := 0.0
+	var block_t := 0.0
 	var action := "старт"
 	var log_t := 0.0
 	var log_hp: float = b.hp
@@ -1367,6 +1378,19 @@ func _boss_bot(b, ar: G67FortunaArena, limit: float) -> Dictionary:
 		stuck_max = maxf(stuck_max, still)
 		last_bp = bp
 		var mvname := String(b.get_meta("fz_move", ""))
+		var lost: float = hp_prev - P.hp
+		if lost > 0.5:
+			if ar.zone_dmg_ticks != zt_prev:
+				dmg["зона"] += lost
+			elif near_bolt > 0.0:
+				dmg["монеты"] += lost
+			elif bp.distance_to(pp) < 3.4:
+				dmg["ближний удар"] += lost
+			else:
+				dmg["прочее"] += lost
+		hp_prev = P.hp
+		zt_prev = ar.zone_dmg_ticks
+		near_bolt = maxf(0.0, near_bolt - 0.1)
 		if log_on and float(Time.get_ticks_msec() - t0) / 1000.0 >= log_t:
 			log_t += 1.0
 			var cs_: String = "закрыто" if _fz_closed_between(ar, pp, bp) else "свободно"
@@ -1416,6 +1440,15 @@ func _boss_bot(b, ar: G67FortunaArena, limit: float) -> Dictionary:
 				danger = true
 		if mvname == "f_change" and mage >= 0.0 and mage < 1.2 and b.state == "special":
 			danger = true
+		if danger:
+			near_bolt = 0.6
+		block_t = maxf(0.0, block_t - 0.1)
+		if (String(b.state) in ["wind", "attack"]) and to.length() < 3.4 and block_t <= 0.0 and not urgent and roll_cd > 0.0:
+			block_t = 0.7
+			Input.action_press("block")
+			await c.wait(0.3)
+			Input.action_release("block")
+			continue
 		if jump:
 			Input.action_press("jump")
 		else:
@@ -1474,7 +1507,7 @@ func _boss_bot(b, ar: G67FortunaArena, limit: float) -> Dictionary:
 	for a in ["up", "down", "left", "right", "jump", "attack", "heavy", "roll"]:
 		Input.action_release(a)
 	var zl: float = ar.boss_zone_loss
-	return {"t": float(Time.get_ticks_msec() - t0) / 1000.0, "hp": P.hp, "gold_lost": maxi(0, gold0 - int(G.run.get("golda", 0))), "phase": phase_max + 1, "boss_pct": (100.0 * float(b.hp) / float(b.max_hp)) if is_instance_valid(b) else 0.0, "out": out, "out_max": out_max, "won": won, "cam_free": float(free_frames) / float(maxi(frames, 1)), "cam_free_all": float(free_all) / float(maxi(frames, 1)), "stuck": stuck_max, "zone_pct": 100.0 * zl / float(b.max_hp) if is_instance_valid(b) else 0.0}
+	return {"t": float(Time.get_ticks_msec() - t0) / 1000.0, "hp": P.hp, "gold_lost": maxi(0, gold0 - int(G.run.get("golda", 0))), "phase": phase_max + 1, "boss_pct": (100.0 * float(b.hp) / float(b.max_hp)) if is_instance_valid(b) else 0.0, "out": out, "out_max": out_max, "won": won, "cam_free": float(free_frames) / float(maxi(frames, 1)), "cam_free_all": float(free_all) / float(maxi(frames, 1)), "stuck": stuck_max, "zone_pct": 100.0 * zl / float(b.max_hp) if is_instance_valid(b) else 0.0, "dmg": dmg}
 
 ## Шесть снимков боя FORTUNA: закрытая линия с зелёной секцией, платная зона, лента, веер монет, касса со стеклом, босс зажат створкой
 func _fortuna_shots(b) -> void:
@@ -1673,3 +1706,132 @@ func _clip_checks() -> void:
 	cp2.skip()
 	await c.until(func(): return G.clip == null, 5.0)
 	ok(G.clip == null and G.events.any(func(e): return String(e[0]) == "clip_skipped" or String(e[0]) == "clip"), "пропуск ролика работает, управление возвращено")
+
+## Долги передачи 53: стойка стилей с ТЯГОЙ-812, стиль в бою, перезапуск процесса, баффы числами, пауза во время сцен
+func _fortuna_debts() -> void:
+	G.fz_full = false
+	await c.wait(5.0)
+	if G.hub_ui != null:
+		G.hub_ui.close()
+	G.result_to_hub()
+	await c.wait(2.5)
+	G.open_screen("styles")
+	await c.wait(1.5)
+	var rack_open: bool = G.hub_ui is G67StylesUI and G.styles_open().has("tyaga812")
+	await c.shot("pz_fz_rack")
+	G.set_start_style("tyaga812")
+	await c.wait(0.6)
+	await c.shot("pz_fz_rack_selected")
+	ok(rack_open and G.start_style() == "tyaga812", "(а) стойка стилей в подъезде: ТЯГА-812 открыта после победы и выбирается (start_style = %s)" % G.start_style())
+	if G.hub_ui != null:
+		G.hub_ui.close()
+	# (в) перезапуск процесса
+	G.save()
+	var out: Array = []
+	var exe := OS.get_executable_path()
+	OS.execute(exe, ["--headless", "--path", ProjectSettings.globalize_path("res://"), "--script", "res://scripts/golda67/fz_reload_probe.gd", "--", "--p=" + ProjectSettings.globalize_path(G67Save.main_path())], out, true)
+	var probe := "".join(out)
+	print("GOLDA67CHECK   FORTUNA перезапуск процесса: ", probe.strip_edges())
+	ok(probe.contains("boss_fortuna=true") and probe.contains("news02=true") and int(probe.get_slice("respect=", 1).get_slice(" ", 0)) >= 40, "(в) после перезапуска процесса сохранение: %s" % probe.strip_edges().get_slice("\n", probe.strip_edges().get_slice_count("\n") - 1))
+	# (б) стиль в бою
+	G.start_run("podzemka")
+	await c.until(func(): return G.run.get("district", "") == "podzemka" and G.world != null and G.world.district is G67Podzemka, 12.0)
+	await c.wait(1.5)
+	if G.hub_ui != null:
+		G.hub_ui.close()
+	var b = await _fz_spawn()
+	b.set_physics_process(false)
+	b.global_position = Vector3(0, 0.05, -176.0)
+	b.state = "idle"
+	var sid := String(P.style.id)
+	var states := {}
+	var h0: float = b.hp
+	var t_end := Time.get_ticks_msec() + 6000
+	var shot_done := false
+	while Time.get_ticks_msec() < t_end:
+		P.global_position = Vector3(0, P.global_position.y, -174.3)
+		P.face = PI
+		var hv: bool = (Time.get_ticks_msec() / 1000) % 2 == 1
+		Input.action_press("heavy" if hv else "attack")
+		await c.wait(0.4 if hv else 0.07)
+		Input.action_release("heavy")
+		Input.action_release("attack")
+		states[String(P.state)] = true
+		if not shot_done and Time.get_ticks_msec() > t_end - 4500:
+			shot_done = true
+			await c.shot("pz_fz_tyaga")
+		await c.wait(0.2)
+	ok(sid == "tyaga812" and b.hp < h0, "(б) стиль %s в бою: урон по боссу %.0f, состояния героя %s" % [sid, h0 - b.hp, str(states.keys())])
+	# (г) баффы
+	G.run["fits"] = {"cashback": 3, "spare_change": 1, "refill": 3}
+	G.run["golda"] = 500
+	G.run["kiosk"] = {}
+	var price: int = G.kiosk_price("shawarma")
+	var got: String = G.kiosk_buy("shawarma")
+	var cash_exp: int = 500 - price + int(round(float(price) * 0.20))
+	var cash_act: int = int(G.run["golda"])
+	G.run["kills"] = 4
+	var e = preload("res://scripts/enemy.gd").new()
+	e.kind = "mod"
+	e.skin = "g67_pz_ctl"
+	e.game = g
+	e.set_meta("foe", "controller")
+	e.position = Vector3(5, 0.05, -176.0)
+	g.add_child(e)
+	var gold0: int = int(G.run["golda"])
+	var base_g: int = int(G67Data.FOES["controller"]["golda"])
+	G.on_kill(e)
+	var spare_act: int = int(G.run["golda"]) - gold0 - int(round(float(base_g) * G.gold_k()))
+	var spare_exp: int = int(round(4.0 * G.gold_k()))
+	var refills := 0
+	for i in 200:
+		P.combat.ammo["bottles"] = 0.0
+		var f := {"a": AttackData.new(), "power": 1.0, "vel": Vector3(0, 0, -1)}
+		P.bottles._shatter(f, Vector3(0, 1, -176.0), Vector3.UP, b)
+		if float(P.combat.ammo["bottles"]) >= 1.0:
+			refills += 1
+	var ref_rate := float(refills) / 200.0
+	ok(got != "" and cash_act == cash_exp, "(г) cashback ур.3: ожидалось %d, получено %d (цена %d)" % [cash_exp, cash_act, price])
+	ok(spare_act == spare_exp, "(г) spare_change ур.1 (5-й враг): ожидалось +%d голды сверх обычной, получено +%d" % [spare_exp, spare_act])
+	ok(absf(ref_rate - 0.35) < 0.1, "(г) refill ур.3: ожидалось ~35 %% возврата бутылки, получено %.1f %% из 200 попаданий" % (ref_rate * 100.0))
+	G.run["fits"] = {}
+	# (д) пауза во время вступления и финала
+	G.meta()["fz_intro"] = false
+	G.fz_full = true
+	var bp = await _fz_spawn()
+	bp.set_physics_process(false)
+	var ev0: int = G.events.size()
+	var intro := func(): await G.fortuna_intro(bp)
+	intro.call()
+	await c.until(func(): return G.events.any(func(e2): return String(e2[0]) == "fz_plan" and String(e2[1]) == "c"), 40.0)
+	await c.wait(0.5)
+	await c.key(KEY_ESCAPE)
+	await c.wait(0.8)
+	var paused_now: bool = g.get_tree().paused
+	var n_plans: int = G.events.filter(func(e2): return String(e2[0]) == "fz_plan").size()
+	var cam_pos: Vector3 = g.get_viewport().get_camera_3d().global_position
+	await c.wait(3.0)
+	var n_plans2: int = G.events.filter(func(e2): return String(e2[0]) == "fz_plan").size()
+	var cam_pos2: Vector3 = g.get_viewport().get_camera_3d().global_position
+	var frozen: bool = n_plans == n_plans2 and cam_pos.distance_to(cam_pos2) < 0.05
+	await c.shot("pz_fz_pause_intro")
+	await c.key(KEY_ESCAPE)
+	await c.until(func(): return G.events.any(func(e2): return String(e2[0]) == "fortuna_intro"), 60.0)
+	ok(paused_now and frozen and P.is_physics_processing() and not g.get_tree().paused, "(д) пауза во время вступления: дерево на паузе %s, сцена замерла %s, после снятия вступление доиграно, управление у героя" % [str(paused_now), str(frozen)])
+	G.room_state = "boss"
+	G.run["respect"] = 0
+	var outro := func(): await G._fortuna_outro(bp)
+	outro.call()
+	await c.until(func(): return G.events.any(func(e2): return String(e2[0]) == "fz_plan" and String(e2[1]) == "o2"), 40.0)
+	await c.wait(0.5)
+	await c.key(KEY_ESCAPE)
+	await c.wait(0.8)
+	var n3: int = G.events.filter(func(e2): return String(e2[0]) == "fz_plan").size()
+	await c.wait(3.0)
+	var n4: int = G.events.filter(func(e2): return String(e2[0]) == "fz_plan").size()
+	await c.shot("pz_fz_pause_outro")
+	var paused2: bool = g.get_tree().paused
+	await c.key(KEY_ESCAPE)
+	await c.until(func(): return G.events.any(func(e2): return String(e2[0]) == "fortuna_outro"), 60.0)
+	ok(paused2 and n3 == n4 and P.is_physics_processing() and not g.get_tree().paused, "(д) пауза во время финала: дерево на паузе %s, сцена замерла %s, после снятия финал доигран, управление у героя" % [str(paused2), str(n3 == n4)])
+	G.fz_full = false

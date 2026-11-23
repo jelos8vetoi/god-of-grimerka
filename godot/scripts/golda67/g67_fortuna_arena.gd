@@ -34,6 +34,7 @@ var _hits_seen := {}
 var pin_cd := 0.0
 var boss_zone_loss := 0.0        # сколько здоровья босс потерял от собственных платных зон (для замера)
 var strip_on := false
+var zone_dmg_ticks := 0
 var coins: Array = []
 
 func build(game_, g_) -> void:
@@ -438,6 +439,7 @@ func _process(dt: float) -> void:
 							G.events.append(["zone_broke"])
 					else:
 						p.take_damage(3.0, (z["n"] as Node3D).global_position, null, {"unblockable": true})
+						zone_dmg_ticks += 1
 						G.events.append(["zone_dmg"])
 				if bool(z["fine_boss"]) and boss != null and is_instance_valid(boss) and in_zone(z, boss.global_position):
 					z["boss_in"] = float(z.get("boss_in", 0.0)) + 0.5

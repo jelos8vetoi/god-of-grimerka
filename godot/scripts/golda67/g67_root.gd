@@ -3669,6 +3669,8 @@ func _fz_wait(sec: float) -> void:
 	var t := 0.0
 	while t < sec and fz_skip < 0.8:
 		await get_tree().process_frame
+		if get_tree().paused:
+			continue                  # пауза (Esc): сцена замирает
 		var dt := get_process_delta_time()
 		t += dt
 		fz_skip = fz_skip + dt if Input.is_key_pressed(KEY_E) else 0.0
