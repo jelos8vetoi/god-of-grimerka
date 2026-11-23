@@ -138,13 +138,13 @@ position = Vector3(0, 3.115, 0)
 mesh = SubResource("b44")
 
 [node name="fn_mascot_shelf_1" parent="Props" instance=ExtResource("r5")]
-position = Vector3(-2.97, 0, -3.91)
-rotation_degrees = Vector3(0, -8, 0)
+position = Vector3(-2.87, 0, -3.87)
+rotation_degrees = Vector3(0, -14, 0)
 scale = Vector3(0.0205, 0.0205, 0.0205)
 
 [node name="fn_mascot_shelf_2" parent="Props" instance=ExtResource("r5")]
-position = Vector3(3.72, 0, -3.94)
-rotation_degrees = Vector3(0, -14, 0)
+position = Vector3(3.96, 0, -3.69)
+rotation_degrees = Vector3(0, -47, 0)
 scale = Vector3(0.0205, 0.0205, 0.0205)
 
 [node name="drawer_cabinet_1" parent="Props" instance=ExtResource("r6")]
@@ -168,13 +168,13 @@ rotation_degrees = Vector3(0, 34, 0)
 scale = Vector3(1.22, 1.22, 1.22)
 
 [node name="cardboard_box_01_4" parent="Props" instance=ExtResource("r7")]
-position = Vector3(-2.8, 0.009, -2.73)
-rotation_degrees = Vector3(0, 12, 0)
+position = Vector3(-2.44, 0.009, -2.89)
+rotation_degrees = Vector3(0, -18, 0)
 scale = Vector3(1.22, 1.22, 1.22)
 
 [node name="cardboard_box_01_5" parent="Props" instance=ExtResource("r7")]
-position = Vector3(-2.32, 0.009, -2.64)
-rotation_degrees = Vector3(0, -5, 0)
+position = Vector3(3.74, 0.009, -2.95)
+rotation_degrees = Vector3(0, 29, 0)
 scale = Vector3(1.22, 1.22, 1.22)
 
 [node name="cardboard_box_01_6" parent="Props" instance=ExtResource("r7")]
@@ -223,8 +223,8 @@ rotation_degrees = Vector3(0, -90, 0)
 scale = Vector3(1, 1, 1)
 
 [node name="RetiredCostume" parent="Props" instance=ExtResource("Costume")]
-position = Vector3(-4.18, 0.0, -3.3)
-rotation_degrees = Vector3(0, -103, -6)
+position = Vector3(-3.78, 0.0, -3.12)
+rotation_degrees = Vector3(0, -151, -10)
 scale = Vector3(0.019, 0.019, 0.019)
 
 [node name="Legend_1" type="Label3D" parent="Props" ]
@@ -246,23 +246,23 @@ scale = Vector3(0.48, 0.48, 0.48)
 
 [node name="LampPool_1" type="SpotLight3D" parent="Lighting"]
 position = Vector3(-1.6, 2.36, -1.65)
-rotation_degrees = Vector3(-56, 20, 0)
+rotation_degrees = Vector3(-50, 26, 0)
 light_color = Color(1, 0.77, 0.52, 1)
 light_energy = 6.8
 light_specular = 0.12
 shadow_enabled = true
 spot_range = 5.2
-spot_angle = 58.0
+spot_angle = 62.0
 spot_angle_attenuation = 1.15
 
-[node name="WindowSpill_1" type="OmniLight3D" parent="Lighting"]
-position = Vector3(-3.55, 1.68, 0.25)
-light_color = Color(0.61, 0.74, 0.82, 1)
-light_energy = 1.05
+[node name="WorkbenchSpill" type="OmniLight3D" parent="Lighting"]
+position = Vector3(1.86, 1.26, 2.45)
+light_color = Color(0.90, 0.81, 0.69, 1)
+light_energy = 1.35
 light_specular = 0.0
-omni_range = 5.5
-omni_attenuation = 1.45
-shadow_enabled = true
+omni_range = 3.2
+omni_attenuation = 1.25
+shadow_enabled = false
 
 [node name="Pose0" type="Marker3D" parent="EnemySpots" ]
 position = Vector3(-1.5, 0, 0.5)
