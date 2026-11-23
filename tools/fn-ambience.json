@@ -901,6 +901,720 @@
    "fade_out": 0.1,
    "len": 1.9,
    "peak_db": -5
+  },
+  {
+   "out": "door_breath_1.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb2195.ogg",
+   "src_name": "bsb2195.ogg",
+   "title": "Man Breathing (BigSoundBank #2195)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/man-breathing-s2195.html",
+   "licence": "CC0 (public domain)",
+   "use": "дыхание БАЛОНА у двери",
+   "segment": [
+    30.2,
+    2.9
+   ],
+   "filters": "highpass=f=70,lowpass=f=2800",
+   "len": 2.9,
+   "peak_db": -7,
+   "fade_in": 0.08,
+   "fade_out": 0.3
+  },
+  {
+   "out": "door_breath_2.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb2195.ogg",
+   "src_name": "bsb2195.ogg",
+   "title": "Man Breathing (BigSoundBank #2195)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/man-breathing-s2195.html",
+   "licence": "CC0 (public domain)",
+   "use": "дыхание БАЛОНА у двери",
+   "segment": [
+    53.9,
+    2.8
+   ],
+   "filters": "highpass=f=70,lowpass=f=2800",
+   "len": 2.8,
+   "peak_db": -7,
+   "fade_in": 0.08,
+   "fade_out": 0.3
+  },
+  {
+   "out": "door_breath_3.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb2195.ogg",
+   "src_name": "bsb2195.ogg",
+   "title": "Man Breathing (BigSoundBank #2195)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/man-breathing-s2195.html",
+   "licence": "CC0 (public domain)",
+   "use": "дыхание БАЛОНА у двери",
+   "segment": [
+    37.8,
+    2.8
+   ],
+   "filters": "highpass=f=70,lowpass=f=2800",
+   "len": 2.8,
+   "peak_db": -7,
+   "fade_in": 0.08,
+   "fade_out": 0.3
+  },
+  {
+   "out": "door_breath_4.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb2195.ogg",
+   "src_name": "bsb2195.ogg",
+   "title": "Man Breathing (BigSoundBank #2195)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/man-breathing-s2195.html",
+   "licence": "CC0 (public domain)",
+   "use": "дыхание БАЛОНА у двери",
+   "segment": [
+    61.8,
+    2.8
+   ],
+   "filters": "highpass=f=70,lowpass=f=2800",
+   "len": 2.8,
+   "peak_db": -7,
+   "fade_in": 0.08,
+   "fade_out": 0.3
+  },
+  {
+   "out": "blade_1.ogg",
+   "kind": "oneshot",
+   "src": "s14_grind/oga_scrape1_cinderblock_AntumDeluge.wav",
+   "src_name": "oga_scrape1_cinderblock_AntumDeluge.wav",
+   "title": "Scrapes",
+   "author": "AntumDeluge",
+   "url": "https://opengameart.org/content/scrapes",
+   "licence": "CC0",
+   "use": "скрежет CLIPPER у двери",
+   "segment": [
+    0,
+    0.9
+   ],
+   "filters": "highpass=f=350",
+   "len": 0.9,
+   "peak_db": -7,
+   "fade_out": 0.12
+  },
+  {
+   "out": "blade_2.ogg",
+   "kind": "oneshot",
+   "src": "s15_drag/oga_workshop_scrapes.wav",
+   "src_name": "oga_workshop_scrapes.wav",
+   "title": "68 workshop sounds",
+   "author": "bart",
+   "url": "https://opengameart.org/content/68-workshop-sounds",
+   "licence": "CC0",
+   "use": "скрежет CLIPPER у двери",
+   "segment": [
+    0.57,
+    1
+   ],
+   "filters": "highpass=f=350",
+   "len": 1,
+   "peak_db": -7,
+   "fade_out": 0.15
+  },
+  {
+   "out": "blade_3.ogg",
+   "kind": "oneshot",
+   "src": "s15_drag/oga_workshop_scrapes.wav",
+   "src_name": "oga_workshop_scrapes.wav",
+   "title": "68 workshop sounds",
+   "author": "bart",
+   "url": "https://opengameart.org/content/68-workshop-sounds",
+   "licence": "CC0",
+   "use": "скрежет CLIPPER у двери",
+   "segment": [
+    3.94,
+    1
+   ],
+   "filters": "highpass=f=350",
+   "len": 1,
+   "peak_db": -7,
+   "fade_out": 0.15
+  },
+  {
+   "out": "servo_1.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb2941.ogg",
+   "src_name": "bsb2941.ogg",
+   "title": "Servomotor 4, 180° #1 (BigSoundBank #2941)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/servomotor-4-180-1-s2941.html",
+   "licence": "CC0 (public domain)",
+   "use": "сервопривод BOT у двери",
+   "segment": [
+    0,
+    0.68
+   ],
+   "filters": "highpass=f=200",
+   "len": 0.68,
+   "peak_db": -8,
+   "fade_out": 0.05
+  },
+  {
+   "out": "servo_2.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb2939.ogg",
+   "src_name": "bsb2939.ogg",
+   "title": "Servomotor 4, 90° #1 (BigSoundBank #2939)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/servomotor-4-90-1-s2939.html",
+   "licence": "CC0 (public domain)",
+   "use": "сервопривод BOT у двери",
+   "segment": [
+    0,
+    0.45
+   ],
+   "filters": "highpass=f=200",
+   "len": 0.45,
+   "peak_db": -8,
+   "fade_out": 0.05
+  },
+  {
+   "out": "servo_3.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb2937.ogg",
+   "src_name": "bsb2937.ogg",
+   "title": "Servomotor 4, 45° #1 (BigSoundBank #2937)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/servomotor-4-45-1-s2937.html",
+   "licence": "CC0 (public domain)",
+   "use": "сервопривод BOT у двери",
+   "segment": [
+    0,
+    0.31
+   ],
+   "filters": "highpass=f=200",
+   "len": 0.31,
+   "peak_db": -8,
+   "fade_out": 0.04
+  },
+  {
+   "out": "mech_tick_1.ogg",
+   "kind": "oneshot",
+   "src": "s11_rattle/bsb0316_rapid-rattle.ogg",
+   "src_name": "bsb0316_rapid-rattle.ogg",
+   "title": "Rapid rattle",
+   "author": "DavidGreck",
+   "url": "https://bigsoundbank.com/rapid-rattle-s0316.html",
+   "licence": "CC0 (public domain)",
+   "use": "щелчки BOT",
+   "segment": [
+    1,
+    0.3
+   ],
+   "filters": "highpass=f=500",
+   "len": 0.3,
+   "peak_db": -8,
+   "fade_out": 0.04
+  },
+  {
+   "out": "mech_tick_2.ogg",
+   "kind": "oneshot",
+   "src": "s11_rattle/bsb0316_rapid-rattle.ogg",
+   "src_name": "bsb0316_rapid-rattle.ogg",
+   "title": "Rapid rattle",
+   "author": "DavidGreck",
+   "url": "https://bigsoundbank.com/rapid-rattle-s0316.html",
+   "licence": "CC0 (public domain)",
+   "use": "щелчки BOT",
+   "segment": [
+    2.5,
+    0.3
+   ],
+   "filters": "highpass=f=500",
+   "len": 0.3,
+   "peak_db": -8,
+   "fade_out": 0.04
+  },
+  {
+   "out": "mech_tick_3.ogg",
+   "kind": "oneshot",
+   "src": "s11_rattle/bsb0316_rapid-rattle.ogg",
+   "src_name": "bsb0316_rapid-rattle.ogg",
+   "title": "Rapid rattle",
+   "author": "DavidGreck",
+   "url": "https://bigsoundbank.com/rapid-rattle-s0316.html",
+   "licence": "CC0 (public domain)",
+   "use": "щелчки BOT",
+   "segment": [
+    4,
+    0.3
+   ],
+   "filters": "highpass=f=500",
+   "len": 0.3,
+   "peak_db": -8,
+   "fade_out": 0.04
+  },
+  {
+   "out": "duct_move_1.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/bsb1771_falling-sheet-steel-bar-1.ogg",
+   "src_name": "bsb1771_falling-sheet-steel-bar-1.ogg",
+   "title": "Falling sheet steel bar #1",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/falling-sheet-steel-bar-1-s1771.html",
+   "licence": "CC0 (public domain)",
+   "use": "MADK1D в жестяной шахте",
+   "segment": [
+    0.03,
+    0.55
+   ],
+   "filters": "highpass=f=90,lowpass=f=2200",
+   "len": 0.55,
+   "peak_db": -7,
+   "fade_out": 0.12
+  },
+  {
+   "out": "duct_move_2.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/bsb1776_fall-2-sheet-steel-bars-1.ogg",
+   "src_name": "bsb1776_fall-2-sheet-steel-bars-1.ogg",
+   "title": "Fall 2 sheet steel bars #1",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/fall-2-sheet-steel-bars-1-s1776.html",
+   "licence": "CC0 (public domain)",
+   "use": "MADK1D в жестяной шахте",
+   "segment": [
+    0.04,
+    0.9
+   ],
+   "filters": "highpass=f=90,lowpass=f=2200",
+   "len": 0.9,
+   "peak_db": -7,
+   "fade_out": 0.15
+  },
+  {
+   "out": "duct_move_3.ogg",
+   "kind": "oneshot",
+   "src": "s11_rattle/oga_workshop_metal_clatter.wav",
+   "src_name": "oga_workshop_metal_clatter.wav",
+   "title": "68 workshop sounds",
+   "author": "bart",
+   "url": "https://opengameart.org/content/68-workshop-sounds",
+   "licence": "CC0",
+   "use": "MADK1D в жестяной шахте",
+   "segment": [
+    0.36,
+    0.9
+   ],
+   "filters": "highpass=f=90,lowpass=f=2200",
+   "len": 0.9,
+   "peak_db": -7,
+   "fade_out": 0.15
+  },
+  {
+   "out": "duct_move_4.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/oga_metalinteraction2_qubodup.wav",
+   "src_name": "oga_metalinteraction2_qubodup.wav",
+   "title": "Metal interactions",
+   "author": "qubodup",
+   "url": "https://opengameart.org/content/metal-interactions",
+   "licence": "CC0",
+   "use": "MADK1D в жестяной шахте",
+   "segment": [
+    0,
+    0.5
+   ],
+   "filters": "highpass=f=90,lowpass=f=2200",
+   "len": 0.5,
+   "peak_db": -7,
+   "fade_out": 0.1
+  },
+  {
+   "out": "duct_far_1.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/bsb1771_falling-sheet-steel-bar-1.ogg",
+   "src_name": "bsb1771_falling-sheet-steel-bar-1.ogg",
+   "title": "Falling sheet steel bar #1",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/falling-sheet-steel-bar-1-s1771.html",
+   "licence": "CC0 (public domain)",
+   "use": "MADK1D в шахте, далеко",
+   "segment": [
+    0.03,
+    0.8
+   ],
+   "filters": "highpass=f=80,lowpass=f=900",
+   "len": 1,
+   "peak_db": -9,
+   "fade_out": 0.2,
+   "reverb": "far"
+  },
+  {
+   "out": "duct_far_2.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/bsb1776_fall-2-sheet-steel-bars-1.ogg",
+   "src_name": "bsb1776_fall-2-sheet-steel-bars-1.ogg",
+   "title": "Fall 2 sheet steel bars #1",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/fall-2-sheet-steel-bars-1-s1776.html",
+   "licence": "CC0 (public domain)",
+   "use": "MADK1D в шахте, далеко",
+   "segment": [
+    0.04,
+    0.9
+   ],
+   "filters": "highpass=f=80,lowpass=f=900",
+   "len": 1.1,
+   "peak_db": -9,
+   "fade_out": 0.2,
+   "reverb": "far"
+  },
+  {
+   "out": "duct_far_3.ogg",
+   "kind": "oneshot",
+   "src": "s11_rattle/oga_workshop_metal_clatter.wav",
+   "src_name": "oga_workshop_metal_clatter.wav",
+   "title": "68 workshop sounds",
+   "author": "bart",
+   "url": "https://opengameart.org/content/68-workshop-sounds",
+   "licence": "CC0",
+   "use": "MADK1D в шахте, далеко",
+   "segment": [
+    0.36,
+    0.9
+   ],
+   "filters": "highpass=f=80,lowpass=f=900",
+   "len": 1.1,
+   "peak_db": -9,
+   "fade_out": 0.2,
+   "reverb": "far"
+  },
+  {
+   "out": "grate_hit_1.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/bsb0235_iron-bar-falls-2.ogg",
+   "src_name": "bsb0235_iron-bar-falls-2.ogg",
+   "title": "Iron bar falls #2",
+   "author": "DenisChardonnet",
+   "url": "https://bigsoundbank.com/iron-bar-falls-2-s0235.html",
+   "licence": "CC0 (public domain)",
+   "use": "удар в решётку",
+   "segment": [
+    0.02,
+    0.8
+   ],
+   "filters": "highpass=f=150",
+   "len": 0.8,
+   "peak_db": -6,
+   "fade_out": 0.15
+  },
+  {
+   "out": "grate_hit_2.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/oga_metalinteraction1_qubodup.wav",
+   "src_name": "oga_metalinteraction1_qubodup.wav",
+   "title": "Metal interactions",
+   "author": "qubodup",
+   "url": "https://opengameart.org/content/metal-interactions",
+   "licence": "CC0",
+   "use": "удар в решётку",
+   "segment": [
+    0,
+    0.55
+   ],
+   "filters": "highpass=f=150",
+   "len": 0.55,
+   "peak_db": -6,
+   "fade_out": 0.1
+  },
+  {
+   "out": "flap_close_1.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/oga_workshop_metal_drop.wav",
+   "src_name": "oga_workshop_metal_drop.wav",
+   "title": "68 workshop sounds",
+   "author": "bart",
+   "url": "https://opengameart.org/content/68-workshop-sounds",
+   "licence": "CC0",
+   "use": "заслонка закрывается",
+   "segment": [
+    0.14,
+    0.6
+   ],
+   "filters": "highpass=f=100",
+   "len": 0.6,
+   "peak_db": -6,
+   "fade_out": 0.12
+  },
+  {
+   "out": "flap_close_2.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/oga_castiron_clang_10.wav",
+   "src_name": "oga_castiron_clang_10.wav",
+   "title": "33 metal clang sounds (cast iron pans)",
+   "author": "bart",
+   "url": "https://opengameart.org/content/33-metal-clang-sounds-cast-iron-pans",
+   "licence": "CC0",
+   "use": "заслонка закрывается",
+   "segment": [
+    0,
+    0.6
+   ],
+   "filters": "highpass=f=100,lowpass=f=4500",
+   "len": 0.6,
+   "peak_db": -6,
+   "fade_out": 0.2
+  },
+  {
+   "out": "flap_open_1.ogg",
+   "kind": "oneshot",
+   "src": "s10_creak/bsb0303_grinding-metal-gate-1.ogg",
+   "src_name": "bsb0303_grinding-metal-gate-1.ogg",
+   "title": "Grinding Metal Gate #1",
+   "author": "DenisChardonnet",
+   "url": "https://bigsoundbank.com/grinding-metal-gate-1-s0303.html",
+   "licence": "CC0 (public domain)",
+   "use": "заслонка открывается",
+   "segment": [
+    0.02,
+    0.8
+   ],
+   "filters": "highpass=f=120",
+   "len": 0.8,
+   "peak_db": -7,
+   "fade_out": 0.2
+  },
+  {
+   "out": "flap_open_2.ogg",
+   "kind": "oneshot",
+   "src": "s14_grind/bsb2355_grinding-metal-barrier-opening-1.ogg",
+   "src_name": "bsb2355_grinding-metal-barrier-opening-1.ogg",
+   "title": "Metal barrier: Opening #1",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/grinding-metal-barrier-opening-1-s2355.html",
+   "licence": "CC0 (public domain)",
+   "use": "заслонка открывается",
+   "segment": [
+    0.23,
+    0.8
+   ],
+   "filters": "highpass=f=120",
+   "len": 0.8,
+   "peak_db": -7,
+   "fade_out": 0.2
+  },
+  {
+   "out": "step_heavy_1.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb1835.ogg",
+   "src_name": "bsb1835.ogg",
+   "title": "Jumping on concrete #1 (BigSoundBank #1835)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/jumping-on-concrete-1-s1835.html",
+   "licence": "CC0 (public domain)",
+   "use": "тяжёлый шаг",
+   "segment": [
+    0.94,
+    0.3
+   ],
+   "filters": "lowpass=f=900",
+   "len": 0.3,
+   "peak_db": -6,
+   "fade_out": 0.12
+  },
+  {
+   "out": "step_heavy_2.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb1836.ogg",
+   "src_name": "bsb1836.ogg",
+   "title": "Jumping on Concrete #2 (BigSoundBank #1836)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/jumping-on-concrete-2-s1836.html",
+   "licence": "CC0 (public domain)",
+   "use": "тяжёлый шаг",
+   "segment": [
+    0.4,
+    0.3
+   ],
+   "filters": "lowpass=f=900",
+   "len": 0.3,
+   "peak_db": -6,
+   "fade_out": 0.12
+  },
+  {
+   "out": "step_heavy_3.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb1319.ogg",
+   "src_name": "bsb1319.ogg",
+   "title": "Fast Steps on Concrete (BigSoundBank #1319)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/fast-steps-on-concrete-s1319.html",
+   "licence": "CC0 (public domain)",
+   "use": "тяжёлый шаг",
+   "segment": [
+    9.94,
+    0.4
+   ],
+   "filters": "lowpass=f=1100",
+   "len": 0.4,
+   "peak_db": -6,
+   "fade_out": 0.18
+  },
+  {
+   "out": "step_1.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb1319.ogg",
+   "src_name": "bsb1319.ogg",
+   "title": "Fast Steps on Concrete (BigSoundBank #1319)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/fast-steps-on-concrete-s1319.html",
+   "licence": "CC0 (public domain)",
+   "use": "лёгкий шаг",
+   "segment": [
+    0.52,
+    0.22
+   ],
+   "filters": "highpass=f=150,lowpass=f=5000",
+   "len": 0.22,
+   "peak_db": -8,
+   "fade_out": 0.08
+  },
+  {
+   "out": "step_2.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb1319.ogg",
+   "src_name": "bsb1319.ogg",
+   "title": "Fast Steps on Concrete (BigSoundBank #1319)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/fast-steps-on-concrete-s1319.html",
+   "licence": "CC0 (public domain)",
+   "use": "лёгкий шаг",
+   "segment": [
+    8.29,
+    0.22
+   ],
+   "filters": "highpass=f=150,lowpass=f=5000",
+   "len": 0.22,
+   "peak_db": -8,
+   "fade_out": 0.08
+  },
+  {
+   "out": "step_3.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb1319.ogg",
+   "src_name": "bsb1319.ogg",
+   "title": "Fast Steps on Concrete (BigSoundBank #1319)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/fast-steps-on-concrete-s1319.html",
+   "licence": "CC0 (public domain)",
+   "use": "лёгкий шаг",
+   "segment": [
+    6.31,
+    0.22
+   ],
+   "filters": "highpass=f=150,lowpass=f=5000",
+   "len": 0.22,
+   "peak_db": -8,
+   "fade_out": 0.08
+  },
+  {
+   "out": "rustle_1.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb1104.ogg",
+   "src_name": "bsb1104.ogg",
+   "title": "Synthetic Coat Rubbed (BigSoundBank #1104)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/synthetic-coat-rubbed-s1104.html",
+   "licence": "CC0 (public domain)",
+   "use": "шорох ткани",
+   "segment": [
+    0.24,
+    1
+   ],
+   "filters": "highpass=f=200",
+   "len": 1,
+   "peak_db": -9,
+   "fade_in": 0.05,
+   "fade_out": 0.2
+  },
+  {
+   "out": "rustle_2.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb1104.ogg",
+   "src_name": "bsb1104.ogg",
+   "title": "Synthetic Coat Rubbed (BigSoundBank #1104)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/synthetic-coat-rubbed-s1104.html",
+   "licence": "CC0 (public domain)",
+   "use": "шорох ткани",
+   "segment": [
+    4.26,
+    1
+   ],
+   "filters": "highpass=f=200",
+   "len": 1,
+   "peak_db": -9,
+   "fade_in": 0.05,
+   "fade_out": 0.2
+  },
+  {
+   "out": "rustle_3.ogg",
+   "kind": "oneshot",
+   "src": "p0/bsb1104.ogg",
+   "src_name": "bsb1104.ogg",
+   "title": "Synthetic Coat Rubbed (BigSoundBank #1104)",
+   "author": "Joseph SARDIN",
+   "url": "https://bigsoundbank.com/synthetic-coat-rubbed-s1104.html",
+   "licence": "CC0 (public domain)",
+   "use": "шорох ткани",
+   "segment": [
+    6.98,
+    0.6
+   ],
+   "filters": "highpass=f=200",
+   "len": 0.6,
+   "peak_db": -9,
+   "fade_in": 0.05,
+   "fade_out": 0.15
+  },
+  {
+   "out": "clank_1.ogg",
+   "kind": "oneshot",
+   "src": "s09_clang/oga_mech_clank1_BMacZero.wav",
+   "src_name": "oga_mech_clank1_BMacZero.wav",
+   "title": "Mechanical sounds",
+   "author": "BMacZero",
+   "url": "https://opengameart.org/content/mechanical-sounds",
+   "licence": "CC0",
+   "use": "металлический шаг BOT",
+   "segment": [
+    0.06,
+    0.4
+   ],
+   "filters": "highpass=f=150",
+   "len": 0.4,
+   "peak_db": -8,
+   "fade_out": 0.1
+  },
+  {
+   "out": "clank_2.ogg",
+   "kind": "oneshot",
+   "src": "s19_steps/oga_metal_steps_01_Thimras.wav",
+   "src_name": "oga_metal_steps_01_Thimras.wav",
+   "title": "Metal footsteps on concrete",
+   "author": "Thimras",
+   "url": "https://opengameart.org/content/metal-footsteps-on-concrete",
+   "licence": "CC0",
+   "use": "металлический шаг BOT",
+   "segment": [
+    0,
+    0.127
+   ],
+   "filters": "highpass=f=150",
+   "len": 0.127,
+   "peak_db": -8,
+   "fade_in": 0.002,
+   "fade_out": 0.03
   }
  ]
 }
