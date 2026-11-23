@@ -84,7 +84,7 @@ const DOORS := [
 const ZONES_BASE := {
 	"stairs": {"c": Vector3(0, 0, -21), "h": Vector2(6, 5), "name": "спуск"},
 	"gate1": {"c": Vector3(0, 0, -35), "h": Vector2(9, 9), "name": "первый турникет", "spawns": [[Vector3(-7.5, 0.05, -42)], [Vector3(7.5, 0.05, -42)], [Vector3(-7.5, 0.05, -28)], [Vector3(7.5, 0.05, -28)]]},
-	"gallery": {"c": Vector3(0, 0, -79), "h": Vector2(10, 9), "name": "торговая галерея", "spawns": [[Vector3(-8.5, 0.05, -86)], [Vector3(8.5, 0.05, -86)], [Vector3(-8.5, 0.05, -72)], [Vector3(8.5, 0.05, -72)]]},
+	"gallery": {"c": Vector3(0, 0, -79), "h": Vector2(10, 9), "name": "торговая галерея", "spawns": [[Vector3(-8.0, 0.05, -84)], [Vector3(8.0, 0.05, -84)], [Vector3(-8.0, 0.05, -74)], [Vector3(8.0, 0.05, -74)]]},
 	"cross": {"c": Vector3(0, 0, -122), "h": Vector2(12, 12), "name": "перекрёсток", "spawns": [[Vector3(-10, 0.05, -131)], [Vector3(10, 0.05, -131)], [Vector3(-10, 0.05, -113)], [Vector3(10, 0.05, -113)]]},
 	"arcade": {"c": Vector3(-30, 0, -122), "h": Vector2(14, 10), "name": "зал автоматов", "spawns": [[Vector3(-42, 0.05, -130)], [Vector3(-42, 0.05, -114)], [Vector3(-18, 0.05, -130)], [Vector3(-18, 0.05, -114)]]},
 	"tunnel": {"c": Vector3(40, 0, -135), "h": Vector2(4, 15), "name": "служебный тоннель", "spawns": [[Vector3(38, 0.05, -148)], [Vector3(42, 0.05, -148)], [Vector3(38, 0.05, -123)], [Vector3(42, 0.05, -123)]]},
@@ -533,7 +533,7 @@ const PROPS := [
 	["door_tech", 43.4, -150.6, -PI * 0.5, 0.0, 1.0, false], ["door_tech", 39.6, -162.5, PI * 0.5, 0.0, 1.0, false],
 	["hamster_wall", 51.5, -152.5, 0.0, 0.0, 1.0, true], ["hamster_props", 49.0, -141.5, 0.0, 0.0, 1.0, false],
 	["hamster_a", 47.5, -150.6, 0.0, 0.9, 1.0, false], ["hamster_b", 50.0, -150.6, 0.0, 0.9, 1.0, false], ["hamster_c", 53.0, -150.6, 0.0, 0.9, 1.0, false], ["hamster_gold", 55.5, -150.6, 0.0, 2.1, 1.0, false],
-	["bottle_1", 8.0, -100.0, 0.0, 0.0, 1.0, false], ["bottle_2", 41.0, -157.5, 0.0, 0.0, 1.0, false], ["bottle_3", -12.0, -80.0, 0.0, 0.0, 1.0, false], ["bottle_4", -41.0, -136.0, 0.0, 0.0, 1.0, false], ["bottle_5", 10.0, -168.0, 0.0, 0.0, 1.0, false],
+	["bottle_1", 9.4, -77.5, 0.0, 0.0, 1.0, false], ["bottle_2", 41.0, -157.5, 0.0, 0.0, 1.0, false], ["bottle_3", -12.0, -80.0, 0.0, 0.0, 1.0, false], ["bottle_4", -41.0, -136.0, 0.0, 0.0, 1.0, false], ["bottle_5", 10.0, -168.0, 0.0, 0.0, 1.0, false],
 	["emergency_pack", -22.0, -148.0, 0.0, 0.0, 1.0, false],
 	["cash_shield", 13.2, -150.0, -PI * 0.5, 0.0, 1.0, true], ["tariff_board", 0.0, -135.6, PI, 1.8, 1.0, false], ["receipt_printer", -8.0, -150.0, 0.0, 0.0, 1.0, true],
 	["queue_stand", -10.0, -140.0, 0.0, 0.0, 1.0, true], ["queue_stand", -8.0, -142.0, 0.0, 0.0, 1.0, true], ["queue_stand", -6.0, -144.0, 0.0, 0.0, 1.0, true],

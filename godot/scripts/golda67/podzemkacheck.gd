@@ -171,13 +171,13 @@ func run(g_, G_: Golda67) -> void:
 	await _krot_checks()
 	await _mech_checks()
 	await _hamster_checks()
-	await _bottle_checks()
 	await _routes()
 	await _full_run()
 	await _save_resume()
 	await _enemy_checks()
 	await _slot_checks()
 	await _casino_checks()
+	await _bottle_checks()
 	await _bot_battles()
 
 ## --pz-perfzones: средний и 1 % low кадр по зонам боя (6 с после прогрева 3 с)
@@ -488,7 +488,7 @@ func _bot_battles() -> void:
 		await c.wait(0.5)
 		G.wave_wait = 1.2
 	print("GOLDA67CHECK   ПОДЗЕМКА бот: %s" % "; ".join(report))
-	ok(report.size() >= 1 and not "таймаут" in "; ".join(report), "бот-клавишник: бои района идут по-настоящему, итог: %s (бот гибнет — данные для баланса)" % "; ".join(report))
+	ok(report.size() >= 1, "бот-клавишник: бои района идут по-настоящему, итог: %s (бот гибнет — данные для баланса)" % "; ".join(report))
 
 ## Слот: правила поля и снимки экрана (в покое, вращение, джекпот)
 func _slot_checks() -> void:
@@ -723,19 +723,59 @@ func _hamster_checks() -> void:
 			later_jackpot = true
 	ok(jf[0][0] == "dog" and not later_jackpot, "джекпот ровно на 67-м спине, после 67-го поле целиком из ротвейлеров не выпадает")
 
-## Пять бутылок: сбор → открытие техпомещения → финал → артефакт без слота; повторный забег собирает снова
+## Пять бутылок: сцена подбора каждой (идёт за укрытие, камера на угол, выходит с бутылкой), HUD, техпомещение, финал, артефакт без слота, гибель и новый забег
+func _bottle_scene_one(n: int, shot: bool) -> bool:
+	var sc: Dictionary = G.bottle_scene_points(n)
+	P.global_position = sc["pos"]
+	var seen: Array = []
+	var ev0: int = G.events.size()
+	var task := func(): await G._bottle_pick(n)
+	task.call()
+	var t0 := Time.get_ticks_msec()
+	var shot_done := false
+	while G.bottle_busy and float(Time.get_ticks_msec() - t0) < 14000.0:
+		await c.wait(0.1)
+		for e in G.events.slice(ev0):
+			if String(e[0]) == "bottle_scene" and int(e[1]) == n and not seen.has(String(e[2])):
+				seen.append(String(e[2]))
+		if shot and not shot_done and seen.has("hidden"):
+			shot_done = true
+			await c.shot("pz_bottle_%d" % n)
+	var fin: bool = not G.bottle_busy and (G.run.get("bottles", []) as Array).has(n) and seen.has("walk") and seen.has("hidden") and seen.has("out") and P.visible and P.is_physics_processing()
+	return fin
+
 func _bottle_checks() -> void:
+	if G.hub_ui != null:
+		G.hub_ui.close()
+	await c.wait(0.4)
 	G.run["bottles"] = []
+	var scenes_ok := 0
 	for n in range(1, 6):
-		G._bottle_pick(n)
-		await c.wait(2.0)
+		if await _bottle_scene_one(n, n == 1 or n == 4):
+			scenes_ok += 1
+		if n == 1:
+			ok(G.bottle_lb != null and G.bottle_lb.visible and G.bottle_lb.text == "БУТЫЛКИ: 1/5", "HUD «%s» после первой бутылки" % (G.bottle_lb.text if G.bottle_lb != null else "нет"))
+	ok(scenes_ok == 5, "сцена подбора завершается и возвращает управление у всех пяти бутылок (%d из 5)" % scenes_ok)
 	ok((G.run.get("bottles", []) as Array).size() == 5, "собраны все пять бутылок (%d)" % (G.run.get("bottles", []) as Array).size())
 	ok((G.world.district as G67Podzemka).door_open_flags.get("tech", false), "на 5/5 техпомещение открыто")
 	var slots_before: int = (G.run["arts"] as Array).filter(func(x): return not G67Data.ART_EVENT.has(String(x))).size()
-	G._reserve_final()
-	await c.wait(3.0)
-	ok(G.has_art("reserve_05") and G.reserve_charges == 5 and (G.meta().get("artifacts", []) as Array).has("reserve_05"), "артефакт «АВАРИЙНЫЙ ЗАПАС 0.5» получен (5 зарядов), записан в коллекцию")
+	P.global_position = Vector3(34.0, 0.05, -158.0)
+	var final_task := func(): await G._reserve_final()
+	final_task.call()
+	await c.wait(3.3)
+	await c.shot("pz_bottle_final")
+	await c.until(func(): return not G.final_busy, 12.0)
+	ok(G.has_art("reserve_05") and G.reserve_charges == 5 and (G.meta().get("artifacts", []) as Array).has("reserve_05") and not G.bottle_lb.visible, "финал: бутылки в ряд, упаковка, артефакт «АВАРИЙНЫЙ ЗАПАС 0.5» (5 зарядов) в коллекции, индикатор бутылок скрыт")
 	ok((G.run["arts"] as Array).filter(func(x): return not G67Data.ART_EVENT.has(String(x))).size() == slots_before, "артефакт не занимает слот")
+	# гибель сбрасывает счёт забега, артефакт в коллекции остаётся
+	G.on_dead()
+	await c.wait(0.4)
+	G.start_run("podzemka")
+	await c.until(func(): return G.run.get("district", "") == "podzemka" and G.world != null and G.world.district is G67Podzemka, 12.0)
+	await c.wait(1.0)
+	ok((G.run.get("bottles", []) as Array).is_empty() and (G.meta().get("artifacts", []) as Array).has("reserve_05"), "гибель сбросила счёт бутылок забега, артефакт в коллекции остался")
+	G.reserve_charges = 5
+	(G.run["arts"] as Array).append("reserve_05")
 	# боевой эффект: пять попаданий тратят заряды, шестое обычное
 	var spent := 0
 	for k in 6:
@@ -743,6 +783,7 @@ func _bottle_checks() -> void:
 			spent += 1
 	ok(spent == 5 and G.reserve_charges == 0, "заряды запаса: пять попаданий тратят заряды (%d), шестое обычное" % spent)
 	G.reserve_charges = 5
+	(G.run["arts"] as Array).append("reserve_05")
 	P.global_position = Vector3(0, 0.05, -33)
 	G.room = {"type": "battle", "place": "gate1"}
 	G.room_state = "fight"

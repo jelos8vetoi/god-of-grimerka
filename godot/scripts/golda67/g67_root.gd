@@ -661,7 +661,102 @@ func _reserve_hud() -> void:
 	reserve_lb.text = "ЗАПАС 0.5: %d / 5" % reserve_charges
 	reserve_lb.visible = reserve_charges > 0
 
-## Подбор бутылки: герой «уходит за угол» (на 1,6 с скрыт, камера остаётся снаружи), выходит с бутылкой; HUD «БУТЫЛКИ: n/5»; на 5/5 открывается техпомещение
+## Подбор бутылки: герой идёт за укрытие у ближайшей стены (ходьбой 1,2 с), камера стоит снаружи и смотрит на угол, звук, он выходит с этой бутылкой в руке,
+## крутит крышку (жёлтый стикер на бутылке); пропуск — удержание [E]; HUD «БУТЫЛКИ: n/5» после первой
+var bottle_skip := 0.0
+var bottle_lb: Label = null
+
+func _bottle_wait(sec: float) -> void:
+	var t := 0.0
+	while t < sec and bottle_skip < 0.7:
+		await get_tree().process_frame
+		var dt := get_process_delta_time()
+		t += dt
+		bottle_skip = bottle_skip + dt if Input.is_key_pressed(KEY_E) else 0.0
+
+func _bottle_walk(p, to: Vector3, sec: float) -> void:
+	var from: Vector3 = p.global_position
+	var d := to - from
+	d.y = 0.0
+	if d.length() > 0.05:
+		p.face = atan2(d.x, d.z)
+	if p.rig != null:
+		p.rig.play("Run", 0.1)
+	var t := 0.0
+	while t < sec and bottle_skip < 0.7:
+		await get_tree().process_frame
+		var dt := get_process_delta_time()
+		t += dt
+		bottle_skip = bottle_skip + dt if Input.is_key_pressed(KEY_E) else 0.0
+		p.global_position = from.lerp(to, clampf(t / sec, 0.0, 1.0))
+	p.global_position = to
+	if p.rig != null:
+		p.rig.play("Idle", 0.2)
+
+## Точки сцены подбора: укрытие — у ближайшей стены комнаты, камера — в 4,5 м от бутылки к центру комнаты
+func bottle_scene_points(n: int) -> Dictionary:
+	var pos: Vector3 = G67Podzemka.fit(G67Data.PZ_BOTTLES[n - 1]["pos"] as Vector3) + Vector3(0.6, 0.0, 0.0)
+	var rid := G67Podzemka.room_at(pos + Vector3(0, 0.5, 0))
+	var r: Array = G67Podzemka.ROOMS[rid] if rid != "" else [pos.x - 3, pos.x + 3, pos.z - 3, pos.z + 3]
+	var cen := Vector3((float(r[0]) + float(r[1])) * 0.5, 0.0, (float(r[2]) + float(r[3])) * 0.5)
+	var best := Vector3.ZERO
+	var bd := 1e9
+	for dv in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]:
+		var dist: float = (float(r[1]) - pos.x) if dv.x > 0 else ((pos.x - float(r[0])) if dv.x < 0 else ((float(r[3]) - pos.z) if dv.z > 0 else (pos.z - float(r[2]))))
+		if dist < bd:
+			bd = dist
+			best = dv
+	var cover := pos + best * clampf(bd - 0.5, 0.8, 2.6)
+	var to_c := cen - pos
+	to_c.y = 0.0
+	var cam := pos + (to_c.normalized() if to_c.length() > 0.1 else Vector3(0, 0, 1)) * 4.5
+	cam.x = clampf(cam.x, float(r[0]) + 0.4, float(r[1]) - 0.4)
+	cam.z = clampf(cam.z, float(r[2]) + 0.4, float(r[3]) - 0.4)
+	cam.y = 1.7
+	return {"pos": pos, "cover": cover, "cam": cam, "look": (pos + cover) * 0.5 + Vector3(0, 1.1, 0)}
+
+## Модель бутылки по высоте h (м), низ на нуле
+func _bottle_model(n: int, h: float) -> Node3D:
+	var holder := Node3D.new()
+	var src := "res://assets/golda67/podzemka/g67_pz_bottle_%d.glb" % n
+	if ResourceLoader.exists(src):
+		var m: Node3D = (load(src) as PackedScene).instantiate() as Node3D
+		holder.add_child(m)
+		var bb := AABB()
+		var first := true
+		for mi in m.find_children("*", "MeshInstance3D", true, false):
+			var a: AABB = (mi as MeshInstance3D).get_aabb()
+			bb = a if first else bb.merge(a)
+			first = false
+		if not first and bb.size.y > 0.001:
+			var k := h / bb.size.y
+			m.scale = Vector3(k, k, k)
+			m.position = Vector3(-bb.get_center().x * k, -bb.position.y * k, -bb.get_center().z * k)
+	else:
+		var bm := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = h * 0.15
+		cm.bottom_radius = h * 0.2
+		cm.height = h
+		bm.mesh = cm
+		bm.position = Vector3(0, h * 0.5, 0)
+		holder.add_child(bm)
+	return holder
+
+func _bottle_hud() -> void:
+	var got: int = (run.get("bottles", []) as Array).size()
+	if bottle_lb == null or not is_instance_valid(bottle_lb):
+		var cl := CanvasLayer.new()
+		cl.layer = 12
+		bottle_lb = Label.new()
+		bottle_lb.position = Vector2(1060, 120)
+		bottle_lb.add_theme_font_size_override("font_size", 22)
+		bottle_lb.add_theme_color_override("font_color", Color(0.85, 1.0, 0.7))
+		cl.add_child(bottle_lb)
+		game.add_child(cl)
+	bottle_lb.text = "БУТЫЛКИ: %d/5" % got
+	bottle_lb.visible = got > 0 and not has_art("reserve_05")
+
 func _bottle_pick(n: int) -> void:
 	if bottle_busy or run.is_empty():
 		return
@@ -669,14 +764,51 @@ func _bottle_pick(n: int) -> void:
 	if got.has(n):
 		return
 	bottle_busy = true
+	bottle_skip = 0.0
 	var pzb := world.district as G67Podzemka
 	var node = pzb.get_node_or_null("bottle_%d" % n) if pzb != null else null
-	game.player.visible = false
+	var sc := bottle_scene_points(n)
+	var p = game.player
+	var frozen: bool = p.is_physics_processing()
+	p.set_physics_process(false)
+	var prev: Camera3D = get_viewport().get_camera_3d()
+	var cam := Camera3D.new()
+	cam.fov = 55.0
+	world.add_child(cam)
+	cam.global_position = sc["cam"]
+	cam.look_at(sc["look"], Vector3.UP)
+	cam.make_current()
+	events.append(["bottle_scene", n, "walk"])
+	await _bottle_walk(p, sc["cover"], 1.2)
+	p.visible = false
+	game.main.sfx("sfx_glass", -6.0, 0.7)
 	game.toast("…")
-	await get_tree().create_timer(1.6).timeout
-	game.player.visible = true
+	events.append(["bottle_scene", n, "hidden"])
+	await _bottle_wait(1.0)
 	if node != null:
 		node.visible = false
+	p.visible = true
+	var hand := _bottle_model(n, 0.28)
+	var st := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.09, 0.06)
+	st.mesh = qm
+	var sm := StandardMaterial3D.new()
+	sm.albedo_color = Color(1.0, 0.88, 0.1)
+	sm.emission_enabled = true
+	sm.emission = Color(1.0, 0.85, 0.0)
+	sm.emission_energy_multiplier = 0.8
+	st.material_override = sm
+	st.position = Vector3(0.0, 0.12, 0.05)
+	hand.add_child(st)
+	p.add_child(hand)
+	hand.position = Vector3(0.28, 0.95, 0.3)
+	events.append(["bottle_scene", n, "out"])
+	await _bottle_walk(p, sc["pos"], 1.0)
+	var tw := hand.create_tween()
+	tw.tween_property(hand, "rotation:y", TAU * 2.0, 0.8)
+	await _bottle_wait(0.9)
+	hand.queue_free()
 	world.points = world.points.filter(func(pt): return String(pt["id"]) != "bottle%d" % n)
 	got.append(n)
 	run["bottles"] = got
@@ -685,25 +817,106 @@ func _bottle_pick(n: int) -> void:
 	if got.size() >= 5 and pzb != null:
 		pzb.open_door("tech")
 		game.toast("Техпомещение открыто")
+	prev.make_current() if prev != null and is_instance_valid(prev) else game.cam.make_current()
+	cam.queue_free()
+	p.set_physics_process(frozen)
+	p.visible = true
+	_bottle_hud()
 	bottle_busy = false
 
-## Финал: бутылки в ряд на столе, пауза 2 с, реплика, артефакт «АВАРИЙНЫЙ ЗАПАС 0.5» (слот не занимает; 5 зарядов на этот забег)
+## Финал: пять бутылок стоят в ряд на столе техпомещения, пауза 2 с, реплика, упаковка-артефакт появляется со светом сверху и медленным наездом камеры
+var final_busy := false
+
 func _reserve_final() -> void:
-	if run.is_empty() or (run.get("bottles", []) as Array).size() < 5 or has_art("reserve_05"):
+	if final_busy or run.is_empty() or (run.get("bottles", []) as Array).size() < 5 or has_art("reserve_05"):
 		game.toast("Нужно собрать пять бутылок")
 		return
+	final_busy = true
+	var p = game.player
+	var frozen: bool = p.is_physics_processing()
+	p.set_physics_process(false)
+	p.visible = false
+	var root := Node3D.new()
+	world.add_child(root)
+	var table := MeshInstance3D.new()
+	var tm := BoxMesh.new()
+	tm.size = Vector3(1.8, 0.08, 0.8)
+	table.mesh = tm
+	var tmt := StandardMaterial3D.new()
+	tmt.albedo_color = Color(0.4, 0.28, 0.17)
+	table.material_override = tmt
+	root.add_child(table)
+	table.position = Vector3(34.0, 0.85, -160.0)
+	for i in 5:
+		var bn := _bottle_model(i + 1, 0.3)
+		root.add_child(bn)
+		bn.position = Vector3(33.2 + float(i) * 0.4, 0.89, -160.0)
+		var stk := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(0.07, 0.05)
+		stk.mesh = qm
+		var sm := StandardMaterial3D.new()
+		sm.albedo_color = Color(1.0, 0.88, 0.1)
+		sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		stk.material_override = sm
+		bn.add_child(stk)
+		stk.position = Vector3(0.0, 0.14, 0.05)
+	var lamp := SpotLight3D.new()
+	lamp.light_color = Color(1.0, 0.95, 0.8)
+	lamp.light_energy = 2.5
+	lamp.spot_range = 5.0
+	lamp.spot_angle = 35.0
+	root.add_child(lamp)
+	lamp.position = Vector3(34.0, 3.2, -160.0)
+	lamp.rotation_degrees = Vector3(-90, 0, 0)
+	var prev: Camera3D = get_viewport().get_camera_3d()
+	var cam := Camera3D.new()
+	cam.fov = 50.0
+	root.add_child(cam)
+	cam.global_position = Vector3(34.0, 1.7, -157.0)
+	cam.look_at(Vector3(34.0, 1.0, -160.0), Vector3.UP)
+	cam.make_current()
+	events.append(["reserve_scene", "row"])
+	var ctw := cam.create_tween()
+	ctw.tween_property(cam, "global_position", Vector3(34.0, 1.35, -158.6), 5.0).set_trans(Tween.TRANS_SINE)
 	await get_tree().create_timer(2.0).timeout
 	game.banner("БЛЯТЬ.", "Я ДЕЙСТВИТЕЛЬНО СОБРАЛ ВСЕ ПЯТЬ", Color(1, 0.9, 0.5), 3.0)
+	await get_tree().create_timer(1.2).timeout
+	var pack := MeshInstance3D.new()
+	var pm := BoxMesh.new()
+	pm.size = Vector3(0.5, 0.3, 0.3)
+	pack.mesh = pm
+	var pmt := StandardMaterial3D.new()
+	pmt.albedo_color = Color(0.62, 0.66, 0.7)
+	pmt.metallic = 0.1
+	pmt.roughness = 0.5
+	pack.material_override = pmt
+	root.add_child(pack)
+	pack.position = Vector3(34.0, 1.35, -160.0)
+	var ptw := pack.create_tween()
+	ptw.tween_property(pack, "position:y", 1.7, 1.2)
+	ptw.parallel().tween_property(pack, "rotation:y", TAU, 2.4)
+	events.append(["reserve_scene", "pack"])
+	await get_tree().create_timer(2.4).timeout
 	take_art("reserve_05")
 	reserve_charges = 5
 	run["reserve"] = 5
 	_reserve_hud()
+	_bottle_hud()
 	var arch: Array = meta().get("archive", [])
 	if not arch.has("reserve05"):
 		arch.append("reserve05")
 	meta()["archive"] = arch
 	save()
 	events.append(["reserve_found"])
+	if prev != null and is_instance_valid(prev):
+		prev.make_current()
+	else:
+		game.cam.make_current()
+	root.queue_free()
+	p.visible = true
+	p.set_physics_process(frozen)
+	final_busy = false
 var hamster_greeted := false
 
 ## Мини-игра хомяков: оверлей на время игры; награда — ХОМЯЧЬЯ АУРА (первый раз) или голда забега по очкам (не больше 30)
