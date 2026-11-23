@@ -24,11 +24,7 @@ const EVENTS := [
 	{"id": "rattle", "pos": [Vector3(-1.6, 0.6, -8), Vector3(0.4, 3.8, -6)], "db": 0.4, "night": 0, "w": 2.0, "out": true},
 	{"id": "relay", "pos": ["@Panel"], "db": -6.4, "night": 0, "w": 2.0, "out": false},
 	{"id": "zap", "pos": ["@Panel", "@Lamp"], "db": 0.4, "night": 0, "w": 1.0, "out": false},
-	{"id": "knock", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9), Vector3(0, 1.5, 10)], "db": 13.4, "night": 1, "w": 2.0, "out": true},
-	{"id": "thud", "pos": [Vector3(0.5, 5, -3), Vector3(0, 1.5, 10)], "db": 0.1, "night": 1, "w": 2.0, "out": true},
-	{"id": "grind", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9)], "db": 2.1, "night": 1, "w": 1.0, "out": true},
 	{"id": "groan", "pos": [Vector3(0, 1, -18), Vector3(0.5, 4.5, -3)], "db": 0.4, "night": 2, "w": 2.0, "out": true},
-	{"id": "drag", "pos": [Vector3(-15, 1, -7), Vector3(15, 1, -9), Vector3(0.5, 5, -3)], "db": 1.3, "night": 2, "w": 1.0, "out": true},
 ]
 
 var root: FiveNightsRoot
@@ -58,6 +54,7 @@ var was_out := false
 var cur_st: FNNight
 var breath_phase := "idle"        # задержанное дыхание: idle / fade / hold / recover
 var breath_t := 0.0               # сколько секунд идёт текущая фаза
+var dip_k := 0.0                  # «комната прислушивается»: 1 при дальнем звуке врага, спадает за ~1,2 с
 var breath_next := 120.0          # через сколько секунд можно начать следующую
 var breath_len := 6.0
 var breath_k := 0.0               # 0..1: насколько провалились вентиляция и вентилятор
@@ -123,6 +120,10 @@ func pitch(nm: String) -> float:
 
 func duck(on: bool) -> void:
 	duck_k = 1.0 if on else 0.0
+
+## дальний звук врага: на миг тише вентиляция, сквозняк и вентилятор, чтобы звук издалека читался
+func cue_dip() -> void:
+	dip_k = 1.0
 
 func hold(sec: float) -> void:
 	hold_t = maxf(hold_t, sec)
@@ -264,7 +265,7 @@ func _breath_step(st: FNNight, dt: float, live: bool, out: bool) -> void:
 	var calm: bool = root.tension == null or root.tension.state in ["CALM", "UNEASY"]
 	if breath_phase == "idle":
 		breath_next -= dt
-		if breath_next <= 0.0 and calm and not out and not events_blocked(st) and not root.scare.busy and not root.paused and root.hush_mode == "" and st.t >= 90.0 and since_event >= 25.0:
+		if breath_next <= 0.0 and calm and not out and not events_blocked(st) and not root.scare.busy and not root.paused and root.hush_mode == "" and st.t >= (50.0 if root.night == 0 else 90.0) and since_event >= 25.0:
 			start_breath()
 		return
 	breath_t += dt
@@ -304,7 +305,7 @@ func tick(st: FNNight, state: String, dt: float) -> void:
 		_new_night(st)
 		breath_phase = "idle"
 		breath_k = 0.0
-		breath_next = randf_range(100.0, 140.0)
+		breath_next = randf_range(58.0, 80.0) if root.night == 0 else randf_range(100.0, 140.0)
 		since_event = 0.0
 	var n := mini(root.night, 5)
 	var out := live and st.power_out
@@ -363,6 +364,11 @@ func tick(st: FNNight, state: String, dt: float) -> void:
 		for k in g:
 			g[k] = MUTE
 	_breath_step(st, dt, live, out)
+	dip_k = maxf(0.0, dip_k - dt / 1.2)
+	if dip_k > 0.0:
+		for k in ["vent", "vent_air", "deskfan", "draft"]:
+			if float(g[k]) > MUTE:
+				g[k] = maxf(MUTE, float(g[k]) - 3.5 * dip_k)
 	if breath_k > 0.0:
 		for k in ["vent", "vent_air", "deskfan"]:
 			if float(g[k]) > MUTE:

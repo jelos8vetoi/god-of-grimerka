@@ -482,6 +482,7 @@ func _ui_part() -> void:
 	FNSave.loaded = false
 	ok(bool(FNSave.v("custom")) and (FNSave.v("beaten") as Array).has(0) and int(FNSave.v("unlocked")) >= 2, "повреждённый файл — загружена резервная копия (ночи открыты: %d)" % int(FNSave.v("unlocked")))
 	ok(FileAccess.get_file_as_string(KEEP[0]) == (grim0 if grim0 != null else ""), "сюжетное сохранение не тронуто")
+	await _tension_n1(R)
 	await _after_death(R)
 	# выход в меню режимов и кампания
 	R.to_terminal()
@@ -633,6 +634,114 @@ func _voice_buses(R: FiveNightsRoot) -> void:
 	var prv: AudioEffectReverb = AudioServer.get_bus_effect(pi, 4) as AudioEffectReverb
 	ok(_fx_names("PhoneVoice") == ["AudioEffectHighPassFilter", "AudioEffectLowPassFilter", "AudioEffectDistortion", "AudioEffectEQ6", "AudioEffectReverb", "AudioEffectHardLimiter"] and prv != null and prv.wet <= 0.12, "PhoneVoice: HP, LP, Distortion, EQ6, Reverb (wet %.2f), HardLimiter последним" % (prv.wet if prv != null else -1.0))
 	ok(R.pahan_voice.bus == "RoomVoice" and R.call_voice.bus == "PhoneVoice" and R.call_voice is AudioStreamPlayer3D, "pahan_voice → RoomVoice, call_voice → PhoneVoice (AudioStreamPlayer3D)")
+
+## напряжение, ночь 1: дальние ходы слышны (журнал cue_log), камеры срываются по событиям, первая «затихшая вентиляция» раньше
+func _tension_n1(R: FiveNightsRoot) -> void:
+	var cases := {"stage": "far", "arcade": "far", "storage": "far", "power": "far", "server": "far", "hall_l": "hall", "hall_r": "hall", "door_l": "door", "door_r": "door", "vent_l": "vent", "vent_t": "vent", "duct_l": "duct", "duct_t": "duct", "away": ""}
+	var kinds_ok := true
+	for k in cases:
+		kinds_ok = kinds_ok and FNCues.kind(k) == cases[k]
+	var far_ok: bool = FNCues.far_id("balon") == "thud" and FNCues.far_id("bot") == "grind" and FNCues.far_id("clipper") == "drag" and FNCues.far_id("mod") == "knock" and FNCues.far_id("madk1d") == "" and FNCues.far_id("ghost") == ""
+	var hall_ok: bool = FNCues.hall_id("balon") == "step_heavy" and FNCues.hall_id("bot") == "clank" and FNCues.hall_id("clipper") == "step" and FNCues.hall_id("ghost") == "step" and FNCues.hall_id("madk1d") == "step_heavy" and FNCues.hall_id("mod") == "step_heavy"
+	var free_ok := true
+	for e in FNAmbience.EVENTS:
+		free_ok = free_ok and not (String(e["id"]) in FNCues.FAR.values())
+	ok(kinds_ok and far_ok and hall_ok and free_ok, "звуки ходов: виды точек, дальние и коридорные записи по врагам, случайный фон дальними записями не пользуется")
+	var beaten_keep: Array = (FNSave.v("beaten") as Array).duplicate()
+	FNSave.put("beaten", [])
+	R.start_night(0)
+	await until(func(): return R.state == "night" and R.intro_t <= 0.0, 12.0)
+	await wait(0.3)
+	var st: FNNight = R.st
+	var A: FNAmbience = R.ambience
+	# 58…80 минус заставка ночи (≈3,6 с) и ожидание
+	ok(A.breath_next >= 53.0 and A.breath_next <= 80.0, "ночь 1: первая «затихшая вентиляция» через %.0f с" % A.breath_next)
+	for id in st.enemies:
+		(st.enemies[id] as FNEnemy).move_t = 1.0e6
+	var b: FNEnemy = st.enemies["balon"]
+	st.t = 20.0
+	A.hold_t = 0.0
+	R.cue_log.clear()
+	R.far_last = {}
+	b.go(st, "arcade")
+	await wait(0.1)
+	var far_n := 0
+	var far_dist := 0.0
+	for c in R.cue_log:
+		if c[3] == "far" and c[1] == "balon":
+			far_n += 1
+			far_dist = (c[5] as Vector3).distance_to(R.office.cam.global_position)
+	var arc_pos: Vector3 = R.cue_log[0][5]
+	var office_p: Vector3 = R.office.cam.global_position
+	ok(far_n == 1 and R.cue_log[0][4] == "thud" and far_dist >= 15.0 and far_dist <= 35.0 and arc_pos.x < office_p.x, "БАЛОН stage → arcade: дальний звук «thud» слева, %.1f м от будки (x %.1f)" % [far_dist, arc_pos.x])
+	var sp := FNCues.far_pos("stage")
+	var pw := FNCues.far_pos("power")
+	ok(absf(sp.x) < 3.0 and sp.z < -15.0 and pw.x > 0.0 and FNCues.far_pos("hall_l") != Vector3.ZERO and FNCues.far_pos("nowhere") == Vector3.ZERO, "акустические точки по плану: stage прямо впереди (%.1f; %.1f), power справа (x %.1f)" % [sp.x, sp.z, pw.x])
+	ok(R.said_far, "первая ночь: подсказка про шаги в здании прозвучала")
+	await wait(0.9)
+	ok(R.far_q.is_empty(), "второй удар походки БАЛОНА сыгран, очередь пуста")
+	A.hold_t = 0.0
+	b.go(st, "storage")
+	await wait(0.1)
+	far_n = 0
+	for c in R.cue_log:
+		if c[3] == "far":
+			far_n += 1
+	ok(far_n == 1, "повторный дальний ход раньше 9 с молчит (записей %d)" % far_n)
+	R.far_last = {}
+	var cl: FNEnemy = st.enemies["clipper"]
+	cl.go(st, "door_l")
+	await wait(0.1)
+	b.go(st, "power")
+	await wait(0.1)
+	far_n = 0
+	for c in R.cue_log:
+		if c[3] == "far":
+			far_n += 1
+	cl.go(st, "storage")
+	ok(far_n == 1, "при враге у двери дальний звук молчит (записей %d)" % far_n)
+	A.hold_t = 0.0
+	b.go(st, "hall_l")
+	await wait(0.1)
+	var hall_logged := false
+	for c in R.cue_log:
+		hall_logged = hall_logged or (c[3] == "hall" and c[4] == "step_heavy")
+	ok(hall_logged, "ход в левый коридор: запись «hall» / step_heavy")
+	R.far_q.append([5.0, "thud", Vector3.ZERO, 0.0, 1.0])
+	R.clear_transients()
+	ok(R.far_q.is_empty(), "clear_transients чистит очередь дальних ударов")
+	st.monitor = true
+	st.cam = "arcade"
+	R.cams.lost_t = -1.0
+	R._on_event("move", {"e": "balon", "from": "stage", "to": "arcade", "why": ""})
+	var lost_a: float = R.cams.lost_t
+	st.cam = "storage"
+	R.cams.lost_t = -1.0
+	R._on_event("move", {"e": "balon", "from": "stage", "to": "arcade", "why": ""})
+	var lost_b: float = R.cams.lost_t
+	ok(lost_a >= 0.3 and lost_a <= 0.5 and lost_b < 0.0, "камера: ход в кадр срывает сигнал (%.2f с), другая камера не тронута (%.2f)" % [lost_a, lost_b])
+	R.cams.lost_next = 0.0
+	await wait(0.2)
+	ok(R.cams.lost_next >= 39.0 and R.cams.lost_next <= 90.0, "редкая потеря сигнала: следующая через %.0f с" % R.cams.lost_next)
+	st.monitor = false
+	FNSave.put("beaten", [0])
+	R.start_night(0)
+	await until(func(): return R.state == "night" and R.intro_t <= 0.0, 12.0)
+	await wait(0.2)
+	st = R.st
+	for id in st.enemies:
+		(st.enemies[id] as FNEnemy).move_t = 1.0e6
+	st.t = 20.0
+	R.ambience.hold_t = 0.0
+	(st.enemies["balon"] as FNEnemy).go(st, "arcade")
+	await wait(0.1)
+	ok(not R.said_far, "подсказка про шаги — только пока первая ночь не пройдена")
+	R.start_night(1)
+	await until(func(): return R.state == "night" and R.intro_t <= 0.0, 12.0)
+	await wait(0.3)
+	# 100…140 минус заставка ночи
+	ok(R.ambience.breath_next >= 95.0 and R.ambience.breath_next <= 140.0, "ночь 2: «затихшая вентиляция» как раньше (%.0f с)" % R.ambience.breath_next)
+	FNSave.put("beaten", beaten_keep)
 
 ## после смерти: пять гибелей подряд со звуком и «ЕЩЁ РАЗ» — ничего не тянется в новую ночь
 func _after_death(R: FiveNightsRoot) -> void:
