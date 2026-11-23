@@ -48,6 +48,8 @@ const EYE := {
 	"clipper": [Color(0.75, 0.9, 1.0), 0.5], "ghost": [Color(0.8, 0.85, 1.0), 0.25], "mod": [Color(1.0, 0.15, 0.1), 0.8],
 }
 const IR_SHADER := preload("res://scenes/five_nights/materials/fn_ir_pass.gdshader")
+const DOOR_LAYER := 2               # слой рендера врага, пока он стоит у двери: лампы будки его не освещают, только фонарь
+var layer_state := {}              # id → стоит ли у двери (слой и глаза уже переключены)
 var eye_mats := {}                 # id → материал глаз (в скримере сила растёт, потом возвращается)
 
 ## глобальная переменная инфракрасной подсветки камер: регистрируется до первого материала врага
@@ -159,6 +161,30 @@ func _eye_mat(id: String) -> StandardMaterial3D:
 	m.next_pass = ir_pass(null, 4.0)
 	eye_mats[id] = m
 	return m
+
+## все меши врага на слой mask
+func _set_layer(n: Node, mask: int) -> void:
+	if n is VisualInstance3D:
+		(n as VisualInstance3D).layers = mask
+	for c in n.get_children():
+		_set_layer(c, mask)
+
+## у двери враг на своём слое, а глаза горят ровно настолько, насколько светит фонарь этой стороны
+func _door_look(id: String, e: FNEnemy, r: Rig) -> void:
+	var at_door: bool = e.spot in ["door_l", "door_r"] and not e.entered and e.level > 0
+	var was: bool = bool(layer_state.get(id, false))
+	if at_door:
+		var beam: SpotLight3D = office.lights["l" if e.spot == "door_l" else "r"]
+		var k := clampf(beam.light_energy / 2.6, 0.0, 1.0)
+		if not was:
+			layer_state[id] = true
+			_set_layer(r, DOOR_LAYER)
+		eyes_boost(id, k)
+	elif was:
+		layer_state[id] = false
+		_set_layer(r, 1)
+		if not e.entered:
+			eyes_boost(id, 1.0)
 
 ## в скримере глаза горят втрое сильнее; потом возвращаются
 func eyes_boost(id: String, k: float) -> void:
@@ -275,6 +301,7 @@ func tick(st: FNNight, dt: float) -> void:
 			stare.erase(id)
 			_place(id, e, r)
 		_live(id, e, r, dt)
+		_door_look(id, e, r)
 		# мерцание глаз; у GHOST — растёт с одержимостью
 		var f: Dictionary = face.get(id, {})
 		if not f.is_empty():

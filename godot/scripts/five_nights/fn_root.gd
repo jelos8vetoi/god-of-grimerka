@@ -51,6 +51,11 @@ var far_q: Array = []             # отложенные удары: [остал
 var far_last := {}                # враг → st.t последнего дальнего звука
 var cue_log: Array = []           # для проверок: [st.t, враг, точка, вид, id, позиция]
 var said_far := false
+var presence_p := {}              # сторона → проигрыватель звука присутствия у двери (разовые записи, не петля)
+var presence_t := {"l": -1.0, "r": -1.0}      # до следующего звука присутствия
+var presence_who := {"l": "", "r": ""}        # кто стоит у двери стороны
+var presence_i := {"l": 0, "r": 0}            # номер звука по кругу
+var said_pres := {"l": false, "r": false}     # подсказка первой ночи на сторону
 var hint_t := 0.0
 var end_t := 0.0
 var finale_done := false
@@ -151,6 +156,13 @@ func _audio() -> void:
 		pf.attenuation_filter_db = -24.0
 		add_child(pf)
 		far_pool.append(pf)
+	for sd in ["l", "r"]:
+		var pp := AudioStreamPlayer3D.new()
+		pp.bus = "SFX"
+		pp.unit_size = 6.0
+		pp.max_db = 0.0
+		add_child(pp)
+		presence_p[sd] = pp
 	for k in 6:
 		var p2 := AudioStreamPlayer.new()
 		p2.bus = "SFX"
@@ -239,6 +251,64 @@ func _snd_ok() -> bool:
 func _on_seal_stop(s: String, closed: bool) -> void:
 	sfx3("damper_stop", FNOffice.point("vent_" + s), -4.0 if closed else -11.0, 1.0 if closed else 1.25)
 
+## звук присутствия у двери: пока враг стоит, раз в gap играет короткая запись из своей стороны; ушёл — тишина
+func _presence_reset() -> void:
+	for sd in ["l", "r"]:
+		presence_who[sd] = ""
+		presence_t[sd] = -1.0
+		presence_i[sd] = 0
+		if presence_p.has(sd):
+			(presence_p[sd] as AudioStreamPlayer3D).stop()
+
+func _presence_tick(dt: float) -> void:
+	if scare.busy or st.power_out:
+		return
+	for sd in ["l", "r"]:
+		var who := ""
+		for id in st.enemies:
+			var en: FNEnemy = st.enemies[id]
+			if en.spot == "door_" + sd and en.level > 0 and not en.entered and FNCues.PRESENCE.has(id):
+				who = id
+				break
+		if who != String(presence_who[sd]):
+			presence_who[sd] = who
+			presence_i[sd] = 0
+			(presence_p[sd] as AudioStreamPlayer3D).stop()
+			if who == "":
+				presence_t[sd] = -1.0
+				continue
+			var fr: Array = FNCues.PRESENCE[who]["first"]
+			presence_t[sd] = randf_range(fr[0], fr[1])
+		if who == "":
+			continue
+		presence_t[sd] = float(presence_t[sd]) - dt
+		if float(presence_t[sd]) > 0.0:
+			continue
+		var cfg: Dictionary = FNCues.PRESENCE[who]
+		var ids: Array = cfg["ids"]
+		var pid: String = ids[int(presence_i[sd]) % ids.size()]
+		presence_i[sd] = int(presence_i[sd]) + 1
+		if cfg.has("extra") and randf() < float(cfg["extra_p"]):
+			pid = String(cfg["extra"])
+		var db: float = float(cfg["db"]) + (FNCues.BEHIND_DOOR_DB if st.door[sd] else 0.0)
+		var pos := FNOffice.point("door_" + sd) + Vector3(0, 1.3, 0)
+		cue_log.append([st.t, who, "door_" + sd, "presence", pid, pos, db])
+		if _snd_ok():
+			var pp := presence_p[sd] as AudioStreamPlayer3D
+			pp.stream = FNSound.pick(pid)
+			pp.global_position = pos
+			pp.volume_db = db + FNSound.trim(pid)
+			pp.pitch_scale = randf_range(0.95, 1.05)
+			pp.play()
+		var gp: Array = cfg["gap"]
+		presence_t[sd] = randf_range(gp[0], gp[1])
+		if night == 0 and not bool(said_pres[sd]) and not (FNSave.v("beaten") as Array).has(0):
+			said_pres[sd] = true
+			if sd == "l":
+				say("Слева кто-то дышит. A — закрыть дверь, Q — посветить.", 4.5)
+			else:
+				say("Справа кто-то стоит. D — закрыть дверь, E — посветить.", 4.5)
+
 ## дальний ход врага: звук из комнаты, где он встал; молчит при угрозе рядом, в первые секунды ночи, при скримере и чаще раза в FAR_GAP
 func _far_cue(e: String, to: String, blocked: bool) -> void:
 	if blocked or st.t < FNCues.FAR_FROM or scare.busy or FNCues.far_pos(to) == Vector3.ZERO or not st.enemies.has(e):
@@ -281,6 +351,7 @@ func _loop_stream(s: AudioStream, id: String) -> bool:
 
 ## глушит всё разовое: пулы звуков, шёпот и ползание, реплики, помехи и красные вспышки; настройки громкости игрока не трогает
 func clear_transients(keep_scream := false) -> void:
+	_presence_reset()
 	for p in far_pool:
 		(p as AudioStreamPlayer3D).stop()
 	far_q.clear()
@@ -434,6 +505,8 @@ func start_night(n: int, lv := {}) -> void:
 	far_q.clear()
 	cue_log.clear()
 	said_far = false
+	_presence_reset()
+	said_pres = {"l": false, "r": false}
 	fix_hold = false
 	finale_done = false
 	call_muted = false
@@ -522,7 +595,11 @@ func _night_tick(dt: float) -> void:
 		q[0] = float(q[0]) - dt
 		if float(q[0]) <= 0.0:
 			far_q.erase(q)
-			_far_play(String(q[1]), q[2], float(q[3]), float(q[4]))
+			if q.size() > 5 and String(q[5]) == "near":
+				sfx3(String(q[1]), q[2], float(q[3]), float(q[4]))
+			else:
+				_far_play(String(q[1]), q[2], float(q[3]), float(q[4]))
+	_presence_tick(dt)
 	# взгляд: мышь у края экрана или стрелки; при поднятом планшете — прямо
 	var vs := get_viewport().get_visible_rect().size
 	var mx := get_viewport().get_mouse_position().x / maxf(1.0, vs.x) - 0.5
@@ -670,10 +747,10 @@ func _on_event(k: String, d: Dictionary) -> void:
 					tut_vent_t = true
 					say("Стук над головой. X — закрыть люк.", 4.0)
 			if to in ["door_l", "door_r"]:
-				duck(true)
+				ambience.cue_dip()
 				var snd := FNCues.hall_id(e)
 				cue_log.append([st.t, e, to, "door", snd, FNOffice.point(to)])
-				sfx3(snd, FNOffice.point(to), -2.0 if e != "clipper" else -6.0, 0.9)
+				sfx3(snd, FNOffice.point(to), FNCues.ARRIVE_DB, 0.9)
 			elif to in ["hall_l", "hall_r"]:
 				var step_at := FNOffice.point(to)
 				if fac.spots.has(to) and st.enemies.has(e):
@@ -684,7 +761,20 @@ func _on_event(k: String, d: Dictionary) -> void:
 			elif to in ["vent_l", "vent_t"]:
 				sfx3("vent_bang", FNOffice.point(to), 2.0, 1.0)
 			if String(d.get("why", "")) == "retreat" and String(d["from"]).begins_with("door"):
-				sfx3("step", FNOffice.point(String(d["from"])), -12.0, 0.7)
+				var side := String(d["from"]).substr(5)
+				var rid := FNCues.hall_id(e)
+				var p0 := FNOffice.point(String(d["from"]))
+				var p1 := FNOffice.point("hall_" + side)
+				var at_t := 0.0
+				for ri in 3:
+					var pos := p0.lerp(p1, float(FNCues.RETREAT_AT[ri]))
+					var dbk := float(FNCues.RETREAT_DB[ri])
+					cue_log.append([st.t + at_t, e, String(d["from"]), "retreat", rid, pos])
+					if ri == 0:
+						sfx3(rid, pos, dbk, 0.9)
+					else:
+						far_q.append([at_t, rid, pos, dbk, 0.9, "near"])
+					at_t += randf_range(FNCues.RETREAT_GAP[0], FNCues.RETREAT_GAP[1])
 		"heavy_step":
 			ambience.hold(6.0)
 			sfx3("step_heavy", FNOffice.point("hall_" + String(d["side"])), 0.0, 0.75)
@@ -701,7 +791,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 				pahan_say(String(FNData.PAHAN["door"][randi() % FNData.PAHAN["door"].size()]), 3.0)
 		"scrape":
 			ambience.hold(6.0)
-			sfx3("scrape", FNOffice.point("door_l"), 2.0, 1.0)
+			sfx3("blade", FNOffice.point("door_l"), 0.0, 1.0)
 		"flinch":
 			sfx3("scream_clipper", FNOffice.point("door_l"), -14.0, 1.6)
 		"ping":

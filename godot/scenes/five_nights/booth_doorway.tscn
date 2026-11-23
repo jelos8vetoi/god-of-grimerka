@@ -29,6 +29,9 @@ size = Vector3(1.16, 0.018, 0.21)
 [sub_resource type="BoxMesh" id="Box_1_06_0_005_0_08"]
 size = Vector3(1.06, 0.005, 0.08)
 
+[sub_resource type="BoxMesh" id="Box_Slat"]
+size = Vector3(1.1, 0.179, 0.065)
+
 [sub_resource type="BoxMesh" id="Box_1_1_2_15_0_065"]
 size = Vector3(1.1, 2.15, 0.065)
 
@@ -86,7 +89,65 @@ position = Vector3(0, 1.075, -0.023)
 
 [node name="Shutter" type="MeshInstance3D" parent="Track"]
 position = Vector3(0, 2.15, 0)
-mesh = SubResource("Box_1_1_2_15_0_065")
+
+[node name="Slat01" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, -0.9854, 0)
+mesh = SubResource("Box_Slat")
+material_override = ExtResource("enamel")
+
+[node name="Slat02" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, -0.8062, 0)
+mesh = SubResource("Box_Slat")
+material_override = ExtResource("enamel")
+
+[node name="Slat03" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, -0.6271, 0)
+mesh = SubResource("Box_Slat")
+material_override = ExtResource("enamel")
+
+[node name="Slat04" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, -0.4479, 0)
+mesh = SubResource("Box_Slat")
+material_override = ExtResource("enamel")
+
+[node name="Slat05" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, -0.2687, 0)
+mesh = SubResource("Box_Slat")
+material_override = ExtResource("enamel")
+
+[node name="Slat06" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, -0.0896, 0)
+mesh = SubResource("Box_Slat")
+material_override = ExtResource("enamel")
+
+[node name="Slat07" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, 0.0896, 0)
+mesh = SubResource("Box_Slat")
+material_override = ExtResource("enamel")
+
+[node name="Slat08" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, 0.2688, 0)
+mesh = SubResource("Box_Slat")
+material_override = ExtResource("enamel")
+
+[node name="Slat09" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, 0.4479, 0)
+mesh = SubResource("Box_Slat")
+material_override = ExtResource("enamel")
+
+[node name="Slat10" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, 0.6271, 0)
+mesh = SubResource("Box_Slat")
+material_override = ExtResource("enamel")
+
+[node name="Slat11" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, 0.8063, 0)
+mesh = SubResource("Box_Slat")
+material_override = ExtResource("enamel")
+
+[node name="Slat12" type="MeshInstance3D" parent="Track/Shutter"]
+position = Vector3(0, 0.9854, 0)
+mesh = SubResource("Box_Slat")
 material_override = ExtResource("enamel")
 
 [node name="Fold1" type="MeshInstance3D" parent="Track/Shutter"]

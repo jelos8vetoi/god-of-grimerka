@@ -107,11 +107,16 @@ var event_gain := 1.0
 var supply := 1.0
 var power_on := true
 
+const DOOR_H := 2.15                 # ход створки
+const DOOR_HIDE := 2.145              # деталь створки, чей низ поднялся выше, прячется в кожухе (низ кожуха 2,158)
+var door_parts := {}
+
 func _ready() -> void:
 	_mats()
 	_strip_old_fan()
 	_bind_door("l", $LeftDoor, $LeftControls, "A", "Q")
 	_bind_door("r", $RightDoor, $RightControls, "D", "E")
+	_cull_lights()
 	_bind_button("phone", $Console/PhoneHit, 0.1)
 	var panel := $Console/Switchboard
 	_bind_button("seal_l", panel.get_node("LeftSeal"), 0.06)
@@ -123,6 +128,10 @@ func _ready() -> void:
 
 func _bind_door(side: String, doorway: Node3D, controls: Node3D, door_key: String, light_key: String) -> void:
 	doors[side] = doorway.get_node("Track/Shutter")
+	door_parts[side] = []
+	for c in doors[side].get_children():
+		if c is MeshInstance3D and (c as MeshInstance3D).mesh != null:
+			door_parts[side].append([c, (c as Node3D).position.y + (c as MeshInstance3D).mesh.get_aabb().position.y])
 	lights[side] = doorway.get_node("Beam")
 	leds["door_" + side] = controls.get_node("LED")
 	led_glow[side] = controls.get_node("LedGlow")
@@ -130,6 +139,14 @@ func _bind_door(side: String, doorway: Node3D, controls: Node3D, door_key: Strin
 	_bind_button("light_" + side, controls.get_node("LightHit"), 0.12)
 	(controls.get_node("DoorLabel") as Label3D).text = "ДВЕРЬ  ·  " + door_key
 	(controls.get_node("LightLabel") as Label3D).text = "СВЕТ  ·  " + light_key
+
+## лампы будки не освещают врага у двери (слой FNActors.DOOR_LAYER): ему светят только фонари и свет скримера
+func _cull_lights() -> void:
+	for l in find_children("*", "Light3D", true, false):
+		var li := l as Light3D
+		if li == scare_light or li == lights["l"] or li == lights["r"]:
+			continue
+		li.light_cull_mask = li.light_cull_mask & ~FNActors.DOOR_LAYER
 
 func _bind_button(id: String, node: Node3D, radius: float) -> void:
 	buttons[id] = {"node": node, "r": radius, "rest": node.position}
@@ -452,14 +469,17 @@ func tick(st: FNNight, dt: float, look_in: float) -> void:
 		for s in ["l", "r"]:
 			(lights[s] as SpotLight3D).look_at(FNOffice.point("door_" + s) + Vector3(0, 1.25, 0.2), Vector3.UP)      # конус по центру того места, где стоят враги
 	power_on = not st.power_out
-	alarm_pulse(st.enemies.values().any(func(e): return (e as FNEnemy)._at_door()), dt)
+	alarm_pulse(false, dt)          # лампа не выдаёт врага у двери: слушай, а не смотри на лампу
 	_look(st, dt, look_in)
 	for s in ["l", "r"]:
 		var want := 0.0 if st.door[s] else 1.0
 		var speed := 5.5 if want < door_y[s] else 3.2
 		door_y[s] = move_toward(door_y[s], want, dt * speed)
 		var door: MeshInstance3D = doors[s]
-		door.position.y = (door.mesh as BoxMesh).size.y * ease(door_y[s], 0.6)
+		door.position.y = DOOR_H * ease(door_y[s], 0.6)
+		var base_y: float = door.get_parent().position.y + door.position.y
+		for pr in door_parts[s]:
+			(pr[0] as Node3D).visible = base_y + float(pr[1]) < DOOR_HIDE
 		var beam: SpotLight3D = lights[s]
 		var on: bool = st.light[s] and power_on
 		var bt: float = float(beam_t.get(s, 0.0))

@@ -43,3 +43,16 @@ static func hall_id(enemy: String) -> String:
 	if enemy in ["clipper", "ghost"]:
 		return "step"
 	return "step_heavy"
+
+## Звук присутствия у двери: разовые записи по кругу, пока враг стоит; ids чередуются, extra — вместо очередного звука с вероятностью extra_p
+const PRESENCE := {
+	"balon": {"ids": ["door_breath"], "gap": [2.6, 4.2], "first": [0.9, 1.6], "db": -9.0, "extra": "rustle", "extra_p": 0.3},
+	"clipper": {"ids": ["blade"], "gap": [0.9, 1.5], "first": [0.0, 0.0], "db": -1.0},
+	"bot": {"ids": ["servo", "mech_tick"], "gap": [1.4, 2.4], "first": [0.6, 1.2], "db": -6.0},
+	"mod": {"ids": ["zap", "relay"], "gap": [1.6, 2.8], "first": [0.8, 1.4], "db": 5.0},
+}
+const BEHIND_DOOR_DB := -5.0           # дверь закрыта: то же, но глуше
+const ARRIVE_DB := -8.0                # шаг прихода к двери (было −2)
+const RETREAT_DB := [-8.0, -12.0, -16.0]   # три удаляющихся шага
+const RETREAT_GAP := [0.45, 0.6]
+const RETREAT_AT := [0.0, 0.45, 0.9]   # доля пути от двери к коридору
