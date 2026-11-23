@@ -959,8 +959,12 @@ func _node_aabb(n: Node) -> AABB:
 		first = false
 	return out
 
-func _fx_put(id: String, wall: Vector3, n: Vector3, y: float) -> void:
+var fx_nodes: Array = []
+
+func _fx_put(id: String, wall: Vector3, n: Vector3, y: float, limit := AABB()) -> void:
 	if not G67Models.has(id):
+		return
+	if limit.size.y > 0.0 and y > limit.end.y - 2.8:
 		return
 	var yaw := atan2(n.x, n.z)
 	var p := wall + n * (float(FX_DEPTH.get(id, 0.5)) * 0.5 + 0.02)
@@ -968,6 +972,7 @@ func _fx_put(id: String, wall: Vector3, n: Vector3, y: float) -> void:
 	var fxn := G67Models.spawn(id, self, p, yaw, Vector3(1, 1, 1), "1")
 	for mi in fxn.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	fx_nodes.append({"n": fxn, "house": limit})
 	fx_count[id] = int(fx_count.get(id, 0)) + 1
 
 func _house_fx() -> void:
@@ -1000,12 +1005,12 @@ func _house_fx() -> void:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 6700 + idx * 131
 		var st: Array = FX_STYLES[(idx + int(absf(c.x + c.z))) % FX_STYLES.size()]
-		var floors := int(bb.size.y / 3.0)
+		var floors := int((bb.size.y - 3.0) / 3.0)
 		var step := 3.2 + float(idx % 3) * 0.5
 		var shift := rng.randf_range(0.0, 1.2)
 		for f in range(1, floors):
 			var t := t0 + shift + float((f * 7 + idx) % 3) * 0.6
-			while t < t1:
+			while t < t1 - 1.0:
 				var skip_pod := not along_x and n.z < 0.0 and absf(t) < 5.0
 				var r := rng.randf()
 				if not skip_pod:
@@ -1016,7 +1021,7 @@ func _house_fx() -> void:
 						acc += float(st[k])
 						if r < acc * 0.9:
 							var yy := 3.0 * f + (0.0 if k < 2 else 1.1)
-							_fx_put(ids[k], wp, n, yy)
+							_fx_put(ids[k], wp, n, yy, bb)
 							break
 				t += step
 		# двери и козырьки подъездов у дома (кроме дома Пахана у подъезда, там свои)
@@ -1109,6 +1114,13 @@ func _lifeprop(id: String, pos: Vector3, yaw: float, size: Vector3, solid := tru
 	return mi
 
 func _life_props() -> void:
+	var lamp := OmniLight3D.new()
+	lamp.light_color = Color(1.0, 0.78, 0.45)
+	lamp.light_energy = 2.6
+	lamp.omni_range = 6.5
+	lamp.shadow_enabled = false
+	lamp.position = Vector3(-39.8, 2.4, 2.8)
+	add_child(lamp)
 	# двое за столом беседки: сидят и разговаривают (DUOS gazebo1/gazebo2)
 	var seats := [[Vector3(-22.9, 0.0, -30.0), -2.39], [Vector3(-25.5, 0.0, -32.8), 0.75]]
 	for i in 2:
@@ -1127,9 +1139,9 @@ func _life_props() -> void:
 	for sx in [-2.7, -0.3]:
 		_pillar(Vector3(sx, 0, -12.5 - 0.75), 0.07, 2.0)
 		_pillar(Vector3(sx, 0, -12.5 + 0.75), 0.07, 2.0)
-	_lifeprop("g67_lost_shovel", Vector3(-43.9, 2.95, -6.6), 0.0, Vector3(0.25, 1.4, 0.1), false)
+	_lifeprop("g67_lost_shovel", Vector3(-42.7, 2.75, -6.6), 0.0, Vector3(0.25, 1.4, 0.1), false)
 	if life_props.has("g67_lost_shovel"):
-		(life_props["g67_lost_shovel"] as Node3D).rotation = Vector3(PI * 0.5, 0.0, 0.5)
+		(life_props["g67_lost_shovel"] as Node3D).rotation = Vector3(0.0, PI * 0.5, 0.28)
 	_lifeprop("g67_gazebo_set", Vector3(-24.2, 0.82, -31.4), 0.3, Vector3(0.9, 0.3, 0.6), false)
 
 ## Надпись-листок: кинд paper/graffiti/marker/plate/sticker/banner; лицом к yaw (PI — к двору от фасада z = 35)
@@ -1903,7 +1915,6 @@ func _zone_sport() -> void:
 	_life_signs()
 	_door_lamps()
 	_facade_life()
-	_extend_windows()
 	# мачты с прожекторами по углам — свет на лёд, длинные тени
 	for c in [Vector3(x0 - 0.9, 0, z0 - 0.9), Vector3(x1 + 0.9, 0, z0 - 0.9), Vector3(x0 - 0.9, 0, z1 + 0.9), Vector3(x1 + 0.9, 0, z1 + 0.9)]:
 		if _own("g67_floodlight_mast", c, atan2(2.0 - c.x, -38.0 - c.z), 8.6, "h", false) == null:

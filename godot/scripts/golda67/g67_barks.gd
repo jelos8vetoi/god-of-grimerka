@@ -112,11 +112,12 @@ func _bubble(who: Node3D, nm: String, text: String, col: Color, dur: float, smal
 			bubbles.erase(b)
 	var root := Node3D.new()
 	add_child(root)
-	var k := 0.7 if small else 1.0
+	var k := 0.75 if small else 1.0
+	var lines := clampi(int(ceil(float(text.length()) / 42.0)), 1, 3)
+	var bh := (0.1 + 0.095 * float(lines)) * k
 	var back := MeshInstance3D.new()
 	var qm := QuadMesh.new()
-	var lines := maxi(1, int(ceil(text.length() / 22.0)))
-	qm.size = Vector2(1.7 * k, (0.3 + 0.16 * lines) * k)
+	qm.size = Vector2(2.2 * k, bh)
 	back.mesh = qm
 	var bm := StandardMaterial3D.new()
 	bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -130,21 +131,21 @@ func _bubble(who: Node3D, nm: String, text: String, col: Color, dur: float, smal
 	var nl := Label3D.new()
 	nl.text = nm
 	nl.modulate = col
-	nl.font_size = 40
-	nl.pixel_size = 0.0034 * k
-	nl.outline_size = 8
+	nl.font_size = 30
+	nl.pixel_size = 0.0021 * k
+	nl.outline_size = 6
 	nl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	nl.position = Vector3(0, (0.08 + 0.08 * lines) * k, 0)
+	nl.position = Vector3(0, bh * 0.5 + 0.05 * k, 0)
 	root.add_child(nl)
 	var tl := Label3D.new()
 	tl.text = text
-	tl.font_size = 44
-	tl.pixel_size = 0.0034 * k
-	tl.outline_size = 8
-	tl.width = 420.0
+	tl.font_size = 40
+	tl.pixel_size = 0.0021 * k
+	tl.outline_size = 6
+	tl.width = 1000.0
 	tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	tl.position = Vector3(0, -0.06 * k, 0)
+	tl.position = Vector3(0, 0.0, 0)
 	root.add_child(tl)
 	bubbles.append({"who": who, "node": root, "t": 0.0, "dur": dur, "h": 2.15 if who.get("h_top") == null else float(who.get("h_top"))})
 

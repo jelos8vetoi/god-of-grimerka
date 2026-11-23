@@ -2722,6 +2722,7 @@ func _life15(g, G: Golda67, P) -> void:
 	await _life15c(g, G, P)
 	await _voice3d_check(g, G, P)
 	await _model_shots(g, G, P)
+	await _fov80_shots(g, G, P)
 	P.global_position = Vector3(0, 0.05, 25)
 
 func _keys_of(v, depth := 0) -> Array:
@@ -2752,15 +2753,54 @@ func _model_shots(g, G: Golda67, P) -> void:
 	await _cam_shot(g, "mdl_playground_carpet", Vector3(-4.0, 1.8, 7.0), Vector3(-7.0, 1.3, 3.6))
 	await _cam_shot(g, "mdl_gazebo_table", Vector3(-21.5, 1.9, -28.5), Vector3(-24.2, 0.9, -31.4))
 	await _cam_shot(g, "mdl_shovel_roof", Vector3(-36.0, 1.8, -8.5), Vector3(-43.9, 3.0, -6.6))
+	# fx-детали и окна внутри своего дома и ниже карниза
+	var out_of_house := 0
+	for fn in yd.fx_nodes:
+		var nd = fn["n"]
+		var hb: AABB = fn["house"]
+		if hb.size.y <= 0.0:
+			continue                             # двери и козырьки стоят на земле, без ограничения по карнизу
+		if nd == null or not is_instance_valid(nd):
+			continue
+		var nb: AABB = yd._node_aabb(nd)
+		if nb.position.y + nb.size.y > hb.end.y - 1.0 or nb.position.x < hb.position.x - 1.6 or nb.end.x > hb.end.x + 1.6 or nb.position.z < hb.position.z - 1.6 or nb.end.z > hb.end.z + 1.6:
+			out_of_house += 1
+	ok(out_of_house == 0, "ДВОР 1.5: детали фасадов внутри своих домов и ниже карниза (вне: %d из %d)" % [out_of_house, yd.fx_nodes.size()])
+	# пузырь бабушки с 3 м и 12 м
+	var bk2: G67Barks = G.barks_get()
+	var bab2: G67Resident = yd.residents["g67_npc_babushka"]
+	for dd in [3.0, 12.0]:
+		bk2.last_any = -100.0
+		bk2.last_line = {}
+		P.global_position = (bab2.rig as Node3D).global_position + Vector3(dd, 0.05, 0.0)
+		bk2.say(bab2.rig, "BB|Я не знаю, что это за хуйня у гаражей стоит, но оно мне не нравится.", {"force": true, "dur": 6.0})
+		await wait(0.6)
+		await _cam_shot(g, "bubble_%dm" % int(dd), (bab2.rig as Node3D).global_position + Vector3(dd, 1.7, 0.0), (bab2.rig as Node3D).global_position + Vector3(0, 1.9, 0))
+	# лопата над краем крыши и гаражный набор при лампе-переноске
+	await _cam_shot(g, "mdl_shovel_roof2", Vector3(-36.0, 1.8, -6.6), Vector3(-42.7, 3.4, -6.6))
+	await _cam_shot(g, "mdl_garage_set_lit", Vector3(-36.8, 1.6, 0.8), Vector3(-40.2, 0.8, 2.4))
+	await _cam_shot(g, "mdl_garage_radio_lit", Vector3(-39.2, 1.3, 5.6), Vector3(-42.4, 0.4, 4.8))
+	await _cam_shot(g, "mdl_garage_puhosos_lit", Vector3(-36.5, 1.5, 8.0), Vector3(-39.0, 0.5, 8.0))
 	var k := 0
 	for fc in yd.house_facades:
-		if k >= 6:
+		if k >= 12:
 			break
 		var n: Vector3 = fc["n"]
 		var mid: float = (float(fc["t0"]) + float(fc["t1"])) * 0.5
 		var wp := Vector3(float(fc["wall"]), 6.0, mid) if bool(fc["along_x"]) else Vector3(mid, 6.0, float(fc["wall"]))
 		await _cam_shot(g, "mdl_house_%d" % k, wp + n * 17.0 + Vector3(0, -2.5, 0), wp)
 		k += 1
+
+## FOV 80°: по снимку каждой зоны с камеры героя
+func _fov80_shots(g, G: Golda67, P) -> void:
+	for zid in ["podezd", "garages", "playground", "parking", "gazebo", "sport"]:
+		var z: Dictionary = G67Yard.zone(zid)
+		var c: Vector3 = z["c"]
+		P.global_position = c + Vector3(0, 0.05, 3.0)
+		g.cam.fov = 80.0
+		await wait(1.2)
+		await shot("fov80_" + zid)
+	P.global_position = Vector3(0, 0.05, 25)
 
 ## ДВОР 1.5: голос у пузыря — играет позиционно, на 20 м не слышен (реплика не берётся)
 func _voice3d_check(g, G: Golda67, P) -> void:
