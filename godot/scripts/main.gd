@@ -250,6 +250,11 @@ func _ready() -> void:
 			ps.seq = Array(v.slice(2))
 			add_child(ps)
 			return
+		if arg.begins_with("--dvor2view="):      # новый ДВОР (редизайн): кадры, кадр/с, проход по маршрутам, решётка арки
+			var dv = preload("res://scripts/golda67/dvor2view.gd").new()
+			dv.out = arg.substr(12)
+			add_child(dv)
+			return
 		if arg.begins_with("--propsheet="):
 			var pr = preload("res://scripts/propsheet.gd").new()
 			pr.out = arg.substr(12)

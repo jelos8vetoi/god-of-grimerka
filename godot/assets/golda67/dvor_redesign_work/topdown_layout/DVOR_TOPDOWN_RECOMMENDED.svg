@@ -294,7 +294,7 @@
 <text x="996" y="265" font-size="13" font-weight="bold" text-anchor="middle" fill="rgb(250, 248, 240)">КОРОБКА МИШИ</text>
 <text x="996" y="281" font-size="13" font-weight="bold" text-anchor="middle" fill="rgb(250, 248, 240)">26 × 22,5 м (канон)</text>
 <polyline points="924,1588 972,1516 1044,1384 1080,1288 1080,1156 1068,1084 1044,964 1020,820 1008,664 996,568 996,460 996,346" fill="none" stroke="rgb(255, 255, 255)" stroke-width="4" stroke-dasharray="10 7"/>
-<polyline points="900,1504 684,1468 576,1360 576,1120 564,976 540,820 540,580 540,364 600,340 816,352 888,406" fill="none" stroke="rgb(60, 150, 230)" stroke-width="4" stroke-dasharray="10 7"/>
+<polyline points="900,1504 696,1468 687,1391 612,1388 576,1360 576,1120 564,976 540,820 540,580 540,364 600,340 816,352 888,406" fill="none" stroke="rgb(60, 150, 230)" stroke-width="4" stroke-dasharray="10 7"/>
 <polyline points="1020,1552 1140,1576 1296,1576 1323,1300 1323,1120 1392,1048 1428,904 1512,748 1632,580 1644,412 1500,352 1320,388 1152,406" fill="none" stroke="rgb(60, 150, 230)" stroke-width="4" stroke-dasharray="10 7"/>
 <polyline points="576,1456 384,1540 264,1360 384,1312" fill="none" stroke="rgb(60, 150, 230)" stroke-width="4" stroke-dasharray="10 7"/>
 <polyline points="1392,1300 1536,1336 1608,1396" fill="none" stroke="rgb(60, 150, 230)" stroke-width="4" stroke-dasharray="10 7"/>

@@ -105,7 +105,7 @@ def bins(name, x, y, sofa=False, side=1):
     P('trashbag', x - 1.2, y + 0.3, 20, 1.1); P('trashbag', x - 1.5, y - 0.4, 200, 0.95); P('trashbag', x + 2.8, y + 0.4, 90, 1.2)
     P('snow_pile', x + 0.8, y + side * 3.0, 15, 0.7); P('crow_2', x + 0.8, y - side * 1.4, 140, 1.2)
     if sofa: P('sofa_set', x + 5.2, y, 180)
-bins('двора Пахана', 33.5, -106.5, True); bins('двора 71–75', -70.5, -112, False); bins('двора 61–63', 122, -76, True, -1)
+bins('двора Пахана', 35.5, -118.5, True); bins('двора 71–75', -70.5, -112, False); bins('двора 61–63', 122, -76, True, -1)
 bins('двора панелек', 88.5, 113, False); bins('ГСК', -66, 96, True); bins('рынка', -49.5, -4, False); bins('школы', -90, 112.5, False, -1)
 
 # ================= РЫНОК, «ШАУРМА 67», ОСТАНОВКА
@@ -153,7 +153,7 @@ lot('двора Пахана', 'PARK1', (2.4, -2.4), '10110'); lot('двора 6
 cluster('машины вдоль улицы Облачной', 0, -21, 'припаркованы у северного бордюра, вне остановки и перекрёстка')
 for i, x in enumerate((-128, -112, -84, -40, -16, 12, 98, 120, 136)): P(CARS[i % 5], x, -21.3, 90 if i % 2 else -90)
 cluster('машины в проездах', -62, -90, 'вдоль дворовых проездов с одной стороны, чтобы оставался проезд')
-for i, y in enumerate((-118, -104, -92, -70, -58)): P(CARS[(i + 2) % 5], -61.9, y, 0 if i % 2 else 180)
+for i, y in enumerate((-118, -104, -92, -56)): P(CARS[(i + 2) % 5], -61.9, y, 0 if i % 2 else 180)
 for i, y in enumerate((10, 52, 70)): P(CARS[(i + 1) % 5], -68.2, y, 0)
 P('van_uaz452', -71.8, 30, 180); P('van_uaz452', 100, 31.8, 90); P(CARS[0], 122, 32.2, 90); P(CARS[3], 108.5, 32.2, -90)
 for i, x in enumerate((-40, -26, 34, 48)): P(CARS[(i + 3) % 5], x, 85.5, 90 if i % 2 else -90)
@@ -210,6 +210,8 @@ def check():
         if any(inside(p, h, min(r, 0.6) * 0.5) for h in HOUSES) and p['m'] not in FLAT: why = 'в постройке'
         elif p['m'] not in ONROAD and any(inside(p, rd, 0) for rd in ROADS): why = 'на проезжей части'
         elif p['m'].startswith(('tree_', 'pine_', 'snow_pine', 'bush_', 'snow_pile', 'laundry', 'rocket')) and near_path(p, 1.6 + min(r, 1.5) * 0.5): why = 'на тропе'
+        elif p['m'] not in ONROAD and p['z'] == 0 and p['m'] not in ('crow_2', 'sled', 'trashbag') and near_path(p, 0.9 + min(r, 1.2)): why = 'на маршруте'
+        elif p['m'] in ONROAD and p['m'] not in FLAT and near_path(p, 2.2): why = 'машина на маршруте'
         elif p['m'].startswith(('tree_', 'pine_', 'snow_pine')) and any(math.hypot(p['x'] - cx, p['y'] - cy) < 5 for cx, cy in CAMS): why = 'перед точкой съёмки'
         elif p['z'] == 0 and p['m'] not in FLAT:
             for q in ok:
