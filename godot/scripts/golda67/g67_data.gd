@@ -134,7 +134,8 @@ const DISTRICTS := {
 ## Приёмы фаз — существующие приёмы боссов; свой особый приём — enemy._special («РАЗМАХ ЦЕПЬЮ»).
 const BOSSES := {
 	"g67_fortuna": {      # этап 5а: настоящий бой (golda67/g67_fortuna.gd, арена — g67_fortuna_arena.gd); здоровье 3000 на старт замера
-		"n": "FORTUNA 812", "sub": "владелец турникетов", "sp": "FT", "hp": 3600, "r": 30, "spd": 104, "c": "#3fa34d", "dmg": 7, "gap": 1.8, "xp": 0, "armor": 0.35, "antract": false,
+		"n": "FORTUNA 812", "sub": "владелец турникетов", "sp": "FT", "hp": 2400, "r": 30, "spd": 104, "c": "#3fa34d", "dmg": 6, "gap": 1.8, "xp": 0, "armor": 0.45,      # ослаблен 2026-11-24 по решению владельца: было 3600 / 7 / 0,35 — бот-клавишник не выигрывал
+		 "antract": false,
 		"poise": 320, "gate": true,
 		"phases": [["f_gates", "f_zone", "f_check", "f_change", "f_consult"], ["f_gates", "f_zone", "f_check", "f_change", "f_consult"], ["f_gates", "f_zone", "f_check", "f_change", "f_consult"]],
 		"barks": ["Оплата на месте.", "Вводим повышенный тариф.", "Что с турникетами?! Они же на гарантии!"],

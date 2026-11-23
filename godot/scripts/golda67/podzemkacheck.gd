@@ -1064,7 +1064,7 @@ func _fortuna_checks() -> void:
 		G.hub_ui.close()
 	var b = await _fz_spawn()
 	var ar: G67FortunaArena = G.arena
-	ok(b != null and ar != null and b.boss_id == "g67_fortuna" and b.max_hp >= 2800.0 and b.rig != null and b.rig.skel != null, "FORTUNA создана: модель g67_fortuna.glb со скелетом, здоровье %.0f, арена с 3 линиями × 6 секций" % (b.max_hp if b != null else 0.0))
+	ok(b != null and ar != null and b.boss_id == "g67_fortuna" and b.max_hp >= float(G67Data.BOSSES["g67_fortuna"]["hp"]) * 0.9 and b.rig != null and b.rig.skel != null, "FORTUNA создана: модель g67_fortuna.glb со скелетом, здоровье %.0f, арена с 3 линиями × 6 секций" % (b.max_hp if b != null else 0.0))
 	ok(G67Fortuna.GATE_FLASH >= 1.2 and G67Fortuna.ZONE_FADE >= 1.0 and G67Fortuna.CHECK_WARN >= 0.6 and G67Fortuna.CHANGE_WARN >= 0.7 and G67Fortuna.CHANGE_COINS == 7 and absf(G67Fortuna.CHANGE_CONE - deg_to_rad(70.0)) < 0.01, "замахи и числа приёмов по таблице проекта (метка линии 1,2; зона 1,0; чек 0,6; сдача 0,7, 7 монет, 70°)")
 	# каждый приём запускается и оставляет метку
 	b.set_meta("fz_test", true)
@@ -1302,9 +1302,9 @@ func _dps_test() -> void:
 		var h0: float = bb.hp
 		var t_end := Time.get_ticks_msec() + 8000
 		while Time.get_ticks_msec() < t_end:
+			bb.phase_guard_until = -1.0      # замер урона, а не фаз: защита смены фазы не должна обнулять следующий режим (при здоровье 2400 лёгкие за 8 с доходят до порога фазы)
 			if mode.begins_with("window"):
 				bb.weak_t = 3.0
-				bb.phase_guard_until = -1.0
 			P.face = PI
 			P.global_position = Vector3(0, P.global_position.y, -174.3)
 			var heavy: bool = mode.ends_with("heavy")
