@@ -102,3 +102,18 @@
 
 `--golda67check` включает звуковой раздел по образцу `--soundcheck`: пики и громкость шин в хабе, в бою, у босса
 и в ролике; `--voicecheck` расширяется строками приквела.
+
+**Сделано 2026-11-22:** музыка приквела (`loc_g67_hub`, `loc_g67_dvor`, `boss_g67_misha`, выбор — `Golda67.music_context()` через MusicDirector), `G67Sound` (29 видов, фон, случайные звуки), шаги героя по поверхности (снег, асфальт, лёд, бетон, лестница), звуки выбора бафа, артефакта и РЕСПЕКТА на итогах. На слух не проверялось.
+
+## Статус (2026-11-22)
+
+Сделано: наборы `loc_g67_hub`, `loc_g67_dvor`, `boss_g67_misha` (синтез, `node tools/godot-music.cjs g67`; файлы в `godot/assets/music` в git не идут), выбор набора в `audio.gd`; фон и случайные звуки двора и подъезда, шаги героя по поверхности (снег, асфальт, лёд, бетон, лестница), звуки выбора бафа, артефакта и РЕСПЕКТА, звуки событий (`G67Sound`, 29 видов и джингл). На слух не проверялось.
+
+Раздел 4 «Голоса»: голоса приквела — только Voice Studio Pro (решение 2026-11-22, `tools/golda67-voice.cjs`); Fish Audio в приквеле не используется.
+
+Музыка приквела идёт через MusicDirector (`music_director.gd`): режим сам отдаёт ситуацию в `Golda67.music_context()` (хаб, двор, бой, босс по фазам, антракт, постановка, плейлист iPhone — тишина режима); запасные наборы `loc_hall` / `loc_snow` / `boss_courier` остаются на случай отсутствия файлов.
+
+
+## Жители двора (ДВОР 1.5)
+
+Голоса жителей — встроенные пресеты Voice Studio Pro (BB `storyteller`, TX `casual`, US `narrator`, SC `energetic`, Z1 `corporate`, Z2 `news_anchor`, ZW `audiobook_uk_narrator`, SH `energetic`, RD `news_anchor`, DM `corporate`); подача — `G67Voice.LIFE_DIR`. Реплики идут пузырём `G67Barks` с позиционным `AudioStreamPlayer3D` (дальше 16 м не берутся). Новые синтез-звуки в `G67Sound`: `intercom_beep`, `radio_jingle`, `crash`, `snow_slide`, `lamp_crackle`, `car_alarm`, `counter_click`, `swing_creak`, `carpet_beat`, `cough`, `door_slam`, `vacuum`, `tv_muffled`, `flush`. Разговор по [E] с жителем приглушает музыку через `MusicDirector.enter_dialogue`.

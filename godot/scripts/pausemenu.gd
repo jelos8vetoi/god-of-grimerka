@@ -118,11 +118,11 @@ func _fit() -> void:
 	stage.scale = Vector2.ONE * k
 	stage.position = (vs - STAGE * k) * 0.5
 
-func _text(parent: Node, s: String, sz: int, col: Color, pos: Vector2, f: Font = null, rough := false) -> Label:
+func _text(parent: Node, s: String, size: int, col: Color, pos: Vector2, f: Font = null, rough := false) -> Label:
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", f if f != null else tech)
-	l.add_theme_font_size_override("font_size", sz)
+	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", col)
 	l.position = pos
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -195,12 +195,12 @@ func _apply_golda() -> void:
 	_g67_done = true
 	for i in tabs.size():
 		var tb: Dictionary = tabs[i]
-		var sz: int = TABS[i][2]
-		var w: float = serif.get_string_size(G67_TABS[i], HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x
+		var size: int = TABS[i][2]
+		var w: float = serif.get_string_size(G67_TABS[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 		(tb["label"] as Label).text = G67_TABS[i]
-		(tb["root"] as Control).size = Vector2(w + 20, sz * 1.1)
-		(tb["band"] as Polygon2D).polygon = torn(w + 60.0, sz * 1.02, 31 + i, 40.0)
-		(tb["tag"] as Polygon2D).position = Vector2(w * 0.55, sz * 0.98)
+		(tb["root"] as Control).size = Vector2(w + 20, size * 1.1)
+		(tb["band"] as Polygon2D).polygon = torn(w + 60.0, size * 1.02, 31 + i, 40.0)
+		(tb["tag"] as Polygon2D).position = Vector2(w * 0.55, size * 0.98)
 	if panel_caps.size() > 1:
 		(panel_caps[1] as Label).text = "РЕСПЕКТ"
 	if hints_root != null:
@@ -212,27 +212,27 @@ func _tab_name(i: int) -> String:
 func _build_tabs() -> void:
 	for i in TABS.size():
 		var d: Array = TABS[i]
-		var sz: int = d[2]
+		var size: int = d[2]
 		var root := Control.new()
 		root.position = d[1]
 		root.rotation = deg_to_rad(float(d[3]))
 		var tname: String = _tab_name(i)
-		var w: float = serif.get_string_size(tname, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x
-		root.size = Vector2(w + 20, sz * 1.1)
+		var w: float = serif.get_string_size(tname, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		root.size = Vector2(w + 20, size * 1.1)
 		root.mouse_filter = Control.MOUSE_FILTER_STOP
 		root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		stage.add_child(root)
 		var band := Polygon2D.new()
-		band.polygon = torn(w + 60.0, sz * 1.02, 31 + i, 40.0)
-		band.position = Vector2(0, sz * 0.1)
+		band.polygon = torn(w + 60.0, size * 1.02, 31 + i, 40.0)
+		band.position = Vector2(0, size * 0.1)
 		band.color = WHITE
 		band.material = worn
 		root.add_child(band)
-		var lab := _text(root, tname, sz, WHITE, Vector2.ZERO, serif, true)
+		var lab := _text(root, tname, size, WHITE, Vector2.ZERO, serif, true)
 		var tag := Polygon2D.new()
 		tag.polygon = torn(190.0, 34.0, 60 + i, 10.0)
 		tag.color = RED
-		tag.position = Vector2(w * 0.55, sz * 0.98)
+		tag.position = Vector2(w * 0.55, size * 0.98)
 		tag.rotation = deg_to_rad(-5.0)
 		root.add_child(tag)
 		var tl := _text(tag, "ОТКРЫТЬ  ⏎", 20, WHITE, Vector2(18, 3), serif)
@@ -549,6 +549,9 @@ func _open_page(i: int) -> void:
 			_plate(top, func(): return "СЕЙЧАС: " + game.objective())
 			_rows([["НАЗАД", _close_card]])
 		4:
+			if game.golda != null:
+				_phone_page(top)
+				return
 			var row2 := HBoxContainer.new()
 			row2.add_theme_constant_override("separation", 20)
 			top.add_child(row2)
@@ -608,7 +611,7 @@ func _golda_page(i: int, top: VBoxContainer) -> void:
 					return "Голда: %d   ·   ДВОР · этап %d из %d" % [int(G.run["golda"]), int(G.run["pos"]) + 1, G.route().size()]
 				var sv: Dictionary = G.data.get("run", {})
 				if G.paused_run():
-					return "ПОДЪЕЗД   ·   ЗАБЕГ НА ПАУЗЕ · этап %d из 7" % (int((sv["run"] as Dictionary).get("pos", 0)) + 1)
+					return "ПОДЪЕЗД   ·   ЗАБЕГ НА ПАУЗЕ · этап %d из 6" % (int((sv["run"] as Dictionary).get("pos", 0)) + 1)
 				return "ПОДЪЕЗД", 19, SILVER)
 			_rows([["НАЗАД", _close_card]])
 		1:
@@ -649,11 +652,11 @@ func _golda_page(i: int, top: VBoxContainer) -> void:
 				var opts: Array = rt[n]
 				var line := ""
 				if n < stages.size():
-					line = "✓  %d · %s · %s" % [n + 1, String(G67Data.ROOM_NAMES[String(stages[n][0])]), String(G67Yard.zone(String(stages[n][1]))["name"]).to_upper()]
+					line = "✓  %d · %s" % [n + 1, G67Data.stage_title(String(stages[n][0]), String(stages[n][1]), String(stages[n][2]) if (stages[n] as Array).size() > 2 else "")]
 				elif n == pos and G.room_state != "open":
-					line = "▶  %d · %s · %s (идёт)" % [n + 1, String(G67Data.ROOM_NAMES[String(G.room["type"])]), String(G67Yard.zone(String(G.room.get("place", "")))["name"]).to_upper()]
+					line = "▶  %d · %s (идёт)" % [n + 1, G67Data.stage_title(String(G.room["type"]), String(G.room.get("place", "")), String(G.room.get("ev", "")))]
 				else:
-					var parts: Array = opts.map(func(o): return "%s · %s" % [String(G67Data.ROOM_NAMES[String(o["type"])]), String(G67Yard.zone(String(o["place"]))["name"]).to_upper()])
+					var parts: Array = opts.map(func(o): return String(G67Data.ROOM_NAMES[String(o["type"])]))
 					line = "%s  %d · %s" % ["→" if n == stages.size() else "·", n + 1, "  /  ".join(parts)]
 				txt.append(line)
 			for t in txt:
@@ -687,7 +690,6 @@ func _confirm_menu() -> void:
 	_rows([["ОСТАТЬСЯ", func(): _open_page(5)], ["ВЫЙТИ В ГЛАВНОЕ МЕНЮ", func(): game._to_menu()]])
 
 static func _time(s: float) -> String:
-	@warning_ignore("integer_division")
 	return "%d:%02d" % [int(s) / 60, int(s) % 60]
 
 # ---------------- карточка страницы и её детали ----------------
@@ -776,10 +778,10 @@ func _rows(actions: Array) -> void:
 				_card_activate(-1 if e.button_index == MOUSE_BUTTON_RIGHT else 1))
 	_refresh()
 
-func _line(parent: Node, fn: Callable, sz: int, col: Color, f: Font = null) -> Label:
+func _line(parent: Node, fn: Callable, size: int, col: Color, f: Font = null) -> Label:
 	var l := Label.new()
 	l.add_theme_font_override("font", f if f != null else tech)
-	l.add_theme_font_size_override("font_size", sz)
+	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", col)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size = Vector2(300, 0)
@@ -787,15 +789,15 @@ func _line(parent: Node, fn: Callable, sz: int, col: Color, f: Font = null) -> L
 	card_live.append(func(): l.text = String(fn.call()))
 	return l
 
-func _big(parent: Node, s: String, sz: int) -> void:
+func _big(parent: Node, s: String, size: int) -> void:
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", serif)
-	l.add_theme_font_size_override("font_size", sz)
+	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", WHITE)
 	l.material = worn
 	l.clip_text = true
-	l.custom_minimum_size = Vector2(300, sz * 1.15)
+	l.custom_minimum_size = Vector2(300, size * 1.15)
 	parent.add_child(l)
 
 func _note(s: String) -> void:
@@ -890,6 +892,59 @@ func _buddy_portrait() -> Control:
 	return t
 
 ## Рисунок iPod для страницы «Музыка»: серебристый корпус, экран с нотой и колесо.
+## iPhone Пахана (приквел): плейлист «Любимые треки Пахана»; в бою — только текущий трек и пауза
+func _phone_page(top: Node) -> void:
+	var ph: G67Phone = game.golda.phone_get()
+	var fight: bool = String(game.golda.room_state) in ["fight", "boss"]
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 20)
+	top.add_child(row)
+	var scr := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.04, 0.06)
+	sb.set_corner_radius_all(26)
+	sb.set_content_margin_all(10)
+	sb.border_color = Color(0.25, 0.25, 0.3)
+	sb.set_border_width_all(3)
+	scr.add_theme_stylebox_override("panel", sb)
+	row.add_child(scr)
+	var inner := VBoxContainer.new()
+	inner.add_theme_constant_override("separation", 0)
+	inner.custom_minimum_size = Vector2(440, 0)
+	scr.add_child(inner)
+	if ResourceLoader.exists(G67Phone.COVER) and not fight:
+		var tr := TextureRect.new()
+		tr.texture = load(G67Phone.COVER)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.custom_minimum_size = Vector2(84, 84)
+		inner.add_child(tr)
+	_line(inner, func(): return "ЛЮБИМЫЕ ТРЕКИ ПАХАНА", 20, WHITE)
+	_line(inner, func():
+		if ph.cur < 0:
+			return "ничего не играет"
+		var t: Array = G67Data.PLAYLIST[ph.cur - 1]
+		return "%s%s — %s" % ["" if not ph.paused else "Ⅱ ", t[1], t[2]], 16, SILVER)
+	_line(inner, func():
+		var L := ph.length()
+		var k := 0 if L <= 0.0 else clampi(int(ph.position() / L * 24.0), 0, 24)
+		return "%s%s  %s / %s" % ["▮".repeat(k), "▯".repeat(24 - k), G67Phone.clock(ph.position()), G67Phone.clock(L)], 14, GREY)
+	if not fight:
+		for i in G67Data.PLAYLIST.size():
+			var t2: Array = G67Data.PLAYLIST[i]
+			var has: bool = ph.has_track(i + 1)
+			var lb := _line(inner, func(): return "%s%d. %s — %s%s" % ["▶ " if ph.cur == i + 1 else ("› " if ph.selected == i else "   "), t2[0], t2[1], t2[2], "" if has else "   (нет файла)"], 12, WHITE if has else Color(0.45, 0.45, 0.48))
+			card_live.append(func(): lb.modulate = Color(1, 0.85, 0.3) if ph.cur == i + 1 else (Color(0.8, 0.9, 1.0) if ph.selected == i else Color.WHITE))
+	var acts: Array = []
+	if not fight:
+		acts.append([func(): return "ВЫБОР: %d. %s — %s   (←/→, Enter — играть)" % [ph.selected + 1, G67Data.PLAYLIST[ph.selected][1], G67Data.PLAYLIST[ph.selected][2]], func(): ph.play(ph.selected + 1), func(d: int): ph.select(d)])
+	acts.append([func(): return "▶ Ⅱ  " + ("ПАУЗА" if ph.active() else "ИГРАТЬ"), func(): ph.toggle()])
+	if not fight:
+		acts.append(["◀◀  ПРЕДЫДУЩИЙ / СЛЕДУЮЩИЙ  ▶▶   (←/→)", func(): ph.step(1), func(d: int): ph.step(d)])
+	acts.append([func(): return "ГРОМКОСТЬ: %d %%" % roundi(ph.volume * 100.0), null, func(d: int): ph.set_volume(snappedf(ph.volume + 0.05 * d, 0.05))])
+	acts.append(["НАЗАД", _close_card])
+	_rows(acts)
+
 func _ipod_art() -> Control:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(170, 270)

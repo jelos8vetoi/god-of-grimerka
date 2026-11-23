@@ -56,9 +56,7 @@ var post_mat: ShaderMaterial
 var pp := {"aberr": 0.0, "blur": 0.0, "flash": 0.0, "ripple_a": 0.0, "ripple_t": 0.0}
 signal intro_done
 ## отклик боя (feedback.gd): каждое событие и подтверждение попадания — для HUD, вибрации и будущих стилей
-@warning_ignore("unused_signal")
 signal feedback_fired(name: String, pos: Vector3, power: float)
-@warning_ignore("unused_signal")
 signal hit_confirmed(pos: Vector3, power: float)
 const INTRO_CAM := 2.8       # секунд облёта камеры при входе из меню
 const INTRO_HUD := 1.6       # с этого момента по очереди появляется HUD
@@ -228,7 +226,7 @@ func _ready() -> void:
 	if main.testing() == "":
 		MouseMode.set_to(Input.MOUSE_MODE_CAPTURED)
 
-func begin(from_save: bool, chap := -1) -> void:
+func begin(from_save: bool, chapter := -1) -> void:
 	if from_save and FileAccess.file_exists(SAVE):
 		var d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
 		if d is Dictionary:
@@ -240,8 +238,8 @@ func begin(from_save: bool, chap := -1) -> void:
 			tag_saved = d.get("tag", {})
 			hype.value = clampf(float(d.get("hype", 0.0)), 0.0, TeamHype.MAX)
 			tutorial.load_data(d.get("tut", []))     # старые сохранения без ключа — обучение с начала
-	if chap >= 0:
-		ch = chap
+	if chapter >= 0:
+		ch = chapter
 		step = -1
 	if ch >= chapters():      # сохранение из времён девяти глав: начинаем доступную главу заново
 		ch = chapters() - 1
@@ -499,6 +497,12 @@ func _update_fight(dt: float) -> void:
 	elif mode == "boss" or training != null or golda != null:
 		if boss_e and is_instance_valid(boss_e):
 			boss_fill.size.x = 596.0 * clamp(boss_e.hp / boss_e.max_hp, 0.0, 1.0)
+			if boss_e.antract:
+				boss_name.text = "ЗАМОК · СВИТА — %s" % String(boss_e.boss["n"])      # антракт: Миша неуязвим, пока свита не побеждена
+				boss_fill.color = Color(0.55, 0.55, 0.6)
+			elif boss_fill.color != Color(1, 0.3, 0.2):
+				boss_fill.color = Color(1, 0.3, 0.2)
+				boss_name.text = "%s — %s" % [boss_e.boss["n"], boss_e.boss["sub"]]
 			if auto_kill > 0.0 and boss_e.alive() and boss_e.age > 5.0:
 				boss_e.take_hit(99999.0, Vector3.FORWARD, 0.0, true)
 	if step_done_t >= 0.0:
@@ -682,15 +686,15 @@ func spawn_bolt(pos: Vector3, vel: Vector3, dmg: float, owner_e, homing := false
 	_remember_hostile(bolts.back())
 
 func _update_bolts(dt: float) -> void:
-	var pq: Vector3 = player.global_position + Vector3(0, 1.0, 0)
+	var pp: Vector3 = player.global_position + Vector3(0, 1.0, 0)
 	for b in bolts.duplicate():
 		b["life"] -= dt
 		var n: Node3D = b["n"]
 		if b["homing"]:
-			var want: Vector3 = (pq - n.global_position).normalized() * (b["v"] as Vector3).length()
+			var want: Vector3 = (pp - n.global_position).normalized() * (b["v"] as Vector3).length()
 			b["v"] = (b["v"] as Vector3).lerp(want, 1.0 - exp(-float(b["turn"]) * dt))
 		n.global_position += b["v"] * dt
-		if n.global_position.distance_to(pq) < 0.7:
+		if n.global_position.distance_to(pp) < 0.7:
 			var was_inv: bool = player.inv > 0.0
 			player.take_damage(b["dmg"], n.global_position, b["from"] if is_instance_valid(b["from"]) else null, b.get("telemetry", {}))
 			if float(b["slow"]) > 0.0 and not was_inv:
@@ -701,16 +705,16 @@ func _update_bolts(dt: float) -> void:
 			n.queue_free()
 			bolts.erase(b)
 
-func clear_survival_hazards(own) -> void:
+func clear_survival_hazards(owner) -> void:
 	for z in zones.duplicate():
-		if (own == null and z.get("survival_event", false)) or (own != null and z["from"] == own):
+		if (owner == null and z.get("survival_event", false)) or (owner != null and z["from"] == owner):
 			z["n"].queue_free()
 			if is_instance_valid(z.get("safe_n")):
 				z["safe_n"].queue_free()
 			zones.erase(z)
-	if own != null:
+	if owner != null:
 		for b in bolts.duplicate():
-			if b["from"] == own:
+			if b["from"] == owner:
 				b["n"].queue_free()
 				bolts.erase(b)
 		# Lob props during Survival boss encounters are purely visual boss projectiles.
@@ -785,13 +789,13 @@ func _update_lobs(dt: float) -> void:
 			lobs.erase(l)
 
 func _update_zones(dt: float) -> void:
-	var pq: Vector3 = player.global_position
+	var pp: Vector3 = player.global_position
 	for z in zones.duplicate():
 		z["t"] -= dt
 		var n: Node3D = z["n"]
 		var k: float = 1.0 - clamp(z["t"] / z["t0"], 0.0, 1.0)
 		var src = z["from"] if is_instance_valid(z["from"]) else null
-		var d := Vector2(pq.x - n.global_position.x, pq.z - n.global_position.z).length()
+		var d := Vector2(pp.x - n.global_position.x, pp.z - n.global_position.z).length()
 		var done: bool = z["t"] <= 0.0
 		var r0: float = z["r"]
 		match String(z["kind"]):
@@ -804,7 +808,7 @@ func _update_zones(dt: float) -> void:
 					player.take_damage(z["dmg"], n.global_position, src, z.get("telemetry", {}))
 			"tele":
 				if z.has("chase") and z["t"] > float(z["chase"]):
-					n.global_position = n.global_position.lerp(Vector3(pq.x, 0.0, pq.z), 1.0 - exp(-7.0 * dt))
+					n.global_position = n.global_position.lerp(Vector3(pp.x, 0.0, pp.z), 1.0 - exp(-7.0 * dt))
 				# заливка растёт до ободка, руны крутятся, ободок мигает всё чаще — видно, сколько осталось
 				(z["fill"] as Node3D).scale = Vector3.ONE * max(0.01, r0 / 0.4 * k)
 				(z["rune"] as Node3D).rotation.y += dt * 2.5
@@ -838,7 +842,7 @@ func _update_zones(dt: float) -> void:
 				if d < r0 and float(z["tick"]) <= 0.0:
 					z["tick"] = 0.6
 					player.take_damage(z["dmg"], n.global_position + Vector3(0.01, 0, 0.01), src, z.get("telemetry", {}))
-					fx.twinkle(pq + Vector3(0, 0.5, 0), 6, ((z["b"] as MeshInstance3D).material_override as StandardMaterial3D).albedo_color, 0.5)
+					fx.twinkle(pp + Vector3(0, 0.5, 0), 6, ((z["b"] as MeshInstance3D).material_override as StandardMaterial3D).albedo_color, 0.5)
 			"sweep":
 				if src == null or src.state == "dead" or src.state == "stun":
 					done = true
@@ -853,7 +857,7 @@ func _update_zones(dt: float) -> void:
 					src.face = ang + PI   # босс показывает рукой вдоль луча
 					z["cd"] = float(z["cd"]) - dt
 					var dir := Vector3(-sin(ang), 0, -cos(ang))
-					var to: Vector3 = pq - src.global_position
+					var to: Vector3 = pp - src.global_position
 					to.y = 0
 					var along := to.dot(dir)
 					if not warm and float(z["cd"]) <= 0.0 and along > 0.8 and along < r0 and abs(to.x * dir.z - to.z * dir.x) < 0.75:
@@ -865,17 +869,17 @@ func _update_zones(dt: float) -> void:
 				((z["danger"] as MeshInstance3D).material_override as StandardMaterial3D).albedo_color.a = 0.1 + 0.3 * k + 0.08 * sin(clock * (8.0 + 22.0 * k))
 				if done:
 					var wc: Color = z["col"]
-					var ds := Vector2(pq.x - sn.global_position.x, pq.z - sn.global_position.z).length()
+					var ds := Vector2(pp.x - sn.global_position.x, pp.z - sn.global_position.z).length()
 					for i in 10:
 						var at := Vector3(randf_range(-11, 11), 0, randf_range(-11, 11))
 						if at.distance_to(sn.global_position) > r0 + 1.0:
 							fx.pillar(at, 5.0, wc)
 					fx.ground_ring(Vector3.ZERO, 2.0, 34.0, wc, 0.6)
-					punch(1.0, pq + Vector3(0, 1, 0))
+					punch(1.0, pp + Vector3(0, 1, 0))
 					shake(0.7)
 					main.sfx("sfx_boom", 2.0, 0.6)
 					if ds > r0:
-						player.take_damage(z["dmg"], Vector3(pq.x, 0, pq.z + 0.5), src, z.get("telemetry", {}))
+						player.take_damage(z["dmg"], Vector3(pp.x, 0, pp.z + 0.5), src, z.get("telemetry", {}))
 					sn.queue_free()
 		if done:
 			if z.has("safe_n") and is_instance_valid(z["safe_n"]):
@@ -997,8 +1001,8 @@ func swap_heroes(quiet := false) -> bool:
 	return true
 
 ## Отклик боя по имени события: таблица каналов — в feedback.gd.
-func feedback(nm: String, pos: Vector3, dir := Vector3.ZERO, mul := 1.0, col := Color(1.0, 0.82, 0.45)) -> void:
-	Feedback.fire(self, nm, pos, dir, mul, col)
+func feedback(name: String, pos: Vector3, dir := Vector3.ZERO, mul := 1.0, col := Color(1.0, 0.82, 0.45)) -> void:
+	Feedback.fire(self, name, pos, dir, mul, col)
 
 func heat_cam(sec: float) -> void:
 	heat_t = sec
@@ -1096,6 +1100,10 @@ func _process(dt: float) -> void:
 		cam.v_offset = 0.0
 	elif golda != null and golda.owns_camera():
 		cam.global_transform = golda.camera()      # постановка приквела (выход босса, разговоры)
+		if golda.ev_cam and not golda.talk_on:
+			cam.fov = golda.ev_fov
+		elif golda.scene_t >= 0.0 and not golda.talk_on:
+			cam.fov = golda.scene_fov
 		if golda.talk_on:
 			cam.fov = golda.talk_fov
 			cam.h_offset = 0.0
@@ -1366,9 +1374,7 @@ func _update_dialog(dt: float) -> void:
 	dlg_text.visible_characters = int(dlg_chars)
 	# у реплик без голоса (рассказчик, боссы) текст печатается с тихими щелчками
 	var shown: int = min(int(dlg_chars), dlg_text.text.length())
-	@warning_ignore("integer_division")
 	if not dlg_voiced and shown / 3 > tick_n and main.testing() == "":
-		@warning_ignore("integer_division")
 		tick_n = shown / 3
 		main.sfx("sfx_ui", -24.0, 0.7)
 
@@ -1942,6 +1948,6 @@ func _autotest(dt: float) -> void:
 			print("AUTOTEST fps_avg=%.0f fps_min=%d ch=%d step=%d mode=%s kills=%d hp=%.0f" % [avg, fps_samples[0] if fps_samples.size() else 0, ch + 1, step, mode, kills, player.hp])
 			get_tree().quit()
 
-func _shot(dir: String, nm: String) -> void:
+func _shot(dir: String, name: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(dir.path_join(nm))
+	get_viewport().get_texture().get_image().save_png(dir.path_join(name))

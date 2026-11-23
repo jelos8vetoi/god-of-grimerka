@@ -90,11 +90,16 @@ func _build_tvs() -> void:
 	var no := 1
 	for sec in G67Data.ARCHIVE_CLIPS:
 		for cid in sec[1]:
-			var is_open: bool = G.clip_open(cid)
-			list.append({"type": "clip", "id": cid, "cat": String(sec[0]), "no": no, "title": G67Clips.title(cid) if is_open else "???",
-				"state": ("seen" if G.clip_seen(cid) else "new") if is_open else "lock", "preview": PREVIEW % cid if ResourceLoader.exists(PREVIEW % cid) else "",
+			var open: bool = G.clip_open(cid)
+			list.append({"type": "clip", "id": cid, "cat": String(sec[0]), "no": no, "title": G67Clips.title(cid) if open else "???",
+				"state": ("seen" if G.clip_seen(cid) else "new") if open else "lock", "preview": PREVIEW % cid if ResourceLoader.exists(PREVIEW % cid) else "",
 				"why": "Запись появится " + String(G67Data.CLIP_WHY.get(cid, "позже")) + "."})
 			no += 1
+	for ek in ["rags", "burmalda", "button"]:
+		var eo: bool = G.clip_open_ev(ek)
+		list.append({"type": "event", "id": "ev_" + ek, "cat": "СОБЫТИЯ", "no": no, "title": String(G67Data.EVENT_NAMES[ek]) if eo else "???", "state": "seen" if eo else "lock", "preview": "",
+			"desc": String(G67Data.EVENT_DESC[ek]), "why": "Событие двора ещё не случалось. Запись появится, когда оно произойдёт во время забега."})
+		no += 1
 	for k in G67Data.ARCHIVE_ENDINGS:
 		list.append({"type": "ending", "id": "ending%d" % (k + 1), "cat": "КОНЦОВКИ", "no": no, "title": "???", "state": "lock", "preview": "",
 			"why": "Концовка ещё не открыта." if k == 0 else "Эта концовка — дальше по сюжету."})
@@ -183,19 +188,19 @@ func _build_sleeve() -> void:
 
 func _counters() -> void:
 	var total := 0
-	var open_n := 0
+	var open := 0
 	var seen := 0
 	var fresh := 0
 	for r in recs:
 		if r["type"] in ["clip", "event", "ending"]:
 			total += 1
 			if r["state"] != "lock":
-				open_n += 1
+				open += 1
 			if r["state"] == "seen":
 				seen += 1
 			if r["state"] == "new":
 				fresh += 1
-	c_all.text = "ЗАПИСЕЙ %d / %d" % [open_n, total]
+	c_all.text = "ЗАПИСЕЙ %d / %d" % [open, total]
 	c_seen.text = "ПРОСМОТРЕНО %d" % seen
 	c_new.text = ("НОВЫХ %d" % fresh) if fresh > 0 else ""
 
@@ -223,6 +228,11 @@ func _on_select(i: int, prev: int) -> void:
 				s_why.text = String(r["why"])
 				s_btn.text = "ЗАПЕРТО"
 				s_btn.disabled = true
+			elif String(r["type"]) == "event":
+				s_state.text = "ЗАПИСЬ ОТКРЫТА"
+				s_text.text = String(r["desc"])
+				s_btn.text = "СМОТРЕТЬ ЗАПИСЬ" if String(r["id"]) == "ev_rags" else "БЕЗ ПЕРЕСМОТРА"
+				s_btn.disabled = String(r["id"]) != "ev_rags"
 			else:
 				var cid := String(r["id"])
 				s_state.text = "НОВАЯ ЗАПИСЬ" if st == "new" else "ПРОСМОТРЕНО"
@@ -279,7 +289,10 @@ func _activate(i: int) -> void:
 				return
 			_watch(i)
 		"event", "ending":
-			_deny(items[i]["node"])
+			if String(r["type"]) == "event" and String(r["id"]) == "ev_rags" and G.clip_open_ev("rags"):
+				_watch(i)
+			else:
+				_deny(items[i]["node"])
 		_:
 			if not bool(r["has"]):
 				_deny(items[i]["node"])
@@ -303,6 +316,8 @@ func _watch(i: int) -> void:
 	voice.stop()
 	G.game.main.ui("confirm")
 	var cid := String(recs[i]["id"])
+	if cid == "ev_rags":
+		cid = "EV02"
 	G.events.append(["arch_watch", cid])
 	await G.play_clip(cid)
 	if not is_inside_tree():

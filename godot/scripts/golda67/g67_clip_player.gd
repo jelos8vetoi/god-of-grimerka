@@ -303,6 +303,8 @@ func say(line: String, hold := 0.25) -> void:
 		sub_name.text = ""
 
 ## Реплика без ожидания; возвращает длительность
+static var last_log: Array = []      # [время, реплика, длина голоса, есть ли голос] — для сверки монтажа (--g67-clip)
+
 func say_async(line: String) -> float:
 	var p := line.find("|")
 	var code := line.substr(0, p)
@@ -314,7 +316,9 @@ func say_async(line: String) -> float:
 	if path != "":
 		voice.stream = load(path)
 		voice.play()
+		last_log.append([t, line, voice.stream.get_length(), true])
 		return voice.stream.get_length()
+	last_log.append([t, line, clampf(0.6 + text.length() * 0.062, 1.2, 6.0), false])
 	return clampf(0.6 + text.length() * 0.062, 1.2, 6.0)
 
 func clear_sub() -> void:
@@ -417,11 +421,18 @@ func actor(key: String, kind: String, pos: Vector3, yaw: float) -> Rig:
 			path = "res://assets/models/pahan.glb"
 			h = 1.74
 			C = Poses.pahan()
+			C.merge(G67Clips.ev_clips(), true)
 		"madk1d":
 			path = "res://assets/models/madk1d.glb"
 			h = 1.68
 			C = Poses.madk1d()
 			C.merge(G67Clips.madk_clips(), true)
+			C.merge(G67Clips.ev_clips(), true)
+		"whyousolonely":
+			path = G67Models.DIR + "g67_whyousolonely.glb"
+			h = 1.75
+			C = Poses.pahan()
+			C.merge(G67Clips.ev_clips(), true)
 		"krot":
 			path = G67Models.DIR + "g67_krot.glb"
 			h = 1.62
@@ -488,7 +499,7 @@ func box(size: Vector3, pos: Vector3, col: Color, glow := 0.0) -> MeshInstance3D
 func chain(from: Vector3, to: Vector3, sec: float) -> void:
 	var n := Node3D.new()
 	world.add_child(n)
-	var ln := from.distance_to(to)
+	var len := from.distance_to(to)
 	n.global_position = from
 	n.look_at(to, Vector3.UP if absf((to - from).normalized().y) < 0.95 else Vector3.RIGHT)
 	var link := TorusMesh.new()
@@ -502,13 +513,13 @@ func chain(from: Vector3, to: Vector3, sec: float) -> void:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = link
-	var cnt := clampi(int(ln / 0.12), 2, 80)
+	var cnt := clampi(int(len / 0.12), 2, 80)
 	mm.instance_count = cnt
 	for i in cnt:
 		var b := Basis(Vector3(1, 0, 0), PI * 0.5)
 		if i % 2 == 1:
 			b = Basis(Vector3(0, 0, 1), PI * 0.5) * b
-		mm.set_instance_transform(i, Transform3D(b, Vector3(0, 0, -ln * (float(i) + 0.5) / float(cnt))))
+		mm.set_instance_transform(i, Transform3D(b, Vector3(0, 0, -len * (float(i) + 0.5) / float(cnt))))
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mm
 	n.add_child(mi)
@@ -627,5 +638,5 @@ func flash(col := Color.WHITE, sec := 0.25) -> void:
 	tw.tween_property(r, "color:a", 0.0, sec)
 	tw.tween_callback(r.queue_free)
 
-func sfx(nm: String, db := 0.0, pitch := 1.0) -> void:
-	game.main.sfx(nm, db, pitch)
+func sfx(name: String, db := 0.0, pitch := 1.0) -> void:
+	game.main.sfx(name, db, pitch)

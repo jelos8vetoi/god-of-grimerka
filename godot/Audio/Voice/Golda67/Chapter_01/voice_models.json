@@ -15,7 +15,7 @@
 		},
 		"KR": {
 			"character": "КРОТ",
-			"id": "96515c67",
+			"id": "c71d2f3d",
 			"voice_name": "КРОТ",
 			"status": "found"
 		},
@@ -51,8 +51,8 @@
 		},
 		"M": {
 			"character": "madk1d",
-			"id": "fish:FISH_REF_M",
-			"voice_name": "madk1d (Fish Audio, голос из игры)",
+			"id": "c792db39",
+			"voice_name": "MADK1D",
 			"status": "found"
 		},
 		"PH": {
@@ -65,6 +65,78 @@
 			"character": "WHYOUSOLONELY",
 			"id": "dfcf8831",
 			"voice_name": "WHYOUSOLONELY",
+			"status": "found"
+		},
+		"DP": {
+			"character": "Диспетчер",
+			"id": "preset:audiobook_uk_narrator",
+			"voice_name": "пресет Audiobook UK Narrator, женский (Voice Studio Pro)",
+			"status": "found"
+		},
+		"LS": {
+			"character": "Громкоговоритель",
+			"id": "preset:corporate",
+			"voice_name": "пресет Corporate (Voice Studio Pro)",
+			"status": "found"
+		},
+		"BB": {
+			"character": "Бабушка",
+			"id": "preset:storyteller",
+			"voice_name": "пресет Storyteller (Voice Studio Pro)",
+			"status": "found"
+		},
+		"DM": {
+			"character": "Домофон",
+			"id": "preset:corporate",
+			"voice_name": "пресет Corporate (Voice Studio Pro)",
+			"status": "found"
+		},
+		"RD": {
+			"character": "Гаражное радио",
+			"id": "preset:news_anchor",
+			"voice_name": "пресет News Anchor (Voice Studio Pro)",
+			"status": "found"
+		},
+		"SC": {
+			"character": "Школьник",
+			"id": "preset:energetic",
+			"voice_name": "пресет Energetic (Voice Studio Pro)",
+			"status": "found"
+		},
+		"SH": {
+			"character": "Шаурмист",
+			"id": "preset:energetic",
+			"voice_name": "пресет Energetic (Voice Studio Pro)",
+			"status": "found"
+		},
+		"TX": {
+			"character": "Таксист",
+			"id": "preset:casual",
+			"voice_name": "пресет Casual (Voice Studio Pro)",
+			"status": "found"
+		},
+		"US": {
+			"character": "Мужик в ушанке",
+			"id": "preset:narrator",
+			"voice_name": "пресет Narrator (Voice Studio Pro)",
+			"status": "found"
+		},
+		"Z1": {
+			"character": "Житель (мужской голос 1)",
+			"id": "preset:corporate",
+			"voice_name": "пресет Corporate (Voice Studio Pro)",
+			"status": "found"
+		},
+		"Z2": {
+			"character": "Сосед (мужской голос 2)",
+			"id": "preset:news_anchor",
+			"voice_name": "пресет News Anchor (Voice Studio Pro)",
+			"status": "found"
+		},
+		"ZW": {
+			"character": "Соседка",
+			"id": "preset:audiobook_uk_narrator",
+			"voice_name": "пресет Audiobook UK Narrator, женский (Voice Studio Pro)",
 			"status": "found"
 		}
 	}

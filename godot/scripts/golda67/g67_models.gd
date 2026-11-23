@@ -74,6 +74,8 @@ static func spawn(id: String, parent: Node, pos: Vector3, yaw: float, size: Vect
 		s = size.z / maxf(bs.z, 0.001)
 	else:
 		s = minf(s, minf(size.x * 1.15 / maxf(bs.x, 0.001), size.z * 1.15 / maxf(bs.z, 0.001)))
+	if fit == "1":
+		s = 1.0                                   # модель из Blender: уже в метрах
 	var holder := Node3D.new()
 	holder.rotation.y = turn
 	root.add_child(holder)

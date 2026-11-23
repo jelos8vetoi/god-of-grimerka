@@ -104,11 +104,15 @@ static func _grab(e) -> void:
 			g.popup(P.global_position + Vector3(0, 2.2, 0), "ПОЙМАЛ", Color(1.0, 0.4, 0.3))
 			g.shake(0.45)
 			e.grab_log.append("hit")
+			if g.golda != null:
+				g.golda._crowd("hit")
 			e.sp_dur = GRAB_WARN + 0.6
 		else:
 			# схватил воздух: стоит согнувшись — время для ударов
 			g.popup(e.global_position + Vector3(0, e.height + 0.5, 0), "МИМО", Color(0.8, 0.9, 1.0))
 			e.grab_log.append("miss")
+			if g.golda != null:
+				g.golda._crowd("laugh")
 			e.sp_dur = GRAB_WARN + GRAB_MISS)
 	e.sp_dur = GRAB_WARN + GRAB_MISS
 
@@ -229,6 +233,8 @@ static func _hook(e) -> void:
 		_chain(g, chest, anchor, HOOK_OPEN)
 		g.fx.twinkle(anchor, 8, Color(1.0, 0.85, 0.4), 0.9)
 		g.main.sfx("sfx_block", -1.0, 1.3)
+		if g.golda != null:
+			g.golda._crowd("laugh")
 		e.hook_log.append(String(tg[1]))
 		e.state = "stun"
 		e.t = 0.0
@@ -241,8 +247,8 @@ static func _hook(e) -> void:
 
 ## Натянутая цепь между двумя точками: звенья, вылет за 0,15 с, через sec — убирается
 static func _chain(g, from: Vector3, to: Vector3, sec: float) -> void:
-	var ln := from.distance_to(to)
-	if ln < 0.3:
+	var len := from.distance_to(to)
+	if len < 0.3:
 		return
 	var root := Node3D.new()
 	root.name = "misha_hook_chain"
@@ -265,13 +271,13 @@ static func _chain(g, from: Vector3, to: Vector3, sec: float) -> void:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = link
-	var n := clampi(int(ln / 0.15), 2, 110)
+	var n := clampi(int(len / 0.15), 2, 110)
 	mm.instance_count = n
 	for i in n:
 		var b := Basis(Vector3(1, 0, 0), PI * 0.5)                     # кольцо вдоль цепи
 		if i % 2 == 1:
 			b = Basis(Vector3(0, 0, 1), PI * 0.5) * b                   # через одно — поперёк
-		mm.set_instance_transform(i, Transform3D(b, Vector3(0, 0, -ln * (float(i) + 0.5) / float(n))))
+		mm.set_instance_transform(i, Transform3D(b, Vector3(0, 0, -len * (float(i) + 0.5) / float(n))))
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mm
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

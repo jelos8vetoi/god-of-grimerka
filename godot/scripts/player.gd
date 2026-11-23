@@ -458,7 +458,7 @@ func start_slide(dir: Vector3) -> void:
 	game.main.sfx("sfx_roll", -5.0, 0.7 if hero == "pahan" else 1.1)
 	moves_log.append(["slide", hero])
 
-func _slide_tick(_dt: float, _dir: Vector3) -> void:
+func _slide_tick(dt: float, _dir: Vector3) -> void:
 	var M: Dictionary = MOVE[hero]
 	var k: float = clampf(t / float(M["slide_t"]), 0.0, 1.0)
 	var v: float = lerpf(float(M["slide_v"]), float(M["slide_end"]), k * k)
@@ -730,13 +730,13 @@ func _physics_process(dt: float) -> void:
 	velocity.y -= 20.0 * dt
 	move_and_slide()
 	body.rotation.y = face + spin_off
-	var xf := false
+	var tr := false
 	if state == "attack" and combat.cur != null:
 		var hh: Array = combat.cur.hits
 		var kk := combat.k()
-		xf = kk >= float(hh[0]) - 0.16 and kk <= float(hh[hh.size() - 1]) + 0.14
-	trail.enabled = xf
-	if xf and feel.has(style.id):
+		tr = kk >= float(hh[0]) - 0.16 and kk <= float(hh[hh.size() - 1]) + 0.14
+	trail.enabled = tr
+	if tr and feel.has(style.id):
 		(feel[style.id] as WeaponFeel).swing(1.0)
 	_board_tick(dt)
 	if feel.has("board_ride"):
@@ -765,6 +765,8 @@ func enemies_near(r := 10.0) -> bool:
 
 ## события внутри клипов (rig.clip_event): шаги — пыль на рывке ровно в момент касания стопы
 func _on_clip_event(_clip: String, ev: String) -> void:
+	if ev.begins_with("step") and game.golda != null and state == "move" and Vector2(velocity.x, velocity.z).length() > 1.0:
+		game.golda.play_step(global_position)          # приквел: шаг по поверхности (кампания не затронута)
 	if ev.begins_with("step") and state == "move" and (held("sprint") or rage > 0.0) and Vector2(velocity.x, velocity.z).length() > 3.0:
 		game.feedback("step", global_position + Vector3(0, 0.12, 0))
 

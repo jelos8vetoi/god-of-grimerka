@@ -15,6 +15,7 @@ var peck_t := -1.0        # идёт клевок (секунды от нача�
 var pecks := 1            # сколько клевков подряд осталось
 var rng := RandomNumberGenerator.new()
 var to := Vector3.INF     # куда идёт (корм), в координатах родителя
+var flight := false       # взлетел: позицию ведёт стайка (Yard), своё покачивание отключено
 
 const PECK_LEN := 0.42    # один клевок
 const PECK_ANGLE := 0.62  # наклон корпуса вперёд, рад
@@ -38,7 +39,7 @@ func feed(at: Vector3) -> void:
 	to.y = home.y
 
 func _process(dt: float) -> void:
-	if bird == null:
+	if bird == null or flight:
 		return
 	t += dt
 	if to != Vector3.INF:

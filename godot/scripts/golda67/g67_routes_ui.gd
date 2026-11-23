@@ -89,7 +89,8 @@ func zone_lines(zid: String) -> Array:
 	var out: Array = []
 	for i in route.size():
 		for o in route[i]:
-			if String(o["place"]) == zid:
+			var zs: Array = G67Data.TYPE_ZONES.get(String(o["type"]), [])
+			if (i == 0 and zid == "podezd") or (i > 0 and zs.has(zid)):
 				out.append("%d · %s" % [i + 1, String(G67Data.ROOM_NAMES[String(o["type"])])])
 	return out
 
@@ -118,7 +119,7 @@ func _on_select(i: int, prev: int) -> void:
 				n_text.text = "Босс района — %s — побеждён.\nВ район можно вернуться: выход — дверь подъезда." % String(m.info["boss"])
 			"open":
 				n_state.text = "ОТКРЫТ"
-				n_text.text = "Босс района — %s.\nВыход — дверь подъезда, семь этапов, в конце — босс." % String(m.info["boss"]) if m.id == "dvor" else ("Босс района — %s.\nДорога через арку открыта. Продолжение турнира — в следующей главе." % String(m.info["boss"]))
+				n_text.text = "Босс района — %s.\nВыход — дверь подъезда, шесть этапов, в конце — босс." % String(m.info["boss"]) if m.id == "dvor" else ("Босс района — %s.\nДорога через арку открыта. Продолжение турнира — в следующей главе." % String(m.info["boss"]))
 			_:
 				n_state.text = "ЗАКРЫТ"
 				n_text.text = "Босс района — ???\nОткроется после победы над боссом прошлого района."
@@ -186,8 +187,9 @@ class Sheet extends Control:
 		# маршрут забега: этапы по порядку через первую зону каждого этапа
 		var route: Array = ui.route
 		var pts: Array = []
-		for opts in route:
-			pts.append(G67RoutesUI.plan_pos(G67Yard.ZONES[String(opts[0]["place"])]["c"]))
+		for ri in route.size():
+			var zl: Array = G67Data.TYPE_ZONES.get(String(route[ri][0]["type"]), ["podezd"])
+			pts.append(G67RoutesUI.plan_pos(G67Yard.ZONES[String(zl[0]) if ri > 0 else "podezd"]["c"]))
 		for i in pts.size() - 1:
 			draw_dashed_line(pts[i], pts[i + 1], Color(0.7, 0.18, 0.14, 0.6), 2.5, 10.0)
 		# КРОТ: красная кнопка у его следующей зоны
@@ -244,8 +246,10 @@ class Mark extends Control:
 			var nums: Array = []
 			for i in route.size():
 				for o in route[i]:
-					if String(o["place"]) == id:
-						nums.append(str(i + 1))
+					var zs2: Array = G67Data.TYPE_ZONES.get(String(o["type"]), [])
+					if (i == 0 and id == "podezd") or (i > 0 and zs2.has(id)):
+						if not nums.has(str(i + 1)):
+							nums.append(str(i + 1))
 			var tw2 := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 			draw_string(f, Vector2(c.x - tw2 * 0.5, c.y + 26), label.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, pen)
 			for k in nums.size():

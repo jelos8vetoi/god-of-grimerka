@@ -91,6 +91,8 @@ function compose(d, boss) {
       case 'sq': return note(b, t, f, dur, { w: 'sq', v: v * .6, cut: 2400, vib: .004, r: .05 });
       case 'saw': return note(b, t, f, dur, { w: 'saw', v: v * .8, cut: 2800, uni: 3, det: .008, vib: .003, r: .06 });
       case 'cow': return cow(b, t, f, v * 1.2);
+      case 'reed': return note(b, t, f, Math.max(dur, .25), { w: 'sq', v: v * .55, cut: 1700, uni: 2, det: .012, vib: .009, a: .03, r: .07 });          // «гармошка»: язычковый тембр
+      case 'brass': return note(b, t, f, Math.max(dur, .3), { w: 'saw', v: v * .8, cut: 2200, cenv: 2, uni: 3, det: .006, vib: .004, a: .04, r: .1 });
     }
   };
   for (let i = 0; i < bars; i++) {
@@ -132,6 +134,11 @@ function compose(d, boss) {
     }
   }
   reverb(S.base, d.rev || .35, d.size || 1.2); if (d.dly) delay(S.base, beat * .75, .35, d.dly);
+  if (d.tape) { // «из динамика телевизора»: узкая полоса, шум ленты, плавающая высота (через лёгкий хор-вибрато)
+    lowp(S.base, d.tape); highp(S.base, 220);
+    NR = rng(d.seed + 7); let hl = 0; for (let i = 0; i < S.base.length; i++) { hl += (white() - hl) * .25; S.base[i] += hl * .012 * (1 + .3 * Math.sin(TAU * .4 * i / SR)); }
+    const w = new Float32Array(S.base.length); for (let i = 0; i < w.length; i++) { const j = i + Math.floor(Math.sin(TAU * .31 * i / SR) * SR * .0009); w[i] = S.base[Math.max(0, Math.min(w.length - 1, j))]; } S.base.set(w);
+  }
   reverb(S.drive, .08, .6); reverb(S.p2, .25, 1); reverb(S.p3, .4, 1.4); highp(S.base, 90); highp(S.p2, 150); highp(S.p3, 120);
   const out = {}; for (const k in S) out[k] = fold(S[k], n);
   // у каждого слоя свой целевой уровень: исследование слышно и без ударных, слои фаз заметны поверх боя
@@ -164,9 +171,12 @@ const LOCS = {
   core: { bpm: 100, root: N.E - 12, scale: 'phryg', prog: [0, 1, 0, 5], seed: 109, pad: 'choir', lead: 'bell', drums: 'ticks', bass: 'sub', dens: .3, rev: .55, size: 1.8, lo: 1 },       // ядро: холодный минимал, хор
   ml: { bpm: 82, root: N.F, scale: 'dorian', prog: [0, 3, 5, 4], seed: 141, pad: 'dark', lead: 'keys', drums: 'boombap', bass: 'sub', sw: .3, dens: .3, rev: .35, lo: 1 }, // «микрозаймы»: тёплый лоу-фай комнаты (base — планирование), бит и бас — когда горит срок (drive)
   fn: { bpm: 52, root: N.Cs - 12, scale: 'phryg', prog: [0, 1, 0, 5], seed: 151, pad: 'choir', lead: 'bell', dens: .12, rev: .6, size: 1.9, dly: .35, lo: 1, bars: 8 }, // «5 ночей», терминал: холодный хор и редкие колокольчики
+  g67_hub: { bpm: 78, root: N.A - 12, scale: 'dorian', prog: [0, 3, 0, 4], seed: 301, pad: 'dark', lead: 'keys', dens: .3, rev: .3, size: 1.2, lo: 0, tape: 2600, bars: 16 },          // приквел, подъезд: лоу-фай из динамика телевизора
+  g67_dvor: { bpm: 92, root: N.D - 12, scale: 'minor', prog: [0, 0, 5, 4], seed: 311, pad: 'dark', padv: .6, lead: 'reed', drums: 'boombap', bass: '808', dist: 3.5, sw: .25, dens: .4, rev: .25, lo: 1, bars: 16 }, // приквел, двор: бит, бас, гармошка
   race: { bpm: 168, root: N.A - 12, scale: 'minor', prog: [0, 5, 3, 4], seed: 131, pad: 'saw', lead: 'pluck', drums: 'hyper', bass: '808', arp: 2, dens: .6, rev: .25, dly: .2, lo: 1 }, // гонки на пылесосах: быстрый драйв, тот же лад, что в Томске
 };
 const BOSSES = {
+  g67_misha: { bpm: 96, root: N.E - 12, scale: 'phryg', prog: [0, 0, 5, 4], seed: 321, pad: 'organ', padv: 1.2, lead: 'brass', drums: 'trap', bass: '808', dist: 3, dens: .4, rev: .35, size: 1.4, lo: 0, bars: 16 }, // Миша Минасян: тяжёлый медленный трэп, медь
   courier: { bpm: 142, root: N.A - 12, scale: 'harm', prog: [0, 0, 5, 4], seed: 201, pad: 'dark', lead: 'bell', drums: 'drill', bass: '808', dens: .5, rev: .3, lo: 1 },                 // Лил Дрей: сухой дрилл
   golem: { bpm: 92, root: N.E, scale: 'minor', prog: [0, 5, 3, 4], seed: 212, pad: 'organ', lead: 'keys', drums: 'boombap', bass: 'sub', sw: .3, dens: .55, rev: .3 },                  // Первый Король: тяжёлый бум-бэп
   hype: { bpm: 172, root: N.Fs - 12, scale: 'minor', prog: [0, 5, 6, 4], seed: 223, pad: 'saw', lead: 'saw', drums: 'hyper', bass: 'off', arp: 1, dens: .7, rev: .25, lo: 1 },          // Леди Хайп: ускоренный гиперпоп
