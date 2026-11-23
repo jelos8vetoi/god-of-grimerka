@@ -50,6 +50,8 @@ static func title(id: String) -> String:
 	return String(INFO.get(id, {}).get("title", id))
 
 static func speaker(code: String) -> String:
+	if not NAMES.has(code) and G67LifeData.SPEAKERS.has(code):
+		return String(G67LifeData.SPEAKERS[code]["name"])
 	return String(NAMES.get(code, code))
 
 static func L(id: String, i: int) -> String:

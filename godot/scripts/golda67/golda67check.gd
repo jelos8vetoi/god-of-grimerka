@@ -159,6 +159,62 @@ func _run() -> void:
 			await _clip_log(G, String(arg).substr(11))
 			_finish()
 			return
+	for arg in OS.get_cmdline_user_args():
+		if String(arg).begins_with("--g67-micro="):
+			await _go(G, g.player, "exit")
+			await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+			_kill_all(g)
+			G.pending = []
+			G.wave_wait = 999.0
+			await wait(1.0)
+			G.ylife_get().fire(String(arg).substr(12))
+			await wait(1.5)
+			await shot("micro_" + String(arg).substr(12))
+			_finish()
+			return
+	if OS.get_cmdline_user_args().has("--g67-perfzones"):
+		await _perf_zones(g, G, g.player)
+		_finish()
+		return
+	if OS.get_cmdline_user_args().has("--g67-marks"):
+		await _go(G, g.player, "exit")
+		await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+		_kill_all(g)
+		G.pending = []
+		G.wave_wait = 999.0
+		await wait(1.0)
+		await _marks_contrast(g, G)
+		_finish()
+		return
+	if OS.get_cmdline_user_args().has("--g67-whois"):
+		await _go(G, g.player, "exit")
+		await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+		await wait(1.0)
+		for n in G.world.yard.get_children():
+			if not (n is Node3D):
+				continue
+			var bb := _aabb_of(n)
+			if bb.size.length() < 0.01:
+				continue
+			var wc := bb.get_center()
+			if Vector2(wc.x + 2.0, wc.z - 1.2).length() < 1.6:
+				var kids: Array = []
+				for ch in n.get_children():
+					kids.append("%s:%s" % [ch.name, ch.get_class()])
+				var meshes: Array = []
+				for mi in n.find_children("*", "MeshInstance3D", true, false):
+					meshes.append("%s|%s" % [mi.name, (mi as MeshInstance3D).mesh.resource_path if (mi as MeshInstance3D).mesh != null else ""])
+				print("GOLDA67CHECK   WHOIS %s class=%s scene=%s script=%s pos=%s size=%s kids=%s meshes=%s" % [n.name, n.get_class(), n.scene_file_path, str(n.get_script()), str(n.global_position), str(bb.size), str(kids.slice(0, 4)), str(meshes.slice(0, 4))])
+		_finish()
+		return
+	if OS.get_cmdline_user_args().has("--g67-collwalk"):
+		await _coll_walk(g, G, g.player)
+		_finish()
+		return
+	if OS.get_cmdline_user_args().has("--g67-collprobe"):
+		await _coll_probe(g, G, g.player)
+		_finish()
+		return
 	if OS.get_cmdline_user_args().has("--g67-perf"):
 		await _perf_flyover(g, G, g.player)
 		_finish()
@@ -167,10 +223,14 @@ func _run() -> void:
 		await _cam_check(g, G, g.player)
 		_finish()
 		return
-	if OS.get_cmdline_user_args().has("--g67-real"):
-		await _real_run(g, G)
-		_finish()
-		return
+	for arg in OS.get_cmdline_user_args():
+		if String(arg) == "--g67-real" or String(arg).begins_with("--g67-real="):
+			var rn := 0
+			if String(arg).begins_with("--g67-real="):
+				rn = int(String(arg).substr(11))
+			await _real_run(g, G, rn)
+			_finish()
+			return
 	ok(g.training == null and g.mode == "golda67", "режим приквела (mode = %s), это не арена" % g.mode)
 	ok(G.place == "hub" and G.world is G67World, "место — подъезд")
 	ok(G.world.missing.is_empty(), "все модели хаба на месте (нет: %s)" % ", ".join(G.world.missing))
@@ -1123,13 +1183,190 @@ func _flurr_check(g, G: Golda67, P) -> void:
 
 ## --g67-real: путь игрока с роликами по ходу (первый показ не пропускается — ждём), чистое сохранение, весь забег
 ## до босса. Проверяет, что ролики не ломают игру: двери, комнаты, выход Миши (он на месте и в кадре).
+## Бот с клавиатуры: поворачивает камеру на ближайшего врага, идёт к нему (W), бьёт (ЛКМ), перекатывается (Shift) из красных кругов; страховка по времени
+func _bot_fight(g, G: Golda67, limit_s: float) -> Dictionary:
+	var P = g.player
+	var t0 := Time.get_ticks_msec()
+	var roll_cd := 0.0
+	var res := {"timeout": false}
+	while G.room_state in ["fight", "boss"]:
+		if float(Time.get_ticks_msec() - t0) / 1000.0 > limit_s:
+			res["timeout"] = true
+			Input.action_release("up")
+			Input.action_release("attack")
+			await _clear_room(g, G, 60.0)
+			break
+		if G.scene_busy() or G.clip != null:
+			Input.action_release("up")
+			await wait(0.2)
+			continue
+		var best = null
+		var bd := 1e9
+		for e in g.enemies:
+			if is_instance_valid(e) and e.state != "dead":
+				var d: float = (e as Node3D).global_position.distance_to(P.global_position)
+				if d < bd:
+					bd = d
+					best = e
+		if best == null:
+			Input.action_release("up")
+			await wait(0.25)
+			continue
+		var to: Vector3 = (best as Node3D).global_position - P.global_position
+		to.y = 0.0
+		g.cam_yaw = atan2(-to.x, -to.z)
+		roll_cd = maxf(0.0, roll_cd - 0.1)
+		if int(float(Time.get_ticks_msec() - t0) / 1000.0) % 20 == 0 and not res.has("d%d" % int(float(Time.get_ticks_msec() - t0) / 20000.0)):
+			res["d%d" % int(float(Time.get_ticks_msec() - t0) / 20000.0)] = true
+			print("GOLDA67CHECK   REAL бот: t=%.0f врагов=%d ближайший %s %.1f м состояние=%s hp=%.0f ожидают=%d" % [float(Time.get_ticks_msec() - t0) / 1000.0, g.enemies.size(), String(best.name), bd, String(best.state), float(P.hp), G.pending.size()])
+		var danger := false
+		for zz in g.zones:
+			if String(zz.get("kind", "")) == "tele" and "n" in zz and is_instance_valid(zz["n"]):
+				var zp: Vector3 = (zz["n"] as Node3D).global_position
+				if Vector2(zp.x - P.global_position.x, zp.z - P.global_position.z).length() < float(zz.get("r", 2.0)) + 0.6:
+					danger = true
+		for e2 in g.enemies:
+			if is_instance_valid(e2) and e2.state != "dead" and String(e2.state) in ["wind", "windup", "attack", "slam"] and (e2 as Node3D).global_position.distance_to(P.global_position) < 4.2:
+				danger = true
+		if danger and roll_cd <= 0.0:
+			roll_cd = 0.9
+			Input.action_release("up")
+			var side := "left" if int(Time.get_ticks_msec() / 1000) % 2 == 0 else "right"
+			Input.action_press(side)
+			Input.action_press("down")
+			Input.action_press("roll")
+			await wait(0.12)
+			Input.action_release("roll")
+			await wait(0.3)
+			Input.action_release("down")
+			Input.action_release("left")
+			Input.action_release("right")
+			continue
+		if bd > 2.3:
+			Input.action_press("up")
+			Input.action_release("attack")
+		else:
+			Input.action_release("up")
+			Input.action_press("attack")
+			await wait(0.07)
+			Input.action_release("attack")
+		await wait(0.1)
+	Input.action_release("up")
+	Input.action_release("attack")
+	Input.action_release("down")
+	return res
+
+## Журнал забега (только в проверке): позиции жителей/прохожих, состояние боя, пузыри и голоса, FPS, застрявшие враги
+func _real_journal(g, G: Golda67, J: Dictionary) -> void:
+	var last_pos := {}
+	while J["on"]:
+		await wait(0.25)
+		if G.world == null or G.world.yard == null or G.place != "run":
+			continue
+		var yd = G.world.yard
+		var P = g.player
+		J["samples"] = int(J["samples"]) + 1
+		var fps := float(Engine.get_frames_per_second())
+		J["fps_sum"] = float(J["fps_sum"]) + fps
+		if fps < float(J["fps_min"]):
+			J["fps_min"] = fps
+			J["fps_min_at"] = "комната %s, %.0f с, %s" % [String(G.room.get("type", "")), float(Time.get_ticks_msec() - int(J["t0"])) / 1000.0, G.room_state]
+		var actors: Array = []
+		for rid in yd.residents:
+			actors.append((yd.residents[rid].rig as Node3D))
+		var yl: G67YardLife = G.ylife_get()
+		for w in yl.walkers:
+			if is_instance_valid(w["rig"]):
+				actors.append(w["rig"])
+		var fighting: bool = G.room_state in ["fight", "boss"]
+		if fighting:
+			var place := String(G.room.get("place", ""))
+			if place != "":
+				var zn: Dictionary = G67Yard.zone(place)
+				var c: Vector3 = zn["c"]
+				var h: Vector2 = zn["h"]
+				for a in actors:
+					if absf(a.global_position.x - c.x) < h.x and absf(a.global_position.z - c.z) < h.y and a.visible:
+						J["obs_a"] = int(J["obs_a"]) + 1
+		# (б) житель ближе 1,2 м к точке, к которой герой подходит
+		for pt in G.world.points:
+			var pp: Vector3 = pt["pos"]
+			if String(pt["id"]).begins_with("talk_") or Vector2(pp.x - P.global_position.x, pp.z - P.global_position.z).length() > 2.5:
+				continue
+			for a in actors:
+				if Vector2(a.global_position.x - pp.x, a.global_position.z - pp.z).length() < 1.2 and a.visible:
+					J["obs_b"] = int(J["obs_b"]) + 1
+					(J["notes"] as Array).append("житель у точки %s" % String(pt["id"]))
+					break
+		# (в) враги без движения > 4 с вне своей атаки
+		var stat: Dictionary = J["stat"]
+		for e in g.enemies:
+			if not is_instance_valid(e) or e.state == "dead":
+				continue
+			var id: int = e.get_instance_id()
+			var p2: Vector3 = (e as Node3D).global_position
+			var st: Dictionary = stat.get(id, {"p": p2, "t": 0.0})
+			if (st["p"] as Vector3).distance_to(p2) < 0.05 and String(e.state) in ["chase", "idle", "walk"] and not G.scene_busy():
+				st["t"] = float(st["t"]) + 0.25
+				if float(st["t"]) > 4.0 and not bool(st.get("flag", false)):
+					st["flag"] = true
+					J["obs_c"] = int(J["obs_c"]) + 1
+					(J["notes"] as Array).append("враг %s стоит >4 с в состоянии %s у %s" % [String(e.name), String(e.state), str(p2)])
+			else:
+				st["t"] = 0.0
+				st["flag"] = false
+			st["p"] = p2
+			stat[id] = st
+		# (г) пузыри/голоса при ролике, диалоге, ev_cam, выходе босса; (д) два голоса сразу
+		var bk: G67Barks = G.barks_get()
+		var busy: bool = G.clip != null or g.mode == "dlg" or G.ev_cam or G.ev_busy or G.scene_t >= 0.0
+		var voices := 0
+		for ch in bk.get_children():
+			if ch is AudioStreamPlayer3D and (ch as AudioStreamPlayer3D).playing:
+				voices += 1
+		if busy and (bk.bubbles.size() > 0 or voices > 0):
+			J["obs_d"] = int(J["obs_d"]) + 1
+			(J["notes"] as Array).append("пузырь/голос во время постановки (пузырей %d, голосов %d)" % [bk.bubbles.size(), voices])
+		if voices > 1:
+			J["obs_e"] = int(J["obs_e"]) + 1
+
+func _real_summary(g, G: Golda67, J: Dictionary, run_n: int) -> void:
+	var yl: G67YardLife = G.ylife_get()
+	var du: G67Duos = G.duos_get()
+	var bk: G67Barks = G.barks_get()
+	var micro := {}
+	for e in yl.log:
+		micro[String(e[1])] = int(micro.get(String(e[1]), 0)) + 1
+	var said := {}
+	for e in bk.log:
+		said[String(e[1])] = int(said.get(String(e[1]), 0)) + 1
+	var ds := 0
+	var de := 0
+	for e in du.log:
+		if String(e[2]) == "start":
+			ds += 1
+		elif String(e[2]) == "end":
+			de += 1
+	var evs := {}
+	for e in G.events:
+		evs[String(e[0])] = int(evs.get(String(e[0]), 0)) + 1
+	var out := {"run": run_n, "sec": snappedf(float(Time.get_ticks_msec() - int(J["t0"])) / 1000.0, 0.1), "stages": J["stages"], "boss": J["boss"], "events": evs, "micro": micro, "said": said, "duos_start": ds, "duos_end": de, "walkers": int(micro.get("walker", 0)), "obs_a_zone_frames": J["obs_a"], "obs_b_near_point": J["obs_b"], "obs_c_stuck_enemies": J["obs_c"], "obs_d_bubbles_in_scene": J["obs_d"], "obs_e_two_voices": J["obs_e"], "fps_min": J["fps_min"], "fps_min_at": J["fps_min_at"], "fps_mean": snappedf(float(J["fps_sum"]) / maxf(1.0, float(J["samples"])), 0.1), "samples": J["samples"], "notes": (J["notes"] as Array).slice(0, 20), "route": str(G.run.get("route", G.run.keys()))}
+	var js := JSON.stringify(out, "  ")
+	print("GOLDA67CHECK   REALSUM " + js.replace("\n", " "))
+	var f := FileAccess.open(OS.get_environment("TEMP") + "/g67_real_%d.json" % run_n, FileAccess.WRITE)
+	if f:
+		f.store_string(js)
+
 func _clips_wait(G: Golda67, sec := 120.0) -> void:
 	await wait(0.3)
 	await until(func(): return G.clip == null and G.hub_ui == null, sec)
 	await wait(0.4)
 
-func _real_run(g, G: Golda67) -> void:
+func _real_run(g, G: Golda67, run_n := 0) -> void:
 	var P = g.player
+	G.meta()["runs"] = run_n
+	var J := {"on": true, "t0": Time.get_ticks_msec(), "samples": 0, "fps_min": 1e9, "fps_min_at": "", "fps_sum": 0.0, "obs_a": 0, "obs_b": 0, "obs_c": 0, "obs_d": 0, "obs_e": 0, "stat": {}, "stages": [], "boss": {}, "notes": []}
+	_real_journal(g, G, J)
 	ok(await until(func(): return G.clip != null, 10.0), "REAL: первые ролики начинаются после того, как подъезд проявился")
 	ok(main.intro_fx == null or not main.intro_fx.busy, "REAL: к началу ролика шторка перехода уже ушла")
 	await _clips_wait(G)
@@ -1148,7 +1385,10 @@ func _real_run(g, G: Golda67) -> void:
 		if G.room_state == "boss":
 			break
 		if G.room_state == "fight":
-			ok(await _clear_room(g, G, 60.0), "REAL: комната %d (%s) зачищена" % [int(G.run["pos"]) + 1, String(G.room.get("type", ""))])
+			var st0 := Time.get_ticks_msec()
+			var br: Dictionary = await _bot_fight(g, G, 150.0)
+			(J["stages"] as Array).append({"n": int(G.run["pos"]) + 1, "type": String(G.room.get("type", "")), "sec": snappedf(float(Time.get_ticks_msec() - st0) / 1000.0, 0.1), "timeout": bool(br["timeout"]), "hp_left": snappedf(float(P.hp), 0.1)})
+			ok(not bool(br["timeout"]) and G.room_state != "fight", "REAL: комната %d (%s) пройдена ботом с клавиатуры за %.0f с%s" % [int(G.run["pos"]) + 1, String(G.room.get("type", "")), float(Time.get_ticks_msec() - st0) / 1000.0, " (ПРОВАЛ по времени, добито)" if bool(br["timeout"]) else ""])
 		await wait(0.5)
 		if G.hub_ui != null and G.hub_ui.kind == "fit":
 			var fo: Array = G.fit_options(String(G.room.get("type", "")) == "elite")
@@ -1198,6 +1438,25 @@ func _real_run(g, G: Golda67) -> void:
 	print("GOLDA67CHECK   REAL mode=%s panel=%s dlg=%d events=%s" % [g.mode, str(g.panel), g.dlg.size(), str(G.events.slice(-8))])
 	print("GOLDA67CHECK   REAL после постановки: valid=%s alive=%s state=%s hp=%s boss_e==B %s enemies=%d room=%s scene_t=%.2f boss_pos=%s player=%s" % [is_instance_valid(B), B.alive() if is_instance_valid(B) else "-", B.state if is_instance_valid(B) else "-", B.hp if is_instance_valid(B) else "-", g.boss_e == B, g.enemies.size(), G.room_state, G.scene_t, str(B.global_position) if is_instance_valid(B) else "-", str(P.global_position)])
 	ok(is_instance_valid(B) and B.alive() and (g.enemies.has(B) or g.boss_e == B), "REAL: бой с Мишей идёт")
+	var bt0 := Time.get_ticks_msec()
+	var bb: Dictionary = await _bot_fight(g, G, 300.0)
+	J["boss"] = {"sec": snappedf(float(Time.get_ticks_msec() - bt0) / 1000.0, 0.1), "hp_left": snappedf(float(P.hp), 0.1), "hp_max": float(P.max_hp), "timeout": bool(bb["timeout"]), "dead": bool(G.over) if "over" in G else false, "state": G.room_state}
+	print("GOLDA67CHECK   REAL бой с Мишей: %s" % str(J["boss"]))
+	await wait(1.5)
+	await _clips_wait(G, 60.0)
+	var results_seen: bool = await until(func(): return G.room_state == "over" or G.hub_ui != null or G.place == "hub", 20.0)
+	await shot("real_end_%d" % run_n)
+	if G.place != "hub":
+		if G.hub_ui != null:
+			await key(KEY_ENTER)
+			await wait(0.6)
+		await _go(G, P, "home")
+		await until(func(): return G.place == "hub", 12.0)
+		await _clips_wait(G, 60.0)
+	ok(G.place == "hub", "REAL %d: после победы — экран итогов и возврат в подъезд (место %s)" % [run_n, G.place])
+	J["on"] = false
+	await wait(0.4)
+	_real_summary(g, G, J, run_n)
 
 ## Этап 2: экраны предметов подъезда как у игрока — подойти, E, клавиши, мышь, Esc; снимки каждого экрана
 func _hub_screen(G: Golda67, P, id: String, kind: String) -> bool:
@@ -2099,12 +2358,17 @@ func _ui3_check(g, G: Golda67, P) -> void:
 	await wait(0.6)
 	# C5: madk1d до первой концовки — житель подъезда: стоит на месте, пока герой ходит
 	var m0: Vector3 = g.buddy.global_position
-	var moved := 0.0
+	var away := 0.0
+	var follows := false
 	for pt in [Vector3(0, 0.05, 5.0), Vector3(-1.0, 0.05, 3.0), Vector3(0.5, 0.05, 2.0), Vector3(0, G67World.LAND_Y + 0.05, -3.0)]:
+		var d_before: float = g.buddy.global_position.distance_to(P.global_position)
 		P.global_position = pt
 		await wait(1.5)
-		moved = maxf(moved, g.buddy.global_position.distance_to(m0))
-	ok(g.madk_home() and g.buddy.visible and moved < 0.3, "C5: madk1d в подъезде не ходит за героем (сдвиг %.2f м)" % moved)
+		var bp: Vector3 = g.buddy.global_position
+		away = maxf(away, minf(bp.distance_to(G.MADK_SPOT), bp.distance_to(G.MADK_SPOT2)))
+		if Vector2(bp.x - P.global_position.x, bp.z - P.global_position.z).length() < 0.9 and pt.y < 1.0:
+			follows = true
+	ok(g.madk_home() and g.buddy.visible and away < 3.2 and not follows, "C5: madk1d в подъезде не ходит за героем и остаётся у своих двух мест (отход %.2f м)" % away)
 	P.global_position = Vector3(0.6, 0.05, 0.2)
 	P.face = 0.0
 	g.cam_yaw = PI
@@ -2122,15 +2386,15 @@ func _ui3_check(g, G: Golda67, P) -> void:
 	P.visible = false
 	await wait(0.2)
 	await shot("madk_hub_close")
-	ok(mb.global_position.y < 0.3 and mb.global_position.y > -0.1 and absf(mb.global_position.x - G.MADK_SPOT.x) < 0.5, "C5: madk1d стоит на полу на своём месте (%s)" % str(mb.global_position))
-	ok(cos(g.buddy.face - PI * 0.5) > 0.6 or cos(g.buddy.face - atan2(P.global_position.x - mb.global_position.x, P.global_position.z - mb.global_position.z)) > 0.5, "C5: madk1d лицом в холл или к герою (%.2f)" % g.buddy.face)
+	ok(mb.global_position.y > 1.3 and mb.global_position.y < 1.8 and minf(mb.global_position.distance_to(G.MADK_SPOT), mb.global_position.distance_to(G.MADK_SPOT2)) < 1.5, "C5: madk1d стоит на полу на своём месте (%s)" % str(mb.global_position))
+	ok(cos(g.buddy.face - atan2(G.MADK_TV.x - mb.global_position.x, G.MADK_TV.z - mb.global_position.z)) > 0.5 or cos(g.buddy.face - PI * 0.5) > 0.6 or cos(g.buddy.face - atan2(P.global_position.x - mb.global_position.x, P.global_position.z - mb.global_position.z)) > 0.5, "C5: madk1d лицом в холл или к герою (%.2f)" % g.buddy.face)
 	P.visible = pv0
 	g.cam.make_current()
 	oc.queue_free()
 	g.buddy.home_react = "Cheer"
 	g.buddy.home_until = 0.0
 	await wait(0.6)
-	ok(String(g.buddy.rig.cur) == "Cheer", "C5: при возвращении madk1d разворачивается и делает жест (%s)" % String(g.buddy.rig.cur))
+	ok(String(g.buddy.rig.cur) in ["Cheer", "MSitNod"], "C5: при возвращении madk1d разворачивается и делает жест (%s)" % String(g.buddy.rig.cur))
 	await wait(2.2)
 	G.meta()["flags"]["ending1"] = true
 	ok(not g.madk_home(), "после первой концовки madk1d — не житель, ходит рядом")
@@ -2295,6 +2559,20 @@ func _talk_scene(g, G: Golda67, P, partner: Node3D, nm: String, obj: Vector3, ob
 	await wait(0.6)
 	ok(ok_all and seen_plans.size() >= 2, "разговор «%s»: на всех планах (%s) лица%s в кадре над плашкой, луч свободен" % [nm, str(seen_plans.keys()), (" и " + obj_name) if obj != Vector3.ZERO else ""])
 	ok(hud_ok and g.hud_root.visible == vis0 and g.hud_root.is_visible_in_tree(), "разговор «%s»: HUD скрыт на время диалога и вернулся после" % nm)
+	var cam1: bool = _cam_after(g, P, nm + " +0,6 с")
+	if nm == "flurr":
+		await shot("after_talk_flurr")
+	await wait(2.4)
+	var cam2: bool = _cam_after(g, P, nm + " +3 с")
+	ok(cam1 and cam2, "разговор «%s»: после конца камера снова на пружине (единичный поворот, герой в кадре, fov из настроек)" % nm)
+
+func _cam_after(g, P, tag: String) -> bool:
+	var ident: bool = g.cam.transform.basis.orthonormalized().get_rotation_quaternion().angle_to(Quaternion()) < 0.02
+	var dist: float = g.cam.global_position.distance_to(P.global_position)
+	var vis: bool = _in_frame(g, P.global_position + Vector3(0, 1.2, 0))
+	var fov_ok: bool = absf(g.cam.fov - float(Opts.v("fov"))) < 0.5
+	print("GOLDA67CHECK   камера после разговора %s: единичный поворот %s (%s), расстояние до героя %.2f, герой в кадре %s, fov %.1f" % [tag, str(ident), str(g.cam.transform.basis.get_euler()), dist, str(vis), g.cam.fov])
+	return ident and vis and fov_ok
 
 func good_obj_ray(g, pt: Vector3) -> bool:
 	return _ray_free(g, pt)
@@ -2516,6 +2794,464 @@ func _spawn_check(g, G: Golda67, P) -> void:
 		g.cam.make_current()
 		oc.queue_free()
 
+func _cam_shot(g, name: String, pos: Vector3, look: Vector3) -> void:
+	var oc := Camera3D.new()
+	oc.fov = 55.0
+	g.add_child(oc)
+	oc.global_position = pos
+	oc.look_at(look, Vector3.UP)
+	oc.make_current()
+	await wait(0.4)
+	await shot(name)
+	g.cam.make_current()
+	oc.queue_free()
+
+## ДВОР 1.5: жители ходят по расписанию и не застревают, реплики-пузыри, [E] у жителей, отход от боя
+func _life15(g, G: Golda67, P) -> void:
+	var yd = G.world.yard
+	ok(yd.residents.size() == 4, "ДВОР 1.5: у четырёх жителей есть поведение G67Resident (%d)" % yd.residents.size())
+	var start: Dictionary = {}
+	for rid in yd.residents:
+		var R: G67Resident = yd.residents[rid]
+		start[rid] = (R.rig as Node3D).position
+		R.next_move = 0.5
+	P.global_position = Vector3(0, 0.05, 20)
+	G.pending = []
+	G.wave_wait = 999.0
+	_kill_all(g)
+	await wait(2.0)
+	var moved := {}
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 30000:
+		for rid in yd.residents:
+			var R2: G67Resident = yd.residents[rid]
+			if (R2.rig as Node3D).position.distance_to(start[rid]) > 1.5:
+				moved[rid] = true
+		if moved.size() >= 3:
+			break
+		await wait(0.5)
+	print("GOLDA67CHECK   жители, сдвинулись: ", str(moved.keys()))
+	ok(moved.size() >= 3, "ДВОР 1.5: жители идут по расписанию (сдвинулись %d из 4)" % moved.size())
+	for rid in yd.residents:
+		var R3: G67Resident = yd.residents[rid]
+		R3.next_move = 9999.0
+	var tw_s := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - tw_s < 70000:
+		await wait(1.0)
+		if yd.residents.values().all(func(r): return r.state in ["stay", "act"]):
+			break
+	var settled := true
+	for rid in yd.residents:
+		var R4: G67Resident = yd.residents[rid]
+		if R4.state not in ["stay", "act"]:
+			settled = false
+			print("GOLDA67CHECK   житель %s не дошёл: состояние %s, застрял %.1f с" % [rid, R4.state, R4.stuck_t])
+	ok(settled, "ДВОР 1.5: жители дошли до места и стоят (никто не застрял)")
+	# реплика-пузырь над бабушкой при подходе и по [E]
+	var bk: G67Barks = G.barks_get()
+	var bab: G67Resident = yd.residents["g67_npc_babushka"]
+	bk.last_any = -100.0
+	bk.last_line = {}
+	P.global_position = (bab.rig as Node3D).global_position + Vector3(1.5, 0.05, 0)
+	var n0: int = bk.log.size()
+	G.use("talk_g67_npc_babushka")
+	await wait(0.5)
+	ok(bk.log.size() > n0 and String(bk.log.back()[1]) == "BB" and bk.bubbles.size() >= 1, "ДВОР 1.5: [E] у бабушки — реплика-пузырь («%s»)" % str(bk.log.back()[2]))
+	await _cam_shot(g, "life15_bubble_babushka", (bab.rig as Node3D).global_position + Vector3(1.6, 1.7, 3.2), (bab.rig as Node3D).global_position + Vector3(0, 1.8, 0))
+	# в ролике пузырей нет
+	bk.last_any = -100.0
+	G.clip = G67ClipPlayer.new()
+	var silent: bool = not bk.can_talk()
+	G.clip.free()
+	G.clip = null
+	ok(silent, "ДВОР 1.5: во время ролика жители молчат")
+	# надписи: дословная строка минимум в двух местах, листки, карточка по [E]
+	var serega := 0
+	for nt in yd.notes:
+		if String(nt["text"]).begins_with("Серега РПлюс заебал бухать"):
+			serega += 1
+	await _cam_shot(g, "life15_seven_papers", Vector3(-6.8, 1.6, 31.5), Vector3(-6.4, 1.5, 35.0))
+	ok(serega >= 2, "ДВОР 1.5: «Серега РПлюс заебал бухать» дословно в %d местах" % serega)
+	var wall8 := 0
+	for nt in yd.notes:
+		if String(nt["text"]).begins_with("№ 7"):
+			wall8 += 1
+	ok(wall8 == 8, "ДВОР 1.5: восемь листков в ряд (%d)" % wall8)
+	var must := ["jelos_all", "uk", "g8_no", "mognut", "rocket", "cheremsha", "court_rules"]
+	var have_txt := {}
+	for nt in yd.notes:
+		have_txt[String(nt["text"])] = true
+	var missing_sg: Array = []
+	for sg in G67LifeData.SIGNS:
+		if not yd.SIGN_AT.has(String(sg["id"])) or String(sg.get("pool", "")) != "":
+			continue
+		if not have_txt.has(String(sg["text"])):
+			missing_sg.append(sg["id"])
+	ok(missing_sg.is_empty(), "ДВОР 1.5: надписи двора стоят на своих местах (нет: %s)" % str(missing_sg))
+	# точки взаимодействия не ближе 1,2 м друг к другу
+	var pts: Array = G.world.points
+	var close_pair := ""
+	for i in pts.size():
+		for j in range(i + 1, pts.size()):
+			var a: Vector3 = pts[i]["pos"]
+			var b: Vector3 = pts[j]["pos"]
+			if Vector2(a.x - b.x, a.z - b.z).length() < 1.2 and not (String(pts[i]["id"]).begins_with("talk_") or String(pts[j]["id"]).begins_with("talk_") or String(pts[i]["id"]).begins_with("gate") or String(pts[j]["id"]).begins_with("gate")):
+				close_pair = "%s/%s" % [pts[i]["id"], pts[j]["id"]]
+	ok(close_pair == "", "ДВОР 1.5: новые точки не ближе 1,2 м к старым (%s)" % close_pair)
+	var ev0: int = G.events.size()
+	for uid in ["intercom", "g_radio", "carpet", "box", "puh", "read_board", "read_g8", "read_gazebo", "read_kiosk"]:
+		if G.point(uid).is_empty():
+			print("GOLDA67CHECK   нет точки ", uid)
+			continue
+		G.use(uid)
+		await wait(0.3)
+	var used := G.events.slice(ev0).filter(func(e): return String(e[0]) == "life_use").size()
+	ok(used >= 8, "ДВОР 1.5: предметы и листки отвечают по [E] (%d)" % used)
+	ok(G.get_children().any(func(c): return c is G67ReadCard), "ДВОР 1.5: карточка-листок открыта")
+	await shot("life15_card")
+	G.use("carpet")
+	await _cam_shot(g, "life15_carpet", Vector3(-4.2, 1.8, 7.5), Vector3(-7.0, 1.4, 3.8))
+	for c in G.get_children():
+		if c is G67ReadCard:
+			c.queue_free()
+	# микрособытия: каждое запускается и не роняет игру
+	var yl: G67YardLife = G.ylife_get()
+	for e in G67LifeData.MICRO:
+		yl.fire(String(e["id"]))
+		await wait(0.15)
+	ok(yl.log.size() >= G67LifeData.MICRO.size(), "ДВОР 1.5: все %d микрособытий запускаются (%d)" % [G67LifeData.MICRO.size(), yl.log.size()])
+	yl.next_audible = 9999.0
+	await _life15b(g, G, P)
+	await _life15c(g, G, P)
+	await _voice3d_check(g, G, P)
+	await _model_shots(g, G, P)
+	await _fov80_shots(g, G, P)
+	P.global_position = Vector3(0, 0.05, 25)
+
+func _keys_of(v, depth := 0) -> Array:
+	var out: Array = []
+	if v is Dictionary:
+		for k in (v as Dictionary).keys():
+			out.append(str(k))
+			if depth < 3:
+				for sub in _keys_of(v[k], depth + 1):
+					out.append(str(k) + "." + str(sub))
+	out.sort()
+	return out
+
+func _cam_shot_look(g, name: String, pos: Vector3, node: Node3D, dy := 1.2) -> void:
+	await _cam_shot(g, name, pos, node.global_position + Vector3(0, dy, 0))
+
+## ДВОР 1.5: снимки с моделями на местах и фасадов других домов
+func _model_shots(g, G: Golda67, P) -> void:
+	var yd = G.world.yard
+	await _cam_shot(g, "mdl_podezd_intercom", Vector3(-0.2, 1.7, 31.6), Vector3(-1.4, 1.2, 35.0))
+	await _cam_shot(g, "mdl_podezd_door_canopy", Vector3(0.0, 1.9, 29.0), Vector3(0.0, 2.2, 35.0))
+	await _cam_shot(g, "mdl_garage_workbench", Vector3(-35.0, 1.7, -2.2), Vector3(-39.2, 0.9, -2.2))
+	await _cam_shot(g, "mdl_garage_radio", Vector3(-38.8, 1.4, 4.8), Vector3(-42.4, 0.5, 4.8))
+	await _cam_shot(g, "mdl_garage_box", Vector3(-37.2, 1.4, -3.2), Vector3(-40.6, 0.3, -3.2))
+	await _cam_shot(g, "mdl_garage_puhosos", Vector3(-35.2, 1.6, 8.0), Vector3(-39.0, 0.5, 8.0))
+	await _cam_shot(g, "mdl_playground_swing", Vector3(-1.5, 1.7, -8.0), Vector3(-1.5, 1.2, -12.5))
+	await _cam_shot(g, "mdl_playground_poster", Vector3(6.5, 1.5, -10.0), Vector3(9.7, 1.3, -10.0))
+	await _cam_shot(g, "mdl_playground_carpet", Vector3(-4.0, 1.8, 7.0), Vector3(-7.0, 1.3, 3.6))
+	await _cam_shot(g, "mdl_gazebo_table", Vector3(-21.5, 1.9, -28.5), Vector3(-24.2, 0.9, -31.4))
+	await _cam_shot(g, "mdl_shovel_roof", Vector3(-36.0, 1.8, -8.5), Vector3(-43.9, 3.0, -6.6))
+	# fx-детали и окна внутри своего дома и ниже карниза
+	var out_of_house := 0
+	for fn in yd.fx_nodes:
+		var nd = fn["n"]
+		var hb: AABB = fn["house"]
+		if hb.size.y <= 0.0:
+			continue                             # двери и козырьки стоят на земле, без ограничения по карнизу
+		if nd == null or not is_instance_valid(nd):
+			continue
+		var nb: AABB = yd._node_aabb(nd)
+		if nb.position.y + nb.size.y > hb.end.y - 1.0 or nb.position.x < hb.position.x - 1.6 or nb.end.x > hb.end.x + 1.6 or nb.position.z < hb.position.z - 1.6 or nb.end.z > hb.end.z + 1.6:
+			out_of_house += 1
+	ok(out_of_house == 0, "ДВОР 1.5: детали фасадов внутри своих домов и ниже карниза (вне: %d из %d)" % [out_of_house, yd.fx_nodes.size()])
+	# пузырь бабушки с 3 м и 12 м
+	var bk2: G67Barks = G.barks_get()
+	var bab2: G67Resident = yd.residents["g67_npc_babushka"]
+	for dd in [3.0, 12.0]:
+		bk2.last_any = -100.0
+		bk2.last_line = {}
+		P.global_position = (bab2.rig as Node3D).global_position + Vector3(dd, 0.05, 0.0)
+		bk2.say(bab2.rig, "BB|Я не знаю, что это за хуйня у гаражей стоит, но оно мне не нравится.", {"force": true, "dur": 6.0})
+		await wait(0.6)
+		await _cam_shot(g, "bubble_%dm" % int(dd), (bab2.rig as Node3D).global_position + Vector3(dd, 1.7, 0.0), (bab2.rig as Node3D).global_position + Vector3(0, 1.9, 0))
+	# лопата над краем крыши и гаражный набор при лампе-переноске
+	await _cam_shot(g, "mdl_shovel_roof2", Vector3(-36.0, 1.8, -6.6), Vector3(-42.7, 3.4, -6.6))
+	await _cam_shot(g, "mdl_garage_set_lit", Vector3(-36.8, 1.6, 0.8), Vector3(-40.2, 0.8, 2.4))
+	await _cam_shot(g, "mdl_garage_radio_lit", Vector3(-39.2, 1.3, 5.6), Vector3(-42.4, 0.4, 4.8))
+	await _cam_shot(g, "mdl_garage_puhosos_lit", Vector3(-36.5, 1.5, 8.0), Vector3(-39.0, 0.5, 8.0))
+	var k := 0
+	for fc in yd.house_facades:
+		if k >= 12:
+			break
+		var n: Vector3 = fc["n"]
+		var mid: float = (float(fc["t0"]) + float(fc["t1"])) * 0.5
+		var wp := Vector3(float(fc["wall"]), 6.0, mid) if bool(fc["along_x"]) else Vector3(mid, 6.0, float(fc["wall"]))
+		await _cam_shot(g, "mdl_house_%d" % k, wp + n * 17.0 + Vector3(0, -2.5, 0), wp)
+		k += 1
+
+## FOV 80°: по снимку каждой зоны с камеры героя
+func _fov80_shots(g, G: Golda67, P) -> void:
+	for zid in ["podezd", "garages", "playground", "parking", "gazebo", "sport"]:
+		var z: Dictionary = G67Yard.zone(zid)
+		var c: Vector3 = z["c"]
+		P.global_position = c + Vector3(0, 0.05, 3.0)
+		g.cam.fov = 80.0
+		await wait(1.2)
+		await shot("fov80_" + zid)
+	P.global_position = Vector3(0, 0.05, 25)
+
+## ДВОР 1.5: голос у пузыря — играет позиционно, на 20 м не слышен (реплика не берётся)
+func _voice3d_check(g, G: Golda67, P) -> void:
+	var bk: G67Barks = G.barks_get()
+	var bab: G67Resident = G.world.yard.residents["g67_npc_babushka"]
+	var line := "BB|Гуля-гуля-гуля… Жрите, власть вы моя."
+	ok(G67Voice.path(line) != "", "голос: у строки бабушки есть готовый файл")
+	bk.last_any = -100.0
+	bk.last_line = {}
+	P.global_position = (bab.rig as Node3D).global_position + Vector3(4.0, 0.05, 0.0)
+	for c in bk.get_children():
+		if c is AudioStreamPlayer3D:
+			c.queue_free()
+	var said: bool = bk.say(bab.rig, line, {"force": true})
+	await wait(0.2)
+	var ap: AudioStreamPlayer3D = null
+	for c in bk.get_children():
+		if c is AudioStreamPlayer3D:
+			ap = c
+	ok(said and ap != null and ap.stream != null and ap.playing, "голос: AudioStreamPlayer3D играет (поток %s, шина %s, max_distance %.0f)" % [str(ap != null and ap.stream != null), str(ap.bus) if ap != null else "-", ap.max_distance if ap != null else 0.0])
+	P.global_position = (bab.rig as Node3D).global_position + Vector3(20.0, 0.05, 0.0)
+	bk.last_any = -100.0
+	bk.last_line = {}
+	var n0 := 0
+	for c in bk.get_children():
+		if c is AudioStreamPlayer3D:
+			n0 += 1
+	var far_said: bool = bk.say(bab.rig, line, {})
+	var n1 := 0
+	for c in bk.get_children():
+		if c is AudioStreamPlayer3D:
+			n1 += 1
+	ok(not far_said and n1 == n0, "голос: на 20 м реплика жителя не берётся и не звучит")
+
+## ДВОР 1.5, часть 3: снимки действий, точный hush, filyai, проходы
+func _life15c(g, G: Golda67, P) -> void:
+	var yd = G.world.yard
+	var yl: G67YardLife = G.ylife_get()
+	var du: G67Duos = G.duos_get()
+	var bk: G67Barks = G.barks_get()
+	G.room_state = "open"
+	# ушанка идёт
+	var us: G67Resident = yd.residents["g67_npc_ushanka"]
+	us.next_move = 0.1
+	var t0 := Time.get_ticks_msec()
+	while us.state != "walk" and Time.get_ticks_msec() - t0 < 25000:
+		P.global_position = (us.rig as Node3D).global_position + Vector3(6.0, 0.05, 4.0)
+		await wait(0.4)
+	var us0: Vector3 = (us.rig as Node3D).global_position
+	t0 = Time.get_ticks_msec()
+	while (us.rig as Node3D).global_position.distance_to(us0) < 1.8 and Time.get_ticks_msec() - t0 < 12000:
+		P.global_position = (us.rig as Node3D).global_position + Vector3(6.0, 0.05, 4.0)
+		await wait(0.2)
+	await _cam_shot_look(g, "life15_ushanka_walks", (us.rig as Node3D).global_position + Vector3(2.2, 1.5, 3.0), us.rig, 1.0)
+	ok(us.state == "walk" or us.log.any(func(e): return String(e[0]) == "go"), "ДВОР 1.5: ушанка идёт по расписанию (состояние %s)" % us.state)
+	t0 = Time.get_ticks_msec()
+	while us.state != "stay" and Time.get_ticks_msec() - t0 < 60000:
+		await wait(1.0)
+	# сдвиг очереди
+	P.global_position = Vector3(34.0, 0.05, 12.0)
+	yl.fire("queue_move")
+	await wait(3.2)
+	await _cam_shot(g, "life15_queue_shift", Vector3(33.5, 2.3, 12.8), Vector3(39.0, 1.0, 6.5))
+	await wait(9.0)
+	# разговор в беседке с пузырём и точный hush
+	bk.last_any = -100.0
+	du.done_at = {}
+	du.active = {}
+	du.start_now("seeds_case")
+	var gz: Array = yd.gazebo_people
+	P.global_position = (gz[0] as Node3D).global_position + Vector3(8.0, 0.05, 2.0)
+	var tg := Time.get_ticks_msec()
+	while bk.bubbles.is_empty() and Time.get_ticks_msec() - tg < 20000:
+		await wait(0.5)
+	await wait(0.8)
+	await _cam_shot(g, "life15_gazebo_bubble", Vector3(-19.5, 1.9, -27.5), (gz[0] as Node3D).global_position + Vector3(-0.8, 1.2, -0.8))
+	var i_before: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else -1
+	P.global_position = (gz[0] as Node3D).global_position + Vector3(1.6, 0.05, 0.5)
+	await wait(1.6)
+	var mid: Vector3 = ((gz[0] as Node3D).global_position + (gz[1] as Node3D).global_position) * 0.5
+	var side: Vector3 = ((gz[1] as Node3D).global_position - (gz[0] as Node3D).global_position)
+	var perp := Vector3(-side.z, 0, side.x).normalized()
+	if perp.dot(P.global_position - mid) < 0.0:
+		perp = -perp
+	P.visible = false
+	await _cam_shot(g, "life15_hush", mid + perp * 3.2 + Vector3(0, 1.6, 0), mid + Vector3(0, 1.0, 0))
+	P.visible = true
+	var i_hush: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else -2
+	await wait(4.0)
+	var i_still: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else -3
+	P.global_position = (gz[0] as Node3D).global_position + Vector3(8.0, 0.05, 2.0)
+	var nlog0: int = du.log.size()
+	await wait(9.0)
+	var first_line := -1
+	for e in du.log.slice(nlog0):
+		if String(e[2]).begins_with("line "):
+			first_line = int(String(e[2]).substr(5))
+			break
+	ok(i_still == i_hush and first_line == i_hush, "ДВОР 1.5: hush — пока герой близко, строка не идёт (%d → %d), после ухода сказана ровно следующая несказанная (строка %d)" % [i_hush, i_still, first_line])
+	du.active = {}
+	# filyai: двое качаются, ушанка резко замирает
+	yl.filyai_froze = -1.0
+	P.global_position = (us.rig as Node3D).global_position + Vector3(7.0, 0.05, 3.0)
+	yl.fire("filyai")
+	await wait(4.5)
+	ok(yl.filyai_froze > 0.0, "ДВОР 1.5: filyai — ушанка резко замерла после двух тактов качания")
+	# окно со створкой и силуэт
+	P.global_position = Vector3(0.0, 0.05, 27.0)
+	await wait(0.5)
+	yl.fire("window_shout")
+	await wait(0.5)
+	await _cam_shot(g, "life15_window_shout", Vector3(yl.last_window_x + 0.8, 4.5, 31.5), Vector3(yl.last_window_x, 8.0, 34.8))
+	await wait(5.0)
+	yl.fire("window_shape")
+	await wait(1.6)
+	await _cam_shot(g, "life15_window_shape", Vector3(yl.last_window_x + 0.8, 4.5, 31.5), Vector3(yl.last_window_x, 8.0, 34.8))
+	await wait(6.0)
+	# восемь листков и ковёр в пыли
+	await _cam_shot(g, "life15_seven_papers", Vector3(-6.6, 1.6, 32.9), Vector3(-6.4, 1.55, 34.9))
+	P.global_position = Vector3(-7.0, 0.05, 6.5)
+	G.use("carpet")
+	await wait(0.75)
+	await _cam_shot(g, "life15_carpet_dust", Vector3(-4.8, 1.9, 6.3), Vector3(-7.0, 1.3, 3.7))
+	# проходы: барьеры площадки и вешалка элиты
+	var fence_ok := true
+	for fp in [Vector3(-3.4, 0, -15.8), Vector3(1.3, 0, -15.8), Vector3(6.0, 0, -15.8)]:
+		if not _walk_blocked(g, fp):
+			fence_ok = false
+	ok(fence_ok, "ДВОР 1.5: барьеры площадки — проход героя упирается")
+	G._place_elite_hanger()
+	await wait(0.3)
+	var hanger_blocked: bool = G.elite_hanger != null and _walk_blocked(g, G.elite_hanger.global_position)
+	ok(hanger_blocked, "ДВОР 1.5: вешалка элиты — проход героя упирается")
+	if G.elite_hanger != null:
+		G.elite_hanger.queue_free()
+		G.elite_hanger = null
+	G.world.points = G.world.points.filter(func(pt): return String(pt["id"]) != "elite_fit")
+	P.global_position = Vector3(0, 0.05, 25)
+
+## ДВОР 1.5, часть 2: разговоры DUOS, hush, gather, сирена, очередь, сохранение
+func _life15b(g, G: Golda67, P) -> void:
+	var yd = G.world.yard
+	G.room_state = "open"
+	G.save()
+	var keys0: Array = _keys_of(G.data)
+	var du: G67Duos = G.duos_get()
+	var bk: G67Barks = G.barks_get()
+	var ids: Array = []
+	for d in G67LifeData.DUOS:
+		ids.append(String(d["id"]))
+	var finished := 0
+	for id in ids:
+		var duo: Dictionary = {}
+		for d in G67LifeData.DUOS:
+			if String(d["id"]) == id:
+				duo = d
+		bk.last_any = -100.0
+		du.done_at = {}
+		du.active = {}
+		if not du.start_now(id):
+			print("GOLDA67CHECK   разговор %s не запустился (нет участников)" % id)
+			continue
+		var who: Array = du._who(duo)
+		var c := Vector3.ZERO
+		for n in who:
+			c += (n as Node3D).global_position
+		c /= float(who.size())
+		P.global_position = c + Vector3(8.0, 0.05, 0.0)
+		var tt := Time.get_ticks_msec()
+		var ended := false
+		while Time.get_ticks_msec() - tt < 90000:
+			await wait(1.0)
+			bk.last_any = -100.0
+			for e in du.log:
+				if String(e[1]) == id and String(e[2]) == "end":
+					ended = true
+			if ended:
+				break
+		if ended:
+			finished += 1
+		else:
+			print("GOLDA67CHECK   разговор %s не дошёл до конца: %s" % [id, str(du.log.slice(-3))])
+		du.active = {}
+	ok(finished == ids.size(), "ДВОР 1.5: все %d разговоров DUOS проигрываются до конца (%d)" % [ids.size(), finished])
+	# hush: герой подходит вплотную — оба молчат, hush-реплика; отошёл — продолжают с той же строки
+	du.done_at = {}
+	du.active = {}
+	du.start_now("pigeon_tile")
+	var duo2: Dictionary = {}
+	for d in G67LifeData.DUOS:
+		if String(d["id"]) == "pigeon_tile":
+			duo2 = d
+	var who2: Array = du._who(duo2)
+	P.global_position = (who2[0] as Node3D).global_position + Vector3(8.0, 0.05, 0.0)
+	await wait(14.0)
+	var line_before: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else -1
+	P.global_position = (who2[0] as Node3D).global_position + Vector3(1.6, 0.05, 0.0)
+	await wait(2.0)
+	var hushed: bool = du.active.has("gazebo") and bool(du.active["gazebo"]["hush"]) and du.hush_log.size() > 0
+	var i_hush: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else -2
+	P.global_position = (who2[0] as Node3D).global_position + Vector3(8.0, 0.05, 0.0)
+	await wait(8.0)
+	var i_after: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else 99
+	ok(hushed and i_hush == line_before and i_after > i_hush, "ДВОР 1.5: hush при подходе (hush-реплика, строка %d), после ухода продолжили со строки %d (было %d)" % [i_hush, i_after, i_hush])
+	du.active = {}
+	# сирена: жители в 30 м смотрят на столб
+	var s0 := 0
+	for rid in yd.residents:
+		s0 += (yd.residents[rid] as G67Resident).log.filter(func(e): return String(e[0]) == "siren").size()
+	yd.siren_look(Vector3(-18, 0, -15))
+	await wait(1.0)
+	var s1 := 0
+	for rid in yd.residents:
+		s1 += (yd.residents[rid] as G67Resident).log.filter(func(e): return String(e[0]) == "siren").size()
+	ok(s1 > s0, "ДВОР 1.5: сирена кнопки — жители в 30 м повернулись к столбу (%d)" % (s1 - s0))
+	await wait(6.0)
+	# очередь реально сдвигается
+	var names0: Array = yd.queue.filter(func(n): return is_instance_valid(n)).map(func(n): return str(n.get_instance_id()))
+	G.ylife_get().fire("queue_move")
+	await wait(12.0)
+	var names1: Array = yd.queue.filter(func(n): return is_instance_valid(n)).map(func(n): return str(n.get_instance_id()))
+	ok(names0 != names1 and names1.size() == names0.size(), "ДВОР 1.5: очередь сдвинулась и сменился состав (%d → %d)" % [names0.size(), names1.size()])
+	# gather: бой с Мишей — три жителя у борта коробки; после боя расходятся
+	P.global_position = Vector3(2.0, 0.05, -38.0)
+	for rid in ["g67_npc_babushka", "g67_npc_taxi_driver", "g67_npc_schoolboy"]:
+		(yd.residents[rid] as G67Resident).gather_override = true
+	await wait(40.0)
+	var at_board := 0
+	for rid in ["g67_npc_babushka", "g67_npc_taxi_driver", "g67_npc_schoolboy"]:
+		var R: G67Resident = yd.residents[rid]
+		if ((R.rig as Node3D).global_position - R.GATHER[rid]).length() < 2.5 or R.log.has(["gather"]):
+			at_board += 1
+	await _cam_shot(g, "life15_gather", Vector3(-8.5, 2.0, -34.0), Vector3(-13.8, 1.3, -39.8))
+	ok(at_board >= 3, "ДВОР 1.5: бой с Мишей — бабушка, таксист и школьник у борта коробки (%d из 3)" % at_board)
+	for rid in ["g67_npc_babushka", "g67_npc_taxi_driver", "g67_npc_schoolboy"]:
+		(yd.residents[rid] as G67Resident).gather_override = false
+	await wait(3.0)
+	var gone := 0
+	for rid in ["g67_npc_babushka", "g67_npc_taxi_driver", "g67_npc_schoolboy"]:
+		if not (yd.residents[rid] as G67Resident).gathered:
+			gone += 1
+	ok(gone == 3, "ДВОР 1.5: после боя жители расходятся (%d из 3)" % gone)
+	P.global_position = Vector3(0, 0.05, 25)
+	# сохранение: ключей не прибавилось
+	G.save()
+	var keys1: Array = _keys_of(G.data)
+	ok(keys0 == keys1, "ДВОР 1.5: сохранение без новых ключей после жизни двора и всех [E] (%d → %d ключей)" % [keys0.size(), keys1.size()])
+
 ## События двора: предметы стоят, каждый исход таблиц форсируется и проверяется, этап закрывается
 func _events_check(g, G: Golda67, P) -> void:
 	await _go(G, P, "exit")
@@ -2526,6 +3262,7 @@ func _events_check(g, G: Golda67, P) -> void:
 	G.wave_wait = 999.0
 	await wait(0.5)
 	await _spawn_check(g, G, P)
+	await _life15(g, G, P)
 	# фасад: окна меняют состояние, вывески, тарелки, дым
 	var yd3 = G.world.yard
 	var tg0: int = yd3.win_toggles
@@ -2545,15 +3282,16 @@ func _events_check(g, G: Golda67, P) -> void:
 	fc.queue_free()
 	var lf: Array = []
 	for l in yd3.lifes:
-		lf.append(String(l.rig.cur) if l.get("rig") != null else "?")
+		if is_instance_valid(l) and l.get("rig") != null:
+			lf.append(String(l.rig.cur))
 	print("GOLDA67CHECK   жители и текущие позы: %s" % str(lf))
 	ok(yd3.lifes.size() >= 4 and lf.all(func(c): return c != "" and c != "?"), "у каждого жителя работает G67Life, поза задана (%s)" % str(lf))
 	# голуби: стайки по 4, взлетают при подходе и садятся в другом месте, не исчезая
 	var yd2 = G.world.yard
-	ok(yd2.flocks.size() == 3 and yd2.flocks.all(func(f): return (f["birds"] as Array).size() == 4), "во дворе три стайки голубей по четыре")
+	ok(yd2.flocks.size() == 4 and yd2.flocks.all(func(f): return (f["birds"] as Array).size() == 4), "во дворе четыре стайки голубей по четыре")
 	var fl0: Dictionary = yd2.flocks[0]
-	var home0: Vector3 = fl0["home"]
-	var alt0: Vector3 = fl0["alt"]
+	var home0: Vector3 = fl0["alt"] if bool(fl0["at_alt"]) else fl0["home"]
+	var alt0: Vector3 = fl0["home"] if bool(fl0["at_alt"]) else fl0["alt"]
 	P.global_position = home0 + Vector3(1.5, 0.05, 0)
 	await wait(0.6)
 	var mid_hi := false
@@ -2747,6 +3485,264 @@ func _clip_log(G: Golda67, cid: String) -> void:
 			note = "  ← ОБРЕЗАНА" if gap < -0.05 else ("  ← ПАУЗА > 0,8 с" if gap > 0.8 else "")
 		print("GOLDA67CHECK   LOG %s %5.1f  %s  голос %.2f с  пауза %.2f%s%s" % [cid, float(lg[i][0]), String(lg[i][1]).left(48), float(lg[i][2]), gap, note, "" if bool(lg[i][3]) else "  (НЕТ ГОЛОСА)"])
 	print("GOLDA67CHECK   LOG %s длина %.1f с" % [cid, t_last])
+
+## Контраст метки атаки: кольцо против земли вокруг, в тени (дальше всего от фонарей) и на свету (у фонаря), по зонам
+func _luma(c: Color) -> float:
+	return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+
+func _marks_contrast(g, G: Golda67) -> void:
+	var yd = G.world.yard
+	var oc := Camera3D.new()
+	oc.fov = 50.0
+	g.add_child(oc)
+	oc.make_current()
+	for zid in ["podezd", "garages", "playground", "parking", "gazebo", "sport"]:
+		var z: Dictionary = G67Yard.zone(zid)
+		var c: Vector3 = z["c"]
+		var h: Vector2 = z["h"]
+		var dark := c
+		var dd := -1.0
+		var lit := c
+		var ld := 1e9
+		for i in 40:
+			var p := Vector3(c.x + (float(i % 8) / 7.0 * 2.0 - 1.0) * (h.x - 2.0), 0, c.z + (float(i / 8) / 4.0 * 2.0 - 1.0) * (h.y - 2.0))
+			var nearest := 1e9
+			for lm in yd.lamps:
+				nearest = minf(nearest, Vector2(lm.global_position.x - p.x, lm.global_position.z - p.z).length())
+			if nearest > dd:
+				dd = nearest
+				dark = p
+			if nearest < ld:
+				ld = nearest
+				lit = p
+		var res: Array = []
+		for spot in [dark, lit]:
+			oc.global_position = spot + Vector3(0, 7.0, 6.5)
+			oc.look_at(spot, Vector3.UP)
+			await wait(0.4)
+			var img0: Image = g.get_viewport().get_texture().get_image()
+			g.telegraph(spot, 2.0, 8.0, 0.0, null)
+			await wait(1.8)
+			var img1: Image = g.get_viewport().get_texture().get_image()
+			if zid in ["garages", "gazebo"]:
+				await shot("mark_%s_%s" % [zid, "dark" if spot == dark else "lit"])
+			for zz in g.zones.duplicate():
+				if String(zz.get("kind", "")) == "tele":
+					g.zones.erase(zz)
+					if zz.has("n") and is_instance_valid(zz["n"]):
+						(zz["n"] as Node3D).queue_free()
+			var sc: Vector2 = oc.unproject_position(spot)
+			var edge: Vector2 = oc.unproject_position(spot + Vector3(2.0, 0, 0))
+			var rpx := absf(edge.x - sc.x)
+			var ring := 0.0
+			var base := 0.0
+			var nr := 0
+			for a in 36:
+				var an := float(a) / 36.0 * TAU
+				var pr := sc + Vector2(cos(an), sin(an) * 0.6) * rpx * 0.9
+				var ps := sc + Vector2(cos(an), sin(an) * 0.6) * rpx * 1.5
+				if pr.x < 0 or ps.x < 0 or pr.y < 0 or ps.y < 0 or pr.x >= img0.get_width() or ps.x >= img0.get_width() or pr.y >= img0.get_height() or ps.y >= img0.get_height():
+					continue
+				ring += _luma(img1.get_pixelv(Vector2i(pr)))
+				base += _luma(img0.get_pixelv(Vector2i(pr)))
+				nr += 1
+			var contrast := (ring - base) / float(maxi(nr, 1)) / (base / float(maxi(nr, 1)) + 0.03)
+			res.append(contrast)
+			print("GOLDA67CHECK   MARK %s %s: яркость земли %.3f, с меткой %.3f, контраст %.2f" % [zid, "тень" if spot == dark else "свет", base / float(maxi(nr, 1)), ring / float(maxi(nr, 1)), contrast])
+	oc.queue_free()
+
+## Проход героя сквозь центр предмета: капсула идёт по прямой через точку; true — упёрлась
+func _walk_blocked(g, c: Vector3) -> bool:
+	var space: PhysicsDirectSpaceState3D = g.get_world_3d().direct_space_state
+	var best := false
+	for ang in [0.0, PI * 0.5]:
+		var d := Vector3(cos(ang), 0, sin(ang))
+		var sh := CapsuleShape3D.new()
+		sh.radius = 0.3
+		sh.height = 1.7
+		var q := PhysicsShapeQueryParameters3D.new()
+		q.shape = sh
+		q.collision_mask = 1
+		q.transform = Transform3D(Basis(), Vector3(c.x, 0.95, c.z) - d * 3.0)
+		q.motion = d * 6.0
+		var r: Array = space.cast_motion(q)
+		if r.size() >= 2 and float(r[0]) < 0.999:
+			best = true
+	return best
+
+func _coll_walk(g, G: Golda67, P) -> void:
+	await wait(0.5)
+	await _go(G, P, "exit")
+	await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(1.0)
+	var list := [
+		["сушилка: столб 1", Vector3(8.8, 0, 20.6)], ["сушилка: столб 2", Vector3(12.2, 0, 21.4)], ["сушилка: под верёвкой", Vector3(10.5, 0, 21.0)],
+		["ковровыбивалка", Vector3(-7.0, 0, 3.6)], ["дерево (−8,5; 17,5)", Vector3(-8.5, 0, 17.5)], ["берёза (9,5; 14,5)", Vector3(9.5, 0, 14.5)],
+		["дерево (−24; 13,5)", Vector3(-24.0, 0, 13.5)], ["берёза (−9,5; −1)", Vector3(-9.5, 0, -1.0)], ["берёза (13; −2,5)", Vector3(13.0, 0, -2.5)],
+		["куст (−6; 26,3)", Vector3(-6.0, 0, 26.3)], ["куст (8,6; 26,2)", Vector3(8.6, 0, 26.2)], ["куст (−22,5; −4,5)", Vector3(-22.5, 0, -4.5)],
+		["куча мусора (−20,6; 34,6)", Vector3(-20.6, 0, 34.6)], ["куча мусора (−42,6; 21,5)", Vector3(-42.6, 0, 21.5)], ["куча мусора (40,6; 3,6)", Vector3(40.6, 0, 3.6)],
+		["барьер площадки 1", Vector3(-3.4, 0, -15.8)], ["барьер площадки 2", Vector3(1.3, 0, -15.8)], ["барьер площадки 3", Vector3(6.0, 0, -15.8)],
+		["узел (−2; 1,2)", Vector3(-2.0, 0, 1.2)], ["столб ворот коробки слева", Vector3(-0.1, 0, -27.0)], ["столб ворот коробки справа", Vector3(4.1, 0, -27.0)],
+		["ящик у трона", Vector3(5.6, 0, -47.6)], ["зритель у борта", Vector3(-12.6, 0, -36.0)], ["сугроб-модель (−18; 26,2)", Vector3(-18.0, 0, 26.2)],
+		["автомат «Бурмалда»", G67Yard.EVENT_SPOTS["burmalda"]], ["столб кнопки", G67Yard.EVENT_SPOTS["button"]], ["ларёк", Vector3(42.3, 0, 7.0)],
+		["лавка (−3,4; 34,6)", Vector3(-3.4, 0, 34.6)], ["лавка (3,4; 34,6)", Vector3(3.4, 0, 34.6)], ["урна у лавки", Vector3(-1.9, 0, 33.6)],
+		["машина (−9; 31,4)", Vector3(-9.0, 0, 31.4)], ["машина (31,4; −4,5)", Vector3(31.4, 0, -4.5)], ["фургон (17,5; 31,2)", Vector3(17.5, 0, 31.2)],
+		["турник (−8; −43,5)", Vector3(-8.0, 0, -43.5)], ["турник (12,2; −33)", Vector3(12.2, 0, -33.0)], ["покрышки у трона", Vector3(-3.6, 0, -48.2)],
+		["конус (−37,4; −8)", Vector3(-37.4, 0, -8.0)], ["горка заначки (20,5; −31)", Vector3(20.5, 0, -31.0)], ["беседка", Vector3(-27.0, 0, -33.5)],
+		["скамья у беседки", Vector3(-22.8, 0, -29.5)], ["бочка у беседки", Vector3(-24.2, 0, -31.4)]]
+	for it in list:
+		print("GOLDA67CHECK   WALK %s | %s" % [str(it[0]), "ПРОХОДИТ СКВОЗЬ" if not _walk_blocked(g, it[1]) else "упирается"])
+
+## Разведка: предметы двора и подъезда без коллизии (проба формой в центре каждого заметного объекта)
+func _aabb_of(n: Node) -> AABB:
+	var out := AABB()
+	var first := true
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null or not m.visible:
+			continue
+		var bb: AABB = m.global_transform * m.mesh.get_aabb()
+		out = bb if first else out.merge(bb)
+		first = false
+	if n is MeshInstance3D and (n as MeshInstance3D).mesh != null and first:
+		out = (n as MeshInstance3D).global_transform * (n as MeshInstance3D).mesh.get_aabb()
+	return out
+
+func _coll_report(tag: String, root: Node, g) -> void:
+	var space: PhysicsDirectSpaceState3D = g.get_world_3d().direct_space_state
+	var rows: Array = []
+	for n in root.get_children():
+		if not (n is Node3D) or n is Light3D or n is GPUParticles3D or n is Camera3D or n is Label3D or n is MultiMeshInstance3D or n is StaticBody3D:
+			continue
+		var bb := _aabb_of(n)
+		if bb.size.length() < 0.01:
+			continue
+		if bb.size.y < 0.45 or maxf(bb.size.x, bb.size.z) < 0.25 or bb.size.x > 12.0 or bb.size.z > 12.0:
+			continue
+		if bb.position.y > 1.2:
+			continue
+		var cy: float = clampf(bb.position.y + bb.size.y * 0.5, 0.4, 1.0)
+		var hit := false
+		for k in 3:
+			var sh := SphereShape3D.new()
+			sh.radius = 0.25
+			var q := PhysicsShapeQueryParameters3D.new()
+			q.shape = sh
+			q.collision_mask = 1
+			var cx := bb.position.x + bb.size.x * (0.5 if k == 0 else (0.3 if k == 1 else 0.7))
+			var cz := bb.position.z + bb.size.z * (0.5 if k == 0 else (0.3 if k == 1 else 0.7))
+			q.transform = Transform3D(Basis(), Vector3(cx, cy, cz))
+			if not space.intersect_shape(q, 1).is_empty():
+				hit = true
+				break
+		if not hit:
+			var kids: Array = []
+			for ch in n.get_children():
+				kids.append(String(ch.name))
+			var sc := String(n.scene_file_path).get_file()
+			rows.append("%s | дети %s %s | %.1f×%.1f×%.1f м | (%.1f, %.1f)" % [String(n.name), str(kids.slice(0, 2)), sc, bb.size.x, bb.size.y, bb.size.z, bb.get_center().x, bb.get_center().z])
+	print("GOLDA67CHECK   COLL %s: без коллизии %d" % [tag, rows.size()])
+	for r in rows:
+		print("GOLDA67CHECK   COLL  ", r)
+
+func _coll_probe(g, G: Golda67, P) -> void:
+	await wait(0.5)
+	_coll_report("подъезд", G.world, g)
+	await _go(G, P, "exit")
+	await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(1.0)
+	_coll_report("двор (мир)", G.world, g)
+	if G.world.yard != null:
+		_coll_report("двор (yard)", G.world.yard, g)
+
+## Замер кадра по зонам: камера над центром зоны, 3 с на каждую
+func _perf_zones(g, G: Golda67, P) -> void:
+	await _go(G, P, "exit")
+	await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+	_kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await wait(1.0)
+	var ab := ""
+	for x in OS.get_cmdline_user_args():
+		if String(x).begins_with("--ab="):
+			ab = String(x)
+	if ab.contains("notes"):
+		for nt in G.world.yard.notes:
+			(nt["node"] as Node3D).queue_free()
+		G.world.yard.notes = []
+		G.world.yard.sway_notes = []
+	if ab.contains("res"):
+		for k in G.world.yard.residents:
+			G.world.yard.residents[k].set_physics_process(false)
+	if ab.contains("ylife"):
+		G.ylife_get().set_physics_process(false)
+	if ab.contains("duos"):
+		G.duos_get().set_physics_process(false)
+	if ab.contains("barks"):
+		G.barks_get().set_process(false)
+	if ab.contains("flock4"):
+		for b in G.world.yard.flocks[3]["birds"]:
+			(b["n"] as Node3D).queue_free()
+	if ab.contains("gaz"):
+		for r in G.world.yard.gazebo_people:
+			r.queue_free()
+	if ab.contains("pill"):
+		for sb in G.world.yard.get_children():
+			if sb is StaticBody3D and (sb.get_child(0) as CollisionShape3D).shape is CylinderShape3D:
+				sb.queue_free()
+	if ab.contains("fx"):
+		for ch in G.world.yard.get_children():
+			if String(ch.name).begins_with("g67_fx_"):
+				ch.queue_free()
+	if ab.contains("patch"):
+		for ch in G.world.yard.get_children():
+			if ch is MultiMeshInstance3D and ch != G.world.yard.win_mm:
+				ch.queue_free()
+	if ab.contains("wire"):
+		for ch in G.world.yard.get_children():
+			if ch is MeshInstance3D and (ch as MeshInstance3D).mesh is CylinderMesh and ((ch as MeshInstance3D).mesh as CylinderMesh).top_radius < 0.02:
+				ch.queue_free()
+	if ab.contains("fog"):
+		for we in g.get_tree().root.find_children("*", "WorldEnvironment", true, false):
+			(we as WorldEnvironment).environment.fog_enabled = false
+	if ab.contains("props"):
+		for k in G.world.yard.life_props:
+			G.world.yard.life_props[k].queue_free()
+	var oc := Camera3D.new()
+	oc.fov = 65.0
+	g.add_child(oc)
+	oc.make_current()
+	await wait(3.0)
+	for zid in ["podezd", "garages", "playground", "parking", "gazebo", "sport"]:
+		var z: Dictionary = G67Yard.zone(zid)
+		var c: Vector3 = z["c"]
+		oc.global_position = c + Vector3(0, 5.5, 13.0)
+		oc.look_at(c + Vector3(0, 1.0, 0), Vector3.UP)
+		await wait(0.6)
+		var times: Array = []
+		var t0 := Time.get_ticks_msec()
+		var last := t0
+		while Time.get_ticks_msec() - t0 < 6000:
+			await get_tree().process_frame
+			var nw := Time.get_ticks_msec()
+			times.append(float(nw - last))
+			last = nw
+		times.sort()
+		var tot := 0.0
+		for x in times:
+			tot += float(x)
+		var worst: int = maxi(1, int(times.size() * 0.01))
+		var wsum := 0.0
+		for i in worst:
+			wsum += float(times[times.size() - 1 - i])
+		print("GOLDA67CHECK   PERFZONE %s: средний %.1f FPS, 1%% худших %.1f FPS" % [zid, 1000.0 / (tot / times.size()), 1000.0 / (wsum / worst)])
 
 ## Замер кадра: облёт двора 10 с, средний FPS и 1 % худших
 func _perf_flyover(g, G: Golda67, P) -> void:
@@ -2972,6 +3968,32 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(mus_ok, "наборы музыки приквела на месте, длиннее 16 тактов")
 	await wait(1.5)
 	ok(String(main.audio.cur) == "loc_g67_hub", "в подъезде играет набор loc_g67_hub (%s)" % main.audio.cur)
+	ok(not G.point("hub_btn").is_empty() and not G.point("read_hub_lift").is_empty() and not G.point("read_hub_music").is_empty(), "ДВОР 1.5: в подъезде кнопка «НЕ НАЖИМАТЬ» и листки хаба на месте")
+	G.use("hub_btn")
+	await wait(4.0)
+	G.use("read_hub_lift")
+	await wait(0.3)
+	var hub_card: bool = G.get_children().any(func(c): return c is G67ReadCard)
+	for c in G.get_children():
+		if c is G67ReadCard:
+			c.queue_free()
+	for k in 3:
+		G.hub_btn_force = k
+		G.use("hub_btn")
+		await wait(4.2)
+	G.hub_btn_force = -1
+	ok(G.hub_log.has("btn_flush") and G.hub_log.has("btn_lamp") and G.hub_log.has("btn_voice"), "ДВОР 1.5: кнопка хаба — все три исхода (вода, лампа, голос из-за двери)")
+	var mb2: Node3D = g.buddy
+	print("GOLDA67CHECK   MADK поза: pos=%s visible=%s clip=%s st=%s log=%s" % [str(mb2.global_position), str(mb2.visible), String(g.buddy.rig.cur), G.madk_st, str(G.madk_log.slice(-4))])
+	P.global_position = Vector3(-2.2, G67World.LAND_Y + 0.05, -2.6)
+	P.visible = false
+	await wait(0.3)
+	await _cam_shot(g, "life15_madk_tv", mb2.global_position + Vector3(1.4, 1.5, 2.2), mb2.global_position + Vector3(0, 0.7, 0))
+	P.visible = true
+	G.hub_t["strip"] = 0.0
+	G.hub_t["sil"] = 0.0
+	await wait(1.0)
+	ok(hub_card and G.world.hub_strip.visible and G.world.hub_sil.visible and G.hub_log.has("door_chain") and G.hub_log.has("window_silhouette"), "ДВОР 1.5: подъезд — листок читается, дверь на цепочке, силуэт в окне, без движения madk1d (B01)")
 	# выход во двор — настоящей клавишей E у входной двери
 	await _go(G, P, "exit")
 	var started: bool = await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
@@ -3442,6 +4464,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	ok(g.buddy.visible, "madk1d снова рядом в подъезде")
 	# в подъезде madk1d по-прежнему житель: стоит рядом и сам выбирает, куда встать возле героя
 	ok(g.madk_home() and g.buddy.global_position.distance_to(G.MADK_SPOT) < 0.6, "до первой концовки madk1d в подъезде стоит на своём месте (%.2f м)" % g.buddy.global_position.distance_to(G.MADK_SPOT))
+	P.global_position = G.MADK_SPOT + Vector3(1.6, 0.05, 0.3)
 	G.meta()["flags"]["ending1"] = true
 	g.buddy.target = Vector3.ZERO
 	g.buddy.wait = 0.0

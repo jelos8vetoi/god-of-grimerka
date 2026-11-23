@@ -31,6 +31,23 @@ const SPEAKERS := {
 	# события двора: голоса из громкоговорителя и динамика (пресеты Voice Studio Pro)
 	"LS": {"char": "loudspeaker", "name": "Громкоговоритель", "folder": "NPC", "tag": "LOUDSPEAKER"},
 	"DP": {"char": "dispatcher", "name": "Диспетчер", "folder": "NPC", "tag": "DISPATCHER"},
+	# жители двора (ДВОР 1.5, G67LifeData): модели голосов назначаются позже — до тех пор voice_model_missing
+	"BB": {"char": "babushka", "name": "Бабушка", "folder": "NPC", "tag": "BABUSHKA"},
+	"TX": {"char": "taxi_driver", "name": "Таксист", "folder": "NPC", "tag": "TAXI"},
+	"US": {"char": "ushanka", "name": "Мужик в ушанке", "folder": "NPC", "tag": "USHANKA"},
+	"SC": {"char": "schoolboy", "name": "Школьник", "folder": "NPC", "tag": "SCHOOLBOY"},
+	"Z1": {"char": "neighbor_m1", "name": "Житель (мужской голос 1)", "folder": "NPC", "tag": "NEIGHBOR1"},
+	"Z2": {"char": "neighbor_m2", "name": "Сосед (мужской голос 2)", "folder": "NPC", "tag": "NEIGHBOR2"},
+	"ZW": {"char": "neighbor_f", "name": "Соседка", "folder": "NPC", "tag": "NEIGHBORF"},
+	"SH": {"char": "shawarma_man", "name": "Шаурмист", "folder": "NPC", "tag": "SHAWARMA"},
+	"RD": {"char": "garage_radio", "name": "Гаражное радио", "folder": "NPC", "tag": "RADIO"},
+	"DM": {"char": "intercom", "name": "Домофон", "folder": "NPC", "tag": "INTERCOM"},
+}
+## Подача реплик жителей двора: [эмоция, темп] по коду говорящего (голоса — встроенные пресеты Voice Studio Pro, см. tools/golda67-voice.cjs)
+const LIFE_DIR := {
+	"BB": ["ворчливо, сварливо", 0.9], "TX": ["устало, с сарказмом", 0.95], "US": ["коротко, глухо, недовольно", 0.95], "SC": ["быстро, восторженно", 1.12],
+	"Z1": ["рассудительно, обстоятельно", 0.95], "Z2": ["раздражённо", 1.0], "ZW": ["крикливо", 1.05], "SH": ["зазывно, громко", 1.0],
+	"RD": ["бодро, как диджей", 1.05], "DM": ["механически, ровно", 0.88], "V": ["раздражённо, коротко", 1.0],
 }
 ## Подача реплик в роликах: [эмоция, темп] по коду говорящего
 const CLIP_DIR := {
@@ -147,6 +164,33 @@ static func chapter1_lines() -> Array:
 	var btn_emo := ["казённо, из громкоговорителя", "буднично, после паузы", "ошарашенно, голубям", "скучающе, по-канцелярски", "равнодушно, вежливо"]
 	for i in EVENT_BUTTON.size():
 		out.append(_mk("event_button", i, String(EVENT_BUTTON[i]), "событие «Можно. А зачем?» (ДВОР, кнопка)", String(btn_emo[i]), 0.95 if i != 2 else 1.0))
+	# --- жизнь двора (ДВОР 1.5): реплики жителей, разговоры, радио, домофон, крики из окон
+	for rid in G67LifeData.BARKS:
+		var bk: Dictionary = G67LifeData.BARKS[rid]
+		for kind in bk:
+			var arr2: Array = bk[kind]
+			for i in arr2.size():
+				out.append(_mk("life_%s_%s" % [String(rid).replace("g67_npc_", ""), kind], i, String(arr2[i]), "житель двора (%s), повод «%s»" % [String(rid).replace("g67_npc_", ""), kind], "живо, по-дворовому", 1.0))
+	for d in G67LifeData.DUOS:
+		var dl: Array = d["lines"]
+		for i in dl.size():
+			out.append(_mk("duo_" + String(d["id"]), i, String(dl[i]), "разговор жителей «%s» (%s)" % [String(d["id"]), String(d["zone"])], "буднично, вполголоса", 1.0))
+		if String(d["hush"]) != "":
+			out.append(_mk("duo_" + String(d["id"]) + "_hush", 0, String(d["hush"]), "жители замолкли при герое («%s»)" % String(d["id"]), "вполголоса", 0.95))
+	for i in G67LifeData.RADIO.size():
+		out.append(_mk("life_radio", i, String(G67LifeData.RADIO[i]), "гаражное радио, по [E]", "как диктор местного радио", 1.0))
+	for gi in G67LifeData.INTERCOM.size():
+		var gl: Array = G67LifeData.INTERCOM[gi]
+		for i in gl.size():
+			out.append(_mk("life_intercom%d" % gi, i, String(gl[i]), "домофон у подъезда", "механически, ровно", 1.0))
+	for kind in G67LifeData.PAHAN:
+		var pl: Array = G67LifeData.PAHAN[kind]
+		for i in pl.size():
+			out.append(_mk("life_pahan_" + String(kind), i, String(pl[i]), "реплика Пахана на странность двора («%s»)" % String(kind), "устало, коротко", 1.0))
+	for i in G67LifeData.KIOSK_SHOUTS.size():
+		out.append(_mk("life_kiosk", i, String(G67LifeData.KIOSK_SHOUTS[i]), "шаурмист кричит из окна", "громко, зазывно", 1.05))
+	for i in G67LifeData.WINDOW_SHOUTS.size():
+		out.append(_mk("life_window", i, String(G67LifeData.WINDOW_SHOUTS[i]), "крик из окна дома", "громко, раздражённо", 1.0))
 	# --- боевые выкрики Пахана в приквеле
 	var bj = JSON.parse_string(FileAccess.get_file_as_string("res://data/barks.json"))
 	if bj is Dictionary:
@@ -159,6 +203,11 @@ static func chapter1_lines() -> Array:
 	return out
 
 static func _mk(scene: String, order: int, line: String, when: String, emo: String, spd: float) -> Dictionary:
+	var code := line.get_slice("|", 0)
+	if scene.begins_with("life_") or scene.begins_with("duo_"):
+		var d: Array = LIFE_DIR.get(code, [emo, spd])
+		emo = String(d[0])
+		spd = float(d[1])
 	var p := line.find("|")
 	return {"scene": scene, "order": order, "code": line.substr(0, p), "text": line.substr(p + 1), "when": when, "emotion": emo, "speed": snappedf(spd, 0.01)}
 

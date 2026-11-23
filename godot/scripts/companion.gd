@@ -56,6 +56,10 @@ func _ready() -> void:
 	rig = Rig.new()
 	body.add_child(rig)
 	var defs := Poses.madk1d()
+	var g67 := G67Poses.clips()
+	for k in g67:                       # позы жителей приквела (сидит с телефоном, ходьба) — только недостающие
+		if not defs.has(k):
+			defs[k] = g67[k]
 	rig.setup("res://assets/models/madk1d.glb", 1.68, defs)
 	anim = AnimState.new(rig, defs, MadkMoves.PROFILE)
 	feet = FootIK.new()
@@ -91,6 +95,10 @@ func _physics_process(dt: float) -> void:
 	if game.madk_home():      # приквел до первой концовки, подъезд: житель — стоит на месте, поворачивается к герою рядом
 		velocity = Vector3(0, velocity.y - 20.0 * dt, 0)
 		foe = null
+		if game.golda != null and game.golda.madk_life(self, dt):      # подъезд: сидит, меняет позы, переходит на второе место
+			move_and_slide()
+			body.rotation.y = face
+			return
 		var to := pp - global_position
 		to.y = 0.0
 		var now: float = game.clock

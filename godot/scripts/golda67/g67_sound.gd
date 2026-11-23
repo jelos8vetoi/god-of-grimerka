@@ -17,6 +17,10 @@ const KINDS := {
 	"step_ice": [0.2, -15.0, "SFX", false], "step_concrete": [0.14, -15.0, "SFX", false], "step_stairs": [0.16, -14.0, "SFX", false],
 	"jingle": [3.4, -8.0, "SFX", false],
 	"hit_cut": [0.28, -6.0, "SFX", false],
+	"intercom_beep": [0.5, -8.0, "SFX", false], "radio_jingle": [1.6, -14.0, "SFX", false], "crash": [0.9, -4.0, "SFX", false],
+	"snow_slide": [1.1, -7.0, "SFX", false], "lamp_crackle": [0.5, -9.0, "SFX", false], "car_alarm": [3.0, -10.0, "SFX", false],
+	"counter_click": [0.12, -10.0, "SFX", false], "swing_creak": [1.2, -16.0, "SFX", false], "carpet_beat": [0.5, -5.0, "SFX", false],
+	"cough": [0.6, -9.0, "SFX", false], "tv_muffled": [3.0, -16.0, "SFX", false], "flush": [2.4, -9.0, "SFX", false], "door_slam": [0.6, -4.0, "SFX", false], "vacuum": [2.0, -9.0, "SFX", false],
 	"mic_move": [0.5, -8.0, "SFX", false], "tap": [0.1, -9.0, "SFX", false], "loop_studio": [5.0, -30.0, "Ambient", true],
 	"loop_hub": [6.0, -26.0, "Ambient", true], "loop_dvor": [8.0, -24.0, "Ambient", true],
 }
@@ -75,6 +79,20 @@ static func stream(kind: String) -> AudioStreamWAV:
 			"tap": x = sin(TAU * 220.0 * t) * exp(-t * 55.0) * 0.8 + noise * exp(-t * 120.0) * 0.3
 			"loop_studio": x = sin(TAU * 60.0 * t) * 0.3 + sin(TAU * 120.0 * t) * 0.12 + lp2 * 2.0
 			"hit_cut": x = sin(TAU * (160.0 - 90.0 * u) * t) * exp(-t * 14.0) * 0.8 + noise * exp(-t * 60.0) * 0.5
+			"intercom_beep": x = (sin(TAU * 1760.0 * t) * (1.0 if t < 0.12 else 0.0) + sin(TAU * 1320.0 * t) * (1.0 if t > 0.2 and t < 0.32 else 0.0)) * 0.5
+			"radio_jingle": x = (sin(TAU * [392.0, 494.0, 587.0, 494.0, 440.0, 523.0, 392.0, 330.0][int(t * 5.0) % 8] * t) * 0.35 + lp * 0.1) * (0.6 + 0.4 * sin(TAU * 50.0 * t))
+			"crash": x = noise * exp(-t * 7.0) * 0.8 + sin(TAU * 70.0 * t) * exp(-t * 6.0) * 0.7 + sin(TAU * 2200.0 * t) * exp(-pow((t - 0.22) * 18.0, 2.0)) * 0.4
+			"snow_slide": x = lp * (sin(PI * u) * 0.8) + lp2 * 2.0 * exp(-pow((u - 0.8) * 8.0, 2.0)) + sin(TAU * 60.0 * t) * exp(-pow((u - 0.82) * 14.0, 2.0)) * 0.9
+			"lamp_crackle": x = noise * (1.0 if int(t * 40.0) % 3 != 0 else 0.1) * exp(-t * 6.0) * 0.6 + sin(TAU * 100.0 * t) * 0.15 * exp(-t * 4.0)
+			"car_alarm": x = sin(TAU * (900.0 + 600.0 * (1.0 if int(t * 6.0) % 2 == 0 else 0.0)) * t) * 0.28 * (1.0 if int(t * 3.0) % 2 == 0 else 0.35)
+			"counter_click": x = noise * exp(-t * 140.0) * 0.8 + sin(TAU * 2000.0 * t) * exp(-t * 90.0) * 0.3
+			"swing_creak": x = sin(TAU * (520.0 + 120.0 * sin(TAU * 3.0 * t)) * t) * 0.18 * sin(PI * u) + lp * 0.05
+			"carpet_beat": x = sin(TAU * 90.0 * t) * exp(-t * 14.0) * 0.8 + lp * exp(-t * 10.0) * 0.5
+			"tv_muffled": x = lp * 0.5 * (0.6 + 0.4 * sin(TAU * 3.0 * t)) + sin(TAU * 180.0 * t) * 0.08 * sin(TAU * 0.7 * t)
+			"flush": x = lp * sin(PI * u) * 0.7 + sin(TAU * 70.0 * t) * 0.2 * sin(PI * u) + lp2 * 3.0 * exp(-pow((u - 0.7) * 4.0, 2.0))
+			"cough": x = lp * (exp(-pow((t - 0.12) * 18.0, 2.0)) + exp(-pow((t - 0.32) * 18.0, 2.0))) * 0.8
+			"door_slam": x = sin(TAU * 110.0 * t) * exp(-t * 16.0) * 0.8 + noise * exp(-t * 40.0) * 0.5
+			"vacuum": x = (lp * 0.5 + sin(TAU * (90.0 + 80.0 * sin(PI * u)) * t) * 0.5) * exp(-pow((u - 0.45) * 2.5, 2.0)) * 0.7
 			"jingle": x = (sin(TAU * [523.0, 659.0, 784.0, 1047.0][int(t * 8.0) % 4] * t) * 0.5 + sin(TAU * 262.0 * t) * 0.25 * (1.0 if int(t * 4.0) % 2 == 0 else 0.2)) * 0.6
 			"loop_hub": x = (sin(TAU * 50.0 * t) * 0.5 + sin(TAU * 100.0 * t) * 0.2 + lp2 * 3.0) * 0.5
 			"loop_dvor": x = lp2 * 10.0 * (0.7 + 0.3 * sin(TAU * 0.25 * t)) + sin(TAU * 38.0 * t) * 0.1

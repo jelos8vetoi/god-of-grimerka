@@ -104,7 +104,81 @@ func madk_away() -> bool:
 func madk_home() -> bool:
 	return place == "hub" and not madk_open()
 
-const MADK_SPOT := Vector3(-2.3, 0.0, 2.4)
+const MADK_SPOT := Vector3(-1.15, 1.5, -4.95)          # табурет у телевизора на площадке
+const MADK_SPOT2 := Vector3(1.9, 1.5, -4.7)
+const MADK_TV := Vector3(-2.58, 1.5, -5.55)
+var madk_st := "sit"                  # sit / walk / stand
+var madk_path: Array = []
+var madk_dest := 0
+var madk_t := 8.0
+var madk_swap_t := 80.0
+var madk_stand_t := 0.0
+var madk_log: Array = []
+
+## Жизнь madk1d в подъезде: раз в 8–15 с поднял голову / перехватил телефон / сменил позу; на возвращение Пахана кивает; раз в 60–120 с
+## встаёт, идёт ко второму месту и обратно. Не идёт за героем и не покидает площадку. true — companion не делает своего.
+func madk_life(b, dt: float) -> bool:
+	var rig: Rig = b.rig
+	var now: float = game.clock
+	b.velocity = Vector3(0, b.velocity.y - 20.0 * dt, 0)
+	b.foe = null
+	madk_t -= dt
+	madk_swap_t -= dt
+	if madk_st == "walk":
+		if madk_path.is_empty():
+			madk_st = "stand" if madk_dest == 1 else "sit"
+			madk_stand_t = randf_range(18.0, 30.0)
+			madk_log.append("arrive%d" % madk_dest)
+			return true
+		var tgt: Vector3 = madk_path[0]
+		var d := Vector3(tgt.x - b.global_position.x, 0.0, tgt.z - b.global_position.z)
+		if d.length() < 0.12:
+			madk_path.pop_front()
+			return true
+		var dir := d.normalized()
+		b.global_position += dir * minf(d.length(), 1.0 * dt)
+		b.face = lerp_angle(b.face, atan2(dir.x, dir.z), 1.0 - exp(-6.0 * dt))
+		if rig.cur != "NWalk":
+			rig.play("NWalk", 0.25)
+		return true
+	if madk_st == "stand":
+		madk_stand_t -= dt
+		var toh: Vector3 = game.player.global_position - b.global_position
+		b.face = lerp_angle(b.face, atan2(toh.x, toh.z) if toh.length() < 4.0 else PI, 1.0 - exp(-4.0 * dt))
+		if rig.cur != "NPhone":
+			rig.play("NPhone", 0.3)
+		if madk_stand_t <= 0.0:
+			madk_dest = 0
+			madk_path = [Vector3(MADK_SPOT.x + 0.0, 1.5, -4.2), MADK_SPOT]
+			madk_st = "walk"
+			madk_log.append("back")
+		return true
+	# сидит
+	var to_tv: Vector3 = MADK_TV - b.global_position
+	b.face = lerp_angle(b.face, atan2(to_tv.x, to_tv.z), 1.0 - exp(-4.0 * dt))
+	if b.home_react != "" and now >= b.home_until:
+		b.home_react = ""
+		b.home_until = now + 1.5
+		rig.play_for("MSitNod", 1.5, 0.1)
+		madk_log.append("nod")
+		return true
+	if now >= b.home_until:
+		if madk_swap_t <= 0.0:
+			madk_swap_t = randf_range(60.0, 120.0)
+			madk_dest = 1
+			madk_path = [Vector3(MADK_SPOT.x + 0.0, 1.5, -4.2), Vector3(MADK_SPOT2.x, 1.5, -4.2), MADK_SPOT2]
+			madk_st = "walk"
+			madk_log.append("up")
+			return true
+		if madk_t <= 0.0:
+			madk_t = randf_range(8.0, 15.0)
+			var pick: Array = [["MSitLook", 3.0], ["MSitSwap", 2.2], ["MSitShift", 2.6]].pick_random()
+			rig.play_for(String(pick[0]), float(pick[1]), 0.2)
+			b.home_until = now + float(pick[1])
+			madk_log.append(String(pick[0]))
+		elif rig.cur != "MSitPhone":
+			rig.play("MSitPhone", 0.3)
+	return true
 
 ## Старт режима: хаб
 func begin(_cont := false) -> void:
@@ -165,6 +239,10 @@ func enter_hub() -> void:
 	game.cam_yaw = 0.0
 	game.cam_len = HUB_CAM_LEN
 	game.buddy.visible = true
+	madk_st = "sit"
+	madk_path = []
+	madk_t = randf_range(5.0, 10.0)
+	madk_swap_t = randf_range(60.0, 120.0)
 	game.buddy.global_position = (MADK_SPOT + Vector3(0, 0.05, 0)) if not madk_open() else (world.spawn_pos + Vector3(-1.1, 0.0, -0.7))
 	game.buddy.face = PI * 0.5
 	game.buddy.target = Vector3.ZERO
@@ -179,6 +257,7 @@ func enter_hub() -> void:
 	_build_prompt()
 	_place_krot("hub")
 	_hub_marks()
+	world.build_hub_life()
 	refresh_hints()
 	events.append(["enter", "hub"])
 	await game.get_tree().process_frame
@@ -241,6 +320,10 @@ func _build_yard_world() -> void:
 	if world.yard != null:
 		world.yard.hero = game.player
 	world.add_kiosk()
+	world.add_residents()
+	world.add_life_points()
+	ylife_get()
+	duos_get()
 	world.add_home()
 	world.build_event_props()
 	_place_krot_yard()
@@ -781,6 +864,167 @@ func _keep_foes_inside(dt: float) -> void:
 # ---------------------------------------------------------------- фон и случайные звуки приквела
 var phone: G67Phone = null
 
+var barks: G67Barks = null
+
+var duos: G67Duos = null
+
+func duos_get() -> G67Duos:
+	if world == null or world.yard == null:
+		return null
+	if duos == null or not is_instance_valid(duos) or duos.yard != world.yard:
+		if duos != null and is_instance_valid(duos):
+			duos.queue_free()
+		duos = G67Duos.make(self, world.yard)
+		add_child(duos)
+	return duos
+
+var ylife: G67YardLife = null
+
+var read_idx := {}
+
+## Предметы и листки двора: реплика, звук, карточка; Пахан изредка комментирует
+var hub_t := {"strip": 60.0, "sil": 40.0, "tv": 4.0, "madk": 70.0}
+var hub_log: Array = []
+var hub_btn_force := -1
+
+func _hub_life_tick(dt: float) -> void:
+	if world == null or world.hub_strip == null or not is_instance_valid(world.hub_strip):
+		return
+	for k in hub_t:
+		hub_t[k] = float(hub_t[k]) - dt
+	var hp: Vector3 = game.player.global_position
+	if float(hub_t["tv"]) <= 0.0:
+		hub_t["tv"] = 3.2
+		if Vector2(hp.x - 2.3, hp.z - (-6.0)).length() < 3.5:
+			G67Sound.play(self, "tv_muffled", Vector3(2.3, 2.6, -6.0), 1.0)
+	if float(hub_t["strip"]) <= 0.0:
+		hub_t["strip"] = randf_range(90.0, 180.0)
+		world.hub_strip.visible = true
+		G67Sound.play(self, "door_slam", Vector3(2.3, 2.5, -6.0), 0.5)
+		get_tree().create_timer(3.0).timeout.connect(func():
+			if is_instance_valid(world.hub_strip):
+				world.hub_strip.visible = false)
+		hub_log.append("door_chain")
+	if float(hub_t["sil"]) <= 0.0:
+		hub_t["sil"] = randf_range(50.0, 100.0)
+		world.hub_sil.visible = true
+		get_tree().create_timer(4.0).timeout.connect(func():
+			if is_instance_valid(world.hub_sil):
+				world.hub_sil.visible = false)
+		hub_log.append("window_silhouette")
+
+func _life_use(id: String) -> void:
+	var bk: G67Barks = barks_get()
+	var y = world.yard
+	var hp: Vector3 = game.player.global_position
+	var mk := Node3D.new()
+	add_child(mk)
+	get_tree().create_timer(12.0).timeout.connect(mk.queue_free)
+	match id:
+		"hub_btn":
+			var hm := Node3D.new()
+			add_child(hm)
+			hm.global_position = Vector3(2.3, 2.6, -6.0)
+			get_tree().create_timer(10.0).timeout.connect(hm.queue_free)
+			var outcome: int = hub_btn_force if hub_btn_force >= 0 else randi() % 3
+			get_tree().create_timer(2.0).timeout.connect(func():
+				match outcome:
+					0:
+						hub_log.append("btn_flush")
+						G67Sound.play(self, "flush", Vector3(0, 4.5, -3.0), 1.0)
+					1:
+						hub_log.append("btn_lamp")
+						for lt in world.get_children():
+							if lt is OmniLight3D:
+								var e0: float = (lt as OmniLight3D).light_energy
+								var tw := create_tween()
+								tw.tween_property(lt, "light_energy", 0.0, 0.06)
+								tw.tween_interval(0.5)
+								tw.tween_property(lt, "light_energy", e0, 0.1)
+								break
+					2:
+						hub_log.append("btn_voice")
+						bk.say(hm, "Z2|Я же просил.", {"force": true, "dur": 3.0})
+				get_tree().create_timer(1.5).timeout.connect(func(): bk.pahan_say("hub_btn", true)))
+		"intercom":
+			mk.global_position = Vector3(-1.3, 1.5, 35.0)
+			var seq: Array = G67LifeData.INTERCOM[randi() % 4]
+			G67Sound.play(self, "intercom_beep", mk.global_position, 1.0)
+			for i in seq.size():
+				get_tree().create_timer(0.8 + i * 2.2).timeout.connect(func(): bk.say(mk, String(seq[i]), {"force": true, "dur": 2.4}))
+			get_tree().create_timer(1.0 + seq.size() * 2.2).timeout.connect(func(): bk.pahan_say("intercom", true))
+		"g_radio":
+			mk.global_position = Vector3(-42.4, 0.9, 4.8)
+			G67Sound.play(self, "radio_jingle", mk.global_position, 1.0)
+			var rd = y.life_props.get("g67_garage_radio")
+			if rd != null and is_instance_valid(rd):
+				var kn: Node3D = rd.find_child("knob", true, false)
+				if kn != null:
+					create_tween().tween_property(kn, "rotation:z", kn.rotation.z + 1.2, 0.5)
+			get_tree().create_timer(1.2).timeout.connect(func(): bk.say(mk, bk.pick("radio", G67LifeData.RADIO), {"force": true, "dur": 6.0}))
+			get_tree().create_timer(7.5).timeout.connect(func(): bk.pahan_say("radio", true))
+		"carpet":
+			var rk: Node3D = y.carpet_rack_node
+			for i in 3:
+				get_tree().create_timer(i * 0.55).timeout.connect(func():
+					G67Sound.play(self, "carpet_beat", Vector3(-7.0, 1.0, 3.6), 1.0)
+					if rk != null and is_instance_valid(rk):
+						var tw := create_tween()
+						tw.tween_property(rk, "rotation:z", 0.05, 0.1)
+						tw.tween_property(rk, "rotation:z", 0.0, 0.2))
+			get_tree().create_timer(0.3).timeout.connect(func(): ylife_get()._snow_puff(Vector3(-7.0, 1.2, 3.8)))
+			get_tree().create_timer(1.9).timeout.connect(func(): bk.pahan_say("carpet", true))
+		"box":
+			var bx = y.life_props.get("g67_box_nothing")
+			if bx != null and is_instance_valid(bx):
+				var lid: Node3D = bx.find_child("lid", true, false)
+				if lid != null:
+					var twl := create_tween()
+					twl.tween_property(lid, "rotation:x", deg_to_rad(-100.0), 0.6)
+					twl.tween_interval(2.0)
+					twl.tween_property(lid, "rotation:x", 0.0, 0.5)
+			G67Sound.play(self, "crash", Vector3(-40.6, 0.4, -3.2), 0.5)
+			get_tree().create_timer(1.2).timeout.connect(func(): bk.pahan_say("box", true))
+		"puh":
+			var ph = y.life_props.get("g67_puhosos")
+			if ph != null and is_instance_valid(ph):
+				var hs: Node3D = ph.find_child("hose", true, false)
+				if hs != null:
+					var twh := create_tween()
+					for i in 5:
+						twh.tween_property(hs, "rotation:z", 0.08 * (1.0 if i % 2 == 0 else -1.0), 0.3)
+					twh.tween_property(hs, "rotation:z", 0.0, 0.3)
+			G67Sound.play(self, "vacuum", Vector3(-39.0, 0.6, 8.0), 1.0)
+			get_tree().create_timer(2.6).timeout.connect(func(): bk.pahan_say("puh", true))
+		_:
+			var gp: Dictionary = (y.sign_groups if y != null else {}).get(id.substr(5), world.hub_groups.get(id.substr(5), {}))
+			if gp.is_empty():
+				return
+			var cards: Array = gp["cards"]
+			var k := int(read_idx.get(id, -1)) + 1
+			k = k % cards.size()
+			read_idx[id] = k
+			G67ReadCard.open(self, game.player, String(cards[k]["text"]), String(cards[k].get("sub", "")))
+			if randf() < 0.3:
+				bk.pahan_say("read")
+	events.append(["life_use", id])
+
+func ylife_get() -> G67YardLife:
+	if world == null or world.yard == null:
+		return null
+	if ylife == null or not is_instance_valid(ylife) or ylife.yard != world.yard:
+		if ylife != null and is_instance_valid(ylife):
+			ylife.queue_free()
+		ylife = G67YardLife.make(self, world.yard)
+		add_child(ylife)
+	return ylife
+
+func barks_get() -> G67Barks:
+	if barks == null or not is_instance_valid(barks):
+		barks = G67Barks.make(self)
+		add_child(barks)
+	return barks
+
 func phone_get() -> G67Phone:
 	if phone == null:
 		phone = G67Phone.new()
@@ -989,6 +1233,15 @@ func flush_coins() -> void:
 func _place_elite_hanger() -> void:
 	var pos: Vector3 = game.arena_c + Vector3(0, 0.0, 3.0)
 	elite_hanger = G67Models.spawn("g67_fit_hanger", world, pos, PI, Vector3(99, 1.9, 99))
+	var hb := StaticBody3D.new()
+	hb.collision_layer = 1 | 8
+	var hcs := CollisionShape3D.new()
+	var hbx := BoxShape3D.new()
+	hbx.size = Vector3(0.9, 1.9, 0.5)
+	hcs.shape = hbx
+	hb.add_child(hcs)
+	hb.position = Vector3(0, 0.95, 0)
+	elite_hanger.add_child(hb)
 	var lt := OmniLight3D.new()
 	lt.light_color = Color(1.0, 0.8, 0.3)
 	lt.light_energy = 1.2
@@ -1523,6 +1776,7 @@ func _button_scene(id: String) -> void:
 				if is_instance_valid(lf):
 					(lf as G67Life).react("RWow")
 			world.yard.crowd_react("phase")
+			world.yard.siren_look(sp)
 			var rl := OmniLight3D.new()
 			rl.light_color = Color(1.0, 0.1, 0.08)
 			rl.omni_range = 30.0
@@ -1897,6 +2151,9 @@ func talk_end() -> void:
 		return
 	talk_on = false
 	_talk_hud(false)
+	# камера возвращается на пружину: иначе поворот плана разговора остаётся на ней, и она смотрит в стену
+	game.cam.transform = Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
+	game.cam.fov = float(Opts.v("fov"))
 
 ## Боевой HUD, верхняя строка и значки над точками на время разговора спрятаны
 func _talk_hud(hide: bool) -> void:
@@ -2919,6 +3176,8 @@ func music_context() -> Dictionary:
 func _physics_process(dt: float) -> void:
 	if game == null or world == null or not is_instance_valid(world):
 		return
+	if place == "hub" and not game.get_tree().paused:
+		_hub_life_tick(dt)
 	if game.get_tree().paused:
 		if prompt != null:
 			prompt.visible = false
@@ -3017,6 +3276,12 @@ func use(id: String) -> void:
 			open_screen("kiosk")
 		else:
 			game.toast("Сначала разберись с этими")
+	elif id == "hub_btn" or id == "intercom" or id == "g_radio" or id == "carpet" or id == "box" or id == "puh" or id.begins_with("read_"):
+		_life_use(id)
+	elif id.begins_with("talk_"):
+		var rr = world.yard.residents.get(id.substr(5)) if world.yard != null else null
+		if rr != null:
+			rr.use()
 	elif id == "ev_burmalda":
 		_burmalda_pull()
 	elif id == "ev_button":
