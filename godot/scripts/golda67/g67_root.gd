@@ -629,6 +629,51 @@ func _slot_use() -> void:
 
 var _hamster_first_enter := false
 var hamster_busy := false
+var bottle_busy := false
+var reserve_charges := 0
+
+## Подбор бутылки: герой «уходит за угол» (на 1,6 с скрыт, камера остаётся снаружи), выходит с бутылкой; HUD «БУТЫЛКИ: n/5»; на 5/5 открывается техпомещение
+func _bottle_pick(n: int) -> void:
+	if bottle_busy or run.is_empty():
+		return
+	var got: Array = run.get("bottles", [])
+	if got.has(n):
+		return
+	bottle_busy = true
+	var pzb := world.district as G67Podzemka
+	var node = pzb.get_node_or_null("bottle_%d" % n) if pzb != null else null
+	game.player.visible = false
+	game.toast("…")
+	await get_tree().create_timer(1.6).timeout
+	game.player.visible = true
+	if node != null:
+		node.visible = false
+	world.points = world.points.filter(func(pt): return String(pt["id"]) != "bottle%d" % n)
+	got.append(n)
+	run["bottles"] = got
+	game.toast("БУТЫЛКИ: %d/5 — %s" % [got.size(), String(G67Data.PZ_BOTTLES[n - 1]["line"])])
+	events.append(["bottle", n])
+	if got.size() >= 5 and pzb != null:
+		pzb.open_door("tech")
+		game.toast("Техпомещение открыто")
+	bottle_busy = false
+
+## Финал: бутылки в ряд на столе, пауза 2 с, реплика, артефакт «АВАРИЙНЫЙ ЗАПАС 0.5» (слот не занимает; 5 зарядов на этот забег)
+func _reserve_final() -> void:
+	if run.is_empty() or (run.get("bottles", []) as Array).size() < 5 or has_art("reserve_05"):
+		game.toast("Нужно собрать пять бутылок")
+		return
+	await get_tree().create_timer(2.0).timeout
+	game.banner("БЛЯТЬ.", "Я ДЕЙСТВИТЕЛЬНО СОБРАЛ ВСЕ ПЯТЬ", Color(1, 0.9, 0.5), 3.0)
+	take_art("reserve_05")
+	reserve_charges = 5
+	run["reserve"] = 5
+	var arch: Array = meta().get("archive", [])
+	if not arch.has("reserve05"):
+		arch.append("reserve05")
+	meta()["archive"] = arch
+	save()
+	events.append(["reserve_found"])
 var hamster_greeted := false
 
 ## Мини-игра хомяков: оверлей на время игры; награда — ХОМЯЧЬЯ АУРА (первый раз) или голда забега по очкам (не больше 30)
@@ -2926,7 +2971,7 @@ func take_art(id: String, replace := "") -> bool:
 	if art_info(id).is_empty() or has_art(id):
 		return false
 	var a: Array = run["arts"]
-	if a.size() >= slots():
+	if a.filter(func(x): return not G67Data.ART_EVENT.has(String(x))).size() >= slots() and not G67Data.ART_EVENT.has(id):
 		if not a.has(replace):
 			return false
 		a.erase(replace)
@@ -3572,6 +3617,10 @@ func use(id: String) -> void:
 		_button_press()
 	elif id == "slot":
 		_slot_use()
+	elif id.begins_with("bottle") and id.length() == 7:
+		_bottle_pick(int(id.substr(6)))
+	elif id == "reserve_table":
+		_reserve_final()
 	elif id == "hamster_game":
 		_hamster_play()
 	elif id == "shutter" or id == "hamster_door":

@@ -464,6 +464,9 @@ func build_podzemka() -> void:
 	yard = null
 	hook_points = []
 	missing.append_array(pz.missing)
+	for bk in G67Data.PZ_BOTTLES:
+		_point("bottle%d" % int(bk["n"]), "ПУСТАЯ БУТЫЛКА", "взять бутылку", G67Podzemka.fit(bk["pos"] as Vector3) + Vector3(0.6, 0, 0.0))
+	_point("reserve_table", "СТОЛ В ТЕХПОМЕЩЕНИИ", "поставить бутылки в ряд", Vector3(34.0, 0.0, -160.0))
 	_point("shutter", "РОЛЬСТАВНЯ", "поднять", Vector3(-42.4, 0.0, -122.0))
 	_point("hamster_door", "НЕ ТРОГАТЬ. ТУТ ХОМЯКИ", "открыть дверь", Vector3(42.2, 0.0, -146.0))
 	_point("hamster_game", "ТАПАТЬ ХОМЯКОВ", "играть, 45 с", Vector3(51.5, 0.0, -148.0))

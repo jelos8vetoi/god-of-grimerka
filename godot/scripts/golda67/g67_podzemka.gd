@@ -1043,7 +1043,7 @@ func _doors() -> void:
 	music_hamster = Marker3D.new()
 	music_hamster.position = Vector3(48.0, 1.2, -146.0)
 	add_child(music_hamster)
-	for d in [["shutter", Vector3(-44.25, 0.0, -122.0), Vector3(0.3, 3.6, 4.0), Color(0.55, 0.57, 0.6)], ["hamster", Vector3(44.0, 0.0, -146.0), Vector3(0.3, 3.2, 4.0), Color(0.42, 0.28, 0.16)]]:
+	for d in [["shutter", Vector3(-44.25, 0.0, -122.0), Vector3(0.3, 3.6, 4.0), Color(0.55, 0.57, 0.6)], ["hamster", Vector3(44.0, 0.0, -146.0), Vector3(0.3, 3.2, 4.0), Color(0.42, 0.28, 0.16)], ["tech", Vector3(38.7, 0.0, -160.0), Vector3(0.3, 3.2, 4.0), Color(0.3, 0.33, 0.38)]]:
 		var size: Vector3 = d[2]
 		var pos: Vector3 = d[1]
 		var mi := MeshInstance3D.new()
@@ -1076,7 +1076,7 @@ func open_door(id: String) -> bool:
 	var sb: StaticBody3D = door_nodes[id][1]
 	sb.queue_free()
 	var tw := mi.create_tween()
-	if id == "shutter":
+	if id == "shutter" or id == "tech":
 		tw.tween_property(mi, "position:y", mi.position.y + 3.4, 1.1)
 	else:
 		tw.tween_property(mi, "rotation:y", PI * 0.5, 0.9)

@@ -147,7 +147,7 @@ func run(g_, G_: Golda67) -> void:
 			break
 	ok(run_ok, "хребет бегом за %.0f с" % (float(Time.get_ticks_msec() - t0) / 1000.0))
 	var total := _path_len(RIDGE)
-	for did in ["shutter", "hamster"]:
+	for did in ["shutter", "hamster", "tech"]:
 		(G.world.district as G67Podzemka).open_door(did)
 	await c.wait(0.3)
 	for nm in BRANCHES:
@@ -170,6 +170,7 @@ func run(g_, G_: Golda67) -> void:
 	await _dark_shots()
 	await _krot_checks()
 	await _hamster_checks()
+	await _bottle_checks()
 	await _routes()
 	await _full_run()
 	await _save_resume()
@@ -675,3 +676,17 @@ func _hamster_checks() -> void:
 		if all_dogs:
 			later_jackpot = true
 	ok(jf[0][0] == "dog" and not later_jackpot, "джекпот ровно на 67-м спине, после 67-го поле целиком из ротвейлеров не выпадает")
+
+## Пять бутылок: сбор → открытие техпомещения → финал → артефакт без слота; повторный забег собирает снова
+func _bottle_checks() -> void:
+	G.run["bottles"] = []
+	for n in range(1, 6):
+		G._bottle_pick(n)
+		await c.wait(2.0)
+	ok((G.run.get("bottles", []) as Array).size() == 5, "собраны все пять бутылок (%d)" % (G.run.get("bottles", []) as Array).size())
+	ok((G.world.district as G67Podzemka).door_open_flags.get("tech", false), "на 5/5 техпомещение открыто")
+	var slots_before: int = (G.run["arts"] as Array).filter(func(x): return not G67Data.ART_EVENT.has(String(x))).size()
+	G._reserve_final()
+	await c.wait(3.0)
+	ok(G.has_art("reserve_05") and G.reserve_charges == 5 and (G.meta().get("artifacts", []) as Array).has("reserve_05"), "артефакт «АВАРИЙНЫЙ ЗАПАС 0.5» получен (5 зарядов), записан в коллекцию")
+	ok((G.run["arts"] as Array).filter(func(x): return not G67Data.ART_EVENT.has(String(x))).size() == slots_before, "артефакт не занимает слот")
