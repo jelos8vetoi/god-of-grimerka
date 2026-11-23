@@ -2784,8 +2784,8 @@
    "y": 116,
    "w": 18,
    "h": 35,
-   "model": "res_block_b",
-   "yaw": 90,
+   "model": "res_arch_81",
+   "yaw": -90,
    "hgt": 13.3,
    "label": "H9 · ДОМ 81 АРКА"
   },
