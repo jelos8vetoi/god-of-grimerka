@@ -1725,14 +1725,19 @@ func _fortuna_debts() -> void:
 	ok(rack_open and G.start_style() == "tyaga812", "(а) стойка стилей в подъезде: ТЯГА-812 открыта после победы и выбирается (start_style = %s)" % G.start_style())
 	if G.hub_ui != null:
 		G.hub_ui.close()
-	# (в) перезапуск процесса
-	G.save()
+	# (в) перезапуск процесса. Golda67.save() в проверках ничего не пишет (бережёт сохранение игрока), поэтому запись делаем сами —
+	# и только в отдельной папке данных, которую даёт запускалка проверок
+	var own_dir: bool = OS.get_user_data_dir().contains("grimerka-checks")
+	if own_dir:
+		G67Save.save_all(G.data)
+	else:
+		print("GOLDA67CHECK   FORTUNA перезапуск процесса: пропущен — проверка запущена не через tools/checks.cjs, сохранение игрока не трогаем")
 	var out: Array = []
 	var exe := OS.get_executable_path()
 	OS.execute(exe, ["--headless", "--path", ProjectSettings.globalize_path("res://"), "--script", "res://scripts/golda67/fz_reload_probe.gd", "--", "--p=" + ProjectSettings.globalize_path(G67Save.main_path())], out, true)
 	var probe := "".join(out)
 	print("GOLDA67CHECK   FORTUNA перезапуск процесса: ", probe.strip_edges())
-	ok(probe.contains("boss_fortuna=true") and probe.contains("news02=true") and int(probe.get_slice("respect=", 1).get_slice(" ", 0)) >= 40, "(в) после перезапуска процесса сохранение: %s" % probe.strip_edges().get_slice("\n", probe.strip_edges().get_slice_count("\n") - 1))
+	ok(not own_dir or probe.contains("boss_fortuna=true") and probe.contains("news02=true") and int(probe.get_slice("respect=", 1).get_slice(" ", 0)) >= 40, "(в) после перезапуска процесса сохранение: %s" % probe.strip_edges().get_slice("\n", probe.strip_edges().get_slice_count("\n") - 1))
 	# (б) стиль в бою
 	G.start_run("podzemka")
 	await c.until(func(): return G.run.get("district", "") == "podzemka" and G.world != null and G.world.district is G67Podzemka, 12.0)
@@ -1781,7 +1786,7 @@ func _fortuna_debts() -> void:
 	var gold0: int = int(G.run["golda"])
 	var base_g: int = int(G67Data.FOES["controller"]["golda"])
 	G.on_kill(e)
-	var spare_act: int = int(G.run["golda"]) - gold0 - int(round(float(base_g) * G.gold_k()))
+	var spare_act: int = int(G.run["golda"]) - gold0      # обычная голда врага падает монетой (её здесь не подбирают), «СДАЧА» идёт на счёт сразу
 	var spare_exp: int = int(round(4.0 * G.gold_k()))
 	var refills := 0
 	for i in 200:
@@ -1820,6 +1825,7 @@ func _fortuna_debts() -> void:
 	ok(paused_now and frozen and P.is_physics_processing() and not g.get_tree().paused, "(д) пауза во время вступления: дерево на паузе %s, сцена замерла %s, после снятия вступление доиграно, управление у героя" % [str(paused_now), str(frozen)])
 	G.room_state = "boss"
 	G.run["respect"] = 0
+	var outs0: int = G.events.filter(func(e2): return String(e2[0]) == "fortuna_outro").size()
 	var outro := func(): await G._fortuna_outro(bp)
 	outro.call()
 	await c.until(func(): return G.events.any(func(e2): return String(e2[0]) == "fz_plan" and String(e2[1]) == "o2"), 40.0)
@@ -1832,6 +1838,6 @@ func _fortuna_debts() -> void:
 	await c.shot("pz_fz_pause_outro")
 	var paused2: bool = g.get_tree().paused
 	await c.key(KEY_ESCAPE)
-	await c.until(func(): return G.events.any(func(e2): return String(e2[0]) == "fortuna_outro"), 60.0)
+	await c.until(func(): return G.events.filter(func(e2): return String(e2[0]) == "fortuna_outro").size() > outs0, 60.0)
 	ok(paused2 and n3 == n4 and P.is_physics_processing() and not g.get_tree().paused, "(д) пауза во время финала: дерево на паузе %s, сцена замерла %s, после снятия финал доигран, управление у героя" % [str(paused2), str(n3 == n4)])
 	G.fz_full = false
