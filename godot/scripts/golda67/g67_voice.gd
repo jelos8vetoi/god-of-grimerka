@@ -43,6 +43,12 @@ const SPEAKERS := {
 	"RD": {"char": "garage_radio", "name": "Гаражное радио", "folder": "NPC", "tag": "RADIO"},
 	"DM": {"char": "intercom", "name": "Домофон", "folder": "NPC", "tag": "INTERCOM"},
 }
+## Подача реплик жителей двора: [эмоция, темп] по коду говорящего (голоса — встроенные пресеты Voice Studio Pro, см. tools/golda67-voice.cjs)
+const LIFE_DIR := {
+	"BB": ["ворчливо, сварливо", 0.9], "TX": ["устало, с сарказмом", 0.95], "US": ["коротко, глухо, недовольно", 0.95], "SC": ["быстро, восторженно", 1.12],
+	"Z1": ["рассудительно, обстоятельно", 0.95], "Z2": ["раздражённо", 1.0], "ZW": ["крикливо", 1.05], "SH": ["зазывно, громко", 1.0],
+	"RD": ["бодро, как диджей", 1.05], "DM": ["механически, ровно", 0.88], "V": ["раздражённо, коротко", 1.0],
+}
 ## Подача реплик в роликах: [эмоция, темп] по коду говорящего
 const CLIP_DIR := {
 	"G1": ["пафосно, как в рекламе, неторопливо", 0.92], "V": ["раздражённо, коротко", 1.0], "M": ["восторженно, быстро", 1.05],
@@ -197,6 +203,11 @@ static func chapter1_lines() -> Array:
 	return out
 
 static func _mk(scene: String, order: int, line: String, when: String, emo: String, spd: float) -> Dictionary:
+	var code := line.get_slice("|", 0)
+	if scene.begins_with("life_") or scene.begins_with("duo_"):
+		var d: Array = LIFE_DIR.get(code, [emo, spd])
+		emo = String(d[0])
+		spd = float(d[1])
 	var p := line.find("|")
 	return {"scene": scene, "order": order, "code": line.substr(0, p), "text": line.substr(p + 1), "when": when, "emotion": emo, "speed": snappedf(spd, 0.01)}
 
