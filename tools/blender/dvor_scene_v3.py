@@ -135,7 +135,7 @@ def free(x, y, pad=2.5):
     return x0 + 5 < x < x1 - 5 and y0 + 5 < y < y1 - 5
 
 # места камер держим свободными от деревьев и сугробов
-for cxy in ((-58, -20.5), (-22, -104), (-72, 34), (-52, -17.5), (-34, 92), (10, 30), (40, -31), (78, -21), (-74, -78), (-30, 4), (92, 96), (86, 104), (82, -18.6), (82, -68), (-20, 93), (-84, 96), (37, -19.5), (-98, -62)):
+for cxy in ((-58, -20.5), (-22, -104), (-72, 34), (-52, -17.5), (-34, 92), (10, 30), (40, -31), (78, -21), (-74, -78), (-30, 4), (92, 96), (86, 104), (82, -18.6), (82, -68), (-20, 93), (-63.2, 33), (-52, -2), (-84, 96), (37, -19.5), (-98, -62)):
     solid.append((cxy[0], cxy[1], 14, 14))
 # ---------------- тропы: утоптанный снег по маршрутам и к подъездам
 for pts in L.get('paths', []):
@@ -209,6 +209,80 @@ for x, y in ((-55.5, 9.5), (-56.4, 10.2), (97, 25), (126, 25.2), (-49, -98), (-6
 for x, y in ((-40, -14), (-3, -14), (48, -14.5), (88, -13.5), (-104, 104)): put('trash_cans', x, y, rnd.uniform(0, 360), None, 'cans')
 for x, y, yw in ((-70, -46.5, 0), (-71.8, -46.5, 0), (-66.2, 93, 0), (-73.8, 93, 0), (92, 34.5, 90), (-9, 93.5, 0), (21, 93.5, 0), (-30, -108, 90), (62, 142, 0), (70, 142, 0), (62, -142, 0), (70, -142, 0)):
     put(rnd.choice(('barrier_1', 'barrier_2')), x, y, yw, None, 'barrier')
+# ================= ДЕКОРАЦИИ V5: чтобы район не был пустым
+FIRES = []
+def at(mid, x, y, yaw=None, k=None, z=0.0, nm='deco'):
+    if mid not in LIB: return None
+    h = put(mid, x, y, rnd.uniform(0, 360) if yaw is None else yaw, None, nm, k)
+    if h and z: h.location.z = z
+    return h
+def scat(mids, n, box_, k=(1.0, 1.0), pad=1.2, block=1.6):
+    ax, ay, bx, by = box_; done = 0; tries = 0
+    while done < n and tries < n * 40:
+        tries += 1; x, y = rnd.uniform(ax, bx), rnd.uniform(ay, by)
+        if not free(x, y, pad): continue
+        at(rnd.choice(mids), x, y, None, rnd.uniform(*k)); solid.append((x, y, block, block)); done += 1
+YARDS = {'home': (-34, -104, 32, -62), 'sw': (-124, -110, -70, -62), 'se': (74, -112, 128, -62), 'ne': (82, 44, 144, 132), 'waste': (-46, 8, 40, 44), 'north': (-72, 92, 60, 100), 'school': (-144, 98, -76, 112)}
+# площадки: ракета, снеговики, бельё, навесные мелочи
+for x, y, yw in ((-8, -76, 20), (110, 100, 100), (-90, -96, 0)): at('rocket_slide', x, y, yw); solid.append((x, y, 8, 8))
+for x, y in ((6, -80), (14, -88), (-102, -92), (118, -96), (112, 90), (-20, 30), (-60, 106), (30, 34), (-92, 104), (124, 88)): at('snowman', x, y, None, rnd.uniform(0.85, 1.2)); solid.append((x, y, 1.5, 1.5))
+for x, y, yw in ((-24, -70, 0), (22, -96, 90), (-116, -96, 0), (-80, -74, 90), (88, -96, 0), (128, -72, 90), (92, 110, 0), (126, 98, 90), (-30, 62, 0), (44, 58, 90)):
+    if free(x, y, 0.5): at('laundry', x, y, yw); solid.append((x, y, 8, 8))
+at('boombox', -16, -93, 200, None, 0.78); at('boombox', -112, -76, 30, None, 0.32)
+for x, y in ((-10, -84), (16, -92), (-92, -92), (-4, -79), (112, 96), (-100, 110)): at('cat_statue', x + 0.9, y + 0.4, None, rnd.uniform(0.8, 1.2))
+# у подъездов: доски объявлений, почтовые ящики, шкафы
+for i, (ex, ey) in enumerate(ENTR):
+    if i % 2 == 0: at('info_stand', ex - 3.2, ey + (0.0 if i % 4 else 0.3), 0 if abs(ex) < 200 and i % 4 < 2 else 90)
+    if i % 3 == 1: at('utility_box', ex + 5.4, ey, 0)
+    if i % 4 == 3: at('crow_2', ex + rnd.uniform(-3, 3), ey + rnd.uniform(-2.5, 2.5))
+for x, y in ((90, -62), (-46, -14.5), (50, -14.6), (-104, 110), (80, -14)): at('mailbox', x, y, 180, 1.15)
+# улица и рынок: щиты, коробки, ящики, поддоны, бочки-печки
+for x, y, yw in ((-96, -15.6, 90), (112, -15.6, 90), (-118, 110, 90)): at('billboard_soviet', x, y, yw)
+for x, y, yw in ((76, -34, 0), (56, 40, 90), (-140, -34, 0)): at('billboard_ad', x, y, yw)
+for kx in (-44, -36, -30, -25, -20, -12, -6, 0, 44):
+    for j in range(rnd.randint(2, 4)):
+        at(rnd.choice(('box_cardboard', 'crate_plastic', 'crate_plastic')), kx + rnd.uniform(-2.2, 2.2), -5.6 + rnd.uniform(-0.6, 0.6), None, rnd.uniform(1.0, 1.5))
+    if rnd.random() < 0.5: at('crate_plastic', kx + rnd.uniform(-1.5, 1.5), -13.6, None, 1.3)
+for x, y in ((-40, -4.5), (-8, -4.2), (90, -2.5), (98, -40), (40, -4.6), (-57, 22), (118, 14), (-52, 40)): at('pallets', x, y, None, rnd.uniform(0.6, 0.9)); solid.append((x, y, 3, 3))
+for x, y in ((-33, -14.4), (88.5, -3.4), (-57.5, 18.5), (110, 26), (-66, 60), (4, 96.5), (-4, -14.4)):
+    at('barrel_stove', x, y); FIRES.append((x, y))
+# у гаражей: диваны, покрышки, брёвна
+for x, y, yw in ((-58, 24.5, 100), (114, 25.2, 0), (-46, -66, 180), (-66, 84, 90)): at('sofa_set', x, y, yw); solid.append((x, y, 4, 4))
+for x, y in ((-20, 20), (12, 36), (-36, 30), (26, 16), (-110, -70), (100, -70)): at('log_dead', x, y)
+for x, y in ((-10, 32), (22, 26), (-30, 14), (-84, -86), (132, 50), (-66, 104)): at('stump', x, y)
+for i, (x, y) in enumerate(((-40, -66), (-36.4, -66), (124, -64), (127.6, -64), (88, 112), (-124, -106), (-120.4, -106), (58, 100))):
+    if free(x, y, 0.2): at('garage_metal_%d' % (1 + i % 7), x, y, 0); solid.append((x, y, 4, 7))
+# люки на дорогах и во дворах
+for x in range(-130, 140, 34): at('manhole', x, -22.4, 0)
+for y in range(-120, 130, 38): at('manhole', 64.4, y, 0)
+for x, y in ((0, -100), (-64, -90), (114, 30), (6, 88), (-70, 40), (108, -86), (-98, -76)): at('manhole', x, y, 0)
+# машины вдоль дворовых проездов
+for y in range(-122, -50, 9):
+    if rnd.random() < 0.6: at(rnd.choice(cars), -61.9, y + rnd.uniform(-1, 1), rnd.choice((0, 180)))
+for y in range(4, 88, 10):
+    if rnd.random() < 0.5: at(rnd.choice(cars), -68.1, y + rnd.uniform(-1, 1), rnd.choice((0, 180)))
+for x in range(96, 134, 9):
+    if rnd.random() < 0.6: at(rnd.choice(cars), x, 32.2, rnd.choice((90, -90)))
+for x in range(-46, 60, 10):
+    if abs(x - 6) > 9 and rnd.random() < 0.55: at(rnd.choice(cars), x, 85.4, rnd.choice((90, -90)))
+# кусты вдоль фасадов и ещё деревья, сугробы, вороны во дворах
+for it in L['items']:
+    if it['cat'] != 'res' or it.get('mark'): continue
+    wide = it['w'] > it['h']; ln = max(it['w'], it['h'])
+    for sgn in (-1, 1):
+        for i in range(int(ln / 4.5)):
+            t = -ln / 2 + 2.5 + i * 4.5 + rnd.uniform(-0.6, 0.6)
+            bx_, by_ = (it['x'] + t, it['y'] + sgn * (it['h'] / 2 + 2.9)) if wide else (it['x'] + sgn * (it['w'] / 2 + 2.9), it['y'] + t)
+            if any(abs(bx_ - ex) < 5.5 and abs(by_ - ey) < 5.5 for ex, ey in ENTR): continue
+            if rnd.random() < 0.7 and free(bx_, by_, 0.2): at('bush_bare', bx_, by_, None, rnd.uniform(0.6, 1.1))
+for nm, bx in YARDS.items():
+    scat(TREES, 9 if nm != 'waste' else 14, bx, (0.8, 1.25), 2.5, 2.5)
+    scat(['bush_bare'], 12, bx, (0.6, 1.2), 1.5)
+    scat(['snow_pile'], 7, bx, (0.5, 1.2), 2.0, 3.0)
+    scat(['crow_2'], 6, bx, (1.0, 1.3), 0.8, 0.5)
+scat(['bush_bare'], 40, (-146, -140, 146, -132), (0.7, 1.3), 1.0)
+scat(['bush_bare', 'tree_winter'], 24, (-146, 132, 146, 140), (0.7, 1.2), 1.0)
+print('DECO done', flush=True)
 # ---------------- заборы, фонари
 def fence_line(ax, ay, bx, by):
     ln = math.hypot(bx - ax, by - ay); n = int(ln / 3.43); yw = math.degrees(math.atan2(by - ay, bx - ax)) + 90
@@ -227,6 +301,7 @@ for ex, ey in ENTR: LAMPS.append((ex, ey, 2.6, 'door'))
 for x in (-44, -36, -30, -20, -12, -6, 0, 44): LAMPS.append((x, -12.5, 2.6, 'shop'))
 LAMPS += [(84, -13, 3.0, 'shop'), (96, -62, 3.0, 'shop'), (-60, 36, 2.4, 'shop'), (-56, 14, 3.0, 'shop')]
 for c in MASTS: LAMPS.append((c[0], c[1], 11.0, 'rink'))
+for fx, fy in FIRES: LAMPS.append((fx, fy, 1.1, 'fire'))
 LAMPS += [(44, -15.2, 2.5, 'shawa'), (-110, 111, 4.0, 'shop'), (-120, 111, 4.0, 'door'), (-100, 111, 4.0, 'door'), (-96, 104, 6.2, 'yard'), (-124, 104, 6.2, 'yard'), (-16, -93, 2.4, 'door'), (-112, -76, 2.6, 'door'), (118, 82, 2.6, 'door')]
 # ---------------- дорожные знаки (столбик и щиток из набора), столбы с проводами
 def road_sign(pid, x, y, yaw):
@@ -318,8 +393,8 @@ for i, (lx, ly, lz, kind) in enumerate(LAMPS):
     li = bpy.data.objects.new('l%d' % i, bpy.data.lights.new('l%d' % i, 'POINT')); sc.collection.objects.link(li)
     li.location = (lx, ly, lz); li.data.shadow_soft_size = 0.3; li.data.use_shadow = kind in ('street', 'rink') and i % 2 == 0
     li['kind'] = kind; LIGHTS.append(li)
-PW = {'street': 2600, 'yard': 1500, 'door': 220, 'shop': 420, 'rink': 6500, 'shawa': 420}
-COL = {'street': (1.0, 0.66, 0.34), 'yard': (1.0, 0.7, 0.4), 'door': (1.0, 0.78, 0.5), 'shop': (1.0, 0.86, 0.66), 'rink': (0.92, 0.96, 1.0), 'shawa': (1.0, 0.55, 0.16)}
+PW = {'street': 2600, 'yard': 1500, 'door': 220, 'shop': 420, 'rink': 6500, 'shawa': 420, 'fire': 260}
+COL = {'street': (1.0, 0.66, 0.34), 'yard': (1.0, 0.7, 0.4), 'door': (1.0, 0.78, 0.5), 'shop': (1.0, 0.86, 0.66), 'rink': (0.92, 0.96, 1.0), 'shawa': (1.0, 0.55, 0.16), 'fire': (1.0, 0.36, 0.08)}
 SKYC = {'dusk': ((0.40, 0.17, 0.13), (0.10, 0.085, 0.24), (0.018, 0.03, 0.11), 0.0011, 1.0),
         'night': ((0.06, 0.05, 0.09), (0.02, 0.024, 0.07), (0.006, 0.01, 0.035), 0.0014, 1.3),
         'day': ((0.62, 0.66, 0.72), (0.56, 0.61, 0.69), (0.46, 0.53, 0.64), 0.0006, 0.0)}
@@ -361,6 +436,8 @@ view('17_court_gate', (-1, 91.5, 2.4), (8, 108, 1.4), lens=24)
 view('14_school', (-84, 96, 1.9), (-108, 120, 6), lens=24)
 view('15_shawarma', (37, -19.5, 1.8), (45, -11, 2.8), lens=28)
 view('16_gazebo_yard', (-98, -62, 1.9), (-112, -80, 2.2), lens=26)
+view('18_garage_corner', (-63.2, 33, 1.8), (-57, 20, 1.2), lens=24)
+view('19_market_back', (-52, -2, 1.8), (-20, -7, 1.6), lens=26)
 view('06_aerial', (cx - 30, y0 - 150, 170), (cx, cy - 10, 0), lens=30)
 view('07_towers_gate', (10, 30, 1.9), (6, 80, 13), lens=24)
 view('08_bus_stop', (40, -31, 1.9), (52, -15, 2.2), lens=26)

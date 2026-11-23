@@ -1519,5 +1519,291 @@
   "mats": 3,
   "mb": 5.0,
   "note": "два ржавых бака с крышками (Poly Haven, CC0)"
+ },
+ "billboard_soviet": {
+  "section": "streets",
+  "source": "dvor_billboard_a",
+  "size": [
+   0.25,
+   3.98,
+   4.2
+  ],
+  "tris": 506,
+  "mats": 1,
+  "mb": 2.2,
+  "note": "советский щит «Учимся и работаем» (AspectStudios)"
+ },
+ "billboard_ad": {
+  "section": "streets",
+  "source": "dvor_billboard_b",
+  "size": [
+   5.57,
+   3.41,
+   8.5
+  ],
+  "tris": 2340,
+  "mats": 3,
+  "mb": 2.2,
+  "note": "рекламный щит на столбе (ne.k1t)"
+ },
+ "crow_1": {
+  "section": "props",
+  "source": "dvor_crow_a",
+  "size": [
+   210.07,
+   162.58,
+   346.07
+  ],
+  "tris": 2208,
+  "mats": 1,
+  "mb": 3.3,
+  "note": "ворона (Alexei Ostapenko)"
+ },
+ "crow_2": {
+  "section": "props",
+  "source": "dvor_crow_b",
+  "size": [
+   0.43,
+   0.58,
+   0.36
+  ],
+  "tris": 444,
+  "mats": 1,
+  "mb": 2.9,
+  "note": "ворона, низкополигональная (Tsar Games)"
+ },
+ "info_stand": {
+  "section": "props",
+  "source": "dvor_infostand",
+  "size": [
+   2.09,
+   0.25,
+   1.62
+  ],
+  "tris": 4762,
+  "mats": 2,
+  "mb": 6.4,
+  "note": "доска объявлений (Annelida)"
+ },
+ "laundry": {
+  "section": "props",
+  "source": "dvor_laundry_a",
+  "size": [
+   5.03,
+   7.99,
+   2.3
+  ],
+  "tris": 8693,
+  "mats": 5,
+  "mb": 2.8,
+  "note": "бельевые верёвки с бельём (Khoa Nguyen)"
+ },
+ "monument": {
+  "section": "props",
+  "source": "dvor_lenin",
+  "size": [
+   2.4,
+   3.03,
+   4.6
+  ],
+  "tris": 1858,
+  "mats": 1,
+  "mb": 0.1,
+  "note": "памятник, белёный (SanyaTankov)"
+ },
+ "mailbox": {
+  "section": "props",
+  "source": "dvor_mailbox",
+  "size": [
+   0.5,
+   0.49,
+   0.62
+  ],
+  "tris": 530,
+  "mats": 1,
+  "mb": 2.5,
+  "note": "синий почтовый ящик (bikravnis)"
+ },
+ "manhole": {
+  "section": "streets",
+  "source": "dvor_manhole",
+  "size": [
+   0.8,
+   0.8,
+   0.06
+  ],
+  "tris": 1456,
+  "mats": 2,
+  "mb": 2.7,
+  "note": "канализационный люк (Sirenko)"
+ },
+ "pallets": {
+  "section": "props",
+  "source": "dvor_pallets_b",
+  "size": [
+   2.43,
+   3.71,
+   0.96
+  ],
+  "tris": 1824,
+  "mats": 1,
+  "mb": 2.1,
+  "note": "поддоны (Anna Denisova)"
+ },
+ "rocket_slide": {
+  "section": "props",
+  "source": "dvor_rocket",
+  "size": [
+   7.07,
+   1.73,
+   4.75
+  ],
+  "tris": 4232,
+  "mats": 6,
+  "mb": 0.2,
+  "note": "ракета-горка (Occam)"
+ },
+ "snowman": {
+  "section": "props",
+  "source": "dvor_snowman_b",
+  "size": [
+   0.75,
+   1.11,
+   1.55
+  ],
+  "tris": 6798,
+  "mats": 2,
+  "mb": 0.9,
+  "note": "снеговик в цилиндре (Junaid Amin)"
+ },
+ "sofa_set": {
+  "section": "props",
+  "source": "dvor_sofa_a",
+  "size": [
+   3.41,
+   2.4,
+   0.85
+  ],
+  "tris": 3258,
+  "mats": 2,
+  "mb": 6.0,
+  "note": "старый диван и два кресла (MaX3Dd)"
+ },
+ "bush_bare": {
+  "section": "props",
+  "source": "dvor_xmas_tree",
+  "size": [
+   1.61,
+   1.87,
+   2.6
+  ],
+  "tris": 4547,
+  "mats": 4,
+  "mb": 0.5,
+  "note": "голый куст-деревце (shirlanne)"
+ },
+ "barrel_stove": {
+  "section": "props",
+  "source": "ph_barrel_stove",
+  "size": [
+   0.59,
+   0.59,
+   0.86
+  ],
+  "tris": 9216,
+  "mats": 1,
+  "mb": 2.1,
+  "note": "бочка-печка (Poly Haven, CC0)"
+ },
+ "boombox": {
+  "section": "props",
+  "source": "ph_boombox",
+  "size": [
+   0.72,
+   0.19,
+   0.47
+  ],
+  "tris": 10168,
+  "mats": 2,
+  "mb": 3.1,
+  "note": "магнитофон (Poly Haven, CC0)"
+ },
+ "box_cardboard": {
+  "section": "props",
+  "source": "ph_cardboard_box_01",
+  "size": [
+   0.39,
+   0.52,
+   0.34
+  ],
+  "tris": 16952,
+  "mats": 1,
+  "mb": 2.5,
+  "note": "картонная коробка (Poly Haven, CC0)"
+ },
+ "crate_plastic": {
+  "section": "props",
+  "source": "ph_plastic_crate_01",
+  "size": [
+   0.3,
+   0.41,
+   0.26
+  ],
+  "tris": 18320,
+  "mats": 1,
+  "mb": 3.3,
+  "note": "пластиковый ящик (Poly Haven, CC0)"
+ },
+ "cat_statue": {
+  "section": "props",
+  "source": "ph_concrete_cat_statue",
+  "size": [
+   0.32,
+   0.53,
+   0.6
+  ],
+  "tris": 11950,
+  "mats": 1,
+  "mb": 3.1,
+  "note": "бетонный кот (Poly Haven, CC0)"
+ },
+ "log_dead": {
+  "section": "props",
+  "source": "ph_dead_tree_trunk",
+  "size": [
+   3.05,
+   0.28,
+   0.29
+  ],
+  "tris": 101802,
+  "mats": 1,
+  "mb": 5.0,
+  "note": "сухое бревно (Poly Haven, CC0)"
+ },
+ "stump": {
+  "section": "props",
+  "source": "ph_tree_stump_01",
+  "size": [
+   1.43,
+   1.59,
+   0.57
+  ],
+  "tris": 41046,
+  "mats": 1,
+  "mb": 4.1,
+  "note": "пень (Poly Haven, CC0)"
+ },
+ "utility_box": {
+  "section": "streets",
+  "source": "ph_utility_box_01",
+  "size": [
+   0.52,
+   0.43,
+   1.12
+  ],
+  "tris": 4404,
+  "mats": 1,
+  "mb": 2.0,
+  "note": "серый электрошкаф (Poly Haven, CC0)"
  }
 }

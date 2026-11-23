@@ -287,6 +287,9 @@
 <rect x="1075" y="470" width="106" height="100" fill="rgb(196, 160, 96)" stroke="rgb(90, 66, 30)" stroke-width="2"><title>TB</title></rect>
 <text x="1128" y="517" font-size="13" font-weight="bold" text-anchor="middle" fill="rgb(50, 36, 14)">TB · ДОМ 79</text>
 <text x="1128" y="533" font-size="13" font-weight="bold" text-anchor="middle" fill="rgb(50, 36, 14)">9 этажей</text>
+<rect x="1170" y="139" width="108" height="210" fill="rgb(196, 160, 96)" stroke="rgb(90, 66, 30)" stroke-width="2"><title>H9</title></rect>
+<text x="1224" y="241" font-size="13" font-weight="bold" text-anchor="middle" fill="rgb(50, 36, 14)">H9 · ДОМ 81</text>
+<text x="1224" y="257" font-size="13" font-weight="bold" text-anchor="middle" fill="rgb(50, 36, 14)">АРКА</text>
 <rect x="918" y="200" width="156" height="136" fill="rgb(200, 60, 56)" stroke="rgb(110, 20, 20)" stroke-width="2"><title>COURT</title></rect>
 <text x="996" y="265" font-size="13" font-weight="bold" text-anchor="middle" fill="rgb(250, 248, 240)">КОРОБКА МИШИ</text>
 <text x="996" y="281" font-size="13" font-weight="bold" text-anchor="middle" fill="rgb(250, 248, 240)">26 × 22,5 м (канон)</text>
@@ -372,5 +375,25 @@
 <circle cx="1668" cy="448" r="16" fill="rgb(120, 150, 120)" stroke="rgb(60, 90, 60)" stroke-width="2"/>
 <text x="1668" y="477" font-size="11" font-weight="bold" text-anchor="middle">беседка</text>
 <circle cx="456" cy="292" r="9" fill="rgb(120, 150, 120)" stroke="rgb(60, 90, 60)" stroke-width="2"/>
+<circle cx="1162" cy="244" r="9" fill="rgb(200, 60, 56)" stroke="rgb(110, 20, 20)" stroke-width="2"/>
+<text x="1162" y="266" font-size="11" font-weight="bold" text-anchor="middle">спуск в ПОДЗЕМКУ</text>
+<circle cx="756" cy="460" r="16" fill="rgb(240, 190, 60)" stroke="rgb(150, 110, 10)" stroke-width="2"/>
+<text x="756" y="489" font-size="11" font-weight="bold" text-anchor="middle">беседка-передышка</text>
+<circle cx="1203" cy="1027" r="7" fill="rgb(150, 104, 190)" stroke="rgb(84, 50, 120)" stroke-width="2"/>
+<text x="1203" y="1047" font-size="11" font-weight="bold" text-anchor="middle">КРОТ №1</text>
+<circle cx="903" cy="1585" r="7" fill="rgb(150, 104, 190)" stroke="rgb(84, 50, 120)" stroke-width="2"/>
+<text x="903" y="1605" font-size="11" font-weight="bold" text-anchor="middle">КРОТ №2 (подъезд)</text>
+<circle cx="843" cy="1480" r="7" fill="rgb(150, 104, 190)" stroke="rgb(84, 50, 120)" stroke-width="2"/>
+<text x="843" y="1500" font-size="11" font-weight="bold" text-anchor="middle">КРОТ №3</text>
+<circle cx="624" cy="820" r="7" fill="rgb(240, 190, 60)" stroke="rgb(150, 110, 10)" stroke-width="2"/>
+<text x="624" y="840" font-size="11" font-weight="bold" text-anchor="middle">гаражный торговец</text>
+<circle cx="1620" cy="778" r="7" fill="rgb(240, 190, 60)" stroke="rgb(150, 110, 10)" stroke-width="2"/>
+<text x="1620" y="798" font-size="11" font-weight="bold" text-anchor="middle">перекупщик</text>
+<circle cx="780" cy="1312" r="7" fill="rgb(240, 190, 60)" stroke="rgb(150, 110, 10)" stroke-width="2"/>
+<text x="780" y="1332" font-size="11" font-weight="bold" text-anchor="middle">ТРЯПКИ</text>
+<circle cx="774" cy="1030" r="7" fill="rgb(240, 190, 60)" stroke="rgb(150, 110, 10)" stroke-width="2"/>
+<text x="774" y="1050" font-size="11" font-weight="bold" text-anchor="middle">БУРМАЛДА</text>
+<circle cx="1302" cy="1018" r="7" fill="rgb(240, 190, 60)" stroke="rgb(150, 110, 10)" stroke-width="2"/>
+<text x="1302" y="1038" font-size="11" font-weight="bold" text-anchor="middle">кнопка</text>
 <text x="60" y="40" font-size="24" font-weight="bold">ВАРИАНТ B — открытый «МИКРОРАЙОН 67» (V3)</text>
 </svg>

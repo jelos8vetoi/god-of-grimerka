@@ -16,23 +16,37 @@
 | `city_base_road` | City_Base_Road | AqibGulzar_41 | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/city-base-road-03212f3a69824742ad783eada8fab716) | — | **ОТКЛОНЕНО** | дорожная сетка не в масштабе двора |
 | `dumpster_russian_blue` | Dumpster Russian Blue | randombug | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/dumpster-russian-blue-203455b8624149b1a8621935ac746757) | `dumpster_blue` | **ПРИНЯТО** | мусорные баки |
 | `dvor_abandoned_bld` | Abandoned building Psx | olallajimeneznacho | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/abandoned-building-psx-37d1dc25a16d431091a955f1f9e140e4) | — | **ОТКЛОНЕНО** | оказался куском ландшафта с крошечной башней |
+| `dvor_billboard_a` | Lowpoly Abandoned Soviet Billboard | AspectStudios | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/lowpoly-abandoned-soviet-billboard-c8c3a42b415f4444b326372563042046) | `billboard_soviet` | **ПРИНЯТО** | советские щиты «Учимся и работаем» на улице и у школы |
+| `dvor_billboard_b` | Old billboard | ne.k1t | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/old-billboard-1c9325fb02b348c3882e4f47898cf298) | `billboard_ad` | **ПРИНЯТО** | рекламные щиты у перекрёстка и на въездах |
+| `dvor_crow_a` | Crow | Alexei Ostapenko | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/crow-d5a9b0df4da3493688b63ce42c8a83e2) | `crow_1` | **В ЗАПАСЕ** | масштаб в файле сбит; взята вторая ворона |
+| `dvor_crow_b` | Low Poly Crow | Tsar Games | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/low-poly-crow-ae4159d55561493ab5481450c094847c) | `crow_2` | **ПРИНЯТО** | вороны во дворах и у подъездов |
 | `dvor_dead_tree_ps1` | Dead Tree - PS1 Low Poly | Wersaus33 | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/dead-tree-ps1-low-poly-de2611ba107f4c3c8c89bf516d5d9b6b) | `tree_dead_tall` | **В ЗАПАСЕ** | слишком толстый ствол вблизи |
 | `dvor_dead_trees` | PSX Dead Tree Pack | FlunkedPunk | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/psx-dead-tree-pack-40510061c9814223b204f03941e4c589) | `tree_dead_1`, `tree_dead_2`, `tree_dead_3`, `tree_dead_4`, `tree_dead_5`, `tree_dead_6` | **ПРИНЯТО** | деревья дворов, аллеи, пустырь |
+| `dvor_dish` | Rusty House Satellite Dish | TomasKiniulis | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/rusty-house-satellite-dish-929f056abe02416da19d7b1aa805d235) | — | **В ЗАПАСЕ** | спутниковая тарелка — вешать на стены при реализации |
 | `dvor_flowerbed` | Soviet Flower Bed | Unka II | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/soviet-flower-bed-4985a3f1c890418cb825de40f13360b5) | `flowerbed` | **ПРИНЯТО** | клумбы |
 | `dvor_garage_block` | Abandoned Garage Block Rusty Ruined Game-Ready | olegolegperepelica | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/abandoned-garage-block-rusty-ruined-game-ready-a1959927a98e4752bdb01b6e1f7f7d26) | `garage_block_rusty` | **ПРИНЯТО** | открытый блок № 64, гаражный двор у башен |
 | `dvor_garages_pack` | Abandoned Soviet Garages Pack Game-Ready | olegolegperepelica | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/abandoned-soviet-garages-pack-game-ready-fcf453872c2d4cfbad12197d072fbfc4) | `garage_metal_1`, `garage_metal_2`, `garage_metal_3`, `garage_metal_4`, `garage_metal_5`, `garage_metal_6` | **В ЗАПАСЕ** | ворота отделены от корпусов — нужна сборка |
 | `dvor_gazebo` | Gazebo | anadaren | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/gazebo-f2e0bd56e9604b0f845d4ef3e60ec9d6) | `gazebo` | **ПРИНЯТО** | беседки во дворе 71–75 и во дворе панелек |
 | `dvor_hockey_rink` | Hockey Rink | rockleyr | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/hockey-rink-eeaaf38b50e748feb226a7bdbdcb9138) | `hockey_rink` | **В ЗАПАСЕ** | каток 33 × 22 м заменён каноничной коробкой 26 × 22,5 м из бортов игры (решение владельца 2026-11-25) |
+| `dvor_infostand` | Soviet Information Stand / Bunker stuff | Annelida | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/soviet-information-stand-bunker-stuff-ae946500f72a41108102ce27a59b8a42) | `info_stand` | **ПРИНЯТО** | доски объявлений у подъездов |
 | `dvor_khr_small` | Small Soviet Apartment Building - Khrushchevka | AnatolApsik | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/small-soviet-apartment-building-khrushchevka-feb9bd78483a4b71a13f3a6327aa0e2b) | — | **В ЗАПАСЕ** | трёхэтажная секция, другая детализация |
 | `dvor_khr_ussr` | Khrushchevka USSR Building | Anthony36 | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/khrushchevka-ussr-building-a9b9f378081e456b8b5e221a8eb1546e) | — | **ОТКЛОНЕНО** | плоская серая коробка без деталей |
 | `dvor_kiosk_90s` | Simple 90's Kiosk | Vagabondare | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/simple-90s-kiosk-a04e69a838054f7cb39a635943ab9b0d) | `kiosk_90s` | **ПРИНЯТО** | павильоны рынка |
 | `dvor_kiosk_rusty` | Rusty Kiosk 01 | randombug | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/rusty-kiosk-01-882bfc1b677f48eb82d6dc9f7516c299) | `kiosk_rusty` | **ПРИНЯТО** | киоски рынка |
+| `dvor_laundry_a` | Laundry Clothesline | Khoa Nguyen | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/laundry-clothesline-6f13cc3c463f43888fb5db634cc603aa) | `laundry` | **ПРИНЯТО** | бельевые верёвки во дворах |
+| `dvor_laundry_b` | Clothesline | amurray56 | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/clothesline-d3bd63036ab4405695f29625f8d9fcd6) | — | **ОТКЛОНЕНО** | зонтичная сушилка — не из наших дворов |
+| `dvor_lenin` | Lenin Statue (Ленин Статуя) | SanyaTankov | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/lenin-statue-6198f1f34f9143748ee4e9dad4943a9c) | `monument` | **В ЗАПАСЕ** | памятник без текстуры, белёный; в сцену пока не поставлен |
+| `dvor_mailbox` | Mail Box | bikravnis | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/mail-box-46b7907bec634452b45d01cafce0cb71) | `mailbox` | **ПРИНЯТО** | почтовые ящики у магазина, рынка, остановки, школы |
+| `dvor_manhole` | Manhole | Sirenko | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/manhole-a657396d68fa43f0ac7da12a6403d59f) | `manhole` | **ПРИНЯТО** | люки на улицах и в проездах |
+| `dvor_pallets_a` | Wood Pallets | Gunnar Correa | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/wood-pallets-25f4f7f3a392491391c38a3a675c1b42) | — | **ОТКЛОНЕНО** | поддоны на куске чужой земли |
+| `dvor_pallets_b` | Low Poly | Pallets | Den1121 | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/low-poly-pallets-18fbfb830f294b44aa8dff530cc2ea12) | `pallets` | **ПРИНЯТО** | поддоны у рынка, магазина, гаражей |
 | `dvor_payphone` | Old Soviet Payphone | Richard Speight | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/old-soviet-payphone-5dbd7fd069744e55869c66566c981d4c) | `payphone` | **ПРИНЯТО** | таксофон у остановки |
 | `dvor_pipeline` | Industrial Pipeline | Chenchanchong | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/industrial-pipeline-fbdcb74c05bf4f6b839a4ea5a42f42fd) | — | **ОТКЛОНЕНО** | один гнутый кусок трубы в оранжевой изоляции с чужой надписью; теплотрассу из него не собрать |
 | `dvor_pole_concrete` | Rural Area Old Concrete Electric Utility Pole | Kuutti Siitonen | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/rural-area-old-concrete-electric-utility-pole-f8b3249e56484746b193389914df9331) | `pole_concrete` | **ПРИНЯТО** | бетонные столбы в ГСК и у гаражного двора |
 | `dvor_pole_wires` | Modulat utility pole | 3d.caster | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/modulat-utility-pole-f1798d1366fe4d7392be90ab0af31143) | `pole_wires` | **ПРИНЯТО** | линии проводов вдоль заднего проезда, ГСК и проезда за гаражами |
 | `dvor_ps1_pines` | Snowy Pine Trees Pack | PS1 Low Poly | Vova Truestory | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/snowy-pine-trees-pack-ps1-low-poly-6c588ea426904f0b91a9f1f3081014bf) | `pine_ps1_1` | **ПРИНЯТО** | группы заснеженных елей во дворах и вдоль железной дороги |
 | `dvor_psx_pines` | PSX Style Trees | wooolvie | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/psx-style-trees-c73818d0c15b49b49b5aacf685361c46) | — | **ОТКЛОНЕНО** | ели-плашки с чёрным фоном вместо прозрачности |
+| `dvor_rocket` | Soviet Rocket Play Scape | Occam | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/soviet-rocket-play-scape-9885be3845fa4b488fae42b122fd59d0) | `rocket_slide` | **ПРИНЯТО** | ракета-горка во дворе Пахана, во дворе 71–75 и во дворе панелек |
 | `dvor_school` | Soviet School – 3D Model | dimmeyster | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/soviet-school-3d-model-827d4a94d9494a1e822bd362d71de7fc) | `school` | **ПРИНЯТО** | школа № 67 у стадиона |
 | `dvor_seesaw` | Seesaw "Type-1" | targa | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/seesaw-type-1-9855438bf7d14f9b8a83e779c03e937f) | `seesaw` | **ПРИНЯТО** | качалки |
 | `dvor_sled` | low poly sled | sam | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/low-poly-sled-78e3ede6b92f4bbabf37958f4e7b0ef0) | `sled` | **ПРИНЯТО** | санки у подъездов |
@@ -40,6 +54,10 @@
 | `dvor_smoke_stacks` | Industrial Smoke Stacks | FrodoUndead | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/industrial-smoke-stacks-ffaf6bfbd8b84eb985dee2a35ba79440) | `smoke_stacks` | **ПРИНЯТО** | трубы котельной на горизонте |
 | `dvor_snow_pile` | Rocky Snow Pile | Creates 3D | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/rocky-snow-pile-ec1bd62ca9c64d65960e48d36bb91cfe) | `snow_pile` | **ПРИНЯТО** | сугробы у дорог, парковок, баков |
 | `dvor_snow_trees` | Snow Trees Pack LOWPOLY | EFX | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/snow-trees-pack-lowpoly-8927ca8abbfc4871a029323480d1ad05) | — | **ОТКЛОНЕНО** | плоские ленты-плашки 473 × 473, не деревья |
+| `dvor_snowman_a` | Snowman | LostBoyz2078 | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/snowman-e5875de2c3084478836a12a37edac354) | — | **ОТКЛОНЕНО** | мультяшный |
+| `dvor_snowman_b` | Snowman | Junaid Amin | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/snowman-1010d971cfe44b1aa8ff9b8350048f95) | `snowman` | **ПРИНЯТО** | снеговики во дворах |
+| `dvor_sofa_a` | Old Sofa Low-poly | MaX3Dd | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/old-sofa-low-poly-42b8abdd7711491eab79b7a468d9ff14) | `sofa_set` | **ПРИНЯТО** | выброшенные диваны у гаражей |
+| `dvor_sofa_b` | Old Sofa's | Pieter Ferreira | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/old-sofas-64c9a2ecb01f46c2bd39133955d753b5) | — | **ОТКЛОНЕНО** | набор офисных диванов |
 | `dvor_streetlights` | Soviet Streetlight Pack (Remake and part 2) | Unka II | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/soviet-streetlight-pack-remake-and-part-2-eff51e05a3b5449895f6eb1312d7e881) | — | **ОТКЛОНЕНО** | только плафоны без столбов |
 | `dvor_swings` | USSR Swings | TheLastCookie-404 | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/ussr-swings-57f6c19b214e440e8b9865f648102472) | `swings` | **ПРИНЯТО** | качели |
 | `dvor_transformer` | Old Soviet Transformer Low-Poly | MrUnity | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/old-soviet-transformer-low-poly-13124cf4ef264a2eabe79b92679d6d49) | `elbox_tall` | **ПРИНЯТО** | высокий электрошкаф, в запасе для хоздворов |
@@ -48,6 +66,7 @@
 | `dvor_ussr_bench` | USSR Bench | TheLastCookie-404 | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/ussr-bench-956f6cf08d7444379b21c57cadc7702d) | `bench_ussr` | **ПРИНЯТО** | лавки |
 | `dvor_white_tower` | White Tower, Uralmash, Constructivist | monray | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/white-tower-uralmash-constructivist-81fed59a7aa14a18a75c2df9fc59b8bd) | `white_tower` | **ПРИНЯТО** | водонапорная башня у ГСК |
 | `dvor_winter_tree` | Winter Tree | JSLGames | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/winter-tree-ec2a099dbb4e496e9fb85ee4ee68eff0) | `tree_winter` | **ПРИНЯТО** | голые деревья с ветками — разнообразие к сухим стволам |
+| `dvor_xmas_tree` | Christmas Decorated Outdoor Tree | shirlanne | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/christmas-decorated-outdoor-tree-1595e7274ffe4d05913732a0ec9f16ce) | `bush_bare` | **ПРИНЯТО** | голые кусты вдоль фасадов и по дворам |
 | `dvor_yard_shelter` | Gazebo 1 | Elasta Kristya | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/gazebo-1-9e1f69438b844f9e852d056892d29241) | `yard_shelter` | **ПРИНЯТО** | дворовый навес со столом и лавками: двор Пахана, у школы |
 | `electrical_box_-_free` | Electrical box - FREE | Mathieu Godard | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/electrical-box-free-383a234d6d80421fbe67080048cbbc70) | `elbox_green` | **ПРИНЯТО** | электрошкафы |
 | `fix_price_brutalist_low_poly_psx` | Fix Price brutalist low poly psx | bean(alwayshasbean) | CC-BY-NC-SA-4.0 | [Sketchfab](https://sketchfab.com/3d-models/fix-price-brutalist-low-poly-psx-75404df5d5e34ead8c49f0bc91a5256e) | — | **ОТКЛОНЕНО** | россыпь стен, не здание |
@@ -91,7 +110,7 @@
 | `wall_low_poly` | Wall low poly | adventurer | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/wall-low-poly-98ff2cd52fee41e09ca846e5bbd0521d) | `fence_concrete` | **В ЗАПАСЕ** | заменён «ромбиком» |
 | `zhiguli_soviet_cars` | Zhiguli Soviet Cars | spacelynxcanfly | CC-BY-4.0 | [Sketchfab](https://sketchfab.com/3d-models/zhiguli-soviet-cars-7c3f4bee5d37401d853d2206dc7859fc) | `car_zhiguli_1`, `car_zhiguli_2`, `car_zhiguli_3`, `car_zhiguli_4` | **ПРИНЯТО** | машины по всему району |
 
-Итог: ПРИНЯТО — 52, ОТКЛОНЕНО — 13, ОТЛОЖЕНО — 5, В ЗАПАСЕ — 5, НЕ ДЛЯ ДВОРА — 2, ПРИНЯТО С ОГОВОРКОЙ — 1, ПО ПРОСЬБЕ ВЛАДЕЛЬЦА — 1, ПРИНЯТО ЧАСТИЧНО — 1.
+Итог: ПРИНЯТО — 64, ОТКЛОНЕНО — 17, В ЗАПАСЕ — 8, ОТЛОЖЕНО — 5, НЕ ДЛЯ ДВОРА — 2, ПРИНЯТО С ОГОВОРКОЙ — 1, ПО ПРОСЬБЕ ВЛАДЕЛЬЦА — 1, ПРИНЯТО ЧАСТИЧНО — 1.
 
 ## Poly Haven (CC0)
 
@@ -107,6 +126,16 @@
 | Barrel 03 | Serhii Khromov | [Poly Haven](https://polyhaven.com/a/barrel_03) | `barrel_blue` | **ПРИНЯТО** | у гаражей и мастерской |
 | Metal Trash Can | GurJas Studios | [Poly Haven](https://polyhaven.com/a/metal_trash_can) | `trash_cans` | **ПРИНЯТО** | у киосков и школы |
 | Modular Electricity Poles | James Ray Cock | [Poly Haven](https://polyhaven.com/a/modular_electricity_poles) | — | **В ЗАПАСЕ** | деревянные столбы американского типа; взяты бетонные со Sketchfab |
+| Barrel Stove | MP | [Poly Haven](https://polyhaven.com/a/barrel_stove) | `barrel_stove` | **ПРИНЯТО** | бочки-печки с огнём у рынка и гаражей |
+| Boombox | Thomas Paul Mouilleron | [Poly Haven](https://polyhaven.com/a/boombox) | `boombox` | **ПРИНЯТО** | магнитофон на столе под навесом и в беседке |
+| Cardboard Box 01 | Rahul Chaudhary | [Poly Haven](https://polyhaven.com/a/cardboard_box_01) | `box_cardboard` | **ПРИНЯТО** | коробки за киосками |
+| Plastic Crate 01 | PierreB3D | [Poly Haven](https://polyhaven.com/a/plastic_crate_01) | `crate_plastic` | **ПРИНЯТО** | ящики за киосками |
+| Wooden Crate 02 | James Ray Cock, Jurita Burger | [Poly Haven](https://polyhaven.com/a/wooden_crate_02) | — | **ОТКЛОНЕНО** | старинный сундук |
+| Concrete Cat Statue | Rico Cilliers, Riley Queen | [Poly Haven](https://polyhaven.com/a/concrete_cat_statue) | `cat_statue` | **ПРИНЯТО** | бетонные коты у клумб |
+| Painted Wooden Bench | Kirill Sannikov | [Poly Haven](https://polyhaven.com/a/painted_wooden_bench) | — | **ОТКЛОНЕНО** | комнатная мебель |
+| Tree Stump 01 | Rob Tuytel | [Poly Haven](https://polyhaven.com/a/tree_stump_01) | `stump` | **ПРИНЯТО** | пни; 41 тыс. треугольников — для игры упростить |
+| Dead Tree Trunk | Rob Tuytel | [Poly Haven](https://polyhaven.com/a/dead_tree_trunk) | `log_dead` | **ПРИНЯТО** | брёвна на пустыре; 102 тыс. треугольников — для игры упростить |
+| Utility Box 01 | James Ray Cock | [Poly Haven](https://polyhaven.com/a/utility_box_01) | `utility_box` | **ПРИНЯТО** | серые шкафы у подъездов |
 
 ## Другие библиотеки
 

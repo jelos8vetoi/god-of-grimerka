@@ -1,0 +1,31 @@
+"""ДВОР, редизайн V5: шестая партия — декорации (Sketchfab CC-BY и Poly Haven CC0).
+blender --background --python tools/blender/dvor_extract6.py"""
+import os, json
+_src = open(os.path.join(os.path.dirname(__file__), 'dvor_extract2.py'), encoding='utf-8').read()
+exec(_src.split("whole('soviet_residential_building'")[0])
+
+whole('dvor_billboard_a', 'billboard_soviet', 'streets', 'советский щит «Учимся и работаем» (AspectStudios)', height=4.2)
+whole('dvor_billboard_b', 'billboard_ad', 'streets', 'рекламный щит на столбе (ne.k1t)', height=8.5)
+whole('dvor_crow_a', 'crow_1', 'props', 'ворона (Alexei Ostapenko)', height=0.42)
+whole('dvor_crow_b', 'crow_2', 'props', 'ворона, низкополигональная (Tsar Games)', height=0.36)
+whole('dvor_infostand', 'info_stand', 'props', 'доска объявлений (Annelida)')
+whole('dvor_laundry_a', 'laundry', 'props', 'бельевые верёвки с бельём (Khoa Nguyen)', height=2.3)
+whole('dvor_lenin', 'monument', 'props', 'памятник, белёный (SanyaTankov)', height=4.6)
+whole('dvor_mailbox', 'mailbox', 'props', 'синий почтовый ящик (bikravnis)', height=0.62)
+whole('dvor_manhole', 'manhole', 'streets', 'канализационный люк (Sirenko)', height=0.06)
+whole('dvor_pallets_b', 'pallets', 'props', 'поддоны (Anna Denisova)')
+whole('dvor_rocket', 'rocket_slide', 'props', 'ракета-горка (Occam)')
+whole('dvor_snowman_b', 'snowman', 'props', 'снеговик в цилиндре (Junaid Amin)', height=1.55)
+whole('dvor_sofa_a', 'sofa_set', 'props', 'старый диван и два кресла (MaX3Dd)', height=0.85)
+whole('dvor_xmas_tree', 'bush_bare', 'props', 'голый куст-деревце (shirlanne)', height=2.6)
+whole('ph_barrel_stove', 'barrel_stove', 'props', 'бочка-печка (Poly Haven, CC0)')
+whole('ph_boombox', 'boombox', 'props', 'магнитофон (Poly Haven, CC0)')
+whole('ph_cardboard_box_01', 'box_cardboard', 'props', 'картонная коробка (Poly Haven, CC0)')
+whole('ph_plastic_crate_01', 'crate_plastic', 'props', 'пластиковый ящик (Poly Haven, CC0)')
+whole('ph_concrete_cat_statue', 'cat_statue', 'props', 'бетонный кот (Poly Haven, CC0)', height=0.6)
+whole('ph_dead_tree_trunk', 'log_dead', 'props', 'сухое бревно (Poly Haven, CC0)')
+whole('ph_tree_stump_01', 'stump', 'props', 'пень (Poly Haven, CC0)')
+whole('ph_utility_box_01', 'utility_box', 'streets', 'серый электрошкаф (Poly Haven, CC0)')
+
+json.dump(LIB, open(os.path.join(OUT, 'library.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+print('DONE', len(LIB))
