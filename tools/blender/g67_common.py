@@ -14,6 +14,14 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "godot", "assets", "golda67")
 RENDERS = os.path.join(os.path.expanduser("~"), "Desktop", "GOLDA67_PLAYTEST_DEVIN", "blender_renders")
 TMP = os.path.join(os.environ.get("TEMP", "/tmp"), "g67_bake")
+PZ = bool(os.environ.get("G67_PZ"))          # район 2: glb в assets/golda67/podzemka, рендеры в blender_renders/podzemka, исходники .blend
+if PZ:
+    OUT = os.path.join(OUT, "podzemka")
+    RENDERS = os.path.join(RENDERS, "podzemka")
+    BLEND = os.path.join(ROOT, "godot", "assets", "golda67", "blender_source", "podzemka")
+    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(RENDERS, exist_ok=True)
+    os.makedirs(BLEND, exist_ok=True)
 FONT_BOLD = "C:/Windows/Fonts/arialbd.ttf"
 FONT_IMPACT = "C:/Windows/Fonts/impact.ttf"
 FONT_MONO = "C:/Windows/Fonts/consola.ttf"
@@ -560,13 +568,13 @@ def export(name, objs):
     return path
 
 
-MOVABLE = ("btn8", "knob", "antenna", "lid", "hose", "seat", "cass_door")
+MOVABLE = ("btn8", "knob", "antenna", "lid", "hose", "seat", "cass_door", "spit", "turnstile_gate", "turnstile_arm", "turnstile_rotor", "glass", "fortuna_sign_wheel", "receipt_roll", "plate", "wheel", "body", "head", "cheeks", "jaw", "tail", "ear_l", "ear_r", "paw_fr", "casino_reel_01", "casino_reel_02", "casino_reel_03", "spin_button", "bulbs_a", "bulbs_b", "sticker", "door_leaf", "shutter_sheet", "grille_leaf", "vent_wheel", "door_open")
 
 
 def _merge_static(name, objs):
     """Неподвижные части — в одну сетку (один вызов отрисовки вместо сотен), подвижные остаются отдельными узлами"""
-    stat = [o for o in objs if o.name.split(".")[0] not in MOVABLE]
-    mov = [o for o in objs if o.name.split(".")[0] in MOVABLE]
+    stat = [o for o in objs if o.name.split(".")[0] not in MOVABLE and not o.name.startswith("hole_")]
+    mov = [o for o in objs if o.name.split(".")[0] in MOVABLE or o.name.startswith("hole_")]
     if len(stat) > 1:
         stat = [join(name, stat)]
     return stat + mov
@@ -584,5 +592,7 @@ def finish(name, objs, views, size=1024, do_export=True):
     n = tris(objs)
     paths = render(name, views)
     p = export(name, objs) if do_export else ""
+    if PZ:
+        bpy.ops.wm.save_as_mainfile(filepath=os.path.join(BLEND, name + ".blend"), copy=True, compress=True)
     print("G67MODEL %s: треугольников %d, glb %s, рендеры %s" % (name, n, p, paths))
     return n
