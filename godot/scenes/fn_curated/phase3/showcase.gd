@@ -77,6 +77,3 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _exit_tree() -> void:
 	RenderingServer.global_shader_parameter_set("fn_ir", Vector4(0, -999, 0, 0))
-
-
-
