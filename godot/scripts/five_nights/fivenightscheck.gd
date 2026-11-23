@@ -383,6 +383,8 @@ func _ui_part() -> void:
 	await _hall_left(R, st)
 	await _ambience(R, st)
 	await _tension(R, st)
+	await _vents_check(R)
+	await _lock_lamps(R)
 	await _anomalies(R, st)
 	ok(R.cams.vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS, "рисуется только выбранная камера, пока монитор поднят")
 	await key(KEY_SPACE)
@@ -491,6 +493,89 @@ func _ui_part() -> void:
 	await wait(1.0)
 	_finish()
 
+## механизмы вентиляции: картинка следует за st.seal, логика мгновенная
+func _vents_check(R: FiveNightsRoot) -> void:
+	var st: FNNight = R.st
+	var O: FNOffice = R.office
+	var keep := [st.seal["l"], st.seal["t"]]
+	st.set_seal("l", false)
+	st.set_seal("t", false)
+	await wait(1.0)
+	var stops := [0]
+	var cn := func(_s: String, _c: bool): stops[0] += 1
+	O.seal_stop.connect(cn)
+	var nodes_ok: bool = O.get_node_or_null("Ventilation/WallGrate/DamperPivot") != null and O.get_node_or_null("Ventilation/CeilingHatch/LeafPivotL") != null and O.get_node_or_null("Ventilation/CeilingHatch/LeafPivotR") != null and O.get_node_or_null("Ventilation/CeilingHatch/Damper") == null
+	ok(nodes_ok, "механизмы вентиляции: DamperPivot, LeafPivotL, LeafPivotR есть, старой пластины Damper на люке нет")
+	var rep_ok := true
+	for side in ["l", "t"]:
+		var ang := func() -> float: return O.wall_pivot.rotation.x if side == "l" else O.leaf_l.rotation.z
+		var open0: bool = O.seal_k[side] == 0.0 and absf(float(ang.call()) - FNOffice.SEAL_OPEN_ANGLE) < 0.06
+		st.set_seal(side, true)
+		await wait(0.12)
+		var mid: bool = O.seal_k[side] > 0.05 and O.seal_k[side] < 0.95 and float(ang.call()) > 0.05 and float(ang.call()) < FNOffice.SEAL_OPEN_ANGLE - 0.05
+		await wait(0.9)
+		var shut: bool = O.seal_k[side] == 1.0 and absf(float(ang.call())) <= 0.02
+		st.set_seal(side, false)
+		await wait(0.9)
+		var open1: bool = O.seal_k[side] == 0.0 and absf(float(ang.call()) - FNOffice.SEAL_OPEN_ANGLE) < 0.06
+		rep_ok = rep_ok and open0 and mid and shut and open1
+		ok(open0 and mid and shut and open1, "заслонка «%s»: открыта → через 0,12 с на полпути → через 0,9 с закрыта (угол %.3f) → снова открыта" % [side, float(ang.call())])
+	ok(stops[0] == 4, "сигнал упора: ровно один на каждый завершённый ход (%d из 4)" % stops[0])
+	var before_n: int = stops[0]
+	for i in 6:
+		st.set_seal("l", i % 2 == 0)
+		await get_tree().process_frame
+	await wait(1.2)
+	ok(O.seal_k["l"] == (1.0 if st.seal["l"] else 0.0) and stops[0] - before_n == 1, "шесть переключений по одному на кадр: картинка равна состоянию, упор один (%d)" % (stops[0] - before_n))
+	O.seal_stop.disconnect(cn)
+	var sd := FNSound.get_stream("damper_close")
+	var so := FNSound.get_stream("damper_open")
+	var sp := FNSound.get_stream("damper_stop")
+	var snd_ok := true
+	for w in [sd, so, sp]:
+		snd_ok = snd_ok and w.loop_mode == AudioStreamWAV.LOOP_DISABLED and w.get_length() <= 0.6
+	ok(snd_ok, "звуки заслонок одноразовые и короткие (%.2f, %.2f, %.2f с)" % [sd.get_length(), so.get_length(), sp.get_length()])
+	st.set_seal("l", keep[0])
+	st.set_seal("t", keep[1])
+	await wait(1.0)
+
+## лампы блокировки на механизмах вентиляции
+func _lock_lamps(R: FiveNightsRoot) -> void:
+	var st: FNNight = R.st
+	var O: FNOffice = R.office
+	var keep := [st.seal["l"], st.seal["t"]]
+	st.set_seal("l", false)
+	st.set_seal("t", false)
+	await wait(2.0)
+	var present: bool = true
+	for p in ["Ventilation/WallGrate/LockLamp", "Ventilation/CeilingHatch/LockLamp"]:
+		present = present and O.get_node_or_null(p) != null and O.get_node_or_null(p + "/Glow") != null
+	ok(present, "лампы блокировки LockLamp и Glow есть у решётки и у люка")
+	for side in ["l", "t"]:
+		var lamp: MeshInstance3D = O.lock_lamp[side]
+		var glow: OmniLight3D = O.lock_glow[side]
+		st.set_seal(side, true)
+		var amber := false
+		for i in 12:
+			await get_tree().process_frame
+			amber = amber or lamp.material_override == O.mats["amber_led"]
+		await wait(1.0)
+		var red: bool = lamp.material_override == O.mats["red_led"] and glow.light_energy > 0.1
+		st.set_seal(side, false)
+		await wait(2.0)      # ход 0,52 с + догорание 0,8 с + запас
+		var dark: bool = lamp.material_override == O.mats["off_led"] and glow.light_energy < 0.02
+		ok(amber and red and dark, "лампа «%s»: в ходу янтарная (%s), закрыта — красная со светом %.2f, открыта, после хода и догорания — погашена (%.3f)" % [side, str(amber), glow.light_energy if red else -1.0, glow.light_energy])
+	st.set_seal("l", true)
+	await wait(1.0)
+	O.power_on = false
+	O._vents(st, 0.0)
+	var off_ok: bool = (O.lock_lamp["l"] as MeshInstance3D).material_override == O.mats["off_led"] and (O.lock_glow["l"] as OmniLight3D).light_energy == 0.0
+	O.power_on = true
+	ok(off_ok, "без питания лампа блокировки погашена, света нет")
+	st.set_seal("l", keep[0])
+	st.set_seal("t", keep[1])
+	await wait(1.0)
+
 ## после смерти: пять гибелей подряд со звуком и «ЕЩЁ РАЗ» — ничего не тянется в новую ночь
 func _after_death(R: FiveNightsRoot) -> void:
 	var quiet_keep := R.quiet
@@ -501,6 +586,21 @@ func _after_death(R: FiveNightsRoot) -> void:
 	var looped := 0
 	var alive := true
 	var reached := 0
+	# заслонки закрыты → новая ночь: картинка сразу открыта, сигнал упора не приходит
+	var O: FNOffice = R.office
+	var stops_n := [0]
+	var on_stop := func(_s: String, _c: bool): stops_n[0] += 1
+	O.seal_stop.connect(on_stop)
+	R.st.set_seal("l", true)
+	R.st.set_seal("t", true)
+	await wait(0.8)
+	var closed_before: bool = O.seal_k["l"] == 1.0 and O.seal_k["t"] == 1.0
+	stops_n[0] = 0
+	R.start_night(1)
+	var open_now: bool = O.seal_k["l"] == 0.0 and O.seal_k["t"] == 0.0 and absf(O.wall_pivot.rotation.x - FNOffice.SEAL_OPEN_ANGLE) < 0.06 and absf(O.leaf_l.rotation.z - FNOffice.SEAL_OPEN_ANGLE) < 0.06
+	await wait(0.3)
+	O.seal_stop.disconnect(on_stop)
+	ok(closed_before and open_now and stops_n[0] == 0, "заслонки закрыты → новая ночь: в первом же кадре обе открыты (seal_k 0, углы открытые), сигналов упора %d" % stops_n[0])
 	for c in causes:
 		R.start_night(1)
 		await until(func(): return R.state == "night" and R.intro_t <= 0.0, 10.0)
@@ -514,20 +614,22 @@ func _after_death(R: FiveNightsRoot) -> void:
 		await wait(1.0)
 		if dead:
 			reached += 1
+		var restart_ms := Time.get_ticks_msec()
 		R.start_night(R.night, R.levels)
 		await until(func(): return R.state == "night" and R.intro_t <= 0.0, 10.0)
 		await wait(3.0)
+		var since := float(Time.get_ticks_msec() - restart_ms) / 1000.0      # звук идёт в настоящем времени, часы проверки могут быть быстрее
 		for p in R.pool2:
 			var pl := p as AudioStreamPlayer
 			if pl.playing:
-				if pl.get_playback_position() > 5.0:
+				if pl.get_playback_position() > since + 0.25:
 					stuck += 1
 				if pl.stream is AudioStreamWAV and (pl.stream as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED:
 					looped += 1
 		for p in R.pool3:
 			var p3 := p as AudioStreamPlayer3D
 			if p3.playing:
-				if p3.get_playback_position() > 5.0:
+				if p3.get_playback_position() > since + 0.25:
 					stuck += 1
 				if p3.stream is AudioStreamWAV and (p3.stream as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED:
 					looped += 1

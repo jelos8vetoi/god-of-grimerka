@@ -38,8 +38,30 @@ const DOOR_Z := -0.4
 @onready var grate_x := grate.position.x
 @onready var hatch_y := hatch.position.y
 @onready var grate_eyes: Node3D = $Ventilation/WallGrate/Eyes
-@onready var wall_damper: MeshInstance3D = $Ventilation/WallGrate/Damper
-@onready var top_damper: MeshInstance3D = $Ventilation/CeilingHatch/Damper
+@onready var wall_pivot: Node3D = $Ventilation/WallGrate/DamperPivot
+@onready var leaf_l: Node3D = $Ventilation/CeilingHatch/LeafPivotL
+@onready var leaf_r: Node3D = $Ventilation/CeilingHatch/LeafPivotR
+signal seal_stop(s: String, closed: bool)
+const SEAL_CLOSE := 0.36            # с: клапан падает
+const SEAL_OPEN := 0.52             # с: привод поднимает
+const SEAL_OPEN_ANGLE := 1.5        # рад: заслонка откинута в шахту (≈86°)
+const LOCK_BLINK_HZ := 8.0          # янтарная лампа блокировки мигает в ходу, горит 60 % периода
+const LOCK_BLINK_DUTY := 0.6
+const LOCK_E_MOVE := 0.55           # свет лампы: янтарный в ходу и при догорании после открытия
+const LOCK_E_CLOSED := 0.3          # красный свет у закрытой
+const LOCK_E_RATE := 6.0            # ед./с: плавная смена вне мигания
+const LOCK_AFTERGLOW := 0.8         # с: янтарное догорание после упора открытой
+const LOCK_AMBER := Color(1.0, 0.6, 0.2)
+const LOCK_RED := Color(1.0, 0.12, 0.08)
+const SLAT_CLOSED_K := 0.04545      # ламели люка: закрыто −0.05 рад при открытых −1.1
+var seal_k := {"l": 0.0, "t": 0.0}          # видимое положение: 0 открыто … 1 закрыто
+var seal_dir := {"l": 0, "t": 0}            # 1 закрывается, −1 открывается, 0 стоит
+var seal_since := {"l": 9.0, "t": 9.0}      # секунд с начала хода или с остановки
+var seal_hit_t := {"l": 9.0, "t": 9.0}      # секунд с удара MADK1D по закрытой заслонке
+var slats: Array = []
+var lock_lamp := {}
+var lock_glow := {}
+var slat_open: Array = []
 @onready var crank: Node3D = $WallFixtures/HandGenerator/Crank
 @onready var crank_rest := crank.rotation.z
 @onready var record_light: MeshInstance3D = $WallFixtures/SecurityCamera/RecordLight
@@ -137,6 +159,7 @@ func _mats() -> void:
 	mats["red_led"] = _glow(Color(1.0, 0.08, 0.05), 3.0)
 	mats["green_led"] = _glow(Color(0.25, 1.0, 0.35), 2.2)
 	mats["off_led"] = _m(Color(0.08, 0.06, 0.06), 0.4)
+	mats["amber_led"] = _glow(Color(1.0, 0.55, 0.08), 3.0)
 	mats["eye"] = _glow(Color(1.0, 0.92, 0.85), 6.0)
 	mats["eye_red"] = _glow(Color(1.0, 0.1, 0.06), 7.0)
 
@@ -267,6 +290,114 @@ func alarm_pulse(danger: bool, dt: float) -> void:
 	alarm_lamp.light_energy = lerpf(alarm_lamp.light_energy, want, 1.0 - exp(-6.0 * dt))
 	alarm_lens.material_override = mats["red_led"] if power_on and alarm_lamp.light_energy > 0.35 else mats["red"]
 
+## заслонки вентиляции: картинка следует за st.seal каждый кадр (без твинов — ничто не застрянет); логика закрывается мгновенно
+func _vents(st: FNNight, dt: float, snap := false) -> void:
+	if slats.is_empty():
+		for i in 6:
+			var sl := hatch.get_node_or_null("Slat%d" % (i + 1)) as Node3D
+			if sl != null:
+				slats.append(sl)
+				slat_open.append(sl.rotation.z)
+	if lock_lamp.is_empty():
+		lock_lamp["l"] = $Ventilation/WallGrate/LockLamp
+		lock_lamp["t"] = $Ventilation/CeilingHatch/LockLamp
+		lock_glow["l"] = $Ventilation/WallGrate/LockLamp/Glow
+		lock_glow["t"] = $Ventilation/CeilingHatch/LockLamp/Glow
+	var mad: FNEnemy = st.enemies["madk1d"]
+	for s in ["l", "t"]:
+		var goal := 1.0 if st.seal[s] else 0.0
+		var k: float = seal_k[s]
+		if snap:
+			k = goal
+			seal_dir[s] = 0
+			seal_since[s] = 9.0
+			seal_hit_t[s] = 9.0
+		elif k != goal:
+			var dirn := 1 if goal > k else -1
+			if int(seal_dir[s]) != dirn:
+				seal_dir[s] = dirn
+				seal_since[s] = 0.0
+			seal_since[s] = float(seal_since[s]) + dt
+			k = move_toward(k, goal, dt / (SEAL_CLOSE if dirn > 0 else SEAL_OPEN))
+			if k == goal:
+				seal_dir[s] = 0
+				seal_since[s] = 0.0
+				seal_stop.emit(s, goal > 0.5)
+		else:
+			seal_since[s] = float(seal_since[s]) + dt
+		seal_hit_t[s] = float(seal_hit_t[s]) + dt
+		seal_k[s] = k
+		var moving := int(seal_dir[s]) != 0
+		_lock_lamp(s, st, k, moving, dt, snap)
+		var closing := int(seal_dir[s]) > 0 or (not moving and k >= 0.5)
+		var f := 0.0
+		if closing:
+			f = 1.0 - k * k                                  # падает под весом
+		else:
+			f = 1.0 - pow(k, 3.0)                            # привод: быстрый срыв, мягкий упор
+		var ss: float = seal_since[s]
+		var extra := 0.0
+		var jolt := 0.0
+		if not moving and k >= 1.0:
+			extra += 0.087 * exp(-ss * 14.0) * absf(sin(ss * 38.0))      # отскок листа, ≤5°
+			jolt += 0.003 * exp(-ss * 10.0) * sin(ss * 60.0)
+			if mad.level > 0 and mad.spot == "vent_" + s:
+				extra += 0.021 * sin(t * 70.0) * (1.0 if fposmod(t, 1.3) < 0.35 else 0.0)      # дребезжит, пока MADK1D за ним
+		elif not moving:
+			extra += 0.02 * exp(-ss * 8.0) * sin(ss * 40.0)
+			jolt += 0.0015 * exp(-ss * 8.0) * sin(ss * 50.0)
+		elif int(seal_dir[s]) < 0:
+			extra += 0.05 * exp(-ss * 25.0) * sin(ss * 80.0)                # срыв защёлки
+		var ht: float = seal_hit_t[s]
+		extra += 0.07 * exp(-ht * 14.0) * sin(ht * 50.0)
+		jolt += 0.004 * exp(-ht * 12.0) * sin(ht * 70.0)
+		var ang := SEAL_OPEN_ANGLE * f + extra
+		if s == "l":
+			wall_pivot.rotation.x = ang
+			var at_l: bool = mad.spot == "vent_l" and mad.level > 0 and not st.seal["l"]
+			grate.position.x = grate_x + jolt + (sin(t * 37.0) * 0.004 if at_l else 0.0)
+		else:
+			leaf_l.rotation.z = ang
+			leaf_r.rotation.z = -ang
+			hatch.position.y = hatch_y - 0.02 * k + jolt
+			for i in slats.size():
+				(slats[i] as Node3D).rotation.z = float(slat_open[i]) * lerpf(1.0, SLAT_CLOSED_K, k)
+
+## лампа блокировки на раме: нет питания — погашена, в ходу — мигает янтарным, закрыта — красная, открыта — гаснет с догоранием
+func _lock_lamp(s: String, st: FNNight, k: float, moving: bool, dt: float, snap: bool) -> void:
+	var lamp: MeshInstance3D = lock_lamp[s]
+	var glow: OmniLight3D = lock_glow[s]
+	var live: bool = power_on and not st.glitches.has("leds_off")
+	var mat: Material = mats["off_led"]
+	var want := 0.0
+	var col := LOCK_AMBER
+	if live:
+		if moving:
+			if fposmod(t, 1.0 / LOCK_BLINK_HZ) < LOCK_BLINK_DUTY / LOCK_BLINK_HZ:
+				mat = mats["amber_led"]
+				want = LOCK_E_MOVE
+		elif k >= 1.0:
+			mat = mats["red_led"]
+			want = LOCK_E_CLOSED
+			col = LOCK_RED
+		else:
+			want = LOCK_E_MOVE * clampf(1.0 - float(seal_since[s]) / LOCK_AFTERGLOW, 0.0, 1.0)
+	lamp.material_override = mat
+	glow.light_color = col
+	if moving or snap or not live:
+		glow.light_energy = want
+	else:
+		glow.light_energy = move_toward(glow.light_energy, want, LOCK_E_RATE * dt)
+
+## картинка сразу равна состоянию (новая ночь): без отскоков и сигналов
+func seal_reset(st: FNNight) -> void:
+	_vents(st, 0.0, true)
+
+## MADK1D ударил в закрытую заслонку и уходит
+func seal_bang(s: String) -> void:
+	if seal_hit_t.has(s):
+		seal_hit_t[s] = 0.0
+
 func instab_eff() -> float:
 	return clampf(instab + 0.25 * tension_k, 0.0, 1.0)
 
@@ -303,12 +434,9 @@ func tick(st: FNNight, dt: float, look_in: float) -> void:
 	var mad: FNEnemy = st.enemies["madk1d"]
 	var at_l := mad.spot == "vent_l"
 	var at_t := mad.spot == "vent_t"
-	grate.position.x = grate_x + (sin(t * 37.0) * 0.004 if at_l and not st.seal["l"] else 0.0)
-	grate_eyes.visible = at_l and (st.light["l"] or fposmod(t, 2.4) < 0.25)
+	_vents(st, dt)
+	grate_eyes.visible = at_l and seal_k["l"] < 0.5 and (st.light["l"] or fposmod(t, 2.4) < 0.25)
 	hatch.rotation.z = sin(t * 29.0) * 0.012 if at_t and not st.seal["t"] else 0.0
-	hatch.position.y = hatch_y - (0.02 if st.seal["t"] else 0.0)
-	wall_damper.visible = st.seal["l"]
-	top_damper.visible = st.seal["t"]
 	crank.rotation.z = lerp_angle(crank.rotation.z, crank_rest - st.crank_p * 1.6, 1.0 - exp(-18.0 * dt))
 
 ## Критически затухающая пружина. Углы и область взгляда GHOST остаются в координатах FNNight.

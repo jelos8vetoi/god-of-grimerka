@@ -80,6 +80,7 @@ func _ready() -> void:
 	actors = FNActors.new()
 	add_child(actors)
 	actors.build(office, fac)
+	office.seal_stop.connect(_on_seal_stop)
 	cams = FNCams.new()
 	add_child(cams)
 	cams.build(fac, get_world_3d())
@@ -213,6 +214,10 @@ func hush_end() -> void:
 
 func _snd_ok() -> bool:
 	return not quiet or (main != null and main.audiolog)
+
+## заслонка дошла до упора: глухой удар (закрытая — громче и ниже)
+func _on_seal_stop(s: String, closed: bool) -> void:
+	sfx3("damper_stop", FNOffice.point("vent_" + s), -4.0 if closed else -11.0, 1.0 if closed else 1.25)
 
 ## зацикленный поток в одноразовом пуле не играем: он звучал бы до конца процесса
 func _loop_stream(s: AudioStream, id: String) -> bool:
@@ -354,6 +359,7 @@ func start_night(n: int, lv := {}) -> void:
 		FNSave.put("current", n)
 	st = FNNight.new()
 	st.setup(n, int(Time.get_ticks_usec() % 2147483647), lv)
+	office.seal_reset(st)
 	menu.visible = false
 	ui.hud.visible = true
 	ui.night_begin(n, first_time)
@@ -611,6 +617,8 @@ func _on_event(k: String, d: Dictionary) -> void:
 			ambience.hold(6.0)
 			var at := String(d["at"])
 			sfx3("vent_bang" if at.begins_with("vent") else "door_down", FNOffice.point(at), 4.0, 0.7)
+			if at.begins_with("vent"):
+				office.seal_bang(at.substr(5))
 			office.shake = 0.5
 			if not said_door and at.begins_with("door"):
 				said_door = true
@@ -635,6 +643,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 				sfx3("click", office.lights[String(d["s"])].global_position, -10.0, 1.3)
 		"seal":
 			sfx3("click", FNOffice.point("vent_" + String(d["s"])), -4.0, 0.8)
+			sfx3("damper_close" if bool(d.get("closed", st.seal[String(d["s"])])) else "damper_open", FNOffice.point("vent_" + String(d["s"])), -5.0)
 			office.press("seal_" + String(d["s"]))
 			ui.toast("seal_" + String(d["s"]))
 		"monitor":
