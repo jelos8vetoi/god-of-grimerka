@@ -20,6 +20,9 @@ const BLOCKED_GAME_ACTIONS := [
 const BUILTIN_TRACKS := [
 	{"id": "dynasty", "title": "Dynasty", "artist": "GOD OF GRIMERKA", "path": "res://assets/audio/music_dynasty.mp3", "local": false},
 ]
+## Приквел «ГОЛДА 67»: плейлист «Любимые треки Пахана» (G67Data.PLAYLIST) живёт и в iPod; в кампании его нет
+const G67_PAGE := "Любимые треки Пахана"
+
 const PAGES := {
 	"Menu": ["Музыка", "Плейлисты", "Сейчас играет", "Настройки"],
 	"Музыка": ["Встроенная музыка"],
@@ -126,6 +129,7 @@ func _ready() -> void:
 		tracks.clear()
 		for builtin in BUILTIN_TRACKS:
 			tracks.append((builtin as Dictionary).duplicate(true))
+	_sync_g67()
 	_build_file_dialog()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -348,6 +352,7 @@ func toggle() -> void:
 func open() -> void:
 	if opened:
 		return
+	_sync_g67()
 	# A reopen during the closing tween continues the same input context. Do not
 	# replace the saved captured-mouse mode with the temporary visible mode.
 	var continuing_context := input_captured
@@ -948,6 +953,10 @@ func _select_track(index: int, play_now := true, from_time := 0.0) -> void:
 	if stream == null:
 		game.toast("Не удалось прочитать аудиофайл")
 		return
+	if bool(tracks[index].get("g67", false)) and game != null and game.get("golda") != null:
+		var gph = game.golda.phone_get()
+		if gph != null:
+			gph.stop()                      # один звук за раз: вкладка паузы замолкает
 	track_index = index
 	player.stream = stream
 	player.play(maxf(0.0, from_time))
@@ -1314,6 +1323,16 @@ func _cover_used_elsewhere(path: String, ignored_index: int) -> bool:
 
 func _cover_for_track(track: Dictionary) -> Texture2D:
 	var path := String(track.get("cover", ""))
+	if path.begins_with("res://"):
+		if cover_cache.has(path):
+			return cover_cache[path] as Texture2D
+		if not ResourceLoader.exists(path):
+			return null
+		var rt = load(path)                      # res:// — только через load (в экспорте файла webp нет, есть импорт)
+		if rt is Texture2D:
+			cover_cache[path] = rt
+			return rt
+		return null
 	if path == "" or not FileAccess.file_exists(path):
 		return null
 	if cover_cache.has(path):
@@ -1411,13 +1430,55 @@ func _label(text: String, size: int, color: Color, bold := false) -> Label:
 	return l
 
 
+func _is_g67() -> bool:
+	return game != null and game.get("golda") != null
+
+## Треки плейлиста приквела в списке iPod (не сохраняются: пишутся только local); идемпотентно
+func _sync_g67() -> void:
+	var cur_id := String(tracks[track_index]["id"]) if track_index >= 0 and track_index < tracks.size() else ""
+	tracks.assign(tracks.filter(func(t): return not bool(t.get("g67", false))))
+	if _is_g67():
+		var files: Dictionary = G67Phone.files()
+		for i in G67Data.PLAYLIST.size():
+			var no: int = int(G67Data.PLAYLIST[i][0])
+			if files.has(no):
+				tracks.append({"id": "g67_%02d" % no, "title": String(G67Data.PLAYLIST[i][2]), "artist": String(G67Data.PLAYLIST[i][1]), "album": G67_PAGE, "cover": G67Phone.COVER, "path": String(files[no]), "local": false, "g67": true})
+	if cur_id != "":
+		track_index = -1
+		for i in tracks.size():
+			if String(tracks[i]["id"]) == cur_id:
+				track_index = i
+
+func g67_tracks() -> Array:
+	return tracks.filter(func(t): return bool(t.get("g67", false)))
+
+func g67_playing() -> bool:
+	return player != null and player.playing and track_index >= 0 and track_index < tracks.size() and bool(tracks[track_index].get("g67", false))
+
+## Запуск из вкладки паузы (G67Phone) останавливает плеер iPod, если у него играет трек плейлиста
+func stop_g67() -> void:
+	if g67_playing():
+		player.stop()
+		_refresh()
+
+func _page_tracks(p: String) -> Array:
+	match p:
+		"Встроенная музыка": return tracks.filter(func(t): return not bool(t.get("local", false)) and not bool(t.get("g67", false)))
+		"Моя музыка": return tracks.filter(func(t): return bool(t.get("local", false)))
+		G67_PAGE: return g67_tracks()
+	return tracks
+
 func _items() -> Array:
+	if page == "Плейлисты":
+		return ([G67_PAGE] if _is_g67() else []) + ["Все треки", "Встроенная музыка", "Моя музыка"]
+	if page == G67_PAGE:
+		return g67_tracks().map(func(track): return String(track["title"]))
 	if page == "Музыка":
 		var result: Array = tracks.map(func(track): return String(track["title"]))
 		result.append("Добавить свою музыку")
 		return result
 	if page == "Встроенная музыка":
-		return tracks.filter(func(track): return not bool(track.get("local", false))).map(func(track): return String(track["title"]))
+		return _page_tracks(page).map(func(track): return String(track["title"]))
 	if page == "Моя музыка":
 		var mine: Array = tracks.filter(func(track): return bool(track.get("local", false))).map(func(track): return String(track["title"]))
 		mine.append("Добавить свою музыку")
@@ -1528,12 +1589,8 @@ func _select() -> void:
 		if page == "Музыка":
 			_select_track(selected)
 			return
-		if page in ["Все треки", "Встроенная музыка", "Моя музыка"]:
-			var filtered := tracks
-			if page == "Встроенная музыка":
-				filtered = tracks.filter(func(track): return not bool(track.get("local", false)))
-			elif page == "Моя музыка":
-				filtered = tracks.filter(func(track): return bool(track.get("local", false)))
+		if page in ["Все треки", "Встроенная музыка", "Моя музыка", G67_PAGE]:
+			var filtered := _page_tracks(page)
 			if selected < filtered.size():
 				_select_track(tracks.find(filtered[selected]))
 			return
