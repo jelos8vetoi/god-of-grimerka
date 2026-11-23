@@ -320,11 +320,11 @@ func dev_tip(st: FNNight, id: String) -> String:
 	return "%s   [%s]\n%s" % [head, D["key"], D["tip"]]
 
 func _deck_tick(st: FNNight) -> void:
-	var show: bool = tablet_k < 0.5 and not st.power_out and (card == null or card.get_child_count() == 0) and not pause_box.visible and String(root.state) == "night"
-	show = show and (deck_pin or deck_learn_left > 0.0)
-	deck.visible = show
-	if show != deck_shown:
-		deck_shown = show
+	var on2: bool = tablet_k < 0.5 and not st.power_out and (card == null or card.get_child_count() == 0) and not pause_box.visible and String(root.state) == "night"
+	on2 = on2 and (deck_pin or deck_learn_left > 0.0)
+	deck.visible = on2
+	if on2 != deck_shown:
+		deck_shown = on2
 		_layout.call_deferred()
 	var hover := tip_id if tip_id != "" else tip_3d
 	for id in deck_rows:
@@ -340,8 +340,8 @@ func _deck_tick(st: FNNight) -> void:
 		sb.set_border_width_all(2 if on or hover == id else 1)
 		(r["name"] as Label).add_theme_color_override("font_color", MGUI.TEXT_3 if dis else MGUI.TEXT)
 		(r["panel"] as Control).modulate.a = 0.6 if dis else 1.0
-	var tip := dev_tip(st, hover) if show and hover != "" else ""
-	if tip == "" and show and look_hint:
+	var tip := dev_tip(st, hover) if on2 and hover != "" else ""
+	if tip == "" and on2 and look_hint:
 		tip = "Осмотреться — мышь к краю экрана или стрелки ← →. Пульт внизу: клавиша, устройство, состояние."
 	if tip_l.text != tip:
 		tip_l.text = tip
@@ -676,6 +676,7 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 		var b: ColorRect = usage_bars[k]
 		b.color = (RED if k >= 3 else Color(0.85, 0.82, 0.75)) if k < st.usage else Color(0.2, 0.2, 0.2, 0.7)
 	var eta := st.time_left()
+	@warning_ignore("integer_division")
 	var e_txt := ("хватит на ~%d:%02d" % [int(eta) / 60, int(eta) % 60]) if not hide_usage and not st.power_out else ("нагрузка: нет данных" if hide_usage else "")
 	eta_l.text = e_txt
 	power_box.visible = not st.power_out
@@ -805,10 +806,10 @@ func _column(w: float) -> VBoxContainer:
 	cc.add_child(v)
 	return v
 
-func _line(v: VBoxContainer, text: String, style: String, col: Color, wrap := true) -> Label:
+func _line(v: VBoxContainer, text: String, style: String, col: Color, wrap_n := true) -> Label:
 	var l := MGUI.label(text, style, col)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	if wrap:
+	if wrap_n:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(l)
 	return l

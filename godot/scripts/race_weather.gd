@@ -82,35 +82,35 @@ func setup(r, weather: String, happenings: bool, seed_v: int) -> void:
 
 # ---------------- вид ----------------
 func _look() -> void:
-	var tr: RaceTrack = race.track
-	for c in tr.get_children():
+	var xf: RaceTrack = race.track
+	for c in xf.get_children():
 		if c is WorldEnvironment:
 			env = (c as WorldEnvironment).environment
 		elif c is DirectionalLight3D and sun == null:
 			sun = c
 	if env != null:
 		env.fog_density = float(W.get("fog", 0.0032))
-		if W.has("sky") and not (tr.winter() and not bool(W.get("night", false))):      # у зимней трассы небо своё
+		if W.has("sky") and not (xf.winter() and not bool(W.get("night", false))):      # у зимней трассы небо своё
 			var sm := env.sky.sky_material as ProceduralSkyMaterial
 			sm.sky_top_color = W["sky"][0]
 			sm.sky_horizon_color = W["sky"][1]
 			sm.ground_horizon_color = (W["sky"][1] as Color).darkened(0.2)
 			env.fog_light_color = (W["sky"][1] as Color).darkened(0.1)
 		if bool(W.get("night", false)):
-			env.ambient_light_energy = 0.55 if tr.winter() else 0.25      # на снегу ночью светлее, и дорогу должно быть видно
+			env.ambient_light_energy = 0.55 if xf.winter() else 0.25      # на снегу ночью светлее, и дорогу должно быть видно
 			env.glow_intensity = 1.0
 	if sun != null and W.has("light"):
 		sun.light_energy = float(W["light"])
 	if id == "rain" or id == "ice":
-		var road: StandardMaterial3D = tr.mats["road"]
+		var road: StandardMaterial3D = xf.mats["road"]
 		if id == "rain":
 			road.roughness = 0.18
 			road.metallic = 0.25
 		else:
 			road.albedo_color = Color(0.55, 0.58, 0.62)
 			road.roughness = 0.25
-			(tr.mats["ground"] as StandardMaterial3D).albedo_color = Color(0.82, 0.84, 0.88)
-			(tr.mats["shoulder"] as StandardMaterial3D).albedo_color = Color(0.7, 0.72, 0.76)
+			(xf.mats["ground"] as StandardMaterial3D).albedo_color = Color(0.82, 0.84, 0.88)
+			(xf.mats["shoulder"] as StandardMaterial3D).albedo_color = Color(0.7, 0.72, 0.76)
 	if id in ["rain", "ice", "dust", "wind"]:
 		particles = _precip(id)
 	if bool(W.get("night", false)):
@@ -146,9 +146,9 @@ func _precip(kind: String) -> GPUParticles3D:
 	return p
 
 func _night_lights() -> void:
-	var tr: RaceTrack = race.track
+	var xf: RaceTrack = race.track
 	var n := 0
-	for c in tr.get_children():
+	for c in xf.get_children():
 		if c is Node3D and String(c.name).begins_with("street_lamp") and n < 24:
 			var l := OmniLight3D.new()
 			l.light_color = Color(1.0, 0.78, 0.45)
@@ -161,13 +161,13 @@ func _night_lights() -> void:
 	if n == 0:
 		# фонарей-моделей нет — свет вдоль дороги через каждые 40 м
 		var s := 0.0
-		while s < tr.L and n < 20:
-			var i := tr.at_s(s)
+		while s < xf.L and n < 20:
+			var i := xf.at_s(s)
 			var l2 := OmniLight3D.new()
 			l2.light_color = Color(1.0, 0.78, 0.45)
 			l2.light_energy = 2.0
 			l2.omni_range = 16.0
-			l2.position = tr.P[i] + tr.T[i].cross(Vector3.UP) * (tr.W[i] * 0.5 + 2.5) + Vector3(0, 5.5, 0)
+			l2.position = xf.P[i] + xf.T[i].cross(Vector3.UP) * (xf.W[i] * 0.5 + 2.5) + Vector3(0, 5.5, 0)
 			add_child(l2)
 			lamps.append(l2)
 			s += 40.0

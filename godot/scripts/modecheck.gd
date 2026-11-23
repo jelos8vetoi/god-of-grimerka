@@ -16,7 +16,7 @@ var exit_pressed := false
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 	AudioServer.set_bus_mute(0, true)
 	_run()
 
@@ -69,10 +69,10 @@ func hover(c: Control) -> void:
 	Input.parse_input_event(m)
 	await wait(0.15)
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
-	img.save_png(out.path_join("%s_%dx%d.png" % [name, img.get_width(), img.get_height()]))
+	img.save_png(out.path_join("%s_%dx%d.png" % [nm, img.get_width(), img.get_height()]))
 
 func until(cond: Callable, sec: float) -> bool:
 	var t0 := GameClock.ms()
@@ -107,9 +107,9 @@ func panel_names(mm) -> Array:
 	return r
 
 ## пункт экрана с таким текстом
-func pick(mm, name: String) -> bool:
+func pick(mm, nm: String) -> bool:
 	var names := panel_names(mm)
-	var i := names.find(name)
+	var i := names.find(nm)
 	if i < 0:
 		return false
 	mm._panel_select(i, false)
@@ -330,8 +330,8 @@ func _run() -> void:
 	mm.train_hero = "pahan"
 	mm.train_style = "vozduh"
 	await key(KEY_ENTER)
-	var tr: bool = await until(func(): return main.game != null and is_instance_valid(main.game) and main.game.training != null and main.game.training.targets.size() >= 3, 20.0)
-	ok(tr, "TRAINING ARENA запускается с экрана режимов")
+	var xf: bool = await until(func(): return main.game != null and is_instance_valid(main.game) and main.game.training != null and main.game.training.targets.size() >= 3, 20.0)
+	ok(xf, "TRAINING ARENA запускается с экрана режимов")
 	await wait(2.0)
 	await shot("10_training_game")
 	await to_menu()

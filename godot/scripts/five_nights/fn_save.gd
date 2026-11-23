@@ -25,7 +25,8 @@ static func load_all() -> Dictionary:
 	for p in [PATH, PATH + ".bak"]:
 		if not FileAccess.file_exists(p):
 			continue
-		var d = JSON.parse_string(FileAccess.get_file_as_string(p))
+		var jp := JSON.new()      # повреждённый файл — не ошибка в журнале, берём резервную копию
+		var d = jp.data if jp.parse(FileAccess.get_file_as_string(p)) == OK else null
 		if d is Dictionary and int(d.get("schema", 0)) >= 1:
 			_merge(d)
 			return data

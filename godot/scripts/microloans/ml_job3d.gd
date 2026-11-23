@@ -73,7 +73,7 @@ func setup_3d(bg := Color(0.02, 0.02, 0.03), ambient := Color(0.5, 0.5, 0.55), a
 		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 
 ## модель из файла, вписанная по длинной стороне в size (м), основанием на пол, центр — в начале координат
-func fit_model(path: String, parent: Node, size: float) -> Node3D:
+func fit_model(path: String, parent: Node, sz: float) -> Node3D:
 	var holder := Node3D.new()
 	parent.add_child(holder)
 	var ps := load(path) as PackedScene
@@ -85,7 +85,7 @@ func fit_model(path: String, parent: Node, size: float) -> Node3D:
 	var bb := AABB()
 	for i in acc.size():
 		bb = acc[i] if i == 0 else bb.merge(acc[i])
-	var s := size / maxf(0.001, maxf(bb.size.x, maxf(bb.size.y, bb.size.z)))
+	var s := sz / maxf(0.001, maxf(bb.size.x, maxf(bb.size.y, bb.size.z)))
 	holder.add_child(m)
 	m.scale = Vector3.ONE * s
 	var c := bb.get_center()

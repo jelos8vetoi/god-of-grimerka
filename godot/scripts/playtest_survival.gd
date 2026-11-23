@@ -64,9 +64,9 @@ func until(cond: Callable, sec: float) -> bool:
 		await get_tree().process_frame
 	return bool(cond.call())
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm + ".png"))
 
 func hold(k: Key, on: bool) -> void:
 	if bool(held.get(k, false)) == on:
@@ -208,9 +208,9 @@ func _process(dt: float) -> void:
 	if ready_in(17.0):
 		tap(KEY_Q)
 
-func _later_shot(name: String, t: float) -> void:
+func _later_shot(nm: String, t: float) -> void:
 	await wait(t)
-	await shot(name)
+	await shot(nm)
 
 ## окно усилений: игра на паузе, выбор клавишей 1 / 2 / 3
 func _draft(g) -> void:

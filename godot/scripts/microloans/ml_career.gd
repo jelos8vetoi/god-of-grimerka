@@ -256,10 +256,10 @@ func biz_value(id: String) -> int:
 	if lv <= 0:
 		return 0
 	var B: Dictionary = MLTree.BUSINESSES[id]
-	var v := int(B["buy"])
+	var vv := int(B["buy"])
 	for k in lv - 1:
-		v += int(B["up"][k])
-	return v + int(B["hire"]) * int(biz(id).get("staff", 0))
+		vv += int(B["up"][k])
+	return vv + int(B["hire"]) * int(biz(id).get("staff", 0))
 
 ## коллекторы забирают имущество в счёт долга (конец недели в «яме»): сначала увольняют сотрудников, потом
 ## снимают уровни — всё уходит за полцены. Возвращает, сколько долга это покрыло, и что забрали.
@@ -276,12 +276,16 @@ func seize(amount: int) -> Dictionary:
 			var lv := int(b["lv"])
 			if int(b.get("staff", 0)) > 0:
 				b["staff"] = int(b["staff"]) - 1
+				@warning_ignore("integer_division")
 				got += int(B["hire"]) / 2
+				@warning_ignore("integer_division")
 				lines.append("%s: уволен сотрудник (в счёт долга %d ₽)" % [B["name"], int(B["hire"]) / 2])
 			else:
 				var cost := int(B["buy"]) if lv == 1 else int(B["up"][lv - 2])
 				b["lv"] = lv - 1
+				@warning_ignore("integer_division")
 				got += cost / 2
+				@warning_ignore("integer_division")
 				lines.append("%s: %s (в счёт долга %d ₽)" % [B["name"], "бизнес отобран" if lv == 1 else "уровень %d → %d" % [lv, lv - 1], cost / 2])
 				if lv == 1:
 					(d["biz"] as Dictionary).erase(id)
@@ -439,6 +443,7 @@ func prestige_ready() -> bool:
 ## сколько АВТОРИТЕТА даст престиж сейчас
 func prestige_points() -> int:
 	# вехи считаются только за этот цикл: старые сохраняются, но АВТОРИТЕТА второй раз не дают
+	@warning_ignore("integer_division")
 	return int(floor(sqrt(float(stat("earned")) / 25000.0))) + int(d["level"]) / 3 + int(d.get("ms_cycle", 0)) / 2
 
 ## что потеряется / сохранится — для экрана подтверждения

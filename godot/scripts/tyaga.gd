@@ -111,16 +111,16 @@ static func to_model(pt: Vector3) -> Vector3:
 ## Насколько вершина модели принадлежит трубе: 1 — труба и щётка, 0 — корпус, между — шланг (по высоте).
 ## Модель — один кусок, части различаются только положением: труба идёт наискось от щётки (x ≈ −49, y = 0)
 ## к ручке (x ≈ 17, y ≈ 94), шланг спускается от ручки сзади (x > 33) и по полу уходит в корпус (y < 38).
-static func hose_w(v: Vector3) -> float:
-	if v.y > 85.0:
+static func hose_w(vel: Vector3) -> float:
+	if vel.y > 85.0:
 		return 1.0
-	var line: float = 0.70 * v.y - 49.0
-	var by_h: float = smoothstep(12.0, 85.0, v.y)
-	if v.y <= 38.0:
-		if v.x < (-17.0 if v.y < 14.0 else line + 12.0):
+	var line: float = 0.70 * vel.y - 49.0
+	var by_h: float = smoothstep(12.0, 85.0, vel.y)
+	if vel.y <= 38.0:
+		if vel.x < (-17.0 if vel.y < 14.0 else line + 12.0):
 			return 1.0
-		return by_h * smoothstep(30.0, 38.0, v.x)
-	if v.x < line + 14.0:
+		return by_h * smoothstep(30.0, 38.0, vel.x)
+	if vel.x < line + 14.0:
 		return 1.0
 	return by_h
 
@@ -182,12 +182,12 @@ func _wand_update() -> void:
 		return
 	var sk: Skeleton3D = prig.skel
 	var q := Quaternion.IDENTITY
-	var tr := Vector3.ZERO
+	var xf := Vector3.ZERO
 	if p.hero == "pahan" and p.state == "tyaga" and mode in ["hold", "suck", "charge", "blast", "act", "ride"]:
 		var inv: Transform3D = model.global_transform.affine_inverse() * sk.global_transform
 		var hr: Vector3 = inv * (sk.get_bone_global_pose(prig.bone["rhand"]) * ((prig.hand["r"] as Dictionary)["grip"] as Vector3))
 		if mode == "ride":
-			tr = (hr - w_mid).limit_length(14.0)
+			xf = (hr - w_mid).limit_length(14.0)
 		else:
 			var hl: Vector3 = inv * (sk.get_bone_global_pose(prig.bone["lhand"]) * ((prig.hand["l"] as Dictionary)["grip"] as Vector3))
 			var d0: Vector3 = w_hi - w_lo
@@ -197,9 +197,9 @@ func _wand_update() -> void:
 				var ang: float = q.get_angle()
 				if ang > 1.5:
 					q = Quaternion.IDENTITY.slerp(q, 1.5 / ang)
-				tr = ((hr + hl) * 0.5 - w_c).limit_length(55.0)
+				xf = ((hr + hl) * 0.5 - w_c).limit_length(55.0)
 	wand_q = wand_q.slerp(q, 0.5)
-	wand_p = wand_p.lerp(tr, 0.5)
+	wand_p = wand_p.lerp(xf, 0.5)
 	for k in HOSE_N + 1:
 		var t: float = float(k) / float(HOSE_N)
 		var qt: Quaternion = Quaternion.IDENTITY.slerp(wand_q, t)

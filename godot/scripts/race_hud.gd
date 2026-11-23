@@ -231,11 +231,11 @@ func _build() -> void:
 	tip_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tip_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tip_l.add_theme_constant_override("outline_size", 8)
-	var tips: Array = RaceData.TIPS
+	var tps: Array = RaceData.TIPS
 	if tip_n < 0:
-		tip_n = randi() % tips.size()
+		tip_n = randi() % tps.size()
 	tip_n += 1
-	var tip: String = tips[tip_n % tips.size()]
+	var tip: String = tps[tip_n % tps.size()]
 	for a in ["race_drift", "race_jump", "race_boost"]:
 		tip = tip.replace("{%s}" % a, "[%s]" % " / ".join(RaceSave.keys_of(a)))
 	tip_l.text = tip
@@ -383,6 +383,7 @@ func _process(dt: float) -> void:
 		boost_l.text = "РАЗГОН МОТОРА %.0f с" % me.overclock_t if me.overclock_t > 0.0 else ("ВОЗДУШНЫЙ МЕШОК" if me.draft > 0.5 else "")
 		combo_l.text = "КОМБО ×%d" % me.combo if me.combo >= 2 else ""
 		combo_bar.size.x = 200.0 * clampf(me.combo_t / float(RaceData.PHYS["combo_t"]), 0.0, 1.0) if me.combo >= 2 else 0.0
+		@warning_ignore("integer_division")
 		wrong_l.visible = me.wrong_t > float(RaceData.PHYS["wrong_way"]) and not me.finished and int(Time.get_ticks_msec() / 300) % 2 == 0
 	tip_l.modulate.a = move_toward(tip_l.modulate.a, 1.0 if race.state in ["intro", "countdown"] else 0.0, dt * 3.0)
 	time_l.text = fmt(race.t)
@@ -397,12 +398,12 @@ static func fmt(t: float) -> String:
 	return "%02d:%05.2f" % [int(t / 60.0), fmod(t, 60.0)]
 
 func _draw_map() -> void:
-	var tr: RaceTrack = race.track
-	if tr == null or tr.P.size() < 2:
+	var xf: RaceTrack = race.track
+	if xf == null or xf.P.size() < 2:
 		return
 	var mn := Vector2(INF, INF)
 	var mx := Vector2(-INF, -INF)
-	for p in tr.P:
+	for p in xf.P:
 		mn = mn.min(Vector2(p.x, p.z))
 		mx = mx.max(Vector2(p.x, p.z))
 	var span := mx - mn
@@ -411,16 +412,16 @@ func _draw_map() -> void:
 	var to := func(p: Vector3) -> Vector2: return off + (Vector2(p.x, p.z) - mn) * k
 	map.draw_rect(Rect2(Vector2.ZERO, map.size), Color(0, 0, 0, 0.45))
 	var pts := PackedVector2Array()
-	for i in range(0, tr.P.size(), 3):
-		pts.append(to.call(tr.P[i]))
+	for i in range(0, xf.P.size(), 3):
+		pts.append(to.call(xf.P[i]))
 	pts.append(pts[0])
 	map.draw_polyline(pts, Color(0.95, 0.95, 0.95, 0.85), 5.0, true)
-	if tr.SP.size() > 1:
+	if xf.SP.size() > 1:
 		var sp := PackedVector2Array()
-		for i in range(0, tr.SP.size(), 3):
-			sp.append(to.call(tr.SP[i]))
+		for i in range(0, xf.SP.size(), 3):
+			sp.append(to.call(xf.SP[i]))
 		map.draw_polyline(sp, Color(0.6, 0.55, 0.45, 0.8), 3.0, true)
-	var g0: Vector2 = to.call(tr.gates[0]["pos"])
+	var g0: Vector2 = to.call(xf.gates[0]["pos"])
 	map.draw_rect(Rect2(g0 - Vector2(5, 5), Vector2(10, 10)), RED)
 	for r in race.riders:
 		if r.disconnected:

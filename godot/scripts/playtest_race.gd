@@ -70,9 +70,9 @@ func until(cond: Callable, sec: float) -> bool:
 		await get_tree().process_frame
 	return bool(cond.call())
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm + ".png"))
 
 ## клавиша нажата / отпущена (событие уходит только при смене состояния — как у настоящей клавиатуры)
 func hold(k: Key, on: bool) -> void:
@@ -290,13 +290,13 @@ func _physics_process(dt: float) -> void:
 	if race.state != "race" or me.finished or race.paused:
 		release_all()
 		return
-	var tr: RaceTrack = race.track
+	var xf: RaceTrack = race.track
 	var spd := absf(me.speed)
 	# куда смотреть: дальше на скорости
 	var look := 7.0 + spd * 0.45
-	var tg: Vector3 = tr.point(me.s + look)
+	var tg: Vector3 = xf.point(me.s + look)
 	if me.on_short:
-		tg = tr.point(tr.short_to + 6.0) if float(me.proj.get("ss", 0.0)) > tr.SL - 12.0 else tr.SP[tr.short_point(float(me.proj.get("ss", 0.0)) + look)]
+		tg = xf.point(xf.short_to + 6.0) if float(me.proj.get("ss", 0.0)) > xf.SL - 12.0 else xf.SP[xf.short_point(float(me.proj.get("ss", 0.0)) + look)]
 	var to := tg - me.global_position
 	var want := atan2(to.x, to.z)
 	var diff := -angle_difference(me.heading, want)            # + — надо вправо
@@ -309,7 +309,7 @@ func _physics_process(dt: float) -> void:
 	hold(KEY_D, press and diff > 0.0)
 	hold(KEY_A, press and diff < 0.0)
 	# скорость в повороте
-	var turn := tr.turn_ahead(me.s, 12.0 + spd * 0.9)
+	var turn := xf.turn_ahead(me.s, 12.0 + spd * 0.9)
 	var sharp := turn > 0.75
 	var brake := sharp and spd > 15.0 and not me.drifting and not drift_want
 	hold(KEY_S, brake)
@@ -375,6 +375,7 @@ func _report(n: int, fin: bool) -> void:
 	var cnt := maxi(1, sec_log.size())
 	say("гонка %d: %s · время %.1f с · место %d из %d" % [n, "финиш" if fin else "НЕ ДОЕХАЛ за 7 минут", me.finish_t if me.finished else race.t, me.rank, race.riders.size()])
 	say("гонка %d: круги %s · лучший %.1f с" % [n, ", ".join(me.lap_times.map(func(x): return "%.1f" % float(x))), me.best_lap])
+	@warning_ignore("integer_division")
 	say("гонка %d: средняя скорость %.1f м/с (%.0f%% предела), максимум %.1f; у предела (≥90%%) %d%% времени, медленнее половины — %d%%" % [n, sum / cnt, sum / cnt / vmax * 100.0, top, near * 100 / cnt, slow * 100 / cnt])
 	say("гонка %d: проехано по положению %.0f м, по трассе %.0f м (круг по данным %.0f м × %d = %.0f); шагов физики %d за %.1f с настоящего времени (%.1f в секунду), часы гонки %.1f с" % [n, path_real, path_s, race.track.L, race.laps, race.track.L * race.laps, ticks, float(GameClock.ms() - wall0) / 1000.0, float(ticks) / maxf(0.001, float(GameClock.ms() - wall0) / 1000.0), race.t])
 	var c := {}

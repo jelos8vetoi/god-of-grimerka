@@ -446,6 +446,17 @@ size = Vector3(0.9, 0.006, 0.62)
 [sub_resource type="BoxMesh" id="DecayWallStreak"]
 size = Vector3(0.006, 1.15, 0.13)
 
+[sub_resource type="StandardMaterial3D" id="DamperSteel"]
+albedo_color = Color(0.23, 0.25, 0.26, 1)
+metallic = 0.6
+roughness = 0.55
+
+[sub_resource type="BoxMesh" id="Box_LockLamp"]
+size = Vector3(0.034, 0.014, 0.012)
+
+[sub_resource type="BoxMesh" id="Box_Leaf"]
+size = Vector3(0.335, 0.018, 0.67)
+
 [node name="GuardBooth" type="Node3D"]
 script = ExtResource("Controller")
 
@@ -857,6 +868,15 @@ position = Vector3(0, 0.222, 0.015)
 mesh = SubResource("Box_0_63_0_03_0_06")
 material_override = ExtResource("steel")
 
+[node name="LockLamp" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0.25, 0.222, 0.05)
+mesh = SubResource("Box_LockLamp")
+
+[node name="Glow" type="OmniLight3D" parent="Ventilation/WallGrate/LockLamp"]
+position = Vector3(0, -0.05, 0.1)
+light_energy = 0.0
+omni_range = 1.1
+
 [node name="Bottom" type="MeshInstance3D" parent="Ventilation/WallGrate"]
 position = Vector3(0, -0.222, 0.015)
 mesh = SubResource("Box_0_63_0_03_0_06")
@@ -898,11 +918,13 @@ rotation = Vector3(-0.23, 0, 0)
 mesh = SubResource("Box_0_615_0_029_0_04")
 material_override = ExtResource("steel")
 
-[node name="Damper" type="MeshInstance3D" parent="Ventilation/WallGrate"]
-position = Vector3(0, 0, -0.084)
+[node name="DamperPivot" type="Node3D" parent="Ventilation/WallGrate"]
+position = Vector3(0, 0.208, -0.084)
+
+[node name="Damper" type="MeshInstance3D" parent="Ventilation/WallGrate/DamperPivot"]
+position = Vector3(0, -0.208, 0)
 mesh = SubResource("Box_0_615_0_416_0_018")
-material_override = ExtResource("enamel")
-visible = false
+material_override = SubResource("DamperSteel")
 
 [node name="Eyes" type="Node3D" parent="Ventilation/WallGrate"]
 position = Vector3(0, 0.02, -0.166)
@@ -952,6 +974,15 @@ position = Vector3(0, -0.014, -0.338)
 mesh = SubResource("Box_0_64_0_035_0_055")
 material_override = ExtResource("steel")
 
+[node name="LockLamp" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(0.25, -0.037, -0.338)
+mesh = SubResource("Box_LockLamp")
+
+[node name="Glow" type="OmniLight3D" parent="Ventilation/CeilingHatch/LockLamp"]
+position = Vector3(0, -0.12, 0.2)
+light_energy = 0.0
+omni_range = 1.2
+
 [node name="BackRail" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
 position = Vector3(0, -0.014, 0.338)
 mesh = SubResource("Box_0_64_0_035_0_055")
@@ -959,45 +990,55 @@ material_override = ExtResource("steel")
 
 [node name="Slat1" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
 position = Vector3(-0.259, -0.02, 0)
-rotation = Vector3(0, 0, -0.35)
+rotation = Vector3(0, 0, -1.1)
 mesh = SubResource("Box_0_08_0_02_0_63")
 material_override = ExtResource("enamel")
 
 [node name="Slat2" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
 position = Vector3(-0.156, -0.02, 0)
-rotation = Vector3(0, 0, -0.35)
+rotation = Vector3(0, 0, -1.1)
 mesh = SubResource("Box_0_08_0_02_0_63")
 material_override = ExtResource("enamel")
 
 [node name="Slat3" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
 position = Vector3(-0.053, -0.02, 0)
-rotation = Vector3(0, 0, -0.35)
+rotation = Vector3(0, 0, -1.1)
 mesh = SubResource("Box_0_08_0_02_0_63")
 material_override = ExtResource("enamel")
 
 [node name="Slat4" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
 position = Vector3(0.05, -0.02, 0)
-rotation = Vector3(0, 0, -0.35)
+rotation = Vector3(0, 0, -1.1)
 mesh = SubResource("Box_0_08_0_02_0_63")
 material_override = ExtResource("enamel")
 
 [node name="Slat5" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
 position = Vector3(0.153, -0.02, 0)
-rotation = Vector3(0, 0, -0.35)
+rotation = Vector3(0, 0, -1.1)
 mesh = SubResource("Box_0_08_0_02_0_63")
 material_override = ExtResource("enamel")
 
 [node name="Slat6" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
 position = Vector3(0.256, -0.02, 0)
-rotation = Vector3(0, 0, -0.35)
+rotation = Vector3(0, 0, -1.1)
 mesh = SubResource("Box_0_08_0_02_0_63")
 material_override = ExtResource("enamel")
 
-[node name="Damper" type="MeshInstance3D" parent="Ventilation/CeilingHatch"]
-position = Vector3(0, 0.028, 0)
-mesh = SubResource("Box_0_67_0_018_0_67")
-material_override = ExtResource("steel")
-visible = false
+[node name="LeafPivotL" type="Node3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(-0.335, 0.028, 0)
+
+[node name="LeafL" type="MeshInstance3D" parent="Ventilation/CeilingHatch/LeafPivotL"]
+position = Vector3(0.1675, 0, 0)
+mesh = SubResource("Box_Leaf")
+material_override = SubResource("DamperSteel")
+
+[node name="LeafPivotR" type="Node3D" parent="Ventilation/CeilingHatch"]
+position = Vector3(0.335, 0.028, 0)
+
+[node name="LeafR" type="MeshInstance3D" parent="Ventilation/CeilingHatch/LeafPivotR"]
+position = Vector3(-0.1675, 0, 0)
+mesh = SubResource("Box_Leaf")
+material_override = SubResource("DamperSteel")
 
 [node name="WallFixtures" type="Node3D" parent="."]
 

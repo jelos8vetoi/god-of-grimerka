@@ -530,9 +530,9 @@ func _process_modification_with_delta(delta: float) -> void:
 	var hand := sk.get_bone_global_pose(b_hand)
 	var in_hand := _ss(U_GRAB, U_DRAW, u)
 	var xf := _pocket_xf(hips).interpolate_with(Transform3D(hand.basis.orthonormalized(), hand.origin) * mount, in_hand)
-	var show := 1.0 if pocket_show else _ss(U_GRAB - 0.05, U_GRAB + 0.05, u)
-	device.visible = show > 0.0
-	device.transform = Transform3D(xf.basis.scaled(Vector3.ONE * lerpf(0.35, 1.0, show)), xf.origin)
+	var on := 1.0 if pocket_show else _ss(U_GRAB - 0.05, U_GRAB + 0.05, u)
+	device.visible = on > 0.0
+	device.transform = Transform3D(xf.basis.scaled(Vector3.ONE * lerpf(0.35, 1.0, on)), xf.origin)
 	look_goal = device.transform * Vector3(0, DEV_H * 0.23, DEV_H * 0.06)
 	# правая рука: отпускает балон, вставляет первый вкладыш, передаёт второй и возвращается к балону
 	var store := _storage()
@@ -564,7 +564,7 @@ func _process_modification_with_delta(delta: float) -> void:
 	else:
 		_release_balloon(false)
 	dbg["miss_l"] = (sk.get_bone_global_pose(b_hand) * pinch_l).distance_to((ear["L"] as Transform3D).origin) if absf(b - B_SEAT) < 0.02 else 0.0
-	_place_buds(sk, hips, device.transform, true, show)
+	_place_buds(sk, hips, device.transform, true, on)
 	dbg["look"] = (hd2.basis * fwd_l).normalized().angle_to((look_goal - hd2 * eye_l).normalized())
 	dbg["gap"] = (sk.get_bone_global_pose(b_hand) * grip_l).distance_to(device.transform * Vector3(0, -DEV_H * HOLD, -DEV_H * OUT_PALM))
 
@@ -591,7 +591,7 @@ func _storage() -> Dictionary:
 	return res
 
 ## Вкладыши и провод по текущим a и b. out — iPod снаружи (иначе в кармане), show — насколько он уже виден.
-func _place_buds(sk: Skeleton3D, hips: Transform3D, dev: Transform3D, out: bool, show: float) -> void:
+func _place_buds(sk: Skeleton3D, hips: Transform3D, dev: Transform3D, out: bool, on: float) -> void:
 	var hd := sk.get_bone_global_pose(b_head)
 	var stored := a <= 0.0 and b <= 0.0
 	if not out and stored:
@@ -632,12 +632,12 @@ func _place_buds(sk: Skeleton3D, hips: Transform3D, dev: Transform3D, out: bool,
 			xf[side] = Transform3D(Basis(), hips * pocket_l)
 			shown[side] = false
 		else:
-			shown[side] = not (out and stored and show < 0.85)
+			shown[side] = not (out and stored and on < 0.85)
 		buds.place(side, xf[side], shown[side])
 	# провод: штекер в iPod (сверху слева) или в кармане → разветвитель → ножки вкладышей
 	var jack: Vector3
 	var jdir: Vector3
-	if (out and show > 0.0) or pocket_show:
+	if (out and on > 0.0) or pocket_show:
 		jack = dev * Vector3(-DEV_H * 0.6 * 0.3, DEV_H * 0.5, 0)
 		jdir = dev.basis.y.normalized()
 	else:
@@ -659,7 +659,7 @@ func _place_buds(sk: Skeleton3D, hips: Transform3D, dev: Transform3D, out: bool,
 	buds.cable.visible = shown["L"] or shown["R"]
 	buds.splitter.visible = buds.cable.visible
 	var body := chest * sk.get_bone_global_rest(b_sp2).affine_inverse()
-	buds.draw(jack, jdir, want_split, ends, dirs, out and show > 0.5, frame_dt, sk.global_transform, body)
+	buds.draw(jack, jdir, want_split, ends, dirs, out and on > 0.5, frame_dt, sk.global_transform, body)
 
 ## Доворот кости к точке взгляда: part — какую долю поворота берёт кость, limit — предел в радианах.
 func _look(sk: Skeleton3D, bone_i: int, part: float, limit: float, w: float) -> void:
@@ -712,15 +712,15 @@ static func _arc(x: Vector3, y: Vector3) -> Quaternion:
 	return Quaternion(x, y)
 
 # ---------- модель iPod Classic: собирается кодом, без внешних файлов ----------
-func _mat(col: Color, metal := 0.0, rough := 0.5, glow := 0.0) -> StandardMaterial3D:
+func _mat(col: Color, metal := 0.0, rough := 0.5, glow_k := 0.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = col
 	m.metallic = metal
 	m.roughness = rough
-	if glow > 0.0:
+	if glow_k > 0.0:
 		m.emission_enabled = true
 		m.emission = col
-		m.emission_energy_multiplier = glow
+		m.emission_energy_multiplier = glow_k
 	return m
 
 ## Светящаяся часть экрана: яркость задаёт glow (_apply_glow), погашенный экран — тёмное стекло, а не белый прямоугольник.
@@ -786,9 +786,9 @@ func _disc(parent: Node3D, radius: float, thick: float, pos: Vector3, mat: Mater
 
 func _box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material) -> void:
 	var mi := MeshInstance3D.new()
-	var b := BoxMesh.new()
-	b.size = size
-	mi.mesh = b
+	var bb := BoxMesh.new()
+	bb.size = size
+	mi.mesh = bb
 	mi.material_override = mat
 	mi.position = pos
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -801,8 +801,8 @@ func _slab(w: float, h: float, t: float, r: float, front: Material, back: Materi
 		var cx := (w * 0.5 - r) * (1.0 if c == 0 or c == 3 else -1.0)
 		var cy := (h * 0.5 - r) * (1.0 if c < 2 else -1.0)
 		for i in 6:
-			var a := (c + i / 5.0) * PI * 0.5
-			ring.append([Vector2(cx + cos(a) * r, cy + sin(a) * r), Vector2(cos(a), sin(a))])
+			var aa2 := (c + i / 5.0) * PI * 0.5
+			ring.append([Vector2(cx + cos(aa2) * r, cy + sin(aa2) * r), Vector2(cos(aa2), sin(aa2))])
 	var bev := t * 0.22       # фаска: лицевая стенка чуть меньше обода
 	var n := ring.size()
 	var mesh := ArrayMesh.new()
@@ -812,9 +812,9 @@ func _slab(w: float, h: float, t: float, r: float, front: Material, back: Materi
 		var z := t * 0.5 * (1.0 if face == 0 else -1.0)
 		var nz := Vector3(0, 0, 1.0 if face == 0 else -1.0)
 		for i in n:
-			var a: Vector2 = ring[i][0] - (ring[i][1] as Vector2) * bev
-			var b: Vector2 = ring[(i + 1) % n][0] - (ring[(i + 1) % n][1] as Vector2) * bev
-			for v in [Vector2.ZERO, a, b]:
+			var aa: Vector2 = ring[i][0] - (ring[i][1] as Vector2) * bev
+			var bb: Vector2 = ring[(i + 1) % n][0] - (ring[(i + 1) % n][1] as Vector2) * bev
+			for v in [Vector2.ZERO, aa, bb]:
 				st.set_normal(nz)
 				st.add_vertex(Vector3(v.x, v.y, z))
 		st.commit(mesh)

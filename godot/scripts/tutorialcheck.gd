@@ -46,10 +46,10 @@ func frames(n: int) -> void:
 func real(sec: float) -> void:
 	await get_tree().create_timer(sec, true, false, true).timeout
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 
 func key(code: Key) -> void:
 	var e := InputEventKey.new()
@@ -407,14 +407,14 @@ func practice_block() -> void:
 	TU.start_drill("dodge")
 	await frames(3)
 	ok(TU.guard_e != null and TU.guard_e.train_attack, "упражнение защиты: цель замахивается регулярно")
-	var foe = TU.guard_e
-	foe.cool = 0.2
-	foe.global_position = P.global_position + Vector3(0, 0, -1.8)
+	var foe_n = TU.guard_e
+	foe_n.cool = 0.2
+	foe_n.global_position = P.global_position + Vector3(0, 0, -1.8)
 	var dodged := false
 	P.combat.clear_buffer()
 	for i in 400:
 		await frames(1)
-		if foe.state == "wind" and P.state == "move":
+		if foe_n.state == "wind" and P.state == "move":
 			# жмём, пока герой не ушёл в перекат (кадр нажатия может прийтись на конец прошлого действия)
 			for k in 6:
 				P.auto_input = {"move": Vector2(1, 0), "roll": "press"}
@@ -488,13 +488,13 @@ func practice_block() -> void:
 	boss.max_hp = 100000.0              # проверяем путь «открыть», а не «убить»: здоровья с запасом
 	boss.hp = boss.max_hp
 	TU.since = 99.0
-	var started: bool = false
+	var is_started: bool = false
 	for i in 300:
 		await frames(1)
 		if TU.drill_id == "boss_open":
-			started = true
+			is_started = true
 			break
-	ok(started, "с боссом начинается задание «БОСС ОТКРЫТ» (%s)" % TU.drill_id)
+	ok(is_started, "с боссом начинается задание «БОСС ОТКРЫТ» (%s)" % TU.drill_id)
 	await real(0.3)
 	await shot("t14_boss_open.png")
 	var guarded := false

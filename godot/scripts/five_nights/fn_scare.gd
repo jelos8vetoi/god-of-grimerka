@@ -40,9 +40,11 @@ func _pick_hush(eid: String) -> String:
 	var W: Dictionary = HUSH.get(eid, {"dead": 1, "none": 1})
 	var sum := 0
 	for k in W:
+		@warning_ignore("integer_division")
 		sum += int(W[k]) if not (k == hush_last and W.size() > 1) else maxi(1, int(W[k]) / 3)     # тот же вариант подряд — редко
 	var x := randi() % maxi(1, sum)
 	for k in W:
+		@warning_ignore("integer_division")
 		x -= int(W[k]) if not (k == hush_last and W.size() > 1) else maxi(1, int(W[k]) / 3)
 		if x < 0:
 			hush_last = String(k)

@@ -103,22 +103,26 @@ func grab() -> Image:
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	var sz := img.get_size()
+	@warning_ignore("integer_division")
 	var w: int = int(sz.y * 16 / 9)
+	@warning_ignore("integer_division")
 	var crop := img.get_region(Rect2i((sz.x - w) / 2, 0, w, sz.y))
 	crop.resize(CELL.x, CELL.y, Image.INTERPOLATE_BILINEAR)
 	return crop
 
-func sheet(cells: Array, name: String) -> void:
+func sheet(cells: Array, nm: String) -> void:
 	if cells.is_empty():
 		return
+	@warning_ignore("integer_division")
 	var rows: int = (cells.size() + COLS - 1) / COLS
 	var img := Image.create(CELL.x * COLS, CELL.y * rows, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0.05, 0.05, 0.06))
 	for i in cells.size():
 		var c: Image = cells[i]
 		c.convert(Image.FORMAT_RGBA8)
+		@warning_ignore("integer_division")
 		img.blit_rect(c, Rect2i(Vector2i.ZERO, CELL), Vector2i((i % COLS) * CELL.x, (i / COLS) * CELL.y))
-	img.save_png(out.path_join(name))
+	img.save_png(out.path_join(nm))
 
 func _run() -> void:
 	await stage()
@@ -288,6 +292,7 @@ func _run() -> void:
 	Engine.max_fps = 0
 	var crowd: Array = []
 	for i in 8:
+		@warning_ignore("integer_division")
 		crowd.append(foe(Vector3(-4.0 + (i % 4) * 2.6, 0.05, -1.5 - (i / 4) * 2.4)))
 	await frames(60)
 	var base := await measure(180, [], [])
@@ -314,12 +319,12 @@ func _run() -> void:
 
 ## Метка удара врага: видна вместо кольца, снимок сверху на середине замаха; у ближнего боя — герой у края зоны
 ## внутри получает урон, снаружи нет (метка совпадает с проверкой _strike / _boss_strike); попадание рисует профиль врага.
-func _tell_case(en, name: String, bid: String, cells: Array) -> void:
+func _tell_case(en, nm: String, bid: String, cells: Array) -> void:
 	P.global_position = Vector3(0, 0.05, 6.0)
 	en.face = 0.0
 	en._wind(String(en.cfg["clip"]), 50.0)
 	await frames(2)
-	ok(en.tell.visible and not en.ring.visible, "%s: метка удара на земле (r %.2f, угол %.2f, полоса %.2f)" % [name, en.tell_r, en.tell_half, en.tell_lane])
+	ok(en.tell.visible and not en.ring.visible, "%s: метка удара на земле (r %.2f, угол %.2f, полоса %.2f)" % [nm, en.tell_r, en.tell_half, en.tell_lane])
 	en.t = 25.0
 	await frames(3)
 	cam.global_position = en.global_position + Vector3(0.01, 9.5, 5.5)
@@ -344,8 +349,8 @@ func _tell_case(en, name: String, bid: String, cells: Array) -> void:
 				en._strike(d, Vector3(0, 0, 1))
 			await frames(2)
 			res.append([P.hp < 9999.0, int(game.fx.stats["prims"]) > pr0])
-		ok(bool(res[0][0]) and not bool(res[1][0]), "%s: у края метки внутри — урон, снаружи — нет" % name)
-		ok(bool(res[0][1]), "%s: попадание по герою — рисунок врага" % name)
+		ok(bool(res[0][0]) and not bool(res[1][0]), "%s: у края метки внутри — урон, снаружи — нет" % nm)
+		ok(bool(res[0][1]), "%s: попадание по герою — рисунок врага" % nm)
 	en._tell_end()
 	en.state = "recover"
 

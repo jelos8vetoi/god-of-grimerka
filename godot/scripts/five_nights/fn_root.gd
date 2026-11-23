@@ -29,6 +29,10 @@ var menu_st: FNNight
 var state := "menu"                 # menu / night / scare / dead / six
 var paused := false
 var night := 0
+var night_token := 0              # растёт в каждом start_night: отложенные реплики старой ночи молчат
+var tut_duct := false             # подсказки ночи 2 про MADK1D: каждая — один раз за попытку
+var tut_vent_l := false
+var tut_vent_t := false
 var levels := {}
 var quiet := false
 var look_key := 0.0
@@ -54,7 +58,7 @@ var whisper: AudioStreamPlayer      # GHOST: шёпот растёт с одер
 var air_tune: AudioStreamPlayer3D   # «последний шанс»
 var pool3: Array = []
 var pool2: Array = []
-var call_voice: AudioStreamPlayer   # голос начальника в трубке (assets/voice/FN_*.mp3, шина Phone → Voice)
+var call_voice: AudioStreamPlayer3D   # голос начальника в трубке (assets/voice/FN_*.mp3, шина PhoneVoice → Voice, из трубки на столе)
 var pahan_voice: AudioStreamPlayer  # мысли Пахана вслух (assets/voice/V_*.mp3 — его голос из кампании, шина Voice)
 ## Говорит всегда кто-то один. Строки по центру экрана (мысли Пахана и подсказки) идут очередью say_q: следующая
 ## появляется, когда прошлая отстояла своё и Пахан договорил. Пахан не начинает посреди реплики начальника — ждёт её
@@ -76,6 +80,7 @@ func _ready() -> void:
 	actors = FNActors.new()
 	add_child(actors)
 	actors.build(office, fac)
+	office.seal_stop.connect(_on_seal_stop)
 	cams = FNCams.new()
 	add_child(cams)
 	cams.build(fac, get_world_3d())
@@ -137,12 +142,18 @@ func _audio() -> void:
 		p2.bus = "SFX"
 		add_child(p2)
 		pool2.append(p2)
-	call_voice = AudioStreamPlayer.new()
-	call_voice.bus = "Phone" if AudioServer.get_bus_index("Phone") >= 0 else "Voice"
+	call_voice = AudioStreamPlayer3D.new()
+	call_voice.bus = "PhoneVoice" if AudioServer.get_bus_index("PhoneVoice") >= 0 else ("Phone" if AudioServer.get_bus_index("Phone") >= 0 else "Voice")
 	call_voice.volume_db = 1.0
+	call_voice.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
+	call_voice.panning_strength = 0.45
+	call_voice.attenuation_filter_cutoff_hz = 20500.0
 	add_child(call_voice)
+	var phone_at := office.get_node_or_null("Console/PhoneHit") as Node3D
+	if phone_at != null:
+		call_voice.global_position = phone_at.global_position
 	pahan_voice = AudioStreamPlayer.new()
-	pahan_voice.bus = "Voice"
+	pahan_voice.bus = "RoomVoice" if AudioServer.get_bus_index("RoomVoice") >= 0 else "Voice"
 	pahan_voice.volume_db = -1.0
 	add_child(pahan_voice)
 
@@ -210,6 +221,53 @@ func hush_end() -> void:
 func _snd_ok() -> bool:
 	return not quiet or (main != null and main.audiolog)
 
+## заслонка дошла до упора: глухой удар (закрытая — громче и ниже)
+func _on_seal_stop(s: String, closed: bool) -> void:
+	sfx3("damper_stop", FNOffice.point("vent_" + s), -4.0 if closed else -11.0, 1.0 if closed else 1.25)
+
+## зацикленный поток в одноразовом пуле не играем: он звучал бы до конца процесса
+func _loop_stream(s: AudioStream, id: String) -> bool:
+	if s is AudioStreamWAV and (s as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED:
+		push_error("FN: зацикленный звук «%s» в одноразовом пуле" % id)
+		return true
+	return false
+
+## глушит всё разовое: пулы звуков, шёпот и ползание, реплики, помехи и красные вспышки; настройки громкости игрока не трогает
+func clear_transients(keep_scream := false) -> void:
+	for p in pool2:
+		(p as AudioStreamPlayer).stop()
+	for p in pool3:
+		(p as AudioStreamPlayer3D).stop()
+	if air_tune != null:
+		air_tune.stop()
+	if crawl != null:
+		crawl.stop()
+		crawl.volume_db = -60.0
+	if whisper != null:
+		whisper.stop()
+		whisper.volume_db = -60.0
+	if call_voice != null:
+		call_voice.stop()
+	_say_clear()
+	if ambience != null:
+		ambience.stop_events()
+	if not keep_scream and scream_p != null:
+		scream_p.stop()
+	if ui != null:
+		ui.hurt = 0.0
+		ui.neg = false
+		ui.inv_t = 0.0
+	face_flash = 0.0
+	if cams != null and cams.mat != null:
+		cams.mat.set_shader_parameter("jam", 0.0)
+		cams.mat.set_shader_parameter("haunt", 0.0)
+	hush_end()
+
+func _exit_tree() -> void:
+	hush_end()
+	if main != null and is_instance_valid(main) and main.audio != null:
+		main.audio.room(20500.0, 0.0)
+
 ## звук из точки (направление слышно): шаги у двери, стук в шахте
 func sfx3(id: String, pos: Vector3, vol := 0.0, pitch := 1.0) -> void:
 	if not _snd_ok():
@@ -217,7 +275,10 @@ func sfx3(id: String, pos: Vector3, vol := 0.0, pitch := 1.0) -> void:
 	for p in pool3:
 		var a := p as AudioStreamPlayer3D
 		if not a.playing:
-			a.stream = FNSound.pick(id)
+			var st3 := FNSound.pick(id)
+			if _loop_stream(st3, id):
+				return
+			a.stream = st3
 			a.global_position = pos
 			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
@@ -234,7 +295,10 @@ func sfx2(id: String, vol := 0.0, pitch := 1.0, bus := "SFX") -> void:
 	for p in pool2:
 		var a := p as AudioStreamPlayer
 		if not a.playing:
-			a.stream = FNSound.pick(id)
+			var st2 := FNSound.pick(id)
+			if _loop_stream(st2, id):
+				return
+			a.stream = st2
 			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
 			a.bus = FNSound.bus_for(id, bus)
@@ -247,6 +311,7 @@ func duck(on: bool) -> void:
 
 # ---------------- меню-терминал ----------------
 func _menu_scene() -> void:
+	clear_transients()
 	state = "menu"
 	menu.visible = true
 	menu.open_main()
@@ -275,6 +340,7 @@ func _menu_tick(dt: float) -> void:
 
 ## из меню мини-игры — в меню режимов GOD OF GRIMERKA
 func quit_to_menu() -> void:
+	clear_transients()
 	FNSave.save()
 	if main != null and main.has_method("end_minigame"):
 		main.end_minigame(ModeSelect.index_of("five_nights"))
@@ -285,14 +351,21 @@ func music_set() -> String:
 
 # ---------------- ночь ----------------
 func start_night(n: int, lv := {}) -> void:
+	clear_transients()
+	night_token += 1
+	var tok := night_token
 	night = n
 	levels = lv
 	var first_time: bool = (FNSave.v("beaten") as Array).is_empty()
 	FNSave.played()
+	tut_duct = false
+	tut_vent_l = false
+	tut_vent_t = false
 	if n < 5:
 		FNSave.put("current", n)
 	st = FNNight.new()
 	st.setup(n, int(Time.get_ticks_usec() % 2147483647), lv)
+	office.seal_reset(st)
 	menu.visible = false
 	ui.hud.visible = true
 	ui.night_begin(n, first_time)
@@ -344,7 +417,7 @@ func start_night(n: int, lv := {}) -> void:
 				ui.tips.tip("reset")
 			ui.tips.tip(id)
 	get_tree().create_timer(4.0, true, false, true).timeout.connect(func():
-		if state == "night" and n < FNData.PAHAN["start"].size():
+		if tok == night_token and state == "night" and n < FNData.PAHAN["start"].size():
 			pahan_say(String(FNData.PAHAN["start"][n]), 3.5))
 
 func retry() -> void:
@@ -352,6 +425,7 @@ func retry() -> void:
 	start_night(night, levels)
 
 func to_terminal() -> void:
+	clear_transients()
 	set_paused(false)
 	call_voice.stop()
 	_say_clear()
@@ -385,7 +459,8 @@ func _process(dt: float) -> void:
 			if not paused:
 				_night_tick(dt)
 		"scare":
-			office.tick(st, dt, office.yaw) if false else null
+			if false:
+				office.tick(st, dt, office.yaw)
 			ui.tick(st, dt, cams)
 
 func _night_tick(dt: float) -> void:
@@ -413,6 +488,7 @@ func _night_tick(dt: float) -> void:
 	if state != "night":
 		return
 	office.tick(st, dt, look_in)
+	office.fan_tick(dt, ambience.fan_spin)
 	if fix_hold:
 		st.fix_cam(dt)
 	else:
@@ -518,6 +594,16 @@ func _on_event(k: String, d: Dictionary) -> void:
 			ambience.hold(6.0)
 			var to := String(d["to"])
 			var e := String(d["e"])
+			if night == 1 and e == "madk1d" and not (FNSave.v("beaten") as Array).has(1):
+				if to.begins_with("duct_") and not tut_duct:
+					tut_duct = true
+					say("В шахте кто-то ползёт. Слушай, с какой стороны.", 4.0)
+				elif to == "vent_l" and not tut_vent_l:
+					tut_vent_l = true
+					say("Стук в решётке слева. Z — закрыть заслонку.", 4.0)
+				elif to == "vent_t" and not tut_vent_t:
+					tut_vent_t = true
+					say("Стук над головой. X — закрыть люк.", 4.0)
 			if to in ["door_l", "door_r"]:
 				duck(true)
 				var snd := "clank" if e == "bot" else ("step" if e in ["clipper", "ghost"] else "step_heavy")
@@ -539,6 +625,8 @@ func _on_event(k: String, d: Dictionary) -> void:
 			ambience.hold(6.0)
 			var at := String(d["at"])
 			sfx3("vent_bang" if at.begins_with("vent") else "door_down", FNOffice.point(at), 4.0, 0.7)
+			if at.begins_with("vent"):
+				office.seal_bang(at.substr(5))
 			office.shake = 0.5
 			if not said_door and at.begins_with("door"):
 				said_door = true
@@ -563,6 +651,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 				sfx3("click", office.lights[String(d["s"])].global_position, -10.0, 1.3)
 		"seal":
 			sfx3("click", FNOffice.point("vent_" + String(d["s"])), -4.0, 0.8)
+			sfx3("damper_close" if bool(d.get("closed", st.seal[String(d["s"])])) else "damper_open", FNOffice.point("vent_" + String(d["s"])), -5.0)
 			office.press("seal_" + String(d["s"]))
 			ui.toast("seal_" + String(d["s"]))
 		"monitor":
@@ -769,11 +858,12 @@ func _attack(eid: String, at: String) -> void:
 	FNSave.died(eid)
 	await scare.play("dark" if at == "dark" else eid, at, randi() % 3)
 	ui.hurt = 0.0
-	sfx2("static", -2.0)
 	_dead(eid, at)
 
 func _dead(eid: String, at: String) -> void:
 	state = "dead"
+	clear_transients(true)
+	sfx2("static", -2.0)
 	sfx2("sting_lose", -4.0)
 	var nm: String = FNData.ENEMIES[eid]["name"]
 	var hint := "Энергия кончилась. Двери, свет и камеры — всё в расход. Экономь: открывай двери, как только ушли." if at == "dark" else String(FNData.ENEMIES[eid]["counter"])

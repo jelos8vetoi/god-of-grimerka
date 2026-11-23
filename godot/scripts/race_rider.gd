@@ -208,7 +208,7 @@ func steer_for_rate(rate_right: float) -> float:
 # ---------------- шаг физики ----------------
 func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 	var P := RaceData.PHYS
-	var floor := is_on_floor()
+	var fl := is_on_floor()
 	if not go or finished and kind == "remote":
 		inp = RaceInput.new()
 	wall_cd = maxf(0.0, wall_cd - dt)
@@ -254,7 +254,7 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 		if turbo <= 0.0:
 			turbo_on = false
 	elif go:
-		var regen: float = float(P["turbo_regen"]) + (float(P["turbo_air"]) if not floor else 0.0) + float(P["draft_turbo"]) * draft
+		var regen: float = float(P["turbo_regen"]) + (float(P["turbo_air"]) if not fl else 0.0) + float(P["draft_turbo"]) * draft
 		if overclock_t > 0.0:
 			regen *= float(RaceData.ITEMS["overclock"]["regen"])
 		gain_turbo(regen * dt)
@@ -301,15 +301,16 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 		speed = move_toward(speed, vlim, float(P["over_drag"]) * dt)
 	brake_vis = inp.brake > 0.05 and speed > 2.0
 	# занос: держишь со скоростью и рулём — несёт боком, копится заряд; отпустил — ускорение по уровню
-	if not drifting and inp.drift and floor and speed >= float(P["drift_min"]) and absf(inp.steer) > 0.3 and spin_t <= 0.0:
+	if not drifting and inp.drift and fl and speed >= float(P["drift_min"]) and absf(inp.steer) > 0.3 and spin_t <= 0.0:
 		drifting = true
 		drift_dir = signf(inp.steer)
 		drift_t = 0.0
 		drift_lvl = 0
 		drift_air = 0.0
+		@warning_ignore("narrowing_conversion")
 		ev("drift_start", drift_dir)
 	if drifting:
-		drift_air = drift_air + dt if not floor else 0.0
+		drift_air = drift_air + dt if not fl else 0.0
 		var into := clampf(inp.steer * drift_dir, -1.0, 1.0)
 		var rate: float = lerpf(float(P["drift_turn_min"]), float(P["steer_drift"]), (into + 1.0) * 0.5)
 		# заряд копится, пока занос правда поворачивает: «боком по прямой» почти ничего не даёт
@@ -331,7 +332,7 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 	else:
 		var k_spd := clampf(absf(speed) / 12.0, 0.0, 1.0)
 		var rate: float = lerpf(float(P["steer_low"]), float(P["steer"]), k_spd)
-		if not floor:
+		if not fl:
 			rate *= float(P["air_steer"])
 		rate *= clampf(absf(speed) / 1.5, 0.0, 1.0)
 		heading -= inp.steer * rate * dt * (1.0 if speed >= 0.0 else -1.0)
@@ -339,23 +340,23 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 	# куда едет на самом деле: в заносе сцепление слабое
 	var hd := fwd()
 	var grip: float = (float(P["grip_drift"]) if drifting else float(P["grip"])) * (wx.mod("grip") if wx != null else 1.0)
-	if floor and not drifting:
+	if fl and not drifting:
 		vdir = vdir.slerp(hd, 1.0 - exp(-grip * dt)).normalized()
 	side_v = side_v.move_toward(Vector3.ZERO, 9.0 * dt)
 	var hv := vdir * speed + side_v + pull_v
-	if wx != null and wx.wind != Vector3.ZERO and floor and go:          # до старта ветер не двигает
+	if wx != null and wx.wind != Vector3.ZERO and fl and go:          # до старта ветер не двигает
 		var side := fwd().cross(Vector3.UP)
 		hv += side * (wx.wind as Vector3).dot(side) * 0.22          # порыв сбоку сносит
 	# трюк в воздухе: прыжок, нажатый в полёте с трамплина. Докрутил до приземления — ускорение и заряд турбо.
 	if trick_t > 0.0:
 		trick_t = maxf(0.0, trick_t - dt)
-	if not floor and inp.jump and go and trick_t <= 0.0 and ramp_air and spin_t <= 0.0 and air_t > 0.08:
+	if not fl and inp.jump and go and trick_t <= 0.0 and ramp_air and spin_t <= 0.0 and air_t > 0.08:
 		trick_t = float(P["trick_t"])
 		trick_n += 1
 		trick_dir = signf(inp.steer) if absf(inp.steer) > 0.3 else (1.0 if trick_n % 2 == 1 else -1.0)
 		ev("trick", trick_n)
 	# прыжок, склон, полёт
-	if floor:
+	if fl:
 		if pop_v > 0.0:
 			velocity = Vector3(hv.x, pop_v, hv.z)      # подбросило снизу (пар теплотрассы)
 			pop_v = 0.0
@@ -395,11 +396,13 @@ func simulate(inp: RaceInput, dt: float, go: bool) -> void:
 			wall_cd = 0.25
 			if drifting:
 				_end_drift(false)
+			@warning_ignore("narrowing_conversion")
 			ev("wall", hit)
 	# приземление
 	if floor_now:
 		if not was_floor and air_t > 0.22:
 			speed *= float(P["land_keep"])
+			@warning_ignore("narrowing_conversion")
 			ev("land", air_t)
 			vis.squash = clampf(air_t * 1.6, 0.4, 1.4)
 		if trick_n > 0:
@@ -485,6 +488,7 @@ func _item_vis(dt: float) -> void:
 				h.position = Vector3(sin(a) * 1.15, 0, cos(a) * 1.15)
 				h.rotation.y = a
 				aura_shield.add_child(h)
+		@warning_ignore("integer_division")
 		aura_shield.visible = shield_t > 1.5 or int(Time.get_ticks_msec() / 120) % 2 == 0      # под конец мигает
 		aura_shield.rotation.y += dt * 2.2
 	elif aura_shield != null:

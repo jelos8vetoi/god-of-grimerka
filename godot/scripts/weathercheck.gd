@@ -13,7 +13,7 @@ var kept := {}
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 	AudioServer.set_bus_mute(0, true)
 	RaceSave.persist = false
 	_run()
@@ -38,9 +38,9 @@ func until(cond: Callable, sec: float) -> bool:
 		await get_tree().process_frame
 	return bool(cond.call())
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm + ".png"))
 
 func inp(th := 0.0, br := 0.0, st := 0.0, drift := false) -> RaceInput:
 	var r := RaceInput.new()
@@ -51,11 +51,11 @@ func inp(th := 0.0, br := 0.0, st := 0.0, drift := false) -> RaceInput:
 	return r
 
 func put(r: RaceRider, s: float, lat := 0.0, spd := 0.0) -> void:
-	var tr: RaceTrack = main.race.track
-	var i := tr.at_s(s)
-	r.place(Transform3D(Basis(Vector3.UP, atan2(tr.T[i].x, tr.T[i].z)), tr.P[i] + tr.T[i].cross(Vector3.UP) * lat + Vector3(0, 0.1, 0)))
+	var xf: RaceTrack = main.race.track
+	var i := xf.at_s(s)
+	r.place(Transform3D(Basis(Vector3.UP, atan2(xf.T[i].x, xf.T[i].z)), xf.P[i] + xf.T[i].cross(Vector3.UP) * lat + Vector3(0, 0.1, 0)))
 	r.speed = spd
-	r.proj = tr.project(r.global_position, {})
+	r.proj = xf.project(r.global_position, {})
 	r.s = float(r.proj["s"])
 	r.prev_s = r.s
 
@@ -89,8 +89,8 @@ func brake_dist(race: Race) -> float:
 ## сколько держать занос до 1-го уровня на длинном повороте
 func charge_time(race: Race) -> float:
 	var L := race.local
-	var tr: RaceTrack = race.track
-	put(L, tr.S[tr.nearest_main(Vector3(128, 0, 6))], -1.0, 19.0)
+	var xf: RaceTrack = race.track
+	put(L, xf.S[xf.nearest_main(Vector3(128, 0, 6))], -1.0, 19.0)
 	L.set_meta("auto", inp(1.0))
 	await phys(3)
 	L.set_meta("auto", inp(1.0, 0.0, 0.8, true))
@@ -98,7 +98,7 @@ func charge_time(race: Race) -> float:
 	var t0 := GameClock.ms()
 	var f0 := Engine.get_physics_frames()
 	while L.drift_lvl < 1 and L.drifting and GameClock.ms() - t0 < 4000:
-		var tg: Vector3 = tr.point(L.s + 14.0)
+		var tg: Vector3 = xf.point(L.s + 14.0)
 		var to := tg - L.global_position
 		L.set_meta("auto", inp(1.0, 0.0, L.steer_for_rate(-angle_difference(atan2(L.vdir.x, L.vdir.z), atan2(to.x, to.z)) * 2.2), true))
 		await get_tree().physics_frame

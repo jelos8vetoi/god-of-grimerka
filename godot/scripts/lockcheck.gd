@@ -65,10 +65,10 @@ func mouse(button: MouseButton) -> void:
 		Input.parse_input_event(ev)
 		await frames(1)
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 
 func stage() -> void:
 	await clear()

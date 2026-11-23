@@ -51,6 +51,8 @@ func tick(st, dt: float) -> void:
 	move_t -= dt
 	if move_t <= 0.0:
 		move_t = _interval(st)
+		if st.t < float(st.calm(id)[0]):
+			return
 		if roll(st):
 			_move(st)
 
@@ -76,6 +78,8 @@ func _guard(st) -> bool:
 
 func go(st, to: String, why := "") -> void:
 	if to == spot:
+		return
+	if to in ["door_l", "door_r", "vent_l", "vent_t"] and st.t < float(st.calm(id)[1]):
 		return
 	prev = spot
 	spot = to

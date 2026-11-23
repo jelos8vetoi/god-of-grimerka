@@ -23,28 +23,28 @@ var party := false           # игрок финишировал — все ли
 
 func setup(rc) -> void:
 	race = rc
-	var tr: RaceTrack = rc.track
+	var xf: RaceTrack = rc.track
 	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(tr.id) + 5
+	rng.seed = hash(xf.id) + 5
 	# где стоять: вдоль стартовой прямой по обе стороны и у каждого трамплина
 	var spots: Array = []
 	for k in 6:
-		spots.append([tr.start_s - 14.0 + k * 7.0, -1.0 if k % 2 == 0 else 1.0])
-	for r in tr.ramps:
+		spots.append([xf.start_s - 14.0 + k * 7.0, -1.0 if k % 2 == 0 else 1.0])
+	for r in xf.ramps:
 		spots.append([float(r["s1"]) + 6.0, 1.0])
 		spots.append([float(r["s1"]) + 12.0, -1.0])
 	for k in mini(COUNT, spots.size()):
-		var i := tr.at_s(float(spots[k][0]))
-		if tr.P[i].y > 0.5:
+		var i := xf.at_s(float(spots[k][0]))
+		if xf.P[i].y > 0.5:
 			continue                                   # на крышах и лесах зрителям стоять негде — обочины там нет
-		var right: Vector3 = tr.T[i].cross(Vector3.UP)
+		var right: Vector3 = xf.T[i].cross(Vector3.UP)
 		var side: float = spots[k][1]
-		var p: Vector3 = tr.P[i] + right * side * (tr.W[i] * 0.5 + RaceTrack.SHOULDER + 1.9 + rng.randf() * 0.8)
+		var p: Vector3 = xf.P[i] + right * side * (xf.W[i] * 0.5 + RaceTrack.SHOULDER + 1.9 + rng.randf() * 0.8)
 		var id: String = MODELS[k % MODELS.size()]
 		var rig := Rig.new()
 		add_child(rig)
 		rig.setup("res://assets/models/%s.glb" % id, rng.randf_range(1.35, 1.7), RaceVisual.clips(), false, 1.0, "race_" + id)
-		rig.position = Vector3(p.x, tr.P[i].y, p.z)
+		rig.position = Vector3(p.x, xf.P[i].y, p.z)
 		var yaw := atan2(-right.x * side, -right.z * side)          # лицом к дороге
 		rig.rotation.y = yaw
 		rig.play("Idle", 0.0)

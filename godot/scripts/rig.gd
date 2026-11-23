@@ -167,6 +167,7 @@ func _skinned_aabb(key: String) -> AABB:
 			if bones == null or ws == null or vs.size() == 0:
 				continue
 			var per: int = bones.size() / vs.size()
+			@warning_ignore("integer_division")
 			var stride: int = max(1, vs.size() / 6000)
 			for v in range(0, vs.size(), stride):
 				var p := Vector3.ZERO
@@ -265,8 +266,8 @@ func pos_sk(p: Array) -> Vector3:
 	return skel_xf.affine_inverse() * c
 
 func _set_global(rots: Array, i: int, g: Quaternion) -> void:
-	var par := skel.get_bone_parent(i)
-	var pg: Quaternion = _global_rot(rots, par) if par >= 0 else Quaternion.IDENTITY
+	var par_n := skel.get_bone_parent(i)
+	var pg: Quaternion = _global_rot(rots, par_n) if par_n >= 0 else Quaternion.IDENTITY
 	rots[i] = (pg.inverse() * g).normalized()
 
 # ---------- кулаки ----------
@@ -338,8 +339,8 @@ func pose_rots(pose: Dictionary) -> Array:
 			if ang == 0.0:
 				continue
 			var ax: Vector3 = (inv * AXES[a]).normalized()
-			var par := skel.get_bone_parent(b)
-			var P: Quaternion = _global_rot(rots, par) if par >= 0 else Quaternion.IDENTITY
+			var par_n := skel.get_bone_parent(b)
+			var P: Quaternion = _global_rot(rots, par_n) if par_n >= 0 else Quaternion.IDENTITY
 			var d := Quaternion(ax, ang)
 			rots[b] = (P.inverse() * d * P) * rots[b]
 	return rots

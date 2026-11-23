@@ -41,9 +41,9 @@ func frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 
 func tap(a: String) -> void:
 	await get_tree().physics_frame
@@ -156,7 +156,7 @@ func _run() -> void:
 	ok(one and not B.prop_att.visible and not B.prop_l_att.visible, "запас 1 — бутылка только в правой; запас пуст — руки пустые")
 	# ================= 2. издалека — броски =================
 	await stage()
-	var far = foe(Vector3(0, 0, -8.0))
+	var _far = foe(Vector3(0, 0, -8.0))
 	await frames(4)
 	var am0: float = P.combat.ammo_of("bottles")
 	await chain(["attack", "attack", "attack", "attack"])
@@ -168,7 +168,6 @@ func _run() -> void:
 	await frames(4)
 	am0 = P.combat.ammo_of("bottles")
 	var h0: float = near.hp
-	var spot: Vector3 = near.global_position
 	P.auto_input = {}
 	for i in 5:
 		if i > 0:
@@ -279,7 +278,7 @@ func _run() -> void:
 	await until_free(400)
 	# ================= 7. в прыжке, на бегу, в скольжении =================
 	await stage()
-	var j = foe(Vector3(0, 0, -7.0))
+	var _j = foe(Vector3(0, 0, -7.0))
 	await frames(4)
 	await tap("jump")
 	await frames(12)
@@ -299,7 +298,7 @@ func _run() -> void:
 	await until_free(400)
 	ok(log_ids == ["bt_jump", "bt_air"] and from_y > 1.6, "в прыжке: бросок сверху (бутылка вылетела с высоты %.1f м) → удар бутылкой сверху (%s)" % [from_y, str(log_ids)])
 	await stage()
-	j = foe(Vector3(0, 0, -9.0))
+	_j = foe(Vector3(0, 0, -9.0))
 	await frames(4)
 	var z0: float = P.global_position.z
 	P.combat.open("sprint", 0.3)
@@ -320,7 +319,7 @@ func _run() -> void:
 	var slid: float = z0 - P.global_position.z
 	ok(run_id == "bt_run" and ran > 1.2 and slide_id == "bt_slide" and slid > 1.5, "бросок на бегу — герой не останавливается (%.1f м), бросок в скольжении после уклонения — проезжает %.1f м" % [ran, slid])
 	await stage()
-	j = foe(Vector3(0, 0, -7.0))
+	_j = foe(Vector3(0, 0, -7.0))
 	await frames(4)
 	P.combat.open("perfect", 0.3)
 	await tap("attack")
@@ -341,7 +340,7 @@ func _run() -> void:
 		await get_tree().physics_frame
 		n += 1
 	await frames(40)
-	var fb = foe(Vector3(0, 0, -2.2))
+	var _fb = foe(Vector3(0, 0, -2.2))
 	await frames(4)
 	B.hits_log = []
 	log_ids = []

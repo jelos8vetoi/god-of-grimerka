@@ -39,9 +39,9 @@ func frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 
 func tap(a: String) -> void:
 	await get_tree().physics_frame
@@ -253,7 +253,7 @@ func _run() -> void:
 		await get_tree().physics_frame
 	await frames(3)
 	await shot("04_overdrive_finale.png")
-	var sec: float = await run_od()
+	var _sec: float = await run_od()
 	await frames(4)
 	var dealt := 0.0
 	for x in es:

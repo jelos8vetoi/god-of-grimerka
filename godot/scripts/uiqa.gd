@@ -18,7 +18,7 @@ var kept := {}
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 	AudioServer.set_bus_mute(0, true)
 	_run()
 
@@ -55,10 +55,10 @@ func click(pos: Vector2) -> void:
 		Input.parse_input_event(e)
 		await wait(0.06)
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
 	var vs := get_viewport().get_texture().get_image()
-	vs.save_png(out.path_join("%dx%d_%s.png" % [vs.get_width(), vs.get_height(), name]))
+	vs.save_png(out.path_join("%dx%d_%s.png" % [vs.get_width(), vs.get_height(), nm]))
 	screens += 1
 
 ## Один цикл паузы: открыть, показать страницу, закрыть — с ожиданием по состоянию, а не по часам.

@@ -73,7 +73,7 @@ static func _parse_apic(data: PackedByteArray, result: Dictionary) -> void:
 	var mime_end := _find_zero(data, 1, 1)
 	if mime_end < 0 or mime_end + 2 >= data.size():
 		return
-	var mime := data.slice(1, mime_end).get_string_from_ascii().to_lower()
+	var _mime := data.slice(1, mime_end).get_string_from_ascii().to_lower()
 	var description_start := mime_end + 2 # NUL followed by picture type.
 	var terminator_width := 2 if encoding in [1, 2] else 1
 	var description_end := _find_zero(data, description_start, terminator_width)

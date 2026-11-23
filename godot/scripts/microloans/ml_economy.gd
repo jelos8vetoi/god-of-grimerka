@@ -105,7 +105,7 @@ func cv(key: String) -> float:
 	return career.v(key) if career != null else 0.0
 
 ## опыт карьеры и новые вехи: уровни и награды — уведомлениями
-func xp(n: int, why := "") -> void:
+func xp(n: int, _why := "") -> void:
 	if career == null:
 		return
 	var ups := career.add_xp(n)
@@ -767,7 +767,7 @@ func resolve_event(choice: int) -> Dictionary:
 	if fx.has("rep"):
 		rep = clampi(rep + int(fx["rep"]), 0, 100)
 	if fx.has("flag"):
-		flags[String(fx["flag"])] = day + 2 if String(fx["flag"]) == "no_vacuum" else true
+		flags[String(fx["flag"])] = day + 2 if String(fx["flag"]) == "no_vacuum" else (true as Variant)
 	if fx.has("flag_lender"):
 		var lid := String(active()[0]["lender"]) if not active().is_empty() else "bystro"
 		lender_flags[lid] = {"error": true}

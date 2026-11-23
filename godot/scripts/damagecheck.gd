@@ -227,7 +227,7 @@ func _run() -> void:
 		game.up[k] = 0
 	game._apply_upgrades()
 	await duo_block()
-	await mobs_block()
+	mobs_block()
 	await boss_block()
 	incoming_block()
 	print("DAMAGECHECK ok" if fails == 0 else "DAMAGECHECK ОШИБОК: %d" % fails)
@@ -289,7 +289,7 @@ func styles_block(mode: String) -> void:
 		ok(absf(r1 / P.dmg_mul - Balance.RAGE_MUL) < 0.01, "B %s: ПЕРЕГРУЗ ×%.1f ровно один раз" % [sid, Balance.RAGE_MUL])
 		ok(is_finite(top) and top < 6.0, "H %s %s: все усиления вместе ×%.2f — конечно и < 6" % [mode, sid, top])
 		# C: серии
-		var d1 = dummy(Vector3(0, 0.05, -1.6))
+		var _d1 = dummy(Vector3(0, 0.05, -1.6))
 		await frames(70)
 		var res := {}
 		for pat in (["TG", "H", "LLH"] if sid == "tyaga812" else ["L", "H", "LLH"]):
@@ -328,7 +328,7 @@ func duo_block() -> void:
 			for lead in [pa, pb]:
 				await use(lead)
 				P.heroes[game.tag.mate()]["style"] = pb if lead == pa else pa
-				var d = dummy(Vector3(0, 0.05, -3.0))
+				var _d = dummy(Vector3(0, 0.05, -3.0))
 				await frames(70)
 				game.tag.assist_cd = 0.0
 				P.combat.interrupt()
@@ -339,7 +339,7 @@ func duo_block() -> void:
 				if OS.get_cmdline_user_args().has("--dmgdebug2"):
 					print("DBG duo block=", game.tag.assist_block(), " phase=", D.phase, " buf=", D.buf_t, " st=", P.state, " hero=", P.hero, " down=", game.tag.down)
 				game.dmg_log = []
-				var t0 := GameClock.ms()
+				var _t0 := GameClock.ms()
 				await tap("assist")
 				var n := 0
 				while (D.active() or D.buf_t > -9.0) and n < 400:
@@ -435,7 +435,6 @@ func incoming_block() -> void:
 		var c: Dictionary = Enemy_KINDS()[kind]
 		var worst := 0.0
 		var worst_id := ""
-		var chain := 0.0
 		for id in EnemyAI.MOVES[kind]:
 			var m: Dictionary = EnemyAI.MOVES[kind][id]
 			var d: float = float(m.get("dmg_abs", float(c["dmg"]) * float(m.get("dmg", 1.0)))) * float(EnemyAI.TUNE["dmg"]) * 1.25

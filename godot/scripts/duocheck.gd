@@ -51,7 +51,7 @@ func tap(a: String) -> void:
 	P.auto_input = {}
 
 ## кадр сбоку: герой, напарник и цель
-func close(name: String, e) -> void:
+func close(nm: String, e) -> void:
 	var c: Vector3 = (P.global_position + B.global_position + (e.global_position if is_instance_valid(e) else P.global_position)) / 3.0
 	var d: Vector3 = (e.global_position - P.global_position) if is_instance_valid(e) else Vector3(0, 0, -1)
 	d.y = 0
@@ -63,7 +63,7 @@ func close(name: String, e) -> void:
 	cam.make_current()
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 	cam.clear_current(true)
 
 func wait_switch() -> void:
@@ -215,11 +215,11 @@ func _run() -> void:
 				var e = foe()
 				await frames(4)
 				var hp0: float = e.hp
-				var name := ""
+				var nm := ""
 				if shots < 18:
-					name = "c_%s_%s_%s.png" % [lead, ps, ms]
+					nm = "c_%s_%s_%s.png" % [lead, ps, ms]
 					shots += 1
-				await run_duo(e, name)
+				await run_duo(e, nm)
 				var st: Array = ev("start")
 				var en: Array = ev("end")
 				var good: bool = st.size() > 0 and String(st[1]) == ps + "|" + ms and String(st[2]) == lead and en.size() > 0 and hp0 - e.hp > 25.0 and near_b < 2.0 and P.state != "charge" and not B.duo_on and P.state != "duo" and not D.active()

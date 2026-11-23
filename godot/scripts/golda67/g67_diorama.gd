@@ -233,8 +233,8 @@ static func draw_padlock(ci: CanvasItem, c: Vector2, s: float, col := Color(0.55
 
 ## Цепь из звеньев между точками
 static func draw_chain(ci: CanvasItem, a: Vector2, b: Vector2, s: float, col := Color(0.5, 0.48, 0.44, 1.0)) -> void:
-	var step := 15.0 * s
-	var n := int(a.distance_to(b) / step)
+	var stp := 15.0 * s
+	var n := int(a.distance_to(b) / stp)
 	var ang := (b - a).angle()
 	var dark := Color(0.06, 0.06, 0.06, col.a * 0.8)
 	for k in n:

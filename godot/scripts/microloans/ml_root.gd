@@ -176,7 +176,7 @@ func _room() -> void:
 	lp.scale = Vector3.ONE * 1.6
 	var ld: Dictionary = {}
 	if MGModels.has("ml_laptop"):
-		var lr := MGModels.spawn("ml_laptop", lp, Vector3.ZERO, 0.0, Vector3(0.36, 0.25, 0.26), func(r): pass)
+		var lr := MGModels.spawn("ml_laptop", lp, Vector3.ZERO, 0.0, Vector3(0.36, 0.25, 0.26), func(_r): pass)
 		laptop_mat = MGProps.screen_mat(Color(0.55, 0.8, 1.0), 1.0, 1.0, 1.0)
 		# экран модели тёмный — поверх стекла светится «приложение займов» (разметка в единицах модели)
 		MGProps.quad(lr, MGModels.local(lr, Vector3(0.078, 0.469, -0.281)), Vector2(0.68, 0.41) * float(lr.get_meta("k")), laptop_mat)
@@ -207,7 +207,7 @@ func _room() -> void:
 	MGProps.keys(_at(Vector3(0.42, 0.785, -1.28), 1.2))
 	MGProps.mug(_at(Vector3(-0.62, 0.785, -2.0), 0.5))
 	MGProps.food(_at(Vector3(0.38, 0.785, -2.05), -0.3))
-	var dl := MGProps.desk_lamp(_at(Vector3(-0.95, 0.785, -2.0), 0.7))
+	var _dl := MGProps.desk_lamp(_at(Vector3(-0.95, 0.785, -2.0), 0.7))
 	for k in 4:
 		MGProps.cable(self, Vector3(-0.15 + k * 0.08, 0.79, -1.95), Vector3(-0.6 + k * 0.3, 0.02, -2.3), 0.3, 0.008)
 	lamp = SpotLight3D.new()
@@ -297,11 +297,13 @@ func desk_refresh() -> void:
 		var L: Dictionary = act[k]
 		var bill := MGProps.box(bills_root, Vector3(randf_range(-0.02, 0.02), 0.002 + k * 0.004, randf_range(-0.02, 0.02)), Vector3(0.21, 0.003, 0.29), MGProps.mat("paper") if L["status"] != "overdue" else MGProps.mat("red"), Vector3(0, randf_range(-0.3, 0.3), 0))
 		bill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	@warning_ignore("integer_division")
 	var stacks := clampi(econ.money / 3000, 0, 12)
 	var glb := MGModels.has("ml_cash_stack")
 	for k in stacks:
 		var st := Node3D.new()
 		# пачки из файла толще: по три в ряд, рядами вглубь и слоями вверх
+		@warning_ignore("integer_division")
 		st.position = Vector3(float(k % 3) * 0.17, float(k / 6) * 0.072, float((k / 3) % 2) * 0.1) if glb else Vector3(float(k % 3) * 0.17, float(k / 3) * 0.03, float(k / 6) * 0.09)
 		st.rotation.y = randf_range(-0.2, 0.2)
 		cash_root.add_child(st)
@@ -370,6 +372,7 @@ func biz_visuals() -> void:
 	# сотрудники — силуэты на фото-доске у шкафа (сколько наняли)
 	var staff := C.staff_total()
 	for k in mini(staff, 10):
+		@warning_ignore("integer_division")
 		var ph := MGProps.box(biz_root, Vector3(-2.93, 1.4 + float(k / 5) * 0.18, (-2.1 if sofa else -0.6) + float(k % 5) * 0.16), Vector3(0.01, 0.14, 0.12), MGProps.mat("paper"))
 		ph.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# покупки магазина — на столе
@@ -626,6 +629,7 @@ func _feel() -> void:
 	if not _last.is_empty():
 		if int(now["money"]) > int(_last["money"]):
 			snd.play("coins")
+			@warning_ignore("integer_division")
 			money_burst(int(now["money"] - _last["money"]) / 1000 + 1)
 		elif int(now["money"]) < int(_last["money"]):
 			desk_refresh()

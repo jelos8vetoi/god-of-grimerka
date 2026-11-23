@@ -10,7 +10,7 @@ static var _cache := {}
 ## 300 Гц — на динамиках ноутбука и в тихих наушниках этого не слышно; теперь у звуков есть «верх», а уровни выровнены
 const TRIM := {"cam": 7.0, "static": 6.0, "click": 5.0, "step": 9.0, "step_heavy": 6.0, "door_down": 3.0, "door_up": 4.0,
 	"ping": 3.0, "crawl": 7.0, "giggle": 7.0, "heart": 8.0, "babble": 5.0, "hum": 1.0,
-	"crank": 4.0, "clank": 2.0, "vent_bang": 1.0, "power_down": 3.0, "breath": 5.0, "ring": 2.0}
+	"crank": 4.0, "clank": 2.0, "vent_bang": 1.0, "damper_close": 3.0, "damper_open": 3.0, "damper_stop": 3.0, "power_down": 3.0, "breath": 5.0, "ring": 2.0}
 
 ## шина для звука: крики скримеров — отдельная Horror (с ограничителем, через SFX), остальное — как просит вызов
 static func bus_for(id: String, want: String) -> String:
@@ -99,7 +99,7 @@ static func get_stream(id: String) -> AudioStreamWAV:
 ## все звуки заранее — чтобы скример не ждал синтеза
 static func warm() -> void:
 	for id in ["step", "step_heavy", "clank", "scrape", "crawl",
-			"vent_bang", "whisper", "giggle", "ring", "static", "ping", "crank", "chime", "babble", "cam",
+			"vent_bang", "damper_close", "damper_open", "damper_stop", "whisper", "giggle", "ring", "static", "ping", "crank", "chime", "babble", "cam",
 			"scream_balon", "scream_madk1d", "scream_bot", "scream_clipper", "scream_ghost", "scream_mod", "scream_dark", "scream_pahan", "breath", "heart", "music_box_air",
 			"sting_night", "sting_lose", "toy"]:
 		get_stream(id)
@@ -232,6 +232,33 @@ static func _make(id: String) -> AudioStreamWAV:
 				b[i] = lp * burst * 0.9 + sin(TAU * 90.0 * t) * exp(-ph * 22.0) * 0.4
 				b[i] += (0.18 * sin(TAU * 1340.0 * t) + 0.12 * sin(TAU * 2170.0 * t)) * exp(-ph * 14.0) * (0.6 + 0.4 * sin(TAU * 37.0 * t))   # жесть дребезжит
 			return _wav(b)
+		"damper_close":   # падающая жесть: шум с поднимающейся полосой и писк петли
+			var b := _buf(0.36)
+			var lp := 0.0
+			for i in b.size():
+				var t := float(i) / RATE
+				lp += (rng.randf_range(-1, 1) - lp) * (0.04 + 0.5 * t / 0.36)
+				var env := minf(t / 0.02, 1.0) * (0.35 + 0.65 * t / 0.36) * clampf((0.36 - t) / 0.04, 0.0, 1.0)
+				var squeak := sin(TAU * (1700.0 + 900.0 * t) * t) * exp(-pow((t - 0.08) / 0.05, 2.0)) * 0.12
+				b[i] = (lp * 1.6 * env + squeak) * 0.8
+			return _wav(b)
+		"damper_open":    # привод: ноющий тон 140→190 Гц с трещоткой
+			var b := _buf(0.52)
+			var ph := 0.0
+			for i in b.size():
+				var t := float(i) / RATE
+				ph += TAU * (140.0 + 50.0 * t / 0.52) / RATE
+				var ratchet := 0.6 + 0.4 * (signf(sin(TAU * 26.0 * t)) * 0.5 + 0.5)
+				var env := minf(t / 0.03, 1.0) * clampf((0.52 - t) / 0.08, 0.0, 1.0)
+				b[i] = (sin(ph) * 0.5 + sin(ph * 2.0) * 0.18) * ratchet * env
+			return _wav(b)
+		"damper_stop":    # глухой удар листа об упор
+			var b := _buf(0.3)
+			for i in b.size():
+				var t := float(i) / RATE
+				var x := sin(TAU * 95.0 * t) * exp(-t * 22.0) * 0.8 + rng.randf_range(-1, 1) * exp(-t * 60.0) * 0.4 + sin(TAU * 310.0 * t) * exp(-t * 30.0) * 0.25
+				b[i] = x * clampf((0.3 - t) / 0.03, 0.0, 1.0)
+			return _wav(b)
 		"vent_bang":      # удар по жести решётки
 			var b := _buf(0.9)
 			for i in b.size():
@@ -279,16 +306,16 @@ static func _make(id: String) -> AudioStreamWAV:
 				var on := 1.0 if fposmod(t, 1.1) < 0.8 else 0.0
 				b[i] = on * 0.35 * (signf(sin(TAU * 420.0 * t)) * 0.5 + sin(TAU * 470.0 * t)) * (0.5 + 0.5 * signf(sin(TAU * 20.0 * t)))
 			return _wav(b)
-		"static":         # помехи камеры
-			var b := _buf(1.5)
+		"static":         # вспышка помех камеры: одноразовая, без зацикливания
+			var b := _buf(1.1)
 			for i in b.size():
 				var t := float(i) / RATE
 				var x := rng.randf_range(-1, 1) * 0.5
 				if rng.randf() < 0.002:
 					x *= 3.0
-				b[i] = x * (0.8 + 0.2 * sin(TAU * 60.0 * t))
-			_loop_fade(b, 0.05)
-			return _wav(b, true)
+				var env := minf(t / 0.03, 1.0) * clampf((1.1 - t) / 0.45, 0.0, 1.0)
+				b[i] = x * (0.8 + 0.2 * sin(TAU * 60.0 * t)) * env
+			return _wav(b)
 		"ping":           # писк сервера: два коротких
 			var b := _buf(0.5)
 			for i in b.size():
@@ -329,15 +356,17 @@ static func _make(id: String) -> AudioStreamWAV:
 				lp += (rng.randf_range(-1, 1) - lp) * 0.12
 				b[i] = lp * env * 1.2
 			_loop_fade(b, 0.05)
-			return _wav(b, true)
+			return _wav(b)
 		"heart":          # сердце — тише, ближе к концу «последнего шанса»
-			var b := _buf(0.9)
+			var b := _buf(2.7)          # три удара подряд, третий тише на 40 %; без цикла
 			for i in b.size():
-				var t := float(i) / RATE
+				var t0 := float(i) / RATE
+				var beat := int(t0 / 0.9)
+				var t := t0 - float(beat) * 0.9
+				var gain := 0.6 if beat >= 2 else 1.0
 				var a := exp(-t * 18.0) if t < 0.2 else exp(-(t - 0.22) * 16.0) * (1.0 if t >= 0.22 else 0.0) * 0.7
-				b[i] = sin(TAU * 52.0 * t) * a + sin(TAU * 104.0 * t) * a * 0.5 + rng.randf_range(-1, 1) * a * a * 0.25
-			_loop_fade(b, 0.02)
-			return _wav(b, true)
+				b[i] = (sin(TAU * 52.0 * t) * a + sin(TAU * 104.0 * t) * a * 0.5 + rng.randf_range(-1, 1) * a * a * 0.25) * gain
+			return _wav(b)
 		"music_box_air":  # «последний шанс»: Балон шипит вентилем — неровная мелодия свистом воздуха
 			var melody := [0, 3, 7, 6, 3, 0, -2, 0]
 			var b := _buf(6.4)

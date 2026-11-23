@@ -52,7 +52,7 @@ var cable_hits := 0
 var bumps := 0
 var fragile_hits := 0
 var broke_val := 0
-var load := 0.0
+var ld := 0.0
 var cap := 30.0
 var combo := 0
 var combo_t := 0.0
@@ -141,6 +141,7 @@ func _level() -> void:
 			MGProps.text(at(Vector3(0, 2.0, -2.44)), "ПОДЪЕЗД 3 · НЕ КУРИТЬ", Vector3.ZERO, 44, Color(0.85, 0.82, 0.75))
 		3:
 			for k in 6:
+				@warning_ignore("integer_division")
 				var p := Vector3(-4.0 + float(k % 3) * 4.0, 0, -2.0 + float(k / 3) * 3.6)
 				_furn(p, Vector2(0.8, 0.4), "ml_desk", func(r): MGProps.desk(r, 1.6, 0.8), 0.0, true)
 				_furn(p + Vector3(0, 0.78, 0), Vector2(0.01, 0.01), "", func(r): MGProps.laptop(r), 0.0, true)
@@ -189,6 +190,7 @@ func _level() -> void:
 			MGProps.ball(node, Vector3(0, 0.035, 0), 0.05, MGProps.mat("paper") if kind % 2 else MGProps.mat("card"), Vector3(1, 0.7, 1.2))
 		trash.append({"node": node, "w": wgt, "big": big, "val": false, "got": false, "pull": 0.0})
 	if task == "valuables" or tier >= 4:
+		@warning_ignore("integer_division")
 		for k in 3 + tier / 2:
 			var p := Vector3(rng.randf_range(-w / 2 + 1, w / 2 - 1), 0, rng.randf_range(-d / 2 + 1, d / 2 - 1))
 			var node := at(p)
@@ -237,14 +239,14 @@ func _level() -> void:
 		if _counts(t):
 			need += float(t["w"])
 
-func _furn(p: Vector3, half: Vector2, id: String, build: Callable, yaw: float, fragile := false) -> void:
+func _furn(p: Vector3, half: Vector2, id: String, build: Callable, yw: float, fragile := false) -> void:
 	var n: Node3D
 	if id == "ml_desk":
-		n = MGModels.wide_desk(world_root, p, yaw, half.x * 2.0, half.y * 2.0, 0.78, build)
+		n = MGModels.wide_desk(world_root, p, yw, half.x * 2.0, half.y * 2.0, 0.78, build)
 	elif id != "":
-		n = MGModels.spawn(id, world_root, p, yaw, Vector3(half.x * 2.0, 1.0, half.y * 2.0), build)
+		n = MGModels.spawn(id, world_root, p, yw, Vector3(half.x * 2.0, 1.0, half.y * 2.0), build)
 	else:
-		n = at(p, yaw)
+		n = at(p, yw)
 		build.call(n)
 	if fragile and task == "fragile":
 		var fr := MGProps.box(n, Vector3(0, 0.02, 0), Vector3(half.x * 2.0 + 0.3, 0.01, half.y * 2.0 + 0.3), MGProps.glow(Color(1, 1, 1), 0.6))
@@ -318,7 +320,7 @@ func _process(dt: float) -> void:
 		throttle = minf(throttle, 0.0) * 0.5
 	turbo_cd = maxf(0.0, turbo_cd - dt)
 	tangle_cd = maxf(0.0, tangle_cd - dt)
-	if cv("tyaga_turbo") > 0.0 and turbo_t <= 0.0 and turbo_cd <= 0.0 and (Input.is_physical_key_pressed(KEY_SHIFT) and bot < 0.0 or bot >= 0.0 and load < cap * 0.5 and rng_bot.randf() < dt * 0.3):
+	if cv("tyaga_turbo") > 0.0 and turbo_t <= 0.0 and turbo_cd <= 0.0 and (Input.is_physical_key_pressed(KEY_SHIFT) and bot < 0.0 or bot >= 0.0 and ld < cap * 0.5 and rng_bot.randf() < dt * 0.3):
 		turbo_t = 3.0 + (1.5 if eq("tyaga") >= 4 else 0.0)
 		turbo_cd = 8.0
 		sfx("whoosh", 1.4)
@@ -350,10 +352,10 @@ func _process(dt: float) -> void:
 	combo_l.visible = combo >= 3
 	var k_got := got_w / maxf(1.0, need)
 	progress(k_got)
-	score_l.text = "убрано %d %%\nконтейнер %d %%\nшланг %d %%\n[Q] %s" % [int(k_got * 100.0), int(load / cap * 100.0), int(clampf(tension, 0.0, 1.0) * 100.0), "МОЙКА" if wash else "ЩЁТКА"]
-	tip_l.text = "Контейнер полон — к ведру у двери" if load >= cap else ("Шланг натянут" if tension > 0.95 else ("Запутался — сдай назад" if stuck_t > 0.0 else ""))
+	score_l.text = "убрано %d %%\nконтейнер %d %%\nшланг %d %%\n[Q] %s" % [int(k_got * 100.0), int(ld / cap * 100.0), int(clampf(tension, 0.0, 1.0) * 100.0), "МОЙКА" if wash else "ЩЁТКА"]
+	tip_l.text = "Контейнер полон — к ведру у двери" if ld >= cap else ("Шланг натянут" if tension > 0.95 else ("Запутался — сдай назад" if stuck_t > 0.0 else ""))
 	hum.pitch_scale = 0.8 + absf(speed) / vmax * 0.5 + (0.25 if turbo_t > 0.0 else 0.0)
-	hum.volume_db = -16.0 + (4.0 if load < cap else -4.0)
+	hum.volume_db = -16.0 + (4.0 if ld < cap else -4.0)
 	# камера: сзади-сверху, мягко
 	var want := pos - fwd * 3.0 + Vector3(0, 3.0, 0)
 	# камера не уходит за стены (сзади, слева, справа); спереди комната открыта
@@ -586,7 +588,7 @@ func _wash(dt: float, fwd: Vector3) -> void:
 			pop("ЧИСТО!", tp + Vector3(0, 0.6, 0), Color(0.5, 0.85, 1.0))
 
 func _suck(dt: float, fwd: Vector3) -> void:
-	if load >= cap or wash:
+	if ld >= cap or wash:
 		return
 	var nozzle := pos + fwd * 0.6
 	var power := (1.0 + cv("tyaga_power")) * (2.0 if turbo_t > 0.0 else 1.0)
@@ -615,7 +617,7 @@ func _suck(dt: float, fwd: Vector3) -> void:
 		if float(t["pull"]) >= (0.35 if float(t["w"]) <= 1.0 else 0.9):
 			t["got"] = true
 			node.visible = false
-			load += float(t["w"])
+			ld += float(t["w"])
 			if _counts(t):
 				got_w += float(t["w"])
 			combo += 1
@@ -627,17 +629,17 @@ func _suck(dt: float, fwd: Vector3) -> void:
 				pop("НАШЁЛ!", tp + Vector3(0, 0.6, 0), Color(1.0, 0.85, 0.3))
 			elif combo >= 3 and combo % 3 == 0:
 				pop("серия ×%d" % combo, tp + Vector3(0, 0.6, 0), Color(1.0, 0.8, 0.3))
-			if load >= cap:
+			if ld >= cap:
 				sfx("alert")
 				hint("full")
 
 ## у ведра контейнер выгружается сам
 func _unload() -> void:
-	if load > 0.0 and Vector2(pos.x - bin_p.x, pos.z - bin_p.z).length() < 1.1:
-		if load >= cap * 0.3:
+	if ld > 0.0 and Vector2(pos.x - bin_p.x, pos.z - bin_p.z).length() < 1.1:
+		if ld >= cap * 0.3:
 			sfx("whoosh")
 			puff(bin_p + Vector3(0, 0.7, 0), Color(0.6, 0.6, 0.6), 8, 1.5)
-		load = 0.0
+		ld = 0.0
 
 # ---------------- бот (проверки) ----------------
 func _bot_input() -> Vector2:
@@ -660,7 +662,7 @@ func _bot_input() -> Vector2:
 			bot_back_turn = 1.0 if rng_bot.randf() < 0.5 else -1.0
 	else:
 		bot_idle = 0.0
-	if load >= cap:
+	if ld >= cap:
 		return _steer_to(_around(bin_p), 1.0)
 	if bot_target < 0 or trash[bot_target]["got"]:
 		bot_stall = 0.0

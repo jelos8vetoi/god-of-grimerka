@@ -556,8 +556,10 @@ static func fuse_panel(r: Node3D, label := "ЩИТ") -> Array:
 	box(r, Vector3(0, 0, 0.065), Vector3(0.52, 0.76, 0.01), mat("black"))
 	var leds: Array = []
 	for k in 6:
+		@warning_ignore("integer_division")
 		box(r, Vector3(-0.18 + (k % 3) * 0.18, 0.15 - (k / 3) * 0.3, 0.08), Vector3(0.06, 0.14, 0.04), mat("plastic"))
 		var l := glow(Color(0.2, 1.0, 0.3) if k != 4 else Color(1.0, 0.15, 0.08), 1.8)
+		@warning_ignore("integer_division")
 		box(r, Vector3(-0.18 + (k % 3) * 0.18, 0.26 - (k / 3) * 0.3, 0.075), Vector3(0.02, 0.02, 0.01), l)
 		leds.append(l)
 	text(r, label, Vector3(0, 0.38, 0.075), 30, Color(0.9, 0.85, 0.75))
@@ -573,6 +575,7 @@ static func prize_counter(r: Node3D) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 71
 	for k in 12:
+		@warning_ignore("integer_division")
 		var p := Vector3(-0.9 + (k % 6) * 0.36, 0.98 + (k / 6) * 0.5 + 0.1, -0.45)
 		var plush := Node3D.new()
 		plush.position = p
@@ -636,6 +639,7 @@ static func calculator(r: Node3D) -> void:
 	box(r, Vector3(0, 0.01, 0), Vector3(0.09, 0.02, 0.15), mat("plastic"))
 	box(r, Vector3(0, 0.021, -0.045), Vector3(0.07, 0.002, 0.03), glow(Color(0.6, 0.75, 0.55), 0.6))
 	for k in 16:
+		@warning_ignore("integer_division")
 		box(r, Vector3(-0.027 + (k % 4) * 0.018, 0.022, -0.01 + (k / 4) * 0.018), Vector3(0.013, 0.004, 0.013), mat("plastic_black") if k % 4 != 3 else mat("red"))
 
 ## стопка неоплаченных счетов: листы вразнобой, верхний с красной печатью
@@ -743,6 +747,7 @@ static func shelf(r: Node3D) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 55
 	for k in 14:
+		@warning_ignore("integer_division")
 		var y := float(k / 7) * 0.4 + 0.12
 		var x := -0.45 + float(k % 7) * 0.13
 		box(r, Vector3(x, y, 0), Vector3(0.05, rng.randf_range(0.16, 0.24), 0.18), [mat("red"), mat("black"), mat("cream"), mat("blue_paint")][k % 4], Vector3(0, 0, rng.randf_range(-0.08, 0.08)))
@@ -768,6 +773,7 @@ static func console_open(r: Node3D) -> Dictionary:
 	box(r, Vector3(0, 0.02, 0), Vector3(0.32, 0.04, 0.22), mat("plastic_black"))
 	var board := box(r, Vector3(0, 0.045, 0), Vector3(0.28, 0.008, 0.19), mat("green_paint"))
 	for k in 6:
+		@warning_ignore("integer_division")
 		box(r, Vector3(-0.1 + (k % 3) * 0.08, 0.055, -0.05 + (k / 3) * 0.08), Vector3(0.04, 0.012, 0.03), mat("black"))
 	cyl(r, Vector3(0.09, 0.06, 0.05), 0.04, 0.04, 0.02, mat("plastic"), Vector3.ZERO, 12)
 	var screws: Array = []
@@ -831,6 +837,7 @@ static func junk_item(r: Node3D, idx: int) -> void:
 		6:  # пульт
 			box(r, Vector3(0, 0.012, 0), Vector3(0.05, 0.024, 0.18), mat("plastic_black"))
 			for k in 6:
+				@warning_ignore("integer_division")
 				box(r, Vector3(-0.012 + (k % 2) * 0.024, 0.026, -0.05 + (k / 2) * 0.04), Vector3(0.014, 0.004, 0.014), mat("plastic"))
 			box(r, Vector3(0, 0.026, -0.075), Vector3(0.012, 0.004, 0.012), mat("red"))
 		7:  # гитарная педаль

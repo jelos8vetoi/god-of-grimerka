@@ -40,14 +40,14 @@ func frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
 	var img: Image = get_viewport().get_texture().get_image()
-	img.save_png(out.path_join(name))
+	img.save_png(out.path_join(nm))
 	# тот же кадр, только угол с HUD, увеличенный втрое — чтобы рассмотреть мелкие детали
 	var z: Image = img.get_region(Rect2i(0, int(img.get_height() * 0.74), int(img.get_width() * 0.4), int(img.get_height() * 0.26)))
 	z.resize(z.get_width() * 3, z.get_height() * 3, Image.INTERPOLATE_LANCZOS)
-	z.save_png(out.path_join("zoom_" + name))
+	z.save_png(out.path_join("zoom_" + nm))
 
 func tap(a: String) -> void:
 	await get_tree().physics_frame
