@@ -1008,6 +1008,9 @@ func _pz_music_tick(dt: float) -> void:
 	elif dc < 25.0:
 		want = "casino"
 	var fresh := false
+	if G67District.is_podzemka() and not run.is_empty() and int(run.get("pos", 0)) >= 2 and clip == null and not clip_seen("PZ_STREAM01") and game.main.user_play() and G67Podzemka.room_at(hp) in ["gallery", "gal_a", "gal_b"]:
+		var sf := func(): await play_clip("PZ_STREAM01")          # стрим «НЕ ГРЫЗИ НОГТИ» — в галерее после позиции 2, один раз
+		sf.call()
 	if want != pz_dieg:
 		pz_dieg = want
 		fresh = true
@@ -1245,6 +1248,8 @@ func district() -> Dictionary:
 ## Двор не пересобирается и не сдвигается: меняются только арена боя, ограждения и награда.
 func enter_room(r: Dictionary) -> void:
 	call_deferred("_place_krot_pz")
+	if G67District.is_podzemka() and int(run.get("pos", 1)) == 0 and not clip_seen("AD02") and game.main.user_play():
+		await play_clip("AD02")          # реклама подземки — при первом спуске, до первого боя
 	flush_coins()
 	game.player.collision_mask |= 32          # слой 6: стенка проёма ограждения держит героя, враги проходят
 	_kiosk_hint()
@@ -4432,6 +4437,9 @@ func use(id: String) -> void:
 		_reserve_final()
 	elif id == "hamster_game":
 		_hamster_play()
+	elif id == "balloon":
+		var bf := func(): await play_clip("PZ_BALLOON01")
+		bf.call()
 	elif id == "shutter" or id == "hamster_door":
 		var pzd := world.district as G67Podzemka
 		if pzd != null and pzd.open_door("shutter" if id == "shutter" else "hamster"):

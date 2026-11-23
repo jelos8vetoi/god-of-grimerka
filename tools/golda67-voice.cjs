@@ -240,7 +240,7 @@ const NAME_HINTS = { M: /madk/i, V: /паш|пахан|pahan/i, KR: /крот|kr
   WH: /whyousolonely/i, FT: /fortuna/i, KX: /королев|korolev/i, BS: /бустер|buster/i };
 // голоса не из моделей владельца: ведущие — встроенные пресеты Voice Studio Pro (решение владельца).
 // Весь приквел озвучивается только через Voice Studio Pro (решение владельца от 2026-11-22): madk1d — его модель MADK1D.
-const FIXED = { AN: { id: 'preset:narrator', name: 'пресет Narrator (Voice Studio Pro)' }, PH: { id: 'preset:casual', name: 'пресет Casual (Voice Studio Pro)' },
+const FIXED = { DK: { id: 'preset:energetic', name: 'пресет Energetic (Voice Studio Pro)' }, AN: { id: 'preset:narrator', name: 'пресет Narrator (Voice Studio Pro)' }, PH: { id: 'preset:casual', name: 'пресет Casual (Voice Studio Pro)' },
   LS: { id: 'preset:corporate', name: 'пресет Corporate (Voice Studio Pro)' },
   BB: { id: 'preset:storyteller', name: 'пресет Storyteller (Voice Studio Pro)' }, TX: { id: 'preset:casual', name: 'пресет Casual (Voice Studio Pro)' }, US: { id: 'preset:narrator', name: 'пресет Narrator (Voice Studio Pro)' },
   SC: { id: 'preset:energetic', name: 'пресет Energetic (Voice Studio Pro)' }, Z1: { id: 'preset:corporate', name: 'пресет Corporate (Voice Studio Pro)' }, Z2: { id: 'preset:news_anchor', name: 'пресет News Anchor (Voice Studio Pro)' },

@@ -182,6 +182,7 @@ func run(g_, G_: Golda67) -> void:
 	await _enemy_checks()
 	await _slot_checks()
 	await _casino_checks()
+	await _clip_checks()
 	await _bottle_checks()
 	await _bot_battles()
 
@@ -1617,3 +1618,54 @@ func _fz_closed_between(ar: G67FortunaArena, a: Vector3, b: Vector3) -> bool:
 			if i >= 0 and i < 6 and ar.sec_state(l, i) == "closed":
 				return true
 	return false
+
+## Ролики района: проигрываются до конца, длительность в диапазоне, пауза/пропуск, архив, управление возвращается; ключевые кадры
+func _clip_checks() -> void:
+	G.start_run("podzemka")
+	await c.until(func(): return G.run.get("district", "") == "podzemka" and G.world != null and G.world.district is G67Podzemka, 12.0)
+	await c.wait(1.5)
+	if G.hub_ui != null:
+		G.hub_ui.close()
+	var report: Array = []
+	for cid in ["AD02", "PZ_STREAM01", "PZ_BALLOON01"]:
+		var rng: Array = G67Clips.INFO[cid]["dur"]
+		var starter := func(): await G.play_clip(cid)
+		starter.call()
+		await c.until(func(): return G.clip != null, 5.0)
+		var cp = G.clip
+		var shots := {}
+		var span: float = (float(rng[0]) + float(rng[1])) * 0.5
+		var guard := Time.get_ticks_msec() + 120000
+		var paused_ok := true
+		var last_t := 0.0
+		while is_instance_valid(cp) and not cp.done and Time.get_ticks_msec() < guard:
+			last_t = cp.t
+			for k in 5:
+				var tk := span * (0.08 + 0.2 * float(k))
+				if cp.t >= tk and not shots.has(k):
+					shots[k] = true
+					await c.shot("pz_clip_%s_%d" % [cid, k])
+			if cp.t > span * 0.5 and not shots.has("p"):
+				shots["p"] = true
+				var t0: float = cp.t
+				cp.set_paused(true)
+				await c.wait(0.6)
+				paused_ok = absf(cp.t - t0) < 0.15
+				cp.set_paused(false)
+			await c.wait(0.1)
+		var dur: float = maxf(last_t, cp.t if is_instance_valid(cp) else 0.0)
+		await c.until(func(): return G.clip == null, 5.0)
+		var arch: bool = (G.meta().get("archive", []) as Array).has("clip_" + cid)
+		var seen: bool = G.clip_seen(cid)
+		report.append("%s: %.1f с (цель %.0f–%.0f), пауза %s, архив %s, просмотрен %s, управление %s" % [cid, dur, float(rng[0]), float(rng[1]), str(paused_ok), str(arch), str(seen), str(P.is_physics_processing())])
+		print("GOLDA67CHECK   РОЛИК ", report[-1])
+		ok(dur >= float(rng[0]) - 1.0 and dur <= float(rng[1]) + 1.5 and paused_ok and arch and seen and G.clip == null and P.is_physics_processing(), "ролик " + report[-1])
+	# пропуск удержанием
+	var sk := func(): await G.play_clip("PZ_BALLOON01")
+	sk.call()
+	await c.until(func(): return G.clip != null, 5.0)
+	var cp2 = G.clip
+	await c.wait(1.5)
+	cp2.skip()
+	await c.until(func(): return G.clip == null, 5.0)
+	ok(G.clip == null and G.events.any(func(e): return String(e[0]) == "clip_skipped" or String(e[0]) == "clip"), "пропуск ролика работает, управление возвращено")

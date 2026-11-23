@@ -422,6 +422,12 @@ func actor(key: String, kind: String, pos: Vector3, yaw: float) -> Rig:
 			h = 1.74
 			C = Poses.pahan()
 			C.merge(G67Clips.ev_clips(), true)
+			C.merge(G67PzClips.wave_clips(), true)
+		"pz_ctl", "pz_prm":
+			path = "res://assets/golda67/podzemka/g67_enemy_controller.glb" if kind == "pz_ctl" else "res://assets/golda67/podzemka/g67_enemy_promoter.glb"
+			h = 1.78 if kind == "pz_ctl" else 1.74
+			C = Poses.pahan()
+			C.merge(G67PzClips.wave_clips(), true)
 		"madk1d":
 			path = "res://assets/models/madk1d.glb"
 			h = 1.68
@@ -450,6 +456,8 @@ func actor(key: String, kind: String, pos: Vector3, yaw: float) -> Rig:
 			C = Poses.pahan()
 			C.merge(G67Poses.clips(), true)
 			C.merge(G67Clips.boss_clips(), true)
+			if kind == "fortuna":
+				C.merge(G67Fortuna.clips(), true)
 	r.setup(path, h, C, true, -1.0 if kind == "pahan" else 1.0, "clip_" + kind)
 	r.position = pos
 	r.rotation.y = yaw

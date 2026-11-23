@@ -84,7 +84,7 @@ const DOORS := [
 const ZONES_BASE := {
 	"stairs": {"c": Vector3(0, 0, -21), "h": Vector2(6, 5), "name": "спуск"},
 	"gate1": {"c": Vector3(0, 0, -35), "h": Vector2(9, 9), "name": "первый турникет", "spawns": [[Vector3(-7.5, 0.05, -42)], [Vector3(7.5, 0.05, -42)], [Vector3(-7.5, 0.05, -28)], [Vector3(7.5, 0.05, -28)]]},
-	"gallery": {"c": Vector3(0, 0, -79), "h": Vector2(10, 9), "name": "торговая галерея", "spawns": [[Vector3(-8.0, 0.05, -84)], [Vector3(8.0, 0.05, -84)], [Vector3(-8.0, 0.05, -74)], [Vector3(8.0, 0.05, -74)]]},
+	"gallery": {"c": Vector3(0, 0, -79), "h": Vector2(10, 9), "name": "торговая галерея", "spawns": [[Vector3(-8.0, 0.05, -84)], [Vector3(6.0, 0.05, -84)], [Vector3(-8.0, 0.05, -74)], [Vector3(6.0, 0.05, -75)]]},
 	"cross": {"c": Vector3(0, 0, -122), "h": Vector2(12, 12), "name": "перекрёсток", "spawns": [[Vector3(-10, 0.05, -131)], [Vector3(10, 0.05, -131)], [Vector3(-10, 0.05, -113)], [Vector3(10, 0.05, -113)]]},
 	"arcade": {"c": Vector3(-30, 0, -122), "h": Vector2(14, 10), "name": "зал автоматов", "spawns": [[Vector3(-42, 0.05, -130)], [Vector3(-42, 0.05, -114)], [Vector3(-18, 0.05, -130)], [Vector3(-18, 0.05, -114)]]},
 	"tunnel": {"c": Vector3(40, 0, -135), "h": Vector2(4, 15), "name": "служебный тоннель", "spawns": [[Vector3(38, 0.05, -148)], [Vector3(42, 0.05, -148)], [Vector3(38, 0.05, -123)], [Vector3(42, 0.05, -123)]]},
@@ -1038,7 +1038,64 @@ func _crate(pos: Vector3, size: Vector3) -> void:
 	_collider(pos, size)
 
 ## Двери секретных комнат: рольставня казино и дверь хомяков — закрыты (блокер + панель), открываются по [E] (open_door)
+## Закрытый киоск «ШАРЫ. ПРАЗДНИК. ТАРИФ» с баллоном и связкой шаров у западной стены площади галереи (точка [E] — ролик PZ_BALLOON01)
+func _balloon_kiosk() -> void:
+	var base := Vector3(-10.6, 0.0, -83.5)
+	var kb := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(1.4, 2.2, 2.4)
+	kb.mesh = bm
+	var km := StandardMaterial3D.new()
+	km.albedo_color = Color(0.36, 0.4, 0.38)
+	kb.material_override = km
+	kb.position = base + Vector3(0, 1.1, 0)
+	add_child(kb)
+	_collider(kb.position, bm.size)
+	var sg := Label3D.new()
+	sg.text = "ШАРЫ. ПРАЗДНИК. ТАРИФ"
+	sg.font_size = 44
+	sg.pixel_size = 0.0045
+	sg.modulate = Color(1.0, 0.85, 0.2)
+	sg.shaded = false
+	sg.rotation.y = PI * 0.5
+	sg.position = base + Vector3(0.72, 2.5, 0)
+	add_child(sg)
+	var sh := Label3D.new()
+	sh.text = "ЗАКРЫТО НА УЧЁТ"
+	sh.font_size = 28
+	sh.pixel_size = 0.004
+	sh.modulate = Color(0.9, 0.9, 0.9)
+	sh.shaded = false
+	sh.rotation.y = PI * 0.5
+	sh.position = base + Vector3(0.72, 1.4, 0)
+	add_child(sh)
+	for i in 3:
+		var bl := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.22
+		sm.height = 0.46
+		bl.mesh = sm
+		var bmt := StandardMaterial3D.new()
+		bmt.albedo_color = [Color(0.95, 0.15, 0.12), Color(1.0, 0.85, 0.12), Color(0.2, 0.85, 0.3)][i]
+		bmt.roughness = 0.2
+		bl.material_override = bmt
+		bl.position = base + Vector3(0.9, 1.9 + 0.15 * float(i % 2), -0.55 + 0.55 * float(i))
+		add_child(bl)
+	var tank := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.14
+	cm.bottom_radius = 0.14
+	cm.height = 0.9
+	tank.mesh = cm
+	var tm := StandardMaterial3D.new()
+	tm.albedo_color = Color(0.7, 0.72, 0.75)
+	tm.metallic = 0.6
+	tank.material_override = tm
+	tank.position = base + Vector3(0.95, 0.45, 0.85)
+	add_child(tank)
+
 func _doors() -> void:
+	_balloon_kiosk()
 	music_casino = Marker3D.new()
 	music_casino.position = Vector3(-52.2, 1.2, -122.0)
 	add_child(music_casino)
