@@ -1573,7 +1573,7 @@ func _hub_screens(g, G: Golda67, P) -> void:
 	# коллекция артефактов: сервант, 18 мест, пока все — силуэты
 	ok(await _hub_screen(G, P, "artifacts", "artifacts"), "коллекция артефактов открывается")
 	var CU = G.hub_ui
-	ok(CU is G67ArtifactsUI and CU.cells.size() == 18 and CU.cells.all(func(c): return (c as G67ArtifactsUI.Cell).tex != null), "18 мест с рисованными значками владельца")
+	ok(CU is G67ArtifactsUI and CU.cells.size() == 19 and CU.cells.all(func(c): return (c as G67ArtifactsUI.Cell).tex != null), "19 мест с рисованными значками владельца")
 	ok(CU.cells.all(func(c): return not (c as G67ArtifactsUI.Cell).has) and CU.c_name.text == "???", "ничего не найдено — за стеклом силуэты, имя скрыто")
 	await wait(0.3)
 	await shot("h04_artifacts")
@@ -1738,7 +1738,7 @@ func _clip_frames(G: Golda67, dir: String) -> void:
 ## отказа), эффекты всех артефактов и ВОССТАНОВЛЕНИЯ числами, ДОБИВАЛА и ВТОРОЕ ДЫХАНИЕ по таблице
 func _stage3(g, G: Golda67, P) -> void:
 	ok(G.place == "hub", "этап 3: начинаем из подъезда")
-	ok(G67Data.ARTIFACTS.size() == 18 and G.slots() == 3, "18 артефактов, слотов 3")
+	ok(G67Data.ARTIFACTS.size() == 19 and G.slots() == 3, "19 артефактов, слотов 3")
 	var pool := G.storage_pool()
 	ok(not pool.any(func(id): return G67Data.ART_EVENT.has(id)), "событийных артефактов в кладовке нет")
 	ok(not pool.has("second_sim"), "«Вторая симка» до первой концовки не выпадает")
