@@ -24,11 +24,12 @@ func _ready() -> void:
 	add_child(player)
 	scan()
 
-func scan() -> void:
-	found = {}
+## Номера и пути треков плейлиста на диске (и в экспорте: *.mp3.import) — общий поиск для iPhone и iPod
+static func files() -> Dictionary:
+	var out := {}
 	var d := DirAccess.open(DIR)
 	if d == null:
-		return
+		return out
 	for f in d.get_files():
 		var nm := String(f)
 		if nm.ends_with(".import"):
@@ -37,7 +38,11 @@ func scan() -> void:
 			continue
 		var no := int(nm.substr(0, 2))
 		if no >= 1 and no <= G67Data.PLAYLIST.size():
-			found[no] = DIR + nm
+			out[no] = DIR + nm
+	return out
+
+func scan() -> void:
+	found = files()
 
 func has_track(no: int) -> bool:
 	return found.has(no) or injected.has(no)
@@ -57,6 +62,10 @@ func play(no: int) -> bool:
 		st = load(String(found[no]))
 	if st == null:
 		return false
+	var rt = get_parent()
+	var ip = rt.game.ipod if rt != null and "game" in rt and rt.game != null else null
+	if ip != null and ip.has_method("stop_g67"):
+		ip.stop_g67()                    # один звук за раз: плеер iPod замолкает
 	cur = no
 	selected = no - 1
 	paused = false

@@ -106,10 +106,10 @@ func _on_hit(a: AttackData, n: int) -> void:
 	if recent.size() > 4:
 		recent.pop_front()
 
-func _on_feedback(name: String, _pos: Vector3, _power: float) -> void:
-	if name == "perfect_dodge":
+func _on_feedback(nm: String, _pos: Vector3, _power: float) -> void:
+	if nm == "perfect_dodge":
 		gain("dodge")
-	elif name == "parry":
+	elif nm == "parry":
 		gain("parry")
 
 ## события стилей и команды, которые не шлют сигналов: читаем их журналы

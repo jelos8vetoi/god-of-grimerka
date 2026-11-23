@@ -14,7 +14,7 @@ var kept := {}
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 	AudioServer.set_bus_mute(0, true)
 	_run()
 
@@ -35,9 +35,9 @@ func key(k: Key) -> void:
 		Input.parse_input_event(e)
 		await wait(0.06)
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm + ".png"))
 
 func until(cond: Callable, sec: float) -> bool:
 	var t0 := GameClock.ms()
@@ -120,7 +120,6 @@ func _run() -> void:
 	await wait(0.4)
 	var a = T.targets["A"]
 	ok(a.train_still and a.train_immortal, "манекен зоны A стоит и не умирает")
-	var a_pos: Vector3 = a.global_position
 	await wait(1.5)
 	ok(a.global_position.distance_to(T.ZONES["A"]) < 1.0, "манекен не уходит со своей зоны (%.2f м)" % a.global_position.distance_to(T.ZONES["A"]))
 	for i in 3:

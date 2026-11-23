@@ -59,17 +59,17 @@ func click(pos: Vector2, button := MOUSE_BUTTON_LEFT) -> void:
 	mouse(button, pos, false)
 	await wait(0.07)
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
-	img.save_png(out.path_join(name))
+	img.save_png(out.path_join(nm))
 	# рядом — увеличенный втрое фрагмент с самим iPod: мелкий текст экрана иначе не разглядеть
 	if ipod.device.visible:
 		var r := Rect2i((get_viewport().get_final_transform() * device_rect()).grow(10.0)).intersection(Rect2i(Vector2i.ZERO, img.get_size()))
 		if r.size.x > 8 and r.size.y > 8:
 			var z := img.get_region(r)
 			z.resize(r.size.x * 3, r.size.y * 3, Image.INTERPOLATE_LANCZOS)
-			z.save_png(out.path_join(name.get_basename() + "_zoom.png"))
+			z.save_png(out.path_join(nm.get_basename() + "_zoom.png"))
 
 func peak(bus: String) -> float:
 	return AudioServer.get_bus_peak_volume_left_db(AudioServer.get_bus_index(bus), 0)
@@ -285,9 +285,9 @@ func _run() -> void:
 		await import_done()
 		await wait(0.3)
 		ok(ipod.tracks.size() == before + files.size(), "импортировано файлов: %d" % (ipod.tracks.size() - before))
-		var tr: Dictionary = ipod.tracks[before]
-		ok(String(tr["title"]) == "Тест Балон" and String(tr["artist"]) == "madk1d", "теги MP3 прочитаны: «%s» — %s" % [tr["title"], tr["artist"]])
-		ok(String(tr["cover"]) != "" and ipod._cover_for_track(tr) != null, "обложка из MP3 извлечена")
+		var xf: Dictionary = ipod.tracks[before]
+		ok(String(xf["title"]) == "Тест Балон" and String(xf["artist"]) == "madk1d", "теги MP3 прочитаны: «%s» — %s" % [xf["title"], xf["artist"]])
+		ok(String(xf["cover"]) != "" and ipod._cover_for_track(xf) != null, "обложка из MP3 извлечена")
 		ok(ipod.track_index == before and ipod.player.playing, "импортированный MP3 играет")
 		await wait(0.5)
 		print("IPOD уровень своего MP3: %.1f дБ" % peak("IPod"))
@@ -399,20 +399,20 @@ func _run() -> void:
 
 # ---------------- рука, карман, взгляд (--hand) ----------------
 ## Кадр с героем крупно: вырезка вокруг груди, увеличенная вдвое.
-func pose_shot(name: String) -> void:
+func pose_shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	var c: Vector2 = get_viewport().get_final_transform() * game.cam.unproject_position(pl.global_position + Vector3(0, 0.25, 0))
 	var r := Rect2i(Vector2i(c) - Vector2i(230, 250), Vector2i(460, 460)).intersection(Rect2i(Vector2i.ZERO, img.get_size()))
 	if r.size.x < 8 or r.size.y < 8:
-		img.save_png(out.path_join(name))
+		img.save_png(out.path_join(nm))
 		return
 	var z := img.get_region(r)
-	if name == "":
+	if nm == "":
 		strip.append(z.get_region(Rect2i(60, 60, 340, 340)))
 		return
 	z.resize(r.size.x * 2, r.size.y * 2, Image.INTERPOLATE_LANCZOS)
-	z.save_png(out.path_join(name))
+	z.save_png(out.path_join(nm))
 
 ## Угол между направлением лица и направлением от глаз к центру экрана устройства, рад.
 func look_error() -> float:
@@ -560,7 +560,7 @@ func _run_hand() -> void:
 	get_tree().quit()
 
 ## Лист раскадровки: все кадры из strip сеткой, слева направо, сверху вниз.
-func _sheet(name: String, cols: int) -> void:
+func _sheet(nm: String, cols: int) -> void:
 	if strip.is_empty():
 		return
 	var w: int = (strip[0] as Image).get_width()
@@ -568,29 +568,31 @@ func _sheet(name: String, cols: int) -> void:
 	var rows := int(ceil(strip.size() / float(cols)))
 	var img := Image.create(w * cols, h * rows, false, (strip[0] as Image).get_format())
 	for i in strip.size():
+		@warning_ignore("integer_division")
 		img.blit_rect(strip[i], Rect2i(0, 0, w, h), Vector2i((i % cols) * w, (i / cols) * h))
-	img.save_png(out.path_join(name))
+	img.save_png(out.path_join(nm))
 	strip.clear()
 
 # ---------------- EarPods (--buds) ----------------
 ## Кадр с головой и руками крупно: вырезка вокруг точки на высоте h над ногами героя. name == "" — в лист раскадровки.
-func head_shot(name: String, h := 1.15, size := 300) -> void:
+func head_shot(nm: String, h := 1.15, size := 300) -> void:
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	var c: Vector2 = get_viewport().get_final_transform() * game.cam.unproject_position(pl.global_position + Vector3(0, h, 0))
+	@warning_ignore("integer_division")
 	var r := Rect2i(Vector2i(c) - Vector2i(size / 2, size / 2), Vector2i(size, size)).intersection(Rect2i(Vector2i.ZERO, img.get_size()))
 	if r.size.x < 8 or r.size.y < 8:
 		return
 	var z := img.get_region(r)
-	if name == "":
+	if nm == "":
 		strip.append(z)
 		return
 	z.resize(r.size.x * 2, r.size.y * 2, Image.INTERPOLATE_LANCZOS)
-	z.save_png(out.path_join(name))
+	z.save_png(out.path_join(nm))
 
 ## Крупный план отдельной камерой (в тесном подъезде камера игры упирается в стены).
 ## ang — откуда смотреть: 0 — спереди, +PI/2 — с правого бока героя, −PI/2 — с левого.
-func close_shot(name: String, ang: float, dist := 0.95, h := 1.35) -> void:
+func close_shot(nm: String, ang: float, dist := 0.95, h := 1.35) -> void:
 	var c := Camera3D.new()
 	c.fov = 32.0
 	c.near = 0.02
@@ -606,7 +608,8 @@ func close_shot(name: String, ang: float, dist := 0.95, h := 1.35) -> void:
 	var img := get_viewport().get_texture().get_image()
 	var w := img.get_width()
 	var hh := img.get_height()
-	img.get_region(Rect2i(w / 2 - hh / 2, 0, hh, hh)).save_png(out.path_join(name))
+	@warning_ignore("integer_division")
+	img.get_region(Rect2i(w / 2 - hh / 2, 0, hh, hh)).save_png(out.path_join(nm))
 	game.cam.make_current()
 	c.queue_free()
 
@@ -636,22 +639,22 @@ func track(reset := false) -> void:
 		track_prev.clear()
 		track_max = 0.0
 		track_where = ""
-	for key in ["L", "R", "dev"]:
-		var node: Node3D = pod.device if key == "dev" else pod.buds.buds[key]
+	for k in ["L", "R", "dev"]:
+		var node: Node3D = pod.device if k == "dev" else pod.buds.buds[k]
 		if not node.visible:
-			track_prev.erase(key)
+			track_prev.erase(k)
 			continue
 		var p: Vector3 = node.transform.origin
-		if track_prev.has(key):
+		if track_prev.has(k):
 			# шаг на секунду кадра (слой анимации ограничивает кадр 0.05 с): долгий кадр на сохранении снимка — не скачок
-			var st: float = p.distance_to(track_prev[key][0]) / clampf(get_process_delta_time(), 0.004, 0.05) * 0.0083
-			var last: float = track_prev[key][1]
+			var st: float = p.distance_to(track_prev[k][0]) / clampf(get_process_delta_time(), 0.004, 0.05) * 0.0083
+			var last: float = track_prev[k][1]
 			if last >= 0.0 and st > 0.012 and st / max(0.003, last) > track_max:   # первый шаг после появления не с чем сравнить
 				track_max = st / max(0.003, last)
-				track_where = "%s a=%.3f b=%.3f u=%.3f шаг %.4f после %.4f" % [key, pod.a, pod.b, pod.u, st, last]
-			track_prev[key] = [p, st]
+				track_where = "%s a=%.3f b=%.3f u=%.3f шаг %.4f после %.4f" % [k, pod.a, pod.b, pod.u, st, last]
+			track_prev[k] = [p, st]
 		else:
-			track_prev[key] = [p, -1.0]
+			track_prev[k] = [p, -1.0]
 
 func _run_buds() -> void:
 	var pod = pl.pod
@@ -679,7 +682,6 @@ func _run_buds() -> void:
 	var miss_r := 0.0
 	var miss_l := 0.0
 	var reach_r := 0.0
-	var gaps_l := 0.0
 	track(true)
 	tracking = true
 	var t0 := Time.get_ticks_msec()
@@ -1079,9 +1081,9 @@ func import_done(sec := 30.0) -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-func full_shot(name: String) -> void:
+func full_shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 
 func _run_pause() -> void:
 	var pm = game.pause_panel
@@ -1386,9 +1388,9 @@ func _png() -> PackedByteArray:
 func _be32(v: int) -> PackedByteArray:
 	return PackedByteArray([(v >> 24) & 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF])
 
-func _atom(name: PackedByteArray, body: PackedByteArray) -> PackedByteArray:
+func _atom(nm: PackedByteArray, body: PackedByteArray) -> PackedByteArray:
 	var b := _be32(body.size() + 8)
-	b.append_array(name)
+	b.append_array(nm)
 	b.append_array(body)
 	return b
 
@@ -1438,9 +1440,9 @@ func _m4a_with_tags(src: String, dst: String, title: String, artist: String, alb
 ## «Защищённый» M4A: в описании дорожки кодек mp4a заменён на drms (так помечены покупки iTunes)
 func _drm(src: String, dst: String) -> bool:
 	var b := FileAccess.get_file_as_bytes(src)
-	var key := "mp4a".to_ascii_buffer()
+	var k2 := "mp4a".to_ascii_buffer()
 	for i in range(b.size() - 4, 0, -1):
-		if b[i] == key[0] and b[i + 1] == key[1] and b[i + 2] == key[2] and b[i + 3] == key[3]:
+		if b[i] == k2[0] and b[i + 1] == k2[1] and b[i + 2] == k2[2] and b[i + 3] == k2[3]:
 			var d := "drms".to_ascii_buffer()
 			for k in 4:
 				b[i + k] = d[k]
@@ -1486,8 +1488,8 @@ func _write_aiff(path: String, title: String, author: String) -> void:
 	_bytes(path, _chunk("FORM".to_ascii_buffer(), body))
 
 ## Кусок AIFF: размер без заголовка (у MP4 — с заголовком)
-func _chunk(name: PackedByteArray, body: PackedByteArray) -> PackedByteArray:
-	var b := name.duplicate()          # AIFF: сначала имя куска, потом размер (у MP4 — наоборот)
+func _chunk(nm: PackedByteArray, body: PackedByteArray) -> PackedByteArray:
+	var b := nm.duplicate()          # AIFF: сначала имя куска, потом размер (у MP4 — наоборот)
 	b.append_array(_be32(body.size()))
 	b.append_array(body)
 	return b

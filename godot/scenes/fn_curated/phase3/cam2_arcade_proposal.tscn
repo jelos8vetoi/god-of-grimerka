@@ -1,0 +1,314 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/lino.tres" id="r1"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/chalk.tres" id="r2"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/slate.tres" id="r3"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase3/models/painted_wooden_chair_01/painted_wooden_chair_01.gltf" id="r4"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase3/models/cardboard_box_01/cardboard_box_01.gltf" id="r5"]
+[ext_resource type="PackedScene" path="res://assets/minigames/fn_arcade_cabinet.glb" id="r6"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/arcade.glb" id="r7"]
+[ext_resource type="PackedScene" path="res://assets/minigames/fn_prize_counter.glb" id="r8"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/utility_box_01/utility_box_01.gltf" id="r9"]
+[ext_resource type="Font" path="res://assets/fonts/RussoOne-Regular.ttf" id="r10"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/service_door.glb" id="r11"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/hanging_industrial_lamp/hanging_industrial_lamp.gltf" id="r12"]
+
+[ext_resource type="Shader" path="res://scenes/five_nights/materials/booth_crt.gdshader" id="TubeShader"]
+[ext_resource type="Texture2D" path="res://scenes/five_nights/materials/surface_grain.tres" id="Dust"]
+
+[sub_resource type="BoxMesh" id="b0"]
+size = Vector3(12, 0.16, 10)
+material = ExtResource("r1")
+
+[sub_resource type="BoxMesh" id="b4"]
+size = Vector3(12, 0.16, 10)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b8"]
+size = Vector3(0.16, 3.4, 10)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b12"]
+size = Vector3(0.028, 1.05, 10)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b16"]
+size = Vector3(12, 3.4, 0.16)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b20"]
+size = Vector3(12, 1.05, 0.028)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b24"]
+size = Vector3(0.16, 3.4, 10)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b28"]
+size = Vector3(0.028, 1.05, 10)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b32"]
+size = Vector3(12, 3.4, 0.16)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b36"]
+size = Vector3(12, 1.05, 0.028)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b40"]
+size = Vector3(12, 0.17, 0.22)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b44"]
+size = Vector3(12, 0.17, 0.22)
+material = ExtResource("r3")
+
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.04, 0.055, 0.062, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.50, 0.61, 0.66, 1)
+ambient_light_energy = 0.24
+tonemap_mode = 2
+
+[sub_resource type="ShaderMaterial" id="Signal"]
+shader = ExtResource("TubeShader")
+shader_parameter/dust = ExtResource("Dust")
+shader_parameter/brightness = 0.46
+shader_parameter/static_channel = true
+
+[sub_resource type="QuadMesh" id="Tube"]
+material = SubResource("Signal")
+size = Vector2(30.37, 20.08)
+
+[node name="RoomRoot" type="Node3D" ]
+metadata/room_id = "arcade"
+metadata/facility_origin = Vector3(85, 0, 0)
+metadata/sway_degrees = 6
+
+[node name="Geometry" type="Node3D" parent="." ]
+
+[node name="Props" type="Node3D" parent="." ]
+
+[node name="Lighting" type="Node3D" parent="." ]
+
+[node name="EnemySpots" type="Node3D" parent="." ]
+
+[node name="AnomalyAnchors" type="Node3D" parent="." ]
+
+[node name="Floor_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, -0.08, 0)
+mesh = SubResource("b0")
+
+[node name="Ceiling_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 3.48, 0)
+mesh = SubResource("b4")
+
+[node name="SideWall_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(-6.08, 1.7, 0)
+mesh = SubResource("b8")
+
+[node name="Dado_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(-5.986, 0.525, 0)
+mesh = SubResource("b12")
+
+[node name="EndWall_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 1.7, -5.08)
+mesh = SubResource("b16")
+
+[node name="Dado_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 0.525, -4.986)
+mesh = SubResource("b20")
+
+[node name="SideWall_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(6.08, 1.7, 0)
+mesh = SubResource("b24")
+
+[node name="Dado_3" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(5.986, 0.525, 0)
+mesh = SubResource("b28")
+
+[node name="EndWall_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 1.7, 5.08)
+mesh = SubResource("b32")
+
+[node name="Dado_4" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 0.525, 4.986)
+mesh = SubResource("b36")
+
+[node name="CeilingBeam_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 3.315, -3.1)
+mesh = SubResource("b40")
+
+[node name="CeilingBeam_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 3.315, 0)
+mesh = SubResource("b44")
+
+[node name="painted_wooden_chair_01_1" parent="Props" instance=ExtResource("r4")]
+position = Vector3(3.65, 0, 2.52)
+rotation_degrees = Vector3(0, -55, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="cardboard_box_01_1" parent="Props" instance=ExtResource("r5")]
+position = Vector3(4.14, 0.008, 3.56)
+rotation_degrees = Vector3(0, 9, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="fn_arcade_cabinet_1" parent="Props" instance=ExtResource("r6")]
+position = Vector3(-4, 0, -3)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(0.0194, 0.0194, 0.0194)
+
+[node name="arcade_1" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-1.6, 0, -3)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="fn_arcade_cabinet_2" parent="Props" instance=ExtResource("r6")]
+position = Vector3(0.8, 0, -3)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(0.0194, 0.0194, 0.0194)
+
+[node name="fn_arcade_cabinet_3" parent="Props" instance=ExtResource("r6")]
+position = Vector3(-4, 0, 1.2)
+rotation_degrees = Vector3(0, 180, 0)
+scale = Vector3(0.0194, 0.0194, 0.0194)
+
+[node name="arcade_2" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-1.6, 0, 1.2)
+rotation_degrees = Vector3(0, 185, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="fn_arcade_cabinet_4" parent="Props" instance=ExtResource("r6")]
+position = Vector3(0.8, 0, 1.2)
+rotation_degrees = Vector3(0, 180, 0)
+scale = Vector3(0.0194, 0.0194, 0.0194)
+
+[node name="fn_prize_counter_1" parent="Props" instance=ExtResource("r8")]
+position = Vector3(4.7, 0, 2)
+rotation_degrees = Vector3(0, -90, 0)
+scale = Vector3(0.02, 0.02, 0.02)
+
+[node name="utility_box_01_1" parent="Props" instance=ExtResource("r9")]
+position = Vector3(4.94, 0, -4.48)
+rotation_degrees = Vector3(0, -10, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="Legend_1" type="Label3D" parent="Props" ]
+position = Vector3(0, 2.55, -4.96)
+rotation_degrees = Vector3(0, 0, 0)
+text = "ИГРОТЕКА"
+font = ExtResource("r10")
+font_size = 64
+pixel_size = 0.006
+outline_size = 0
+modulate = Color(0.65, 0.49, 0.36, 1)
+shaded = true
+double_sided = false
+
+[node name="Legend_2" type="Label3D" parent="Props" ]
+position = Vector3(5.94, 2.15, 1.65)
+rotation_degrees = Vector3(0, -90, 0)
+text = "ВЫДАЧА ПРИЗОВ"
+font = ExtResource("r10")
+font_size = 64
+pixel_size = 0.003
+outline_size = 0
+modulate = Color(0.67, 0.59, 0.43, 1)
+shaded = true
+double_sided = false
+
+[node name="service_door_1" parent="Props" instance=ExtResource("r11")]
+position = Vector3(5.85, 0, -2.87)
+rotation_degrees = Vector3(0, -90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="hanging_industrial_lamp_1" parent="Props" instance=ExtResource("r12")]
+position = Vector3(3.5, 3.2132, 0.6)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(0.48, 0.48, 0.48)
+
+[node name="LampPool_1" type="OmniLight3D" parent="Lighting" ]
+position = Vector3(3.5, 2.5, 0.6)
+light_color = Color(1, 0.72, 0.45, 1)
+light_energy = 2.7
+light_specular = 0.34
+omni_range = 6
+omni_attenuation = 1.22
+shadow_enabled = true
+
+[node name="MarqueeSpill_1" type="OmniLight3D" parent="Lighting" ]
+position = Vector3(-3.4, 1.55, -2.34)
+light_color = Color(0.35, 0.74, 0.77, 1)
+light_energy = 1.65
+light_specular = 0.34
+omni_range = 5
+omni_attenuation = 1.22
+shadow_enabled = true
+
+[node name="ScreenSpill_1" type="OmniLight3D" parent="Lighting" ]
+position = Vector3(0.74, 1.44, -2.25)
+light_color = Color(0.52, 0.72, 1, 1)
+light_energy = 1.35
+light_specular = 0.34
+omni_range = 4
+omni_attenuation = 1.22
+shadow_enabled = true
+
+[node name="HallSpill_1" type="OmniLight3D" parent="Lighting" ]
+position = Vector3(-4.7, 2.7, 2.6)
+light_color = Color(0.52, 0.64, 0.79, 1)
+light_energy = 0.84
+light_specular = 0.34
+omni_range = 6
+omni_attenuation = 1.22
+shadow_enabled = true
+
+[node name="Pose0" type="Marker3D" parent="EnemySpots" ]
+position = Vector3(-1.6, 0, -1)
+rotation = Vector3(0, 0.6, 0)
+
+[node name="Pose1" type="Marker3D" parent="EnemySpots" ]
+position = Vector3(0.8, 0, 3)
+rotation = Vector3(0, 2.6, 0)
+
+[node name="Pose2" type="Marker3D" parent="EnemySpots" ]
+position = Vector3(3.6, 0, -0.6)
+rotation = Vector3(0, -1.4, 0)
+
+[node name="Figure" type="Marker3D" parent="AnomalyAnchors" ]
+position = Vector3(-5.4, 0, -4.2)
+rotation = Vector3(0, 0.5, 0)
+
+[node name="CabinetRest" type="Marker3D" parent="AnomalyAnchors" ]
+position = Vector3(0.8, 0, -3)
+rotation = Vector3(0, 0, 0)
+
+[node name="CabinetMoved" type="Marker3D" parent="AnomalyAnchors" ]
+position = Vector3(1.4, 0, -1.9)
+rotation = Vector3(0, 0.9, 0)
+
+[node name="CameraAnchor" type="Camera3D" parent="." ]
+position = Vector3(-5.5, 3.1, 4.4)
+rotation = Vector3(-0.266079, -0.837981, 0)
+fov = 66
+current = true
+far = 60.0
+
+[node name="RoomEnvironment" type="WorldEnvironment" parent="Lighting" ]
+environment = SubResource("env")
+
+[node name="ServiceSignal" type="MeshInstance3D" parent="Props/fn_arcade_cabinet_1"]
+position = Vector3(-0.294, 65.94, 6.08)
+rotation = Vector3(-0.15, 0, 0)
+mesh = SubResource("Tube")
+cast_shadow = 0
+
+[node name="ReflectedSpill" type="OmniLight3D" parent="Lighting"]
+position = Vector3(-0.85,2.6,2.9)
+light_color = Color(0.52, 0.72, 0.73, 1)
+light_energy = 1.25
+light_specular = 0.12
+omni_range = 6
+shadow_enabled = false

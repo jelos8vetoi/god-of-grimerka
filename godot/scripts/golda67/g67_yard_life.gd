@@ -23,6 +23,16 @@ var radio_t := 6.0
 var gust := 0.0
 var rng := RandomNumberGenerator.new()
 
+## Таймер, привязанный к этому узлу: гаснет вместе с ним (двор выгружается при спуске в подземку)
+func _tmr(sec: float, _always := true, _ignore := true, _phys := false) -> Timer:
+	var t := Timer.new()
+	t.one_shot = true
+	t.wait_time = maxf(sec, 0.01)
+	add_child(t)
+	t.timeout.connect(t.queue_free, CONNECT_DEFERRED)
+	t.start()
+	return t
+
 static func make(g, yd) -> G67YardLife:
 	var L := G67YardLife.new()
 	L.golda = g
@@ -329,7 +339,7 @@ func fire(id: String) -> void:
 							if is_instance_valid(rr.life):
 								rr.life.stage("NCross", 0.05)         # резко замер, «ничего не было»
 							filyai_froze = clock
-							get_tree().create_timer(2.5).timeout.connect(func():
+							_tmr(2.5).timeout.connect(func():
 								if is_instance_valid(rr.life):
 									rr.life.resume()))
 		"schoolboy_show":
@@ -405,8 +415,8 @@ func _window_shout() -> void:
 	tw.tween_property(pv, "rotation:y", 1.5, 0.4)
 	G67Sound.play(self, "door_slam", pos, 1.6)
 	var bk: G67Barks = golda.barks_get()
-	get_tree().create_timer(0.5).timeout.connect(func(): bk.say(_marker(pos, 5.0), bk.pick("window", G67LifeData.WINDOW_SHOUTS), {"force": true, "dur": 4.0}))
-	get_tree().create_timer(4.2).timeout.connect(func():
+	_tmr(0.5).timeout.connect(func(): bk.say(_marker(pos, 5.0), bk.pick("window", G67LifeData.WINDOW_SHOUTS), {"force": true, "dur": 4.0}))
+	_tmr(4.2).timeout.connect(func():
 		if is_instance_valid(pv):
 			create_tween().tween_property(pv, "rotation:y", 0.0, 0.25)
 			G67Sound.play(self, "door_slam", pos, 1.6))

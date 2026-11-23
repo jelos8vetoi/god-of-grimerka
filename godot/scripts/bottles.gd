@@ -222,9 +222,9 @@ func _physics_process(dt: float) -> void:
 		f["vel"] = (f["vel"] as Vector3) + Vector3(0, -GRAVITY * dt, 0)
 		var home = f.get("home")      # отскок рикошета доводится до цели: она успевает сдвинуться
 		if home != null and is_instance_valid(home) and home.alive():
-			var aim: Vector3 = home.global_position + Vector3(0, float(home.height) * 0.6, 0) - from
-			if aim.length() > 0.05:
-				f["vel"] = aim.normalized() * 20.0
+			var aim_at: Vector3 = home.global_position + Vector3(0, float(home.height) * 0.6, 0) - from
+			if aim_at.length() > 0.05:
+				f["vel"] = aim_at.normalized() * 20.0
 		var to := from + (f["vel"] as Vector3) * dt
 		f["life"] = float(f["life"]) - dt
 		var hit_e = null
@@ -262,6 +262,20 @@ func _physics_process(dt: float) -> void:
 		n.rotation += (f["spin"] as Vector3) * dt
 
 ## бутылка разбилась: стекло, вода, урон и замедление
+## «АВАРИЙНЫЙ ЗАПАС 0.5»: всплеск 3,5 м — остальным в радиусе +60 % урона попадания и замедление 40 % на 3 с (боссу +30 % и 20 % на 1,5 с)
+func _reserve_splash(at: Vector3, base: float, main_enemy) -> void:
+	game.fx.ring(at, 3.5, Color(1.0, 0.85, 0.2, 0.75), 0.45)
+	game.fx.sparks(at, Vector3.UP, 22, Color(1.0, 0.9, 0.4), 1.4, 90.0)
+	game.popup(at + Vector3(0, 1.4, 0), "ЗАПАС 0.5", Color(1.0, 0.85, 0.3))
+	for e in game.enemies:
+		if not is_instance_valid(e) or not e.alive() or e.global_position.distance_to(at) > 3.5:
+			continue
+		var boss: bool = String(e.boss_id) != ""
+		if e != main_enemy:
+			e.take_hit(base * (0.3 if boss else 0.6), (e.global_position - at).normalized(), 2.0, false)
+		if is_instance_valid(e):
+			e.slow(1.5 if boss else 3.0, 0.2 if boss else 0.4)
+
 func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 	var a: AttackData = f["a"]
 	var power: float = f["power"]
@@ -276,10 +290,18 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 	game.main.sfx("sfx_glass", -3.0, 1.15)
 	_play_splash(at)
 	hits_log.append({"kind": "enemy" if enemy != null else "world", "enemy": enemy, "pos": at})
+	if game.golda != null and game.golda.get("arena") != null:
+		game.golda.arena.bottle_hit(at)
 	var slow_s: float = a.extra.get("slow", 0.0)
+	var reserve := false
+	if enemy != null and game.golda != null and game.golda.has_method("reserve_use"):
+		reserve = game.golda.reserve_use()
 	if enemy != null:
 		var h := HitInfo.new()
 		h.damage = p.combat.damage_for(a, enemy) * float(f.get("mul", 1.0))
+		if reserve:
+			h.damage *= 1.3 if String(enemy.boss_id) != "" else 1.6
+			_reserve_splash(at, p.combat.damage_for(a, enemy) * float(f.get("mul", 1.0)), enemy)
 		# LAST DROP: усиленный бросок по оглушённому, согнувшемуся или лежащему — кратный урон и подброс
 		var ld: float = a.extra.get("last_drop", 0.0)
 		if ld > 0.0 and (enemy.state in ["stun", "down", "getup"] or enemy.react_state() in ["HEAVY_STAGGER", "EXECUTION_READY"]):
@@ -312,6 +334,9 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 		if slow_s > 0.0 and is_instance_valid(enemy):
 			enemy.slow(slow_s, float(a.extra.get("slow_k", 0.6)))
 		p.swag = min(100.0, p.swag + 3.0)
+		if game.golda != null and game.golda.fit_lv("refill") > 0 and randf() < [0.15, 0.25, 0.35][game.golda.fit_lv("refill") - 1]:
+			p.combat.ammo["bottles"] = minf(float(Styles.by_id("bottles").ammo_max) + 1.0, float(p.combat.ammo_of("bottles")) + 1.0)
+			game.popup(p.global_position + Vector3(0, 2.2, 0), "ДОЛИВ", Color(0.62, 0.85, 0.25))
 		game.feedback(a.feedback if a.feedback != "" else "bt_hit", at, flat, 1.0, WATER)
 		p.combat.attack_hit.emit(a, 1)
 		# РИКОШЕТ: бутылка не разбивается, а отскакивает к ближайшему другому врагу; каждый отскок слабее

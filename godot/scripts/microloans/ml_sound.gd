@@ -124,6 +124,7 @@ static func _wav(b: PackedFloat32Array, loop := false) -> AudioStreamWAV:
 	var k := 0.85 / m
 	var bytes := PackedByteArray()
 	bytes.resize(b.size() * 2)
+	@warning_ignore("integer_division")
 	var edge := mini(64, b.size() / 4)
 	for i in b.size():
 		var g := k

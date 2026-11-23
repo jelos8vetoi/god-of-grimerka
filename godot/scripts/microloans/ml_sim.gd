@@ -166,4 +166,5 @@ static func batch(strategy: String, n: int, skill := 0.7) -> Dictionary:
 		if r["ending"] != "pit":
 			wins += 1
 	nets.sort()
+	@warning_ignore("integer_division")
 	return {"strategy": strategy, "win": float(wins) / float(n), "ends": ends, "median_net": nets[n / 2], "max_net": max_net}

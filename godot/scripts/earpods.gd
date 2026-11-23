@@ -118,7 +118,7 @@ func _load_parts() -> void:
 		world[i] = xf * vs[i]
 	for side in ["L", "R"]:
 		var s := -1.0 if side == "L" else 1.0
-		var remap := {}
+		var remap_v := {}
 		var nv := PackedVector3Array()
 		var nn := PackedVector3Array()
 		var nu := PackedVector2Array()
@@ -132,14 +132,14 @@ func _load_parts() -> void:
 			if (world[a].x + world[b].x + world[c].x) * s <= 0.0:
 				continue
 			for v in [a, b, c]:
-				if not remap.has(v):
-					remap[v] = nv.size()
+				if not remap_v.has(v):
+					remap_v[v] = nv.size()
 					nv.append(world[v])
 					nn.append((xf.basis * nr[v]).normalized() if nr.size() > v else Vector3.UP)
 					nu.append(uv[v] if uv.size() > v else Vector2.ZERO)
 					lo = lo.min(world[v])
 					hi = hi.max(world[v])
-				ni.append(remap[v])
+				ni.append(remap_v[v])
 		var h := hi.y - lo.y
 		# центр головки — середина верхней части (выше 55% высоты), конец ножки — низ
 		var head := Vector3.ZERO
@@ -185,9 +185,9 @@ func bud_basis(side: String, speaker: Vector3, stem: Vector3) -> Basis:
 func stem_end(side: String, xf: Transform3D) -> Vector3:
 	return xf * (_parts[side]["stem"] as Vector3)
 
-func place(side: String, xf: Transform3D, show: bool) -> void:
+func place(side: String, xf: Transform3D, on: bool) -> void:
 	var b: Node3D = buds[side]
-	b.visible = show
+	b.visible = on
 	b.transform = xf
 
 ## Провод целиком. jack — конец штекера (iPod или карман), jack_dir — куда выходит провод из штекера,
@@ -315,17 +315,17 @@ func _tube(pts: Array[Vector3]) -> void:
 	var prev_side := Vector3.ZERO
 	var rings: Array = []
 	for i in pts.size():
-		var tan: Vector3 = (pts[min(i + 1, pts.size() - 1)] - pts[max(i - 1, 0)])
-		if tan.length() < 0.000001:
-			tan = Vector3.UP
-		tan = tan.normalized()
+		var tn: Vector3 = (pts[min(i + 1, pts.size() - 1)] - pts[max(i - 1, 0)])
+		if tn.length() < 0.000001:
+			tn = Vector3.UP
+		tn = tn.normalized()
 		# перенос рамки вдоль кривой без перекручивания
 		var side := prev_side
-		if side == Vector3.ZERO or absf(side.dot(tan)) > 0.95:
-			side = tan.cross(Vector3.FORWARD if absf(tan.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT)
-		side = (side - tan * side.dot(tan)).normalized()
+		if side == Vector3.ZERO or absf(side.dot(tn)) > 0.95:
+			side = tn.cross(Vector3.FORWARD if absf(tn.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT)
+		side = (side - tn * side.dot(tn)).normalized()
 		prev_side = side
-		var up := tan.cross(side)
+		var up := tn.cross(side)
 		var ring: Array = []
 		for k in SIDES:
 			var ang := TAU * k / SIDES

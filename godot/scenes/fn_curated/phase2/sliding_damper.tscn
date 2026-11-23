@@ -1,0 +1,24 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/fn_curated/phase2/mechanism.gd" id="r1"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/flange_thin.gltf" id="r2"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/side_cap.gltf" id="r3"]
+
+[node name="SlidingDamper" type="Node3D" ]
+script = ExtResource("r1")
+hinged = false
+
+[node name="Frame" parent="." instance=ExtResource("r2")]
+position = Vector3(0, 0, 0)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="SliderOrigin" type="Node3D" parent="." ]
+
+[node name="MovingPanel" parent="SliderOrigin" instance=ExtResource("r3")]
+position = Vector3(0, 0, 0.14)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="ClosedTransform" type="Marker3D" parent="." ]
+
+[node name="OpenTransform" type="Marker3D" parent="." ]
+position = Vector3(0.87, 0, 0)

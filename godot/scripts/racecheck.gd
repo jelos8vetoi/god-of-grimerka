@@ -18,7 +18,7 @@ var kept := {}
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 	AudioServer.set_bus_mute(0, true)
 	_run()
 
@@ -43,9 +43,9 @@ func key(k: Key) -> void:
 		Input.parse_input_event(e)
 		await wait(0.06)
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm + ".png"))
 
 func until(cond: Callable, sec: float) -> bool:
 	var t0 := GameClock.ms()
@@ -85,13 +85,13 @@ func count_ev(r: RaceRider, k: String, from := 0) -> int:
 
 ## поставить гонщика на главную дорогу: путь s, сдвиг поперёк, носом по трассе (+ поворот), со скоростью
 func put(r: RaceRider, s: float, lat := 0.0, yaw := 0.0, spd := 0.0) -> void:
-	var tr: RaceTrack = main.race.track
-	var i := tr.at_s(s)
-	var right: Vector3 = tr.T[i].cross(Vector3.UP)
-	var h := atan2(tr.T[i].x, tr.T[i].z) + yaw
-	r.place(Transform3D(Basis(Vector3.UP, h), tr.P[i] + right * lat + Vector3(0, 0.1, 0)))
+	var xf: RaceTrack = main.race.track
+	var i := xf.at_s(s)
+	var right: Vector3 = xf.T[i].cross(Vector3.UP)
+	var h := atan2(xf.T[i].x, xf.T[i].z) + yaw
+	r.place(Transform3D(Basis(Vector3.UP, h), xf.P[i] + right * lat + Vector3(0, 0.1, 0)))
 	r.speed = spd
-	r.proj = tr.project(r.global_position, {})
+	r.proj = xf.project(r.global_position, {})
 	r.s = float(r.proj["s"])
 	r.prev_s = r.s
 
@@ -103,10 +103,10 @@ func once(r: RaceRider, a: RaceInput, then: RaceInput) -> void:
 
 ## руль «по дороге»: куда повернуть, чтобы держаться середины трассы впереди
 func follow(r: RaceRider) -> float:
-	var tr: RaceTrack = main.race.track
-	var tg: Vector3 = tr.point(r.s + 8.0 + absf(r.speed) * 0.4)
+	var xf: RaceTrack = main.race.track
+	var tg: Vector3 = xf.point(r.s + 8.0 + absf(r.speed) * 0.4)
 	if r.drifting:
-		tg = tr.point(r.s + 14.0)
+		tg = xf.point(r.s + 14.0)
 	var to := tg - r.global_position
 	var want := atan2(to.x, to.z)
 	if r.drifting:
@@ -242,7 +242,6 @@ func _run() -> void:
 	tour.far = 800.0
 	race.add_child(tour)
 	tour.current = true
-	var tk: RaceTrack = race.track
 	var views := [["t01_overview", Vector3(40, 230, 60), Vector3(40, 0, 61)],
 		["t02_start", Vector3(-20, 9, -18), Vector3(20, 0, 0)],
 		["t03_long_turn", Vector3(120, 22, 40), Vector3(160, 0, 60)],
@@ -391,10 +390,10 @@ func _run() -> void:
 	await wait(0.4)
 	ok(had(L, "bump", e0) and L.global_position.distance_to(B.global_position) > 0.9, "гонщики толкаются и расходятся (%.2f м)" % L.global_position.distance_to(B.global_position))
 	# --- канава на срезке: упал — вернули на контрольную точку ---
-	var tr: RaceTrack = race.track
-	var di := tr.short_point((tr.ditch.x + tr.ditch.y) * 0.5)
-	var right_s: Vector3 = tr.ST[di].cross(Vector3.UP)
-	L.place(Transform3D(Basis(Vector3.UP, atan2(tr.ST[di].x, tr.ST[di].z)), tr.SP[di] + right_s * 2.6 + Vector3(0, 0.3, 0)))
+	var xf: RaceTrack = race.track
+	var di := xf.short_point((xf.ditch.x + xf.ditch.y) * 0.5)
+	var right_s: Vector3 = xf.ST[di].cross(Vector3.UP)
+	L.place(Transform3D(Basis(Vector3.UP, atan2(xf.ST[di].x, xf.ST[di].z)), xf.SP[di] + right_s * 2.6 + Vector3(0, 0.3, 0)))
 	L.set_meta("auto", inp(0.0))
 	e0 = L.events.size()
 	await until(func(): return had(L, "respawn", e0), 3.0)
@@ -641,9 +640,9 @@ func _run() -> void:
 		var kinds := {}
 		var bb := AABB()
 		for q in meshes.size():
-			var g := meshes[q] as MeshInstance3D
-			kinds[g.mesh.get_class()] = true
-			var ab: AABB = g.transform * g.get_aabb()
+			var g_mesh := meshes[q] as MeshInstance3D
+			kinds[g_mesh.mesh.get_class()] = true
+			var ab: AABB = g_mesh.transform * g_mesh.get_aabb()
 			bb = ab if q == 0 else bb.merge(ab)
 		shapes["%d|%.1f|%.1f|%.1f" % [meshes.size(), bb.size.x, bb.size.y, bb.size.z]] = true
 		if kinds.size() < 2 and not mdl.has_meta("glb"):

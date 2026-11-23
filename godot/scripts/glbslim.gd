@@ -53,6 +53,7 @@ func slim(src: String, dst: String, limit: int, quality: float) -> bool:
 			img.convert(Image.FORMAT_RGB8)
 			swap[vi] = img.save_jpg_to_buffer(quality)
 			im["mimeType"] = "image/jpeg"
+		@warning_ignore("integer_division")
 		print("GLBSLIM   %s: %dx%d %d КБ → %dx%d %d КБ" % [im.get("name", "?"), was.x, was.y, data.size() / 1024, img.get_width(), img.get_height(), (swap[vi] as PackedByteArray).size() / 1024])
 	# двоичная часть заново: куски в прежнем порядке, картинки — новые, выравнивание по 4 байта
 	var out := PackedByteArray()
@@ -96,5 +97,6 @@ func slim(src: String, dst: String, limit: int, quality: float) -> bool:
 		return false
 	f.store_buffer(res)
 	f.close()
+	@warning_ignore("integer_division")
 	print("GLBSLIM %s: было %d КБ → стало %d КБ" % [dst.get_file(), raw.size() / 1024, res.size() / 1024])
 	return true

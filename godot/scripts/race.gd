@@ -583,12 +583,12 @@ func use_item(r: RaceRider) -> void:
 				r.ev("miss", id)
 
 ## ЖЕЛЕЗЯКА: летит по трассе вперёд от хозяина; видит соперника впереди — наводится на его полосу
-func _missile(owner: RaceRider) -> void:
+func _missile(own: RaceRider) -> void:
 	var I: Dictionary = RaceData.ITEMS["missile"]
 	var n := RaceItems.model("missile", 1.3)
 	add_child(n)
-	n.global_position = owner.global_position + Vector3(0, 0.9, 0) + owner.fwd() * 1.4
-	var m := {"s": owner.s + 1.5, "lat": owner.lat, "y": owner.global_position.y + 0.9, "owner": owner, "life": float(I["life"]), "node": n, "target": null, "gone": 0.0}
+	n.global_position = own.global_position + Vector3(0, 0.9, 0) + own.fwd() * 1.4
+	var m := {"s": own.s + 1.5, "lat": own.lat, "y": own.global_position.y + 0.9, "owner": own, "life": float(I["life"]), "node": n, "target": null, "gone": 0.0}
 	m["target"] = _missile_target(m)
 	missiles.append(m)
 
@@ -649,7 +649,7 @@ func _missiles_tick(dt: float) -> void:
 					fx.poof(p, 0.8, Color(0.5, 0.45, 0.4))
 				n.queue_free()
 
-func _hazard(kind: String, p: Vector3, rad: float, life: float, owner: RaceRider) -> void:
+func _hazard(kind: String, p: Vector3, rad: float, life: float, own: RaceRider) -> void:
 	var n := Node3D.new()
 	n.position = p
 	add_child(n)
@@ -668,7 +668,7 @@ func _hazard(kind: String, p: Vector3, rad: float, life: float, owner: RaceRider
 		tw.tween_property(bag, "scale", Vector3(2.4, 0.5, 2.4), 0.07)
 		tw.tween_callback(bag.queue_free)
 	hazard_id += 1
-	hazards.append({"kind": kind, "pos": p, "r": rad, "life": life, "owner": owner, "hits": 0, "hit": {}, "node": n, "age": 0.0, "id": hazard_id})
+	hazards.append({"kind": kind, "pos": p, "r": rad, "life": life, "owner": own, "hits": 0, "hit": {}, "node": n, "age": 0.0, "id": hazard_id})
 	if net != null and authority:
 		net.send_hazard(hazard_id, kind, p, rad)
 
@@ -948,7 +948,7 @@ func _item_fx(r: RaceRider, id: String) -> void:
 			fx.ring(p + r.fwd() * 1.5, 1.6, col, 0.25)
 			_sfx("sfx_wave", -6.0, 1.4, r)
 
-func _sfx(name: String, vol := 0.0, pitch := 1.0, who: RaceRider = null) -> void:
+func _sfx(nm: String, vol := 0.0, pitch := 1.0, who: RaceRider = null) -> void:
 	if not sound_on or main == null:
 		return
 	if who != null and who != local and local != null:
@@ -956,7 +956,7 @@ func _sfx(name: String, vol := 0.0, pitch := 1.0, who: RaceRider = null) -> void
 		if d > 40.0:
 			return
 		vol -= d * 0.4
-	main.sfx(name, vol, pitch)
+	main.sfx(nm, vol, pitch)
 
 func _beep(pitch: float) -> void:
 	_sfx("sfx_ui", -2.0, pitch)

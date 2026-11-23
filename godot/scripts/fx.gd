@@ -336,11 +336,11 @@ func sparks(pos: Vector3, dir: Vector3, count: int, col: Color, speed := 1.0, sp
 	p.restart()
 	p.emitting = true
 
-func dust(pos: Vector3, count := 12, col := DUST, power := 1.0, flat := 0.85) -> void:
+func dust(pos: Vector3, count := 12, col := DUST, power := 1.0, flat_k := 0.85) -> void:
 	var p: GPUParticles3D = dust_pool[dust_i]
 	dust_i = (dust_i + 1) % dust_pool.size()
 	var pm := p.process_material as ParticleProcessMaterial
-	pm.flatness = flat
+	pm.flatness = flat_k
 	pm.initial_velocity_min = 1.5 * power
 	pm.initial_velocity_max = 4.5 * power
 	pm.color = col
@@ -774,14 +774,13 @@ func pool(pos: Vector3, r: float, col: Color) -> Dictionary:
 	return {"n": n, "a": a, "b": b}
 
 ## «горит всё, кроме круга»: красная заливка на всю арену и зелёный безопасный круг
-func wipe(safe: Vector3, r: float, col: Color) -> Dictionary:
+func wipe(safe: Vector3, r: float, _col: Color) -> Dictionary:
 	var n := Node3D.new()
 	add_child(n)
 	var danger := flat(n, "circle_05", Color(0.85, 0.06, 0.05, 0.1), 110.0, 0.04, false)
 	var s := Node3D.new()
 	add_child(s)
 	s.global_position = Vector3(safe.x, 0.0, safe.z)
-	var green := Color(0.35, 1.0, 0.5)
 	flat(s, "circle_03", Color(0.1, 0.75, 0.3, 0.95), r / 0.42, 0.09, false)
 	var rune := flat(s, "magic_02", Color(0.1, 0.75, 0.3, 0.9), r * 1.9, 0.1, false)
 	flat(s, "light_03", Color(0.2, 0.9, 0.4, 0.5), r / 0.4, 0.08, false)

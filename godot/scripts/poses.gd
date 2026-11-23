@@ -107,7 +107,7 @@ static func run_keys(base_fn: Callable, half := RUN_HALF, lean := 0.2, arm := 0.
 	return keys
 
 static func pahan() -> Dictionary:
-	var P := Callable(Poses, "ph")
+	var _P := Callable(Poses, "ph")
 	return {
 		"Idle": {"d": 3.6, "loop": true, "k": [[0.0, ph({})], [0.25, ph({"spine": {"x": -0.025}, "head": {"x": -0.02}, "rarm": {"z": -0.03}, "larm": {"z": 0.03}})], [0.5, ph({"head": {"y": 0.1}})],
 			[0.75, ph({"spine": {"x": -0.025}, "head": {"x": -0.02, "y": 0.04}, "rarm": {"z": -0.03}, "larm": {"z": 0.03}})], [1.0, ph({})]]},

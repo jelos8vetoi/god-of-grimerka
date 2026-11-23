@@ -39,6 +39,16 @@ const GATHER := {
 	"g67_npc_babushka": Vector3(-13.8, 0.0, -32.5), "g67_npc_taxi_driver": Vector3(-13.8, 0.0, -39.5), "g67_npc_schoolboy": Vector3(-13.8, 0.0, -42.5),
 }
 
+## Таймер, привязанный к этому узлу: гаснет вместе с ним (двор выгружается при спуске в подземку)
+func _tmr(sec: float, _always := true, _ignore := true, _phys := false) -> Timer:
+	var t := Timer.new()
+	t.one_shot = true
+	t.wait_time = maxf(sec, 0.01)
+	add_child(t)
+	t.timeout.connect(t.queue_free, CONNECT_DEFERRED)
+	t.start()
+	return t
+
 static func attach(yd, r: Rig, lf: G67Life, bd: StaticBody3D, rid: String, pl: Array, seed_v: int) -> G67Resident:
 	var R := G67Resident.new()
 	R.yard = yd
@@ -392,7 +402,7 @@ func visit(pos: Vector3, dur: float) -> void:
 	var back := cur
 	_go(places.size() - 1, 1.2)
 	next_move = dur + 25.0
-	get_tree().create_timer(dur + 12.0).timeout.connect(func():
+	_tmr(dur + 12.0).timeout.connect(func():
 		if is_instance_valid(self) and places.size() > back and state == "stay":
 			_go(back, 1.0))
 
@@ -409,6 +419,6 @@ func use() -> void:
 	var dir = g.game.main.audio.director
 	if dir != null:
 		dir.enter_dialogue(rig, "talk")                # музыка чуть тише на время разговора
-		get_tree().create_timer(5.0).timeout.connect(func():
+		_tmr(5.0).timeout.connect(func():
 			if dir != null and is_instance_valid(rig):
 				dir.leave_dialogue(rig))

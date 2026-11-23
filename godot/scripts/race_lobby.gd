@@ -331,6 +331,7 @@ func _cards() -> void:
 	for k in ps.size():
 		var p: Dictionary = ps[k]
 		var root := Control.new()
+		@warning_ignore("integer_division")
 		root.position = Vector2(790 + (k % 2) * 380, 210 + (k / 2) * 140)
 		root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(root)

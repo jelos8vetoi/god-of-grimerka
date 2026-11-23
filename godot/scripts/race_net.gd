@@ -163,6 +163,7 @@ func _kick(id: int, reason: String) -> void:
 ## частота сообщений одного клиента: больше лимита — отброшено
 func _rate_ok(id: int, what: String) -> bool:
 	var r: Dictionary = rate.get(id, {})
+	@warning_ignore("integer_division")
 	var sec := int(Time.get_ticks_msec() / 1000)
 	var cur: Array = r.get(what, [sec, 0])
 	if int(cur[0]) != sec:

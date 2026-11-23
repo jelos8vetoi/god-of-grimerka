@@ -84,14 +84,14 @@ func stage(hero: String, sid: String) -> void:
 	P.state = "move"
 	await wait_floor()
 
-func side_shot(name: String) -> void:
+func side_shot(nm: String) -> void:
 	var c: Vector3 = P.global_position + Vector3(0, 1.0, 0)
 	cam.global_position = c + Vector3(4.6, 0.6, 0.4)
 	cam.look_at(c, Vector3.UP)
 	cam.fov = 55.0
 	cam.make_current()
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 	cam.clear_current(true)
 
 ## Прыжок и рывок по вводу v (вид от камеры: (0,1) — вперёд); → [смещение по горизонтали, направление рывка]
@@ -248,7 +248,7 @@ func _run() -> void:
 		await wait_floor()
 	# ---- стена: не пролетает насквозь, отскок не возвращает рывок ----
 	await stage("pahan", "vozduh")
-	var wall := await find_wall()
+	var wall := find_wall()
 	if wall.is_empty():
 		# у этой арены высоких стен рядом нет — ставим стену для проверки (столкновение как у стен локаций: слой 1)
 		var sb := StaticBody3D.new()
@@ -261,7 +261,7 @@ func _run() -> void:
 		game.add_child(sb)
 		sb.global_position = Vector3(0, 3.0, -6.0)
 		await frames(3)
-		wall = await find_wall()
+		wall = find_wall()
 	if wall.is_empty():
 		ok(true, "стена: у арены нет столкновений рядом — отскок проверить негде (механика срабатывает только у настоящей стены)")
 	else:

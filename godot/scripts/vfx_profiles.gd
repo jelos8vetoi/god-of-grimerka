@@ -97,7 +97,9 @@ static func of(a: AttackData, style_id: String) -> Dictionary:
 	var m: Dictionary = motif(style_id)
 	var h: int = absi(hash(a.id))
 	var r1: float = float(h % 1000) / 1000.0
+	@warning_ignore("integer_division")
 	var r2: float = float((h / 1000) % 1000) / 1000.0
+	@warning_ignore("integer_division")
 	var r3: float = float((h / 1000000) % 1000) / 1000.0
 	var prims: Array = []
 	var low: bool = String(a.extra.get("react", "")) == "knockdown" or a.id.contains("sweep") or a.id.contains("slide")
@@ -129,6 +131,7 @@ static func of(a: AttackData, style_id: String) -> Dictionary:
 			"col": "hot" if p >= 2 else "main", "dur": snappedf(0.16 + 0.04 * p + (0.08 if spin else 0.0), 0.01)})
 	# --- снаряд: всплеск у цели — свой у каждого броска (размер, разрывы, эхо)
 	if ranged:
+		@warning_ignore("integer_division")
 		prims.append({"p": "shock", "s": snappedf(0.9 + 0.7 * r1 + 0.4 * p, 0.05), "segs": 3 + h % 6, "waves": (h / 7) % 2,
 			"col": "edge", "bill": 1, "thick": snappedf(0.08 + 0.08 * r2, 0.01)})
 	# --- ударное кольцо: от тяжёлых; у стиля — свои лучи, эхо и разрывы

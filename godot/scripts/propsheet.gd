@@ -21,14 +21,14 @@ func _ready() -> void:
 	sun.rotation = Vector3(deg_to_rad(-45), deg_to_rad(-30), 0)
 	sun.shadow_enabled = true
 	add_child(sun)
-	var floor := MeshInstance3D.new()
+	var fl := MeshInstance3D.new()
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(200, 200)
-	floor.mesh = pm
+	fl.mesh = pm
 	var fm := StandardMaterial3D.new()
 	fm.albedo_color = Color(0.22, 0.22, 0.24)
-	floor.material_override = fm
-	add_child(floor)
+	fl.material_override = fm
+	add_child(fl)
 	var cam := Camera3D.new()
 	add_child(cam)
 	cam.current = true

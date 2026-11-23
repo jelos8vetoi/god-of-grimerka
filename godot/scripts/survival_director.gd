@@ -81,9 +81,9 @@ func tick(game) -> void:
 			game.toast("БОСС ПРИБЛИЖАЕТСЯ · зачисти арену")
 		if alive <= 1 and bodies < MAX_BODIES and seconds >= _next_spawn:
 			_next_spawn = seconds + 0.4
-			var pos := _find_position(game, true)
-			if pos != Vector3.INF:
-				_start_boss(game, pos)
+			var spawn_pos := _find_position(game, true)
+			if spawn_pos != Vector3.INF:
+				_start_boss(game, spawn_pos)
 		return
 	_tick_event(game)
 	if alive >= mini(MAX_ALIVE, game.MAX_ALIVE) or bodies >= MAX_BODIES:

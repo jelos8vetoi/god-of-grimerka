@@ -53,9 +53,9 @@ func frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 
 ## одно нажатие: один физический кадр
 func tap(a: String) -> void:
@@ -74,11 +74,11 @@ func to_style(key: String) -> void:
 	await frames(2)
 
 ## дождаться события пылесоса
-func tg_event(name: String, max_frames := 240) -> bool:
+func tg_event(nm: String, max_frames := 240) -> bool:
 	var n := 0
 	while n < max_frames:
 		for ev in P.tyaga.events:
-			if ev[0] == name:
+			if ev[0] == nm:
 				return true
 		await get_tree().physics_frame
 		n += 1
@@ -92,11 +92,11 @@ func bone_pos(key: String) -> Vector3:
 	return (P.rig.skel.global_transform * P.rig.skel.get_bone_global_pose(P.rig.bone[key])).origin
 
 ## событие скейтборда
-func sk_event(name: String, max_frames := 240) -> bool:
+func sk_event(nm: String, max_frames := 240) -> bool:
 	var n := 0
 	while n < max_frames:
 		for ev in P.skate.events:
-			if ev[0] == name:
+			if ev[0] == nm:
 				return true
 		await get_tree().physics_frame
 		n += 1
@@ -181,9 +181,9 @@ func early_tap(a: String) -> void:
 		n += 1
 	await frames(2)
 
-func br_event(name: String) -> bool:
+func br_event(nm: String) -> bool:
 	for ev in P.breaker.events:
-		if ev[0] == name:
+		if ev[0] == nm:
 			return true
 	return false
 
@@ -852,8 +852,6 @@ func _run() -> void:
 	es[0].hp = 99999.0
 	es[0].max_hp = 99999.0
 	await to_style("style2")
-	var thrown := 0
-	P.combat.attack_started.connect(func(_a): thrown += 1, CONNECT_ONE_SHOT)
 	log_started = []
 	P.auto_input = {"attack": "press"}          # жмём каждый кадр 6 секунд
 	await frames(360)                          # физика идёт 60 раз в секунду
@@ -1379,7 +1377,6 @@ func _run() -> void:
 	ok(sb.ready and sb.problems().is_empty(), "стиль skateboard готов: атак %d, трюков %d" % [sb.attacks.size(), StyleSkateboard.TRICKS.size()])
 	# ---------- смена героя ----------
 	es = await stage([])
-	var p_at: Vector3 = P.global_position
 	var b_at: Vector3 = game.buddy.global_position
 	await tap("tag")
 	await frames(2)

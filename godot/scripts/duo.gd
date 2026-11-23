@@ -232,13 +232,13 @@ func _open_tick() -> void:
 		if t > 0.8:
 			_abort("partner")        # не добежал (стена, край арены)
 		return
-	var len: float = float(o["air_len"] if air else o["len"])
+	var ln: float = float(o["air_len"] if air else o["len"])
 	var hf: float = float(o["air_hit"] if air else o["hit"])
 	if not b.duo_acting():
-		b.duo_act(String(o["air"] if air else o["clip"]), len)
+		b.duo_act(String(o["air"] if air else o["clip"]), ln)
 		t = 0.0
 		if String(o["kind"]) == "throw":
-			_throw_bottles(2 if not air else 1, len * hf)
+			_throw_bottles(2 if not air else 1, ln * hf)
 		return
 	if String(o["kind"]) == "pull" and not opened:
 		# тяга: цель подтягивает к напарнику, пока идёт втягивание
@@ -247,7 +247,7 @@ func _open_tick() -> void:
 		if to.length() > 1.3 and e.boss_id == "" and float(e.height) < 2.3:
 			e.kb = to.normalized() * 6.0
 		e.interrupt_weak()
-	if not opened and t >= len * hf:
+	if not opened and t >= ln * hf:
 		opened = true
 		_open_hit(o)
 		_start_lead()
@@ -311,7 +311,7 @@ func _start_lead() -> void:
 	game.fov_kick = max(float(game.fov_kick), 4.0)
 
 ## состояние игрока "duo" (player.gd): лететь к цели
-func lead_step(dt: float) -> void:
+func lead_step(_dt: float) -> void:
 	if phase != "lead":
 		p.state = "move"
 		return

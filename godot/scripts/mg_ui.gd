@@ -316,8 +316,8 @@ static func audit(root: Node, screen: Rect2) -> Array:
 			continue                                   # целиком скрыт прокруткой или обрезкой родителя
 		if not screen.grow(2.0).encloses(vis):
 			out.append("за экраном: «%s» %s" % [txt, str(vis)])
-		var panel := _panel_of(C)
-		if panel != null and not panel.get_global_rect().grow(3.0).encloses(vis):
+		var pnl := _panel_of(C)
+		if pnl != null and not pnl.get_global_rect().grow(3.0).encloses(vis):
 			out.append("за панелью: «%s»" % txt)
 		if not C.has_meta("audit_clip") and _cut(C):
 			out.append("обрезан текст: «%s»" % txt)

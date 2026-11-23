@@ -1,0 +1,363 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/wood.tres" id="r1"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/chalk.tres" id="r2"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/lime.tres" id="r3"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/oxblood.tres" id="r4"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase3/models/painted_wooden_chair_01/painted_wooden_chair_01.gltf" id="r5"]
+[ext_resource type="PackedScene" path="res://assets/minigames/fn_stage_speaker.glb" id="r6"]
+[ext_resource type="Font" path="res://assets/fonts/RussoOne-Regular.ttf" id="r7"]
+[ext_resource type="PackedScene" path="res://assets/minigames/fn_party_table.glb" id="r8"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/vintage_radio_transceiver/vintage_radio_transceiver.gltf" id="r9"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/metal_toolbox/metal_toolbox.gltf" id="r10"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/service_door.glb" id="r11"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/hanging_industrial_lamp/hanging_industrial_lamp.gltf" id="r12"]
+
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/chalk.tres" id="SideFinish"]
+
+[sub_resource type="BoxMesh" id="b0"]
+size = Vector3(14, 0.16, 12)
+material = ExtResource("r1")
+
+[sub_resource type="BoxMesh" id="b4"]
+size = Vector3(14, 0.16, 12)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b8"]
+size = Vector3(0.16, 4.2, 12)
+material = ExtResource("SideFinish")
+
+[sub_resource type="BoxMesh" id="b12"]
+size = Vector3(0.028, 1.05, 12)
+material = ExtResource("r4")
+
+[sub_resource type="BoxMesh" id="b16"]
+size = Vector3(14, 4.2, 0.16)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b20"]
+size = Vector3(14, 1.05, 0.028)
+material = ExtResource("r4")
+
+[sub_resource type="BoxMesh" id="b24"]
+size = Vector3(0.16, 4.2, 12)
+material = ExtResource("SideFinish")
+
+[sub_resource type="BoxMesh" id="b28"]
+size = Vector3(0.028, 1.05, 12)
+material = ExtResource("r4")
+
+[sub_resource type="BoxMesh" id="b32"]
+size = Vector3(14, 4.2, 0.16)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b36"]
+size = Vector3(14, 1.05, 0.028)
+material = ExtResource("r4")
+
+[sub_resource type="BoxMesh" id="b40"]
+size = Vector3(14, 0.17, 0.22)
+material = ExtResource("r4")
+
+[sub_resource type="BoxMesh" id="b44"]
+size = Vector3(14, 0.17, 0.22)
+material = ExtResource("r4")
+
+[sub_resource type="BoxMesh" id="b48"]
+size = Vector3(8, 0.9, 3)
+material = ExtResource("r1")
+
+[sub_resource type="BoxMesh" id="b52"]
+size = Vector3(8, 0.36, 0.09)
+material = ExtResource("r4")
+
+[sub_resource type="BoxMesh" id="b56"]
+size = Vector3(1.45, 0.28, 0.38)
+material = ExtResource("r1")
+
+[sub_resource type="BoxMesh" id="b60"]
+size = Vector3(1.45, 0.56, 0.29)
+material = ExtResource("r1")
+
+[sub_resource type="BoxMesh" id="b64"]
+size = Vector3(8.9, 0.36, 0.38)
+material = ExtResource("r4")
+
+[sub_resource type="BoxMesh" id="b68"]
+size = Vector3(0.41, 3.1, 2.8)
+material = ExtResource("r4")
+
+[sub_resource type="BoxMesh" id="b72"]
+size = Vector3(0.41, 3.1, 2.8)
+material = ExtResource("r4")
+
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.04, 0.055, 0.062, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.50, 0.61, 0.66, 1)
+ambient_light_energy = 0.24
+tonemap_mode = 2
+
+[node name="RoomRoot" type="Node3D" ]
+metadata/room_id = "stage"
+metadata/facility_origin = Vector3(60, 0, 0)
+metadata/sway_degrees = 7
+
+[node name="Geometry" type="Node3D" parent="." ]
+
+[node name="Props" type="Node3D" parent="." ]
+
+[node name="Lighting" type="Node3D" parent="." ]
+
+[node name="EnemySpots" type="Node3D" parent="." ]
+
+[node name="AnomalyAnchors" type="Node3D" parent="." ]
+
+[node name="Floor_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, -0.08, 0)
+mesh = SubResource("b0")
+
+[node name="Ceiling_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 4.28, 0)
+mesh = SubResource("b4")
+
+[node name="SideWall_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(-7.08, 2.1, 0)
+mesh = SubResource("b8")
+
+[node name="Dado_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(-6.986, 0.525, 0)
+mesh = SubResource("b12")
+
+[node name="EndWall_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 2.1, -6.08)
+mesh = SubResource("b16")
+
+[node name="Dado_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 0.525, -5.986)
+mesh = SubResource("b20")
+
+[node name="SideWall_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(7.08, 2.1, 0)
+mesh = SubResource("b24")
+
+[node name="Dado_3" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(6.986, 0.525, 0)
+mesh = SubResource("b28")
+
+[node name="EndWall_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 2.1, 6.08)
+mesh = SubResource("b32")
+
+[node name="Dado_4" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 0.525, 5.986)
+mesh = SubResource("b36")
+
+[node name="CeilingBeam_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 4.115, -3.72)
+mesh = SubResource("b40")
+
+[node name="CeilingBeam_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 4.115, 0)
+mesh = SubResource("b44")
+
+[node name="painted_wooden_chair_01_1" parent="Props" instance=ExtResource("r5")]
+position = Vector3(-3.87, 0, 0.23)
+rotation_degrees = Vector3(0, 145, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="painted_wooden_chair_01_2" parent="Props" instance=ExtResource("r5")]
+position = Vector3(-5.19, 0, -1.5)
+rotation_degrees = Vector3(0, -20, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="painted_wooden_chair_01_3" parent="Props" instance=ExtResource("r5")]
+position = Vector3(-3.03, 0, 3.65)
+rotation_degrees = Vector3(0, 207, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="painted_wooden_chair_01_4" parent="Props" instance=ExtResource("r5")]
+position = Vector3(4.03, 0, 1.49)
+rotation_degrees = Vector3(0, -111, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="painted_wooden_chair_01_5" parent="Props" instance=ExtResource("r5")]
+position = Vector3(5.27, 0, -0.53)
+rotation_degrees = Vector3(0, -3, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="painted_wooden_chair_01_6" parent="Props" instance=ExtResource("r5")]
+position = Vector3(-4.91, 0, 2.88)
+rotation_degrees = Vector3(0, 106, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="painted_wooden_chair_01_7" parent="Props" instance=ExtResource("r5")]
+position = Vector3(3.23, 1.118, -4.98)
+rotation_degrees = Vector3(0, 152, 90)
+scale = Vector3(1, 1, 1)
+
+[node name="StageDeck_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 0.45, -4.4)
+mesh = SubResource("b48")
+
+[node name="Apron_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 0.71, -2.86)
+mesh = SubResource("b52")
+
+[node name="Step_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(-2.55, 0.14, -2.62)
+mesh = SubResource("b56")
+
+[node name="Step_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(-2.55, 0.28, -2.88)
+mesh = SubResource("b60")
+
+[node name="Proscenium_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 3.94, -3.2)
+mesh = SubResource("b64")
+
+[node name="Wing_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(-4.29, 2.44, -4.46)
+mesh = SubResource("b68")
+
+[node name="fn_stage_speaker_1" parent="Props" instance=ExtResource("r6")]
+position = Vector3(-3.42, 0.9, -3.48)
+rotation_degrees = Vector3(0, 13, 0)
+scale = Vector3(0.017, 0.017, 0.017)
+
+[node name="Wing_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(4.29, 2.44, -4.46)
+mesh = SubResource("b72")
+
+[node name="fn_stage_speaker_2" parent="Props" instance=ExtResource("r6")]
+position = Vector3(3.58, 0.9, -4.25)
+rotation_degrees = Vector3(0, 48, 0)
+scale = Vector3(0.017, 0.017, 0.017)
+
+[node name="Legend_1" type="Label3D" parent="Props" ]
+position = Vector3(0, 2.96, -5.93)
+rotation_degrees = Vector3(0, 0, 0)
+text = "О Б Л А К О"
+font = ExtResource("r7")
+font_size = 64
+pixel_size = 0.009
+outline_size = 0
+modulate = Color(0.85, 0.58, 0.32, 1)
+shaded = true
+double_sided = false
+
+[node name="Legend_2" type="Label3D" parent="Props" ]
+position = Vector3(0, 2.43, -5.92)
+rotation_degrees = Vector3(0, 0, 0)
+text = "ЦЕНТР РАЗВЛЕЧЕНИЙ И ХРАНЕНИЯ ДАННЫХ"
+font = ExtResource("r7")
+font_size = 64
+pixel_size = 0.0028
+outline_size = 0
+modulate = Color(0.67, 0.56, 0.38, 1)
+shaded = true
+double_sided = false
+
+[node name="fn_party_table_1" parent="Props" instance=ExtResource("r8")]
+position = Vector3(-4.86, 0, -0.5)
+rotation_degrees = Vector3(0, -17, 0)
+scale = Vector3(0.023, 0.023, 0.023)
+
+[node name="fn_party_table_2" parent="Props" instance=ExtResource("r8")]
+position = Vector3(-3.51, 0, 2.71)
+rotation_degrees = Vector3(0, 32, 0)
+scale = Vector3(0.023, 0.023, 0.023)
+
+[node name="fn_party_table_3" parent="Props" instance=ExtResource("r8")]
+position = Vector3(4.62, 0, 0.46)
+rotation_degrees = Vector3(0, -40, 0)
+scale = Vector3(0.023, 0.023, 0.023)
+
+[node name="vintage_radio_transceiver_1" parent="Props" instance=ExtResource("r9")]
+position = Vector3(-3.38, 0.91, -4.86)
+rotation_degrees = Vector3(0, 25, 0)
+scale = Vector3(1.2, 1.2, 1.2)
+
+[node name="metal_toolbox_1" parent="Props" instance=ExtResource("r10")]
+position = Vector3(3.61, 0.9, -5.37)
+rotation_degrees = Vector3(0, -37, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="service_door_1" parent="Props" instance=ExtResource("r11")]
+position = Vector3(-6.86, 0, -3.15)
+rotation_degrees = Vector3(0, 90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="hanging_industrial_lamp_1" parent="Props" instance=ExtResource("r12")]
+position = Vector3(-3.85, 3.9232, -1)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(0.48, 0.48, 0.48)
+
+[node name="LampPool_1" type="OmniLight3D" parent="Lighting" ]
+position = Vector3(-3.85, 3.21, -1)
+light_color = Color(1, 0.82, 0.61, 1)
+light_energy = 2.5
+light_specular = 0.04
+omni_range = 6.2
+omni_attenuation = 1.22
+shadow_enabled = true
+
+[node name="hanging_industrial_lamp_2" parent="Props" instance=ExtResource("r12")]
+position = Vector3(1.2, 4.12, -2.35)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(0.48, 0.48, 0.48)
+
+[node name="LampPool_2" type="SpotLight3D" parent="Lighting"]
+position = Vector3(1.2, 3.41, -2.35)
+rotation_degrees = Vector3(-35, 24, 0)
+light_color = Color(1, 0.79, 0.54, 1)
+light_energy = 7.6
+light_specular = 0.09
+spot_range = 6.7
+spot_angle = 49.0
+spot_angle_attenuation = 0.85
+shadow_enabled = true
+
+[node name="TableSpill" type="OmniLight3D" parent="Lighting" ]
+position = Vector3(5.18, 2.68, 1.72)
+light_color = Color(0.86, 0.79, 0.66, 1)
+light_energy = 0.84
+light_specular = 0.0
+omni_range = 4.6
+omni_attenuation = 1.22
+shadow_enabled = true
+
+[node name="Pose0" type="Marker3D" parent="EnemySpots" ]
+position = Vector3(0, 0.9, -4.3)
+rotation = Vector3(0, 0, 0)
+
+[node name="Pose1" type="Marker3D" parent="EnemySpots" ]
+position = Vector3(-2.2, 0.9, -4.6)
+rotation = Vector3(0, 0.3, 0)
+
+[node name="Pose2" type="Marker3D" parent="EnemySpots" ]
+position = Vector3(1.8, 0, 2.2)
+rotation = Vector3(0, -0.6, 0)
+
+[node name="Figure" type="Marker3D" parent="AnomalyAnchors" ]
+position = Vector3(-6.2, 0, -5.2)
+rotation = Vector3(0, 0.6, 0)
+
+[node name="CameraAnchor" type="Camera3D" parent="." ]
+position = Vector3(6.4, 3.9, 5.4)
+rotation = Vector3(-0.260703, 0.687671, 0)
+fov = 64
+current = true
+far = 60.0
+
+[node name="RoomEnvironment" type="WorldEnvironment" parent="Lighting" ]
+environment = SubResource("env")
+
+[node name="ReflectedSpill" type="OmniLight3D" parent="Lighting"]
+position = Vector3(-1.45,2.38,-2.56)
+light_color = Color(0.94, 0.63, 0.4, 1)
+light_energy = 0.65
+light_specular = 0.0
+omni_range = 4.6
+shadow_enabled = false

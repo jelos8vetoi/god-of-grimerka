@@ -40,12 +40,12 @@ func frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 
 ## крупный план сбоку своей камерой: видно трубу, шланг и руки
-func close(name: String, side := 1.0) -> void:
+func close(nm: String, side := 1.0) -> void:
 	var f := Vector3(sin(P.face), 0, cos(P.face))
 	var r := f.cross(Vector3.UP)
 	var at: Vector3 = P.global_position + Vector3(0, 0.75, 0) + f * 0.3
@@ -55,7 +55,7 @@ func close(name: String, side := 1.0) -> void:
 	cam.make_current()
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 	cam.clear_current(true)
 
 func tap(a: String, keep := {}) -> void:
@@ -196,7 +196,7 @@ func _run() -> void:
 
 	# ================= 2. широкий выброс: труба идёт за руками =================
 	var f1 = foe(Vector3(-2.2, 0, -3.0))
-	var f2 = foe(Vector3(0, 0, -3.6))
+	var _f2 = foe(Vector3(0, 0, -3.6))
 	var f3 = foe(Vector3(2.2, 0, -3.0))
 	await frames(4)
 	T.events = []
@@ -354,7 +354,7 @@ func _run() -> void:
 	await stage(Vector3(0, 0.05, 9.0))
 	await mount()
 	cruise(9.0)
-	var d1 = foe(Vector3(1.6, 0, -2.2))
+	var _d1 = foe(Vector3(1.6, 0, -2.2))
 	P.auto_input = {"move": Vector2(0.6, 1), "roll": "hold"}
 	await frames(6)
 	T.events = []
@@ -376,7 +376,7 @@ func _run() -> void:
 	await mount()
 	cruise(9.0)
 	T.vdir = Vector3(sin(PI + 0.9), 0, cos(PI + 0.9)).normalized()      # пылесос несёт боком
-	var s1 = foe(T.vdir * 2.4)
+	var _s1 = foe(T.vdir * 2.4)
 	P.auto_input = {"move": Vector2(0, 1), "roll": "hold"}
 	T.events = []
 	n = 0
@@ -392,7 +392,7 @@ func _run() -> void:
 	await stage(Vector3(0, 0.05, 9.0))
 	await mount()
 	cruise(8.0)
-	var a1 = foe(Vector3(0, 0, -3.4))
+	var _a1 = foe(Vector3(0, 0, -3.4))
 	T.events = []
 	await tap("jump", {"move": Vector2(0, 1)})
 	n = 0

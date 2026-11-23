@@ -16,7 +16,7 @@ var kept := {}
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 	for p in KEEP.slice(1):
 		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
@@ -39,9 +39,9 @@ func until(cond: Callable, sec: float) -> bool:
 		await get_tree().process_frame
 	return bool(cond.call())
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm + ".png"))
 
 func key(k: Key) -> void:
 	for down in [true, false]:
@@ -315,8 +315,8 @@ func _run() -> void:
 	var v_have := 0
 	for li in MLData.LENDER_ORDER.size():
 		var lines: Array = (MLData.LENDERS[MLData.LENDER_ORDER[li]]["voice"] as Array).duplicate()
-		for key in MLData.COLLECTOR:
-			lines.append_array(MLData.COLLECTOR[key])
+		for k2 in MLData.COLLECTOR:
+			lines.append_array(MLData.COLLECTOR[k2])
 		for ln in lines:
 			v_need += 1
 			if ResourceLoader.exists(MLNegotiation.voice_path("C%d" % (li + 1), String(ln))):
@@ -419,7 +419,7 @@ func _run() -> void:
 	# в паузе больше нет «НАЧАТЬ ЗАНОВО» (оно стирало долги): вместо него — «СДАТЬСЯ» с подтверждением
 	U.pause_menu()
 	await wait(0.3)
-	var pause_names: Array = U.rows.map(func(r): return String(r["label"].text) if r.has("label") else "") if "rows" in U else []
+	var _pause_names: Array = U.rows.map(func(r): return String(r["label"].text) if r.has("label") else "") if "rows" in U else []
 	await shot("m10_pause_surrender")
 	U.show_phase()
 	await wait(0.2)

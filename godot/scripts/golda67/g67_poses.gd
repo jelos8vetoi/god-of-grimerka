@@ -219,10 +219,61 @@ static func _walk(d: float, arms: Dictionary) -> Dictionary:
 	var e := _mix(arms, {"lup": {"x": -0.05}, "lleg": {"x": 0.5}, "rup": {"x": 0.0}, "rleg": {"x": 0.05}, "drop": 0.0})
 	return {"d": d, "loop": true, "k": [[0.0, _p(a)], [0.25, _p(b)], [0.5, _p(c)], [0.75, _p(e)], [1.0, _p(a)]]}
 
+# ---------------------------------------------------------------- враги ПОДЗЕМКИ (Контролёр, Зазывала, Вышибала): свои клипы, свой характер
+const PZ_ROLES := {
+	"ctl": {"idle": "PzCStance", "combat_idle": "PzCStance", "walk": "PzCWalk", "run": "PzCRun", "hit": "PzCHit1", "stagger": "PzCStun", "knockback": "PzCStun", "knockdown": "PzCDeath", "death": "PzCDeath"},
+	"prm": {"idle": "PzPStance", "combat_idle": "PzPStance", "walk": "PzPWalk", "run": "PzPRun", "hit": "PzPHit", "stagger": "PzPHit", "knockback": "PzPHit", "knockdown": "PzPDeath", "death": "PzPDeath"},
+	"bnc": {"idle": "PzBStance", "combat_idle": "PzBStance", "walk": "PzBWalk", "run": "PzBRush", "hit": "PzBHit", "stagger": "PzBWall", "knockback": "PzBHit", "knockdown": "PzBDeath", "death": "PzBDeath"},
+}
+
+static func clips_pz() -> Dictionary:
+	var C := {}
+	var down := _mix(R_DOWN, L_DOWN)
+	# КОНТРОЛЁР: чопорно и прямо; папка — в левой руке
+	var stiff := _mix(down, {"spine": {"x": -0.05}, "head": {"x": -0.03}, "lfa": {"x": -0.55}, "larm": {"x": -0.12}})
+	C["PzCStance"] = _loop(3.4, stiff, {"spine": {"x": -0.015}, "head": {"y": 0.04}})
+	C["PzCWalk"] = _walk(1.0, _mix(stiff, {"rarm": {"x": 0.0}}))
+	C["PzCRun"] = _walk(0.62, _mix(stiff, {"spine": {"x": 0.12}}))
+	C["PzCShield"] = _loop(2.4, _mix(stiff, {"larm": {"x": -1.0, "z": 0.2}, "lfa": {"x": -1.45, "y": -0.5}, "spine": {"y": 0.15}}), {"larm": {"x": -0.03}})
+	C["PzCStrike"] = _seq(1.2, stiff, [[0.0, {}], [0.32, {"larm": {"x": 1.2, "z": 0.8}, "lfa": {"x": -0.3}, "spine": {"y": 0.6}, "head": {"y": 0.25}}, "io"], [0.46, {"larm": {"x": 1.3, "z": 0.85}, "lfa": {"x": -0.3}, "spine": {"y": 0.65}}],
+		[0.58, {"larm": {"x": -1.0, "z": -0.3}, "lfa": {"x": -0.2}, "spine": {"y": -0.6}, "head": {"y": -0.2}}, "out"], [0.8, {"larm": {"x": -0.8, "z": -0.3}, "spine": {"y": -0.5}}], [1.0, {}]], false)
+	C["PzCStrike2"] = _seq(1.3, stiff, [[0.0, {}], [0.38, {"larm": {"x": -0.2, "z": 1.0}, "lfa": {"x": -0.2}, "spine": {"y": 0.7}}, "io"], [0.62, {"larm": {"x": -1.0, "z": -0.9}, "spine": {"y": -0.7}}, "out"], [1.0, {}]], false)
+	C["PzCTicket"] = _seq(1.8, stiff, [[0.0, {}], [0.3, {"rarm": {"x": -1.35, "z": -0.15}, "rfa": {"x": -0.2}, "head": {"x": 0.05}, "spine": {"x": 0.05}}], [0.7, {"rarm": {"x": -1.35, "z": -0.15}, "rfa": {"x": -0.2}, "head": {"x": -0.1}}], [1.0, {}]], false)
+	C["PzCBroken"] = _loop(1.8, _mix(stiff, {"larm": {"z": 0.9, "x": 0.4}, "lfa": {"x": 0.0}, "spine": {"z": 0.12}, "head": {"z": 0.2}}), {"spine": {"z": -0.25}, "head": {"z": -0.4}, "hips": {"z": 0.08}})
+	C["PzCHit1"] = _react(0.5, stiff, {"spine": {"x": 0.28}, "head": {"x": 0.3}, "rarm": {"z": -0.4}})
+	C["PzCHit2"] = _react(0.5, stiff, {"spine": {"z": 0.3, "x": 0.12}, "head": {"z": 0.4}})
+	C["PzCStun"] = _loop(1.2, _mix(stiff, {"spine": {"x": 0.2}, "head": {"x": 0.4}}), {"head": {"z": 0.35}, "spine": {"z": 0.15}})
+	C["PzCDeath"] = _seq(1.9, stiff, [[0.0, {}], [0.35, {"hips": {"x": 0.1}, "lup": {"x": -1.3}, "rup": {"x": -1.3}, "lleg": {"x": 1.5}, "rleg": {"x": 1.5}, "spine": {"x": 0.35}, "drop": 0.38, "larm": {"z": 0.7}}, "out"],
+		[0.7, {"hips": {"x": 0.1}, "lup": {"x": -1.4}, "rup": {"x": -1.4}, "lleg": {"x": 1.6}, "rleg": {"x": 1.6}, "spine": {"x": 0.7}, "head": {"x": 0.6}, "drop": 0.4, "larm": {"z": 0.9}}], [1.0, {"hips": {"x": 0.1}, "lup": {"x": -1.4}, "rup": {"x": -1.4}, "lleg": {"x": 1.6}, "rleg": {"x": 1.6}, "spine": {"x": 0.9}, "head": {"x": 0.6}, "drop": 0.4}]], false)
+	# ЗАЗЫВАЛА: суетливо, пританцовывает
+	var jig := _mix(_mix(R_TALK, {"larm": {"x": -0.2, "z": -0.1}, "lfa": {"x": -0.5}}), {"spine": {"x": -0.04}})
+	C["PzPStance"] = {"d": 1.1, "loop": true, "k": [[0.0, _p(_mix(jig, {"lup": {"x": -0.25}, "lleg": {"x": 0.3}, "spine": {"z": 0.1}, "head": {"z": 0.12}, "drop": 0.02}))], [0.5, _p(_mix(jig, {"rup": {"x": -0.25}, "rleg": {"x": 0.3}, "spine": {"z": -0.1}, "head": {"z": -0.12}, "drop": 0.02}))], [1.0, _p(_mix(jig, {"lup": {"x": -0.25}, "lleg": {"x": 0.3}, "spine": {"z": 0.1}, "head": {"z": 0.12}, "drop": 0.02}))]]}
+	C["PzPWalk"] = _walk(0.68, _mix(jig, {"spine": {"z": 0.06}}))
+	C["PzPRun"] = _walk(0.5, _mix(jig, {"spine": {"x": 0.1}}))
+	C["PzPThrow"] = _seq(0.9, jig, [[0.0, {}], [0.4, {"rarm": {"x": 0.2, "z": -0.6}, "rfa": {"x": -0.4}, "spine": {"y": 0.45}}, "io"], [0.55, {"rarm": {"x": -1.35, "z": -0.3}, "rfa": {"x": -0.1}, "spine": {"y": -0.5}}, "out"], [1.0, {}]], false)
+	C["PzPShout"] = _seq(1.6, jig, [[0.0, {}], [0.3, {"rarm": {"x": -0.4, "z": -2.3}, "rfa": {"x": -0.4}, "spine": {"x": 0.18}, "head": {"x": -0.35}}], [0.75, {"rarm": {"x": -0.4, "z": -2.3}, "rfa": {"x": -0.4}, "spine": {"x": 0.22}, "head": {"x": -0.4}}], [1.0, {}]], false)
+	C["PzPPanic"] = _loop(0.5, _mix(jig, {"rarm": {"x": -1.2}, "larm": {"x": -1.2}, "rfa": {"x": -0.3}, "lfa": {"x": -0.3}, "spine": {"x": -0.12}}), {"rarm": {"z": -0.2}, "larm": {"z": 0.2}, "spine": {"z": 0.08}})
+	C["PzPHit"] = _react(0.45, jig, {"spine": {"x": 0.3, "z": 0.2}, "head": {"x": 0.3}, "rarm": {"z": -0.5}, "larm": {"z": 0.5}})
+	C["PzPDeath"] = _seq(1.7, jig, [[0.0, {}], [0.35, {"spine": {"x": -0.4}, "rarm": {"z": -2.2}, "larm": {"z": 2.2}, "lup": {"x": -0.4}, "rup": {"x": -0.2}, "drop": 0.1}, "out"], [1.0, {"spine": {"x": -1.35}, "hips": {"x": -0.25}, "rarm": {"z": -1.6}, "larm": {"z": 1.6}, "lup": {"x": -0.9}, "lleg": {"x": 0.6}, "rup": {"x": -0.5}, "drop": 0.48}]], false)
+	# ВЫШИБАЛА: тяжело, вразвалку, руки в стороны от корпуса
+	var wide := _mix({"rarm": {"z": -0.45, "x": 0.1}, "rfa": {"x": -0.35}, "larm": {"z": 0.45, "x": 0.1}, "lfa": {"x": -0.35}}, {"spine": {"x": 0.05}, "head": {"x": 0.02}})
+	C["PzBStance"] = _loop(3.8, _mix(wide, {"rup": {"z": 0.12}, "lup": {"z": -0.12}}), {"spine": {"z": 0.05}, "hips": {"z": 0.04}, "head": {"y": 0.05}})
+	C["PzBWalk"] = _walk(1.35, _mix(wide, {"spine": {"z": 0.06}, "hips": {"z": 0.05}}))
+	C["PzBPrep"] = _seq(1.0, wide, [[0.0, {}], [0.5, {"spine": {"x": 0.55}, "rup": {"x": -0.45}, "rleg": {"x": 0.5}, "head": {"x": 0.2}, "drop": 0.12}], [0.75, {"spine": {"x": 0.55}, "rup": {"x": -0.1}, "rleg": {"x": 0.3}, "drop": 0.1}], [1.0, {"spine": {"x": 0.55}, "drop": 0.12}]], false)
+	C["PzBRush"] = _walk(0.42, _mix(wide, {"spine": {"x": 0.6}, "rarm": {"x": 0.5, "z": -0.1}, "larm": {"x": 0.5, "z": 0.1}, "head": {"x": -0.2}}))
+	C["PzBWall"] = _loop(0.5, _mix(wide, {"spine": {"x": 0.2}}), {"head": {"z": 0.55}, "spine": {"z": 0.12}})
+	C["PzBPush"] = _seq(1.0, wide, [[0.0, {}], [0.35, {"rarm": {"x": 0.3, "z": 0.3}, "larm": {"x": 0.3, "z": -0.3}, "spine": {"x": 0.2}}, "io"], [0.5, {"rarm": {"x": -1.45, "z": -0.1}, "larm": {"x": -1.45, "z": 0.1}, "rfa": {"x": -0.1}, "lfa": {"x": -0.1}, "spine": {"x": 0.35}, "drop": 0.06}, "out"], [1.0, {}]], false)
+	C["PzBOver"] = _seq(1.7, wide, [[0.0, {}], [0.45, {"larm": {"x": -0.3, "z": 2.6}, "lfa": {"x": -0.4}, "spine": {"x": -0.35}, "rup": {"x": 0.2}}, "io"], [0.6, {"larm": {"x": -0.3, "z": 2.6}, "lfa": {"x": -0.4}, "spine": {"x": -0.4}}], [0.75, {"larm": {"x": -1.4, "z": 0.2}, "lfa": {"x": -0.2}, "spine": {"x": 0.55}, "drop": 0.12}, "out"], [1.0, {}]], false)
+	C["PzBRoar"] = _seq(1.8, wide, [[0.0, {}], [0.35, {"head": {"x": -0.45}, "spine": {"x": -0.2}, "rarm": {"z": -1.0}, "larm": {"z": 1.0}}], [0.8, {"head": {"x": -0.5}, "spine": {"x": -0.2}, "rarm": {"z": -1.1}, "larm": {"z": 1.1}}], [1.0, {}]], false)
+	C["PzBHit"] = _react(0.4, wide, {"spine": {"x": 0.1}, "head": {"x": 0.12}})
+	C["PzBDeath"] = _seq(2.2, wide, [[0.0, {}], [0.45, {"lup": {"x": -1.2}, "rup": {"x": -1.2}, "lleg": {"x": 1.6}, "rleg": {"x": 1.6}, "spine": {"x": 0.3}, "head": {"x": 0.3}, "drop": 0.4}, "out"], [1.0, {"lup": {"x": -1.4}, "rup": {"x": -1.4}, "lleg": {"x": 1.6}, "rleg": {"x": 1.6}, "spine": {"x": 1.3}, "head": {"x": 0.5}, "drop": 0.45, "rarm": {"x": 0.4}, "larm": {"x": 0.4}}]], false)
+	return C
+
 ## Все клипы — для листа поз
 static func all() -> Dictionary:
 	var C := clips()
 	C.merge(krot(), true)
+	C.merge(clips_pz(), true)
 	return C
 
 ## Вещи в руках по позе: телефон (левая кисть), сигарета, шаурма (правая) — простые формы кодом, пока нет моделей

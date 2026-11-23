@@ -107,7 +107,7 @@ const MOVES := {
 # ---------------- выбор приёма ----------------
 ## Приём по полезности: вес × годность дистанции × условия; перезарядки — в e.move_cd. {} — пока ничего.
 static func pick(e, dist: float) -> Dictionary:
-	var table: Dictionary = MOVES.get(String(e.kind), {})
+	var table: Dictionary = (e.get_meta("moves") as Dictionary) if e.has_meta("moves") else MOVES.get(String(e.kind), {})
 	if table.is_empty():
 		return {}
 	var r = e.game.read
@@ -165,7 +165,7 @@ static func cond(e, c: String, r, dist: float) -> bool:
 	return false
 
 ## Форма метки для приёма: [радиус, половина угла, полуширина полосы]; пусто — у приёма своя метка (зона, волна) или нет удара
-static func tell_of(e, m: Dictionary) -> Array:
+static func tell_of(_e, m: Dictionary) -> Array:
 	match String(m["act"]):
 		"melee", "feint":
 			return [float(m.get("r", 2.2)), float(m.get("half", 1.1)), 0.0]
@@ -249,7 +249,10 @@ static func strike(e, m: Dictionary, dist: float, dir: Vector3) -> Dictionary:
 			else:
 				for i in int(m.get("n", 1)):
 					var off := Vector3.ZERO if i == 0 else Vector3(randf_range(-3, 3), 0, randf_range(-3, 3))
-					g.telegraph(Vector3(at.x, 0, at.z) + off, float(m["zr"]), float(m["delay"]) + i * 0.15, dmg, e, {"col": col})
+					var tx := {"col": col}
+					if m.has("slow"):
+						tx["slow"] = float(m["slow"])
+					g.telegraph(Vector3(at.x, 0, at.z) + off, float(m["zr"]), float(m["delay"]) + i * 0.15, dmg, e, tx)
 			g.main.sfx("sfx_cast", -6.0)
 		"ring":
 			g.fx.slam(e.global_position, 1.2, col)
@@ -270,7 +273,7 @@ static func strike(e, m: Dictionary, dist: float, dir: Vector3) -> Dictionary:
 					g.fx.poof(at2, 1.0, col)
 			blink(e, "side")
 		"summon":
-			if summoned_alive(e) < int(TUNE["summon_cap"]):
+			if summoned_alive(e) < int(m.get("cap", TUNE["summon_cap"])):
 				_summon(e, m.get("kinds", ["bot"]), int(m.get("n", 1)), Vector3.INF)
 		"buff":
 			for o in g.enemies:

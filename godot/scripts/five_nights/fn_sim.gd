@@ -82,7 +82,7 @@ static func run(n: int, strategy: String, seed_v: int, levels := {}) -> Dictiona
 	return {"outcome": st.outcome, "killer": st.killer, "at": st.kill_at, "t": st.t, "power": st.power, "hour": st.hour, "stats": st.stats}
 
 ## один шаг «думающего» игрока
-static func _play(st: FNNight, P: Dictionary, rng: RandomNumberGenerator, dt: float, know: Dictionary, poll_t: Dictionary, ghost_seen: float, ping_at: float, cams: Array) -> void:
+static func _play(st: FNNight, P: Dictionary, rng: RandomNumberGenerator, dt: float, know: Dictionary, poll_t: Dictionary, _ghost_seen: float, ping_at: float, cams: Array) -> void:
 	if st.power_out:
 		if rng.randf() < 0.9:
 			st.crank()                             # крутит генератор что есть сил

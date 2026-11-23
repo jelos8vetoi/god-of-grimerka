@@ -17,6 +17,16 @@ var log: Array = []                     # [время, id, событие] дл�
 var hush_log: Array = []
 var order := {}                         # зона → индекс круга
 
+## Таймер, привязанный к этому узлу: гаснет вместе с ним (двор выгружается при спуске в подземку)
+func _tmr(sec: float, _always := true, _ignore := true, _phys := false) -> Timer:
+	var t := Timer.new()
+	t.one_shot = true
+	t.wait_time = maxf(sec, 0.01)
+	add_child(t)
+	t.timeout.connect(t.queue_free, CONNECT_DEFERRED)
+	t.start()
+	return t
+
 static func make(g, yd) -> G67Duos:
 	var D := G67Duos.new()
 	D.golda = g
@@ -188,7 +198,7 @@ func _tick(zone: String, dt: float, hp: Vector3, bk: G67Barks) -> void:
 		var clip := "NTalk" if (speaker.get_meta("life") as G67Life).base.begins_with("N") else "STalk"
 		if (speaker as Rig).has_clip(clip):
 			sl.stage(clip, 0.3)
-			get_tree().create_timer(dur).timeout.connect(func():
+			_tmr(dur).timeout.connect(func():
 				if is_instance_valid(sl) and is_instance_valid(speaker):
 					sl.resume())
 	for n in who:

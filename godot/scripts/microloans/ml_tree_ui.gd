@@ -198,17 +198,17 @@ func paint() -> void:
 	head.text = "Уровень %d · опыт %d / %d · очков навыков: %d · неделя %d · авторитет %d" % [int(C.d["level"]), int(C.d["xp"]), MLCareer.xp_need(int(C.d["level"])), int(C.d["points"]), int(C.d["week"]), int(C.d["legend"]["points"])]
 	for id in widgets:
 		var w: Dictionary = widgets[id]
-		var n := MLTree.node(String(id))
-		var col: Color = MLTree.BRANCHES[n["b"]]["col"]
-		var r := C.rank(String(id))
-		var why := C.why_not(String(id))
+		var n_node := MLTree.node(String(id))
+		var col: Color = MLTree.BRANCHES[n_node["b"]]["col"]
+		var r_row := C.rank(String(id))
+		var why_txt := C.why_not(String(id))
 		var sb: StyleBoxFlat = w["sb"]
 		var icol := MGUI.TEXT_3
-		if r > 0:
+		if r_row > 0:
 			sb.bg_color = col.darkened(0.15)
 			sb.border_color = col.lightened(0.35)
 			icol = MGUI.INK
-		elif why == "":
+		elif why_txt == "":
 			sb.bg_color = Color(0.08, 0.08, 0.09)
 			sb.border_color = col
 			icol = col
@@ -218,10 +218,10 @@ func paint() -> void:
 		sb.set_border_width_all(4 if String(id) == sel else 2)
 		if String(id) == sel:
 			sb.border_color = MGUI.TEXT
-		(w["icon"] as MGIcon).set_icon(String(KIND_ICON.get(String(n["kind"]), "plus")), icol)
+		(w["icon"] as MGIcon).set_icon(String(KIND_ICON.get(String(n_node["kind"]), "plus")), icol)
 		var dots: Array = w["dots"]
 		for k in dots.size():
-			(dots[k] as ColorRect).color = col if k < r else Color(0.22, 0.22, 0.25)
+			(dots[k] as ColorRect).color = col if k < r_row else Color(0.22, 0.22, 0.25)
 	for ln in lines.get_children():
 		var l := ln as Line2D
 		var on := C.rank(String(l.get_meta("from"))) > 0

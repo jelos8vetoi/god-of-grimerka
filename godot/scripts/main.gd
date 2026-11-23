@@ -98,11 +98,11 @@ func _ready() -> void:
 		m.button_index = a[1]
 		InputMap.action_add_event(a[0], m)
 	# геймпад в меню: в Godot 4.7 у ui_accept / ui_cancel нет кнопок геймпада — A выбирает, B — назад
-	for ui in [["ui_accept", JOY_BUTTON_A], ["ui_cancel", JOY_BUTTON_B]]:
-		if not InputMap.action_get_events(ui[0]).any(func(ev): return ev is InputEventJoypadButton):
+	for ui_n in [["ui_accept", JOY_BUTTON_A], ["ui_cancel", JOY_BUTTON_B]]:
+		if not InputMap.action_get_events(ui_n[0]).any(func(ev): return ev is InputEventJoypadButton):
 			var jb := InputEventJoypadButton.new()
-			jb.button_index = ui[1]
-			InputMap.action_add_event(ui[0], jb)
+			jb.button_index = ui_n[1]
+			InputMap.action_add_event(ui_n[0], jb)
 	var js := InputEventJoypadButton.new()
 	js.button_index = JOY_BUTTON_RIGHT_STICK            # геймпад: нажатие правого стика — захват
 	InputMap.action_add_event("lock", js)
@@ -372,12 +372,12 @@ func ui(kind: String, pitch := 1.0) -> void:
 	if ui_sfx != null:
 		ui_sfx.play(kind, pitch)
 
-func sfx(name: String, vol := 0.0, pitch := 1.0) -> void:
-	if not sfx_cache.has(name):
-		sfx_cache[name] = load("res://assets/audio/" + name + ".wav")
+func sfx(nm: String, vol := 0.0, pitch := 1.0) -> void:
+	if not sfx_cache.has(nm):
+		sfx_cache[nm] = load("res://assets/audio/" + nm + ".wav")
 	for p in sfx_pool:
 		if not p.playing:
-			p.stream = sfx_cache[name]
+			p.stream = sfx_cache[nm]
 			p.volume_db = vol
 			p.pitch_scale = pitch * randf_range(0.95, 1.05)
 			p.play()

@@ -164,7 +164,7 @@ var studio: MenuStudio         # 3D-сцена телестудии «ОБЛАК
 var bed: AudioStreamPlayer     # подложка меню: треск винила и гул (MenuSfx.make_bed, Ambient), уходит вместе с меню
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_preset(Control.PRESET_TOP_LEFT)       # размер задаёт _fit явно; одинаковые противоположные якоря — без предупреждения движка
 	serif = SystemFont.new()
 	serif.font_names = PackedStringArray(["Bodoni MT Black", "Bodoni MT", "Playfair Display Black", "Playfair Display", "Georgia", "Times New Roman", "serif"])
 	serif.font_weight = 900
@@ -178,7 +178,8 @@ func _ready() -> void:
 		bed = main.ui_sfx.make_bed(self)
 	has_save = FileAccess.file_exists(SAVE)
 	if has_save:
-		var d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
+		var jp := JSON.new()    # разбор без ошибки в журнале: повреждённое сохранение — не сбой меню
+		var d = jp.data if jp.parse(FileAccess.get_file_as_string(SAVE)) == OK else null
 		if d is Dictionary:
 			save = d
 		else:
@@ -385,11 +386,11 @@ func _build_characters() -> void:
 	chars.set_meta("ghost", ghost)
 
 # ---------------- текст ----------------
-func _text(parent: Control, s: String, size: int, col: Color, pos: Vector2, f: Font = null, rough := false) -> Label:
+func _text(parent: Control, s: String, sz: int, col: Color, pos: Vector2, f: Font = null, rough := false) -> Label:
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", f if f != null else tech)
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", sz)
 	l.add_theme_color_override("font_color", col)
 	l.position = pos
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -538,37 +539,37 @@ func _build_list() -> void:
 	list.add_child(band)
 	var y := 0.0
 	for i in ITEMS.size():
-		var size: int = SIZES[i]
+		var sz: int = SIZES[i]
 		var root := Control.new()
 		root.position = Vector2(70 + i * 14, y)
 		root.mouse_filter = Control.MOUSE_FILTER_STOP
 		root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		list.add_child(root)
-		var lab := _text(root, ITEMS[i][0], size, WHITE, Vector2.ZERO, serif, true)
-		var w: float = serif.get_string_size(ITEMS[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-		root.size = Vector2(w + 30, size * 1.12)
+		var lab := _text(root, ITEMS[i][0], sz, WHITE, Vector2.ZERO, serif, true)
+		var w: float = serif.get_string_size(ITEMS[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x
+		root.size = Vector2(w + 30, sz * 1.12)
 		var mark := Polygon2D.new()
-		mark.polygon = PackedVector2Array([Vector2(0, 0), Vector2(size * 0.32, size * 0.2), Vector2(0, size * 0.4)])
-		mark.position = Vector2(-size * 0.62, size * 0.42)
+		mark.polygon = PackedVector2Array([Vector2(0, 0), Vector2(sz * 0.32, sz * 0.2), Vector2(0, sz * 0.4)])
+		mark.position = Vector2(-sz * 0.62, sz * 0.42)
 		mark.color = WHITE
 		root.add_child(mark)
 		var sub: Label = null
 		if i == 0:
 			var st := "Сохранения пока нет" if not has_save else "Глава %d · %s · шаг %d · опыт %d" % [chapter_no(), chapter_name(chapter_no() - 1), int(save.get("step", 0)) + 1, int(save.get("xp", 0))]
-			sub = _text(root, st, 15, INK, Vector2(40, size * 1.1))
+			sub = _text(root, st, 15, INK, Vector2(40, sz * 1.1))
 		elif ITEMS[i].size() > 2:
-			sub = _text(root, String(ITEMS[i][2]), 15, INK, Vector2(40, size * 1.06))
+			sub = _text(root, String(ITEMS[i][2]), 15, INK, Vector2(40, sz * 1.06))
 		lab.visible = false
 		mark.visible = false
 		if sub != null:
 			sub.visible = false
-		rows.append({"root": root, "label": lab, "mark": mark, "sub": sub, "w": w, "h": size})
+		rows.append({"root": root, "label": lab, "mark": mark, "sub": sub, "w": w, "h": sz})
 		root.mouse_entered.connect(func(): if panel == null and not modes.visible: _select(i, true, "hover"))
 		root.gui_input.connect(func(e: InputEvent):
 			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and panel == null and not modes.visible:
 				_select(i)
 				_activate())
-		y += size * (1.42 if sub != null else 1.16)
+		y += sz * (1.42 if sub != null else 1.16)
 
 func _enabled(i: int) -> bool:
 	return i != 0 or has_save
@@ -887,11 +888,11 @@ func _open(title: String, lines: Array, actions: Array, start := 0, title_size :
 	info.text = "Enter — выбрать · A/D — изменить значение · Esc — назад"
 	return box
 
-func _para(s: String, size: int, col: Color) -> Label:
+func _para(s: String, sz: int, col: Color) -> Label:
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", tech)
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", sz)
 	l.add_theme_color_override("font_color", col)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size = Vector2(640, 0)
@@ -1004,8 +1005,8 @@ func _train_hero_step(_d: int) -> void:
 	train_style = String(Training.HERO_STYLES[train_hero][0])
 
 func _train_style_step(d: int) -> void:
-	var list: Array = Training.HERO_STYLES[train_hero]
-	train_style = String(list[posmod(list.find(train_style) + d, list.size())])
+	var lst: Array = Training.HERO_STYLES[train_hero]
+	train_style = String(lst[posmod(lst.find(train_style) + d, lst.size())])
 
 func _open_settings() -> void:
 	var acts: Array = []

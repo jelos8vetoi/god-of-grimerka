@@ -22,6 +22,7 @@ const EXTRA := {
 	"strike": [["chain_bolt"], ["volt_dash", "storm_grid"], ["thunder_combo", "volt_dash", "storm_grid"]],
 	"botlord": [["guard_bots"], ["attack_bots", "overclock"], ["mine_bots", "overclock", "attack_bots"]],
 	"ghostv": [["mirror_dash"], ["swap", "mirror_dash"], ["true_one", "swap", "mirror_dash"]],
+	"g67_fortuna": G67Fortuna.MOVES,      # приквел: бой FORTUNA 812 (golda67/g67_fortuna.gd)
 	"g67_misha": G67Misha.MOVES,      # приквел «ГОЛДА 67»: захват, защитная стойка, зацеп цепи (golda67/g67_misha.gd)
 	"algo": [["grid_lines"], ["beam_cross", "grid_lines"], ["glitch_wipe", "grid_lines"], ["final_compile", "glitch_wipe", "beam_cross"]],
 }
@@ -35,6 +36,7 @@ const TITLES := {
 	"guard_bots": "ОХРАНА", "attack_bots": "НАЛЁТ", "overclock": "РАЗГОН", "mine_bots": "МИНЫ",
 	"mirror_dash": "ОТРАЖЕНИЕ", "swap": "ПОДМЕНА", "true_one": "КТО НАСТОЯЩИЙ?",
 	"grid_lines": "СЕТКА", "glitch_wipe": "СБОЙ", "final_compile": "КОМПИЛЯЦИЯ",
+	"f_gates": "ТУРНИКЕТЫ", "f_zone": "ПЛАТНАЯ ЗОНА", "f_check": "ЧЕК", "f_change": "СДАЧА", "f_consult": "КОНСУЛЬТАЦИЯ",
 	"m_grab": "ЗАХВАТ", "m_guard": "ЗАЩИТНАЯ СТОЙКА", "m_hook": "ЗАЦЕП ЦЕПИ",
 	"anti_air": "НЕ ВЗЛЕТИШЬ", "turn_strike": "РАЗВОРОТ", "guard_break": "ПРОБИТИЕ", "close_burst": "НЕ ПОДХОДИ", "far_punish": "ДОСТАНУ",
 }
@@ -110,6 +112,8 @@ static func start(e, move: String) -> void:
 	match move:
 		"m_grab", "m_guard", "m_hook":
 			G67Misha.start(e, move)
+		"f_gates", "f_zone", "f_check", "f_change", "f_consult":
+			G67Fortuna.start(e, move)
 		# ---------------- LIL DREY ----------------
 		"parcel_seek":
 			e.rig.play_for("Throw", 0.5, 0.05)
@@ -465,7 +469,7 @@ static func start_part(e, move: String) -> void:
 	e.sp_events.sort_custom(func(x, y): return float(x[0]) < float(y[0]))
 
 ## Рывок босса по прямой (как charge у story-приёмов, но со своим уроном и скоростью)
-static func _charge(e, dmg: float, speed: float, len: float) -> void:
+static func _charge(e, dmg: float, speed: float, ln: float) -> void:
 	var p = e.game.player
 	var d: Vector3 = p.global_position - e.global_position
 	d.y = 0
@@ -473,7 +477,7 @@ static func _charge(e, dmg: float, speed: float, len: float) -> void:
 	e.face = atan2(e.charge_dir.x, e.charge_dir.z)
 	e.charge_dmg = dmg
 	e.charge_v = speed
-	e.charge_len = len
+	e.charge_len = ln
 	e.charge_r = float(e.cfg["range"]) * 0.7
 	e.state = "charge"
 	e.t = 0.0

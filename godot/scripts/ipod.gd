@@ -20,6 +20,9 @@ const BLOCKED_GAME_ACTIONS := [
 const BUILTIN_TRACKS := [
 	{"id": "dynasty", "title": "Dynasty", "artist": "GOD OF GRIMERKA", "path": "res://assets/audio/music_dynasty.mp3", "local": false},
 ]
+## Приквел «ГОЛДА 67»: плейлист «Любимые треки Пахана» (G67Data.PLAYLIST) живёт и в iPod; в кампании его нет
+const G67_PAGE := "Любимые треки Пахана"
+
 const PAGES := {
 	"Menu": ["Музыка", "Плейлисты", "Сейчас играет", "Настройки"],
 	"Музыка": ["Встроенная музыка"],
@@ -126,6 +129,7 @@ func _ready() -> void:
 		tracks.clear()
 		for builtin in BUILTIN_TRACKS:
 			tracks.append((builtin as Dictionary).duplicate(true))
+	_sync_g67()
 	_build_file_dialog()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -348,6 +352,7 @@ func toggle() -> void:
 func open() -> void:
 	if opened:
 		return
+	_sync_g67()
 	# A reopen during the closing tween continues the same input context. Do not
 	# replace the saved captured-mouse mode with the temporary visible mode.
 	var continuing_context := input_captured
@@ -449,7 +454,7 @@ func _kill_visual_tweens() -> void:
 func _start_focus_animation(opening: bool) -> void:
 	_kill_visual_tweens()
 	var duration := SLIDE_TIME if opening else CLOSE_TIME
-	var base_scale := _base_scale()
+	var _bs := _base_scale()
 	slide = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	slide.set_parallel(true)
 	slide.tween_property(self, "focus_amount", 1.0 if opening else 0.0, duration).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT if opening else Tween.EASE_IN_OUT)
@@ -506,10 +511,10 @@ func _calculate_open_position() -> Vector2:
 	var scaled := DEVICE_SIZE * _base_scale()
 	var protected := _pahan_protected_rect(viewport)
 	var safe_margin := clampf(viewport.x * 0.025, 24.0, 64.0)
-	var scale := _base_scale()
+	var scl := _base_scale()
 	# The hint is a child above/right of the body, so reserve room for it as well.
-	var minimum := Vector2(safe_margin, safe_margin + 57.0 * scale.y)
-	var maximum := Vector2(viewport.x - safe_margin - scaled.x - 44.0 * scale.x,
+	var minimum := Vector2(safe_margin, safe_margin + 57.0 * scl.y)
+	var maximum := Vector2(viewport.x - safe_margin - scaled.x - 44.0 * scl.x,
 		viewport.y - safe_margin - scaled.y)
 	var gap := clampf(50.0 * viewport.x / 1600.0, 36.0, 75.0)
 	var protected_end := protected.position + protected.size
@@ -796,11 +801,11 @@ func _play_ui_sound(kind: String) -> bool:
 	if now - last_ui_sound_ms < minimum_gap:
 		return false
 	var chosen: AudioStreamPlayer
-	for offset in ui_players.size():
-		var candidate := ui_players[(ui_player_cursor + offset) % ui_players.size()]
+	for ofs in ui_players.size():
+		var candidate := ui_players[(ui_player_cursor + ofs) % ui_players.size()]
 		if not candidate.playing:
 			chosen = candidate
-			ui_player_cursor = (ui_player_cursor + offset + 1) % ui_players.size()
+			ui_player_cursor = (ui_player_cursor + ofs + 1) % ui_players.size()
 			break
 	if chosen == null:
 		return false
@@ -899,7 +904,7 @@ func _settings_payload(local_tracks: Array) -> Dictionary:
 		"bass_boost": bass_boost, "repeat_mode": repeat_mode,
 		"button_sounds_enabled": button_sounds_enabled, "button_sounds_volume": button_sounds_volume,
 		"ui_motion_mode": ui_motion_mode, "earbuds_in": earbuds_in, "tracks": local_tracks,
-		"track_id": String(tracks[track_index]["id"]) if track_index >= 0 and track_index < tracks.size() else "",
+		"track_id": String(tracks[track_index]["id"]) if track_index >= 0 and track_index < tracks.size() and not bool(tracks[track_index].get("g67", false)) else "",
 		"time": player.get_playback_position() if player.stream != null else 0.0}
 
 
@@ -908,9 +913,11 @@ func _apply_persisted_options(data: Dictionary) -> void:
 	reverb_depth = clampf(float(data.get("reverb_depth", reverb_depth)), 0.0, 1.0)
 	# Explicit defaults keep version-1 settings compatible.
 	bass_boost = clampf(float(data.get("bass_boost", 0.0)), 0.0, 1.0)
+	@warning_ignore("int_as_enum_without_cast")
 	repeat_mode = clampi(int(data.get("repeat_mode", RepeatMode.OFF)), RepeatMode.OFF, RepeatMode.ALL)
 	button_sounds_enabled = bool(data.get("button_sounds_enabled", true))
 	button_sounds_volume = clampf(float(data.get("button_sounds_volume", 0.55)), 0.0, 1.0)
+	@warning_ignore("int_as_enum_without_cast")
 	ui_motion_mode = clampi(int(data.get("ui_motion_mode", UIMotionMode.FULL)), UIMotionMode.OFF, UIMotionMode.FULL)
 	earbuds_in = bool(data.get("earbuds_in", false))
 	mix_bass = bass_boost
@@ -948,6 +955,10 @@ func _select_track(index: int, play_now := true, from_time := 0.0) -> void:
 	if stream == null:
 		game.toast("Не удалось прочитать аудиофайл")
 		return
+	if bool(tracks[index].get("g67", false)) and game != null and game.get("golda") != null:
+		var gph = game.golda.phone_get()
+		if gph != null:
+			gph.stop()                      # один звук за раз: вкладка паузы замолкает
 	track_index = index
 	player.stream = stream
 	player.play(maxf(0.0, from_time))
@@ -1206,8 +1217,8 @@ func _motion_scale() -> float:
 func _press_wheel_visual(action: String, auto_release: bool) -> void:
 	var button := wheel_button_by_action.get(action) as Button
 	var feedback := wheel_feedback_by_action.get(action) as Panel
-	var scale := _motion_scale()
-	if button == null or feedback == null or scale <= 0.0:
+	var scl := _motion_scale()
+	if button == null or feedback == null or scl <= 0.0:
 		return
 	_kill_wheel_tween(action)
 	button.offset_transform_position = Vector2(0, 1.5)
@@ -1216,12 +1227,12 @@ func _press_wheel_visual(action: String, auto_release: bool) -> void:
 	feedback.modulate.a = 1.0
 	if auto_release:
 		var tween := button.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-		tween.tween_interval(0.075 * scale)
+		tween.tween_interval(0.075 * scl)
 		tween.set_parallel(true)
-		tween.tween_property(button, "offset_transform_position", Vector2.ZERO, 0.12 * scale).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tween.tween_property(button, "self_modulate", Color.WHITE, 0.12 * scale).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tween.tween_property(feedback, "offset_transform_position", Vector2.ZERO, 0.12 * scale).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tween.tween_property(feedback, "modulate:a", 0.0, 0.12 * scale).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(button, "offset_transform_position", Vector2.ZERO, 0.12 * scl).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.tween_property(button, "self_modulate", Color.WHITE, 0.12 * scl).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(feedback, "offset_transform_position", Vector2.ZERO, 0.12 * scl).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.tween_property(feedback, "modulate:a", 0.0, 0.12 * scl).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		wheel_tweens[action] = tween
 
 
@@ -1314,6 +1325,16 @@ func _cover_used_elsewhere(path: String, ignored_index: int) -> bool:
 
 func _cover_for_track(track: Dictionary) -> Texture2D:
 	var path := String(track.get("cover", ""))
+	if path.begins_with("res://"):
+		if cover_cache.has(path):
+			return cover_cache[path] as Texture2D
+		if not ResourceLoader.exists(path):
+			return null
+		var rt = load(path)                      # res:// — только через load (в экспорте файла webp нет, есть импорт)
+		if rt is Texture2D:
+			cover_cache[path] = rt
+			return rt
+		return null
 	if path == "" or not FileAccess.file_exists(path):
 		return null
 	if cover_cache.has(path):
@@ -1411,13 +1432,55 @@ func _label(text: String, size: int, color: Color, bold := false) -> Label:
 	return l
 
 
+func _is_g67() -> bool:
+	return game != null and game.get("golda") != null
+
+## Треки плейлиста приквела в списке iPod (не сохраняются: пишутся только local); идемпотентно
+func _sync_g67() -> void:
+	var cur_id := String(tracks[track_index]["id"]) if track_index >= 0 and track_index < tracks.size() else ""
+	tracks.assign(tracks.filter(func(t): return not bool(t.get("g67", false))))
+	if _is_g67():
+		var files: Dictionary = G67Phone.files()
+		for i in G67Data.PLAYLIST.size():
+			var no: int = int(G67Data.PLAYLIST[i][0])
+			if files.has(no):
+				tracks.append({"id": "g67_%02d" % no, "title": String(G67Data.PLAYLIST[i][2]), "artist": String(G67Data.PLAYLIST[i][1]), "album": G67_PAGE, "cover": G67Phone.COVER, "path": String(files[no]), "local": false, "g67": true})
+	if cur_id != "":
+		track_index = -1
+		for i in tracks.size():
+			if String(tracks[i]["id"]) == cur_id:
+				track_index = i
+
+func g67_tracks() -> Array:
+	return tracks.filter(func(t): return bool(t.get("g67", false)))
+
+func g67_playing() -> bool:
+	return player != null and player.playing and track_index >= 0 and track_index < tracks.size() and bool(tracks[track_index].get("g67", false))
+
+## Запуск из вкладки паузы (G67Phone) останавливает плеер iPod, если у него играет трек плейлиста
+func stop_g67() -> void:
+	if g67_playing():
+		player.stop()
+		_refresh()
+
+func _page_tracks(p: String) -> Array:
+	match p:
+		"Встроенная музыка": return tracks.filter(func(t): return not bool(t.get("local", false)) and not bool(t.get("g67", false)))
+		"Моя музыка": return tracks.filter(func(t): return bool(t.get("local", false)))
+		G67_PAGE: return g67_tracks()
+	return tracks
+
 func _items() -> Array:
+	if page == "Плейлисты":
+		return ([G67_PAGE] if _is_g67() else []) + ["Все треки", "Встроенная музыка", "Моя музыка"]
+	if page == G67_PAGE:
+		return g67_tracks().map(func(track): return String(track["title"]))
 	if page == "Музыка":
 		var result: Array = tracks.map(func(track): return String(track["title"]))
 		result.append("Добавить свою музыку")
 		return result
 	if page == "Встроенная музыка":
-		return tracks.filter(func(track): return not bool(track.get("local", false))).map(func(track): return String(track["title"]))
+		return _page_tracks(page).map(func(track): return String(track["title"]))
 	if page == "Моя музыка":
 		var mine: Array = tracks.filter(func(track): return bool(track.get("local", false))).map(func(track): return String(track["title"]))
 		mine.append("Добавить свою музыку")
@@ -1471,6 +1534,7 @@ func _scroll(delta: int) -> void:
 			_play_ui_sound("navigate")
 		return
 	if page == "Анимации UI":
+		@warning_ignore("int_as_enum_without_cast")
 		ui_motion_mode = posmod(ui_motion_mode + delta, UIMotionMode.size())
 		_save_settings()
 		_refresh()
@@ -1509,6 +1573,7 @@ func _select() -> void:
 			_play_ui_sound("select")
 		return
 	if page == "Анимации UI":
+		@warning_ignore("int_as_enum_without_cast")
 		ui_motion_mode = posmod(ui_motion_mode + 1, UIMotionMode.size())
 		_save_settings()
 		_refresh()
@@ -1528,12 +1593,8 @@ func _select() -> void:
 		if page == "Музыка":
 			_select_track(selected)
 			return
-		if page in ["Все треки", "Встроенная музыка", "Моя музыка"]:
-			var filtered := tracks
-			if page == "Встроенная музыка":
-				filtered = tracks.filter(func(track): return not bool(track.get("local", false)))
-			elif page == "Моя музыка":
-				filtered = tracks.filter(func(track): return bool(track.get("local", false)))
+		if page in ["Все треки", "Встроенная музыка", "Моя музыка", G67_PAGE]:
+			var filtered := _page_tracks(page)
 			if selected < filtered.size():
 				_select_track(tracks.find(filtered[selected]))
 			return
@@ -1583,8 +1644,8 @@ func _select_screen_row(viewport_position: Vector2) -> bool:
 	var items := _items()
 	if items.is_empty():
 		return false
-	var offset: int = max(0, selected - 3)
-	var clicked := offset + floori((local.y - 22.0) / 25.0)
+	var ofs: int = max(0, selected - 3)
+	var clicked := ofs + floori((local.y - 22.0) / 25.0)
 	if clicked >= 0 and clicked < items.size():
 		selected = clicked
 		_refresh()
@@ -1597,8 +1658,8 @@ func _hover_row(slot: int) -> void:
 	if not opened or not content.visible:
 		return
 	var items := _items()
-	var offset: int = max(0, selected - 3)
-	var index := offset + slot
+	var ofs: int = max(0, selected - 3)
+	var index := ofs + slot
 	if index >= 0 and index < items.size() and selected != index:
 		selected = index
 		_hint_used()
@@ -1650,6 +1711,7 @@ func _play() -> void:
 
 
 func _cycle_repeat(delta: int) -> void:
+	@warning_ignore("int_as_enum_without_cast")
 	repeat_mode = posmod(repeat_mode + delta, RepeatMode.size())
 	_save_settings()
 	_refresh()
@@ -1752,18 +1814,18 @@ func _refresh_immediate() -> void:
 		return
 	displayed_page = page
 	page_label.text = "iPod" if page == "Menu" else page
-	var now_playing := page == "Сейчас играет"
+	var playing_now := page == "Сейчас играет"
 	var classic_menu := page == "Menu"
 	menu_art.visible = classic_menu
 	content.size.x = 80.0 if classic_menu else 161.0
 	for node_name in ["Cover"]:
 		var n := display_root.get_node_or_null(node_name)
 		if n:
-			n.visible = now_playing
+			n.visible = playing_now
 	for n in [title_label, artist_label, count_label, progress, time_label, total_label]:
 		if n:
-			n.visible = now_playing
-	content.visible = not now_playing
+			n.visible = playing_now
+	content.visible = not playing_now
 	var items := _items()
 	if page in ["Reverb Depth", "Громкость", "Bass Boost"]:
 		var value := reverb_depth if page == "Reverb Depth" else (volume if page == "Громкость" else bass_boost)
@@ -1774,13 +1836,13 @@ func _refresh_immediate() -> void:
 		items = ["  %s · %d%%" % ["Вкл" if button_sounds_enabled else "Выкл", roundi(button_sounds_volume * 100.0)], "", "  Select — вкл/выкл"]
 	elif page == "Анимации UI":
 		items = ["  %s" % _motion_label(), "", "  Колесо — режим"]
-	var offset: int = max(0, selected - 3)
-	_update_selection_bar(items, offset, classic_menu, now_playing)
+	var ofs: int = max(0, selected - 3)
+	_update_selection_bar(items, ofs, classic_menu, playing_now)
 	for i in row_labels.size():
 		var row := row_labels[i]
 		var row_bg := row.get_parent() as PanelContainer
 		row_bg.custom_minimum_size.x = content.size.x
-		var index := offset + i
+		var index := ofs + i
 		row.visible = index < items.size()
 		row_bg.visible = row.visible
 		if not row.visible:
@@ -1796,13 +1858,13 @@ func _refresh_immediate() -> void:
 	_refresh_playback()
 
 
-func _update_selection_bar(items: Array, offset: int, classic_menu: bool, now_playing: bool) -> void:
+func _update_selection_bar(items: Array, ofs: int, classic_menu: bool, playing_now: bool) -> void:
 	if is_instance_valid(highlight_tween):
 		highlight_tween.kill()
-	selection_bar.visible = not now_playing and not items.is_empty()
+	selection_bar.visible = not playing_now and not items.is_empty()
 	if not selection_bar.visible:
 		return
-	var slot := clampi(selected - offset, 0, 3)
+	var slot := clampi(selected - ofs, 0, 3)
 	var target_position := Vector2(3, 22 + slot * 25)
 	var target_size := Vector2(80 if classic_menu else 161, 25)
 	if not opened or _motion_scale() <= 0.0:

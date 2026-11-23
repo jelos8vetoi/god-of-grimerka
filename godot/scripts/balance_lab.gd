@@ -111,8 +111,8 @@ func _trial(scenario: Array, style: String, rng_seed: int, deadline: int) -> Dic
 	main.start_game(false, -1, false, &"balance_lab")
 	var game = main.game
 	var p = game.player
-	var owner: String = Styles.by_id(style).owner
-	if p.hero != owner:
+	var own: String = Styles.by_id(style).owner
+	if p.hero != own:
 		game.swap_heroes(true)
 		await _frames(60)
 	if p.style.id != style:
@@ -149,11 +149,11 @@ func _trial(scenario: Array, style: String, rng_seed: int, deadline: int) -> Dic
 	var anchors: Array = []
 	var targets: Array = []
 	for i in scenario[1].size():
-		var name: String = scenario[1][i]
-		var boss := name.begins_with("boss:")
+		var nm: String = scenario[1][i]
+		var boss := nm.begins_with("boss:")
 		var angle: float = [0.0, -0.30, 0.30, -0.62, 0.62][i]
 		var marker := Vector3.FORWARD.rotated(Vector3.UP, angle) * (2.1 if i < 3 else 2.55) + Vector3.UP * 0.05
-		var actor = game._make_enemy("" if boss else name, name.trim_prefix("boss:") if boss else "", marker)
+		var actor = game._make_enemy("" if boss else nm, nm.trim_prefix("boss:") if boss else "", marker)
 		var natural_hp: float = actor.max_hp
 		if scenario[3] and not boss:
 			actor.max_hp = STAND_HP
@@ -166,12 +166,12 @@ func _trial(scenario: Array, style: String, rng_seed: int, deadline: int) -> Dic
 		actor.special_cd = 999.0 if scenario[3] else 5.0
 		if boss:
 			ledger.boss_ready(actor)
-		targets.append({"type": name, "natural_hp": natural_hp, "initial_hp": actor.hp,
+		targets.append({"type": nm, "natural_hp": natural_hp, "initial_hp": actor.hp,
 			"position": [marker.x, marker.y, marker.z], "first_attack_delay_ticks": -1 if scenario[3] else 45 + i * 18})
 		anchors.append([actor, marker])
 	if scenario[0] == "overdrive":
 		game.hype.value = TeamHype.MAX
-	var setup := {"seed": rng_seed, "scenario": scenario[0], "style": style, "hero": owner,
+	var setup := {"seed": rng_seed, "scenario": scenario[0], "style": style, "hero": own,
 		"team_styles": {"pahan": p.heroes["pahan"]["style"], "madk1d": p.heroes["madk1d"]["style"]},
 		"arena": "snow", "targets": targets, "stationary": scenario[3], "hz": HZ, "time_limit_ticks": scenario[2],
 		"fixture_version": 4 if scenario[0] == "tag" else 3, "enemy_hp_scale": game.diff_hp, "player_hp": p.hp, "player_max_hp": p.max_hp,
@@ -206,7 +206,7 @@ func _trial(scenario: Array, style: String, rng_seed: int, deadline: int) -> Dic
 			tyaga_end = frame + 1
 		ledger.tick(1.0 / HZ, p.hero, p.style.id)
 		ticks += 1
-		team_activated = team_activated or p.hero != owner or game.tag.duo.active() or game.hype.active()
+		team_activated = team_activated or p.hero != own or game.tag.duo.active() or game.hype.active()
 		var current := _resources(game)
 		for resource in peaks:
 			peaks[resource] = maxf(peaks[resource], current[resource])

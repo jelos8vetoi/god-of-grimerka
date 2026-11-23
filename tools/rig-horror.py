@@ -329,6 +329,26 @@ def chain_weights(p, pts, bones, prev_bone, band):
         w[bones[i + 1]] = w.get(bones[i + 1], 0.0) + k
     return w, d
 
+# ПОДЗЕМКА: враги района (Tripo, T-поза; лицом +Z; единицы — доли наибольшей стороны). Контролёр: папка-щит у левого бедра — жёстко с левым предплечьем
+def _pz_bouncer():
+    r = _g67(0.70, 0.0, 0.20, 0.47, 0.50, 0.795, 0.33, 0.085, 0.17, 0.05, 0.12, 0.12, 0.0, 0.0, 0.44, 0.80, 0.31, arm_x=0.19, align={'arm': 0.15, 'leg': 1.0}, head_x=0.1,
+             fixed=lambda x, y, z, H: ({'LeftArm': 1.0} if (x > 0.15 and 0.64 < y < 0.92) else {'RightArm': 1.0} if (x < -0.15 and 0.64 < y < 0.92) else
+                                       {'LeftForeArm': 1.0} if (x > 0.40 and 0.44 < y < 0.60) else {'RightForeArm': 1.0} if (x < -0.40 and 0.44 < y < 0.60) else None))
+    for sg, k in (('L', 1.0), ('R', -1.0)):
+        r[sg]['arm'] = (k * 0.22, 0.70, 0.0)
+        r[sg]['elbow'] = (k * 0.43, 0.62, 0.0)
+        r[sg]['wrist'] = (k * 0.47, 0.52, 0.0)
+        r[sg]['tip'] = (k * 0.49, 0.46, 0.0)
+    return r
+
+RIGS.update({
+    'g67_pz_controller': _g67(0.657, 0.0, 0.115, 0.42, 0.50, 0.78, 0.32, 0.075, 0.17, 0.05, 0.115, 0.12, 0.0, 0.0, 0.58, 0.74, 0.32, arm_x=0.17, head_x=0.1,
+                              fixed=lambda x, y, z, H: ({'LeftForeArm': 1.0} if (x > 0.185 and 0.34 < y < 0.64) else None)),
+    'g67_pz_promoter': _g67(0.67, 0.0, 0.115, 0.40, 0.50, 0.73, 0.37, 0.07, 0.20, 0.06, 0.105, 0.12, 0.0, 0.0, 0.60, 0.76, 0.37, arm_x=0.16, head_x=0.11,
+                            fixed=lambda x, y, z, H: ({'Hips': 1.0} if (0.22 < y < 0.52 and 0.14 < abs(x) < 0.32) else None)),
+    'g67_pz_bouncer': _pz_bouncer(),
+})
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     opts = dict(a[2:].split('=', 1) for a in sys.argv[1:] if a.startswith('--') and '=' in a)
