@@ -28,7 +28,7 @@ const TYPE_ZONES := {"battle": ["garages", "parking", "playground"], "elite": ["
 const PLAYLIST := [[1, "3g0th2002", "Когда я вырасту"], [2, "LOVV66", "Не Дай Запомнить"], [3, "Toxi$, OG Buda", "BANDZ"], [4, "OG Buda", "6AM в Будапеште"],
 	[5, "OG Buda, Платина", "YTPO"], [6, "cardinparis ft. lovv66", "красивое"], [7, "королевский XVII", "vivre sa vie"], [8, "Саби Учиха", "Шары"],
 	[9, "pemfi", "династия madk1d (Ultra Slowed x Редакт)"], [10, "Джон Гарик", "Arctic Rose"], [11, "Aarne, VILLIAN", "Претендент На Убийство"], [12, "Eminem", "Deja Vu"],
-	[13, "blink-182", "All The Small Things"], [14, "madk1d", "перестань"], [15, "Паша Техник, FEDUK", "ГУСЬ"], [16, "H", "кроты-хомяки"]]
+	[13, "blink-182", "All The Small Things"], [14, "madk1d", "перестань"], [15, "Паша Техник, FEDUK", "ГУСЬ"], [16, "H", "кроты-хомяки"], [17, "OG Buda", "Форэн Кисуля Флоу 3"]]
 const EVENTS_SHORT := ["burmalda", "button"]
 ## «Бурмалда»: веса исходов; голда — min…max; рывок: один бесплатно, ещё два по BURMALDA_COST
 const BURMALDA := [

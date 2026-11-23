@@ -27,6 +27,7 @@
 | 14 | madk1d | перестань | `madk1d - перестань.mp3` |
 | 15 | Паша Техник, FEDUK | ГУСЬ | `Паша Техник, FEDUK - ГУСЬ.mp3` |
 | 16 | H | кроты-хомяки | `godot/assets/golda67/audio_src/kroty_homyaki.aac` (он же — музыка комнаты «КРОТЫ ХОМЯКИ») |
+| 17 | OG Buda | Форэн Кисуля Флоу 3 | `godot/assets/golda67/playlist/17_og_buda_foren_kisulya_flou_3.mp3` |
 
 ## Где лежат файлы треков
 

@@ -3881,8 +3881,8 @@ func _ev02_check(g, G: Golda67, P) -> void:
 func _phone_check(g, G: Golda67) -> void:
 	var ph: G67Phone = G.phone_get()
 	ph.scan()
-	print("GOLDA67CHECK   треков плейлиста найдено: %d из 16" % ph.available())
-	ok(G67Data.PLAYLIST.size() == 16, "плейлист из 16 строк")
+	print("GOLDA67CHECK   треков плейлиста найдено: %d из 17" % ph.available())
+	ok(G67Data.PLAYLIST.size() == 17, "плейлист из 17 строк")
 	var wav := AudioStreamWAV.new()
 	wav.format = AudioStreamWAV.FORMAT_16_BITS
 	wav.mix_rate = 22050
