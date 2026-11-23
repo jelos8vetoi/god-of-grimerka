@@ -250,6 +250,11 @@ func _ready() -> void:
 			ps.seq = Array(v.slice(2))
 			add_child(ps)
 			return
+		if arg.begins_with("--dvor2check="):     # новый ДВОР в настоящем забеге: территории, три ступени боя, отступление, сумки, Миша
+			var dc = preload("res://scripts/golda67/dvor2check.gd").new()
+			dc.out = arg.substr(13)
+			dc.main = self
+			add_child(dc)
 		if arg.begins_with("--dvor2view="):      # новый ДВОР (редизайн): кадры, кадр/с, проход по маршрутам, решётка арки
 			var dv = preload("res://scripts/golda67/dvor2view.gd").new()
 			dv.out = arg.substr(12)
@@ -536,11 +541,13 @@ func start_golda67() -> void:
 	game = preload("res://scripts/game.gd").new()
 	game.main = self
 	add_child(game)
+	var uargs: Array = Array(OS.get_cmdline_user_args())
+	Golda67.old_yard = not uargs.is_empty() and not uargs.any(func(a): return String(a).begins_with("--dvor2check") or String(a).begins_with("--launcher"))
 	var g67 := Golda67.new()
 	game.golda = g67
 	game.add_child(g67)
 	g67.setup(game)
-	g67.auto_clips = golda67check == "" or OS.get_cmdline_user_args().has("--g67-real")      # проверка показывает ролики в своём разделе; --g67-real — как у игрока
+	g67.auto_clips = (golda67check == "" and not uargs.any(func(a2): return String(a2).begins_with("--dvor2check"))) or OS.get_cmdline_user_args().has("--g67-real")      # проверка показывает ролики в своём разделе; --g67-real — как у игрока
 	game._apply_upgrades()
 	await g67.begin()
 

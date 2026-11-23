@@ -30,6 +30,14 @@ var lamps: Array = []            # [[x, y, высота, вид]] в коорд�
 var court := Rect2()             # коробка Миши в координатах плана (x, y — юго-западный угол)
 var arch: Dictionary = {}        # дом № 81: {x, y, st — данные лестницы}
 var gate_open := false
+var court_block: StaticBody3D         # преграда в калитке коробки: закрыта, пока не выполнены условия забега, и во время боя с Мишей
+## Точки района в координатах плана — в одном месте, остальной код берёт их отсюда
+const HOME_DOOR := Vector2(-6.0, -107.6)      # дверь подъезда дома 67
+const START := Vector2(-6.0, -103.5)          # где герой появляется в начале забега
+const KIOSK := Vector2(44.0, -13.6)           # окно «ШАУРМЫ 67»
+const REST := Vector2(-34.0, 77.0)            # беседка-передышка у башен
+const THRONE := Vector2(6.0, 120.5)           # трон Миши
+const BOSS_SPOT := Vector2(6.0, 111.0)        # где Миша встаёт на бой
 var count := {"models": 0, "bodies": 0, "lights": 0}
 var _scenes: Dictionary = {}
 var _mats: Dictionary = {}
@@ -361,6 +369,7 @@ func _court(x: float, y: float, w: float, h: float, ice: Material) -> void:
 		for i in range(3):
 			_board(x + sgn * (gw * 0.5 - 0.55 + (float(i) + 0.5) * sg2), by0, -90.0, sg2, seg_s)
 	put("game:g67_court_gate", x, by0, 0.0, 1.0, 0.0, gw)
+	court_block = solid(x, by0, gw, 0.4, 2.6)
 	# преграды бортов: север, запад, восток целиком; юг — с проёмом калитки
 	solid(x, by1, w, 0.3, 2.6)
 	solid(bx0, y, 0.3, h, 2.6)
@@ -548,6 +557,17 @@ func link_point() -> Vector3:
 	var l: Array = arch["st"]["link"]
 	var p := arch_xy(float(l[0]), float(l[1]))
 	return to3(p.x, p.y, float(l[2]))
+
+func set_court_open(open: bool) -> void:
+	if is_instance_valid(court_block):
+		court_block.collision_layer = 0 if open else 9
+
+## Герой внутри коробки (с отступом от бортов)
+func in_court(p: Vector3, margin := 1.5) -> bool:
+	return p.x > court.position.x + margin and p.x < court.end.x - margin and -p.z > court.position.y + margin and -p.z < court.end.y - margin
+
+func court_center() -> Vector3:
+	return to3(court.get_center().x, court.get_center().y, 0.0)
 
 ## Открыть решётку: створки расходятся внутрь, цепь с замком исчезает, преграда убирается. instant — без анимации (после загрузки).
 func open_gate(instant := false) -> void:

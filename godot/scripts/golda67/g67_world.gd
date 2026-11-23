@@ -367,11 +367,65 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 var room: Dictionary = {}
 var gates: Array = []          # варианты следующего этапа: [{option, icon, root, label, stand, auto, pos}]
 var yard: G67Yard
+var dvor: G67Dvor2 = null       # новый ДВОР (редизайн): либо он, либо yard — два района сразу не строятся
 ## Бой Миши (G67Misha.hook_target): за что цепляется цепь — турники и борта коробки, в координатах мира
 var hook_points: Array = []
 var hook_rect := Rect2(-14, -14, 28, 28)
 var throne := Vector3(0, 0.03, -10.0)
 var statist: Rig = null        # Миша на троне до боя: виден через сетку весь забег
+
+## Новый ДВОР «МИКРОРАЙОН 67»: небо и свет — как у прежнего двора, район — G67Dvor2 из данных
+func build_dvor2() -> void:
+	deco = "g67_dvor"
+	var T := _theme("g67_dvor")
+	var env := Environment.new()
+	var sky := Sky.new()
+	var sm := ProceduralSkyMaterial.new()
+	sm.sky_top_color = T["sky"][0]
+	sm.sky_horizon_color = Color(0.46, 0.22, 0.2)
+	sm.ground_bottom_color = T["sky"][0]
+	sm.ground_horizon_color = Color(0.46, 0.22, 0.2)
+	sm.sky_curve = 0.25
+	sky.sky_material = sm
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.36, 0.4, 0.56)
+	env.ambient_light_energy = 0.75
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 1.05
+	env.glow_enabled = true
+	env.glow_intensity = 0.75
+	env.glow_bloom = 0.1
+	env.glow_hdr_threshold = 0.9
+	env.fog_enabled = true
+	env.fog_light_color = T["fog"]
+	env.fog_density = 0.0035
+	env.fog_aerial_perspective = 0.4
+	var we := WorldEnvironment.new()
+	we.environment = env
+	add_child(we)
+	var key := DirectionalLight3D.new()
+	key.light_color = Color(0.62, 0.72, 1.0)
+	key.light_energy = 0.5
+	key.shadow_enabled = true
+	key.directional_shadow_max_distance = 70.0
+	key.rotation = Vector3(deg_to_rad(-38), deg_to_rad(-140), 0)
+	add_child(key)
+	yard = null
+	dvor = G67Dvor2.new()
+	add_child(dvor)
+	dvor.build()
+	missing.append_array(dvor.missing)
+	var cr: Rect2 = dvor.court
+	hook_points = []
+	hook_rect = Rect2(cr.position.x + 0.3, -cr.end.y + 0.3, cr.size.x - 0.6, cr.size.y - 0.6)
+	throne = G67Dvor2.to3(G67Dvor2.THRONE.x, G67Dvor2.THRONE.y, 0.03)
+	spawn_pos = G67Dvor2.to3(G67Dvor2.START.x, G67Dvor2.START.y, 0.05)
+	_point("home", "ПОДЪЕЗД", "домой: забег сохранится, продолжишь отсюда же", G67Dvor2.to3(G67Dvor2.HOME_DOOR.x, G67Dvor2.HOME_DOOR.y))
+	_point("kiosk", "ШАУРМА 67", "шаурма и «с собой»", G67Dvor2.to3(G67Dvor2.KIOSK.x, G67Dvor2.KIOSK.y))
+	_point("rest_dv", "БЕСЕДКА", "передохнуть перед Мишей: раз за забег", G67Dvor2.to3(G67Dvor2.REST.x, G67Dvor2.REST.y))
+	_particles(T)
 
 func build_yard() -> void:
 	deco = "g67_dvor"
