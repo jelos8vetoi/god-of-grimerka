@@ -3647,9 +3647,18 @@ func _note_new(text: String) -> void:
 		nw.append(text)
 	run["new"] = nw
 
-## Вступление боя (PZ_BOSS_IN): первый раз полностью (~30 с), дальше коротко (6–8 с); удержание [E] — пропуск; в проверках — сжато
+## Постановка боя FORTUNA камерой: вступление (PZ_BOSS_IN) и финал (PZ_BOSS_OUT). Реплики — в плашке диалога снизу (одна за раз, с именем), текста поверх героя нет.
+## Удержание [E] — пропуск. Первый раз вступление полное (планы а–ж), дальше короткое (планы в и ж). В проверках без fz_full — сжато.
 var fz_skip := 0.0
 var fz_full := false          # проверки: проиграть вступление и финал в полную длину
+var fz_cam: Camera3D = null
+var fz_prev: Camera3D = null
+var fz_bar_layer: CanvasLayer = null
+var fz_bar_who: Label = null
+var fz_bar_txt: Label = null
+var fz_fade: ColorRect = null
+var fz_portrait: SubViewport = null
+var fz_props: Array = []
 
 func _fz_wait(sec: float) -> void:
 	var t := 0.0
@@ -3659,60 +3668,273 @@ func _fz_wait(sec: float) -> void:
 		t += dt
 		fz_skip = fz_skip + dt if Input.is_key_pressed(KEY_E) else 0.0
 
+func _fz_bar_make() -> void:
+	if fz_bar_layer != null and is_instance_valid(fz_bar_layer):
+		return
+	fz_bar_layer = CanvasLayer.new()
+	fz_bar_layer.layer = 25
+	var pn := ColorRect.new()
+	pn.color = Color(0.02, 0.03, 0.06, 0.88)
+	pn.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	pn.offset_top = -190
+	pn.offset_bottom = -40
+	pn.offset_left = 140
+	pn.offset_right = -140
+	fz_bar_layer.add_child(pn)
+	fz_bar_who = Label.new()
+	fz_bar_who.position = Vector2(30, 14)
+	fz_bar_who.add_theme_font_size_override("font_size", 26)
+	pn.add_child(fz_bar_who)
+	fz_bar_txt = Label.new()
+	fz_bar_txt.position = Vector2(30, 56)
+	fz_bar_txt.size = Vector2(900, 90)
+	fz_bar_txt.autowrap_mode = TextServer.AUTOWRAP_WORD
+	fz_bar_txt.add_theme_font_size_override("font_size", 28)
+	pn.add_child(fz_bar_txt)
+	fz_fade = ColorRect.new()
+	fz_fade.color = Color(0, 0, 0, 0.0)
+	fz_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fz_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fz_bar_layer.add_child(fz_fade)
+	fz_bar_layer.get_child(0).visible = false
+	game.add_child(fz_bar_layer)
+
+func _fz_bar_hide() -> void:
+	if fz_bar_layer != null and is_instance_valid(fz_bar_layer):
+		fz_bar_layer.get_child(0).visible = false
+
+## Одна реплика в плашке: имя говорящего и текст; ждёт sec
 func _fz_line(who: String, text: String, sec: float) -> void:
 	if fz_skip >= 0.8:
 		return
-	game.banner(who, text, Color(0.62, 0.85, 0.25) if who.begins_with("FORTUNA") else Color(1, 0.95, 0.8), sec)
+	_fz_bar_make()
+	fz_bar_layer.get_child(0).visible = true
+	fz_bar_who.text = who
+	fz_bar_who.add_theme_color_override("font_color", Color(0.62, 0.85, 0.25) if who.begins_with("FORTUNA") else (Color(1.0, 0.85, 0.4) if who == "ПАХАН" else Color(0.7, 0.9, 1.0)))
+	fz_bar_txt.text = text
 	await _fz_wait(sec)
+	fz_bar_txt.text = ""
+	fz_bar_layer.get_child(0).visible = false
+
+## План камеры: позиция, куда смотрит, угол обзора; to — куда плывёт за dur секунд (INF — стоит)
+func _fz_shot(pos: Vector3, look: Vector3, fov := 50.0, to := Vector3.INF, dur := 0.0, look_to := Vector3.INF, tag := "") -> void:
+	if tag != "":
+		events.append(["fz_plan", tag])
+	if fz_cam == null or not is_instance_valid(fz_cam):
+		fz_cam = Camera3D.new()
+		world.add_child(fz_cam)
+		fz_prev = get_viewport().get_camera_3d()
+	fz_cam.fov = fov
+	fz_cam.global_position = pos
+	fz_cam.look_at(look, Vector3.UP)
+	fz_cam.make_current()
+	if to != Vector3.INF and dur > 0.0:
+		var tw: Tween = fz_cam.create_tween()
+		tw.tween_property(fz_cam, "global_position", to, dur).set_trans(Tween.TRANS_SINE)
+		if look_to != Vector3.INF:
+			var lk := look
+			tw.parallel().tween_method(func(k: float): if is_instance_valid(fz_cam): fz_cam.look_at(lk.lerp(look_to, k), Vector3.UP), 0.0, 1.0, dur)
+
+func _fz_cam_end() -> void:
+	if fz_prev != null and is_instance_valid(fz_prev):
+		fz_prev.make_current()
+	elif is_instance_valid(game.cam):
+		game.cam.make_current()
+	if fz_cam != null and is_instance_valid(fz_cam):
+		fz_cam.queue_free()
+	fz_cam = null
+	_fz_bar_hide()
+	for n in fz_props:
+		if is_instance_valid(n):
+			n.queue_free()
+	fz_props = []
+	if fz_portrait != null and is_instance_valid(fz_portrait):
+		fz_portrait.queue_free()
+	fz_portrait = null
+
+func _fz_fade(a: float, sec: float) -> void:
+	_fz_bar_make()
+	var tw: Tween = fz_fade.create_tween()
+	tw.tween_property(fz_fade, "color:a", a, sec)
+
+## Портрет FORTUNA для экранов: свой мир во вьюпорте, голова крупно на жёлтом фоне
+func _fz_portrait_tex() -> ViewportTexture:
+	fz_portrait = SubViewport.new()
+	fz_portrait.size = Vector2i(256, 256)
+	fz_portrait.own_world_3d = true
+	fz_portrait.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(fz_portrait)
+	var we := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(1.0, 0.82, 0.18)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(1, 1, 1)
+	env.ambient_light_energy = 0.9
+	we.environment = env
+	fz_portrait.add_child(we)
+	var dl := DirectionalLight3D.new()
+	dl.rotation_degrees = Vector3(-30, 25, 0)
+	fz_portrait.add_child(dl)
+	var m: Node3D = (load("res://assets/golda67/g67_fortuna.glb") as PackedScene).instantiate() as Node3D
+	fz_portrait.add_child(m)
+	var bb := AABB()
+	var first := true
+	for mi in m.find_children("*", "MeshInstance3D", true, false):
+		var a: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+		bb = a if first else bb.merge(a)
+		first = false
+	var k := 1.9 / maxf(bb.size.y, 0.01)
+	m.scale = Vector3(k, k, k)
+	m.position = Vector3(0, -bb.position.y * k, 0)
+	var cam := Camera3D.new()
+	cam.fov = 28.0
+	fz_portrait.add_child(cam)
+	cam.position = Vector3(0.0, 1.72, 1.1)
+	cam.look_at(Vector3(0.0, 1.66, 0.0), Vector3.UP)
+	cam.current = true
+	return fz_portrait.get_texture()
+
+func _fz_screens(n: int) -> Array:
+	var tex := _fz_portrait_tex()
+	var out: Array = []
+	for i in n:
+		var mi := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(3.2, 2.4)
+		mi.mesh = qm
+		var mt := StandardMaterial3D.new()
+		mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mt.albedo_texture = tex
+		mt.albedo_color = Color(0.05, 0.05, 0.05)
+		mi.material_override = mt
+		world.add_child(mi)
+		mi.position = Vector3(-10.0 + float(i) * 20.0 / float(maxi(n - 1, 1)), 3.6, -187.55)
+		out.append(mi)
+		fz_props.append(mi)
+	return out
+
+func _fz_price() -> Node3D:
+	var sh := Node3D.new()
+	world.add_child(sh)
+	var paper := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(0.62, 0.86)
+	paper.mesh = qm
+	var pm := StandardMaterial3D.new()
+	pm.albedo_color = Color(0.96, 0.95, 0.88)
+	paper.material_override = pm
+	sh.add_child(paper)
+	var lb := Label3D.new()
+	lb.text = "ПРАЙС\n\nВХОД — 8\nВЫХОД — 67\nВОПРОС — 67\nОТВЕТ — ПО\nДОГОВОРЁННОСТИ\n\nБОЙ С ВЛАДЕЛЬЦЕМ —\nПО ДОГОВОРЁННОСТИ"
+	lb.font_size = 40
+	lb.pixel_size = 0.0013
+	lb.modulate = Color(0.08, 0.08, 0.1)
+	lb.shaded = false
+	lb.position = Vector3(0, 0.0, 0.004)
+	sh.add_child(lb)
+	fz_props.append(sh)
+	return sh
+
+func _fz_card(e) -> Node3D:
+	if e == null or not is_instance_valid(e) or e.rig == null or e.rig.skel == null:
+		return null
+	var att := BoneAttachment3D.new()
+	att.bone_name = "mixamorig_RightHand"
+	e.rig.skel.add_child(att)
+	var card := MeshInstance3D.new()
+	var cm := BoxMesh.new()
+	cm.size = Vector3(0.085, 0.054, 0.004)
+	card.mesh = cm
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color(0.95, 0.8, 0.2)
+	card.material_override = mt
+	att.add_child(card)
+	card.position = Vector3(0, 0.1, 0.04)
+	fz_props.append(att)
+	return card
 
 func fortuna_intro(boss) -> void:
 	fz_skip = 0.0
-	var user: bool = game.main.user_play()
-	user = user or fz_full
+	var user: bool = game.main.user_play() or fz_full
 	var full: bool = not bool(meta().get("fz_intro", false)) and user
+	var k := 1.0 if user else 0.12
 	var p = game.player
 	var frozen: bool = p.is_physics_processing()
 	p.set_physics_process(false)
 	boss.set_physics_process(false)
-	var k := 1.0 if user else 0.12
-	var scr: Array = []
+	var boss_ui = game.boss_e
+	game.boss_e = null
+	game.boss_box.visible = false
+	var hp0: Vector3 = p.global_position
+	var bp0: Vector3 = boss.global_position
+	var cash := Vector3(0.0, 0.05, -185.0)
 	if full:
-		for i in 5:
-			var lb := Label3D.new()
-			lb.text = "FORTUNA 812\nМЫ ЗА ВАШИ ДЕНЬГИ"
-			lb.font_size = 64
-			lb.pixel_size = 0.01
-			lb.modulate = Color(0.1, 0.1, 0.1, 0.0)
-			lb.shaded = false
-			world.add_child(lb)
-			lb.position = Vector3(-10.0 + float(i) * 5.0, 4.2, -188.2)
-			scr.append(lb)
-		await _fz_line("PA", "Уважаемые посетители, просим сохранять спокойствие. Ваше время и деньги очень важны для нас.", 3.2 * k)
-		for lb in scr:
-			(lb as Label3D).modulate = Color(0.75, 1.0, 0.35, 1.0)
+		boss.global_position = cash
+		boss.face = 0.0
+		# (а) общий план зала от входа, гаснет свет, объявление PA
+		_fz_shot(Vector3(0, 3.8, -168.8), Vector3(0, 1.4, -182.0), 62.0, Vector3(0, 3.4, -170.2), 5.0 * k, Vector3.INF, "a")
+		_fz_fade(0.55, 1.2 * k)
+		await _fz_line("PA", "Уважаемые посетители, просим сохранять спокойствие. Ваше время и деньги очень важны для нас.", 3.6 * k)
+		# (б) экраны загораются по очереди — портрет FORTUNA; панорама по экранам
+		var scr := _fz_screens(5)
+		_fz_fade(0.0, 0.6 * k)
+		_fz_shot(Vector3(-10.0, 2.4, -178.0), Vector3(-10.0, 3.6, -188.0), 55.0, Vector3(10.0, 2.4, -178.0), 4.0 * k, Vector3(10.0, 3.6, -188.0), "b")
+		for s_ in scr:
+			((s_ as MeshInstance3D).material_override as StandardMaterial3D).albedo_color = Color(1, 1, 1)
 			game.main.sfx("sfx_ui", -10.0)
-			await _fz_wait(0.5 * k)
-		await _fz_line("FORTUNA 812", "Добро пожаловать в кассовый комплекс. Вход вы уже оплатили. Морально.", 3.4 * k)
-		var price := Label3D.new()
-		price.text = "ПРАЙС\nВХОД — 8\nВЫХОД — 67\nВОПРОС — 67\nОТВЕТ — ПО ДОГОВОРЁННОСТИ\nБОЙ С ВЛАДЕЛЬЦЕМ — ПО ДОГОВОРЁННОСТИ"
-		price.font_size = 48
-		price.pixel_size = 0.006
-		price.modulate = Color(1.0, 0.95, 0.5)
-		price.shaded = false
-		world.add_child(price)
-		price.global_position = p.global_position + Vector3(0, 2.6, -2.2)
+			await _fz_wait(0.7 * k)
+		# (в) выходит из-за кассы походкой «хозяин», лента на плече — средний план
+		boss.rig.play("Walk", 0.2)
+		var bt: Tween = boss.create_tween()
+		bt.tween_property(boss, "global_position", Vector3(0, 0.05, -180.5), 3.0 * k)
+		_fz_shot(Vector3(3.4, 1.8, -176.2), Vector3(0, 1.3, -183.0), 50.0, Vector3(2.4, 1.7, -176.8), 3.0 * k, Vector3(0, 1.3, -181.0), "c")
 		await _fz_wait(3.0 * k)
+		boss.rig.play("Idle", 0.2)
+		await _fz_line("FORTUNA 812", "Добро пожаловать в кассовый комплекс. Вход вы уже оплатили. Морально.", 3.6 * k)
+		# (г) протягивает прайс — крупный план листа
+		boss.rig.play_for("FTape", 1.0, 0.1)
+		var sheet := _fz_price()
+		sheet.global_position = Vector3(0.0, 1.35, -178.2)
+		sheet.rotation.y = 0.0
+		_fz_shot(Vector3(0.0, 1.38, -175.3), Vector3(0.0, 1.35, -178.2), 38.0, Vector3(0.0, 1.38, -176.2), 2.2 * k, Vector3.INF, "d")
+		await _fz_wait(2.4 * k)
+		# (д) «двое»: профиль, смена крупных планов по репликам
+		var ph := Vector3(1.8, 1.7, -175.6)
+		var bh := Vector3(0.0, 1.7, -180.4)
+		_fz_shot(Vector3(3.8, 1.7, -178.0), Vector3(0.0, 1.5, -178.0), 46.0, Vector3.INF, 0.0, Vector3.INF, "e")
 		await _fz_line("ПАХАН", "Это чё, прайс на драку?", 2.0 * k)
+		_fz_shot(bh + Vector3(0.7, 0.0, 1.5), bh, 34.0)
 		await _fz_line("FORTUNA 812", "Это прайс на всё. Драка — строка четырнадцать.", 2.8 * k)
+		_fz_shot(p.global_position + Vector3(0.5, 1.6, -1.6), p.global_position + Vector3(0, 1.55, 0), 34.0)
 		await _fz_line("ПАХАН", "А бесплатно есть что-нибудь?", 2.0 * k)
+		_fz_shot(bh + Vector3(-0.5, 0.0, 1.3), bh, 30.0)
+		await _fz_wait(0.8 * k)
+		var bp := AudioStreamPlayer.new()
+		bp.stream = G67Fortuna.beep()
+		add_child(bp)
+		bp.play()
+		bp.finished.connect(bp.queue_free)
 		await _fz_line("FORTUNA 812", "Консультация. Она платная.", 2.6 * k)
+		_fz_shot(p.global_position + Vector3(0.5, 1.6, -1.6), p.global_position + Vector3(0, 1.55, 0), 34.0)
 		await _fz_line("ПАХАН", "Я не понял, это сейчас реально происходит?", 2.4 * k)
+		_fz_shot(bh + Vector3(0.7, 0.0, 1.5), bh, 34.0)
 		await _fz_line("FORTUNA 812", "Понимание — отдельный тариф.", 2.4 * k)
-		price.queue_free()
-		for lb in scr:
-			(lb as Label3D).queue_free()
 		meta()["fz_intro"] = true
 		save()
+		for n in fz_props:
+			if is_instance_valid(n):
+				n.queue_free()
+		fz_props = []
+	else:
+		boss.global_position = cash
+		boss.rig.play("Walk", 0.2)
+		var bt2: Tween = boss.create_tween()
+		bt2.tween_property(boss, "global_position", Vector3(0, 0.05, -180.5), 1.6 * k)
+		_fz_shot(Vector3(3.4, 1.8, -176.2), Vector3(0, 1.3, -181.0), 50.0)
+		await _fz_wait(1.8 * k)
+	# (е) решётка падает за героем: план со спины, табло «ВЫХОД (ПЛАТНО)», разметка вспыхивает — верхний план
+	_fz_shot(Vector3(0.0, 2.9, -176.5), Vector3(0.0, 1.6, -169.0), 70.0, Vector3.INF, 0.0, Vector3.INF, "f")
 	var gate := MeshInstance3D.new()
 	var gm := BoxMesh.new()
 	gm.size = Vector3(26.0, 3.0, 0.3)
@@ -3722,8 +3944,9 @@ func fortuna_intro(boss) -> void:
 	gmat.metallic = 0.6
 	gate.material_override = gmat
 	world.add_child(gate)
-	gate.position = Vector3(0, 5.0, -169.6)
+	gate.position = Vector3(0, 5.0, -169.0)
 	var gb := StaticBody3D.new()
+	gb.collision_layer = 9
 	var gcs := CollisionShape3D.new()
 	var gbs := BoxShape3D.new()
 	gbs.size = Vector3(26.0, 3.0, 0.5)
@@ -3733,70 +3956,94 @@ func fortuna_intro(boss) -> void:
 	var gtw := gate.create_tween()
 	gtw.tween_property(gate, "position:y", 1.5, 0.35).set_trans(Tween.TRANS_BOUNCE)
 	game.main.sfx("sfx_boom", -4.0)
+	await _fz_wait(0.8 * k)
 	if arena != null:
 		arena.tablo.text = "ВЫХОД (ПЛАТНО)"
+		if full:
+			_fz_shot(Vector3(0.0, 7.0, -178.5), Vector3(0.0, 0.0, -178.6), 100.0, Vector3.INF, 0.0, Vector3.INF, "f2")
 		for l in 3:
 			arena.flash(l, 1.0)
-			await _fz_wait(0.35 * k)
+			await _fz_wait(0.45 * k)
+	# (ж) камера возвращается за героя, «Оплата на месте.», полоса здоровья босса — только теперь
+	boss.face = 0.0
+	boss.global_position = Vector3(0, 0.05, -181.5)
+	boss.rig.play("Idle", 0.2)
+	events.append(["fz_plan", "g"])
+	_fz_cam_end()
+	p.global_position = hp0
+	game.boss_e = boss_ui
+	game.boss_box.visible = true
 	G67Fortuna.say(boss, "start")
-	await _fz_wait((1.2 if full else 2.0) * k)
+	await _fz_wait((1.0 if full else 1.4) * k)
 	if arena != null:
 		arena.tablo.text = "ТАРИФЫ"
 	boss.set_physics_process(true)
 	p.set_physics_process(frozen)
 	events.append(["fortuna_intro", full])
 
-## Финал (PZ_BOSS_OUT): босс не падает — пятится к выходу, створка захлопывается, «НЕДОСТАТОЧНО СРЕДСТВ», «…В долг можно?» — «Выход платный.», садится считать
+## Финал (PZ_BOSS_OUT): босс остаётся виден, пятится к выходу, створка захлопывается, рука с картой у приёмника, «НЕДОСТАТОЧНО СРЕДСТВ» (план на табло),
+## второй раз, «двое смотрят друг на друга» 2,5 с, реплики, садится у тумбы и считает на калькуляторе, табло «ТЯГА-812 — ВЫДАНА БЕЗ ЧЕКА»
 func _fortuna_outro(e) -> void:
 	fz_skip = 0.0
 	var user: bool = game.main.user_play() or fz_full
 	var k := 1.0 if user else 0.1
 	var ar := arena
-	var prev: Camera3D = get_viewport().get_camera_3d()
-	var cam := Camera3D.new()
-	cam.fov = 48.0
-	world.add_child(cam)
-	var spot := Vector3(2.0, 0.05, -176.2)
-	cam.global_position = Vector3(2.0, 2.2, -171.5)
-	cam.look_at(Vector3(2.0, 1.1, -177.0), Vector3.UP)
-	cam.make_current()
 	var p = game.player
 	p.set_physics_process(false)
+	var spot := Vector3(2.0, 0.05, -176.4)
+	game.boss_box.visible = false
 	if is_instance_valid(e):
-		e.global_position = spot + Vector3(0, 0, -3.0)
 		e.visible = true
+		e.global_position = spot + Vector3(0, 0, -3.0)
+		e.face = 0.0
 		e.rig.play("Walk", 0.2)
 		var tw: Tween = e.create_tween()
-		tw.tween_property(e, "global_position", spot, 2.0 * k)
-		e.face = 0.0
-	await _fz_wait(2.0 * k)
+		tw.tween_property(e, "global_position", spot, 2.2 * k)
+	var card := _fz_card(e)
+	p.global_position = Vector3(0.6, p.global_position.y, -171.2)
+	p.face = PI
+	_fz_shot(Vector3(5.4, 2.0, -172.8), Vector3(2.0, 1.1, -177.0), 48.0, Vector3(4.6, 1.8, -173.4), 2.2 * k, Vector3.INF, "o1")
+	await _fz_wait(2.2 * k)
 	if ar != null:
 		ar.set_state(0, 3, "closed")
 		game.main.sfx("sfx_boom", -3.0)
-		ar.tablo.text = "НЕДОСТАТОЧНО СРЕДСТВ"
+	if is_instance_valid(e):
+		e.rig.play_for("FGates", 1.0, 0.1)
+	# рука с картой у приёмника — писк — табло, дважды
 	for i in 2:
+		_fz_shot(Vector3(2.9, 1.5, -174.2), Vector3(2.3, 1.15, -175.7), 32.0, Vector3.INF, 0.0, Vector3.INF, "o2")
+		await _fz_wait(0.9 * k)
 		var bp := AudioStreamPlayer.new()
 		bp.stream = G67Fortuna.beep()
 		add_child(bp)
 		bp.play()
 		bp.finished.connect(bp.queue_free)
-		await _fz_wait(1.0 * k)
+		if ar != null:
+			ar.tablo.text = "НЕДОСТАТОЧНО СРЕДСТВ"
+		_fz_shot(Vector3(2.0, 3.4, -171.0), ar.tablo.global_position if ar != null else Vector3(0, 4, -186), 42.0, Vector3.INF, 0.0, Vector3.INF, "o3")
+		await _fz_wait(1.3 * k)
+	# двое смотрят друг на друга, 2,5 с
+	_fz_shot(Vector3(5.2, 1.7, -174.4), Vector3(1.2, 1.5, -174.4), 40.0, Vector3.INF, 0.0, Vector3.INF, "o4")
+	if is_instance_valid(e):
+		e.face = 0.0
 	await _fz_wait(2.5 * k)
+	_fz_shot(spot + Vector3(0.8, 1.7, 1.5), spot + Vector3(0, 1.6, 0), 34.0)
 	await _fz_line("FORTUNA 812", "…В долг можно?", 2.4 * k)
+	_fz_shot(p.global_position + Vector3(0.6, 1.6, -1.6), p.global_position + Vector3(0, 1.55, 0), 34.0)
 	await _fz_line("ПАХАН", "Выход платный.", 2.2 * k)
+	# садится у тумбы и считает
 	if is_instance_valid(e):
 		e.rig.play("FSit", 0.3)
-		e.set_physics_process(false)
+		e.global_position = spot + Vector3(-0.2, -0.45, 0.0)
+	_fz_shot(Vector3(4.2, 1.5, -173.6), spot + Vector3(0, 0.6, 0), 40.0, Vector3.INF, 0.0, Vector3.INF, "o5")
+	await _fz_wait(1.5 * k)
 	if ar != null:
 		ar.tablo.text = "ТЯГА-812 — ВЫДАНА БЕЗ ЧЕКА"
-	await _fz_wait(2.5 * k)
+		_fz_shot(Vector3(2.0, 3.4, -171.0), ar.tablo.global_position, 42.0)
+	await _fz_wait(2.2 * k)
 	p.set_physics_process(true)
-	if prev != null and is_instance_valid(prev):
-		prev.make_current()
-	elif is_instance_valid(game.cam):
-		game.cam.make_current()
-	if is_instance_valid(cam):
-		cam.queue_free()
+	game.boss_box.visible = true
+	_fz_cam_end()
 	events.append(["fortuna_outro"])
 
 func _boss_down(e) -> void:
@@ -3867,12 +4114,12 @@ var result: Dictionary = {}      # итоги последнего забега 
 func _finish_run(won: bool, delay: float) -> void:
 	flush_coins()
 	var got := int(run.get("respect", 0))
-	var first_win := won and bool((run.get("new", []) as Array).size() > 0 and (run["new"] as Array).has("Стиль «Водяра» — стойка стилей в подъезде"))
+	var first_win := won and bool((run.get("new", []) as Array).size() > 0 and ((run["new"] as Array).has("Стиль «Водяра» — стойка стилей в подъезде") or (run["new"] as Array).has("Стиль «ТЯГА-812» — стойка стилей в подъезде")))
 	meta()["respect"] = int(meta().get("respect", 0)) + got
 	meta()["runs"] = int(meta().get("runs", 0)) + 1
 	data["run"] = {}
 	save()
-	result = {"won": won, "first": first_win, "got": got, "total": int(meta()["respect"]), "parts": (run.get("resp", {}) as Dictionary).duplicate(),
+	result = {"district": String(run.get("district", "dvor")), "won": won, "first": first_win, "got": got, "total": int(meta()["respect"]), "parts": (run.get("resp", {}) as Dictionary).duplicate(),
 		"stages": (run.get("stages", []) as Array).duplicate(true) + ([["boss", "sport"]] if won else []), "died_at": ([] if won else [String(room.get("type", "")), String(room.get("place", ""))]), "stage_n": int(run.get("pos", 0)) + (1 if won else 0), "kills": int(run.get("kills", 0)),
 		"earned": int(run.get("earned", 0)), "spent": int(run.get("spent", 0)), "left": int(run.get("golda", 0)), "fits": (run.get("fits", {}) as Dictionary).duplicate(),
 		"arts": (run.get("arts", []) as Array).duplicate(), "new": (run.get("new", []) as Array).duplicate(), "boss_death": not won and String(room.get("type", "")) == "boss"}

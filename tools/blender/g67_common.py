@@ -568,7 +568,7 @@ def export(name, objs):
     return path
 
 
-MOVABLE = ("btn8", "knob", "antenna", "lid", "hose", "seat", "cass_door", "spit", "turnstile_gate", "turnstile_arm", "turnstile_rotor", "glass", "fortuna_sign_wheel", "receipt_roll", "plate", "wheel", "body", "head", "cheeks", "jaw", "tail", "ear_l", "ear_r", "paw_fr", "casino_reel_01", "casino_reel_02", "casino_reel_03", "spin_button", "bulbs_a", "bulbs_b", "sticker", "door_leaf", "shutter_sheet", "grille_leaf", "vent_wheel", "door_open")
+MOVABLE = ("btn8", "knob", "antenna", "lid", "hose", "seat", "cass_door", "spit", "turnstile_gate", "turnstile_gate_l", "turnstile_gate_r", "turnstile_arm", "turnstile_rotor", "glass", "fortuna_sign_wheel", "receipt_roll", "plate", "wheel", "body", "head", "cheeks", "jaw", "tail", "ear_l", "ear_r", "paw_fr", "casino_reel_01", "casino_reel_02", "casino_reel_03", "spin_button", "bulbs_a", "bulbs_b", "sticker", "door_leaf", "shutter_sheet", "grille_leaf", "vent_wheel", "door_open")
 
 
 def _merge_static(name, objs):

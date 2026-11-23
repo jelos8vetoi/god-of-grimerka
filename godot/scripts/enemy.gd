@@ -1351,8 +1351,13 @@ func _die(dir: Vector3, heavy: bool, launch := 0.0, knock := 5.0) -> void:
 		rig.play("Fly", 0.06)
 	else:
 		kb = dir * 5.0 * (0.3 if boss_id != "" else 1.0)
+		if boss_id == "g67_fortuna":
+			kb = Vector3.ZERO
+			rig.play("Idle", 0.2)          # босс не падает: финал ставит сцена (g67_root.gd _fortuna_outro)
 		var front := Vector3(sin(face), 0, cos(face)).dot(-dir) > 0.0
-		if cfg["model"] == "pahan":
+		if boss_id == "g67_fortuna":
+			pass
+		elif cfg["model"] == "pahan":
 			rig.play_for("Death", 1.6, 0.06)
 		else:
 			rig.play_for("DeathA" if front else "DeathB", 0.9 if boss_id == "" else 1.6, 0.06)

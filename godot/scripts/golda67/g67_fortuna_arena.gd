@@ -57,42 +57,27 @@ func _make_section(l: int, i: int) -> Dictionary:
 	var cx := X0 + SEC_W * (float(i) + 0.5)
 	node.position = Vector3(cx, 0.0, float(LINES_Z[l]))
 	add_child(node)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.32, 0.36, 0.38)
-	mat.metallic = 0.5
-	mat.roughness = 0.45
 	var leaf_mat := StandardMaterial3D.new()
-	leaf_mat.albedo_color = Color(0.7, 0.72, 0.55)
-	leaf_mat.emission_enabled = true
-	leaf_mat.emission = COL_RED
-	leaf_mat.emission_energy_multiplier = 0.0
-	for sx in [-1.0, 1.0]:
-		var post := MeshInstance3D.new()
-		var pm := BoxMesh.new()
-		pm.size = Vector3(0.3, 1.25, 0.34)
-		post.mesh = pm
-		post.material_override = mat
-		post.position = Vector3(sx * 1.85, 0.62, 0.0)
-		node.add_child(post)
-	var leaf_l := _leaf(leaf_mat, -1.0)
-	var leaf_r := _leaf(leaf_mat, 1.0)
-	node.add_child(leaf_l)
-	node.add_child(leaf_r)
+	var gm_scene: PackedScene = load("res://assets/golda67/podzemka/g67_pz_arena_gate.glb") as PackedScene
+	var gm: Node3D = gm_scene.instantiate() as Node3D
+	node.add_child(gm)
+	var leaf_l: Node3D = gm.find_child("turnstile_gate_l", true, false) as Node3D
+	var leaf_r: Node3D = gm.find_child("turnstile_gate_r", true, false) as Node3D
 	var ind := MeshInstance3D.new()
 	var im := BoxMesh.new()
-	im.size = Vector3(0.22, 0.12, 0.12)
+	im.size = Vector3(0.02, 0.16, 0.05)
 	ind.mesh = im
 	var imat := StandardMaterial3D.new()
 	imat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	imat.albedo_color = COL_GREEN
 	ind.material_override = imat
-	ind.position = Vector3(0.0, 1.38, 0.0)
+	ind.position = Vector3(-1.64, 0.94, 0.0)
 	node.add_child(ind)
 	var lt := OmniLight3D.new()
 	lt.light_color = COL_GREEN
-	lt.light_energy = 0.5
-	lt.omni_range = 3.0
-	lt.position = Vector3(0, 1.6, 0)
+	lt.light_energy = 0.25
+	lt.omni_range = 2.6
+	lt.position = Vector3(0, 1.4, 0)
 	node.add_child(lt)
 	var body := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
@@ -189,12 +174,11 @@ func _apply(d: Dictionary) -> void:
 	var tr: Node3D = d["leaf_r"]
 	var ang_l := 0.0 if closed else (-1.45 if st == "open" else -0.7)
 	var ang_r := 0.0 if closed else (1.45 if st == "open" else 1.1)
+	tl.rotation.z = 0.0
+	tr.rotation.z = 0.0
 	if st == "broken":
-		tl.position.y = -0.15
-		tr.position.y = -0.1
-	else:
-		tl.position.y = 0.0
-		tr.position.y = 0.0
+		tr.rotation.z = -0.85          # левая висит на одной петле
+		tl.rotation.z = 0.0
 	var tw := (d["node"] as Node3D).create_tween()
 	tw.tween_property(tl, "rotation:y", ang_l, 0.25)
 	tw.parallel().tween_property(tr, "rotation:y", ang_r, 0.25)
@@ -208,6 +192,9 @@ func set_state(l: int, i: int, st: String) -> void:
 	d["t"] = 0.0
 	_apply(d)
 	if st == "closed" and was_open:
+		var gp: Vector3 = (d["node"] as Node3D).global_position + Vector3(0, 0.9, 0)
+		game.fx.sparks(gp, Vector3.UP, 10, Color(1.0, 0.85, 0.3), 0.8, 45.0)
+		game.shake(0.12)
 		_check_pin(l, i)
 
 func _check_pin(l: int, i: int) -> void:
@@ -421,6 +408,8 @@ func _process(dt: float) -> void:
 					set_state(l, i, "open")
 			elif st == "broken":
 				(d["ind"] as StandardMaterial3D).albedo_color = Color(1.0, 0.6, 0.1) if int(tt * 14.0) % 3 == 0 else Color(0.1, 0.05, 0.0)
+				if randf() < dt * 1.2:
+					game.fx.sparks((d["node"] as Node3D).global_position + Vector3(0.6, 0.8, 0), Vector3.UP, 5, Color(1.0, 0.8, 0.3), 0.5, 30.0)
 	var p = game.player
 	for z in zones.duplicate():
 		z["t"] = float(z["t"]) + dt

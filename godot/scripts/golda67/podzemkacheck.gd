@@ -1226,8 +1226,11 @@ func _fortuna_checks() -> void:
 	await _fortuna_shots(b)
 	# бой клавишным ботом: три попытки
 	var rep: Array = []
+	G.fz_full = false
 	await _dps_test()
 	for att in 5:
+		G.set_meta("fz_log", false)
+		G.set_meta("fz_att", att + 1)
 		if att > 0:
 			G.start_run("podzemka")
 			await c.until(func(): return G.run.get("district", "") == "podzemka" and G.world != null and G.world.district is G67Podzemka, 12.0)
@@ -1236,7 +1239,11 @@ func _fortuna_checks() -> void:
 				G.hub_ui.close()
 		var bb = await _fz_spawn()
 		ar = G.arena
+		G.events.clear()
 		var r: Dictionary = await _boss_bot(bb, ar, 130.0)
+		if bool(r["won"]):
+			await c.until(func(): return G.events.any(func(e): return String(e[0]) == "finish"), 40.0)          # финал победы доигрывается до следующей попытки
+			await c.wait(0.5)
 		rep.append(r)
 		print("GOLDA67CHECK   FORTUNA бот, попытка %d: %s" % [att + 1, str(r)])
 		Input.action_release("up")
@@ -1318,12 +1325,16 @@ func _boss_bot(b, ar: G67FortunaArena, limit: float) -> Dictionary:
 	var last_bp: Vector3 = b.global_position
 	var sp: PhysicsDirectSpaceState3D = P.get_world_3d().direct_space_state
 	var won := false
+	var action := "старт"
+	var log_t := 0.0
+	var log_hp: float = b.hp
+	var log_on: bool = bool(G.get_meta("fz_log", false))
 	while P.hp > 0.0 and float(Time.get_ticks_msec() - t0) / 1000.0 < limit:
 		if not is_instance_valid(b) or b.state == "dead" or b.hp <= 1.0:
 			won = true
 			break
 		var bp: Vector3 = b.global_position
-		if bp.x < -12.6 or bp.x > 12.6 or bp.z < -188.6 or bp.z > -169.4:
+		if bp.x < -13.4 or bp.x > 13.4 or bp.z < -189.4 or bp.z > -168.6:
 			out = true
 		phase_max = maxi(phase_max, b.phase)
 		roll_cd = maxf(0.0, roll_cd - 0.1)
@@ -1347,6 +1358,11 @@ func _boss_bot(b, ar: G67FortunaArena, limit: float) -> Dictionary:
 		stuck_max = maxf(stuck_max, still)
 		last_bp = bp
 		var mvname := String(b.get_meta("fz_move", ""))
+		if log_on and float(Time.get_ticks_msec() - t0) / 1000.0 >= log_t:
+			log_t += 1.0
+			var cs_: String = "закрыто" if _fz_closed_between(ar, pp, bp) else "свободно"
+			print("GOLDA67CHECK   FZLOG a%d t=%2.0f дист=%4.1f действие=%-12s путь=%s босс:%s(%s) hp босса %+.0f (%.0f%%) герой hp %.0f зон=%d босс(x,z)=(%.1f,%.1f)" % [G.get_meta("fz_att", 0), log_t - 1.0, pp.distance_to(bp), action, cs_, String(b.state), mvname, b.hp - log_hp, 100.0 * b.hp / b.max_hp, P.hp, ar.zones.size(), bp.x, bp.z])
+			log_hp = b.hp
 		var mage: float = b.age - float(b.get_meta("fz_move_t", -99.0))
 		var to: Vector3 = bp - pp
 		to.y = 0.0
@@ -1396,6 +1412,7 @@ func _boss_bot(b, ar: G67FortunaArena, limit: float) -> Dictionary:
 		else:
 			Input.action_release("jump")
 		if danger and roll_cd <= 0.0 and not urgent:
+			action = "перекат"
 			roll_cd = 0.9
 			Input.action_press("left" if randf() < 0.5 else "right")
 			Input.action_press("roll")
@@ -1408,6 +1425,7 @@ func _boss_bot(b, ar: G67FortunaArena, limit: float) -> Dictionary:
 		if (blocked or in_window or (consult and pp.distance_to(Vector3(0, pp.y, -184.0)) < 2.2)) and heavy_cd <= 0.0 and not urgent:
 			var near_target: bool = consult or blocked or to.length() < 2.8
 			if near_target:
+				action = "тяж.по створке" if blocked else "тяж.в окно"
 				heavy_cd = 0.6
 				Input.action_release("up")
 				Input.action_press("heavy")
@@ -1415,7 +1433,12 @@ func _boss_bot(b, ar: G67FortunaArena, limit: float) -> Dictionary:
 				Input.action_release("heavy")
 				await c.wait(0.12)
 				continue
-		var moving := want.length() > 1.0 or to.length() > 2.8
+		if to.length() > 0.1 and not urgent:
+			P.face = atan2(to.x, to.z)          # бот целится в босса: в журнале боя промахи шли от неповёрнутого героя
+		var moving := urgent or consult or to.length() > 3.0          # сбоку держится только на подходе; в ближнем бою бьёт
+		action = "идёт" if moving else "бьёт"
+		if urgent:
+			action = "из зоны"
 		var wd := want.normalized() if want.length() > 0.01 else Vector3.ZERO
 		for a in ["up", "down", "left", "right"]:
 			Input.action_release(a)
@@ -1514,12 +1537,19 @@ func _fortuna_finale() -> void:
 	b.set_physics_process(false)
 	var intro := func(): await G.fortuna_intro(b)
 	intro.call()
-	await c.wait(8.5)
-	await c.shot("pz_fz_screens")
-	await c.wait(6.0)
-	await c.shot("pz_fz_price")
+	var shot_tags := {"a": 1.4, "b": 3.2, "c": 2.6, "d": 1.6, "e": 0.5, "f": 0.9, "f2": 0.6, "g": 0.4}
+	var taken := {}
+	var t_lim := Time.get_ticks_msec() + 90000
+	while not G.events.any(func(e): return String(e[0]) == "fortuna_intro") and Time.get_ticks_msec() < t_lim:
+		for e in G.events:
+			if String(e[0]) == "fz_plan" and shot_tags.has(String(e[1])) and not taken.has(String(e[1])):
+				taken[String(e[1])] = true
+				var tg := String(e[1])
+				await c.wait(float(shot_tags[tg]))
+				await c.shot("pz_fz_in_%s" % tg)
+		await c.wait(0.2)
 	await c.until(func(): return G.events.any(func(e): return String(e[0]) == "fortuna_intro"), 60.0)
-	ok(G.events.any(func(e): return String(e[0]) == "fortuna_intro" and bool(e[1])) and P.is_physics_processing() and b.is_physics_processing(), "вступление PZ_BOSS_IN проиграно полностью и вернуло управление")
+	ok(G.events.any(func(e): return String(e[0]) == "fortuna_intro" and bool(e[1])) and P.is_physics_processing() and b.is_physics_processing(), "вступление PZ_BOSS_IN проиграно полностью (планы %s) и вернуло управление" % str(taken.keys()))
 	# награды
 	G.run["respect"] = 0
 	G.run["new"] = []
@@ -1527,11 +1557,18 @@ func _fortuna_finale() -> void:
 	b.state = "idle"
 	G.events.clear()
 	G._boss_down(b)
-	await c.wait(4.0)
-	await c.shot("pz_fz_outro")
+	var otags := {"o2": 1.0, "o3": 0.9, "o4": 1.2, "o5": 1.2}
+	var otaken := {}
+	var o_lim := Time.get_ticks_msec() + 60000
+	while not G.events.any(func(e): return String(e[0]) == "fortuna_outro") and Time.get_ticks_msec() < o_lim:
+		for e in G.events:
+			if String(e[0]) == "fz_plan" and otags.has(String(e[1])) and not otaken.has(String(e[1])):
+				otaken[String(e[1])] = true
+				var tg2 := String(e[1])
+				await c.wait(float(otags[tg2]))
+				await c.shot("pz_fz_out_%s" % tg2)
+		await c.wait(0.2)
 	await c.until(func(): return G.events.any(func(e): return String(e[0]) == "fortuna_outro"), 60.0)
-	await c.wait(0.4)
-	await c.shot("pz_fz_sit")
 	await c.until(func(): return G.events.any(func(e): return String(e[0]) == "finish"), 30.0)
 	var flags: Dictionary = G.meta()["flags"]
 	var resp: int = int(G.result.get("got", 0))
@@ -1565,3 +1602,14 @@ func _fortuna_finale() -> void:
 	var dm: float = G.dmg_now()
 	ok(dm >= 1.19 and G.fit_avail("cashback") and G.fit_options(false).size() > 0, "бафы FORTUNA: ЧЕК + ТАРИФ дают множитель урона %.2f, пул района предлагает их" % dm)
 	G.fz_full = false
+
+func _fz_closed_between(ar: G67FortunaArena, a: Vector3, b: Vector3) -> bool:
+	for l in 3:
+		var lz: float = G67FortunaArena.LINES_Z[l]
+		if (lz - a.z) * (lz - b.z) < 0.0:
+			var t := (lz - a.z) / (b.z - a.z)
+			var x := a.x + (b.x - a.x) * t
+			var i := int(floor((x - G67FortunaArena.X0) / G67FortunaArena.SEC_W))
+			if i >= 0 and i < 6 and ar.sec_state(l, i) == "closed":
+				return true
+	return false

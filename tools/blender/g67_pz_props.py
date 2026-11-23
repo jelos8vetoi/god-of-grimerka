@@ -227,6 +227,46 @@ def turnstile(m=None):
     return P, [((2.4, -3.0, 1.6), (0, 0, 0.7)), ((0.8, -1.2, 1.3), (0, 0, 0.9))]
 
 
+def arena_gate(m=None):
+    m = m or M()
+    """Секция турникета арены FORTUNA, 4 м по x: две тумбы из нержавейки с округлыми торцами, окно индикатора, приёмник карты,
+    жёлто-чёрная полоса по низу; створки turnstile_gate_l / turnstile_gate_r — матовое закалённое стекло в стальной раме с жёлтой
+    полосой, ось (начало узла) на внутренней грани тумбы: поворот вокруг вертикали открывает вдоль прохода (y)."""
+    P = []
+    inox = C.mat("inox", (0.74, 0.77, 0.8), under=(0.45, 0.45, 0.47), rust=0.0, wear=0.25, dirt=0.18, rough=0.3, bump=0.12)
+    for s_ in (-1, 1):
+        x0 = s_ * 1.85
+        P.append(C.box("post%d" % s_, (0.36, 1.0, 1.25), (x0, 0, 0.625), bevel=0.14, m=inox, seg=3))
+        P.append(C.box("base%d" % s_, (0.5, 1.12, 0.05), (x0, 0, 0.025), bevel=0.008, m=m["rubber"]))
+        P.append(C.box("top%d" % s_, (0.38, 1.04, 0.07), (x0, 0, 1.22), bevel=0.03, m=m["dsteel"]))
+        for sy in (-1, 1):
+            P.append(C.box("stripe%d_%d" % (s_, sy), (0.345, 0.2, 0.07), (x0, sy * 0.4, 0.2), bevel=0, m=m["yellow"], seg=1))
+            P.append(C.box("stripeb%d_%d" % (s_, sy), (0.346, 0.2, 0.035), (x0, sy * 0.2, 0.2), bevel=0, m=m["black"], seg=1))
+        P.append(C.box("ind_frame%d" % s_, (0.012, 0.3, 0.4), (x0 - s_ * 0.19, 0.0, 0.92), bevel=0.004, m=m["black"]))
+        P.append(C.box("ind_arrow%d" % s_, (0.008, 0.06, 0.2), (x0 - s_ * 0.2, 0.0, 0.94), bevel=0, m=m["lgreen"], seg=1))
+        P.append(C.box("ind_head%d" % s_, (0.008, 0.18, 0.06), (x0 - s_ * 0.2, 0.0, 0.82), rot=(R(35), 0, 0), bevel=0, m=m["lgreen"], seg=1))
+        P.append(C.box("reader%d" % s_, (0.26, 0.2, 0.05), (x0, -0.1, 1.28), rot=(0, R(-12), 0), bevel=0.012, m=m["black"]))
+        P.append(C.box("reader_glow%d" % s_, (0.012, 0.1, 0.012), (x0, -0.1, 1.3), bevel=0, m=m["lblue"], seg=1))
+        for k in range(5):
+            P.append(C.box("scr%d_%d" % (s_, k), (0.002, 0.22 + 0.05 * (k % 3), 0.004), (x0 - s_ * 0.172, 0.25 - 0.12 * k, 0.4 + 0.1 * k), rot=(R(8 * k), 0, 0), bevel=0, m=m["dsteel"], seg=1))
+    for s_, nm in ((-1, "turnstile_gate_l"), (1, "turnstile_gate_r")):
+        hinge = (s_ * 1.68, 0.0, 0.0)
+        cx = s_ * 0.84
+        g = C.box(nm, (1.62, 0.04, 0.72), (cx, 0.0, 0.62), bevel=0.01, m=m["glassm"])
+        fr = [C.box(nm + "_ft", (1.66, 0.06, 0.05), (cx, 0.0, 0.99), bevel=0.01, m=m["dsteel"]),
+              C.box(nm + "_fb", (1.66, 0.06, 0.05), (cx, 0.0, 0.25), bevel=0.01, m=m["dsteel"]),
+              C.box(nm + "_fi", (0.05, 0.06, 0.78), (s_ * 1.64 - s_ * 0.03, 0.0, 0.62), bevel=0.01, m=m["dsteel"]),
+              C.box(nm + "_fo", (0.05, 0.06, 0.78), (s_ * 0.04, 0.0, 0.62), bevel=0.01, m=m["dsteel"]),
+              C.box(nm + "_ys", (1.6, 0.065, 0.06), (cx, 0.0, 0.31), bevel=0, m=m["yellow"], seg=1)]
+        for o in fr:
+            o.parent = None
+        g = C.join(nm, [g] + fr)
+        C.pivot(g, hinge)
+        P.append(g)
+        P.append(C.box("hinge%d" % s_, (0.08, 0.08, 0.14), (hinge[0], 0, 0.62), bevel=0.012, m=m["dsteel"]))
+    return P, [((2.8, -3.4, 1.7), (0, 0, 0.6)), ((0.0, -2.6, 1.0), (0, 0, 0.6))]
+
+
 def booth(m=None):
     m = m or M()
     """Кассовая будка gate1: 2 × 1,6 × 2,6, окно со стеклом, лоток для денег, вывеска"""
@@ -441,7 +481,7 @@ def vend_broken(m=None):
 
 BUILD = {"kiosk_shawarma": kiosk_shawarma, "kiosk_phones": kiosk_phones, "kiosk_socks": kiosk_socks, "kiosk_keys": kiosk_keys, "kiosk_odds": kiosk_odds,
          "kiosk_exchange": kiosk_exchange, "bench": bench, "bin": bin_, "arrow_sign": arrow_sign, "cross_green": cross_green,
-         "turnstile": turnstile, "booth": booth, "cash_shield": cash_shield, "tariff_board": tariff_board, "receipt_printer": receipt_printer,
+         "turnstile": turnstile, "arena_gate": arena_gate, "booth": booth, "cash_shield": cash_shield, "tariff_board": tariff_board, "receipt_printer": receipt_printer,
          "fortuna_wheel": fortuna_wheel, "queue_stand": queue_stand, "storage": storage, "vend_drinks": vend_drinks, "vend_snacks": vend_snacks,
          "vend_change": vend_change, "arcade_a": arcade_a, "arcade_b": arcade_b, "vend_broken": vend_broken}
 
