@@ -87,6 +87,16 @@ func kill_enc(id: String, sec := 40.0) -> bool:
 		await wait(0.2)
 	return false
 
+## Сумка открыла выбор бафа — берём первый предложенный, как игрок
+var picked: Array = []
+func pick_fit() -> void:
+	await wait(0.4)
+	if G.hub_ui != null and String(G.hub_ui.kind) == "fit" and not G.fit_offer.is_empty():
+		var id := String(G.fit_offer[0])
+		picked.append(id)
+		G.take_fit(id)
+		await wait(0.4)
+
 func worlds() -> int:
 	return get_tree().root.find_children("*", "G67Dvor2", true, false).size()
 
@@ -176,9 +186,11 @@ func _run() -> void:
 	ok(G.room_state == "open", "после победы район снова свободен")
 	await shot("a06_bag")
 	G.use("bag_garages_home")
+	await pick_fit()
 	await wait(0.3)
 	ok(int(G.run["golda"]) - gold1 == 20, "сумка дала 20 голды (получено %d)" % (int(G.run["golda"]) - gold1))
 	G.use("bag_garages_home")
+	await pick_fit()
 	G.turf.take_bag("bag_garages_home")
 	ok(int(G.run["golda"]) - gold1 == 20 and points("bag_garages_home") == 0, "повторный обыск ничего не даёт, сумки больше нет")
 	ok(gold1 >= gold0, "монеты с врагов собраны (%d)" % (gold1 - gold0))
@@ -214,6 +226,7 @@ func _run() -> void:
 	gold1 = int(G.run["golda"])
 	ok(won and points("bag_gsk_stove") == 1, "вторая попытка выиграна, сумка одна")
 	G.use("bag_gsk_stove")
+	await pick_fit()
 	await wait(0.3)
 	ok(int(G.run["golda"]) - gold1 == 10, "после побега сумка даёт половину: 10 голды (получено %d)" % (int(G.run["golda"]) - gold1))
 	# ================= второй побег: группа уходит (засада у башен) =================
@@ -262,8 +275,41 @@ func _run() -> void:
 		await run_away(112.0, 28.0 + 33.0)
 		await wait(0.3)
 	ok(st("elite_sofa") == "gone", "от смотрящего сбежали дважды — он ушёл")
-	ok(G.turf.need_done(), "обязательная встреча ушла, её заменила пройденная необязательная — путь к Мише открыт")
+	ok(G.turf.need_done(), "обязательная встреча ушла, её заменила пройденная необязательная — встречи больше не держат")
 	await wait(0.3)
+	# ================= ритм: «ТРЯПКИ», ларёк, передышка =================
+	ok(not G.dv_ready() and G.world.dvor.court_block.collision_layer != 0, "без «ТРЯПОК» калитка закрыта")
+	ok(G.hud_line().find("ТРЯПКИ") >= 0, "HUD ведёт к «ТРЯПКАМ»: %s" % G.hud_line().split("\n")[-1])
+	var st_n: int = G.dv_stages()
+	P.global_position = G67Dvor2.to3(G67Dvor2.RAGS.x, G67Dvor2.RAGS.y - 1.5, 0.05)
+	await wait(0.3)
+	G.use("rags_dv")
+	await wait(0.5)
+	await until(func(): return G.clip == null and not G.busy, 240.0)
+	ok(bool(G.run.get("rags", false)) and G.dv_stages() == st_n + 1 and points("rags_dv") == 0, "«ТРЯПКИ! ТРЯПКИ!» пройдены: этап засчитан, точка убрана")
+	ok(bool((G.meta().get("must", {}) as Dictionary).get("ev_rags", false)), "событие записано в постоянный прогресс")
+	G.use("rags_dv")
+	ok(G.dv_stages() == st_n + 1, "повторно событие не засчитывается")
+	ok(G.dv_stages() >= 3, "пройдено этапов: %d" % G.dv_stages())
+	P.global_position = G67Dvor2.to3(G67Dvor2.KIOSK.x, G67Dvor2.KIOSK.y - 1.0, 0.05)
+	await wait(0.3)
+	G.use("kiosk")
+	await wait(0.4)
+	ok(bool(G.run.get("kiosk_full", false)) and G.hub_ui != null and String(G.hub_ui.kind) == "kiosk", "ларёк после трёх этапов — полное меню")
+	ok(G.kiosk_price("shawarma") == 0, "первая шаурма бесплатно")
+	if G.hub_ui != null:
+		G.hub_ui.close()
+	await wait(0.4)
+	var hp_r: float = P.max_hp * 0.3
+	P.hp = hp_r
+	G.use("rest_dv")
+	await wait(0.3)
+	ok(bool(G.run.get("rested", false)) and P.hp > hp_r + P.max_hp * 0.4, "передышка в беседке лечит (%.0f → %.0f из %.0f)" % [hp_r, P.hp, P.max_hp])
+	var hp_r2: float = P.hp
+	G.use("rest_dv")
+	ok(is_equal_approx(P.hp, hp_r2), "вторая передышка за забег не лечит")
+	P.hp = P.max_hp
+	await wait(0.5)
 	ok(G.world.dvor.court_block.collision_layer == 0, "калитка коробки открылась")
 	# ================= Миша =================
 	P.global_position = G67Dvor2.to3(6.0, 99.0, 0.05)
@@ -302,6 +348,66 @@ func _run() -> void:
 	ok(G.world.dvor.gate_open, "решётка остаётся открытой в следующих забегах")
 	ok(int(G.run["golda"]) == 0, "голда прошлого забега сгорела")
 	# ================= бафы перед спуском =================
+	# ================= девять бафов двора: действие каждого =================
+	ok(picked.size() >= 1, "сумка обычной встречи предложила баф, взят: %s" % str(picked))
+	var b_ids: Array = ["ded_jacket", "kiosk_can", "slick_soles", "garage_key", "first_hit", "semki", "own_man", "district_remembers", "warm_entry"]
+	var b_all := true
+	for id in b_ids:
+		b_all = b_all and G67Data.FITS.has(id) and G.fit_avail(id) or (id == "warm_entry" and bool(G.run.get("rested", false)))
+	ok(b_all, "девять бафов двора есть в данных и доступны в новом дворе")
+	ok(String(G67Data.FITS["kiosk_can"]["name"]) == "БАНКА ИЗ ЛАРЬКА", "баф kiosk_can называется «БАНКА ИЗ ЛАРЬКА»")
+	var b_keep: Dictionary = (G.run["fits"] as Dictionary).duplicate(true)
+	G.run["fits"] = {}
+	G.soles_until = -9.0
+	G.jacket_t = -9.0
+	await wait(0.2)
+	var b_dmg: float = G.dmg_now()
+	var b_cd: float = P.combat.cd_k
+	G.run["fits"] = {"ded_jacket": 3, "kiosk_can": 2, "slick_soles": 2, "garage_key": 2, "first_hit": 2, "own_man": 2, "district_remembers": 1}
+	ok(is_equal_approx(g.run_mods.incoming(g), 1.0), "ДЕДОВСКАЯ КУРТКА: без недавнего удара урон обычный")
+	G.jacket_t = g.clock
+	ok(absf(g.run_mods.incoming(g) - 0.45) < 0.001, "ДЕДОВСКАЯ КУРТКА III: следующий удар слабее на 55 %% (множитель %.2f)" % g.run_mods.incoming(g))
+	G.jacket_t = -9.0
+	await wait(0.2)
+	ok(absf(P.combat.cd_k - maxf(minf(b_cd, 0.6), b_cd * 0.8)) < 0.001, "БАНКА ИЗ ЛАРЬКА II: перезарядки ×%.2f (было ×%.2f)" % [P.combat.cd_k, b_cd])
+	G.soles_until = g.clock + 2.0
+	ok(absf(G.dmg_now() / b_dmg - 1.25) < 0.001, "СКОЛЬЗКИЕ ПОДОШВЫ II: после уклонения урон ×1,25")
+	G.soles_until = -9.0
+	G.run["ev_done"] = 2
+	ok(absf(G.dmg_now() / b_dmg - 1.10) < 0.001, "РАЙОН ПОМНИТ: два события — урон ×1,10")
+	G.run["ev_done"] = 9
+	ok(absf(G.dmg_now() / b_dmg - 1.15) < 0.001, "РАЙОН ПОМНИТ: не больше ×1,15")
+	G.run.erase("ev_done")
+	ok(G.trade_price(100) == 75 and G.trade_price(0) == 0, "СВОЙ ЧЕЛОВЕК II: цена 100 → 75")
+	var bfoe = null
+	for e in g.enemies:
+		if is_instance_valid(e) and e.alive() and String(e.boss_id) == "" and float(e.hp) >= float(e.max_hp):
+			bfoe = e
+			break
+	if bfoe != null:
+		var bh := HitInfo.new()
+		bh.heavy = true
+		bh.stagger = 10.0
+		bh.damage = 10.0
+		bh.pos = bfoe.global_position
+		g.run_mods.melee_hit(bh, P, 1)
+		ok(absf(bh.stagger - 15.0) < 0.001, "ГАРАЖНЫЙ КЛЮЧ II: тяжёлый удар снимает равновесия 15 вместо 10")
+		ok(bh.damage > 10.0 and bh.damage <= 15.001, "ПЕРВЫЙ УДАР II: по врагу с полным здоровьем урон %.1f вместо 10" % bh.damage)
+		var bh2 := HitInfo.new()
+		bh2.damage = 10.0
+		bh2.stagger = 10.0
+		bh2.pos = bfoe.global_position
+		bfoe.hp = bfoe.max_hp * 0.5
+		g.run_mods.melee_hit(bh2, P, 1)
+		ok(is_equal_approx(bh2.damage, 10.0) and is_equal_approx(bh2.stagger, 10.0), "по раненому врагу лёгким ударом — без надбавок")
+		bfoe.hp = bfoe.max_hp
+	else:
+		ok(false, "нет целого врага для проверки ГАРАЖНОГО КЛЮЧА и ПЕРВОГО УДАРА")
+	G.run["fits"] = b_keep
+	G.apply_fits()
+	await wait(0.2)
+	var fithh0: int = G.fit_lv("heavy_hand")
+	var fitn0: int = (G.run["fits"] as Dictionary).size() + (0 if fithh0 > 0 else 1) + (0 if G.fit_lv("authority") > 0 else 1) + (0 if G.fit_lv("second_wind") > 0 else 1)
 	G.take_fit("heavy_hand"); G.take_fit("heavy_hand"); G.take_fit("authority"); G.take_fit("second_wind")
 	await wait(0.3)
 	var fits0: Dictionary = (G.run["fits"] as Dictionary).duplicate(true)
@@ -309,7 +415,7 @@ func _run() -> void:
 	var mhp0: float = P.max_hp
 	var goldc: int = int(G.run["golda"])
 	var enc0: String = JSON.stringify(G.run["enc"])
-	ok(int(fits0.get("heavy_hand", 0)) == 2 and fits0.size() == 3, "перед спуском три бафа, один второго уровня: %s" % str(fits0))
+	ok(int(fits0.get("heavy_hand", 0)) == mini(3, fithh0 + 2) and fits0.size() == fitn0 and fitn0 >= 3, "перед спуском не меньше трёх бафов, ТЯЖЁЛАЯ РУКА выше первого уровня: %s" % str(fits0))
 	# ================= спуск в ПОДЗЕМКУ =================
 	var top: Vector3 = G.world.dvor.stairs_top()
 	P.global_position = top + Vector3(-2.0, 0.05, 0)

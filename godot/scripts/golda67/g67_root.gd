@@ -383,11 +383,73 @@ func _start_dvor2(resumed: bool, from_arch := false) -> void:
 	var fl: Dictionary = meta().get("flags", {})
 	if bool(fl.get("boss_misha", false)):
 		world.dvor.open_gate(true)
-	world.dvor.set_court_open(turf.need_done())
+	world.dvor.set_court_open(dv_ready())
+	if bool(run.get("rags", false)):
+		world.points = world.points.filter(func(pt): return String(pt["id"]) != "rags_dv")
 	game.banner("ДВОР", "ЗАБЕГ ПРОДОЛЖАЕТСЯ" if resumed else ("вернулся из Подземки" if from_arch else "микрорайон 67"), Color(1.0, 0.8, 0.2), 2.4)
 	_save_run("open")
 
 var court_said := false
+
+# ---------------------------------------------------------------- ритм забега в новом дворе
+## Шесть позиций без ворот: встречи на территориях (обязательны первая у гаражей и элита), обязательное событие
+## «ТРЯПКИ! ТРЯПКИ!» у рынка, после трёх пройденных этапов — полное меню «ШАУРМЫ 67» и передышка в беседке, затем Миша.
+const DV_OPEN_AT := 3          # сколько этапов надо пройти до полного меню ларька и передышки
+
+func dv_stages() -> int:
+	return (run.get("stages", []) as Array).size()
+
+func dv_ready() -> bool:
+	return turf != null and turf.need_done() and bool(run.get("rags", false))
+
+## «ТРЯПКИ! ТРЯПКИ!» у прилавка рынка. Ролик EV02 — при первом знакомстве (как в прежнем дворе), дальше событие проходит коротко.
+func _rags_dv() -> void:
+	if place != "run" or room_state != "open" or busy:
+		game.toast("Сначала разберись с этими")
+		return
+	if bool(run.get("rags", false)):
+		return
+	busy = true
+	run["rags"] = true
+	world.points = world.points.filter(func(pt): return String(pt["id"]) != "rags_dv")
+	events.append(["event", "rags"])
+	var tok := run_tok
+	if not clip_seen("EV02"):
+		await play_clip("EV02")
+		if not is_instance_valid(game) or game.golda != self or tok != run_tok:
+			return
+	else:
+		game.banner("ТРЯПКИ! ТРЯПКИ!", "«Бери, пока дают. Завтра не будет ни тряпок, ни меня»", Color(0.95, 0.75, 0.35), 2.6)
+	var m: Dictionary = meta().get("must", {})
+	m["ev_rags"] = true
+	meta()["must"] = m
+	for key in ["seen", "archive"]:
+		var arr: Array = meta().get(key, [])
+		if not arr.has("ev_rags"):
+			arr.append("ev_rags")
+			meta()[key] = arr
+	_add_respect("calm", int(G67Data.RESPECT["calm"]))
+	run["rooms"] = int(run["rooms"]) + 1
+	run["pos"] = int(run.get("pos", 0)) + 1
+	(run["stages"] as Array).append(["event", "market", "rags"])
+	events.append(["stage_done", "event"])
+	busy = false
+	save()
+	_save_run("open")
+
+## Окно «ШАУРМЫ 67»: до первого пройденного этапа закрыто; после трёх — «твой этап»: все ценники и первая шаурма бесплатно.
+func _kiosk_dv() -> void:
+	if room_state != "open":
+		game.toast("Сначала разберись с этими")
+		return
+	if dv_stages() < 1:
+		game.toast("Окно закрыто: откроется, когда покажешь себя на районе")
+		return
+	if dv_stages() >= DV_OPEN_AT and not bool(run.get("kiosk_full", false)):
+		run["kiosk_full"] = true
+		run["free_shawarma"] = true
+		game.toast("Свой заказ: всё меню, первая шаурма — за счёт заведения")
+	open_screen("kiosk")
 var rest_used_key := "rest_dv"
 
 ## Калитка коробки: закрыта, пока не пройдены обязательные встречи (G67Turf.need_done); герой вошёл в коробку — бой с Мишей
@@ -395,7 +457,7 @@ func _court_tick() -> void:
 	var dv: G67Dvor2 = world.dvor
 	if dv == null or room_state != "open":
 		return
-	var ready: bool = turf.need_done()
+	var ready: bool = dv_ready()
 	dv.set_court_open(ready)
 	var pp: Vector3 = game.player.global_position
 	if ready and not court_said:
@@ -470,7 +532,7 @@ func ascend() -> void:
 ## Всё — простые значения (сохраняется в JSON как часть run). Остальное состояние района (встречи, сумки, ларёк, позиция)
 ## откладывается в run["other"][район] и возвращается, когда герой приходит обратно, — ничего не выдаётся дважды.
 const CARRY := ["fits", "arts", "rerolls", "maxhp_buys", "golda", "respect", "kills", "earned", "spent", "rooms"]
-const KEEP_DVOR := ["enc", "pos", "stash", "stash_n", "kiosk", "tpl", "stages"]
+const KEEP_DVOR := ["enc", "pos", "stash", "stash_n", "kiosk", "tpl", "stages", "rags", "rested", "kiosk_full", "free_shawarma"]
 var run_tok := 0
 
 func _dup(v):
@@ -533,9 +595,12 @@ func _rest_dv() -> void:
 	if bool(run.get("rested", false)):
 		game.toast("Уже передохнул в этом забеге")
 		return
+	if dv_stages() < DV_OPEN_AT:
+		game.toast("Рано отдыхать: пройди ещё %d" % (DV_OPEN_AT - dv_stages()))
+		return
 	run["rested"] = true
 	var p = game.player
-	var add: float = p.max_hp * G67Data.BREAK_HEAL
+	var add: float = p.max_hp * (G67Data.WARM_HEAL if fit_lv("warm_entry") > 0 else G67Data.BREAK_HEAL)
 	p.hp = minf(p.max_hp, p.hp + add)
 	events.append(["rest"])
 	_add_respect("calm", int(G67Data.RESPECT["calm"]))
@@ -3613,7 +3678,31 @@ func dmg_now() -> float:
 	var rc := fit_lv("receipt")
 	if rc > 0:
 		k *= 1.0 + minf(0.30, float(int(run.get("golda", 0)) / 25) * [0.03, 0.05][rc - 1])
+	var sl := fit_lv("slick_soles")
+	if sl > 0 and game.clock < soles_until:
+		k *= 1.0 + float(G67Data.SOLES_K[sl - 1])
+	if fit_lv("district_remembers") > 0:
+		k *= 1.0 + minf(G67Data.REMEMBER_CAP, G67Data.REMEMBER_STEP * float(events_done()))
 	return minf(G67Data.DMG_CAP_ALL, k)
+
+# ---- бафы двора: состояние по ходу боя
+var soles_until := -9.0          # СКОЛЬЗКИЕ ПОДОШВЫ: до какого времени действует усиление
+var jacket_t := -9.0             # ДЕДОВСКАЯ КУРТКА: когда героя ударили последний раз
+var hurt_in_fight := false       # СЕМКИ: получал ли герой урон в текущем бою
+var _was_roll := false
+
+## Сколько событий пройдено в этом забеге (РАЙОН ПОМНИТ)
+func events_done() -> int:
+	var n := 0
+	for st in (run.get("stages", []) as Array):
+		if String((st as Array)[0]) == "event":
+			n += 1
+	return n + int(run.get("ev_done", 0))
+
+## Цена у торговца с учётом «СВОЕГО ЧЕЛОВЕКА»
+func trade_price(base: int) -> int:
+	var lv := fit_lv("own_man")
+	return int(round(float(base) * (1.0 - (float(G67Data.OWN_K[lv - 1]) if lv > 0 else 0.0)))) if base > 0 else 0
 
 ## Постоянные эффекты артефактов и ВОССТАНОВЛЕНИЕ АВТОРИТЕТА — каждый кадр; в подъезде всё возвращается к 1
 func _art_tick(dt: float) -> void:
@@ -3621,6 +3710,9 @@ func _art_tick(dt: float) -> void:
 	var in_run := place == "run" and not run.is_empty()
 	var res := float(up("res")) if in_run else 0.0
 	var cd := (0.85 if has_art("sim") else 1.0) * (1.0 - 0.08 * res)
+	var can := fit_lv("kiosk_can") if in_run else 0
+	if can > 0:
+		cd = maxf(minf(cd, G67Data.CD_FLOOR), cd * (1.0 - float(G67Data.CAN_CD[can - 1])))      # с БАНКОЙ — не ниже 60 % исходной
 	p.combat.cd_k = cd
 	p.combat.ammo_k = 1.0 - 0.08 * res
 	p.speed_k = 1.08 if has_art("market_sneakers") else 1.0
@@ -3635,6 +3727,14 @@ func _art_tick(dt: float) -> void:
 	if has_art("second_sim") and game.tag.assist_cd > 0.0:
 		game.tag.assist_cd = maxf(0.0, game.tag.assist_cd - dt / 3.0)
 	# «Кассета 2016»: после полученного урона
+	if _last_hp >= 0.0 and p.hp < _last_hp - 0.01:
+		jacket_t = game.clock
+		hurt_in_fight = true
+	var rolling: bool = String(p.state) == "roll"
+	if _was_roll and not rolling and fit_lv("slick_soles") > 0:
+		soles_until = game.clock + G67Data.SOLES_T
+		events.append(["soles"])
+	_was_roll = rolling
 	if _last_hp >= 0.0 and p.hp < _last_hp - 0.01 and has_art("cassette_2016") and game.clock >= cass_next:
 		cass_until = game.clock + 4.0
 		cass_next = game.clock + 8.0
@@ -3678,7 +3778,7 @@ func kiosk_price(id: String) -> int:
 		return 0
 	if id == "shawarma" and bool(run.get("free_shawarma", false)) and int((run.get("kiosk", {}) as Dictionary).get("shawarma", 0)) == 0:
 		return 0                          # ларёк — этап: первая шаурма бесплатно
-	return int(k["price"]) + int(k.get("step", 0)) * int((run.get("kiosk", {}) as Dictionary).get(id, 0))
+	return trade_price(int(k["price"]) + int(k.get("step", 0)) * int((run.get("kiosk", {}) as Dictionary).get(id, 0)))
 
 ## Можно ли купить и почему нет («» — можно)
 func kiosk_why(id: String) -> String:
@@ -3752,7 +3852,13 @@ func kiosk_buy(id: String) -> String:
 # ---------------------------------------------------------------- фитсы
 ## Бафы семейства FORTUNA предлагаются в районе 2 и в общем пуле после победы над ней
 func fit_avail(id: String) -> bool:
-	if String(G67Data.FITS[id]["family"]) != "fortuna":
+	var fam := String(G67Data.FITS[id]["family"])
+	if fam == "dvor":
+		# бафы двора выдаёт только новый двор; ТЁПЛЫЙ ПОДЪЕЗД после передышки бесполезен
+		if old_yard or String(run.get("district", "")) == "podzemka":
+			return false
+		return not (id == "warm_entry" and bool(run.get("rested", false)))
+	if fam != "fortuna":
 		return true
 	return String(run.get("district", "")) == "podzemka" or bool((meta().get("flags", {}) as Dictionary).get("boss_fortuna", false))
 
@@ -3814,7 +3920,7 @@ func take_fit(id: String) -> void:
 	if hub_ui != null and hub_ui.kind == "fit":
 		hub_ui.close()
 	apply_fits(id)
-	game.banner(String(G67Data.FITS[id]["name"]), "баф · уровень %d" % fit_lv(id), G67Data.FAMILY_COLOR["misha"], 2.2)
+	game.banner(String(G67Data.FITS[id]["name"]), "баф · уровень %d" % fit_lv(id), G67Data.FAMILY_COLOR[String(G67Data.FITS[id]["family"])], 2.2)
 	game.main.ui("confirm")
 	if room_state == "reward":
 		_stage_end()
@@ -3851,7 +3957,7 @@ func rest() -> void:
 	if room_state != "reward" or String(room.get("type", "")) != "break":
 		return
 	var p = game.player
-	var add: float = p.max_hp * G67Data.BREAK_HEAL
+	var add: float = p.max_hp * (G67Data.WARM_HEAL if fit_lv("warm_entry") > 0 else G67Data.BREAK_HEAL)
 	p.hp = minf(p.max_hp, p.hp + add)
 	events.append(["rest"])
 	game.banner("ПЕРЕДЫШКА", "здоровье +%d" % int(add), Color(0.5, 0.95, 0.6), 2.0)
@@ -4656,6 +4762,10 @@ func use(id: String) -> void:
 		turf.take_bag(id)
 	elif id == "rest_dv":
 		_rest_dv()
+	elif id == "rags_dv":
+		_rags_dv()
+	elif id == "kiosk" and turf != null:
+		_kiosk_dv()
 	elif id == "tv":
 		tv()
 	elif id == "kiosk" and _kiosk_gate() >= 0:

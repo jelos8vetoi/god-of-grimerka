@@ -35,6 +35,7 @@ var court_block: StaticBody3D         # преграда в калитке ко�
 const HOME_DOOR := Vector2(-6.0, -107.6)      # дверь подъезда дома 67
 const START := Vector2(-6.0, -103.5)          # где герой появляется в начале забега
 const KIOSK := Vector2(44.0, -13.6)           # окно «ШАУРМЫ 67»
+const RAGS := Vector2(-44.0, -13.6)           # прилавок рынка: «ТРЯПКИ! ТРЯПКИ!»
 const REST := Vector2(-34.0, 77.0)            # беседка-передышка у башен
 const THRONE := Vector2(6.0, 120.5)           # трон Миши
 const BOSS_SPOT := Vector2(6.0, 111.0)        # где Миша встаёт на бой

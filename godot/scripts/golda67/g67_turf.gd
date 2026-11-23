@@ -215,6 +215,7 @@ func _fight(e: Dictionary) -> void:
 	e["cd"] = 0.0
 	e["wait"] = 1.2
 	active = e
+	g.hurt_in_fight = false
 	for f in e["foes"]:
 		if is_instance_valid(f):
 			f.post = false
@@ -284,7 +285,11 @@ func _cleared(e: Dictionary) -> void:
 	var spooked: bool = int(e["flees"]) > 0
 	var base: float = float(G67Data.ROOM_GOLDA["elite" if type == "elite" else "battle"]) * (1.5 if type == "ambush" else 1.0)
 	var gold := int(round(base * (0.5 if spooked else 1.0)))
-	_drop_bag(e, gold, type == "elite" and not spooked)
+	_drop_bag(e, gold, not spooked)          # в сумке — выбор бафа (у элиты редкий); после побега — только половина голды
+	if g.fit_lv("semki") > 0 and not g.hurt_in_fight and not spooked:      # СЕМКИ: бой без полученного урона
+		var got: int = g.add_golda(G67Data.SEMKI_GOLD)
+		game.popup(game.player.global_position + Vector3(0, 2.2, 0), "СЕМКИ +%d" % got, G67Data.FAMILY_COLOR["dvor"])
+		g.events.append(["semki", got])
 	var c: Vector3 = e["c"]
 	if G67Data.STAGE_HEAL.has(type) and not spooked:
 		g._drop_wrap(float(G67Data.STAGE_HEAL[type]), c + Vector3(1.6, 0.0, 1.2), 0.0)
@@ -351,7 +356,7 @@ func take_bag(pid: String) -> int:
 		log.append(["bag", String(e["id"]), got])
 		g._save_run("open")
 		if fit:
-			g._offer_fit(true)
+			g._offer_fit(String(e["d"]["type"]) == "elite")
 		return got
 	return 0
 
@@ -389,6 +394,8 @@ func objective() -> String:
 	for e in encs:
 		if not (e["bag"] as Dictionary).is_empty():
 			return "СУМКА: %s" % String(e["d"]["name"])
+	if not bool(g.run.get("rags", false)) and _state_n(["cleared", "gone"]) >= 1:
+		return "ДАЛЬШЕ: ТРЯПКИ! ТРЯПКИ! — рынок на западе" + ("" if need_done() else " · потом смотрящий")
 	if need_done():
 		return "КОРОБКА МИШИ ОТКРЫТА — на север, между башнями"
 	for e in encs:
