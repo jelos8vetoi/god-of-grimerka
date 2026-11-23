@@ -6394,7 +6394,7 @@
 			"text": "…",
 			"voice_id": "preset:energetic",
 			"path": "res://Audio/Voice/Golda67/Chapter_01/NPC/CH01_SCHOOLBOY_021.ogg",
-			"status": "failed",
+			"status": "not_voiced",
 			"check": {
 				"duration_s": 0,
 				"speech_db": -99,
@@ -6407,7 +6407,8 @@
 			"order": 2,
 			"when": "разговор жителей «six_seven» (playground)",
 			"emotion": "быстро, восторженно",
-			"speed": 1.12
+			"speed": 1.12,
+			"note": "в строке нет произносимого текста («…»): не озвучивается"
 		},
 		{
 			"id": "CH01_NEIGHBOR2_034",
@@ -6808,7 +6809,7 @@
 			"text": "…",
 			"voice_id": "preset:corporate",
 			"path": "res://Audio/Voice/Golda67/Chapter_01/NPC/CH01_INTERCOM_009.ogg",
-			"status": "failed",
+			"status": "not_voiced",
 			"check": {
 				"duration_s": 0,
 				"speech_db": -99,
@@ -6821,7 +6822,8 @@
 			"order": 3,
 			"when": "домофон у подъезда",
 			"emotion": "механически, ровно",
-			"speed": 0.88
+			"speed": 0.88,
+			"note": "в строке нет произносимого текста («…»): не озвучивается"
 		},
 		{
 			"id": "CH01_INTERCOM_010",
