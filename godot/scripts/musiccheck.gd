@@ -413,26 +413,30 @@ func _golda67() -> void:
 	ok(not boss_early and boss != null and String(D.cue) == "boss_courier" and D.ctx == "boss" and stung, "m8 Миша: до конца постановки босса нет (%s), потом набор «%s» (замена boss_g67_misha → boss_courier), вступление %s" % [str(not boss_early), D.cue, str(stung)])
 	# m9 фазы
 	var p9a: float = D.active_players()[0].get_playback_position()
-	boss.guard_until = -1.0
-	boss.take_hit(boss.max_hp * 0.4, Vector3.ZERO, 0.0)
+	_boss_hit(boss, boss.max_hp * 0.4, "удар 40 %")
 	await wait(3.0)
 	var l1: float = D.decks[D.active].lv[1] if D.active >= 0 else -99.0
-	boss.guard_until = -1.0
-	boss.take_hit(boss.max_hp * 0.35, Vector3.ZERO, 0.0)
+	_boss_hit(boss, boss.max_hp * 0.35, "удар 35 %")
 	await wait(3.0)
 	var l2: float = D.decks[D.active].lv[2] if D.active >= 0 else -99.0
 	var p9b: float = D.active_players()[0].get_playback_position()
 	ok(boss.phase >= 2 and l1 > -10.0 and l2 > -10.0 and p9b > p9a, "m9 фазы босса: слой p2 %.1f дБ, p3 %.1f дБ, позиция набора %.1f → %.1f с" % [l1, l2, p9a, p9b])
 	# m10 босс повержен обычным уроном
-	var ev10 := D.events.size()
-	boss.guard_until = -1.0
-	boss.take_hit(999999.0, Vector3.ZERO, 0.0)
+	var t10 := D.clock
+	print("MUSICCHECK   перед добиванием: audio.boss_seen=«%s», ctx %s, cue %s" % [main.audio.boss_seen, D.ctx, D.cue])
+	_boss_hit(boss, 999999.0, "добивание")
 	await wait(2.0)
 	var won := false
-	for i in range(ev10, D.events.size()):
-		if D.events[i]["ev"] == "stinger" and String(D.events[i]["cue"]).ends_with("_win"):
+	for e in D.events:
+		if float(e["t"]) >= t10 - 0.01 and e["ev"] == "stinger" and String(e["cue"]).ends_with("_win"):
 			won = true
 	var over: bool = g67.room_state == "over"
+	# после победы — экран итогов; в подъезд ведёт та же кнопка «В ПОДЪЕЗД»
+	var res_ok: bool = await until(func(): return g67.hub_ui != null and g67.hub_ui.kind == "result", 15.0)
+	if res_ok:
+		await wait(0.3)
+		g67.hub_ui.select(0, true)
+		g67.hub_ui._activate(0)
 	await until(func(): return g67.place == "hub", 14.0)
 	await wait(2.0)
 	ok(won and over and g67.place == "hub" and D.via_k > 0.5, "m10 босс повержен: победная отбивка %s, затем хаб, музыка из телевизора (via %.2f, набор «%s»)" % [str(won), D.via_k, D.cue])
@@ -613,3 +617,12 @@ func _real_paths() -> void:
 			saw_unmute = true
 	ok(saw_mute and snap_mute and saw_unmute and not D.snapshot()["muted_by_user"], "Music = 0: в журнале muted_by_user («МУЗЫКА ИГРЫ: 0 % в настройках»), после возврата громкости причина снята")
 	main.audio.set_volume("Music", vol_keep, false)
+
+## удар по боссу «как в бою»: у босса главы 1 есть неуязвимость на смене фазы и броня вне окна «ОТКРЫТ» — проверка снимает их перед ударом
+func _boss_hit(boss, dmg: float, tag: String) -> void:
+	print("MUSICCHECK   босс до (%s): hp %.0f / %.0f, фаза %d, age %.2f, phase_guard_until %.2f, weak_t %.2f" % [tag, boss.hp, boss.max_hp, boss.phase, boss.age, boss.phase_guard_until, boss.weak_t])
+	boss.guard_until = -1.0
+	boss.phase_guard_until = -1.0
+	boss.weak_t = 5.0
+	boss.take_hit(dmg, Vector3.ZERO, 0.0)
+	print("MUSICCHECK   босс после (%s): hp %.0f, фаза %d, phase_guard_until %.2f" % [tag, boss.hp, boss.phase, boss.phase_guard_until])

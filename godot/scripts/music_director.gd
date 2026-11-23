@@ -362,8 +362,6 @@ func _swap(new_cue: String) -> bool:
 	cue = new_cue
 	if new_cue == "title":
 		_chain("вход title")
-	if new_cue == "title":
-		title_prog = title_prog
 	if new_cue.begins_with("boss_") and tr == "boss_in":
 		pass
 	_ev("cue", new_cue, "", "", tr)
