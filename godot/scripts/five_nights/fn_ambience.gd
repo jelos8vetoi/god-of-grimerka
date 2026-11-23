@@ -387,7 +387,7 @@ func tick(st: FNNight, state: String, dt: float) -> void:
 	var fan_goal := 1.0
 	var fan_rate := 0.26
 	if out:
-		fan_goal = 0.35
+		fan_goal = 0.0                 # без питания вентилятор останавливается (картинка берёт ту же скорость)
 		fan_rate = 0.13
 	elif brown:
 		fan_goal = 0.8

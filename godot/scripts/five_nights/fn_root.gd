@@ -488,6 +488,7 @@ func _night_tick(dt: float) -> void:
 	if state != "night":
 		return
 	office.tick(st, dt, look_in)
+	office.fan_tick(dt, ambience.fan_spin)
 	if fix_hold:
 		st.fix_cam(dt)
 	else:

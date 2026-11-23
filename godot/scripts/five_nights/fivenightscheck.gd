@@ -386,6 +386,7 @@ func _ui_part() -> void:
 	await _tension(R, st)
 	await _vents_check(R)
 	await _lock_lamps(R)
+	await _fan_check(R)
 	_voice_buses(R)
 	await _anomalies(R, st)
 	ok(R.cams.vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS, "рисуется только выбранная камера, пока монитор поднят")
@@ -541,6 +542,29 @@ func _vents_check(R: FiveNightsRoot) -> void:
 	st.set_seal("t", keep[1])
 	await wait(1.0)
 
+## настольный вентилятор: картинка идёт за ambience.fan_spin (звук и вращение совпадают)
+func _fan_check(R: FiveNightsRoot) -> void:
+	var O: FNOffice = R.office
+	var A: FNAmbience = R.ambience
+	var rotor: Node3D = O.desk_fan.rotor
+	ok(rotor != null and rotor.name == "RotorPivot", "вентилятор: RotorPivot найден")
+	ok(O.desk_tris_after < O.desk_tris_before, "старый вентилятор вырезан из стола: треугольников %d → %d (убрано %d, %.1f мс)" % [O.desk_tris_before, O.desk_tris_after, O.fan_cut_tris, O.fan_cut_ms])
+	var fan_pt: Node3D = O.get_node("Console/AudioPoints/Fan")
+	ok(fan_pt.global_position.distance_to(rotor.global_position) <= 0.2, "маркер звука вентилятора у двигателя (%.2f м от ротора)" % fan_pt.global_position.distance_to(rotor.global_position))
+	A.fan_spin = 1.0
+	await wait(0.3)
+	var q0: Quaternion = rotor.basis.get_rotation_quaternion()
+	await wait(1.0)
+	var turned: float = q0.angle_to(rotor.basis.get_rotation_quaternion())
+	ok(turned > 0.1 and A.fan_spin > 0.95, "обычная ночь: за 1 с ротор повернулся (шаг %.2f рад), fan_spin %.2f" % [turned, A.fan_spin])
+	R.set_paused(true)
+	await wait(0.2)
+	var qp: Quaternion = rotor.basis.get_rotation_quaternion()
+	await wait(0.5)
+	var held: float = qp.angle_to(rotor.basis.get_rotation_quaternion())
+	R.set_paused(false)
+	ok(held < 0.001, "на паузе ротор не вращается (%.4f рад)" % held)
+
 ## лампы блокировки на механизмах вентиляции
 func _lock_lamps(R: FiveNightsRoot) -> void:
 	var st: FNNight = R.st
@@ -688,6 +712,7 @@ func _after_death(R: FiveNightsRoot) -> void:
 	ok(main.audio.vol == vol_keep, "громкости игрока те же, что до раздела")
 	FNActors.ensure_ir()
 	ok(FNActors._ir_added, "глобальная fn_ir добавлена один раз, повторный вызов пустой")
+	ok(R.ambience.fan_spin > 0.99, "перезапуск ночи после отключения питания: вентилятор снова на полной скорости (%.2f)" % R.ambience.fan_spin)
 	ok(_fx_sig() == fx_before, "после смертей и отключения питания шины голосов и их эффекты те же: %s" % str(_fx_sig()))
 	R.quiet = quiet_keep
 
@@ -1161,6 +1186,13 @@ func _ambience(R: FiveNightsRoot, st: FNNight) -> void:
 	await wait(1.5)
 	var cut_ok: bool = A.level("lamp_hum") <= -55.0 and A.level("crt_whine") <= -55.0 and A.level("panel_hum") <= -55.0 and A.pitch("deskfan") < 0.9
 	await wait(5.5)
+	var fan_s0 := A.fan_spin
+	var fan_stopped: bool = await until(func(): return A.fan_spin < 0.02, 8.0)
+	var rotor: Node3D = R.office.desk_fan.rotor
+	var fq: Quaternion = rotor.basis.get_rotation_quaternion()
+	await wait(0.5)
+	var fan_still: float = fq.angle_to(rotor.basis.get_rotation_quaternion())
+	ok(fan_stopped and fan_still < 0.001, "отключение питания: вентилятор на столе встал вместе с fan_spin (%.2f → %.3f), за 0,5 с угол не изменился (%.4f рад)" % [fan_s0, A.fan_spin, fan_still])
 	var ev_ok := true
 	for i in 200:
 		var pe := A.pick_event(2, true)
@@ -1170,7 +1202,14 @@ func _ambience(R: FiveNightsRoot, st: FNNight) -> void:
 	st.emergency_used = false
 	st.crank_p = 5.99
 	st.crank()
-	await wait(4.5)
+	await until(func(): return not st.power_out, 6.0)
+	await wait(0.2)
+	var fan_early: float = A.fan_spin
+	var fq2: Quaternion = rotor.basis.get_rotation_quaternion()
+	await wait(1.0)
+	var fan_turn: float = fq2.angle_to(rotor.basis.get_rotation_quaternion())
+	ok(fan_early < 0.9 and fan_turn > 0.02, "питание вернулось: fan_spin растёт плавно (через 0,2 с %.2f), ротор снова крутится (%.2f рад)" % [fan_early, fan_turn])
+	await wait(3.3)
 	ok(not st.power_out and A.level("lamp_hum") > -40.0 and A.pitch("deskfan") > 0.95, "питание вернулось: лампа гудит (%.1f дБ), вентилятор раскрутился (%.2f)" % [A.level("lamp_hum"), A.pitch("deskfan")])
 	var bad := false
 	var prev := ""
