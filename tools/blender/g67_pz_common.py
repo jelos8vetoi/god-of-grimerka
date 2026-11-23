@@ -39,7 +39,7 @@ def tile_mat(name, plane="xz", stripe=True, size=0.15, base=(0.86, 0.86, 0.8), d
     br.inputs["Brick Width"].default_value = 1.0
     br.inputs["Row Height"].default_value = 1.0
     br.inputs["Color1"].default_value = (*base, 1)
-    br.inputs["Color2"].default_value = (base[0] * 0.93, base[1] * 0.93, base[2] * 0.9, 1)
+    br.inputs["Color2"].default_value = (base[0] * 0.8, base[1] * 0.82, base[2] * 0.78, 1)
     br.inputs["Mortar"].default_value = (0.5, 0.49, 0.44, 1)
     nt.links.new(com.outputs["Vector"], br.inputs["Vector"])
     # зелёная полоса
@@ -76,9 +76,18 @@ def tile_mat(name, plane="xz", stripe=True, size=0.15, base=(0.86, 0.86, 0.8), d
     rr.color_ramp.elements[0].position = 0.5
     rr.color_ramp.elements[1].position = 0.75
     nt.links.new(nz.outputs["Fac"], rr.inputs["Fac"])
-    fac = C._n(nt, "ShaderNodeMath", 1150, -650, operation="MULTIPLY")
+    low = C._n(nt, "ShaderNodeMapRange", 900, -850)
+    low.inputs["From Min"].default_value = -z0
+    low.inputs["From Max"].default_value = 0.35 - z0
+    low.inputs["To Min"].default_value = 1.0
+    low.inputs["To Max"].default_value = 0.0
+    nt.links.new(sep.outputs["Z"], low.inputs["Value"])
+    fac0 = C._n(nt, "ShaderNodeMath", 1150, -750, operation="MULTIPLY")
+    nt.links.new(rr.outputs["Alpha"], fac0.inputs[0])
+    nt.links.new(low.outputs["Result"], fac0.inputs[1])
+    fac = C._n(nt, "ShaderNodeMath", 1350, -650, operation="MULTIPLY")
     fac.inputs[1].default_value = dirt
-    nt.links.new(rr.outputs["Alpha"], fac.inputs[0])
+    nt.links.new(fac0.outputs["Value"], fac.inputs[0])
     dm = C._n(nt, "ShaderNodeMixRGB", 1500, 100)
     nt.links.new(fac.outputs["Value"], dm.inputs["Fac"])
     nt.links.new(col, dm.inputs["Color1"])
@@ -127,3 +136,93 @@ def run(build_map, size=1024):
         sz = out[2] if len(out) > 2 else size
         P = [o for o in P if o is not None]
         C.finish("g67_pz_" + nm, P, views, size=sz)
+
+
+def floor_mat(name="floor"):
+    """Терраццо: крошка (воронов) разных оттенков, протёртая глянцевая дорожка по центру, швы и пятна — без крупных облаков"""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    out = C._n(nt, "ShaderNodeOutputMaterial", 2000, 0)
+    pb = C._n(nt, "ShaderNodeBsdfPrincipled", 1700, 0)
+    nt.links.new(pb.outputs["BSDF"], out.inputs["Surface"])
+    tc = C._n(nt, "ShaderNodeTexCoord", 0, 0)
+    vo = C._n(nt, "ShaderNodeTexVoronoi", 300, 200)
+    vo.feature = "F1"
+    vo.inputs["Scale"].default_value = 55.0
+    nt.links.new(tc.outputs["Object"], vo.inputs["Vector"])
+    cr = C._n(nt, "ShaderNodeValToRGB", 600, 200)
+    cr.color_ramp.elements[0].position = 0.15
+    cr.color_ramp.elements[0].color = (0.2, 0.2, 0.21, 1)
+    e1 = cr.color_ramp.elements.new(0.5)
+    e1.color = (0.52, 0.5, 0.48, 1)
+    cr.color_ramp.elements[2].position = 0.85
+    cr.color_ramp.elements[2].color = (0.78, 0.76, 0.7, 1)
+    nt.links.new(vo.outputs["Color"], cr.inputs["Fac"]) if False else nt.links.new(vo.outputs["Distance"], cr.inputs["Fac"])
+    # дорожка: гауссиана по X в центре плитки (x ≈ 0)
+    sep = C._n(nt, "ShaderNodeSeparateXYZ", 300, -100)
+    nt.links.new(tc.outputs["Object"], sep.inputs["Vector"])
+    ab = C._n(nt, "ShaderNodeMath", 500, -100, operation="ABSOLUTE")
+    nt.links.new(sep.outputs["X"], ab.inputs[0])
+    mr = C._n(nt, "ShaderNodeMapRange", 700, -100)
+    mr.inputs["From Min"].default_value = 0.2
+    mr.inputs["From Max"].default_value = 0.9
+    mr.inputs["To Min"].default_value = 1.0
+    mr.inputs["To Max"].default_value = 0.0
+    nt.links.new(ab.outputs["Value"], mr.inputs["Value"])
+    # пятна и швы
+    nz = C._n(nt, "ShaderNodeTexNoise", 300, -400, noise_dimensions="3D")
+    nz.inputs["Scale"].default_value = 9.0
+    nz.inputs["Detail"].default_value = 3.0
+    nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
+    st = C._n(nt, "ShaderNodeValToRGB", 600, -400)
+    st.color_ramp.elements[0].position = 0.62
+    st.color_ramp.elements[1].position = 0.7
+    nt.links.new(nz.outputs["Fac"], st.inputs["Fac"])
+    mix = C._n(nt, "ShaderNodeMixRGB", 1000, 150)
+    nt.links.new(st.outputs["Alpha"], mix.inputs["Fac"])
+    mix.inputs["Fac"].default_value = 0.3
+    nt.links.new(cr.outputs["Color"], mix.inputs["Color1"])
+    mix.inputs["Color2"].default_value = (0.1, 0.09, 0.08, 1)
+    nt.links.new(mix.outputs["Color"], pb.inputs["Base Color"])
+    rr = C._n(nt, "ShaderNodeMapRange", 1000, -150)
+    rr.inputs["To Min"].default_value = 0.85
+    rr.inputs["To Max"].default_value = 0.3
+    nt.links.new(mr.outputs["Result"], rr.inputs["Value"])
+    nt.links.new(rr.outputs["Result"], pb.inputs["Roughness"])
+    bp = C._n(nt, "ShaderNodeBump", 1000, -400)
+    bp.inputs["Strength"].default_value = 0.35
+    bp.inputs["Distance"].default_value = 0.01
+    nt.links.new(vo.outputs["Distance"], bp.inputs["Height"])
+    nt.links.new(bp.outputs["Normal"], pb.inputs["Normal"])
+    return m
+
+
+def ceil_mat(name="ceil"):
+    """Побелка с жёлтыми разводами протечек (редкие чёткие пятна), без крупной «облачности»"""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    out = C._n(nt, "ShaderNodeOutputMaterial", 1600, 0)
+    pb = C._n(nt, "ShaderNodeBsdfPrincipled", 1300, 0)
+    nt.links.new(pb.outputs["BSDF"], out.inputs["Surface"])
+    tc = C._n(nt, "ShaderNodeTexCoord", 0, 0)
+    nz = C._n(nt, "ShaderNodeTexNoise", 300, 0, noise_dimensions="3D")
+    nz.inputs["Scale"].default_value = 2.2
+    nz.inputs["Detail"].default_value = 6.0
+    nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
+    cr = C._n(nt, "ShaderNodeValToRGB", 600, 0)
+    cr.color_ramp.elements[0].position = 0.64
+    cr.color_ramp.elements[0].color = (0, 0, 0, 1)
+    cr.color_ramp.elements[1].position = 0.7
+    cr.color_ramp.elements[1].color = (1, 1, 1, 1)
+    nt.links.new(nz.outputs["Fac"], cr.inputs["Fac"])
+    mix = C._n(nt, "ShaderNodeMixRGB", 900, 0)
+    nt.links.new(cr.outputs["Color"], mix.inputs["Fac"])
+    mix.inputs["Color1"].default_value = (0.84, 0.83, 0.77, 1)
+    mix.inputs["Color2"].default_value = (0.55, 0.42, 0.2, 1)
+    nt.links.new(mix.outputs["Color"], pb.inputs["Base Color"])
+    pb.inputs["Roughness"].default_value = 0.9
+    return m

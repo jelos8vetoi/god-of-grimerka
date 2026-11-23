@@ -107,7 +107,7 @@ const MOVES := {
 # ---------------- выбор приёма ----------------
 ## Приём по полезности: вес × годность дистанции × условия; перезарядки — в e.move_cd. {} — пока ничего.
 static func pick(e, dist: float) -> Dictionary:
-	var table: Dictionary = MOVES.get(String(e.kind), {})
+	var table: Dictionary = (e.get_meta("moves") as Dictionary) if e.has_meta("moves") else MOVES.get(String(e.kind), {})
 	if table.is_empty():
 		return {}
 	var r = e.game.read

@@ -195,20 +195,35 @@ def cross_green(m=None):
 
 def turnstile(m=None):
     m = m or M()
-    """Турникет-створка: стойка с приёмником карты, две створки (оси на стойке), индикатор, ротор-«трипод»"""
-    P = [C.box("post", (0.3, 0.9, 1.05), (0, 0, 0.525), bevel=0.03, m=m["steel"]),
-         C.box("top", (0.34, 0.94, 0.06), (0, 0, 1.08), bevel=0.02, m=m["dsteel"]),
-         C.box("reader", (0.18, 0.22, 0.06), (0, -0.2, 1.14), rot=(R(-15), 0, 0), bevel=0.01, m=m["black"]),
-         C.box("slot", (0.1, 0.012, 0.012), (0, -0.23, 1.15), bevel=0, m=m["lblue"], seg=1),
-         C.box("lamp_g", (0.08, 0.08, 0.02), (0, 0.15, 1.12), bevel=0.005, m=m["lgreen"], seg=1),
-         C.box("lamp_r", (0.08, 0.08, 0.02), (0, 0.3, 1.12), bevel=0.005, m=m["lred"], seg=1)]
-    for s in (-1, 1):
-        g = C.box("turnstile_gate", (0.04, 0.45, 0.9), (s * 0.35, -0.2, 0.85), bevel=0.01, m=m["glassm"])
+    """Турникет метро: массивная тумба из нержавейки с круглыми торцами, окно индикатора (стрелка/крест, эмиссия), приёмник карты, монетоприёмник,
+    жёлто-чёрная полоса, наклейка тарифа, царапины; створки turnstile_gate на осях в тумбе, трипод turnstile_arm/turnstile_rotor"""
+    m = m or M()
+    P = [C.box("post", (0.34, 1.1, 1.0), (0, 0, 0.55), bevel=0.11, m=m["steel"]),
+         C.box("base", (0.5, 1.2, 0.05), (0, 0, 0.025), bevel=0.008, m=m["rubber"]),
+         C.box("top", (0.38, 1.14, 0.07), (0, 0, 1.06), bevel=0.03, m=m["dsteel"]),
+         C.box("ind_frame", (0.2, 0.012, 0.2), (-0.172, -0.3, 0.9), bevel=0.004, m=m["black"]),
+         C.box("ind_arrow", (0.04, 0.008, 0.12), (-0.18, -0.3, 0.9), bevel=0, m=m["lgreen"], seg=1),
+         C.box("ind_head", (0.12, 0.008, 0.04), (-0.18, -0.3, 0.85), rot=(0, R(35), 0), bevel=0, m=m["lgreen"], seg=1),
+         C.box("reader", (0.2, 0.26, 0.05), (0, -0.33, 1.12), rot=(R(-12), 0, 0), bevel=0.012, m=m["black"]),
+         C.box("reader_glow", (0.1, 0.012, 0.012), (0, -0.4, 1.135), bevel=0, m=m["lblue"], seg=1),
+         C.box("coin_plate", (0.1, 0.01, 0.14), (-0.172, 0.2, 0.9), bevel=0.003, m=m["black"], seg=1),
+         C.box("coin_slot", (0.012, 0.012, 0.07), (-0.178, 0.2, 0.9), bevel=0, m=m["steel"], seg=1),
+         C.box("stripe_a", (0.345, 0.2, 0.06), (0, -0.35, 0.42), bevel=0, m=m["yellow"], seg=1),
+         C.box("tariff", (0.01, 0.2, 0.14), (-0.172, 0.0, 0.65), bevel=0, m=m["yellow"], seg=1),
+         C.text("tt", "ВХОД 8", 0.05, (-0.178, 0.0, 0.65), rot=(R(90), 0, R(90)), font=C.FONT_IMPACT, extrude=0, m=m["ink"])]
+    for i in range(6):
+        P.append(C.box("scr%d" % i, (0.002, 0.2 + 0.05 * (i % 3), 0.004), (-0.172, 0.35 - 0.15 * i, 0.4 + 0.11 * i), rot=(R(10 * i), 0, 0), bevel=0, m=m["steel"], seg=1))
+    for s_ in (-1, 1):
+        g = C.box("turnstile_gate", (0.03, 0.46, 0.85), (s_ * 0.36, -0.28, 0.0), bevel=0.01, m=m["glassm"])
+        g.location = (s_ * 0.36, -0.28, 0.9)
+        C.pivot(g, (s_ * 0.2, 0.0, 0.9))
         P.append(g)
-    P.append(C.box("turnstile_arm", (0.7, 0.04, 0.04), (0, 0.46, 0.9), bevel=0.01, m=m["steel"]))
-    P.append(C.cyl("turnstile_rotor", 0.06, 0.1, (0, 0.46, 0.9), verts=10, bevel=0.005, m=m["dsteel"]))
-    P.append(C.box("sticker", (0.2, 0.004, 0.12), (0, -0.452, 0.7), bevel=0, m=m["yellow"], seg=1))
-    P.append(C.box("base", (0.5, 1.0, 0.04), (0, 0, 0.02), bevel=0.006, m=m["rubber"]))
+        P.append(C.box("hinge", (0.06, 0.06, 0.12), (s_ * 0.2, 0.0, 0.9), bevel=0.01, m=m["dsteel"]))
+    ro = C.cyl("turnstile_rotor", 0.05, 0.1, (0.0, 0.5, 0.95), verts=12, bevel=0.005, m=m["dsteel"])
+    P.append(ro)
+    for k in range(3):
+        a = k * math.tau / 3
+        P.append(C.cyl("turnstile_arm", 0.018, 0.48, (math.sin(a) * 0.24, 0.5, 0.95 + math.cos(a) * 0.24), rot=(0, a + R(90) * 0, 0), verts=8, bevel=0, m=m["steel"]))
     return P, [((2.4, -3.0, 1.6), (0, 0, 0.7)), ((0.8, -1.2, 1.3), (0, 0, 0.9))]
 
 
@@ -262,9 +277,9 @@ def tariff_board(m=None):
     """Табло тарифов: панель и отдельные строки под эмиссию (материал lbox)"""
     P = [C.box("panel", (4.0, 0.15, 2.0), (0, 0, 1.0), bevel=0.02, m=m["dsteel"]),
          C.box("screen", (3.8, 0.02, 1.8), (0, -0.085, 1.0), bevel=0, m=m["black"], seg=1)]
-    rows = (("ВХОД — 67", "lbox"), ("ВЫХОД — 67", "lbox"), ("ПОСМОТРЕТЬ НА ТАРИФ — 6,7", "lbox"), ("ВОЗВРАТ — НЕ ПРЕДУСМОТРЕН", "lred"))
+    rows = (("ВХОД — 8", "lbox"), ("ВЫХОД — 67", "lbox"), ("ВОПРОС — 67", "lbox"), ("ОТВЕТ — ПО ДОГОВОРЁННОСТИ", "lbox"), ("ПОСТОЯТЬ — 8/МИН", "lbox"), ("ВДОХ — ПЕРВЫЙ БЕСПЛАТНО", "lgreen"))
     for i, (t, c) in enumerate(rows):
-        P.append(C.text("row%d" % i, t, 0.26, (0, -0.1, 1.55 - i * 0.42), rot=(R(90), 0, 0), font=C.FONT_IMPACT, extrude=0, m=m[c]))
+        P.append(C.text("row%d" % i, t, 0.2, (0, -0.1, 1.72 - i * 0.3), rot=(R(90), 0, 0), font=C.FONT_IMPACT, extrude=0, m=m[c]))
     P.append(C.box("frame_t", (4.1, 0.2, 0.08), (0, 0, 2.03), bevel=0.01, m=m["yellow"]))
     P.append(C.box("frame_b", (4.1, 0.2, 0.08), (0, 0, -0.03), bevel=0.01, m=m["yellow"]))
     for s in (-1, 1):

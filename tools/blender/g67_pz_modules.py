@@ -18,6 +18,8 @@ def M():
         "tile_c": Z.tile_mat("tile_c", "xz", stripe=False, base=(0.8, 0.8, 0.74)),
         "ftile": Z.tile_mat("ftile", "xy", stripe=False, size=0.3, base=(0.55, 0.56, 0.55), dirt=0.8),
         "conc": Z.conc("conc"),
+        "floorm": Z.floor_mat("floorm"),
+        "ceilm": Z.ceil_mat("ceilm"),
         "conc_l": Z.conc("conc_l", base=(0.62, 0.62, 0.6), scale=4.0),
         "white": Z.paint("white", (0.82, 0.8, 0.74), wear=0.6),
         "steel": Z.steel("steel"),
@@ -138,7 +140,7 @@ def column(m=None):
     return P, [((2.2, -2.8, 1.9), (0, 0, 1.5))]
 
 
-def floor_base(m, mat="conc"):
+def floor_base(m, mat="floorm"):
     P = [C.box("slab", (4.0, 4.0, 0.12), (0, 0, -0.06), bevel=0.006, m=m[mat])]
     P.append(C.box("jx", (4.0, 0.025, 0.006), (0, 0, 0.001), bevel=0, m=m["black"], seg=1))
     P.append(C.box("jy", (0.025, 4.0, 0.006), (0, 0, 0.001), bevel=0, m=m["black"], seg=1))
@@ -186,7 +188,7 @@ def floor_toll(m=None):
 
 
 def ceil_base(m):
-    return [C.box("slab", (4.0, 4.0, 0.2), (0, 0, 0.1), bevel=0.008, m=m["conc_l"])]
+    return [C.box("slab", (4.0, 4.0, 0.2), (0, 0, 0.1), bevel=0.008, m=m["ceilm"])]
 
 
 def views_ceil():

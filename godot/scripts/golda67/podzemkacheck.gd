@@ -166,6 +166,8 @@ func run(g_, G_: Golda67) -> void:
 	await _routes()
 	await _full_run()
 	await _save_resume()
+	await _enemy_checks()
+	await _bot_battles()
 
 ## --pz-perfzones: средний и 1 % low кадр по зонам боя (6 с после прогрева 3 с)
 func _perf() -> void:
@@ -380,3 +382,75 @@ func _decor_checks(pz: G67Podzemka, space: PhysicsDirectSpaceState3D) -> void:
 				blocked += 1
 				print("GOLDA67CHECK   ПОДЗЕМКА: занята точка зоны %s: %s" % [zid, str(p)])
 	ok(blocked == 0, "точки входа врагов и стойки этапов свободны (занято: %d)" % blocked)
+
+## Враги района: щит Контролёра гасит лёгкий удар спереди, не гасит тяжёлый и тыльный; параметры; метки и призыв заданы данными
+func _enemy_checks() -> void:
+	P.global_position = Vector3(0, 0.05, -30)
+	G.room = {"type": "battle", "place": "gate1"}
+	G.room_state = "fight"
+	var cnt0: int = g.enemies.size()
+	G._spawn("controller")
+	G._spawn("promoter")
+	G._spawn("bouncer")
+	await c.wait(0.5)
+	var ctl = null
+	var prm = null
+	var bnc = null
+	for e in g.enemies:
+		if not is_instance_valid(e):
+			continue
+		match String(e.get_meta("foe", "")):
+			"controller": ctl = e
+			"promoter": prm = e
+			"bouncer": bnc = e
+	ok(ctl != null and prm != null and bnc != null, "враги района появляются (Контролёр, Зазывала, Вышибала)")
+	if ctl == null or prm == null or bnc == null:
+		return
+	ok(absf(ctl.max_hp - 150.0 * float(g.diff_hp)) < 1.0 or ctl.max_hp > 100.0, "Контролёр: здоровье %.0f" % ctl.max_hp)
+	ok(bnc.max_hp > 400.0, "Вышибала: здоровье %.0f" % bnc.max_hp)
+	ok(prm.has_meta("moves") and (prm.get_meta("moves") as Dictionary).has("flyer") and (prm.get_meta("moves") as Dictionary).has("call"), "Зазывала: приёмы «флаер» и «призыв» заданы")
+	ctl.state = "idle"
+	ctl.set_physics_process(false)
+	var front := Vector3(sin(ctl.face), 0, cos(ctl.face))
+	var h0: float = ctl.hp
+	ctl.take_hit(10.0, -front, 0.0, false)
+	var light_front: float = h0 - ctl.hp
+	ctl.hp = h0
+	ctl.take_hit(10.0, -front, 0.0, true)
+	var heavy_front: float = h0 - ctl.hp
+	ctl.hp = h0
+	ctl.take_hit(10.0, front, 0.0, false)
+	var light_back: float = h0 - ctl.hp
+	ctl.hp = h0
+	ok(light_front < light_back * 0.5 and heavy_front > light_back * 0.8, "щит Контролёра: лёгкий спереди %.1f, тяжёлый спереди %.1f, лёгкий в спину %.1f" % [light_front, heavy_front, light_back])
+	c._kill_all(g)
+	G.pending = []
+	G.wave_wait = 999.0
+	await c.wait(0.5)
+
+## Бот-клавишник проходит первые два боя района
+func _bot_battles() -> void:
+	await G.enter_hub()
+	G.meta()["flags"]["boss_misha"] = true
+	G.sel_district = "podzemka"
+	await c._go(G, P, "exit")
+	await c.until(func(): return G.place == "run", 10.0)
+	P.global_position = Vector3(0, 0.05, -33)
+	var report: Array = []
+	for n in 2:
+		await c.until(func(): return G.room_state == "fight", 15.0)
+		var t0 := Time.get_ticks_msec()
+		P.hp = P.max_hp
+		var br: Dictionary = await c._bot_fight(g, G, 150.0)
+		report.append("бой %d: %.0f с, здоровье %.0f из %.0f%s" % [n + 1, float(Time.get_ticks_msec() - t0) / 1000.0, float(P.hp), float(P.max_hp), " (таймаут)" if bool(br["timeout"]) else ""])
+		await c.wait(0.8)
+		if G.hub_ui != null:
+			await c.key(KEY_ESCAPE)
+		await c.until(func(): return not G.world.gates.is_empty(), 6.0)
+		if G.world.gates.is_empty():
+			break
+		var pos := int(G.run["pos"])
+		await c._go(G, P, "gate0")
+		await c.until(func(): return int(G.run["pos"]) != pos, 8.0)
+	print("GOLDA67CHECK   ПОДЗЕМКА бот: %s" % "; ".join(report))
+	ok(report.size() == 2, "бот-клавишник: два боя района сыграны, итог: %s" % "; ".join(report))

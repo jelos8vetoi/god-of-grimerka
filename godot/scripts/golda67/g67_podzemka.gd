@@ -469,9 +469,44 @@ const SIGNS := [
 	["ПРИЁМ ПИЩИ ПО ТАРИФУ", -20.0, 2.0, -149.6, 0.0, 0.14, Color(1.0, 0.9, 0.6)],
 ]
 
+## Модели владельца (Tripo, PODZEMKA_TRIPO_PROMPTS.md): [файл без .glb, высота, м]. Файл есть — ставится вместо Blender-версии с авто-посадкой
+const OWNER_MODELS := {
+	"dog": ["g67_pz_dog", 0.75], "hamster_a": ["g67_pz_hamster", 0.5], "hamster_b": ["g67_pz_hamster", 0.5], "hamster_c": ["g67_pz_hamster", 0.5],
+	"hamster_gold": ["g67_pz_hamster_gold", 0.55], "kennel": ["g67_pz_dog_house", 1.5], "microwave": ["g67_pz_microwave", 0.32],
+	"arcade_a": ["g67_pz_arcade_machine", 1.8], "arcade_b": ["g67_pz_arcade_machine", 1.8], "vend_drinks": ["g67_pz_vending_drinks", 1.9],
+}
+## Посадочные точки слота для корпуса владельца (g67_pz_slot_cabinet): смещения от центра низа корпуса, м (лицо по +Z)
+const SLOT_SOCKETS := {"screen": Vector3(0.0, 1.0, 0.45), "button": Vector3(0.0, 0.55, 0.55), "board": Vector3(-0.3, 1.45, 0.45), "jackpot": Vector3(0.3, 1.45, 0.45), "cabinet_height": 2.2}
+
+func _fit_owner(inst: Node3D, height: float) -> void:
+	var bb := AABB()
+	var first := true
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		var a: AABB = m.transform * m.mesh.get_aabb()
+		var p := m.get_parent()
+		while p != null and p != inst and p is Node3D:
+			a = (p as Node3D).transform * a
+			p = p.get_parent()
+		bb = a if first else bb.merge(a)
+		first = false
+	if first or bb.size.y < 0.001:
+		return
+	var k := height / bb.size.y
+	inst.scale = Vector3(k, k, k)
+	inst.position -= Vector3(bb.get_center().x, bb.position.y, bb.get_center().z) * k
+
 func _decorate() -> void:
 	for pr in PROPS:
 		var path := PROP_PATH + String(pr[0]) + ".glb"
+		var owner_h := 0.0
+		if OWNER_MODELS.has(String(pr[0])):
+			var op := PROP_PATH.get_base_dir() + "/" + String(OWNER_MODELS[String(pr[0])][0]) + ".glb"
+			if ResourceLoader.exists(op):
+				path = op
+				owner_h = float(OWNER_MODELS[String(pr[0])][1])
 		if not ResourceLoader.exists(path):
 			missing.append(path)
 			continue
@@ -479,6 +514,15 @@ func _decorate() -> void:
 		add_child(inst)
 		var sc := float(pr[5])
 		inst.transform = Transform3D(Basis(Vector3.UP, float(pr[3])).scaled_local(Vector3(sc, sc, sc)), Vector3(float(pr[1]), float(pr[4]), float(pr[2])))
+		if owner_h > 0.0:
+			var wrap := Node3D.new()
+			wrap.transform = inst.transform
+			remove_child(inst)
+			inst.transform = Transform3D.IDENTITY
+			add_child(wrap)
+			wrap.add_child(inst)
+			_fit_owner(inst, owner_h)
+			inst = wrap
 		for mi in inst.find_children("*", "MeshInstance3D", true, false):
 			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		prop_count += 1

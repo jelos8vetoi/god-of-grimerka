@@ -13,7 +13,23 @@ const FOES := {
 	"shest": {"kind": "bot", "skin": "g67_shest", "name": "Шестёрка", "golda": 4},
 	"semka": {"kind": "hater", "skin": "g67_semka", "name": "Семечник", "golda": 5},
 	"smotr": {"kind": "troll", "skin": "g67_smotr", "name": "Смотрящий", "golda": 18},
+	# ПОДЗЕМКА (модели придут от владельца: g67_enemy_*.glb; пока заглушки на моделях двора)
+	"controller": {"kind": "mod", "skin": "g67_shest", "name": "Контролёр", "golda": 8, "hp": 150.0, "dmg": 12.0, "bark": ["Z2", ["Ваш билет.", "Без билета не работаем.", "Проход по тарифу.", "Оформляем нарушение."]]},
+	"promoter": {"kind": "farmer", "skin": "g67_semka", "name": "Зазывала", "golda": 10, "hp": 90.0, "dmg": 8.0, "bark": ["SH", ["Акция! Только сегодня! Всегда!", "Первый проход почти бесплатный!", "Коллеги, тут безбилетный!"]],
+		"moves": {"flyer": {"act": "zone", "w": 2.0, "cd": 4.0, "min": 3.0, "wind": 0.5, "rec": 0.6, "dmg": 1.0, "zr": 1.5, "delay": 0.7, "n": 1, "dmg_abs": 8.0, "title": "ФЛАЕР"},
+			"call": {"act": "summon", "w": 1.4, "cd": 12.0, "wind": 1.0, "rec": 0.8, "kinds": ["mod"], "n": 1, "title": "КОЛЛЕГИ!"},
+			"scare": {"act": "repel", "w": 6.0, "cd": 8.0, "max": 3.5, "cond": "close", "wind": 0.45, "rec": 0.2, "dmg": 0.0, "dmg_abs": 6.0, "r": 3.6, "title": "ОТСТУПЛЕНИЕ"}}},
+	"bouncer": {"kind": "troll", "skin": "g67_smotr", "name": "Вышибала турникета", "golda": 30, "hp": 520.0, "dmg": 22.0, "bark": ["US", ["Выход отдельно.", "Не положено.", "Створку не трогать."]]},
 }
+
+## Волны района 2 по индексу позиции (0…3 бой, элита — PZ_ELITE); в тоннеле не больше четырёх одновременно
+const PZ_WAVES := {
+	0: [[["controller", 2]], [["controller", 2], ["shest", 1]]],
+	1: [[["controller", 2], ["promoter", 1]], [["controller", 3], ["promoter", 1]]],
+	2: [[["controller", 2], ["promoter", 1]], [["controller", 3], ["promoter", 2]], [["bouncer", 1], ["controller", 1]]],
+	3: [[["controller", 2], ["promoter", 2]], [["controller", 3], ["promoter", 1]], [["controller", 2], ["promoter", 2]]],
+}
+const PZ_ELITE := [[["bouncer", 1]], [["bouncer", 1], ["controller", 2]], [["controller", 2], ["promoter", 2]]]
 
 ## Район: семь этапов до босса включительно. Этап — один или два варианта, каждый вариант — настоящее место двора.
 ## routes — три шаблона забега (по номеру забега: runs % 3); route — первый из них (для совместимости).
@@ -245,6 +261,10 @@ const STAGE_HEAL := {"battle": 25.0, "ambush": 25.0, "elite": 40.0}
 const WAVES_ELITE := [[["smotr", 1], ["shest", 2]], [["shest", 2], ["semka", 2]], [["smotr", 1], ["semka", 2]]]
 
 static func waves_for(_d: Dictionary, type: String, pos: int) -> Array:
+	if String(_d.get("boss", "")) == "g67_fortuna":
+		if type == "elite":
+			return PZ_ELITE
+		return PZ_WAVES.get(clampi(pos, 0, 3), PZ_WAVES[3])
 	if type == "elite":
 		return WAVES_ELITE
 	return WAVES_P1 if pos == 0 else WAVES_BATTLE

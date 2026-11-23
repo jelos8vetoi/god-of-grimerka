@@ -862,6 +862,18 @@ func _spawn(foe: String) -> void:
 	game.add_child(e)
 	G67Sound.play(self, "entry", pos)
 	e.cfg["dmg"] = float(e.cfg["dmg"]) * G67Data.FOE_DMG_K
+	if f.has("hp"):
+		e.max_hp = float(f["hp"])
+		e.hp = e.max_hp
+	if f.has("dmg"):
+		e.cfg["dmg"] = float(f["dmg"]) * G67Data.FOE_DMG_K
+	if f.has("moves"):
+		e.set_meta("moves", f["moves"])
+	if f.has("bark"):
+		var bl: Array = (f["bark"] as Array)[1]
+		get_tree().create_timer(randf_range(1.0, 3.0)).timeout.connect(func():
+			if is_instance_valid(e) and e.alive() and place == "run":
+				barks_get().say(e, String((f["bark"] as Array)[0]) + "|" + String(bl[randi() % bl.size()]), {"dur": 3.0}))
 	if bool(run.get("snow_stun", false)):
 		if wave_i <= 0:
 			game.get_tree().create_timer(1.3, false).timeout.connect(func(): if is_instance_valid(e): e.stun(2.0))
