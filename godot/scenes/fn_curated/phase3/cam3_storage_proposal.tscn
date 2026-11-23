@@ -6,12 +6,15 @@
 [ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/jade.tres" id="r4"]
 [ext_resource type="PackedScene" path="res://assets/minigames/fn_mascot_shelf.glb" id="r5"]
 [ext_resource type="PackedScene" path="res://assets/fn_curated/models/drawer_cabinet/drawer_cabinet.gltf" id="r6"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/models/metal_office_desk/metal_office_desk.gltf" id="r7"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/models/metal_toolbox/metal_toolbox.gltf" id="r8"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/models/utility_box_01/utility_box_01.gltf" id="r9"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/service_door.glb" id="r10"]
-[ext_resource type="Font" path="res://assets/fonts/RussoOne-Regular.ttf" id="r11"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/models/hanging_industrial_lamp/hanging_industrial_lamp.gltf" id="r12"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase3/models/cardboard_box_01/cardboard_box_01.gltf" id="r7"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/metal_office_desk/metal_office_desk.gltf" id="r8"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/metal_toolbox/metal_toolbox.gltf" id="r9"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/utility_box_01/utility_box_01.gltf" id="r10"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/service_door.glb" id="r11"]
+[ext_resource type="Font" path="res://assets/fonts/RussoOne-Regular.ttf" id="r12"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/hanging_industrial_lamp/hanging_industrial_lamp.gltf" id="r13"]
+
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/chalk.tres" id="SideFinish"]
 
 [sub_resource type="BoxMesh" id="b0"]
 size = Vector3(10, 0.16, 9)
@@ -23,7 +26,7 @@ material = ExtResource("r2")
 
 [sub_resource type="BoxMesh" id="b8"]
 size = Vector3(0.16, 3.2, 9)
-material = ExtResource("r3")
+material = ExtResource("SideFinish")
 
 [sub_resource type="BoxMesh" id="b12"]
 size = Vector3(0.028, 1.05, 9)
@@ -39,7 +42,7 @@ material = ExtResource("r4")
 
 [sub_resource type="BoxMesh" id="b24"]
 size = Vector3(0.16, 3.2, 9)
-material = ExtResource("r3")
+material = ExtResource("SideFinish")
 
 [sub_resource type="BoxMesh" id="b28"]
 size = Vector3(0.028, 1.05, 9)
@@ -58,10 +61,6 @@ size = Vector3(10, 0.17, 0.22)
 material = ExtResource("r4")
 
 [sub_resource type="BoxMesh" id="b44"]
-size = Vector3(10, 0.17, 0.22)
-material = ExtResource("r4")
-
-[sub_resource type="BoxMesh" id="b48"]
 size = Vector3(10, 0.17, 0.22)
 material = ExtResource("r4")
 
@@ -136,56 +135,87 @@ mesh = SubResource("b40")
 position = Vector3(0, 3.115, 0)
 mesh = SubResource("b44")
 
-[node name="CeilingBeam_3" type="MeshInstance3D" parent="Geometry" ]
-position = Vector3(0, 3.115, 2.79)
-mesh = SubResource("b48")
-
 [node name="fn_mascot_shelf_1" parent="Props" instance=ExtResource("r5")]
 position = Vector3(-3.4, 0, -3.95)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(0.0205, 0.0205, 0.0205)
 
 [node name="fn_mascot_shelf_2" parent="Props" instance=ExtResource("r5")]
-position = Vector3(-0.4, 0, -3.95)
-rotation_degrees = Vector3(0, 0, 0)
-scale = Vector3(0.0205, 0.0205, 0.0205)
-
-[node name="fn_mascot_shelf_3" parent="Props" instance=ExtResource("r5")]
 position = Vector3(2.6, 0, -3.95)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(0.0205, 0.0205, 0.0205)
 
 [node name="drawer_cabinet_1" parent="Props" instance=ExtResource("r6")]
+position = Vector3(-0.35, 0, -3.96)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="cardboard_box_01_1" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-0.9, 0.009, 1.25)
+rotation_degrees = Vector3(0, 12, 0)
+scale = Vector3(1.22, 1.22, 1.22)
+
+[node name="cardboard_box_01_2" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-0.42, 0.009, 1.45)
+rotation_degrees = Vector3(0, -8, 0)
+scale = Vector3(1.22, 1.22, 1.22)
+
+[node name="cardboard_box_01_3" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-0.91, 0.429, 1.25)
+rotation_degrees = Vector3(0, 7, 0)
+scale = Vector3(1.22, 1.22, 1.22)
+
+[node name="cardboard_box_01_4" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-2.8, 0.009, -2.66)
+rotation_degrees = Vector3(0, 12, 0)
+scale = Vector3(1.22, 1.22, 1.22)
+
+[node name="cardboard_box_01_5" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-2.32, 0.009, -2.63)
+rotation_degrees = Vector3(0, -5, 0)
+scale = Vector3(1.22, 1.22, 1.22)
+
+[node name="cardboard_box_01_6" parent="Props" instance=ExtResource("r7")]
+position = Vector3(3, 0.009, 1.4)
+rotation_degrees = Vector3(0, 24, 0)
+scale = Vector3(1.22, 1.22, 1.22)
+
+[node name="cardboard_box_01_7" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-3.75, 0.009, -2.52)
+rotation_degrees = Vector3(0, 30, 0)
+scale = Vector3(1.22, 1.22, 1.22)
+
+[node name="drawer_cabinet_2" parent="Props" instance=ExtResource("r6")]
 position = Vector3(-4.56, 0, 0.32)
 rotation_degrees = Vector3(0, 90, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="drawer_cabinet_2" parent="Props" instance=ExtResource("r6")]
+[node name="drawer_cabinet_3" parent="Props" instance=ExtResource("r6")]
 position = Vector3(-4.53, 0, -1.3)
 rotation_degrees = Vector3(0, 90, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="drawer_cabinet_3" parent="Props" instance=ExtResource("r6")]
+[node name="drawer_cabinet_4" parent="Props" instance=ExtResource("r6")]
 position = Vector3(3.82, 0, -0.78)
 rotation_degrees = Vector3(0, -85, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="metal_office_desk_1" parent="Props" instance=ExtResource("r7")]
+[node name="metal_office_desk_1" parent="Props" instance=ExtResource("r8")]
 position = Vector3(1.9, 0, 2.84)
 rotation_degrees = Vector3(0, -20, 0)
 scale = Vector3(0.76, 0.76, 0.76)
 
-[node name="metal_toolbox_1" parent="Props" instance=ExtResource("r8")]
+[node name="metal_toolbox_1" parent="Props" instance=ExtResource("r9")]
 position = Vector3(1.78, 0.6, 2.83)
 rotation_degrees = Vector3(0, -25, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="utility_box_01_1" parent="Props" instance=ExtResource("r9")]
+[node name="utility_box_01_1" parent="Props" instance=ExtResource("r10")]
 position = Vector3(-4.22, 0, 2.95)
 rotation_degrees = Vector3(0, 90, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="service_door_1" parent="Props" instance=ExtResource("r10")]
+[node name="service_door_1" parent="Props" instance=ExtResource("r11")]
 position = Vector3(4.86, 0, -2.63)
 rotation_degrees = Vector3(0, -90, 0)
 scale = Vector3(1, 1, 1)
@@ -194,7 +224,7 @@ scale = Vector3(1, 1, 1)
 position = Vector3(-1.9, 2.56, -4.46)
 rotation_degrees = Vector3(0, 0, 0)
 text = "КОСТЮМЕРНАЯ"
-font = ExtResource("r11")
+font = ExtResource("r12")
 font_size = 64
 pixel_size = 0.0034
 outline_size = 0
@@ -202,7 +232,7 @@ modulate = Color(0.46, 0.32, 0.18, 1)
 shaded = true
 double_sided = false
 
-[node name="hanging_industrial_lamp_1" parent="Props" instance=ExtResource("r12")]
+[node name="hanging_industrial_lamp_1" parent="Props" instance=ExtResource("r13")]
 position = Vector3(-1.5, 3.0932, -2.25)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(0.48, 0.48, 0.48)
@@ -211,6 +241,7 @@ scale = Vector3(0.48, 0.48, 0.48)
 position = Vector3(-1.5, 2.38, -2.25)
 light_color = Color(1, 0.7, 0.43, 1)
 light_energy = 3.25
+light_specular = 0.34
 omni_range = 6.5
 omni_attenuation = 1.22
 shadow_enabled = true
@@ -219,6 +250,7 @@ shadow_enabled = true
 position = Vector3(3.65, 2.33, 1.77)
 light_color = Color(0.43, 0.61, 0.7, 1)
 light_energy = 1.55
+light_specular = 0.34
 omni_range = 6
 omni_attenuation = 1.22
 shadow_enabled = true
@@ -268,3 +300,11 @@ far = 60.0
 
 [node name="RoomEnvironment" type="WorldEnvironment" parent="Lighting" ]
 environment = SubResource("env")
+
+[node name="ReflectedSpill" type="OmniLight3D" parent="Lighting"]
+position = Vector3(2.12,2.39,-1.88)
+light_color = Color(0.74, 0.65, 0.43, 1)
+light_energy = 1.7
+light_specular = 0.12
+omni_range = 6.4
+shadow_enabled = false

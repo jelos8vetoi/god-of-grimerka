@@ -5,12 +5,17 @@
 [ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/slate.tres" id="r3"]
 [ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/rack_console.glb" id="r4"]
 [ext_resource type="PackedScene" path="res://assets/fn_curated/models/metal_office_desk/metal_office_desk.gltf" id="r5"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/models/television_02/television_02.gltf" id="r6"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/models/utility_box_01/utility_box_01.gltf" id="r7"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/straight.gltf" id="r8"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/flange_thin.gltf" id="r9"]
-[ext_resource type="Font" path="res://assets/fonts/RussoOne-Regular.ttf" id="r10"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/models/hanging_industrial_lamp/hanging_industrial_lamp.gltf" id="r11"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase3/models/painted_wooden_chair_01/painted_wooden_chair_01.gltf" id="r6"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/wiring/cable_straight_long.gltf" id="r7"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/television_02/television_02.gltf" id="r8"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/utility_box_01/utility_box_01.gltf" id="r9"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/straight.gltf" id="r10"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/flange_thin.gltf" id="r11"]
+[ext_resource type="Font" path="res://assets/fonts/RussoOne-Regular.ttf" id="r12"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/hanging_industrial_lamp/hanging_industrial_lamp.gltf" id="r13"]
+
+[ext_resource type="Shader" path="res://scenes/five_nights/materials/booth_crt.gdshader" id="TubeShader"]
+[ext_resource type="Texture2D" path="res://scenes/five_nights/materials/surface_grain.tres" id="Dust"]
 
 [sub_resource type="BoxMesh" id="b0"]
 size = Vector3(10, 0.16, 9)
@@ -60,10 +65,6 @@ material = ExtResource("r3")
 size = Vector3(10, 0.17, 0.22)
 material = ExtResource("r3")
 
-[sub_resource type="BoxMesh" id="b48"]
-size = Vector3(10, 0.17, 0.22)
-material = ExtResource("r3")
-
 [sub_resource type="Environment" id="env"]
 background_mode = 1
 background_color = Color(0.04, 0.055, 0.062, 1)
@@ -71,6 +72,16 @@ ambient_light_source = 2
 ambient_light_color = Color(0.50, 0.61, 0.66, 1)
 ambient_light_energy = 0.24
 tonemap_mode = 2
+
+[sub_resource type="ShaderMaterial" id="Signal"]
+shader = ExtResource("TubeShader")
+shader_parameter/dust = ExtResource("Dust")
+shader_parameter/brightness = 0.3
+shader_parameter/static_channel = false
+
+[sub_resource type="QuadMesh" id="Tube"]
+material = SubResource("Signal")
+size = Vector2(0.28, 0.22)
 
 [node name="RoomRoot" type="Node3D" ]
 metadata/room_id = "server"
@@ -135,10 +146,6 @@ mesh = SubResource("b40")
 position = Vector3(0, 2.915, 0)
 mesh = SubResource("b44")
 
-[node name="CeilingBeam_3" type="MeshInstance3D" parent="Geometry" ]
-position = Vector3(0, 2.915, 2.79)
-mesh = SubResource("b48")
-
 [node name="rack_console_1" parent="Props" instance=ExtResource("r4")]
 position = Vector3(-3.15, 0, -2.45)
 rotation_degrees = Vector3(0, -90, 0)
@@ -174,82 +181,127 @@ position = Vector3(4.02, 0, 0.35)
 rotation_degrees = Vector3(0, -90, 0)
 scale = Vector3(0.83, 0.83, 0.83)
 
-[node name="television_02_1" parent="Props" instance=ExtResource("r6")]
+[node name="painted_wooden_chair_01_1" parent="Props" instance=ExtResource("r6")]
+position = Vector3(3.34, 0, 0.59)
+rotation_degrees = Vector3(0, -80, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="FeedCable_1" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-3.82, 2.14, -4.46)
+rotation_degrees = Vector3(90, 90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="FeedCable_2" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-3.22, 2.14, -4.46)
+rotation_degrees = Vector3(90, 90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="FeedCable_3" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-2.62, 2.14, -4.46)
+rotation_degrees = Vector3(90, 90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="FeedCable_4" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-2.02, 2.14, -4.46)
+rotation_degrees = Vector3(90, 90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="FeedCable_5" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-1.42, 2.14, -4.46)
+rotation_degrees = Vector3(90, 90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="FeedCable_6" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-0.82, 2.14, -4.46)
+rotation_degrees = Vector3(90, 90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="FeedCable_7" parent="Props" instance=ExtResource("r7")]
+position = Vector3(-0.22, 2.14, -4.46)
+rotation_degrees = Vector3(90, 90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="FeedCable_8" parent="Props" instance=ExtResource("r7")]
+position = Vector3(0.38, 2.14, -4.46)
+rotation_degrees = Vector3(90, 90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="television_02_1" parent="Props" instance=ExtResource("r8")]
 position = Vector3(4.02, 0.655, 0.48)
 rotation_degrees = Vector3(0, -90, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="utility_box_01_1" parent="Props" instance=ExtResource("r7")]
+[node name="utility_box_01_1" parent="Props" instance=ExtResource("r9")]
 position = Vector3(3.59, 0, -3.86)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="straight_1" parent="Props" instance=ExtResource("r8")]
+[node name="straight_1" parent="Props" instance=ExtResource("r10")]
 position = Vector3(-3.83, 2.62, -3.55)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="flange_thin_1" parent="Props" instance=ExtResource("r9")]
+[node name="flange_thin_1" parent="Props" instance=ExtResource("r11")]
 position = Vector3(-3.83, 2.62, -3.07889)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="straight_2" parent="Props" instance=ExtResource("r8")]
+[node name="straight_2" parent="Props" instance=ExtResource("r10")]
 position = Vector3(-3.83, 2.62, -2.60778)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="flange_thin_2" parent="Props" instance=ExtResource("r9")]
+[node name="flange_thin_2" parent="Props" instance=ExtResource("r11")]
 position = Vector3(-3.83, 2.62, -2.13667)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="straight_3" parent="Props" instance=ExtResource("r8")]
+[node name="straight_3" parent="Props" instance=ExtResource("r10")]
 position = Vector3(-3.83, 2.62, -1.66556)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="flange_thin_3" parent="Props" instance=ExtResource("r9")]
+[node name="flange_thin_3" parent="Props" instance=ExtResource("r11")]
 position = Vector3(-3.83, 2.62, -1.19445)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="straight_4" parent="Props" instance=ExtResource("r8")]
+[node name="straight_4" parent="Props" instance=ExtResource("r10")]
 position = Vector3(-3.83, 2.62, -0.72334)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="flange_thin_4" parent="Props" instance=ExtResource("r9")]
+[node name="flange_thin_4" parent="Props" instance=ExtResource("r11")]
 position = Vector3(-3.83, 2.62, -0.25223)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="straight_5" parent="Props" instance=ExtResource("r8")]
+[node name="straight_5" parent="Props" instance=ExtResource("r10")]
 position = Vector3(-3.83, 2.62, 0.21888)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="flange_thin_5" parent="Props" instance=ExtResource("r9")]
+[node name="flange_thin_5" parent="Props" instance=ExtResource("r11")]
 position = Vector3(-3.83, 2.62, 0.68999)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="straight_6" parent="Props" instance=ExtResource("r8")]
+[node name="straight_6" parent="Props" instance=ExtResource("r10")]
 position = Vector3(-3.83, 2.62, 1.1611)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="flange_thin_6" parent="Props" instance=ExtResource("r9")]
+[node name="flange_thin_6" parent="Props" instance=ExtResource("r11")]
 position = Vector3(-3.83, 2.62, 1.63221)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="straight_7" parent="Props" instance=ExtResource("r8")]
+[node name="straight_7" parent="Props" instance=ExtResource("r10")]
 position = Vector3(-3.83, 2.62, 2.10332)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
 
-[node name="flange_thin_7" parent="Props" instance=ExtResource("r9")]
+[node name="flange_thin_7" parent="Props" instance=ExtResource("r11")]
 position = Vector3(-3.83, 2.62, 2.57443)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(1, 1, 1)
@@ -258,7 +310,7 @@ scale = Vector3(1, 1, 1)
 position = Vector3(0.25, 2.46, -4.45)
 rotation_degrees = Vector3(0, 0, 0)
 text = "06   /   АРХИВ КОПИЙ"
-font = ExtResource("r10")
+font = ExtResource("r12")
 font_size = 64
 pixel_size = 0.0033
 outline_size = 0
@@ -270,6 +322,7 @@ double_sided = false
 position = Vector3(-1.8, 2.45, -0.66)
 light_color = Color(0.57, 0.79, 1, 1)
 light_energy = 3.4
+light_specular = 0.34
 omni_range = 6.3
 omni_attenuation = 1.22
 shadow_enabled = true
@@ -278,6 +331,7 @@ shadow_enabled = true
 position = Vector3(3.15, 2.1, -3.3)
 light_color = Color(0.95, 0.67, 0.38, 1)
 light_energy = 2.2
+light_specular = 0.34
 omni_range = 4.4
 omni_attenuation = 1.22
 shadow_enabled = true
@@ -286,11 +340,12 @@ shadow_enabled = true
 position = Vector3(-3.65, 2.62, 2.72)
 light_color = Color(0.38, 0.7, 0.74, 1)
 light_energy = 1.35
+light_specular = 0.34
 omni_range = 4.1
 omni_attenuation = 1.22
 shadow_enabled = true
 
-[node name="hanging_industrial_lamp_1" parent="Props" instance=ExtResource("r11")]
+[node name="hanging_industrial_lamp_1" parent="Props" instance=ExtResource("r13")]
 position = Vector3(-1.8, 2.99, -0.66)
 rotation_degrees = Vector3(0, 0, 0)
 scale = Vector3(0.34, 0.34, 0.34)
@@ -320,3 +375,9 @@ far = 60.0
 
 [node name="RoomEnvironment" type="WorldEnvironment" parent="Lighting" ]
 environment = SubResource("env")
+
+[node name="ServiceSignal" type="MeshInstance3D" parent="Props/television_02_1"]
+position = Vector3(-0.004, 0.225, 0.123)
+rotation = Vector3(0, 0, 0)
+mesh = SubResource("Tube")
+cast_shadow = 0

@@ -6,6 +6,7 @@ const ROOMS := [
 	preload("cam8_power_proposal.tscn")
 ]
 const NAMES := ["CAM 1   ГЛАВНЫЙ ЗАЛ", "CAM 2   ИГРОТЕКА", "CAM 3   КОСТЮМЕРНАЯ", "CAM 6   СЕРВЕРНАЯ", "CAM 8   ЭЛЕКТРОЩИТОВАЯ"]
+static var ir_registered := false
 var index := 0
 var room: Node3D
 var night := false
@@ -15,7 +16,9 @@ var facility := FNFacility.new()
 var energies := {}
 
 func _ready() -> void:
-	RenderingServer.global_shader_parameter_add("fn_ir", RenderingServer.GLOBAL_VAR_TYPE_VEC4, Vector4(0, -999, 0, 0))
+	if not ir_registered:
+		ir_registered = true
+		RenderingServer.global_shader_parameter_add("fn_ir", RenderingServer.GLOBAL_VAR_TYPE_VEC4, Vector4(0, -999, 0, 0))
 	add_child(facility)
 	add_child(cameras)
 	cameras.build(facility, get_world_3d())
@@ -42,7 +45,8 @@ func select_room(next: int) -> void:
 
 func apply_view() -> void:
 	for light: Light3D in energies:
-		light.light_energy = energies[light] * (0.24 if night else 1.0)
+		var reserve := 0.51 if ("Spill" in light.name or "Leak" in light.name) else 0.22
+		light.light_energy = energies[light] * (reserve if night else 1.0)
 	var env: Environment = room.get_node("Lighting/RoomEnvironment").environment
 	env.ambient_light_energy = 0.065 if night else 0.24
 	$Overlay/Feed.visible = filtered
@@ -72,5 +76,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func _exit_tree() -> void:
-	RenderingServer.global_shader_parameter_remove("fn_ir")
+	RenderingServer.global_shader_parameter_set("fn_ir", Vector4(0, -999, 0, 0))
+
+
 
