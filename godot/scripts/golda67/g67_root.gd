@@ -762,6 +762,7 @@ func district() -> Dictionary:
 ## Начать этап на месте: герой уже стоит там, где его вариант (у вешалки, у бокса, у лавки, у калитки), или в зоне боя.
 ## Двор не пересобирается и не сдвигается: меняются только арена боя, ограждения и награда.
 func enter_room(r: Dictionary) -> void:
+	call_deferred("_place_krot_pz")
 	flush_coins()
 	game.player.collision_mask |= 32          # слой 6: стенка проёма ограждения держит героя, враги проходят
 	_kiosk_hint()
@@ -2401,10 +2402,25 @@ func _scene_end() -> void:
 ## Следующая неувиденная встреча КРОТА (они идут по порядку); {} — все из сделанных увидены
 func krot_next() -> Dictionary:
 	var seen: Array = meta().get("seen", [])
+	var dn := "podzemka" if G67District.is_podzemka() else "yard"
 	for k in G67Data.KROT:
+		if String(k.get("district", "yard")) != dn:
+			continue
 		if not seen.has(String(k["id"])):
 			return k
 	return {}
+
+## Встречи КРОТА района 2: ставится по условиям позиции (G67Data.pz_krot_ok); зовётся при входе в комнату
+func _place_krot_pz() -> void:
+	if not G67District.is_podzemka() or not krot_k.is_empty() or run.is_empty():
+		return
+	var k := krot_next()
+	if k.is_empty():
+		return
+	var seen: Array = meta().get("seen", [])
+	if not G67Data.pz_krot_ok(String(k["id"]), int(run["pos"]), seen.has("krot4"), int(run.get("k4pos", -1))):
+		return
+	_place_krot(String(k["where"]))
 
 ## Поставить КРОТА, если его очередная встреча назначена на это место и нужная для сцены модель есть.
 ## Встреча не пропадает: пока игрок с ним не поговорил, он стоит тут в каждом забеге.
@@ -2495,6 +2511,7 @@ func _krot_tick(dt: float) -> void:
 		return
 	if kr == null or not is_instance_valid(kr) or krot_life == null:
 		return
+	_krot_sign(kr, dt)
 	# люстра в руках медленно поворачивается — он её рассматривает
 	if krot_item != null and is_instance_valid(krot_item) and krot_life.cur != "K2Show":
 		krot_item.rotate_y(dt * 0.35)
@@ -2515,6 +2532,7 @@ func _krot_tick(dt: float) -> void:
 	if game.dlg_i == krot_line:
 		return
 	krot_line = game.dlg_i
+	_krot_beat(krot_line)
 	var acts: Dictionary = krot_k.get("acts", {})
 	var line := String(game.dlg[krot_line]) if krot_line >= 0 and krot_line < game.dlg.size() else ""
 	if acts.has(krot_line):
@@ -2532,6 +2550,62 @@ func _krot_tick(dt: float) -> void:
 	elif line.begins_with("KR|"):
 		if not acts.has(krot_line - 2) or not (acts[krot_line - 2] is String):
 			krot_life.stage(String(krot_k.get("talk_clip", krot_k["pose"])), 0.4)
+
+var krot_sign_t := 0.0
+var krot_sign_cd := 0.0
+var krot_sign_lb: Label3D = null
+
+## Табличка над головой КРОТА 4: 1 с при подходе героя ближе 6 м, не чаще раза в 20 с
+func _krot_sign(kr, dt: float) -> void:
+	var txt := String(krot_k.get("sign", ""))
+	if txt == "":
+		return
+	krot_sign_cd = maxf(0.0, krot_sign_cd - dt)
+	if krot_sign_lb != null and is_instance_valid(krot_sign_lb):
+		krot_sign_t -= dt
+		if krot_sign_t <= 0.0:
+			krot_sign_lb.queue_free()
+			krot_sign_lb = null
+		return
+	if krot_sign_cd <= 0.0 and game.mode != "dlg" and (game.player.global_position - (kr as Node3D).global_position).length() < 6.0:
+		krot_sign_lb = Label3D.new()
+		krot_sign_lb.text = txt
+		krot_sign_lb.font_size = 56
+		krot_sign_lb.pixel_size = 0.004
+		krot_sign_lb.modulate = Color(1.0, 0.9, 0.3)
+		krot_sign_lb.outline_size = 12
+		krot_sign_lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		krot_sign_lb.shaded = false
+		world.add_child(krot_sign_lb)
+		krot_sign_lb.global_position = (kr as Node3D).global_position + Vector3(0, 2.25, 0)
+		krot_sign_t = 1.0
+		krot_sign_cd = 20.0
+		events.append(["krot_sign"])
+
+## Постановочные биты встреч района 2 по номеру реплики: монетка КРОТУ 4; врезка с доской и «дзынь» микроволновки у КРОТА 5
+func _krot_beat(i: int) -> void:
+	if int(krot_k.get("coin", -9)) == i:
+		game.fx.twinkle(game.player.global_position + Vector3(0, 1.2, 0.3), 12, Color(1, 0.85, 0.3), 0.8)
+		game.toast("Пять рублей — из голды ничего не списано")
+		events.append(["krot_coin"])
+	if int(krot_k.get("cut", -9)) == i:
+		game.banner("ШАХМАТЫ", "микроволновка стоит на месте ферзя", Color(0.9, 0.9, 0.6), 0.6)
+		events.append(["krot_cut"])
+	if int(krot_k.get("ding", -9)) == i:
+		var mw = world.district.get_node_or_null("microwave") if world != null and world.district != null else null
+		if mw != null:
+			var plate = mw.find_child("plate", true, false)
+			if plate != null:
+				plate.create_tween().tween_property(plate, "rotation:y", plate.rotation.y + TAU * 3.0, 2.2)
+			var lt := OmniLight3D.new()
+			lt.light_color = Color(1.0, 0.9, 0.6)
+			lt.light_energy = 1.2
+			lt.omni_range = 2.5
+			mw.add_child(lt)
+			lt.position = Vector3(0, 0.2, -0.2)
+			get_tree().create_timer(2.4).timeout.connect(lt.queue_free)
+		game.toast("дзынь")
+		events.append(["krot_ding"])
 
 ## После разговора: остаётся в своей позе (говорить больше не о чем) или уходит, унося вещь
 func _krot_after(kr: Rig) -> void:
@@ -2585,6 +2659,8 @@ func _krot_done(id: String) -> void:
 	meta()["archive"] = arch
 	save()
 	events.append(["krot_seen", id])
+	if id == "krot4" and not run.is_empty():
+		run["k4pos"] = int(run["pos"])
 	_krot_card(seen.size())
 	_note_new("Встреча с КРОТОМ: %s — запись в архиве у телевизора" % String(krot_k.get("title", id)))
 	if id == "krot3":

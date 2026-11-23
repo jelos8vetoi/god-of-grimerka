@@ -170,6 +170,7 @@ func run(g_, G_: Golda67) -> void:
 	await _save_resume()
 	await _enemy_checks()
 	await _slot_checks()
+	await _krot_checks()
 	await _bot_battles()
 
 ## --pz-perfzones: средний и 1 % low кадр по зонам боя (6 с после прогрева 3 с)
@@ -577,3 +578,55 @@ func _dark_shots() -> void:
 	for oe in g.enemies.duplicate():
 		if is_instance_valid(oe):
 			oe.queue_free()
+
+## КРОТ 4 / КРОТ 5: правило позиций на 300 сгенерированных забегах, постановка, табличка, сохранение в архив
+func _krot_checks() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 47
+	var bad := 0
+	var both := 0
+	for run_i in 300:
+		var seen4 := false
+		var k4pos := -1
+		var seen5 := false
+		var gap_bad := false
+		for pos in 6:
+			# игрок берёт встречу в случайной доступной позиции, но к концу забега — обязательно, если доступна
+			if not seen4 and G67Data.pz_krot_ok("krot4", pos, false, -1) and (rng.randf() < 0.5 or pos >= 4):
+				seen4 = true
+				k4pos = pos
+			elif seen4 and not seen5 and G67Data.pz_krot_ok("krot5", pos, true, k4pos) and (rng.randf() < 0.6 or pos == 5):
+				seen5 = true
+				if absi(pos - k4pos) < 2:
+					gap_bad = true
+		if gap_bad:
+			bad += 1
+		if seen4 and seen5:
+			both += 1
+	ok(bad == 0, "КРОТ 4 и 5 не на соседних позициях (300 забегов, нарушений %d; обе встречи состоялись в %d)" % [bad, both])
+	ok(both > 150 and G67Data.pz_krot_ok("krot5", 3, true, 1) and not G67Data.pz_krot_ok("krot5", 2, true, 1) and not G67Data.pz_krot_ok("krot5", 3, true, 2), "правило доступности встреч (после позиции 1 и 3, разрыв ≥ 2)")
+	# постановка КРОТА 4 в галерее
+	G.meta()["seen"] = []
+	G.run["pos"] = 1
+	G.krot_k = {}
+	G._place_krot("gallery")
+	await c.wait(0.4)
+	ok(G.krot_k.get("id", "") == "krot4" and G.world.actors.has("g67_krot"), "КРОТ 4 стоит в галерее после позиции 1")
+	P.global_position = Vector3(8.0, 0.05, -72.0)
+	await c.wait(0.6)
+	await c._cam_shot(g, "pz_krot4", Vector3(5.2, 1.8, -72.5), Vector3(9.3, 1.5, -74.2))
+	ok(G.krot_sign_lb != null or G.krot_sign_cd > 0.0, "над КРОТОМ 4 показана табличка «ЗАДАНИЕ: НАЙТИ 5 РУБЛЕЙ»")
+	G._krot_done("krot4")
+	await c.wait(0.3)
+	ok((G.meta().get("seen", []) as Array).has("krot4") and (G.meta().get("archive", []) as Array).has("krot4") and int(G.run.get("k4pos", -1)) == 1, "КРОТ 4: seen, архив и позиция запомнены")
+	# КРОТ 5 у микроволновки
+	G.run["pos"] = 3
+	G.krot_k = {}
+	G._place_krot("arcade")
+	await c.wait(0.4)
+	ok(G.krot_k.get("id", "") == "krot5", "КРОТ 5 стоит в зале автоматов после позиции 3")
+	P.global_position = Vector3(-38.0, 0.05, -108.0)
+	await c.wait(0.4)
+	await c._cam_shot(g, "pz_krot5", Vector3(-37.0, 1.9, -108.4), Vector3(-40.0, 1.0, -110.6))
+	G._krot_done("krot5")
+	await c.wait(0.2)

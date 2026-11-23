@@ -922,7 +922,7 @@ const KIOSK_SIGNS := {"kiosk_odds": "МЕЛОЧИ · ВСЁ ПО 8", "kiosk_keys
 const SCREEN_COLORS := [Color(0.3, 0.9, 1.0), Color(1.0, 0.3, 0.8), Color(0.4, 1.0, 0.5), Color(1.0, 0.8, 0.3), Color(0.5, 0.5, 1.0)]
 
 func _all_props() -> Array:
-	var skip := ["kiosk_odds", "kiosk_exchange", "kiosk_keys", "kiosk_socks", "kiosk_phones", "kiosk_shawarma", "shawarma_spit", "arcade_a", "arcade_b"]
+	var skip := ["microwave", "chess", "kiosk_odds", "kiosk_exchange", "kiosk_keys", "kiosk_socks", "kiosk_phones", "kiosk_shawarma", "shawarma_spit", "arcade_a", "arcade_b"]
 	var out: Array = []
 	for pr in PROPS:
 		if not String(pr[0]) in skip:
@@ -981,6 +981,9 @@ func _all_props() -> Array:
 	out.append(["mop", 31.5, -158.0, 1.0, 0.0, 1.0, false, true, null])
 	for hp in [[46.0, -146.0], [47.5, -143.0], [54.0, -144.5], [56.5, -147.5], [52.0, -142.0], [49.5, -148.5]]:
 		out.append(["hamster_a", hp[0], hp[1], _hash(hp[0], hp[1], 6.0) * 6.0, 0.0, 1.3, false, true, null])
+	out.append(["microwave", -39.0, -110.6, PI * -0.5, 0.9, 1.0, false, true, null])
+	out.append(["chess", -40.2, -110.6, 0.0, 0.9, 1.0, false, true, null])
+	_crate(Vector3(-39.6, 0.45, -110.6), Vector3(1.9, 0.9, 0.9))
 	out.append(["extinguisher", 2.0, -44.6, 0.0, 0.0, 1.0, false, true, null])
 	out.append(["extinguisher", -17.0, -112.5, 0.0, 0.0, 1.0, false, true, null])
 	_string_bulbs(bulbs)
@@ -1013,3 +1016,16 @@ func _string_bulbs(pts: Array) -> void:
 	mi.multimesh = mm
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
+
+func _crate(pos: Vector3, size: Vector3) -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color(0.45, 0.32, 0.18)
+	mt.roughness = 0.9
+	mi.material_override = mt
+	mi.position = pos
+	add_child(mi)
+	_collider(pos, size)
