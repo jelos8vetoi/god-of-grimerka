@@ -1,0 +1,102 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://assets/fn_curated/materials/concrete_floor_worn_02.tres" id="r1"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase2/materials/ceiling_interior.tres" id="r2"]
+[ext_resource type="Material" path="res://assets/fn_curated/materials/worn_plaster_wall.tres" id="r3"]
+[ext_resource type="Material" path="res://assets/fn_curated/materials/grey_plaster.tres" id="r4"]
+[ext_resource type="Script" path="res://scenes/fn_curated/phase2/arcade_display.gd" id="r5"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/arcade.glb" id="r6"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/hanging_industrial_lamp/hanging_industrial_lamp.gltf" id="r7"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/wiring/cable_lightswitch.gltf" id="r8"]
+
+[sub_resource type="BoxMesh" id="b0"]
+size = Vector3(4.15, 0.12, 4.2)
+material = ExtResource("r1")
+
+[sub_resource type="BoxMesh" id="b4"]
+size = Vector3(4.15, 0.12, 4.2)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b8"]
+size = Vector3(0.12, 2.9, 4.2)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b12"]
+size = Vector3(0.12, 2.9, 4.2)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b16"]
+size = Vector3(4.15, 2.9, 0.14)
+material = ExtResource("r4")
+
+[sub_resource type="Environment" id="room"]
+background_mode = 1
+background_color = Color(0.07, 0.082, 0.09, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.68, 0.75, 1)
+ambient_light_energy = 0.38
+tonemap_mode = 2
+
+[node name="ArcadeCorner" type="Node3D" ]
+script = ExtResource("r5")
+
+[node name="Floor" type="MeshInstance3D" parent="." ]
+position = Vector3(0, -0.06, 0)
+mesh = SubResource("b0")
+
+[node name="Ceiling" type="MeshInstance3D" parent="." ]
+position = Vector3(0, 2.96, 0)
+mesh = SubResource("b4")
+
+[node name="LeftWall" type="MeshInstance3D" parent="." ]
+position = Vector3(-2.135, 1.45, 0)
+mesh = SubResource("b8")
+
+[node name="RightWall" type="MeshInstance3D" parent="." ]
+position = Vector3(2.135, 1.45, 0)
+mesh = SubResource("b12")
+
+[node name="BackWall" type="MeshInstance3D" parent="." ]
+position = Vector3(0, 1.45, -2.1)
+mesh = SubResource("b16")
+
+[node name="World" type="WorldEnvironment" parent="." ]
+environment = SubResource("room")
+
+[node name="Cabinet" parent="." instance=ExtResource("r6")]
+position = Vector3(-0.56, 0, -1.28)
+rotation_degrees = Vector3(0, 13, 0)
+
+[node name="CabinetIdle" parent="." instance=ExtResource("r6")]
+position = Vector3(0.6, 0, -1.39)
+rotation_degrees = Vector3(0, -4, 0)
+
+[node name="UtilityLamp" parent="." instance=ExtResource("r7")]
+position = Vector3(-1.46, 3.68, -1.33)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="LampSwitch" parent="." instance=ExtResource("r8")]
+position = Vector3(-1.46, 1.27, -2.01)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Tungsten" type="OmniLight3D" parent="." ]
+position = Vector3(-1.43, 2.26, -1.04)
+light_color = Color(1, 0.73, 0.46, 1)
+light_energy = 3.4
+omni_range = 4.8
+omni_attenuation = 1.1
+shadow_enabled = true
+
+[node name="HallSpill" type="OmniLight3D" parent="." ]
+position = Vector3(1.65, 1.85, 0.35)
+light_color = Color(0.56, 0.75, 0.86, 1)
+light_energy = 1.65
+omni_range = 4
+omni_attenuation = 1.1
+shadow_enabled = true
+
+[node name="Camera" type="Camera3D" parent="." ]
+position = Vector3(1.16, 1.43, 1.87)
+rotation = Vector3(-0.104836, 0.406385, 0)
+fov = 48
+current = true

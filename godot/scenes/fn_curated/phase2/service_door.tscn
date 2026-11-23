@@ -1,0 +1,42 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/fn_curated/phase2/mechanism.gd" id="r1"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase2/materials/blue_metal_plate.tres" id="r2"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/service_door.glb" id="r3"]
+
+[sub_resource type="BoxMesh" id="b0"]
+size = Vector3(0.027, 2.035, 0.12)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b4"]
+size = Vector3(0.027, 2.035, 0.12)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b8"]
+size = Vector3(1.047, 0.026, 0.12)
+material = ExtResource("r2")
+
+[node name="ServiceDoor" type="Node3D" ]
+script = ExtResource("r1")
+hinged = true
+
+[node name="DoorFrame" type="Node3D" parent="." ]
+
+[node name="LeftJamb" type="MeshInstance3D" parent="DoorFrame" ]
+position = Vector3(-0.51, 1.0175, 0)
+mesh = SubResource("b0")
+
+[node name="RightJamb" type="MeshInstance3D" parent="DoorFrame" ]
+position = Vector3(0.51, 1.0175, 0)
+mesh = SubResource("b4")
+
+[node name="Head" type="MeshInstance3D" parent="DoorFrame" ]
+position = Vector3(0, 2.023, 0)
+mesh = SubResource("b8")
+
+[node name="HingePivot" type="Node3D" parent="." ]
+position = Vector3(-0.495, 0, 0.084)
+
+[node name="DoorLeaf" parent="HingePivot" instance=ExtResource("r3")]
+position = Vector3(0.495, 0, -0.084)
+rotation_degrees = Vector3(0, 0, 0)
