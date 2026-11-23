@@ -1,16 +1,11 @@
-## Интерфейс ночи «5 НОЧЕЙ С ПАХАНОМ» — минимальный, чтобы не ломать атмосферу: время и ночь, энергия с расходом
-## и прогнозом, планшет камер, субтитры звонка и реплик, ложные тревоги MOD, экран 6 AM, экран гибели,
-## «последний шанс» с генератором, пауза. Под интерфейсом — экранный шейдер в духе GOD OF GRIMERKA: монохром
-## с сохранённым красным, полутон в тенях, зерно, виньетка (сила — настройка).
-## Вёрстка — на дизайн-системе MGUI (mg_ui.gd), характер — старый охранный пульт: моноширинный текст, Russo One
-## только в часах и коротких заголовках. В будке на экране — часы (справа сверху), энергия (слева снизу) и на
-## первой ночи — плашки клавиш (справа снизу). На планшете картинка камеры крупная и чистая: название камеры и
-## метка времени — над ней, карта камер, состояние (пинг, приманка), клавиши и энергия — в боковой панели справа.
+## Будка, планшет камер и служебные экраны «5 НОЧЕЙ С ПАХАНОМ».
+## POST рисуется до интерфейса и обрабатывает будку. У видеосигнала свой шейдер.
 class_name FNUI
 extends CanvasLayer
 
 const RED := Color(0.86, 0.08, 0.06)
 const DIM := Color(0.75, 0.72, 0.66)
+const TabletShell := preload("res://scripts/five_nights/fn_tablet_shell.gd")
 const POST := """
 shader_type canvas_item;
 uniform sampler2D scr : hint_screen_texture, filter_linear_mipmap;
@@ -70,15 +65,19 @@ var sub_skip: Control
 var hint_box: VBoxContainer
 var tablet: Control
 var tablet_k := 0.0
+var tablet_velocity := 0.0
+var tablet_pose := -1.0
+var tablet_shell: TabletShell
+var tablet_face: Node2D
 var feed: TextureRect
 var cam_l: Label
 var stamp_l: Label
+var signal_l: Label
 var rec_dot: ColorRect
+var lost_panel: ColorRect
 var jam_l: Label
-var jam_sub: Label
 var ping_l: Label
-var lure_l: Label                  # приманка: подсказка в боковой панели планшета
-var side: PanelContainer            # боковая панель планшета: карта, состояние, клавиши, энергия
+var side: Control
 var map_box: Control
 var tab_power: Label
 var tab_eta: Label
@@ -128,14 +127,37 @@ var hint_left := 0.0
 var toast_l: Label
 var toast_t := 0.0
 var look_hint := false              # первая ночь: подсказка «как осмотреться»
-var cam_rows := {}                  # id камеры → строка в списке комнат планшета
-var act_lure: Dictionary = {}
-var act_fix: Dictionary = {}
+var act_lure: Label
+var act_fix: Label
+var act_reset: Label
 
-const SIDE_W := 268.0
 const EDGE := 24.0
-const MAP_SIZE := Vector2(236, 176)
-const CAM_BTN := Vector2(40, 24)
+const MAP_SIZE := Vector2(286, 264)
+const CAM_BTN := Vector2(34, 23)
+const TAB_INK := Color("#d2dacf")
+const TAB_MUTED_INK := Color("#a9b5a8")
+const TAB_MUTE := Color("#879483")
+const TAB_RULE := Color("#455349")
+const TAB_OK := Color("#a2bc9e")
+const TAB_WARN := Color("#e8bf7b")
+const TAB_FAULT := Color("#eb9989")
+const SIGNAL_TEXT := ["СИГНАЛ СТАБИЛЕН", "НАСТРОЙКА КАНАЛА", "ПОМЕХИ", "НЕТ СИГНАЛА", "СИНХРОНИЗАЦИЯ"]
+const MAP_ROOMS := {
+	"stage": [Vector2(80, 57), "ЗАЛ"],
+	"arcade": [Vector2(80, 58), "ИГРОВАЯ"],
+	"storage": [Vector2(69, 57), "СКЛАД"],
+	"hall_l": [Vector2(51, 65), "КОР. Л"],
+	"hall_r": [Vector2(51, 65), "КОР. П"],
+	"server": [Vector2(82, 57), "СЕРВЕРНАЯ"],
+	"vent": [Vector2(46, 60), "ШАХТА"],
+	"power": [Vector2(82, 57), "ПИТАНИЕ"],
+	"booth": [Vector2(79, 24), "ПОСТ"],
+}
+const MAP_LINKS := [
+	["storage", "arcade"], ["stage", "arcade"], ["arcade", "hall_l"],
+	["stage", "server"], ["server", "power"], ["power", "hall_r"],
+	["hall_l", "booth"], ["hall_r", "booth"],
+]
 
 func setup(r) -> void:
 	root = r
@@ -157,7 +179,7 @@ func setup(r) -> void:
 	add_child(hud)
 	# подсказки смены — слева посередине (энергия — слева снизу, пульт — внизу); молчат вне ночи и в скримере
 	tips = MGHints.new().setup("fn", MGHintsData.FN, "left", 0.42)
-	tips.hold_fn = func(): return root == null or root.state != "night" or (root.scare != null and root.scare.busy) or root.intro_t > 0.0
+	tips.hold_fn = func(): return root == null or root.state != "night" or (root.scare != null and root.scare.busy) or root.intro_t > 0.0 or tablet_k >= 0.60
 	add_child(tips)
 	# часы: ночь мелко, время крупно — справа сверху
 	clock_box = MGUI.vbox(0)
@@ -352,6 +374,11 @@ func _deck_tick(st: FNNight) -> void:
 
 ## начало ночи: на первой ночи нового сохранения пульт виден, в остальные — только если закреплён (F1)
 func night_begin(n: int, first_time: bool) -> void:
+	tablet_k = 0.0
+	tablet_velocity = 0.0
+	tablet_pose = -1.0
+	tablet.hide()
+	cam9_btn.hide()
 	deck_learn_left = DECK_LEARN if n == 0 and first_time else 0.0
 	hint_left = 0.0 if deck_pin or deck_learn_left > 0.0 else HINT_LEN
 	toast_t = 0.0
@@ -388,7 +415,7 @@ func _out(l: Label) -> Label:
 	l.add_theme_constant_override("outline_size", 5)
 	return l
 
-func _label(parent: Control, text: String, size: int, col: Color, font: Font) -> Label:
+func _label(parent: CanvasItem, text: String, size: int, col: Color, font: Font) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_override("font", font)
@@ -432,26 +459,7 @@ func _layout() -> void:
 	hint_box.reset_size()
 	hint_box.position = Vector2(s.x - EDGE - hint_box.get_combined_minimum_size().x, s.y - EDGE - hint_box.get_combined_minimum_size().y)
 	if tablet != null:
-		tablet.size = s
-		# картинка камеры: всё место слева от боковой панели, 16:9, по центру высоты
-		var aw := s.x - 2.0 * EDGE - SIDE_W - MGUI.S4
-		var ah := s.y - 2.0 * EDGE - 34.0
-		var fw := minf(aw, ah * 16.0 / 9.0)
-		var fh := fw * 9.0 / 16.0
-		feed.size = Vector2(fw, fh)
-		feed.position = Vector2(EDGE + (aw - fw) * 0.5, EDGE + 34.0 + (ah - fh) * 0.5)
-		cam_l.position = feed.position + Vector2(0, -28)
-		cam_l.size = Vector2(fw * 0.6, 22)
-		stamp_l.position = feed.position + Vector2(fw - 300 - 18, -26)
-		stamp_l.size = Vector2(300, 20)
-		rec_dot.position = feed.position + Vector2(fw - 10, -20)
-		jam_l.position = feed.position + Vector2(0, fh * 0.44)
-		jam_l.size = Vector2(fw, 30)
-		jam_sub.position = jam_l.position + Vector2(0, 34)
-		jam_sub.size = Vector2(fw, 22)
-		side.position = Vector2(feed.position.x + fw + MGUI.S4, feed.position.y)
-		side.size = Vector2(SIDE_W, fh)
-		side.custom_minimum_size = Vector2(SIDE_W, fh)
+		_pose_tablet()
 	if dark_box != null:
 		dark_box.reset_size()
 		dark_box.position = Vector2((s.x - dark_box.get_combined_minimum_size().x) * 0.5, s.y - 190)
@@ -461,152 +469,246 @@ func _layout() -> void:
 func _tablet() -> void:
 	tablet = Control.new()
 	tablet.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tablet.visible = false
+	tablet.hide()
 	add_child(tablet)
-	var bezel := ColorRect.new()
-	bezel.color = Color(0.015, 0.015, 0.018)
-	bezel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bezel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tablet.add_child(bezel)
+	tablet_shell = TabletShell.new()
+	tablet.add_child(tablet_shell)
+	tablet_face = Node2D.new()
+	tablet.add_child(tablet_face)
+
+	var screen := TabletShell.FEED
 	feed = TextureRect.new()
 	feed.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	feed.stretch_mode = TextureRect.STRETCH_SCALE
 	feed.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tablet.add_child(feed)
-	cam_l = MGUI.label("", "mono_m", RED)
-	cam_l.clip_text = true
-	tablet.add_child(cam_l)
-	stamp_l = MGUI.label("", "mono", MGUI.TEXT_2)
-	stamp_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	tablet.add_child(stamp_l)
-	rec_dot = ColorRect.new()
-	rec_dot.size = Vector2(10, 10)
-	rec_dot.color = RED
-	rec_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tablet.add_child(rec_dot)
-	# «нет сигнала» — по центру картинки: в этот момент картинки всё равно нет
-	jam_l = _out(MGUI.label("", "caps_l", Color(0.9, 0.9, 0.9)))
-	jam_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tablet.add_child(jam_l)
-	jam_sub = _out(MGUI.label("", "mono", MGUI.TEXT_2))
-	jam_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tablet.add_child(jam_sub)
-	# боковая панель
-	side = MGUI.panel(false, null, MGUI.S4)
-	side.mouse_filter = Control.MOUSE_FILTER_PASS
-	tablet.add_child(side)
-	var v := MGUI.vbox(MGUI.S3)
-	side.add_child(v)
-	v.add_child(MGUI.label("КАМЕРЫ", "caps"))
-	map_box = Control.new()
-	map_box.custom_minimum_size = MAP_SIZE
-	map_box.mouse_filter = Control.MOUSE_FILTER_PASS
+	feed.position = screen.position
+	feed.size = screen.size
+	tablet_face.add_child(feed)
+	cam_l = _tablet_label(tablet_face, "", Rect2(27, 11, 630, 29), 20, TAB_INK)
+	signal_l = _tablet_label(tablet_face, "", Rect2(716, 13, 346, 26), 16, TAB_MUTE, HORIZONTAL_ALIGNMENT_RIGHT)
+	rec_dot = _tablet_rect(tablet_face, Rect2(1072, 22, 8, 8), TAB_OK)
+
+	var lost_position := screen.get_center() - Vector2(206, 27)
+	lost_panel = _tablet_rect(tablet_face, Rect2(lost_position, Vector2(412, 54)), Color(0.06, 0.08, 0.07, 0.91))
+	_tablet_rect(lost_panel, Rect2(0, 0, 412, 1), TAB_WARN)
+	jam_l = _tablet_label(lost_panel, "", Rect2(0, 0, 412, 54), 22, TAB_INK, HORIZONTAL_ALIGNMENT_CENTER)
+	lost_panel.hide()
+
+	var panel := TabletShell.PANEL
+	side = Control.new()
+	side.position = panel.position
+	side.size = panel.size
+	side.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tablet_face.add_child(side)
+	_tablet_label(side, "ПЛАН КАМЕР", Rect2(14, 8, 185, 29), 19, TAB_INK)
+	_tablet_label(side, "КЛАВИШИ 1–8", Rect2(184, 10, 114, 25), 13, TAB_MUTED_INK, HORIZONTAL_ALIGNMENT_RIGHT)
+
+	map_box = _tablet_rect(side, Rect2(14, 43, MAP_SIZE.x, MAP_SIZE.y), Color("#1f2c26"))
+	map_box.clip_contents = true
 	map_box.draw.connect(_map_draw)
-	v.add_child(map_box)
 	for c in FNData.CAMS:
-		var b := _cam_btn(String(c["no"]), String(c["id"]))
-		b.position = (c["map"] as Vector2) * (MAP_SIZE - CAM_BTN)
-		map_btns[c["id"]] = b
-	cam9_btn = _cam_btn("9", "room9")
-	cam9_btn.position = (FNData.CAM9["map"] as Vector2) * (MAP_SIZE - CAM_BTN)
-	cam9_btn.visible = false
-	# список комнат: номер — это клавиша; выбранная подсвечена, сломанная — серая
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 2)
-	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(grid)
-	for c in FNData.CAMS:
-		var rl := MGUI.label("%s %s" % [c["no"], String(c["short"]) if c.has("short") else String(c["name"])], "mono_s", MGUI.TEXT_2)
-		rl.custom_minimum_size.x = (SIDE_W - 2.0 * MGUI.S4 - 8.0) * 0.5
-		rl.clip_text = true
-		rl.set_meta("audit_clip", true)
-		grid.add_child(rl)
-		cam_rows[c["id"]] = rl
-		(map_btns[c["id"]] as Button).tooltip_text = "КАМЕРА 0%s — %s" % [c["no"], c["name"]]
-	v.add_child(MGUI.hsep())
-	ping_l = MGUI.label("", "mono", RED, SIDE_W - 2.0 * MGUI.S4)
-	v.add_child(ping_l)
-	lure_l = MGUI.label("", "mono", MGUI.TEXT_2, SIDE_W - 2.0 * MGUI.S4)
-	lure_l.visible = false                     # прежняя строка приманки: её читают проверки, на экране — плашка ниже
-	v.add_child(lure_l)
-	# действия планшета — плашками: клавиша, название, состояние (как на пульте будки)
-	act_lure = _act(v, "L", "ПРИМАНКА")
-	act_fix = _act(v, "C", "ПЕРЕЗАПУСК КАМЕРЫ")
-	var sp := Control.new()
-	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(sp)
-	for row in [[["1–8", "выбрать камеру"]], [["Пробел", "закрыть планшет"]]]:
-		v.add_child(MGUI.hints(row))
-	v.add_child(MGUI.hsep())
-	tab_power = MGUI.label("", "mono_m", DIM)
-	v.add_child(tab_power)
-	tab_eta = MGUI.label("", "mono_s", MGUI.TEXT_2)
-	v.add_child(tab_eta)
+		var id: String = c["id"]
+		var b := _cam_btn(c["no"], id, c["name"])
+		b.position = _map_center(c) - CAM_BTN * 0.5 - Vector2(0, 5)
+		map_btns[id] = b
+	cam9_btn = _cam_btn("9", "room9", FNData.CAM9["name"])
+	cam9_btn.position = _map_center(FNData.CAM9) - CAM_BTN * 0.5
+	cam9_btn.hide()
 
-## плашка действия в боковой панели планшета: клавиша + название, ниже — состояние одной строкой
-func _act(parent: Control, key: String, title: String) -> Dictionary:
-	var p := PanelContainer.new()
-	var sb := MGUI.box(Color(0.07, 0.07, 0.08), 3, 1, Color(0.3, 0.3, 0.33), 8)
-	sb.content_margin_top = 5
-	sb.content_margin_bottom = 5
-	p.add_theme_stylebox_override("panel", sb)
-	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(p)
-	var v := MGUI.vbox(2)
-	p.add_child(v)
-	var top := MGUI.hbox(6)
-	v.add_child(top)
-	top.add_child(MGUI.keycap(key))
-	var nm := MGUI.label(title, "caps", MGUI.TEXT)
-	top.add_child(nm)
-	var stl := MGUI.label("", "mono_s", MGUI.TEXT_2, SIDE_W - 2.0 * MGUI.S4 - 18.0)
-	v.add_child(stl)
-	return {"panel": p, "sb": sb, "name": nm, "state": stl}
+	ping_l = _tablet_label(side, "", Rect2(15, 317, 286, 27), 16, TAB_MUTED_INK)
+	act_lure = _tablet_action(352, "L", "ПРИМАНКА")
+	act_fix = _tablet_action(403, "C", "ПЕРЕЗАПУСК КАМЕРЫ")
+	act_reset = _tablet_action(454, "R", "СБРОС СИСТЕМЫ")
 
-func _act_set(a: Dictionary, text: String, col: Color, on: bool, dis: bool) -> void:
-	(a["state"] as Label).text = text
-	(a["state"] as Label).add_theme_color_override("font_color", col)
-	(a["sb"] as StyleBoxFlat).border_color = col if on else Color(0.3, 0.3, 0.33)
-	(a["name"] as Label).add_theme_color_override("font_color", MGUI.TEXT_3 if dis else MGUI.TEXT)
-	(a["panel"] as Control).modulate.a = 0.6 if dis else 1.0
+	_tablet_rect(side, Rect2(14, 514, 286, 1), TAB_RULE)
+	tab_power = _tablet_label(side, "", Rect2(15, 523, 284, 28), 21, TAB_INK)
+	tab_eta = _tablet_label(side, "", Rect2(15, 554, 280, 24), 15, TAB_MUTED_INK)
+	_tablet_label(tablet_face, "ОБЛАКО   /   ПОСТ ОХРАНЫ", Rect2(27, 656, 360, 28), 18, TAB_MUTED_INK)
+	stamp_l = _tablet_label(tablet_face, "", Rect2(518, 656, 364, 28), 18, TAB_INK, HORIZONTAL_ALIGNMENT_CENTER)
+	_tablet_label(tablet_face, "ПРОБЕЛ  ОПУСТИТЬ", Rect2(1074, 656, 339, 28), 15, TAB_MUTED_INK, HORIZONTAL_ALIGNMENT_RIGHT)
 
-## план здания под кнопками камер: тонкие линии от комнат к будке
+func _tablet_label(parent: CanvasItem, value: String, rect: Rect2, font_size: int, ink: Color, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+	var label := _label(parent, value, font_size, ink, mono)
+	label.position = rect.position
+	label.size = rect.size
+	label.horizontal_alignment = align
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return label
+
+func _tablet_rect(parent: CanvasItem, rect: Rect2, ink: Color) -> ColorRect:
+	var fill := ColorRect.new()
+	fill.color = ink
+	fill.position = rect.position
+	fill.size = rect.size
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(fill)
+	return fill
+
+func _tablet_action(y: float, key: String, title: String) -> Label:
+	_tablet_rect(side, Rect2(14, y, 286, 1), TAB_RULE)
+	_tablet_rect(side, Rect2(15, y + 9, 23, 23), Color("#343d34"))
+	_tablet_label(side, key, Rect2(15, y + 9, 23, 23), 16, TAB_INK, HORIZONTAL_ALIGNMENT_CENTER)
+	_tablet_label(side, title, Rect2(46, y + 5, 245, 23), 15, TAB_INK)
+	return _tablet_label(side, "", Rect2(46, y + 26, 252, 22), 14, TAB_MUTED_INK)
+
+## Координаты камер и связи из прежней схемы. Контуры показывают помещения и шахту.
+func _map_center(c: Dictionary) -> Vector2:
+	return Vector2(16.0, 13.0) + (c["map"] as Vector2) * Vector2(252.0, 230.0)
+
 func _map_draw() -> void:
-	var c := map_box
-	var k := MAP_SIZE - CAM_BTN
-	var half := CAM_BTN * 0.5
-	var office := Vector2(0.5, 1.0) * k + Vector2(half.x, CAM_BTN.y)
-	var col := Color(1, 1, 1, 0.14)
-	var by := {}
-	for cm in FNData.CAMS:
-		by[cm["id"]] = (cm["map"] as Vector2) * k + half
-	for pr in [["storage", "arcade"], ["stage", "arcade"], ["arcade", "hall_l"], ["stage", "vent"], ["stage", "server"], ["server", "power"], ["power", "hall_r"]]:
-		c.draw_line(by[pr[0]], by[pr[1]], col, 1.0, true)
-	for id in ["hall_l", "hall_r", "vent"]:
-		c.draw_line(by[id], office, col, 1.0, true)
+	var wall := Color("#597064")
+	var room := Color("#293b31")
+	var lettering := Color("#b0c1ad")
+	for x in range(12, int(MAP_SIZE.x), 16):
+		map_box.draw_line(Vector2(x, 0), Vector2(x, MAP_SIZE.y), Color("#26362d"))
+	for y in range(12, int(MAP_SIZE.y), 16):
+		map_box.draw_line(Vector2(0, y), Vector2(MAP_SIZE.x, y), Color("#26362d"))
+	map_box.draw_rect(Rect2(Vector2.ZERO, MAP_SIZE), wall, false)
 
-func _cam_btn(no: String, id: String) -> Button:
-	var b := Button.new()
-	b.text = no
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_override("font", mono)
-	b.add_theme_font_size_override("font_size", MGUI.SMALL)
-	b.custom_minimum_size = CAM_BTN
-	b.size = CAM_BTN
-	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	var sb := MGUI.box(Color(0.1, 0.1, 0.11), 2, 1, Color(0.5, 0.5, 0.48), 0)
-	b.add_theme_stylebox_override("normal", sb)
-	var sh := sb.duplicate() as StyleBoxFlat
-	sh.bg_color = Color(0.35, 0.05, 0.04)
-	sh.border_color = RED
-	b.add_theme_stylebox_override("hover", sh)
-	b.add_theme_stylebox_override("pressed", sh)
-	b.pressed.connect(func(): root.pick_cam(id))
-	map_box.add_child(b)
-	return b
+	var centers := {}
+	for c in FNData.CAMS:
+		centers[c["id"]] = _map_center(c)
+	centers["booth"] = Vector2(142, 250)
+	for link in MAP_LINKS:
+		var a: Vector2 = centers[link[0]]
+		var b: Vector2 = centers[link[1]]
+		if link == ["stage", "arcade"]:
+			a.x -= 26.0
+		var vertical_first: bool = link[0].begins_with("hall") or link == ["stage", "arcade"]
+		var elbow := Vector2(a.x, b.y) if vertical_first else Vector2(b.x, a.y)
+		var path := PackedVector2Array([a, b] if elbow == a or elbow == b else [a, elbow, b])
+		map_box.draw_polyline(path, wall, 10.0)
+		map_box.draw_polyline(path, room, 8.0)
+	map_box.draw_dashed_line(centers["stage"], centers["booth"], wall, 2.0, 5.0)
+
+	for id in MAP_ROOMS:
+		var spec: Array = MAP_ROOMS[id]
+		var center: Vector2 = centers[id]
+		var extent: Vector2 = spec[0]
+		var rect := Rect2(center - extent * 0.5, extent)
+		map_box.draw_rect(rect, room if id != "booth" else Color("#34483b"))
+		map_box.draw_rect(rect, wall, false)
+		var offset := 4.0 if id == "booth" else 22.0
+		map_box.draw_string(mono, Vector2(rect.position.x, center.y + offset), spec[1], HORIZONTAL_ALIGNMENT_CENTER, rect.size.x, 11, lettering)
+
+func _cam_btn(no: String, id: String, room: String) -> Button:
+	var button := Button.new()
+	button.text = no.pad_zeros(2)
+	button.focus_mode = Control.FOCUS_NONE
+	button.custom_minimum_size = CAM_BTN
+	button.tooltip_text = "CAM %s · %s" % [button.text, room]
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_font_override("font", mono)
+	button.add_theme_font_size_override("font_size", 15)
+	button.add_theme_color_override("font_hover_color", TAB_INK)
+	button.add_theme_color_override("font_pressed_color", TAB_INK)
+	var hover := MGUI.box(Color("#3a493e"), 2, 1, TAB_MUTED_INK, 0)
+	button.add_theme_stylebox_override("normal", hover)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", hover)
+	button.pressed.connect(func(): root.pick_cam(id))
+	map_box.add_child(button)
+	button.size = CAM_BTN
+	return button
+
+func _camera_marker(button: Button, id: String, st: FNNight, interactive: bool) -> void:
+	button.mouse_filter = Control.MOUSE_FILTER_STOP if interactive else Control.MOUSE_FILTER_IGNORE
+	var active := id == st.cam
+	var failed := st.cam_broken(id)
+	var state := int(active) + int(failed) * 2
+	if button.get_meta("signal_style", -1) == state:
+		return
+	button.set_meta("signal_style", state)
+	var ink := TAB_WARN if active else (TAB_FAULT if failed else TAB_INK)
+	var fill := Color("#473d27") if active else Color("#18211b")
+	var edge := TAB_FAULT if failed else (TAB_WARN if active else Color("#5e7768"))
+	button.add_theme_color_override("font_color", ink)
+	button.add_theme_stylebox_override("normal", MGUI.box(fill, 2, 1, edge, 0))
+
+func _pose_tablet() -> void:
+	tablet_face.transform = tablet_shell.pose(tablet_k, _vs())
+	var screen_light := smoothstep(0.87, 0.985, tablet_k)
+	tablet_face.visible = screen_light > 0.0
+	tablet_face.modulate.a = screen_light
+
+## Критически затухающее движение. При смене цели скорость продолжается с текущего значения.
+func _tablet_motion(st: FNNight, dt: float) -> void:
+	if String(root.state) == "night":
+		var target := 1.0 if st.monitor and not st.power_out else 0.0
+		var rate := 20.0 if target > 0.0 else 26.0
+		var distance := tablet_k - target
+		var tangent := tablet_velocity + rate * distance
+		var decay := exp(-rate * dt)
+		tablet_velocity = (tablet_velocity - rate * tangent * dt) * decay
+		tablet_k = clampf(target + (distance + tangent * dt) * decay, 0.0, 1.0)
+		if absf(tablet_k - target) < 0.008 and absf(tablet_velocity) < 0.2:
+			tablet_k = target
+			tablet_velocity = 0.0
+	else:
+		# Скример MOD сам управляет tablet_k, обычный скример сбрасывает его перед ударом.
+		tablet_velocity = 0.0
+	tablet.visible = tablet_k > 0.0
+	if tablet.visible and tablet_k != tablet_pose:
+		tablet_pose = tablet_k
+		_pose_tablet()
+
+func _tablet_telemetry(st: FNNight, cams: FNCams, night_name: String, power_text: String, eta_text: String) -> void:
+	var id := cams.cur
+	var index := FNData.CAMS.find_custom(func(c): return c["id"] == id)
+	var room: String = FNData.CAM9["name"] if id == "room9" else st.cam_label(maxi(index, 0))
+	var channel := 9 if id == "room9" else maxi(index, 0) + 1
+	cam_l.text = "CAM %02d    %s" % [channel, room]
+	stamp_l.text = "%s   /   %s" % [night_name, st.clock()]
+
+	var state := cams.signal_state
+	var fault := state == FNCams.SignalState.LOST
+	var color := TAB_FAULT if fault else (TAB_OK if state == FNCams.SignalState.NORMAL else TAB_WARN)
+	signal_l.text = SIGNAL_TEXT[state]
+	signal_l.add_theme_color_override("font_color", color)
+	rec_dot.color = color
+	lost_panel.visible = fault
+	if fault:
+		if st.brown_t > 0.0:
+			jam_l.text = "ПЕРЕБОЙ ПИТАНИЯ"
+		elif st.cam_broken(id):
+			jam_l.text = "КАМЕРА НЕ ОТВЕЧАЕТ"
+		else:
+			jam_l.text = "НЕТ СИГНАЛА"
+
+	var bot: FNBot = st.enemies["bot"]
+	var ping := bot.ping_left > 0.0 and not st.glitches.has("leds_off")
+	ping_l.text = "CAM 06   /   ОЖИДАНИЕ"
+	if ping:
+		ping_l.text = ("ПИНГ ПРИНИМАЕТСЯ   %d С" if st.cam == "server" else "ПИНГ · ОТКРОЙ CAM 06   %d С") % ceili(bot.ping_left)
+	ping_l.add_theme_color_override("font_color", TAB_WARN if ping else TAB_MUTED_INK)
+
+	var can_lure := st.cam in FNNight.LURE_ROOMS
+	var lure_ready := can_lure and st.brown_t <= 0.0 and st.power > FNNight.LURE_POWER + 0.5 and st.lure_cd <= 0.0
+	if st.brown_t > 0.0:
+		act_lure.text = "Перебой питания"
+	elif not can_lure:
+		act_lure.text = "В комнате нет игрушки"
+	elif st.lure_cd > 0.0:
+		act_lure.text = "Зарядка · %d с" % ceili(st.lure_cd)
+	elif not lure_ready:
+		act_lure.text = "Мало энергии"
+	else:
+		act_lure.text = "Готова · −1,5 % энергии"
+	act_lure.add_theme_color_override("font_color", TAB_WARN if lure_ready else TAB_MUTED_INK)
+	act_fix.text = "Держи C · %d %%" % _repair_percent(st) if st.cam_broken(st.cam) else "Камера отвечает"
+	act_fix.add_theme_color_override("font_color", TAB_FAULT if st.cam_broken(st.cam) else TAB_MUTED_INK)
+	act_reset.text = "Система перезапускается" if st.cam_off_t > 0.0 else "Цена сброса · 2,5 % энергии"
+
+	tab_power.text = power_text
+	tab_power.add_theme_color_override("font_color", TAB_FAULT if st.power < 15.0 else TAB_INK)
+	tab_eta.text = eta_text
+	var interactive: bool = st.monitor and not root.paused and String(root.state) == "night" and tablet_k >= 0.95
+	for camera_id in map_btns:
+		_camera_marker(map_btns[camera_id], camera_id, st, interactive)
+	_camera_marker(cam9_btn, "room9", st, interactive)
+
+func _repair_percent(st: FNNight) -> int:
+	return int(st.fix_t / FNNight.FIX_NEED * 100.0)
 
 # ---------------- темнота и пауза ----------------
 func _dark() -> void:
@@ -659,7 +761,7 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 	post_mat.set_shader_parameter("t", t)
 	post_mat.set_shader_parameter("fx", fx_k)
 	post_mat.set_shader_parameter("hurt", maxf(hurt, g.haunt * 0.6))
-	post_mat.set_shader_parameter("booth", 1.0 if root.state == "night" and not st.monitor else 0.0)
+	post_mat.set_shader_parameter("booth", 1.0 if root.state == "night" else 0.0)
 	post_mat.set_shader_parameter("dark", 1.0 if st.power_out else 0.0)
 	inv_t = maxf(0.0, inv_t - dt)
 	post_mat.set_shader_parameter("inv", 1.0 if neg or (inv_t > 0.0 and fposmod(t, 0.12) < 0.08) else 0.0)
@@ -679,13 +781,13 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 	@warning_ignore("integer_division")
 	var e_txt := ("хватит на ~%d:%02d" % [int(eta) / 60, int(eta) % 60]) if not hide_usage and not st.power_out else ("нагрузка: нет данных" if hide_usage else "")
 	eta_l.text = e_txt
-	power_box.visible = not st.power_out
-	# планшет поднят — часы и энергия будки не нужны (на планшете свои), клавиши будки тоже
-	clock_box.visible = tablet_k < 0.5
+	_tablet_motion(st, dt)
+	clock_box.visible = tablet_k < 0.75
+	power_box.visible = tablet_k < 0.75 and not st.power_out
 	if String(root.state) == "night" and not root.paused and root.intro_t <= 0.0:
 		deck_learn_left = maxf(0.0, deck_learn_left - dt)
 		hint_left = maxf(0.0, hint_left - dt)
-	hint_box.visible = hint_left > 0.0 and not deck_shown and String(root.state) == "night"
+	hint_box.visible = tablet_k < 0.60 and hint_left > 0.0 and not deck_shown and String(root.state) == "night"
 	_deck_tick(st)
 	_toast_tick(st, dt)
 	# ложная тревога MOD
@@ -693,57 +795,11 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 	alarm_l.visible = alarm_t > 0.0 and fposmod(t, 0.5) < 0.35
 	msg_t = maxf(0.0, msg_t - dt)
 	msg_l.modulate.a = clampf(msg_t, 0.0, 1.0)
-	# планшет
-	var want := 1.0 if st.monitor else 0.0
-	tablet_k = move_toward(tablet_k, want, dt * 5.0)
-	tablet.visible = tablet_k > 0.01
-	tablet.position.y = (1.0 - ease(tablet_k, 0.4)) * _vs().y
 	if tablet.visible:
-		feed.material = cams.mat
-		var i := FNData.CAMS.map(func(c): return c["id"]).find(st.cam)
-		var label: String = FNData.CAM9["name"] if st.cam == "room9" else st.cam_label(maxi(i, 0))
-		var no := "9" if st.cam == "room9" else str(maxi(i, 0) + 1)
-		cam_l.text = "CAM %s · %s" % [no, label]
-		stamp_l.text = "%s · %s · REC" % [night_name, st.clock()]
-		rec_dot.visible = fposmod(t, 1.0) < 0.6
-		jam_sub.text = ""
-		if st.brown_t > 0.0:
-			jam_l.text = "ПЕРЕБОЙ ПИТАНИЯ"
-		elif st.cam_broken(st.cam):
-			jam_l.text = "КАМЕРА НЕ ОТВЕЧАЕТ"
-			jam_sub.text = "держи C — перезапуск %d %%" % int(st.fix_t / FNNight.FIX_NEED * 100.0)
-		else:
-			jam_l.text = "НЕТ СИГНАЛА" if st.cams_dead() else ("ПОМЕХИ" if st.jammed(st.cam) else "")
-		if st.monitor and st.cam in FNNight.LURE_ROOMS and st.brown_t <= 0.0:
-			lure_l.text = "Приманка: в этой комнате есть игрушка — L" if st.lure_cd <= 0.0 else "Приманка: ещё %d с" % ceili(st.lure_cd)
-			if st.lure_cd <= 0.0:
-				_act_set(act_lure, "ВКЛЮЧИТЬ: игрушка зашумит и уведёт врага сюда · −1,5 % энергии", MGUI.GOLD, true, false)
-			else:
-				_act_set(act_lure, "ЗАРЯЖАЕТСЯ: ещё %d с" % ceili(st.lure_cd), MGUI.WARN, false, true)
-		else:
-			lure_l.text = "Приманка: в этой комнате нет игрушки"
-			_act_set(act_lure, "НЕДОСТУПНО: в этой комнате нет игрушки" if st.brown_t <= 0.0 else "НЕДОСТУПНО: перебой питания", MGUI.TEXT_3, false, true)
-		if st.cam_broken(st.cam):
-			_act_set(act_fix, "ДЕРЖАТЬ C: перезапуск %d %%" % int(st.fix_t / FNNight.FIX_NEED * 100.0), RED, true, false)
-		else:
-			_act_set(act_fix, "НЕ НУЖЕН: камера отвечает", MGUI.TEXT_3, false, true)
-		var bot: FNBot = st.enemies["bot"]
-		if bot.ping_left > 0.0 and not st.glitches.has("leds_off"):
-			ping_l.text = "Сервер: пинг — %s · %d с" % ["принимаю…" if st.cam == "server" else "открой CAM 6", ceili(bot.ping_left)]
-		else:
-			ping_l.text = ""
-		ping_l.visible = ping_l.text != ""
-		tab_power.text = p_txt if not st.power_out else "ЭНЕРГИИ НЕТ"
-		tab_power.add_theme_color_override("font_color", p_col)
-		tab_eta.text = e_txt
-		# панель не растёт от смены текста: размер каждый кадр — по картинке камеры
-		side.size = Vector2(SIDE_W, feed.size.y)
-		for id in map_btns:
-			var b2: Button = map_btns[id]
-			b2.modulate = Color(1.0, 0.4, 0.35) if id == st.cam else (Color(0.55, 0.55, 0.55) if st.cam_broken(String(id)) else Color(1, 1, 1))
-			var rl2: Label = cam_rows[id]
-			rl2.add_theme_color_override("font_color", RED if id == st.cam else (MGUI.TEXT_3 if st.cam_broken(String(id)) else (MGUI.TEXT if b2.is_hovered() else MGUI.TEXT_2)))
-		cam9_btn.modulate = Color(1.0, 0.4, 0.35) if st.cam == "room9" else Color(1, 1, 1)
+		if String(root.state) == "scare":
+			cams.t += dt
+			cams.mat.set_shader_parameter("t", cams.t)
+		_tablet_telemetry(st, cams, night_name, p_txt, e_txt)
 
 func msg(text: String, sec := 3.0) -> void:
 	msg_l.text = text
@@ -897,5 +953,7 @@ func dead_card(killer: String, hint: String, buttons: Array) -> void:
 
 func show_pause(on: bool) -> void:
 	pause_box.visible = on
+	if on and not root.cams.capturing:
+		root.cams.vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	if on and pause_first != null:
 		pause_first.grab_focus.call_deferred()
