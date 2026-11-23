@@ -114,7 +114,7 @@ for k in range(5):
 rect("band", 0.03, 0.04, 0.2, -0.13, red, y=y0 - 0.012)
 # подпись и звезда
 rect("band_bot", W - 0.06, 0.1, 0, -H / 2 + 0.085, red, y=y0 - 0.02)
-C.text("sub", "ЧТО ИМЕННО — УТОЧНЯЕТСЯ", 0.034, (0, y0 - 0.0215, -H / 2 + 0.085), rot=(R(90), 0, 0), font=C.FONT_BOLD, extrude=0, m=cream2)
+C.text("sub", "Что именно — уточняется.", 0.03, (0, y0 - 0.0215, -H / 2 + 0.085), rot=(R(90), 0, 0), font=C.FONT_BOLD, extrude=0, m=cream2)
 for k in range(5):
     a = R(90 + k * 72)
     b = R(90 + k * 72 + 36)
@@ -123,6 +123,18 @@ disc("star", 0.04, -0.2, y0 - 0.0105, -0.2, gold, verts=5, rot=R(18))
 fold = flat("fold", (0.78, 0.7, 0.5))
 for (w, h, x, z) in ((W, 0.0025, 0, 0.0),):
     rect("fold", w, h, x, z, fold, y=y0 - 0.014)
+# старая бумага: зерно печати, крестовые сгибы, надорванный угол
+import random
+random.seed(3)
+speck = flat("speck", (0.55, 0.45, 0.3))
+for k in range(220):
+    disc("sp%d" % k, random.uniform(0.0015, 0.005), random.uniform(-W / 2 + 0.03, W / 2 - 0.03), y0 - 0.0155, random.uniform(-H / 2 + 0.03, H / 2 - 0.03), speck, verts=6)
+foldc = flat("foldc", (0.74, 0.66, 0.46))
+rect("foldv", 0.003, H, 0.0, 0.0, foldc, y=y0 - 0.0145)
+rect("foldv2", 0.002, H, -0.15, 0.0, foldc, rot=R(0.4), y=y0 - 0.0145)
+rect("foldh2", W, 0.002, 0, 0.2, foldc, y=y0 - 0.0145)
+torn = flat("torn", (0.3, 0.3, 0.32))
+disc("torn_corner", 0.07, W / 2 - 0.01, y0 - 0.03, H / 2 - 0.01, torn, verts=3, rot=R(35))
 cam_d = bpy.data.cameras.new("c")
 cam_d.type = "ORTHO"
 cam_d.ortho_scale = H

@@ -65,4 +65,5 @@ for k, (x, y, a, d1, d2) in enumerate(tiles):
             lx, ly = dx * 0.0068, half * 0.014 + dy * 0.0058
             P.append(C.cyl("pip", 0.0026, 0.002, (x + lx * ca - ly * sa, y + lx * sa + ly * ca, 0.0108), verts=6, bevel=0, m=M["ink"]))
 views = [((0.8, -0.85, 0.65), (0.0, -0.05, 0.08)), ((0.28, -0.45, 0.32), (0.0, 0.05, 0.02))]
+P = [C.join("g67_gazebo_set", P)]
 C.finish("g67_gazebo_set", P, views, size=2048)

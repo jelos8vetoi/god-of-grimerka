@@ -35,7 +35,7 @@ def _n(nt, typ, x, y, **kw):
     return n
 
 
-def mat(name, base, under=(0.28, 0.12, 0.06), rust=0.5, wear=0.45, dirt=0.6, rough=0.5, bump=0.35, scale=6.0, flat=False, grain=None):
+def mat(name, base, under=(0.28, 0.12, 0.06), rust=0.5, wear=0.45, dirt=0.6, rough=0.5, bump=0.35, scale=6.0, flat=False, grain=None, streaks=0.5):
     """Процедурный материал для запекания: base — краска, under — ржавчина/грунт под ней, wear — доля облезшей краски,
     dirt — грязь в углах и снизу, flat=True — без износа (стекло, бумага, резина)"""
     m = bpy.data.materials.new(name)
@@ -57,7 +57,7 @@ def mat(name, base, under=(0.28, 0.12, 0.06), rust=0.5, wear=0.45, dirt=0.6, rou
     n1.inputs["Roughness"].default_value = 0.6
     nt.links.new(tc.outputs["Object"] if grain is None else tc.outputs["Vector"], n1.inputs["Vector"])
     n2 = _n(nt, "ShaderNodeTexNoise", -1100, 0, noise_dimensions="3D")
-    n2.inputs["Scale"].default_value = scale * 7.0
+    n2.inputs["Scale"].default_value = scale * 2.5
     n2.inputs["Detail"].default_value = 4.0
     nt.links.new(tc.outputs["Object"] if grain is None else tc.outputs["Vector"], n2.inputs["Vector"])
     vor = _n(nt, "ShaderNodeTexVoronoi", -1100, -300, voronoi_dimensions="3D", feature="DISTANCE_TO_EDGE")
@@ -84,10 +84,10 @@ def mat(name, base, under=(0.28, 0.12, 0.06), rust=0.5, wear=0.45, dirt=0.6, rou
     nt.links.new(add.outputs["Value"], add2.inputs[0])
     mulv = _n(nt, "ShaderNodeMath", -650, -250, operation="MULTIPLY")
     nt.links.new(n2.outputs["Fac"], mulv.inputs[0])
-    mulv.inputs[1].default_value = 0.35
+    mulv.inputs[1].default_value = 0.12
     nt.links.new(mulv.outputs["Value"], add2.inputs[1])
     ramp = _n(nt, "ShaderNodeValToRGB", -250, 250)
-    thr = 1.35 - wear * 0.9
+    thr = 1.55 - wear * 0.8
     ramp.color_ramp.elements[0].position = thr
     ramp.color_ramp.elements[1].position = thr + 0.07
     nt.links.new(add2.outputs["Value"], ramp.inputs["Fac"])
@@ -99,7 +99,7 @@ def mat(name, base, under=(0.28, 0.12, 0.06), rust=0.5, wear=0.45, dirt=0.6, rou
     paint = _n(nt, "ShaderNodeRGB", -650, 850)
     paint.outputs[0].default_value = (*base, 1)
     pv = _n(nt, "ShaderNodeMixRGB", -450, 800, blend_type="MULTIPLY")
-    pv.inputs["Fac"].default_value = 0.0 if flat else 0.35
+    pv.inputs["Fac"].default_value = 0.0 if flat else 0.12
     nt.links.new(paint.outputs[0], pv.inputs["Color1"])
     nt.links.new(n2.outputs["Color"], pv.inputs["Color2"])
     chip = _n(nt, "ShaderNodeMixRGB", -50, 500)
@@ -127,7 +127,7 @@ def mat(name, base, under=(0.28, 0.12, 0.06), rust=0.5, wear=0.45, dirt=0.6, rou
     dm.use_clamp = True
     dn = _n(nt, "ShaderNodeMath", -250, -1100, operation="MULTIPLY")
     nt.links.new(dm.outputs["Value"], dn.inputs[0])
-    nt.links.new(n2.outputs["Fac"], dn.inputs[1])
+    nt.links.new(n1.outputs["Fac"], dn.inputs[1])
     dsc = _n(nt, "ShaderNodeMath", -50, -1100, operation="MULTIPLY")
     dsc.inputs[1].default_value = dirt * 1.6
     dsc.use_clamp = True
@@ -136,12 +136,34 @@ def mat(name, base, under=(0.28, 0.12, 0.06), rust=0.5, wear=0.45, dirt=0.6, rou
     nt.links.new(chip.outputs["Color"], grime.inputs["Color1"])
     grime.inputs["Color2"].default_value = (0.05, 0.04, 0.03, 1)
     nt.links.new(dsc.outputs["Value"], grime.inputs["Fac"])
-    nt.links.new(grime.outputs["Color"], pb.inputs["Base Color"])
+    # подтёки: шум, вытянутый вниз по Z, ржавым поверх, сильнее у кромок и снизу
+    mpS = _n(nt, "ShaderNodeMapping", 300, 900)
+    mpS.inputs["Scale"].default_value = (scale * 2.5, scale * 2.5, scale * 0.12)
+    nt.links.new((tc.outputs["Vector"] if grain is not None else tc.outputs["Object"]), mpS.inputs["Vector"])
+    nS = _n(nt, "ShaderNodeTexNoise", 500, 900, noise_dimensions="3D")
+    nS.inputs["Scale"].default_value = 1.0
+    nS.inputs["Detail"].default_value = 3.0
+    nt.links.new(mpS.outputs["Vector"], nS.inputs["Vector"])
+    rS = _n(nt, "ShaderNodeValToRGB", 700, 900)
+    rS.color_ramp.elements[0].position = 0.62
+    rS.color_ramp.elements[1].position = 0.74
+    nt.links.new(nS.outputs["Fac"], rS.inputs["Fac"])
+    sm = _n(nt, "ShaderNodeMath", 900, 900, operation="MULTIPLY")
+    sm.inputs[1].default_value = 0.0 if flat else streaks * 0.45
+    nt.links.new(rS.outputs["Alpha"], sm.inputs[0])
+    sc2 = _n(nt, "ShaderNodeMath", 1050, 900, operation="MULTIPLY")
+    nt.links.new(sm.outputs["Value"], sc2.inputs[0])
+    nt.links.new(zr.outputs["Result"], sc2.inputs[1])
+    sx = _n(nt, "ShaderNodeMixRGB", 1250, 600)
+    nt.links.new(grime.outputs["Color"], sx.inputs["Color1"])
+    sx.inputs["Color2"].default_value = (*[c * 0.7 for c in under], 1)
+    nt.links.new(sc2.outputs["Value"], sx.inputs["Fac"])
+    nt.links.new(sx.outputs["Color"], pb.inputs["Base Color"])
     # шероховатость: краска гладче, ржавчина и грязь шершавее
     rmix = _n(nt, "ShaderNodeMath", 300, 0, operation="ADD")
     rmix.use_clamp = True
     rsc = _n(nt, "ShaderNodeMath", 50, 0, operation="MULTIPLY")
-    rsc.inputs[1].default_value = 0.4
+    rsc.inputs[1].default_value = 0.55
     if flat:
         rsc.inputs[0].default_value = 0.0
     else:
@@ -160,7 +182,7 @@ def mat(name, base, under=(0.28, 0.12, 0.06), rust=0.5, wear=0.45, dirt=0.6, rou
     bp = _n(nt, "ShaderNodeBump", 1100, -300)
     bp.inputs["Strength"].default_value = bump
     bp.inputs["Distance"].default_value = 0.02
-    nt.links.new(n2.outputs["Fac"], bp.inputs["Height"])
+    nt.links.new(n1.outputs["Fac"], bp.inputs["Height"])
     if not flat:
         nt.links.new(bp.outputs["Normal"], pb.inputs["Normal"])
     pb.inputs["Metallic"].default_value = 0.0
@@ -282,8 +304,8 @@ def cable(name, pts, r=0.008, m=None, res=4):
     cu = bpy.data.curves.new(name, "CURVE")
     cu.dimensions = "3D"
     cu.bevel_depth = r
-    cu.bevel_resolution = 2
-    cu.resolution_u = res
+    cu.bevel_resolution = 1
+    cu.resolution_u = max(2, res - 1)
     sp = cu.splines.new("BEZIER")
     sp.bezier_points.add(len(pts) - 1)
     for p, v in zip(sp.bezier_points, pts):

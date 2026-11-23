@@ -107,8 +107,8 @@ P.append(C.torus("bag_tape", 0.043, 0.012, (0.235, -0.16, 0.5), rot=(0, R(90), 0
 # гофрошланг (узел hose, ось у бака) с воронкой из ведра
 hpts = [(-0.14, -0.27, 0.43), (-0.2, -0.45, 0.35), (-0.33, -0.55, 0.22), (-0.48, -0.62, 0.17)]
 hose_parts = [C.cable("hose_tube", hpts, r=0.031, m=M["hosec"], res=6)]
-for k in range(7):
-    t = k / 6.0
+for k in range(10):
+    t = k / 9.0
     # точка на ломаной с кубическим сглаживанием
     seg_i = min(2, int(t * 3))
     u = t * 3 - seg_i
@@ -127,5 +127,16 @@ P.append(C.cyl("hose_port", 0.045, 0.06, (-0.14, -0.28, 0.43), rot=(R(90), 0, 0)
 P.append(C.cable("wire", [(0.2, 0.0, 0.4), (0.08, -0.12, 0.34), (-0.05, -0.2, 0.46), (-0.12, -0.18, 0.56)], r=0.006, m=M["tape"]))
 P.append(C.cyl("motor_tape", 0.115, 0.03, (0.3, 0.1, 0.27), verts=14, bevel=0, m=M["tape"]))
 
+# круглый люк-иллюминатор стиралки спереди, сколы, рёбра охлаждения, верёвка на мешке, ручка воронки
+P.append(C.torus("port_ring", 0.11, 0.02, (-0.14, -0.318, 0.42), rot=(R(90), 0, 0), ms=20, mn=6, m=M["steel"]))
+P.append(C.cyl("port_glass", 0.1, 0.012, (-0.14, -0.322, 0.42), rot=(R(90), 0, 0), verts=20, bevel=0, m=M["hosec"]))
+for a in range(8):
+    P.append(C.box("port_bolt", (0.014, 0.01, 0.014), (-0.14 + 0.13 * math.cos(R(a * 45)), -0.325, 0.42 + 0.13 * math.sin(R(a * 45))), bevel=0, m=M["rust"], seg=1))
+for k in range(6):
+    P.append(C.box("fin%d" % k, (0.19, 0.012, 0.014), (0.3, 0.1, 0.405 + k * 0.014), bevel=0, m=M["steel"], seg=1))
+P.append(C.torus("bag_rope", 0.046, 0.007, (0.226, -0.16, 0.5), rot=(0, R(90), 0), ms=10, mn=4, m=M["cloth"]))
+P.append(C.torus("bucket_handle", 0.16, 0.007, (-0.56, -0.66, 0.27), rot=(R(70), 0, R(8)), ms=16, mn=3, m=M["steel"]))
+for k in range(3):
+    P.append(C.box("tank_streak%d" % k, (0.02 + 0.01 * k, 0.004, 0.3 + 0.08 * k), (-0.3 + k * 0.05, -0.263, 0.46 - 0.05 * k), rot=(0, 0, R(-2)), bevel=0, m=M["rust"], seg=1))
 views = [((1.9, -1.9, 1.35), (0.0, 0.0, 0.42)), ((0.55, -1.05, 0.62), (-0.14, -0.2, 0.52))]
 C.finish("g67_puhosos", P, views, size=2048)

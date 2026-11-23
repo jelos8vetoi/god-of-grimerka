@@ -18,6 +18,7 @@ M = {
     "paper": C.mat("paper", (0.86, 0.84, 0.76), flat=True, dirt=0.7, rough=0.9),
     "ink": C.mat("ink", (0.03, 0.03, 0.04), flat=True, dirt=0.0, rough=0.8),
     "cable": C.mat("cable", (0.04, 0.045, 0.05), flat=True, dirt=0.6, rough=0.55),
+    "gold": C.mat("gold", (0.78, 0.6, 0.22), under=(0.4, 0.28, 0.1), wear=0.3, dirt=0.7, rough=0.35, scale=200),
     "screw": C.mat("screw", (0.3, 0.3, 0.3), under=(0.3, 0.14, 0.07), wear=0.6, dirt=0.8, rough=0.5, scale=300),
 }
 parts = []
@@ -90,6 +91,13 @@ for k in range(7):
     parts.append(C.torus("rib%d" % k, 0.0095, 0.0022, (0.09 - 0.004 * (k / 6.0), -0.03 - 0.005 * math.sin(k / 6.0 * 3.14), z), ms=10, mn=4, m=M["cable"]))
 
 # шестерня файла: объекты одним атласом
+# ржавые потёки от винтов, латунь на стёртой кнопке 8, следы содранных наклеек
+for sx in (-0.128, 0.128):
+    for sz in (0.02, 0.43):
+        parts.append(C.box("streak", (0.006, 0.0015, 0.09 if sz > 0.3 else 0.06), (sx, -0.0585, sz - 0.05), bevel=0, m=M["screw"], seg=1))
+parts.append(C.cyl("brass8", 0.0105, 0.002, (0.0, -0.0638, 0.196 - 0.049 * 2), rot=(math.radians(90), 0, 0), verts=12, bevel=0, m=M["gold"]))
+for k in range(4):
+    parts.append(C.box("scrap%d" % k, (0.028, 0.0012, 0.02), (-0.09 + k * 0.045, -0.0585, 0.152 + (k % 2) * 0.012), rot=(0, math.radians(k * 17), 0), bevel=0, m=M["paper"], seg=1))
 views = [((0.62, -0.95, 0.55), (0.0, -0.04, 0.23)), ((0.16, -0.36, 0.22), (0.0, -0.05, 0.19))]
 wall = C.box("wallbg", (1.0, 0.1, 1.0), (0, 0.05, 0.5), bevel=0)
 C.finish("g67_intercom", parts, views)

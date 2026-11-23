@@ -109,5 +109,13 @@ ant = C.join("antenna", segs)
 C.pivot(ant, base)
 P.append(ant)
 
+# хромированные уголки, шов корпуса и отломанная клавиша деки
+for sx in (-1, 1):
+    for sz in (-1, 1):
+        P.append(C.box("chrome", (0.03, 0.03, 0.03), (sx * 0.195, -0.07, zb + sz * 0.088), bevel=0.004, m=M["steel"], seg=1))
+P.append(C.box("seam", (0.4, 0.003, 0.003), (0, 0.0, zb + 0.096), bevel=0, m=M["dark"], seg=1))
+P.append(C.box("broken_key", (0.026, 0.004, 0.005), (0.0575, -0.092, zb - 0.0715), rot=(0, R(25), 0), bevel=0, m=M["steel"], seg=1))
+for k in range(3):
+    P.append(C.box("cell_div", (0.004, 0.002, 0.06), (-0.075 + k * 0.15, -0.1535, 0.085), bevel=0, m=M["crate"], seg=1))
 views = [((0.8, -1.0, 0.7), (0.06, 0.0, 0.26)), ((0.17, -0.4, 0.32), (0.04, -0.08, 0.26))]
 C.finish("g67_garage_radio", P, views)

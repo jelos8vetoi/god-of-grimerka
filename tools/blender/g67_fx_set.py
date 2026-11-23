@@ -202,4 +202,5 @@ for nm, fn in BUILD.items():
     C.reset()
     M = mats()
     P, views = fn(M)
+    P = [C.join("g67_fx_" + nm, P)]          # одна сетка: сотни экземпляров на фасадах — один вызов отрисовки
     C.finish("g67_fx_" + nm, P, views)
