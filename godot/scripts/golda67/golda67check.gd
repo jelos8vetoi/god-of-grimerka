@@ -242,8 +242,9 @@ func _run() -> void:
 		await _clip_bg_check(g, G)
 		_finish()
 		return
-	if OS.get_cmdline_user_args().has("--g67-pz") or OS.get_cmdline_user_args().has("--pz-perfzones"):
+	if OS.get_cmdline_user_args().has("--g67-pz") or OS.get_cmdline_user_args().has("--pz-perfzones") or OS.get_cmdline_user_args().has("--g67-fz"):
 		var pc := PodzemkaCheck.new()
+		pc.fz_only = OS.get_cmdline_user_args().has("--g67-fz")
 		pc.perf_only = OS.get_cmdline_user_args().has("--pz-perfzones")
 		pc.c = self
 		await pc.run(g, G)

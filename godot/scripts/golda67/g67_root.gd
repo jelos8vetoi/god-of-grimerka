@@ -1317,6 +1317,7 @@ func enter_room(r: Dictionary) -> void:
 			game.boss_e = b
 			if pz and bid == "g67_fortuna":
 				arena_setup(b)
+				await fortuna_intro(b)
 			var bd: Dictionary = game.story["BOSS"][bid]
 			game.boss_name.text = "%s — %s" % [bd["n"], bd["sub"]]
 			if not pz:
@@ -1676,6 +1677,10 @@ func on_kill(e) -> void:
 	if not G67Data.FOES.has(foe):
 		return                            # призванные боссом голды и лечения не дают
 	run["kills"] = int(run.get("kills", 0)) + 1
+	var sc := fit_lv("spare_change")
+	if sc > 0 and int(run["kills"]) % [5, 4, 3][sc - 1] == 0:
+		add_golda(4)
+		events.append(["spare_change"])
 	var base_g := int(G67Data.FOES[foe]["golda"])
 	if foe == "smotr":
 		for k in 3:
@@ -3379,6 +3384,9 @@ func dmg_now() -> float:
 	var p = game.player
 	if has_art("cracked_phone") and p.hp < p.max_hp * 0.35:
 		k *= 1.25
+	var rc := fit_lv("receipt")
+	if rc > 0:
+		k *= 1.0 + minf(0.30, float(int(run.get("golda", 0)) / 25) * [0.03, 0.05][rc - 1])
 	return minf(G67Data.DMG_CAP_ALL, k)
 
 ## Постоянные эффекты артефактов и ВОССТАНОВЛЕНИЕ АВТОРИТЕТА — каждый кадр; в подъезде всё возвращается к 1
@@ -3483,6 +3491,11 @@ func kiosk_buy(id: String) -> String:
 	var paid := kiosk_price(id)
 	run["golda"] = int(run["golda"]) - paid
 	run["spent"] = int(run.get("spent", 0)) + paid
+	var cb := fit_lv("cashback")
+	if cb > 0:
+		var back := int(round(float(paid) * [0.08, 0.14, 0.20][cb - 1]))
+		run["golda"] = int(run["golda"]) + back
+		events.append(["cashback", back])
 	var bought: Dictionary = run["kiosk"]
 	bought[id] = int(bought.get(id, 0)) + 1
 	var p = game.player
@@ -3511,6 +3524,12 @@ func kiosk_buy(id: String) -> String:
 	return got
 
 # ---------------------------------------------------------------- фитсы
+## Бафы семейства FORTUNA предлагаются в районе 2 и в общем пуле после победы над ней
+func fit_avail(id: String) -> bool:
+	if String(G67Data.FITS[id]["family"]) != "fortuna":
+		return true
+	return String(run.get("district", "")) == "podzemka" or bool((meta().get("flags", {}) as Dictionary).get("boss_fortuna", false))
+
 func fit_lv(id: String) -> int:
 	return int((run.get("fits", {}) as Dictionary).get(id, 0))
 
@@ -3519,6 +3538,8 @@ func fit_options(rare: bool) -> Array:
 	var common: Array = []
 	var rares: Array = []
 	for id in G67Data.FITS:
+		if not fit_avail(id):
+			continue
 		if fit_lv(id) < int(G67Data.FITS[id]["lv"]):
 			if bool(G67Data.FITS[id]["rare"]):
 				rares.append(id)
@@ -3575,7 +3596,10 @@ func take_fit(id: String) -> void:
 ## Пересчитать усиления забега. Исходные данные стилей не меняются: только множитель урона героя и его здоровье.
 func apply_fits(just := "") -> void:
 	var p = game.player
-	fit_mul = minf(G67Data.DMG_CAP, 1.0 + 0.12 * float(fit_lv("heavy_hand")) + 0.04 * float(up("dmg")))
+	var tar := 0.06 * float(fit_lv("tariff")) if not bool((meta().get("flags", {}) as Dictionary).get("boss_misha", false)) else 0.0
+	fit_mul = minf(G67Data.DMG_CAP, 1.0 + 0.12 * float(fit_lv("heavy_hand")) + 0.04 * float(up("dmg")) + tar)
+	if just == "tariff":
+		p.combat.ammo["bottles"] = float(p.combat.ammo_of("bottles")) + 1.0
 	p.dmg_mul = dmg_now()
 	var want := hp_max() + 20.0 * float(fit_lv("authority")) + (20.0 if has_art("beanie") else 0.0) + G67Data.KIOSK_MAXHP * float(run.get("maxhp_buys", 0))
 	if want != p.max_hp:
@@ -3623,6 +3647,157 @@ func _note_new(text: String) -> void:
 		nw.append(text)
 	run["new"] = nw
 
+## Вступление боя (PZ_BOSS_IN): первый раз полностью (~30 с), дальше коротко (6–8 с); удержание [E] — пропуск; в проверках — сжато
+var fz_skip := 0.0
+var fz_full := false          # проверки: проиграть вступление и финал в полную длину
+
+func _fz_wait(sec: float) -> void:
+	var t := 0.0
+	while t < sec and fz_skip < 0.8:
+		await get_tree().process_frame
+		var dt := get_process_delta_time()
+		t += dt
+		fz_skip = fz_skip + dt if Input.is_key_pressed(KEY_E) else 0.0
+
+func _fz_line(who: String, text: String, sec: float) -> void:
+	if fz_skip >= 0.8:
+		return
+	game.banner(who, text, Color(0.62, 0.85, 0.25) if who.begins_with("FORTUNA") else Color(1, 0.95, 0.8), sec)
+	await _fz_wait(sec)
+
+func fortuna_intro(boss) -> void:
+	fz_skip = 0.0
+	var user: bool = game.main.user_play()
+	user = user or fz_full
+	var full: bool = not bool(meta().get("fz_intro", false)) and user
+	var p = game.player
+	var frozen: bool = p.is_physics_processing()
+	p.set_physics_process(false)
+	boss.set_physics_process(false)
+	var k := 1.0 if user else 0.12
+	var scr: Array = []
+	if full:
+		for i in 5:
+			var lb := Label3D.new()
+			lb.text = "FORTUNA 812\nМЫ ЗА ВАШИ ДЕНЬГИ"
+			lb.font_size = 64
+			lb.pixel_size = 0.01
+			lb.modulate = Color(0.1, 0.1, 0.1, 0.0)
+			lb.shaded = false
+			world.add_child(lb)
+			lb.position = Vector3(-10.0 + float(i) * 5.0, 4.2, -188.2)
+			scr.append(lb)
+		await _fz_line("PA", "Уважаемые посетители, просим сохранять спокойствие. Ваше время и деньги очень важны для нас.", 3.2 * k)
+		for lb in scr:
+			(lb as Label3D).modulate = Color(0.75, 1.0, 0.35, 1.0)
+			game.main.sfx("sfx_ui", -10.0)
+			await _fz_wait(0.5 * k)
+		await _fz_line("FORTUNA 812", "Добро пожаловать в кассовый комплекс. Вход вы уже оплатили. Морально.", 3.4 * k)
+		var price := Label3D.new()
+		price.text = "ПРАЙС\nВХОД — 8\nВЫХОД — 67\nВОПРОС — 67\nОТВЕТ — ПО ДОГОВОРЁННОСТИ\nБОЙ С ВЛАДЕЛЬЦЕМ — ПО ДОГОВОРЁННОСТИ"
+		price.font_size = 48
+		price.pixel_size = 0.006
+		price.modulate = Color(1.0, 0.95, 0.5)
+		price.shaded = false
+		world.add_child(price)
+		price.global_position = p.global_position + Vector3(0, 2.6, -2.2)
+		await _fz_wait(3.0 * k)
+		await _fz_line("ПАХАН", "Это чё, прайс на драку?", 2.0 * k)
+		await _fz_line("FORTUNA 812", "Это прайс на всё. Драка — строка четырнадцать.", 2.8 * k)
+		await _fz_line("ПАХАН", "А бесплатно есть что-нибудь?", 2.0 * k)
+		await _fz_line("FORTUNA 812", "Консультация. Она платная.", 2.6 * k)
+		await _fz_line("ПАХАН", "Я не понял, это сейчас реально происходит?", 2.4 * k)
+		await _fz_line("FORTUNA 812", "Понимание — отдельный тариф.", 2.4 * k)
+		price.queue_free()
+		for lb in scr:
+			(lb as Label3D).queue_free()
+		meta()["fz_intro"] = true
+		save()
+	var gate := MeshInstance3D.new()
+	var gm := BoxMesh.new()
+	gm.size = Vector3(26.0, 3.0, 0.3)
+	gate.mesh = gm
+	var gmat := StandardMaterial3D.new()
+	gmat.albedo_color = Color(0.25, 0.27, 0.3)
+	gmat.metallic = 0.6
+	gate.material_override = gmat
+	world.add_child(gate)
+	gate.position = Vector3(0, 5.0, -169.6)
+	var gb := StaticBody3D.new()
+	var gcs := CollisionShape3D.new()
+	var gbs := BoxShape3D.new()
+	gbs.size = Vector3(26.0, 3.0, 0.5)
+	gcs.shape = gbs
+	gb.add_child(gcs)
+	gate.add_child(gb)
+	var gtw := gate.create_tween()
+	gtw.tween_property(gate, "position:y", 1.5, 0.35).set_trans(Tween.TRANS_BOUNCE)
+	game.main.sfx("sfx_boom", -4.0)
+	if arena != null:
+		arena.tablo.text = "ВЫХОД (ПЛАТНО)"
+		for l in 3:
+			arena.flash(l, 1.0)
+			await _fz_wait(0.35 * k)
+	G67Fortuna.say(boss, "start")
+	await _fz_wait((1.2 if full else 2.0) * k)
+	if arena != null:
+		arena.tablo.text = "ТАРИФЫ"
+	boss.set_physics_process(true)
+	p.set_physics_process(frozen)
+	events.append(["fortuna_intro", full])
+
+## Финал (PZ_BOSS_OUT): босс не падает — пятится к выходу, створка захлопывается, «НЕДОСТАТОЧНО СРЕДСТВ», «…В долг можно?» — «Выход платный.», садится считать
+func _fortuna_outro(e) -> void:
+	fz_skip = 0.0
+	var user: bool = game.main.user_play() or fz_full
+	var k := 1.0 if user else 0.1
+	var ar := arena
+	var prev: Camera3D = get_viewport().get_camera_3d()
+	var cam := Camera3D.new()
+	cam.fov = 48.0
+	world.add_child(cam)
+	var spot := Vector3(2.0, 0.05, -176.2)
+	cam.global_position = Vector3(2.0, 2.2, -171.5)
+	cam.look_at(Vector3(2.0, 1.1, -177.0), Vector3.UP)
+	cam.make_current()
+	var p = game.player
+	p.set_physics_process(false)
+	if is_instance_valid(e):
+		e.global_position = spot + Vector3(0, 0, -3.0)
+		e.visible = true
+		e.rig.play("Walk", 0.2)
+		var tw: Tween = e.create_tween()
+		tw.tween_property(e, "global_position", spot, 2.0 * k)
+		e.face = 0.0
+	await _fz_wait(2.0 * k)
+	if ar != null:
+		ar.set_state(0, 3, "closed")
+		game.main.sfx("sfx_boom", -3.0)
+		ar.tablo.text = "НЕДОСТАТОЧНО СРЕДСТВ"
+	for i in 2:
+		var bp := AudioStreamPlayer.new()
+		bp.stream = G67Fortuna.beep()
+		add_child(bp)
+		bp.play()
+		bp.finished.connect(bp.queue_free)
+		await _fz_wait(1.0 * k)
+	await _fz_wait(2.5 * k)
+	await _fz_line("FORTUNA 812", "…В долг можно?", 2.4 * k)
+	await _fz_line("ПАХАН", "Выход платный.", 2.2 * k)
+	if is_instance_valid(e):
+		e.rig.play("FSit", 0.3)
+		e.set_physics_process(false)
+	if ar != null:
+		ar.tablo.text = "ТЯГА-812 — ВЫДАНА БЕЗ ЧЕКА"
+	await _fz_wait(2.5 * k)
+	if prev != null and is_instance_valid(prev):
+		prev.make_current()
+	else:
+		game.cam.make_current()
+	cam.queue_free()
+	p.set_physics_process(true)
+	events.append(["fortuna_outro"])
+
 func _boss_down(e) -> void:
 	_crowd("win")
 	var d := district()
@@ -3646,6 +3821,18 @@ func _boss_down(e) -> void:
 			_note_new(t)
 	events.append(["boss_down", String(d["boss"])])
 	var style_name := String(Styles.by_id(String(d["unlock"])).title).to_upper()
+	if String(d["boss"]) == "g67_fortuna":
+		if first:
+			for t in ["Стиль «ТЯГА-812» — стойка стилей в подъезде", "Бафы семейства FORTUNA 812 — в общем пуле", "Карта маршрутов: ПОДЗЕМКА пройдена, ЛЕНТА — скоро"]:
+				_note_new(t)
+			if has_method("unlock_clip"):
+				unlock_clip("NEWS02")
+		var out_task := func():
+			await _fortuna_outro(e)
+			game.banner("FORTUNA 812 ПОВЕРЖЕН", ("открыт стиль: %s" % style_name) if first else "район пройден", Color(0.62, 0.85, 0.25), 3.5)
+			_finish_run(true, 2.0)
+		out_task.call()
+		return
 	game.banner("МИША МИНАСЯН ПОВЕРЖЕН", ("открыт стиль: %s" % style_name) if first else "район пройден", Color(1, 0.85, 0.3), 4.0)
 	_finish_run(true, 2.5)
 

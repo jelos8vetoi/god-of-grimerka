@@ -32,6 +32,9 @@ var tablo: Label3D = null
 var tablo_t := 0.0
 var _hits_seen := {}
 var pin_cd := 0.0
+var boss_zone_loss := 0.0        # сколько здоровья босс потерял от собственных платных зон (для замера)
+var strip_on := false
+var coins: Array = []
 
 func build(game_, g_) -> void:
 	game = game_
@@ -98,6 +101,7 @@ func _make_section(l: int, i: int) -> Dictionary:
 	cs.shape = bs
 	body.add_child(cs)
 	body.position = Vector3(0, 0.85, 0)
+	body.collision_layer = 9          # 1 — мир, 8 — камера (пружина камеры не уходит в створки)
 	node.add_child(body)
 	var d := {"state": "open", "hp": GATE_HP, "t": 0.0, "node": node, "leaf_l": leaf_l, "leaf_r": leaf_r, "body": body, "light": lt, "ind": imat, "leaf_mat": leaf_mat, "flash": 0.0, "tell": 0.0, "cs": cs}
 	_apply(d)
@@ -145,6 +149,7 @@ func _make_cash() -> void:
 	cs.shape = bs
 	glass_body.add_child(cs)
 	glass_body.position = CASH_POS + Vector3(0, 1.0, 0.6)
+	glass_body.collision_layer = 9
 	add_child(glass_body)
 	tablo = Label3D.new()
 	tablo.text = "ТАРИФЫ"
@@ -303,6 +308,31 @@ func _on_attack(a) -> void:
 	if glass_alive and Vector2(pp.x - glass.global_position.x, pp.z - glass.global_position.z).length() < GLASS_REACH and fw.dot((glass.global_position - pp).normalized()) > 0.1:
 		break_glass()
 
+## ИИ босса сам выходит из платной зоны за 1–1,5 с (кроме оглушения и зажима)
+func _boss_leave(z: Dictionary, dt: float) -> void:
+	if not z.has("leave_at") or boss == null or not is_instance_valid(boss) or not bool(z["fine_boss"]):
+		return
+	z["leave_at"] = float(z["leave_at"]) - dt
+	if float(z["leave_at"]) > 0.0 or boss.state == "stun" or boss.state == "dead":
+		return
+	var c: Vector3 = (z["n"] as Node3D).global_position
+	var sz: Vector2 = z["size"]
+	var bp: Vector3 = boss.global_position
+	var dx := sz.x * 0.5 - absf(bp.x - c.x)
+	var dz := sz.y * 0.5 - absf(bp.z - c.z)
+	var to := bp
+	if dx < dz:
+		to.x = c.x + signf(bp.x - c.x if absf(bp.x - c.x) > 0.01 else 1.0) * (sz.x * 0.5 + 0.8)
+	else:
+		to.z = c.z + signf(bp.z - c.z if absf(bp.z - c.z) > 0.01 else 1.0) * (sz.y * 0.5 + 0.8)
+	to.x = clampf(to.x, -11.0, 11.0)
+	to.z = clampf(to.z, -187.0, -170.5)
+	var tw: Tween = boss.create_tween()
+	tw.tween_property(boss, "global_position", to, 0.35)
+	z.erase("leave_at")
+	z["boss_in"] = 0.0
+	z["boss_done"] = true          # из этой зоны босс уже выходил: второй раз она его не штрафует
+
 ## Платная зона size = (ширина по x, глубина по z); fade — проявление, active — сколько действует, creep — ползёт к герою, м/с
 func add_zone(center: Vector3, size: Vector2, fade: float, active: float, creep := 0.0, fine_boss := true) -> Dictionary:
 	var n := Node3D.new()
@@ -394,6 +424,7 @@ func _process(dt: float) -> void:
 	var p = game.player
 	for z in zones.duplicate():
 		z["t"] = float(z["t"]) + dt
+		_boss_leave(z, dt)
 		var k := clampf(float(z["t"]) / maxf(float(z["fade"]), 0.01), 0.0, 1.0)
 		(z["mat"] as StandardMaterial3D).albedo_color.a = 0.55 * k
 		if float(z["t"]) >= float(z["fade"]):
@@ -410,35 +441,83 @@ func _process(dt: float) -> void:
 				if p != null and in_zone(z, p.global_position):
 					var gl := int(G.run.get("golda", 0))
 					if gl > 0:
-						var take := mini(3, gl)
+						var take := mini(2, gl)
 						G.run["golda"] = gl - take
 						game.popup(p.global_position + Vector3(0, 2.0, 0), "-%d" % take, COL_YELLOW)
 						G.events.append(["zone_gold", take])
 						if gl - take <= 0:
 							G.events.append(["zone_broke"])
 					else:
-						p.take_damage(4.0, (z["n"] as Node3D).global_position, null, {"unblockable": true})
+						p.take_damage(3.0, (z["n"] as Node3D).global_position, null, {"unblockable": true})
 						G.events.append(["zone_dmg"])
 				if bool(z["fine_boss"]) and boss != null and is_instance_valid(boss) and in_zone(z, boss.global_position):
-					boss.hp = maxf(1.0, boss.hp - boss.max_hp * 0.01)
-					game.popup(boss.global_position + Vector3(0, boss.height + 0.3, 0), "ШТРАФ", Color(1.0, 0.5, 0.2))
-					G.events.append(["zone_boss"])
+					z["boss_in"] = float(z.get("boss_in", 0.0)) + 0.5
+					if float(z["boss_in"]) <= 3.0 and not bool(z.get("boss_done", false)):
+						var loss: float = boss.max_hp * 0.003
+						boss.hp = maxf(1.0, boss.hp - loss)
+						boss_zone_loss += loss
+						game.popup(boss.global_position + Vector3(0, boss.height + 0.3, 0), "ШТРАФ", Color(1.0, 0.5, 0.2))
+						G.events.append(["zone_boss"])
+					if not z.has("leave_at"):
+						z["leave_at"] = randf_range(1.0, 1.5)
+						if randf() < 0.5:
+							game.popup(boss.global_position + Vector3(0, boss.height + 0.8, 0), G67Fortuna.LINES["zone_boss"], Color(1.0, 0.92, 0.3))
+				else:
+					z["boss_in"] = 0.0
+					z.erase("leave_at")
 			if live >= float(z["active"]):
 				(z["n"] as Node3D).queue_free()
 				zones.erase(z)
+	var on_strip := false
 	for s in strips.duplicate():
 		s["t"] = float(s["t"]) + dt
 		if p != null:
 			var n2: Node3D = s["n"]
 			var lp: Vector3 = n2.global_transform.affine_inverse() * p.global_position
 			if absf(lp.x) < float(s["w"]) * 0.5 and absf(lp.z) < float(s["l"]) * 0.5 and p.is_on_floor() and p.global_position.y < 0.35:
-				p.slow_t = maxf(p.slow_t, 0.3)
+				on_strip = true
 				G.events.append(["check_slow"])
 		if float(s["t"]) >= float(s["dur"]):
 			(s["n"] as Node3D).queue_free()
 			strips.erase(s)
+	if p != null:
+		if on_strip:
+			p.slow_mul = 0.55
+			strip_on = true
+		elif strip_on:
+			p.slow_mul = 1.0
+			strip_on = false
+	for cn in coins.duplicate():
+		cn[1] = float(cn[1]) - dt
+		if float(cn[1]) <= 0.0:
+			(cn[0] as Node3D).queue_free()
+			coins.erase(cn)
+
+## Монета лежит на полу 6 с (визуал без урона)
+func coin_drop(pos: Vector3) -> void:
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.16
+	cm.bottom_radius = 0.16
+	cm.height = 0.03
+	mi.mesh = cm
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color(1.0, 0.82, 0.2)
+	mt.metallic = 0.8
+	mt.roughness = 0.3
+	mi.material_override = mt
+	add_child(mi)
+	mi.global_position = Vector3(clampf(pos.x, -11.5, 11.5), 0.03, clampf(pos.z, -187.5, -170.5))
+	coins.append([mi, 6.0])
 
 func clear_all() -> void:
+	if game != null and game.player != null:
+		game.player.slow_mul = 1.0
+	strip_on = false
+	for cn in coins:
+		if is_instance_valid(cn[0]):
+			(cn[0] as Node3D).queue_free()
+	coins = []
 	for z in zones:
 		if is_instance_valid(z["n"]):
 			(z["n"] as Node3D).queue_free()

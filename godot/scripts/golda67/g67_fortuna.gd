@@ -24,13 +24,16 @@ const CHECK_LIVE := 7.0
 const CHANGE_WARN := 0.7
 const CHANGE_COINS := 7
 const CHANGE_CONE := 1.2217      # 70°
-const CHANGE_DMG := 9.0
+const CHANGE_DMG := 7.0
 const CONSULT_MAX := 8.0
 const CONSULT_HEAL := 0.015      # доля максимума в секунду
 const CONSULT_ZONE := Vector2(10.0, 7.0)
 const CONSULT_STUN := 2.5
 const CONSULT_HP_GATE := 0.8     # консультация доступна ниже 80 % здоровья
 const PIN_OPEN := 2.0
+const PAUSES := [2.4, 2.0, 1.6]      # пауза между приёмами по фазам, с
+const NO_ZONE_FIRST := 8.0           # в первые секунды боя платных зон нет
+const CYCLE := ["f_gates", "f_zone", "f_check", "f_change"]
 
 const LINES := {
 	"start": "Оплата на месте.", "gates": "Проход закрыт. Временно. Навсегда.", "zone": "С вас за постоять.", "zone2": "Счётчик тикает!",
@@ -88,6 +91,60 @@ static func hard_stun(e, sec: float, clip: String) -> void:
 	e.rig.play_for(clip, sec, 0.06)
 	e._update_bar()
 
+## Сигнал карты: короткий писк (синтез)
+static func beep() -> AudioStreamWAV:
+	var n := int(0.18 * 22050.0)
+	var d := PackedByteArray()
+	d.resize(n * 2)
+	for i in n:
+		d.encode_s16(i * 2, int(sin(TAU * 1250.0 * float(i) / 22050.0) * 0.5 * 32000.0))
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.mix_rate = 22050
+	w.data = d
+	return w
+
+## Реквизит в руках: калькулятор в левой, кассовая лента через плечо (кодом, на костях Mixamo)
+static func attach_props(rig) -> void:
+	if rig == null or rig.skel == null:
+		return
+	var hand := BoneAttachment3D.new()
+	hand.bone_name = "mixamorig_LeftHand"
+	rig.skel.add_child(hand)
+	var calc := MeshInstance3D.new()
+	var cm := BoxMesh.new()
+	cm.size = Vector3(0.1, 0.16, 0.025)
+	calc.mesh = cm
+	var cmat := StandardMaterial3D.new()
+	cmat.albedo_color = Color(0.12, 0.12, 0.14)
+	calc.material_override = cmat
+	hand.add_child(calc)
+	calc.position = Vector3(0, 0.08, 0.05)
+	var scr := MeshInstance3D.new()
+	var sm := BoxMesh.new()
+	sm.size = Vector3(0.08, 0.04, 0.005)
+	scr.mesh = sm
+	var smat := StandardMaterial3D.new()
+	smat.albedo_color = Color(0.5, 1.0, 0.5)
+	smat.emission_enabled = true
+	smat.emission = Color(0.4, 1.0, 0.4)
+	scr.material_override = smat
+	calc.add_child(scr)
+	scr.position = Vector3(0, 0.05, 0.015)
+	var chest := BoneAttachment3D.new()
+	chest.bone_name = "mixamorig_Spine2"
+	rig.skel.add_child(chest)
+	var tape := MeshInstance3D.new()
+	var tm := BoxMesh.new()
+	tm.size = Vector3(0.05, 0.7, 0.012)
+	tape.mesh = tm
+	var tmat := StandardMaterial3D.new()
+	tmat.albedo_color = Color(0.95, 0.95, 0.88)
+	tape.material_override = tmat
+	chest.add_child(tape)
+	tape.position = Vector3(0.0, 0.02, 0.0)
+	tape.rotation_degrees = Vector3(0, 0, 38)
+
 static func _front(e) -> Vector3:
 	return Vector3(sin(e.face), 0, cos(e.face))
 
@@ -112,8 +169,15 @@ static func start(e, move: String) -> void:
 	ar.boss = e
 	_aim(e)
 	var ph: int = e.phase
-	if move == "f_consult" and (e.hp > e.max_hp * CONSULT_HP_GATE or not ar.glass_alive):
+	e.cfg["cool"] = float(PAUSES[clampi(ph, 0, 2)])
+	if not e.has_meta("fz_test"):
+		move = _pick(e, ar, ph)
+		if move == "f_zone" and e.age < NO_ZONE_FIRST:
+			move = "f_check"
+	elif move == "f_consult" and (e.hp > e.max_hp * CONSULT_HP_GATE or not ar.glass_alive):
 		move = "f_change"
+	e.set_meta("fz_move", move)
+	e.set_meta("fz_move_t", e.age)
 	match move:
 		"f_gates":
 			_gates(e, ar, ph)
@@ -125,6 +189,27 @@ static func start(e, move: String) -> void:
 			_change(e, ph)
 		"f_consult":
 			_consult(e, ar)
+
+## Фаза 1 — строго по кругу ТУРНИКЕТЫ → ЗОНА → ЧЕК → СДАЧА (КОНСУЛЬТАЦИЯ раз в круг ниже 80 %); фазы 2–3 — случайный порядок без повтора подряд
+static func _pick(e, ar, ph: int) -> String:
+	var last := String(e.get_meta("fz_last", ""))
+	var m := ""
+	if ph == 0:
+		var i := int(e.get_meta("fz_i", 0))
+		if i > 0 and i % 4 == 0 and e.hp <= e.max_hp * CONSULT_HP_GATE and ar.glass_alive and not bool(e.get_meta("fz_consulted_%d" % (i / 4), false)):
+			e.set_meta("fz_consulted_%d" % (i / 4), true)
+			m = "f_consult"
+		else:
+			m = String(CYCLE[i % 4])
+			e.set_meta("fz_i", i + 1)
+	else:
+		var pool: Array = CYCLE.duplicate()
+		if ar.glass_alive:
+			pool.append("f_consult")
+		pool.erase(last)
+		m = String(pool[randi() % pool.size()])
+	e.set_meta("fz_last", m)
+	return m
 
 static func _gates(e, ar, ph: int) -> void:
 	say(e, "gates")
@@ -159,11 +244,7 @@ static func _gates(e, ar, ph: int) -> void:
 static func _zone(e, ar, ph: int) -> void:
 	say(e, "zone" if randf() < 0.5 else "zone2")
 	e.rig.play_for("FZone", 1.2, 0.05)
-	var at: Vector3 = e.game.player.global_position
-	var away: Vector3 = at - e.global_position
-	away.y = 0.0
-	if away.length() > 0.1:
-		at += away.normalized() * 1.5        # зона чуть дальше героя от босса: сам он в неё попадает только заманенный
+	var at: Vector3 = e.game.player.global_position + e.game.player.velocity * 0.45      # с упреждением по скорости героя
 	e._at(0.4, func():
 		ar.add_zone(Vector3(clampf(at.x, -9.0, 9.0), 0.0, clampf(at.z, -186.0, -172.0)), ZONE_SIZE, ZONE_FADE, ZONE_LIVE, ZONE_CREEP if ph >= 1 else 0.0)
 		e.game.golda.events.append(["fz_zone"]))
@@ -197,6 +278,8 @@ static func _change(e, ph: int) -> void:
 				var a: float = base + float(off) + (float(k) / float(CHANGE_COINS - 1) - 0.5) * CHANGE_CONE
 				var v := Vector3(sin(a), 0, cos(a)) * 9.0
 				g.spawn_bolt(e.global_position + Vector3(0, 1.3, 0) + Vector3(sin(a), 0, cos(a)) * 0.6, v, CHANGE_DMG, e, false, Color(1.0, 0.85, 0.2))
+				var land: Vector3 = e.global_position + Vector3(sin(a), 0, cos(a)) * (6.0 + randf() * 3.0)
+				e.get_tree().create_timer(0.7).timeout.connect(func(): if g.golda != null and g.golda.arena != null: g.golda.arena.coin_drop(land))
 		g.golda.events.append(["fz_change", CHANGE_COINS * offsets.size()]))
 	e.sp_dur = 1.3
 

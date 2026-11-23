@@ -27,6 +27,7 @@ var hp := 100.0
 var max_hp := 100.0
 var swag := 0.0
 var speed_k := 1.0            # множитель бега (артефакты приквела; в кампании 1)
+var slow_mul := 1.0           # свой множитель скорости (лента чека FORTUNA: 0,55); 1 — нет
 var slow_t := 0.0             # замедлен (снаряд HATER, яд): бег медленнее
 var rage := 0.0
 var state := "move"
@@ -576,7 +577,7 @@ func _physics_process(dt: float) -> void:
 	if pressed("overdrive"):
 		game.hype.try_start()
 	slow_t = max(0.0, slow_t - dt)
-	var spd := 5.6 * speed_k * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0) * (0.6 if slow_t > 0.0 else 1.0)
+	var spd := 5.6 * speed_k * (1.25 if held("sprint") else 1.0) * (1.2 if rage > 0.0 else 1.0) * (0.6 if slow_t > 0.0 else 1.0) * slow_mul
 	# ТЯГА-812: в этом стиле «свободное» состояние героя ведёт пылесос
 	if style.id == "tyaga812" and state == "move" and switch_to == "":
 		state = "tyaga"

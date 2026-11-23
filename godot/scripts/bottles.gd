@@ -334,6 +334,9 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 		if slow_s > 0.0 and is_instance_valid(enemy):
 			enemy.slow(slow_s, float(a.extra.get("slow_k", 0.6)))
 		p.swag = min(100.0, p.swag + 3.0)
+		if game.golda != null and game.golda.fit_lv("refill") > 0 and randf() < [0.15, 0.25, 0.35][game.golda.fit_lv("refill") - 1]:
+			p.combat.ammo["bottles"] = minf(float(Styles.by_id("bottles").ammo_max) + 1.0, float(p.combat.ammo_of("bottles")) + 1.0)
+			game.popup(p.global_position + Vector3(0, 2.2, 0), "ДОЛИВ", Color(0.62, 0.85, 0.25))
 		game.feedback(a.feedback if a.feedback != "" else "bt_hit", at, flat, 1.0, WATER)
 		p.combat.attack_hit.emit(a, 1)
 		# РИКОШЕТ: бутылка не разбивается, а отскакивает к ближайшему другому врагу; каждый отскок слабее

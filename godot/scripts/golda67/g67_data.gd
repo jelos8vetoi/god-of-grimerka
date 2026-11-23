@@ -202,10 +202,15 @@ const FITS := {
 	"authority": {"family": "misha", "name": "АВТОРИТЕТ", "desc": "Максимум здоровья +20 за уровень, сразу лечит на столько же.", "lv": 3, "rare": false},
 	"gold_chain": {"family": "misha", "name": "ЦЕПЬ НА УДАЧУ", "desc": "Голды с врагов и комнат +25% за уровень.", "lv": 3, "rare": false},
 	"finisher": {"family": "misha", "name": "ДОБИВАЛА", "desc": "Поверженный враг лечит на 3 / 6 / 9 (элитный — втрое), не больше 25 / 40 / 55 за комнату; босс и призванные не считаются.", "lv": 3, "rare": false},
+	"cashback": {"family": "fortuna", "name": "КЭШБЭК", "desc": "8 / 14 / 20 % потраченной в ларьке голды возвращается.", "lv": 3, "rare": false},
+	"spare_change": {"family": "fortuna", "name": "СДАЧА", "desc": "Каждый 5-й / 4-й / 3-й поверженный враг роняет ещё 4 голды.", "lv": 3, "rare": false},
+	"refill": {"family": "fortuna", "name": "ДОЛИВ", "desc": "Попадание бутылкой с шансом 15 / 25 / 35 % возвращает бутылку в запас.", "lv": 3, "rare": false},
+	"tariff": {"family": "fortuna", "name": "ТАРИФ «ВСЁ ВКЛЮЧЕНО»", "desc": "+1 бутылка к запасу за уровень; до открытия Водяры — +6 % урона за уровень.", "lv": 3, "rare": false},
+	"receipt": {"family": "fortuna", "name": "ДЛИННЫЙ ЧЕК", "desc": "За каждые 25 голды при себе +3 % / +5 % урона, не больше +30 %.", "lv": 2, "rare": true},
 	"second_wind": {"family": "misha", "name": "ВТОРОЕ ДЫХАНИЕ", "desc": "Раз за комнату (и в комнате босса): удар оставил меньше 30 % здоровья — лечит на 25 / 40. От смертельного не спасает.", "lv": 2, "rare": true},
 }
-const FAMILY_NAMES := {"misha": "МИША МИНАСЯН"}
-const FAMILY_COLOR := {"misha": Color(0.85, 0.63, 0.23)}
+const FAMILY_NAMES := {"misha": "МИША МИНАСЯН", "fortuna": "FORTUNA 812"}
+const FAMILY_COLOR := {"misha": Color(0.85, 0.63, 0.23), "fortuna": Color(0.62, 0.85, 0.25)}
 const DMG_CAP := 2.0          # потолок множителя урона от фитсов
 
 ## РЕСПЕКТ (постоянная валюта, SPEC, раздел 12): за что и сколько

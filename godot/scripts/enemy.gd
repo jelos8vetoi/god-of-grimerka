@@ -204,6 +204,8 @@ func _ready() -> void:
 	rig.setup(String(cfg.get("path", "res://assets/models/" + m + ".glb")), height, poses, boss_id != "", -1.0 if m == "pahan" else 1.0, String(cfg.get("key", m + ("_n" if cfg.get("noweapon", false) else ""))))
 	if cfg.has("pz"):
 		rig.style_map = (G67Poses.PZ_ROLES[String(cfg["pz"])] as Dictionary).duplicate()
+	if boss_id == "g67_fortuna":
+		G67Fortuna.attach_props(rig)
 	if boss_id == "g67_misha":
 		G67Models.misha_chain(rig)        # золотая цепь на груди — идёт за анимацией
 	if not cfg.get("own", false) and (cfg.has("tint") or cfg.has("alpha") or cfg.has("emit")):
