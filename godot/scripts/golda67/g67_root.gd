@@ -2745,10 +2745,23 @@ func _krot_sign(kr, dt: float) -> void:
 	if krot_sign_cd <= 0.0 and game.mode != "dlg" and (game.player.global_position - (kr as Node3D).global_position).length() < 6.0:
 		krot_sign_lb = Label3D.new()
 		krot_sign_lb.text = txt
-		krot_sign_lb.font_size = 56
-		krot_sign_lb.pixel_size = 0.004
-		krot_sign_lb.modulate = Color(1.0, 0.9, 0.3)
-		krot_sign_lb.outline_size = 12
+		krot_sign_lb.font_size = 72
+		krot_sign_lb.pixel_size = 0.0065
+		krot_sign_lb.modulate = Color.WHITE
+		krot_sign_lb.outline_size = 22
+		krot_sign_lb.outline_modulate = Color(0.02, 0.02, 0.02, 1.0)
+		var bgq := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(4.4, 0.7)
+		bgq.mesh = qm
+		var bgm := StandardMaterial3D.new()
+		bgm.albedo_color = Color(0.03, 0.03, 0.04, 0.85)
+		bgm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		bgm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		bgm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		bgq.material_override = bgm
+		bgq.position = Vector3(0, 0, -0.01)
+		krot_sign_lb.add_child(bgq)
 		krot_sign_lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		krot_sign_lb.shaded = false
 		world.add_child(krot_sign_lb)
@@ -2764,7 +2777,7 @@ func _krot_beat(i: int) -> void:
 		game.toast("Пять рублей — из голды ничего не списано")
 		events.append(["krot_coin"])
 	if int(krot_k.get("cut", -9)) == i:
-		game.banner("ШАХМАТЫ", "микроволновка стоит на месте ферзя", Color(0.9, 0.9, 0.6), 0.6)
+		_chess_cut()
 		events.append(["krot_cut"])
 	if int(krot_k.get("ding", -9)) == i:
 		var mw = world.district.get_node_or_null("microwave") if world != null and world.district != null else null
@@ -2781,6 +2794,25 @@ func _krot_beat(i: int) -> void:
 			get_tree().create_timer(2.4).timeout.connect(lt.queue_free)
 		game.toast("дзынь")
 		events.append(["krot_ding"])
+
+## Врезка 0,6 с: отдельная камера на доску, микроволновка стоит на месте ферзя; затем возврат игровой камеры
+func _chess_cut() -> void:
+	var mw = world.district.get_node_or_null("microwave") if world != null and world.district != null else null
+	var board = world.district.get_node_or_null("chess") if world != null and world.district != null else null
+	if mw == null or board == null:
+		return
+	var prev: Camera3D = get_viewport().get_camera_3d()
+	var cut := Camera3D.new()
+	world.add_child(cut)
+	var bp: Vector3 = (board as Node3D).global_position
+	cut.global_position = bp + Vector3(0.9, 0.9, 1.0)
+	cut.look_at(bp + Vector3(0.0, 0.05, 0.0), Vector3.UP)
+	cut.fov = 50.0
+	cut.make_current()
+	await get_tree().create_timer(0.6).timeout
+	if prev != null and is_instance_valid(prev):
+		prev.make_current()
+	cut.queue_free()
 
 ## После разговора: остаётся в своей позе (говорить больше не о чем) или уходит, унося вещь
 func _krot_after(kr: Rig) -> void:
