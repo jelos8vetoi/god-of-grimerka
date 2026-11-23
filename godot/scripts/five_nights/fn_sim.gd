@@ -12,6 +12,10 @@ const PROFILE := {
 	"average": {"react": 1.2, "hear": 0.75, "poll": 7.0, "cam": 0.45, "ghost": 1.2, "ping": 7.0, "mod": 4, "slip": 0.03},
 }
 
+## журнал ходов врагов для проверок темпа: [t, враг, откуда, куда]; пишется, если trace_on
+static var trace_on := false
+static var trace: Array = []
+
 static func run(n: int, strategy: String, seed_v: int, levels := {}) -> Dictionary:
 	var st := FNNight.new()
 	st.setup(n, seed_v, levels)
@@ -32,6 +36,8 @@ static func run(n: int, strategy: String, seed_v: int, levels := {}) -> Dictiona
 			var d: Dictionary = ev[1]
 			match k:
 				"move", "scrape":
+					if trace_on and k == "move":
+						trace.append([st.t, String(d["e"]), String(d["from"]), String(d["to"])])
 					var to := String(d.get("to", "door_l" if k == "scrape" else ""))
 					if to in ["door_l", "door_r", "vent_l", "vent_t", "duct_l", "duct_t"] and rng.randf() < float(P["hear"]):
 						know[to] = st.t + float(P["react"]) * rng.randf_range(0.8, 1.4)
