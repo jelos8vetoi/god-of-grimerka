@@ -58,7 +58,7 @@ var whisper: AudioStreamPlayer      # GHOST: шёпот растёт с одер
 var air_tune: AudioStreamPlayer3D   # «последний шанс»
 var pool3: Array = []
 var pool2: Array = []
-var call_voice: AudioStreamPlayer   # голос начальника в трубке (assets/voice/FN_*.mp3, шина Phone → Voice)
+var call_voice: AudioStreamPlayer3D   # голос начальника в трубке (assets/voice/FN_*.mp3, шина PhoneVoice → Voice, из трубки на столе)
 var pahan_voice: AudioStreamPlayer  # мысли Пахана вслух (assets/voice/V_*.mp3 — его голос из кампании, шина Voice)
 ## Говорит всегда кто-то один. Строки по центру экрана (мысли Пахана и подсказки) идут очередью say_q: следующая
 ## появляется, когда прошлая отстояла своё и Пахан договорил. Пахан не начинает посреди реплики начальника — ждёт её
@@ -142,12 +142,18 @@ func _audio() -> void:
 		p2.bus = "SFX"
 		add_child(p2)
 		pool2.append(p2)
-	call_voice = AudioStreamPlayer.new()
-	call_voice.bus = "Phone" if AudioServer.get_bus_index("Phone") >= 0 else "Voice"
+	call_voice = AudioStreamPlayer3D.new()
+	call_voice.bus = "PhoneVoice" if AudioServer.get_bus_index("PhoneVoice") >= 0 else ("Phone" if AudioServer.get_bus_index("Phone") >= 0 else "Voice")
 	call_voice.volume_db = 1.0
+	call_voice.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
+	call_voice.panning_strength = 0.45
+	call_voice.attenuation_filter_cutoff_hz = 20500.0
 	add_child(call_voice)
+	var phone_at := office.get_node_or_null("Console/PhoneHit") as Node3D
+	if phone_at != null:
+		call_voice.global_position = phone_at.global_position
 	pahan_voice = AudioStreamPlayer.new()
-	pahan_voice.bus = "Voice"
+	pahan_voice.bus = "RoomVoice" if AudioServer.get_bus_index("RoomVoice") >= 0 else "Voice"
 	pahan_voice.volume_db = -1.0
 	add_child(pahan_voice)
 

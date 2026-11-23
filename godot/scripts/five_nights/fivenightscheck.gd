@@ -229,7 +229,7 @@ func _ui_part() -> void:
 	var resumed: bool = await until(func(): return R.call_voice.playing and R.call_voice.stream != line1, 8.0)
 	ok(resumed, "звонок продолжился со следующей реплики")
 	var spoke: bool = await until(func(): return R.call_voice.playing, 9.0)
-	ok(spoke and R.call_voice.bus == "Phone" and R.ui.sub_box.visible, "реплика звонка звучит голосом из трубки (шина %s), субтитр на экране" % R.call_voice.bus)
+	ok(spoke and R.call_voice.bus == "PhoneVoice" and R.ui.sub_box.visible, "реплика звонка звучит голосом из трубки (шина %s), субтитр на экране" % R.call_voice.bus)
 	var held_t := R.call_t
 	ok(R.call_voice.stream != null and held_t >= R.call_voice.stream.get_length() - R.call_voice.get_playback_position() - 0.1, "субтитр держится, пока реплику договаривают (ещё %.1f с)" % held_t)
 	await key(KEY_F)
@@ -385,6 +385,7 @@ func _ui_part() -> void:
 	await _tension(R, st)
 	await _vents_check(R)
 	await _lock_lamps(R)
+	_voice_buses(R)
 	await _anomalies(R, st)
 	ok(R.cams.vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS, "рисуется только выбранная камера, пока монитор поднят")
 	await key(KEY_SPACE)
@@ -576,6 +577,38 @@ func _lock_lamps(R: FiveNightsRoot) -> void:
 	st.set_seal("t", keep[1])
 	await wait(1.0)
 
+## эффекты шины: имена классов по порядку
+func _fx_names(bus: String) -> Array:
+	var out_a: Array = []
+	var i := AudioServer.get_bus_index(bus)
+	for k in AudioServer.get_bus_effect_count(i):
+		out_a.append(AudioServer.get_bus_effect(i, k).get_class())
+	return out_a
+
+func _fx_sig() -> Array:
+	return [AudioServer.bus_count, _fx_names("Phone"), _fx_names("RoomVoice"), _fx_names("PhoneVoice"), _fx_names("Voice")]
+
+## голоса в будке: Пахан — в комнате, начальник — из трубки на столе; Voice и Phone остались прежними
+func _voice_buses(R: FiveNightsRoot) -> void:
+	var vi := AudioServer.get_bus_index("Voice")
+	var all_there := true
+	for b in ["Phone", "RoomVoice", "PhoneVoice"]:
+		var i := AudioServer.get_bus_index(b)
+		all_there = all_there and i >= 0 and AudioServer.get_bus_send(i) == "Voice"
+	var voice_clean := true
+	for n in _fx_names("Voice"):
+		voice_clean = voice_clean and n != "AudioEffectReverb" and n != "AudioEffectDelay"
+	ok(all_there and voice_clean, "шины RoomVoice и PhoneVoice есть и посылают в Voice; на Voice нет ревербератора и задержки")
+	var want_phone := ["AudioEffectHighPassFilter", "AudioEffectLowPassFilter", "AudioEffectDistortion", "AudioEffectHardLimiter"]
+	ok(_fx_names("Phone") == want_phone, "шина Phone прежняя: HP, LP, Distortion, HardLimiter")
+	var ri := AudioServer.get_bus_index("RoomVoice")
+	var rv: AudioEffectReverb = AudioServer.get_bus_effect(ri, 1) as AudioEffectReverb
+	ok(_fx_names("RoomVoice") == ["AudioEffectDelay", "AudioEffectReverb"] and rv != null and rv.wet <= 0.2 and rv.room_size <= 0.5, "RoomVoice: Delay + Reverb (wet %.2f, room_size %.2f)" % [rv.wet if rv != null else -1.0, rv.room_size if rv != null else -1.0])
+	var pi := AudioServer.get_bus_index("PhoneVoice")
+	var prv: AudioEffectReverb = AudioServer.get_bus_effect(pi, 4) as AudioEffectReverb
+	ok(_fx_names("PhoneVoice") == ["AudioEffectHighPassFilter", "AudioEffectLowPassFilter", "AudioEffectDistortion", "AudioEffectEQ6", "AudioEffectReverb", "AudioEffectHardLimiter"] and prv != null and prv.wet <= 0.12, "PhoneVoice: HP, LP, Distortion, EQ6, Reverb (wet %.2f), HardLimiter последним" % (prv.wet if prv != null else -1.0))
+	ok(R.pahan_voice.bus == "RoomVoice" and R.call_voice.bus == "PhoneVoice" and R.call_voice is AudioStreamPlayer3D, "pahan_voice → RoomVoice, call_voice → PhoneVoice (AudioStreamPlayer3D)")
+
 ## после смерти: пять гибелей подряд со звуком и «ЕЩЁ РАЗ» — ничего не тянется в новую ночь
 func _after_death(R: FiveNightsRoot) -> void:
 	var quiet_keep := R.quiet
@@ -585,6 +618,7 @@ func _after_death(R: FiveNightsRoot) -> void:
 	var stuck := 0
 	var looped := 0
 	var alive := true
+	var fx_before := _fx_sig()
 	var reached := 0
 	# заслонки закрыты → новая ночь: картинка сразу открыта, сигнал упора не приходит
 	var O: FNOffice = R.office
@@ -653,6 +687,7 @@ func _after_death(R: FiveNightsRoot) -> void:
 	ok(main.audio.vol == vol_keep, "громкости игрока те же, что до раздела")
 	FNActors.ensure_ir()
 	ok(FNActors._ir_added, "глобальная fn_ir добавлена один раз, повторный вызов пустой")
+	ok(_fx_sig() == fx_before, "после смертей и отключения питания шины голосов и их эффекты те же: %s" % str(_fx_sig()))
 	R.quiet = quiet_keep
 
 ## привычки игрока: обитатели подстраиваются под прошлое поведение (чистая логика)
