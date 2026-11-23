@@ -99,6 +99,10 @@ var mod_xf := {}            # id модуля → [Transform3D] для MultiMesh
 var sign_nodes: Array = []
 var flicker: Array = []
 var prop_count := 0
+var slot_screen: G67SlotScreen = null
+var slot_vp: SubViewport = null
+const SLOT_POS := Vector3(-53.0, 0.0, -122.0)
+const SLOT_YAW := PI * 0.5
 var room_of_prop := {}
 const MOD := "res://assets/golda67/podzemka/g67_pz_"
 const PROP_PATH := "res://assets/golda67/podzemka/g67_pz_"
@@ -121,6 +125,7 @@ func build() -> void:
 	if use_modules:
 		_modules()
 		_decorate()
+		_slot_screen()
 	_zone_lights()
 
 func _m(c: Color, rough: float) -> StandardMaterial3D:
@@ -476,7 +481,7 @@ const OWNER_MODELS := {
 	"arcade_a": ["g67_pz_arcade_machine", 1.8], "arcade_b": ["g67_pz_arcade_machine", 1.8], "vend_drinks": ["g67_pz_vending_drinks", 1.9],
 }
 ## Посадочные точки слота для корпуса владельца (g67_pz_slot_cabinet): смещения от центра низа корпуса, м (лицо по +Z)
-const SLOT_SOCKETS := {"screen": Vector3(0.0, 1.0, 0.45), "button": Vector3(0.0, 0.55, 0.55), "board": Vector3(-0.3, 1.45, 0.45), "jackpot": Vector3(0.3, 1.45, 0.45), "cabinet_height": 2.2}
+const SLOT_SOCKETS := {"screen_w": 0.96, "screen": Vector3(0.0, 0.95, 0.5), "button": Vector3(0.0, 0.55, 0.55), "board": Vector3(-0.3, 1.45, 0.45), "jackpot": Vector3(0.3, 1.45, 0.45), "cabinet_height": 2.2}
 
 func _fit_owner(inst: Node3D, height: float) -> void:
 	var bb := AABB()
@@ -612,3 +617,31 @@ func _process(_dt: float) -> void:
 		var ph := float(f[2])
 		var k := 1.0 if fmod(t + ph, 3.7) > 0.5 else (0.2 if int(t * 18.0 + ph * 5.0) % 3 == 0 else 1.0)
 		l.light_energy = float(f[1]) * k
+
+## Экран слота: SubViewport с 2D-сценой на плоскости перед окном корпуса; физические барабаны убраны
+func _slot_screen() -> void:
+	var cab: Node3D = get_node_or_null("slot_machine") as Node3D
+	if cab != null:
+		for ch in cab.get_children():
+			if String(ch.name).begins_with("casino_reel"):
+				ch.queue_free()
+	slot_vp = SubViewport.new()
+	slot_vp.size = Vector2i(1024, 586)
+	slot_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	slot_vp.transparent_bg = false
+	add_child(slot_vp)
+	slot_screen = G67SlotScreen.new()
+	slot_vp.add_child(slot_screen)
+	var q := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(SLOT_SOCKETS["screen_w"], SLOT_SOCKETS["screen_w"] * 586.0 / 1024.0)
+	q.mesh = qm
+	var mt := StandardMaterial3D.new()
+	mt.albedo_texture = slot_vp.get_texture()
+	mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	q.material_override = mt
+	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var sk: Vector3 = SLOT_SOCKETS["screen"]
+	q.transform = Transform3D(Basis(Vector3.UP, SLOT_YAW), SLOT_POS + Basis(Vector3.UP, SLOT_YAW) * sk)
+	q.name = "slot_screen_quad"
+	add_child(q)

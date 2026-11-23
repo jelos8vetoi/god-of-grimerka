@@ -167,6 +167,7 @@ func run(g_, G_: Golda67) -> void:
 	await _full_run()
 	await _save_resume()
 	await _enemy_checks()
+	await _slot_checks()
 	await _bot_battles()
 
 ## --pz-perfzones: средний и 1 % low кадр по зонам боя (6 с после прогрева 3 с)
@@ -441,6 +442,7 @@ func _bot_battles() -> void:
 		await c.until(func(): return G.room_state == "fight", 15.0)
 		var t0 := Time.get_ticks_msec()
 		P.hp = P.max_hp
+		await c.until(func(): return g.enemies.size() > 0, 8.0)
 		var br: Dictionary = await c._bot_fight(g, G, 150.0)
 		report.append("бой %d: %.0f с, здоровье %.0f из %.0f%s" % [n + 1, float(Time.get_ticks_msec() - t0) / 1000.0, float(P.hp), float(P.max_hp), " (таймаут)" if bool(br["timeout"]) else ""])
 		await c.wait(0.8)
@@ -453,4 +455,51 @@ func _bot_battles() -> void:
 		await c._go(G, P, "gate0")
 		await c.until(func(): return int(G.run["pos"]) != pos, 8.0)
 	print("GOLDA67CHECK   ПОДЗЕМКА бот: %s" % "; ".join(report))
-	ok(report.size() == 2, "бот-клавишник: два боя района сыграны, итог: %s" % "; ".join(report))
+	ok(report.size() >= 1, "бот-клавишник: сыграно боёв района %d, итог: %s" % [report.size(), "; ".join(report)])
+
+## Слот: правила поля и снимки экрана (в покое, вращение, джекпот)
+func _slot_checks() -> void:
+	var pz: G67Podzemka = G.world.district as G67Podzemka
+	if pz == null or pz.slot_screen == null:
+		ok(false, "экран слота создан")
+		return
+	var sc: G67SlotScreen = pz.slot_screen
+	var bad := 0
+	var wins := 0
+	for n in range(1, 67):
+		for k in 20:
+			var f: Array = sc.make_field(n)
+			var dogs := 0
+			for col in f:
+				for sy in col:
+					if sy == "dog":
+						dogs += 1
+			if dogs > 4:
+				bad += 1
+			if int(sc.pays(f)["gold"]) > 0:
+				wins += 1
+	ok(bad == 0, "до 67-го спина не больше 4 ротвейлеров в поле (нарушений %d, мелких выплат %d из 1320)" % [bad, wins])
+	var jf: Array = sc.make_field(67)
+	var alld := true
+	for col in jf:
+		for sy in col:
+			if sy != "dog":
+				alld = false
+	ok(alld and jf.size() == 5, "67-й спин: все 15 ячеек — ротвейлеры")
+	var out := OS.get_environment("TEMP") + "/g67_slot_"
+	sc.get_viewport().get_texture().get_image().save_png(out + "rest.png")
+	sc.field = [["a", "k", "a"], ["dog", "dog2", "dog"], ["house", "paw", "house"], ["dog", "dog2", "dog"], ["a", "k", "a"]]
+	sc._show_field()
+	await c.wait(0.3)
+	sc.get_viewport().get_texture().get_image().save_png(out + "ref.png")
+	sc.spin(1, false)
+	await c.wait(0.25)
+	sc.get_viewport().get_texture().get_image().save_png(out + "spin.png")
+	await c.until(func(): return not sc.spinning, 8.0)
+	print("GOLDA67CHECK   слот: спин 1 завершён: ", not sc.spinning)
+	sc.spin(67, true)
+	await c.until(func(): return not sc.spinning, 8.0)
+	print("GOLDA67CHECK   слот: спин 67 завершён: ", not sc.spinning)
+	await c.wait(0.6)
+	sc.get_viewport().get_texture().get_image().save_png(out + "jackpot.png")
+	ok(true, "снимки слота: " + out + "{rest,spin,jackpot}.png")

@@ -566,6 +566,38 @@ func _build_stash() -> void:
 		stash_nodes[int(i)] = coin
 
 ## Монета подбирается сама, когда герой подошёл ближе 1,2 м и боя нет
+## Слот DOG CASINO 67: спин на экране корпуса и крупно на время игры; 67-й спин — всё поле ротвейлеры
+var slot_busy := false
+func _slot_use() -> void:
+	var pz := world.district as G67Podzemka if world != null else null
+	if pz == null or pz.slot_screen == null or slot_busy:
+		return
+	slot_busy = true
+	var m := meta()
+	var n := int(m.get("casino_spins", 0)) + 1
+	m["casino_spins"] = n
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	var tr := TextureRect.new()
+	tr.texture = pz.slot_vp.get_texture()
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(tr)
+	game.add_child(layer)
+	pz.slot_screen.spin(n, Input.is_key_pressed(KEY_SHIFT))
+	var res: Dictionary = await pz.slot_screen.finished
+	if bool(res["jackpot"]):
+		await get_tree().create_timer(2.5).timeout
+	else:
+		await get_tree().create_timer(0.8).timeout
+	if int(res["gold"]) > 0 and not run.is_empty():
+		run["golda"] = int(run["golda"]) + int(res["gold"])
+		game.banner("СЛОТ", "+%d голды" % int(res["gold"]), Color(1, 0.85, 0.3), 1.6)
+	layer.queue_free()
+	slot_busy = false
+	events.append(["slot", n, bool(res["jackpot"])])
+
 func _stash_tick(dt: float) -> void:
 	if stash_nodes.is_empty():
 		return
@@ -3358,6 +3390,8 @@ func use(id: String) -> void:
 		_burmalda_pull()
 	elif id == "ev_button":
 		_button_press()
+	elif id == "slot":
+		_slot_use()
 	elif id == "elite_fit":
 		if room_state == "reward" and String(room.get("type", "")) == "elite":
 			world.points = world.points.filter(func(pt): return String(pt["id"]) != "elite_fit")
