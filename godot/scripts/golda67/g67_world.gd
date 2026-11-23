@@ -548,6 +548,20 @@ func bound_zone(zid: String, barriers: bool) -> void:
 				post.material_override = pm
 				post.position = pp + Vector3(0, 0.75, 0)
 				bounds.add_child(post)
+			var horiz_g: bool = side in ["n", "s"]
+			var mid := Vector3(float(g), 0.0, {"n": c.z - hz, "s": c.z + hz}[side]) if horiz_g else Vector3({"w": c.x - hx, "e": c.x + hx}[side], 0.0, float(g))
+			for ty in [1.15, 0.7]:
+				for sgm in 10:
+					var seg := MeshInstance3D.new()
+					var sbm := BoxMesh.new()
+					sbm.size = Vector3(0.25, 0.09, 0.03) if horiz_g else Vector3(0.03, 0.09, 0.25)
+					seg.mesh = sbm
+					var smat := StandardMaterial3D.new()
+					smat.albedo_color = Color(0.85, 0.1, 0.08) if sgm % 2 == 0 else Color(0.95, 0.94, 0.9)
+					seg.material_override = smat
+					var off := (float(sgm) - 4.5) * 0.25
+					seg.position = mid + (Vector3(off, ty, 0) if horiz_g else Vector3(0, ty, off))
+					bounds.add_child(seg)
 
 var fence_total := 0
 var fence_built := 0

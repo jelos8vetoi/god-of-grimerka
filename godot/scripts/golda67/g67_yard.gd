@@ -355,7 +355,7 @@ func _drift(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
 		var n := G67Models.spawn("g67_snowdrift", self, Vector3(pos.x, -0.08, pos.z), yaw + (PI * 0.5 if along_x else 0.0) + (PI if int(absf(pos.x + pos.z)) % 2 == 0 else 0.0), Vector3(99, 99, length), "d")
 		var wide := minf(size.x, size.z) / maxf(0.01, (n.get_meta("size", Vector3.ONE) as Vector3).x)
 		n.scale = Vector3(clampf(wide, 0.8, 2.2), clampf(size.y * 0.9, 0.7, 1.3), 1.0)
-		_solid_box(Vector3(pos.x, 0.45, pos.z), Vector3(minf(size.x, size.z) * 0.8, 0.9, length * 0.9) if not along_x else Vector3(length * 0.9, 0.9, minf(size.x, size.z) * 0.8), yaw)
+		_solid_box(Vector3(pos.x, 0.26, pos.z), Vector3(minf(size.x, size.z) * 0.8, 0.52, length * 0.9) if not along_x else Vector3(length * 0.9, 0.52, minf(size.x, size.z) * 0.8), yaw)
 		return
 	var root := Node3D.new()
 	root.position = Vector3(pos.x, 0.0, pos.z)
@@ -871,6 +871,209 @@ func crowd_react(kind: String) -> int:
 		n += 1
 	return n
 
+## ---- Снег: рваные переходы снег→асфальт→лёд (заплатки снега на асфальте, проталины в снегу), протоптанные пятна, намёты у машин
+func _patch_mm(color: Color, y: float, pts: Array) -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var cm := CylinderMesh.new()
+	cm.top_radius = 1.0
+	cm.bottom_radius = 1.0
+	cm.height = 0.012
+	cm.radial_segments = 9
+	cm.rings = 1
+	mm.mesh = cm
+	mm.instance_count = pts.size()
+	for i in pts.size():
+		mm.set_instance_transform(i, pts[i])
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = color
+	mt.roughness = 0.9
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	mi.material_override = mt
+	mi.position = Vector3(0, y, 0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+func _snow_patches() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9090
+	var snow_pts: Array = []
+	var thaw_pts: Array = []
+	var path_pts: Array = []
+	for zid in ["parking", "proezd"]:
+		var z: Dictionary = G67Yard.zone(zid)
+		var c: Vector3 = z["c"]
+		var h: Vector2 = z["h"]
+		for i in 55:
+			var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(rng.randf_range(0.5, 2.0), 1.0, rng.randf_range(0.4, 1.4)))
+			snow_pts.append(Transform3D(b, Vector3(c.x + rng.randf_range(-h.x, h.x), 0.0, c.z + rng.randf_range(-h.y, h.y))))
+	for zid in ["playground", "garages", "podezd", "gazebo"]:
+		var z2: Dictionary = G67Yard.zone(zid)
+		var c2: Vector3 = z2["c"]
+		var h2: Vector2 = z2["h"]
+		for i in 42:
+			var b2 := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(rng.randf_range(0.4, 1.6), 1.0, rng.randf_range(0.3, 1.1)))
+			thaw_pts.append(Transform3D(b2, Vector3(c2.x + rng.randf_range(-h2.x, h2.x), 0.0, c2.z + rng.randf_range(-h2.y, h2.y))))
+	for bp in [Vector3(-3.4, 0, 33.2), Vector3(3.4, 0, 33.2), Vector3(-7.4, 0, -5.2), Vector3(11.4, 0, -9.2), Vector3(38.6, 0, 7.0), Vector3(0.0, 0, 31.5), Vector3(-41.0, 0, 0.0)]:
+		for k in 3:
+			var b3 := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(rng.randf_range(0.9, 1.7), 1.0, rng.randf_range(0.5, 0.9)))
+			path_pts.append(Transform3D(b3, bp + Vector3(rng.randf_range(-0.7, 0.7), 0.0, rng.randf_range(-0.5, 0.5))))
+	_patch_mm(Color(0.93, 0.95, 1.0), 0.085, snow_pts)
+	_patch_mm(Color(0.13, 0.14, 0.17), 0.082, thaw_pts)
+	_patch_mm(Color(0.42, 0.4, 0.37), 0.089, path_pts)
+	# намёты у машин
+	for cp in [Vector3(29.2, 0.25, -4.5), Vector3(33.8, 0.25, 0.4), Vector3(29.2, 0.25, 9.6), Vector3(-36.2, 0.25, 14.0)]:
+		_drift(cp, Vector3(1.6, 0.5, 2.2))
+
+## Дымка в глубине двора: лёгкий экспоненциальный туман без мыла на ближнем плане
+func _haze() -> void:
+	for we in get_tree().root.find_children("*", "WorldEnvironment", true, false):
+		var e: Environment = (we as WorldEnvironment).environment
+		if e != null:
+			e.fog_enabled = true
+			e.fog_light_color = Color(0.2, 0.25, 0.36)
+			e.fog_density = 0.0045
+			e.fog_sky_affect = 0.0
+			break
+
+## ---- Фасады всех домов: у каждого свой набор деталей (застеклённые и открытые балконы, кондиционеры, тарелки, двери и козырьки подъездов)
+const HOUSE_NAMES := ["khrushchevka", "panel_tower", "g67_brick_house", "g67_house_arch"]
+const FX_DEPTH := {"g67_fx_balcony_a": 0.9, "g67_fx_balcony_b": 0.85, "g67_fx_ac": 0.3, "g67_fx_dish": 0.55, "g67_fx_canopy": 1.3, "g67_fx_door": 0.2}
+## веса набора на дом: балкон А, балкон Б, кондиционер, тарелка
+const FX_STYLES := [[0.5, 0.1, 0.08, 0.06], [0.08, 0.45, 0.06, 0.1], [0.1, 0.1, 0.3, 0.3], [0.25, 0.25, 0.1, 0.1], [0.05, 0.05, 0.4, 0.35], [0.35, 0.05, 0.15, 0.2], [0.12, 0.4, 0.12, 0.05], [0.2, 0.2, 0.2, 0.2]]
+var fx_count := {}
+var house_log: Array = []
+
+func _node_aabb(n: Node) -> AABB:
+	var out := AABB()
+	var first := true
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if m.mesh == null:
+			continue
+		var bb: AABB = m.global_transform * m.mesh.get_aabb()
+		out = bb if first else out.merge(bb)
+		first = false
+	return out
+
+func _fx_put(id: String, wall: Vector3, n: Vector3, y: float) -> void:
+	if not G67Models.has(id):
+		return
+	var yaw := atan2(n.x, n.z)
+	var p := wall + n * (float(FX_DEPTH.get(id, 0.5)) * 0.5 + 0.02)
+	p.y = y
+	var fxn := G67Models.spawn(id, self, p, yaw, Vector3(1, 1, 1), "1")
+	for mi in fxn.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	fx_count[id] = int(fx_count.get(id, 0)) + 1
+
+func _house_fx() -> void:
+	var houses: Array = []
+	for ch in get_children():
+		if String(ch.name).begins_with("g67_podezd") or not (ch is Node3D):
+			continue
+		var base := String(ch.name)
+		for hn in HOUSE_NAMES:
+			if base.begins_with(hn):
+				houses.append(ch)
+				break
+	var idx := 0
+	for h in houses:
+		var bb := _node_aabb(h)
+		if bb.size.y < 8.0:
+			continue
+		var c := bb.get_center()
+		var along_x := absf(c.x) > absf(c.z)
+		var n := Vector3.ZERO
+		var wall := 0.0
+		if along_x:
+			n = Vector3(-signf(c.x), 0, 0)
+			wall = bb.position.x if c.x > 0 else bb.end.x
+		else:
+			n = Vector3(0, 0, -signf(c.z))
+			wall = bb.position.z if c.z > 0 else bb.end.z
+		var t0: float = (bb.position.z if along_x else bb.position.x) + 1.6
+		var t1: float = (bb.end.z if along_x else bb.end.x) - 1.6
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 6700 + idx * 131
+		var st: Array = FX_STYLES[(idx + int(absf(c.x + c.z))) % FX_STYLES.size()]
+		var floors := int(bb.size.y / 3.0)
+		var step := 3.2 + float(idx % 3) * 0.5
+		var shift := rng.randf_range(0.0, 1.2)
+		for f in range(1, floors):
+			var t := t0 + shift + float((f * 7 + idx) % 3) * 0.6
+			while t < t1:
+				var skip_pod := not along_x and n.z < 0.0 and absf(t) < 5.0
+				var r := rng.randf()
+				if not skip_pod:
+					var wp := Vector3(wall, 0, t) if along_x else Vector3(t, 0, wall)
+					var acc := 0.0
+					var ids := ["g67_fx_balcony_a", "g67_fx_balcony_b", "g67_fx_ac", "g67_fx_dish"]
+					for k in 4:
+						acc += float(st[k])
+						if r < acc * 0.9:
+							var yy := 3.0 * f + (0.0 if k < 2 else 1.1)
+							_fx_put(ids[k], wp, n, yy)
+							break
+				t += step
+		# двери и козырьки подъездов у дома (кроме дома Пахана у подъезда, там свои)
+		if not (not along_x and n.z < 0.0 and c.z > 30.0):
+			var span := t1 - t0
+			for k in 2:
+				var tt := t0 + span * (0.28 + 0.44 * float(k)) + rng.randf_range(-1.5, 1.5)
+				var dp := Vector3(wall, 0, tt) if along_x else Vector3(tt, 0, wall)
+				_fx_put("g67_fx_door", dp, n, 0.0)
+				_fx_put("g67_fx_canopy", dp, n, 0.0)
+				var pole_a := dp + n * 1.25 + (Vector3(0, 0, 1) if along_x else Vector3(1, 0, 0)) * 0.95
+				var pole_b := dp + n * 1.25 - (Vector3(0, 0, 1) if along_x else Vector3(1, 0, 0)) * 0.95
+				_pillar(pole_a, 0.05, 2.3)
+				_pillar(pole_b, 0.05, 2.3)
+		house_log.append([String(h.name), n, floors])
+		idx += 1
+
+## Провода между фонарями с провисом: цепочка тонких отрезков по параболе
+func _wires() -> void:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.03, 0.03, 0.035)
+	mat.roughness = 0.8
+	var done := {}
+	for i in lamps.size():
+		var a: Vector3 = (lamps[i] as Node3D).position + Vector3(0, 0.3, 0)
+		var best := -1
+		var bd := 1e9
+		for j in lamps.size():
+			if j == i or done.has("%d_%d" % [mini(i, j), maxi(i, j)]):
+				continue
+			var d: float = a.distance_to((lamps[j] as Node3D).position)
+			if d < bd and d < 24.0:
+				bd = d
+				best = j
+		if best < 0:
+			continue
+		done["%d_%d" % [mini(i, best), maxi(i, best)]] = true
+		var b: Vector3 = (lamps[best] as Node3D).position + Vector3(0, 0.3, 0)
+		var prev := a
+		for k in range(1, 9):
+			var t := float(k) / 8.0
+			var p := a.lerp(b, t)
+			p.y -= 4.0 * t * (1.0 - t) * minf(1.6, a.distance_to(b) * 0.08)
+			var seg := MeshInstance3D.new()
+			var cm := CylinderMesh.new()
+			cm.top_radius = 0.012
+			cm.bottom_radius = 0.012
+			cm.height = prev.distance_to(p)
+			cm.radial_segments = 4
+			cm.rings = 1
+			seg.mesh = cm
+			seg.material_override = mat
+			add_child(seg)
+			seg.position = (prev + p) * 0.5
+			seg.look_at_from_position((prev + p) * 0.5, p, Vector3.UP)
+			seg.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+			seg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			prev = p
+
 ## ---- ДВОР 1.5: предметы жизни двора и надписи
 ## Предмет жизни: модель assets/golda67/<id>.glb, если есть, иначе серая коробка нужного размера с коллизией (модели — из Blender)
 var life_props := {}
@@ -962,6 +1165,7 @@ func _note(kind: String, text: String, pos: Vector3, yaw: float, sub := "", k :=
 		_:
 			lb.modulate = Color(0.06, 0.06, 0.08)
 			lb.outline_modulate = Color(0.95, 0.95, 0.92, 1)
+	lb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(lb)
 	if kind in ["paper", "plate", "banner"]:
 		var q := MeshInstance3D.new()
@@ -974,6 +1178,7 @@ func _note(kind: String, text: String, pos: Vector3, yaw: float, sub := "", k :=
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		q.material_override = m
 		q.position = Vector3(0, 0, 0.004)
+		q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(q)
 		(lb as Label3D).position = Vector3(0, 0, 0.014)
 	if kind == "paper":
@@ -1654,6 +1859,10 @@ func _zone_sport() -> void:
 	_arena_decor(x0, x1, z0, z1)
 	_surface_detail()
 	_flocks()
+	_snow_patches()
+	_haze()
+	_house_fx()
+	_wires()
 	_life_props()
 	_life_signs()
 	_door_lamps()

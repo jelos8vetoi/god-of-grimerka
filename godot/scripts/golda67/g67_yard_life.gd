@@ -80,6 +80,46 @@ func _near_flock(hp: Vector3) -> Vector3:
 	return best
 
 var btn_t := 25.0
+var snow_mm: MultiMeshInstance3D = null
+var snow_pos: Array = []
+
+func _ground_snow(dt: float) -> void:
+	var hp: Vector3 = _hero().global_position
+	if snow_mm == null:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.08, 0.02, 0.02)
+		mm.mesh = bm
+		mm.instance_count = 80
+		var mt := StandardMaterial3D.new()
+		mt.albedo_color = Color(0.95, 0.97, 1.0, 0.8)
+		mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		bm.material = mt
+		snow_mm = MultiMeshInstance3D.new()
+		snow_mm.multimesh = mm
+		snow_mm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		yard.add_child(snow_mm)
+		for i in 80:
+			snow_pos.append(Vector3(rng.randf_range(-14, 14), rng.randf_range(0.05, 0.9), rng.randf_range(-14, 14)))
+	var spd := 1.1 + (7.0 if gust > 0.0 else 0.0)
+	var sx := 1.0 + (6.0 if gust > 0.0 else 0.0)
+	var mm2: MultiMesh = snow_mm.multimesh
+	for i in 80:
+		var p: Vector3 = snow_pos[i]
+		p.x += spd * dt
+		p.z += spd * 0.35 * dt
+		p.y += sin(clock * 1.7 + float(i)) * 0.1 * dt
+		if p.x > 14.0:
+			p.x -= 28.0
+		if p.z > 14.0:
+			p.z -= 28.0
+		snow_pos[i] = p
+		mm2.set_instance_transform(i, Transform3D(Basis().scaled(Vector3(sx, 1, 1)), Vector3(hp.x + p.x, 0.15 + p.y, hp.z + p.z)))
+
+func dust_streaks_placeholder() -> void:
+	pass
 
 func _intercom_press() -> void:
 	var ic = yard.life_props.get("g67_intercom")
@@ -98,6 +138,8 @@ func _physics_process(dt: float) -> void:
 	if golda == null or yard == null or not is_instance_valid(yard) or golda.place != "run":
 		return
 	clock += dt
+	gust = maxf(0.0, gust - dt)
+	_ground_snow(dt)
 	btn_t -= dt
 	if btn_t <= 0.0:
 		btn_t = rng.randf_range(35.0, 45.0)

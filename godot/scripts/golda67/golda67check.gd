@@ -176,6 +176,16 @@ func _run() -> void:
 		await _perf_zones(g, G, g.player)
 		_finish()
 		return
+	if OS.get_cmdline_user_args().has("--g67-marks"):
+		await _go(G, g.player, "exit")
+		await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
+		_kill_all(g)
+		G.pending = []
+		G.wave_wait = 999.0
+		await wait(1.0)
+		await _marks_contrast(g, G)
+		_finish()
+		return
 	if OS.get_cmdline_user_args().has("--g67-whois"):
 		await _go(G, g.player, "exit")
 		await until(func(): return G.place == "run" and G.room_state == "fight", 8.0)
@@ -2740,8 +2750,12 @@ func _life15c(g, G: Golda67, P) -> void:
 	while us.state != "walk" and Time.get_ticks_msec() - t0 < 25000:
 		P.global_position = (us.rig as Node3D).global_position + Vector3(6.0, 0.05, 4.0)
 		await wait(0.4)
-	await wait(1.2)
-	await _cam_shot_look(g, "life15_ushanka_walks", (us.rig as Node3D).global_position + Vector3(2.6, 1.7, 3.4), us.rig, 1.1)
+	var us0: Vector3 = (us.rig as Node3D).global_position
+	t0 = Time.get_ticks_msec()
+	while (us.rig as Node3D).global_position.distance_to(us0) < 1.8 and Time.get_ticks_msec() - t0 < 12000:
+		P.global_position = (us.rig as Node3D).global_position + Vector3(6.0, 0.05, 4.0)
+		await wait(0.2)
+	await _cam_shot_look(g, "life15_ushanka_walks", (us.rig as Node3D).global_position + Vector3(2.2, 1.5, 3.0), us.rig, 1.0)
 	ok(us.state == "walk" or us.log.any(func(e): return String(e[0]) == "go"), "ДВОР 1.5: ушанка идёт по расписанию (состояние %s)" % us.state)
 	t0 = Time.get_ticks_msec()
 	while us.state != "stay" and Time.get_ticks_msec() - t0 < 60000:
@@ -2767,7 +2781,14 @@ func _life15c(g, G: Golda67, P) -> void:
 	var i_before: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else -1
 	P.global_position = (gz[0] as Node3D).global_position + Vector3(1.6, 0.05, 0.5)
 	await wait(1.6)
-	await _cam_shot(g, "life15_hush", P.global_position + Vector3(1.9, 1.8, 1.4), ((gz[0] as Node3D).global_position + (gz[1] as Node3D).global_position) * 0.5 + Vector3(0, 1.1, 0))
+	var mid: Vector3 = ((gz[0] as Node3D).global_position + (gz[1] as Node3D).global_position) * 0.5
+	var side: Vector3 = ((gz[1] as Node3D).global_position - (gz[0] as Node3D).global_position)
+	var perp := Vector3(-side.z, 0, side.x).normalized()
+	if perp.dot(P.global_position - mid) < 0.0:
+		perp = -perp
+	P.visible = false
+	await _cam_shot(g, "life15_hush", mid + perp * 3.2 + Vector3(0, 1.6, 0), mid + Vector3(0, 1.0, 0))
+	P.visible = true
 	var i_hush: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else -2
 	await wait(4.0)
 	var i_still: int = int(du.active["gazebo"]["i"]) if du.active.has("gazebo") else -3
@@ -2791,12 +2812,12 @@ func _life15c(g, G: Golda67, P) -> void:
 	P.global_position = Vector3(0.0, 0.05, 27.0)
 	await wait(0.5)
 	yl.fire("window_shout")
-	await wait(0.9)
-	await _cam_shot(g, "life15_window_shout", Vector3(yl.last_window_x, 2.2, 27.5), Vector3(yl.last_window_x, 8.0, 34.8))
+	await wait(0.5)
+	await _cam_shot(g, "life15_window_shout", Vector3(yl.last_window_x + 0.8, 4.5, 31.5), Vector3(yl.last_window_x, 8.0, 34.8))
 	await wait(5.0)
 	yl.fire("window_shape")
 	await wait(1.6)
-	await _cam_shot(g, "life15_window_shape", Vector3(yl.last_window_x, 2.2, 27.5), Vector3(yl.last_window_x, 8.0, 34.8))
+	await _cam_shot(g, "life15_window_shape", Vector3(yl.last_window_x + 0.8, 4.5, 31.5), Vector3(yl.last_window_x, 8.0, 34.8))
 	await wait(6.0)
 	# восемь листков и ковёр в пыли
 	await _cam_shot(g, "life15_seven_papers", Vector3(-6.6, 1.6, 32.9), Vector3(-6.4, 1.55, 34.9))
@@ -3163,6 +3184,65 @@ func _clip_log(G: Golda67, cid: String) -> void:
 		print("GOLDA67CHECK   LOG %s %5.1f  %s  голос %.2f с  пауза %.2f%s%s" % [cid, float(lg[i][0]), String(lg[i][1]).left(48), float(lg[i][2]), gap, note, "" if bool(lg[i][3]) else "  (НЕТ ГОЛОСА)"])
 	print("GOLDA67CHECK   LOG %s длина %.1f с" % [cid, t_last])
 
+## Контраст метки атаки: кольцо против земли вокруг, в тени (дальше всего от фонарей) и на свету (у фонаря), по зонам
+func _luma(c: Color) -> float:
+	return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+
+func _marks_contrast(g, G: Golda67) -> void:
+	var yd = G.world.yard
+	var oc := Camera3D.new()
+	oc.fov = 50.0
+	g.add_child(oc)
+	oc.make_current()
+	for zid in ["podezd", "garages", "playground", "parking", "gazebo", "sport"]:
+		var z: Dictionary = G67Yard.zone(zid)
+		var c: Vector3 = z["c"]
+		var h: Vector2 = z["h"]
+		var dark := c
+		var dd := -1.0
+		var lit := c
+		var ld := 1e9
+		for i in 40:
+			var p := Vector3(c.x + (float(i % 8) / 7.0 * 2.0 - 1.0) * (h.x - 2.0), 0, c.z + (float(i / 8) / 4.0 * 2.0 - 1.0) * (h.y - 2.0))
+			var nearest := 1e9
+			for lm in yd.lamps:
+				nearest = minf(nearest, Vector2(lm.global_position.x - p.x, lm.global_position.z - p.z).length())
+			if nearest > dd:
+				dd = nearest
+				dark = p
+			if nearest < ld:
+				ld = nearest
+				lit = p
+		var res: Array = []
+		for spot in [dark, lit]:
+			oc.global_position = spot + Vector3(0, 7.0, 6.5)
+			oc.look_at(spot, Vector3.UP)
+			await wait(0.4)
+			var img0: Image = g.get_viewport().get_texture().get_image()
+			var zn: Dictionary = g.fx.zone(spot, 2.0, Color(1.0, 0.16, 0.08))
+			await wait(0.4)
+			var img1: Image = g.get_viewport().get_texture().get_image()
+			(zn["n"] as Node3D).queue_free()
+			var sc: Vector2 = oc.unproject_position(spot)
+			var edge: Vector2 = oc.unproject_position(spot + Vector3(2.0, 0, 0))
+			var rpx := absf(edge.x - sc.x)
+			var ring := 0.0
+			var base := 0.0
+			var nr := 0
+			for a in 36:
+				var an := float(a) / 36.0 * TAU
+				var pr := sc + Vector2(cos(an), sin(an) * 0.6) * rpx * 0.9
+				var ps := sc + Vector2(cos(an), sin(an) * 0.6) * rpx * 1.5
+				if pr.x < 0 or ps.x < 0 or pr.y < 0 or ps.y < 0 or pr.x >= img0.get_width() or ps.x >= img0.get_width() or pr.y >= img0.get_height() or ps.y >= img0.get_height():
+					continue
+				ring += _luma(img1.get_pixelv(Vector2i(pr)))
+				base += _luma(img0.get_pixelv(Vector2i(pr)))
+				nr += 1
+			var contrast := (ring - base) / float(maxi(nr, 1)) / (base / float(maxi(nr, 1)) + 0.03)
+			res.append(contrast)
+			print("GOLDA67CHECK   MARK %s %s: яркость земли %.3f, с меткой %.3f, контраст %.2f" % [zid, "тень" if spot == dark else "свет", base / float(maxi(nr, 1)), ring / float(maxi(nr, 1)), contrast])
+	oc.queue_free()
+
 ## Проход героя сквозь центр предмета: капсула идёт по прямой через точку; true — упёрлась
 func _walk_blocked(g, c: Vector3) -> bool:
 	var space: PhysicsDirectSpaceState3D = g.get_world_3d().direct_space_state
@@ -3309,6 +3389,21 @@ func _perf_zones(g, G: Golda67, P) -> void:
 		for sb in G.world.yard.get_children():
 			if sb is StaticBody3D and (sb.get_child(0) as CollisionShape3D).shape is CylinderShape3D:
 				sb.queue_free()
+	if ab.contains("fx"):
+		for ch in G.world.yard.get_children():
+			if String(ch.name).begins_with("g67_fx_"):
+				ch.queue_free()
+	if ab.contains("patch"):
+		for ch in G.world.yard.get_children():
+			if ch is MultiMeshInstance3D and ch != G.world.yard.win_mm:
+				ch.queue_free()
+	if ab.contains("wire"):
+		for ch in G.world.yard.get_children():
+			if ch is MeshInstance3D and (ch as MeshInstance3D).mesh is CylinderMesh and ((ch as MeshInstance3D).mesh as CylinderMesh).top_radius < 0.02:
+				ch.queue_free()
+	if ab.contains("fog"):
+		for we in g.get_tree().root.find_children("*", "WorldEnvironment", true, false):
+			(we as WorldEnvironment).environment.fog_enabled = false
 	if ab.contains("props"):
 		for k in G.world.yard.life_props:
 			G.world.yard.life_props[k].queue_free()
@@ -3580,7 +3675,13 @@ func _run_dvor(g, G: Golda67, P) -> void:
 		await wait(4.2)
 	G.hub_btn_force = -1
 	ok(G.hub_log.has("btn_flush") and G.hub_log.has("btn_lamp") and G.hub_log.has("btn_voice"), "ДВОР 1.5: кнопка хаба — все три исхода (вода, лампа, голос из-за двери)")
-	await _cam_shot(g, "life15_madk_tv", Vector3(0.5, G67World.LAND_Y + 1.7, -2.6), g.buddy.global_position + Vector3(0, 0.8, 0))
+	var mb2: Node3D = g.buddy
+	print("GOLDA67CHECK   MADK поза: pos=%s visible=%s clip=%s st=%s log=%s" % [str(mb2.global_position), str(mb2.visible), String(g.buddy.rig.cur), G.madk_st, str(G.madk_log.slice(-4))])
+	P.global_position = Vector3(-2.2, G67World.LAND_Y + 0.05, -2.6)
+	P.visible = false
+	await wait(0.3)
+	await _cam_shot(g, "life15_madk_tv", mb2.global_position + Vector3(1.4, 1.5, 2.2), mb2.global_position + Vector3(0, 0.7, 0))
+	P.visible = true
 	G.hub_t["strip"] = 0.0
 	G.hub_t["sil"] = 0.0
 	await wait(1.0)
