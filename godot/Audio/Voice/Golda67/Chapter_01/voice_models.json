@@ -138,6 +138,18 @@
 			"id": "preset:audiobook_uk_narrator",
 			"voice_name": "пресет Audiobook UK Narrator, женский (Voice Studio Pro)",
 			"status": "found"
+		},
+		"VB": {
+			"character": "Пахан (подземный бас)",
+			"id": "d3dddb2a",
+			"voice_name": "ПАШОК",
+			"status": "found"
+		},
+		"DK": {
+			"character": "Диктор рекламы",
+			"id": "preset:energetic",
+			"voice_name": "пресет Energetic (Voice Studio Pro)",
+			"status": "found"
 		}
 	}
 }

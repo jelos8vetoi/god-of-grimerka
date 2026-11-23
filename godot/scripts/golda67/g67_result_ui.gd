@@ -27,11 +27,12 @@ func _build() -> void:
 	bg.size = STAGE
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(bg)
-	_t("ДВОР · ИТОГИ ЗАБЕГА", "caps", 13, Color(0.72, 0.68, 0.6), Vector2(70, 52))
+	var pz := String(R.get("district", "dvor")) == "podzemka"
+	_t(("ПОДЗЕМКА" if pz else "ДВОР") + " · ИТОГИ ЗАБЕГА", "caps", 13, Color(0.72, 0.68, 0.6), Vector2(70, 52))
 	_t("ПОБЕДА" if won else "ЗАБЕГ ОКОНЧЕН", "display", 64, Color(0.95, 0.82, 0.35) if won else Color(0.9, 0.34, 0.28), Vector2(66, 68))
 	var y := 150.0
 	if first:
-		_t("ГЛАВА 1 ПРОЙДЕНА", "display", 54, Color(1.0, 0.86, 0.4), Vector2(66, y))
+		_t("ПОДЗЕМКА ПРОЙДЕНА" if pz else "ГЛАВА 1 ПРОЙДЕНА", "display", 54, Color(1.0, 0.86, 0.4), Vector2(66, y))
 		y += 76.0
 	var col := Color(0.88, 0.85, 0.78)
 	var dim := Color(0.7, 0.66, 0.58)

@@ -235,3 +235,7 @@ https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build
 | Нужен рабочий пример из официальных демо | `godot-demo-reference` |
 
 Источники и лицензии навыков: `.claude/skills/THIRD_PARTY.md`.
+
+## Ассеты Sketchfab
+
+Часть реквизита «ГОЛДА 67» — модели с Sketchfab (`godot/assets/golda67/podzemka/sf_*.glb`). Брать только **CC0 и CC Attribution (CC-BY)**; NonCommercial, NoDerivatives, ShareAlike, Standard/Editorial и платные — запрещены. Токен — `SKETCHFAB_TOKEN` в `.env` (не коммитить, не печатать). Инструмент: `node tools/sketchfab-get.cjs --search "<запрос>" [--maxfaces N --sheet]`, `--get <uid> --as <имя>` (проверяет лицензию по модели и пишет `godot/assets/golda67/CREDITS_SKETCHFAB.json`), `--credits` (пересобирает `godot/docs/CREDITS_SKETCHFAB.md` — обязательное указание авторства). Обработка — `tools/blender/g67_sf_prep.py` (метры, низ на ноль, упрощение), затем `tools/g67_glb_fixtex.py` (иначе Godot может не подхватить baseColor). Бюджет: мелочь ≤ 3 тыс. треугольников, реквизит ≤ 8 тыс., крупное ≤ 15 тыс., повторяющееся ≤ 4 тыс.

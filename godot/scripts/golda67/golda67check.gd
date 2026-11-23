@@ -155,6 +155,21 @@ func _run() -> void:
 			_finish()
 			return
 	for arg in OS.get_cmdline_user_args():
+		if String(arg).begins_with("--g67-clipshot="):
+			var cs := String(arg).substr(15).split(":")
+			G.play_clip(String(cs[0]))
+			await wait(0.3)
+			while G.clip != null and is_instance_valid(G.clip) and G.clip.t < float(cs[1]):
+				await get_tree().process_frame
+			await wait(0.2)
+			var meshes := 0
+			if G.clip != null and is_instance_valid(G.clip):
+				meshes = G.clip.world.find_children("*", "MeshInstance3D", true, false).size()
+			print("GOLDA67CHECK   CLIPSHOT %s t=%.1f мешей мира ролика: %d" % [String(cs[0]), G.clip.t if G.clip != null else -1.0, meshes])
+			await shot("clipshot_" + String(cs[0]))
+			_finish()
+			return
+	for arg in OS.get_cmdline_user_args():
 		if String(arg).begins_with("--g67-clip="):
 			await _clip_log(G, String(arg).substr(11))
 			_finish()
@@ -221,6 +236,18 @@ func _run() -> void:
 		return
 	if OS.get_cmdline_user_args().has("--g67-cam"):
 		await _cam_check(g, G, g.player)
+		_finish()
+		return
+	if OS.get_cmdline_user_args().has("--g67-clipbg"):
+		await _clip_bg_check(g, G)
+		_finish()
+		return
+	if OS.get_cmdline_user_args().has("--g67-pz") or OS.get_cmdline_user_args().has("--pz-perfzones") or OS.get_cmdline_user_args().has("--g67-fz"):
+		var pc := PodzemkaCheck.new()
+		pc.fz_only = OS.get_cmdline_user_args().has("--g67-fz")
+		pc.perf_only = OS.get_cmdline_user_args().has("--pz-perfzones")
+		pc.c = self
+		await pc.run(g, G)
 		_finish()
 		return
 	for arg in OS.get_cmdline_user_args():
@@ -1547,7 +1574,7 @@ func _hub_screens(g, G: Golda67, P) -> void:
 	# коллекция артефактов: сервант, 18 мест, пока все — силуэты
 	ok(await _hub_screen(G, P, "artifacts", "artifacts"), "коллекция артефактов открывается")
 	var CU = G.hub_ui
-	ok(CU is G67ArtifactsUI and CU.cells.size() == 18 and CU.cells.all(func(c): return (c as G67ArtifactsUI.Cell).tex != null), "18 мест с рисованными значками владельца")
+	ok(CU is G67ArtifactsUI and CU.cells.size() == 19 and CU.cells.all(func(c): return (c as G67ArtifactsUI.Cell).tex != null), "19 мест с рисованными значками владельца")
 	ok(CU.cells.all(func(c): return not (c as G67ArtifactsUI.Cell).has) and CU.c_name.text == "???", "ничего не найдено — за стеклом силуэты, имя скрыто")
 	await wait(0.3)
 	await shot("h04_artifacts")
@@ -1712,7 +1739,7 @@ func _clip_frames(G: Golda67, dir: String) -> void:
 ## отказа), эффекты всех артефактов и ВОССТАНОВЛЕНИЯ числами, ДОБИВАЛА и ВТОРОЕ ДЫХАНИЕ по таблице
 func _stage3(g, G: Golda67, P) -> void:
 	ok(G.place == "hub", "этап 3: начинаем из подъезда")
-	ok(G67Data.ARTIFACTS.size() == 18 and G.slots() == 3, "18 артефактов, слотов 3")
+	ok(G67Data.ARTIFACTS.size() == 19 and G.slots() == 3, "19 артефактов, слотов 3")
 	var pool := G.storage_pool()
 	ok(not pool.any(func(id): return G67Data.ART_EVENT.has(id)), "событийных артефактов в кладовке нет")
 	ok(not pool.has("second_sim"), "«Вторая симка» до первой концовки не выпадает")
@@ -3877,12 +3904,105 @@ func _ev02_check(g, G: Golda67, P) -> void:
 	ok(last_t >= 30.0 and last_t <= 42.0, "длительность события %.1f с (30–42)" % last_t)
 	ok(G.clip_seen("EV02"), "досмотренный ролик — в clips_seen")
 
+## iPod приквела: страница «Любимые треки Пахана», обложка, один звук за раз, без дублей и без записи в настройки
+func _ipod_g67_check(g, G: Golda67) -> void:
+	var ip = g.ipod
+	ip.open()
+	await wait(0.9)
+	ip._go_to_page("Плейлисты")
+	ip.selected = 0
+	ip._refresh()
+	await wait(0.5)
+	var pl: Array = ip._items()
+	ok(pl.size() == 4 and String(pl[0]) == "Любимые треки Пахана", "iPod: страница «Плейлисты» в приквеле — %s" % str(pl))
+	await shot("ipod_playlists")
+	ip._go_to_page("Любимые треки Пахана")
+	ip.selected = 0
+	ip._refresh()
+	var items: Array = ip._items()
+	var i17 := items.find("Форэн Кисуля Флоу 3")
+	ok(items.size() >= 16 and i17 >= 0, "iPod: в плейлисте %d треков, №17 «Форэн Кисуля Флоу 3» на месте %d" % [items.size(), i17])
+	ip.selected = maxi(i17, 0)
+	ip._select()
+	await wait(1.0)
+	ok(ip.player.stream != null and ip.player.playing and ip.g67_playing(), "iPod: выбор трека запускает его (поток есть, играет)")
+	ok(ip._cover_for_track(ip.tracks[ip.track_index]) != null, "iPod: обложка плейлиста загружается")
+	await shot("ipod_now_playing")
+	var ph: G67Phone = G.phone_get()
+	ok(not ph.active(), "iPod: вкладка паузы не играет одновременно")
+	await wait(1.6)
+	ok(String(main.audio.cur) == "", "iPod: музыка режима глохнет (набор «%s»)" % String(main.audio.cur))
+	var n_g67: int = ip.g67_tracks().size()
+	ip.close(true)
+	await wait(0.5)
+	ip.open()
+	await wait(0.6)
+	ok(ip.g67_tracks().size() == n_g67 and ip.tracks.size() == ip.tracks.map(func(t): return String(t["id"])).size(), "iPod: после повторного открытия треков плейлиста %d (было %d), дублей нет" % [ip.g67_tracks().size(), n_g67])
+	var ids: Array = ip.tracks.map(func(t): return String(t["id"]))
+	var uniq := {}
+	for i in ids:
+		uniq[i] = true
+	ok(uniq.size() == ids.size(), "iPod: id треков уникальны")
+	ph.play(1)
+	await wait(0.4)
+	ok(not ip.g67_playing() and ph.active(), "iPod: запуск из вкладки паузы останавливает плеер iPod")
+	ph.stop()
+	ip._save_settings()
+	var st := FileAccess.get_file_as_string("user://grimerka_ipod.json") if FileAccess.file_exists("user://grimerka_ipod.json") else ""
+	ok(not st.contains("g67_") and not st.contains("Любимые треки"), "iPod: в файле настроек нет треков плейлиста")
+	ip.player.stop()
+	ip.close(true)
+	await wait(0.4)
+
+## Фон роликов: в сценах V00, AD01, CL01, NEWS01 двор построен целиком (сетки двора) и хотя бы один дом/борт в кадре камеры
+func _aabb_in_frustum(bb: AABB, planes: Array) -> bool:
+	for p in planes:
+		var pl: Plane = p
+		var q := Vector3(bb.position.x + (bb.size.x if pl.normal.x < 0.0 else 0.0), bb.position.y + (bb.size.y if pl.normal.y < 0.0 else 0.0), bb.position.z + (bb.size.z if pl.normal.z < 0.0 else 0.0))
+		if pl.distance_to(q) > 0.0:
+			return false
+	return true
+
+func _clip_bg_check(g, G: Golda67) -> void:
+	for cid in ["V00", "AD01", "CL01", "NEWS01"]:
+		G.play_clip(cid)
+		await wait(0.3)
+		await until(func(): return G.clip != null and is_instance_valid(G.clip) and G.clip.t >= 3.0, 20.0)
+		await wait(0.2)
+		var n_mesh := 0
+		var in_view := 0
+		if G.clip != null and is_instance_valid(G.clip):
+			var yd: G67Yard = null
+			for ch in G.clip.world.get_children():
+				if ch is G67Yard:
+					yd = ch
+			n_mesh = yd.find_children("*", "MeshInstance3D", true, false).size() if yd != null else 0
+			var planes: Array = G.clip.cam.get_frustum()
+			if yd != null:
+				for mi in yd.find_children("*", "MeshInstance3D", true, false):
+					var m := mi as MeshInstance3D
+					if m.mesh == null or not m.is_visible_in_tree():
+						continue
+					var bb: AABB = m.global_transform * m.mesh.get_aabb()
+					if bb.size.y >= 3.0 and bb.size.x + bb.size.z >= 4.0 and _aabb_in_frustum(bb, planes):
+						in_view += 1
+			if cid == "AD01":
+				await shot("bg_AD01")
+			if cid == "V00":
+				await shot("bg_V00")
+			if cid == "CL01":
+				await shot("bg_CL01")
+		ok(n_mesh > 200 and (in_view >= 1 or cid == "NEWS01"), "фон ролика %s: сеток двора %d (нужно > 200), крупных построек в кадре %d (нужно ≥ 1; у NEWS01 кадр на 3 с — студия)" % [cid, n_mesh, in_view])
+		if G.clip != null and is_instance_valid(G.clip):
+			G.clip.skip()
+			await wait(0.5)
+
 ## iPhone Пахана: плейлист, управление, заглушение музыки локации, список скрыт в бою, остановка
 func _phone_check(g, G: Golda67) -> void:
 	var ph: G67Phone = G.phone_get()
 	ph.scan()
-	print("GOLDA67CHECK   треков плейлиста найдено: %d из 16" % ph.available())
-	ok(G67Data.PLAYLIST.size() == 16, "плейлист из 16 строк")
+	print("GOLDA67CHECK   треков плейлиста найдено: %d из 17" % ph.available())
+	ok(G67Data.PLAYLIST.size() == 17, "плейлист из 17 строк")
 	var wav := AudioStreamWAV.new()
 	wav.format = AudioStreamWAV.FORMAT_16_BITS
 	wav.mix_rate = 22050
@@ -3936,6 +4056,8 @@ func _phone_check(g, G: Golda67) -> void:
 
 func _run_dvor(g, G: Golda67, P) -> void:
 	await _phone_check(g, G)
+	await _clip_bg_check(g, G)
+	await _ipod_g67_check(g, G)
 	# шаги в приквеле: подъезд — бетон, двор — по поверхности
 	G.step_log.clear()
 	G.play_step(Vector3(0, 0.0, 0))

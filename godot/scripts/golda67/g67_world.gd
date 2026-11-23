@@ -367,6 +367,7 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 var room: Dictionary = {}
 var gates: Array = []          # варианты следующего этапа: [{option, icon, root, label, stand, auto, pos}]
 var yard: G67Yard
+var district: G67District          # мир текущего района (у двора совпадает с yard; у подземки yard = null)
 ## Бой Миши (G67Misha.hook_target): за что цепляется цепь — турники и борта коробки, в координатах мира
 var hook_points: Array = []
 var hook_rect := Rect2(-14, -14, 28, 28)
@@ -416,7 +417,9 @@ func build_yard() -> void:
 	fill.light_energy = 0.22
 	fill.rotation = Vector3(deg_to_rad(-30), deg_to_rad(50), 0)
 	add_child(fill)
+	G67District.use("yard")
 	yard = G67Yard.new()
+	district = yard
 	add_child(yard)
 	yard.build()
 	yard.position = Vector3.ZERO
@@ -430,6 +433,46 @@ func build_yard() -> void:
 	_cam_court()
 	_misha_statist()
 	_particles(T)
+
+## Подземка: каркас помещений без неба, ровный тёмный свет, лампы в потолке
+func build_podzemka() -> void:
+	deco = "g67_podzemka"
+	G67District.use("podzemka")
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.02, 0.03, 0.03)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.45, 0.5, 0.52)
+	env.ambient_light_energy = 0.42
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 0.95
+	env.glow_enabled = true
+	env.glow_intensity = 0.4
+	env.ssao_enabled = true
+	env.ssao_intensity = 1.5
+	env.fog_enabled = true
+	env.fog_light_color = Color(0.1, 0.13, 0.13)
+	env.fog_density = 0.012
+	var we := WorldEnvironment.new()
+	we.environment = env
+	add_child(we)
+	var pz := G67Podzemka.new()
+	add_child(pz)
+	pz.build()
+	pz.position = Vector3.ZERO
+	district = pz
+	yard = null
+	hook_points = []
+	missing.append_array(pz.missing)
+	for bk in G67Data.PZ_BOTTLES:
+		_point("bottle%d" % int(bk["n"]), "ПУСТАЯ БУТЫЛКА", "взять бутылку", G67Podzemka.fit(bk["pos"] as Vector3) + Vector3(0.6, 0, 0.0))
+	_point("reserve_table", "СТОЛ В ТЕХПОМЕЩЕНИИ", "поставить бутылки в ряд", Vector3(34.0, 0.0, -160.0))
+	_point("balloon", "ШАРЫ. ПРАЗДНИК. ТАРИФ", "[E] у баллона", Vector3(-8.9, 0.0, -83.5))
+	_point("shutter", "РОЛЬСТАВНЯ", "поднять", Vector3(-42.4, 0.0, -122.0))
+	_point("hamster_door", "НЕ ТРОГАТЬ. ТУТ ХОМЯКИ", "открыть дверь", Vector3(42.2, 0.0, -146.0))
+	_point("hamster_game", "ТАПАТЬ ХОМЯКОВ", "играть, 45 с", Vector3(51.5, 0.0, -148.0))
+	_point("slot", "DOG CASINO 67", "[E] крутить (удерживай — турбо)", Vector3(-51.4, 0.0, -122.0))
+	_point("home", "НАВЕРХ, ДОМОЙ", "домой: забег сохранится, продолжишь отсюда же", G67Podzemka.STAIRS_TOP + Vector3(0, 0, 1.5))
 
 ## Камера не выходит за борта коробки: сплошные камерные стены по периметру COURT (внутренняя грань — в 0,35 м от борта),
 ## включая проём калитки; сетка над бортом тоже не пропускает
@@ -471,7 +514,7 @@ var bounds: Node3D
 
 func bound_zone(zid: String, barriers: bool) -> void:
 	open_bounds()
-	var z: Dictionary = G67Yard.zone(zid)
+	var z: Dictionary = G67District.zone_of(zid)
 	var c: Vector3 = z["c"]
 	var hx: float = (z["h"] as Vector2).x
 	var hz: float = (z["h"] as Vector2).y
@@ -599,7 +642,7 @@ func blocked(p: Vector3) -> bool:
 static func gate_spot(o: Dictionary) -> Dictionary:
 	var type := String(o["type"])
 	var zid := String(o.get("place", "podezd"))
-	var z: Dictionary = G67Yard.zone(zid)
+	var z: Dictionary = G67District.zone_of(zid)
 	match type:
 		"battle", "elite":
 			if z.has("stand"):
@@ -608,20 +651,20 @@ static func gate_spot(o: Dictionary) -> Dictionary:
 				return {"pos": sp + Vector3(sin(yaw), 0, cos(yaw)) * 1.5, "mark": sp + Vector3(0, 3.0, 0), "stand": sp, "yaw": yaw}
 			return {"pos": (z["c"] as Vector3) + Vector3(0, 0, (z["h"] as Vector2).y - 3.0), "mark": (z["c"] as Vector3) + Vector3(0, 3.0, (z["h"] as Vector2).y - 3.0)}
 		"fit":
-			var hp: Vector3 = G67Yard.HANGER_POS
-			return {"pos": hp + Vector3(sin(G67Yard.HANGER_YAW), 0, cos(G67Yard.HANGER_YAW)) * 1.3, "mark": hp + Vector3(0, 2.7, 0)}
+			var hp: Vector3 = G67District.pt("fit")
+			return {"pos": hp + Vector3(sin(G67District.fit_yaw()), 0, cos(G67District.fit_yaw())) * 1.3, "mark": hp + Vector3(0, 2.7, 0)}
 		"storage":
-			return {"pos": G67Yard.STORAGE_POS, "mark": G67Yard.STORAGE_POS + Vector3(0, 2.7, 0)}
+			return {"pos": G67District.pt("storage"), "mark": G67District.pt("storage") + Vector3(0, 2.7, 0)}
 		"break":
-			return {"pos": G67Yard.REST_POS, "mark": G67Yard.REST_POS + Vector3(0, 2.4, 0)}
+			return {"pos": G67District.pt("rest"), "mark": G67District.pt("rest") + Vector3(0, 2.4, 0)}
 		"boss":
-			return {"pos": G67Yard.GATE_BOSS, "mark": G67Yard.GATE_BOSS + Vector3(0, 2.7, 0)}
+			return {"pos": G67District.pt("gate_boss"), "mark": G67District.pt("gate_boss") + Vector3(0, 2.7, 0)}
 		"ambush":
 			return {"mark": (z["c"] as Vector3) + Vector3(0, 2.7, 0)}
 		"kiosk":
-			return {"pos": G67Yard.KIOSK_POS, "mark": G67Yard.KIOSK_POS + Vector3(0, 2.7, 0)}
+			return {"pos": G67District.pt("kiosk"), "mark": G67District.pt("kiosk") + Vector3(0, 2.7, 0)}
 		"event":
-			var ep: Vector3 = G67Yard.EVENT_SPOTS.get(String(o.get("ev", "")), z["c"])
+			var ep: Vector3 = G67District.event_spots().get(String(o.get("ev", "")), z["c"])
 			return {"pos": ep, "mark": ep + Vector3(0, 2.6, 0)}
 	return {"pos": z["c"], "mark": (z["c"] as Vector3) + Vector3(0, 2.7, 0)}
 
@@ -710,7 +753,7 @@ func _evb(sz: Vector3) -> BoxMesh:
 
 ## Автомат «Бурмалда», красная кнопка «Можно. А зачем?» и дверь «ТРЯПОК» — постоянные предметы двора
 func build_event_props() -> void:
-	var sp: Dictionary = G67Yard.EVENT_SPOTS
+	var sp: Dictionary = G67District.event_spots()
 	# автомат
 	var a := Node3D.new()
 	a.position = sp["burmalda"]
@@ -979,7 +1022,7 @@ func add_home() -> void:
 	for pt in points:
 		if String(pt["id"]) == "home":
 			return
-	_point("home", "ПОДЪЕЗД", "домой: забег сохранится, продолжишь отсюда же", G67Yard.HOME_DOOR)
+	_point("home", "ПОДЪЕЗД", "домой: забег сохранится, продолжишь отсюда же", G67District.pt("home"))
 
 ## Жители двора: точка «поговорить» следует за жителем (позицию обновляет G67Resident)
 func add_residents() -> void:
@@ -1104,12 +1147,17 @@ func add_life_points() -> void:
 ## Ларёк «ШАУРМА 67»: окно шаурмичной на парковке — постоянный магазин двора
 func add_kiosk() -> void:
 	if yard != null:
-		_point("kiosk", "ШАУРМА 67", "окно ларька: шаурма за голду", G67Yard.KIOSK_POS)
+		_point("kiosk", "ШАУРМА 67", "окно ларька: шаурма за голду", G67District.pt("kiosk"))
+
+## Спуск в подземку: решётка под аркой на северной стороне двора
+func add_descent() -> void:
+	if yard != null:
+		_point("descent", "СПУСК В ПОДЗЕМКУ", "решётка под аркой", Vector3(1.5, 0, -54.5))
 
 ## Кладовка: открытый бокс у гаражей
 func add_storage() -> void:
-	if yard != null:
+	if district != null:
 		for pt in points:
 			if String(pt["id"]) == "storage":
 				return
-		_point("storage", "КЛАДОВКА", "открытый бокс: взять один артефакт", G67Yard.STORAGE_POS)
+		_point("storage", "КЛАДОВКА", "открытый бокс: взять один артефакт", G67District.pt("storage"))

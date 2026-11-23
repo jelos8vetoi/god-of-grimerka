@@ -13,7 +13,23 @@ const FOES := {
 	"shest": {"kind": "bot", "skin": "g67_shest", "name": "Шестёрка", "golda": 4},
 	"semka": {"kind": "hater", "skin": "g67_semka", "name": "Семечник", "golda": 5},
 	"smotr": {"kind": "troll", "skin": "g67_smotr", "name": "Смотрящий", "golda": 18},
+	# ПОДЗЕМКА (модели придут от владельца: g67_enemy_*.glb; пока заглушки на моделях двора)
+	"controller": {"kind": "mod", "skin": "g67_pz_ctl", "name": "Контролёр", "golda": 8, "hp": 150.0, "dmg": 12.0, "bark": ["Z2", ["Ваш билет.", "Без билета не работаем.", "Проход по тарифу.", "Оформляем нарушение."]]},
+	"promoter": {"kind": "farmer", "skin": "g67_pz_prm", "name": "Зазывала", "golda": 10, "hp": 90.0, "dmg": 8.0, "bark": ["SH", ["Акция! Только сегодня! Всегда!", "Первый проход почти бесплатный!", "Коллеги, тут безбилетный!"]],
+		"moves": {"flyer": {"act": "zone", "w": 2.0, "cd": 4.0, "min": 3.0, "wind": 0.5, "rec": 0.6, "dmg": 1.0, "zr": 1.5, "delay": 0.7, "n": 1, "dmg_abs": 8.0, "slow": 1.5, "title": "ФЛАЕР"},
+			"call": {"act": "summon", "w": 1.4, "cd": 12.0, "wind": 1.0, "rec": 0.8, "kinds": ["mod"], "n": 1, "cap": 2, "title": "КОЛЛЕГИ!"},
+			"scare": {"act": "repel", "w": 6.0, "cd": 8.0, "max": 3.5, "cond": "close", "wind": 0.45, "rec": 0.2, "dmg": 0.0, "dmg_abs": 6.0, "r": 3.6, "title": "ОТСТУПЛЕНИЕ"}}},
+	"bouncer": {"kind": "troll", "skin": "g67_pz_bnc", "name": "Вышибала турникета", "golda": 30, "hp": 520.0, "dmg": 22.0, "moves": {"punch": {"act": "melee", "w": 2.0, "max": 3.2, "wind": 0.95, "rec": 1.1, "dmg": 1.0, "r": 2.9, "half": 1.0}, "push": {"act": "slam", "w": 1.6, "cd": 5.0, "max": 3.4, "wind": 0.8, "rec": 1.2, "dmg": 0.8, "r": 3.0, "title": "ТОЛЧОК"}, "over": {"act": "slam", "w": 1.4, "cd": 7.0, "max": 3.4, "wind": 0.8, "rec": 1.4, "dmg": 1.2, "r": 3.2, "title": "СВЕРХУ"}, "rush": {"act": "charge", "w": 2.2, "cd": 8.0, "min": 4.0, "max": 14.0, "wind": 0.9, "rec": 1.4, "dmg": 1.0, "r": 9.0, "lane": 1.6, "speed": 11.0, "title": "РЫВОК"}}, "bark": ["US", ["Выход отдельно.", "Не положено.", "Створку не трогать."]]},
 }
+
+## Волны района 2 по индексу позиции (0…3 бой, элита — PZ_ELITE); в тоннеле не больше четырёх одновременно
+const PZ_WAVES := {
+	0: [[["controller", 2]], [["controller", 2], ["shest", 1]]],
+	1: [[["controller", 2], ["promoter", 1]], [["controller", 3], ["promoter", 1]]],
+	2: [[["controller", 2], ["promoter", 1]], [["controller", 3], ["promoter", 2]], [["bouncer", 1], ["controller", 1]]],
+	3: [[["controller", 2], ["promoter", 2]], [["controller", 3], ["promoter", 1]], [["controller", 2], ["promoter", 2]]],
+}
+const PZ_ELITE := [[["bouncer", 1]], [["bouncer", 1], ["controller", 2]], [["controller", 2], ["promoter", 2]]]
 
 ## Район: семь этапов до босса включительно. Этап — один или два варианта, каждый вариант — настоящее место двора.
 ## routes — три шаблона забега (по номеру забега: runs % 3); route — первый из них (для совместимости).
@@ -28,7 +44,7 @@ const TYPE_ZONES := {"battle": ["garages", "parking", "playground"], "elite": ["
 const PLAYLIST := [[1, "3g0th2002", "Когда я вырасту"], [2, "LOVV66", "Не Дай Запомнить"], [3, "Toxi$, OG Buda", "BANDZ"], [4, "OG Buda", "6AM в Будапеште"],
 	[5, "OG Buda, Платина", "YTPO"], [6, "cardinparis ft. lovv66", "красивое"], [7, "королевский XVII", "vivre sa vie"], [8, "Саби Учиха", "Шары"],
 	[9, "pemfi", "династия madk1d (Ultra Slowed x Редакт)"], [10, "Джон Гарик", "Arctic Rose"], [11, "Aarne, VILLIAN", "Претендент На Убийство"], [12, "Eminem", "Deja Vu"],
-	[13, "blink-182", "All The Small Things"], [14, "madk1d", "перестань"], [15, "Паша Техник, FEDUK", "ГУСЬ"], [16, "H", "кроты-хомяки"]]
+	[13, "blink-182", "All The Small Things"], [14, "madk1d", "перестань"], [15, "Паша Техник, FEDUK", "ГУСЬ"], [16, "H", "кроты-хомяки"], [17, "OG Buda", "Форэн Кисуля Флоу 3"]]
 const EVENTS_SHORT := ["burmalda", "button"]
 ## «Бурмалда»: веса исходов; голда — min…max; рывок: один бесплатно, ещё два по BURMALDA_COST
 const BURMALDA := [
@@ -50,7 +66,7 @@ const MUST := {"ev_rags": "rags"}
 static func stage_title(type: String, place: String, ev := "") -> String:
 	if type == "event" and ev != "":
 		return String(EVENT_NAMES.get(ev, "СОБЫТИЕ"))
-	return "%s · %s" % [String(ROOM_NAMES.get(type, type)), String(G67Yard.zone(place)["name"]).to_upper()]
+	return "%s · %s" % [String(ROOM_NAMES.get(type, type)), String(G67District.zone_of(place)["name"]).to_upper()]
 
 const ROUTES_DVOR := [
 	[
@@ -81,6 +97,16 @@ const ROUTES_DVOR := [
 		[{"type": "boss", "place": "sport"}],
 	],
 ]
+## Район 2 «ПОДЗЕМКА»: шесть позиций (PODZEMKA_DESIGN.md, раздел 2); места подставляет pz_option
+const ROUTES_PZ := [
+	[{"type": "battle", "place": "gate1"}],
+	[{"type": "battle", "place": "gallery"}, {"type": "fit", "place": "gallery"}],
+	[{"type": "elite", "place": "cross"}, {"type": "storage", "place": "cross"}, {"type": "battle", "place": "cross"}],
+	[{"type": "kiosk", "place": "arcade"}, {"type": "battle", "place": "arcade"}],
+	[{"type": "break", "place": "staff"}],
+	[{"type": "boss", "place": "arena"}],
+]
+
 const DISTRICTS := {
 	"dvor": {
 		"name": "ДВОР", "boss": "g67_misha", "unlock": "bottles", "flag": "boss_misha",
@@ -95,11 +121,24 @@ const DISTRICTS := {
 			5: [[["shest", 3], ["semka", 1]], [["shest", 2], ["semka", 1]]],
 		},
 	},
+	"podzemka": {
+		"name": "ПОДЗЕМКА", "boss": "g67_fortuna", "unlock": "tyaga812", "flag": "boss_fortuna",
+		"routes": ROUTES_PZ,
+		"route": ROUTES_PZ[0],
+		"music": "loc_g67_podzemka",
+		"waves": {},      # TODO этап 3: свои волны (Контролёр, Зазывала, Вышибала); пока состав двора (WAVES_*)
+	},
 }
 
 ## Босс первого района. Формат — как у боссов кампании (story.json → BOSS): его читает enemy._setup_boss.
 ## Приёмы фаз — существующие приёмы боссов; свой особый приём — enemy._special («РАЗМАХ ЦЕПЬЮ»).
 const BOSSES := {
+	"g67_fortuna": {      # этап 5а: настоящий бой (golda67/g67_fortuna.gd, арена — g67_fortuna_arena.gd); здоровье 3000 на старт замера
+		"n": "FORTUNA 812", "sub": "владелец турникетов", "sp": "FT", "hp": 3600, "r": 30, "spd": 104, "c": "#3fa34d", "dmg": 7, "gap": 1.8, "xp": 0, "armor": 0.35, "antract": false,
+		"poise": 320, "gate": true,
+		"phases": [["f_gates", "f_zone", "f_check", "f_change", "f_consult"], ["f_gates", "f_zone", "f_check", "f_change", "f_consult"], ["f_gates", "f_zone", "f_check", "f_change", "f_consult"]],
+		"barks": ["Оплата на месте.", "Вводим повышенный тариф.", "Что с турникетами?! Они же на гарантии!"],
+	},
 	"g67_misha": {
 		"n": "МИША МИНАСЯН", "sub": "главный авторитет двора", "sp": "G1", "hp": 2600, "r": 30, "spd": 116, "c": "#d9a23a", "dmg": 7, "gap": 1.6, "xp": 0, "armor": 0.7, "antract": true,      # armor — множитель урона по нему вне окон «ОТКРЫТ»
 		"poise": 320, "gate": true,      # фазы не проскакивают (enemy._phase_shift); равновесие выше, чем у остальных боссов
@@ -144,7 +183,16 @@ const KROT := [
 		"pose": "K3", "talk_clip": "K3", "acts": {2: "K3Point"}, "after": "stay", "feed": true,
 		"lines": ["KR|Пахан, ты вообще понимаешь, кто тут главный?", "V|Ты?", "KR|Нет, голубь справа. У него три квартиры и доступ к администрации.",
 			"V|Ты опять хуйню несёшь.", "KR|Тихо, он слышит. У него рилсы сливают."]},
+	{"id": "krot4", "title": "NPC", "district": "podzemka", "where": "gallery", "pos": Vector3(9.3, 0, -74.2), "yaw": PI * 0.5, "talk": Vector3(-1.3, 0, 0.2), "needs": "",
+		"pose": "K4", "talk_clip": "K4Nod", "acts": {1: ["K4Nod", 1.0]}, "after": "stay", "coin": 4, "sign": "ЗАДАНИЕ: НАЙТИ 5 РУБЛЕЙ",
+		"lines": ["V|Ты чё застыл?", "KR|Брат, я сегодня NPC.", "V|Чего?", "KR|У меня квест. Нужно найти пять рублей. Без этого я не могу выйти из магазина.",
+			"V|Держи пять рублей.", "KR|Спасибо, легенда. Новое задание доступно через 24 часа."]},
+	{"id": "krot5", "title": "АБСОЛЮТНО ТРЕЗВЫЙ", "district": "podzemka", "where": "arcade", "pos": Vector3(-41.7, 0, -110.6), "yaw": PI * 0.5, "talk": Vector3(0.2, 0, 1.2), "needs": "",
+		"pose": "K5", "talk_clip": "K5Nod", "acts": {2: "K5Finger"}, "after": "stay", "cut": 2, "ding": 4,
+		"lines": ["KR|Брат, я сегодня вообще трезвый. Даже мысли трезвые.", "V|Я ничего не спрашивал.", "KR|Я просто хотел сказать, что вчера выиграл у микроволновки в шахматы.",
+			"V|Как можно выиграть у микроволновки в шахматы?", "KR|Она сдалась. Начала крутить."]},
 ]
+
 
 ## Фитсы (SPEC, раздел 10). Пока одно семейство — МИША МИНАСЯН: сила, авторитет, тяжёлые удары, бонусы за добивания.
 ## Эффекты — числа, которые читает Golda67 (apply_fits, on_kill, _second_wind); исходные данные стилей не меняются.
@@ -154,10 +202,15 @@ const FITS := {
 	"authority": {"family": "misha", "name": "АВТОРИТЕТ", "desc": "Максимум здоровья +20 за уровень, сразу лечит на столько же.", "lv": 3, "rare": false},
 	"gold_chain": {"family": "misha", "name": "ЦЕПЬ НА УДАЧУ", "desc": "Голды с врагов и комнат +25% за уровень.", "lv": 3, "rare": false},
 	"finisher": {"family": "misha", "name": "ДОБИВАЛА", "desc": "Поверженный враг лечит на 3 / 6 / 9 (элитный — втрое), не больше 25 / 40 / 55 за комнату; босс и призванные не считаются.", "lv": 3, "rare": false},
+	"cashback": {"family": "fortuna", "name": "КЭШБЭК", "desc": "8 / 14 / 20 % потраченной в ларьке голды возвращается.", "lv": 3, "rare": false},
+	"spare_change": {"family": "fortuna", "name": "СДАЧА", "desc": "Каждый 5-й / 4-й / 3-й поверженный враг роняет ещё 4 голды.", "lv": 3, "rare": false},
+	"refill": {"family": "fortuna", "name": "ДОЛИВ", "desc": "Попадание бутылкой с шансом 15 / 25 / 35 % возвращает бутылку в запас.", "lv": 3, "rare": false},
+	"tariff": {"family": "fortuna", "name": "ТАРИФ «ВСЁ ВКЛЮЧЕНО»", "desc": "+1 бутылка к запасу за уровень; до открытия Водяры — +6 % урона за уровень.", "lv": 3, "rare": false},
+	"receipt": {"family": "fortuna", "name": "ДЛИННЫЙ ЧЕК", "desc": "За каждые 25 голды при себе +3 % / +5 % урона, не больше +30 %.", "lv": 2, "rare": true},
 	"second_wind": {"family": "misha", "name": "ВТОРОЕ ДЫХАНИЕ", "desc": "Раз за комнату (и в комнате босса): удар оставил меньше 30 % здоровья — лечит на 25 / 40. От смертельного не спасает.", "lv": 2, "rare": true},
 }
-const FAMILY_NAMES := {"misha": "МИША МИНАСЯН"}
-const FAMILY_COLOR := {"misha": Color(0.85, 0.63, 0.23)}
+const FAMILY_NAMES := {"misha": "МИША МИНАСЯН", "fortuna": "FORTUNA 812"}
+const FAMILY_COLOR := {"misha": Color(0.85, 0.63, 0.23), "fortuna": Color(0.62, 0.85, 0.25)}
 const DMG_CAP := 2.0          # потолок множителя урона от фитсов
 
 ## РЕСПЕКТ (постоянная валюта, SPEC, раздел 12): за что и сколько
@@ -187,14 +240,30 @@ const KIOSK_RARE := 0.15
 ## Артефакты (APPROVALS.md, 2.3): слотов 3 (+1 за уровень «СЛОТОВ АРТЕФАКТОВ»), в кладовке — один из двух;
 ## событийные в кладовке не лежат; «Вторая симка» — после первой концовки, «Автотюн» — когда открыты два стиля
 const ART_SLOTS := 3
-const ART_EVENT := ["garlic_aura", "hamster_aura", "collar_67"]
+const ART_EVENT := ["garlic_aura", "hamster_aura", "collar_67", "reserve_05"]
 const DMG_CAP_ALL := 2.0                   # общий потолок урона от фитсов и артефактов вместе
 
 const ROOM_GOLDA := {"battle": 20, "ambush": 20, "elite": 40, "fit": 0, "storage": 0, "kiosk": 0, "break": 0, "boss": 67, "event": 0}
 const BREAK_HEAL := 0.45      # доля максимума здоровья
 
 static func district(id: String) -> Dictionary:
-	return DISTRICTS.get(id, DISTRICTS["dvor"])
+	if not DISTRICTS.has(id):
+		push_error("G67Data.district: неизвестный район «%s»" % id)
+		return DISTRICTS["dvor"]
+	return DISTRICTS[id]
+
+## Место варианта этапа района 2 по позиции и шаблону забега
+static func pz_option(t: String, pos: int, tpl: int) -> Dictionary:
+	match t:
+		"battle":
+			var pl := ["gate1", "gallery", "cross", ("arcade" if tpl % 2 == 0 else "tunnel")]
+			return {"type": "battle", "place": pl[clampi(pos, 0, 3)]}
+		"elite": return {"type": "elite", "place": "cross"}
+		"fit": return {"type": "fit", "place": "gallery"}
+		"storage": return {"type": "storage", "place": "cross"}
+		"kiosk": return {"type": "kiosk", "place": "arcade"}
+		"break": return {"type": "break", "place": "staff"}
+	return {"type": "boss", "place": "arena"}
 
 ## Волны боя: позиция 1 — три волны; бой на позициях 2 и 4 — три волны; элита — три волны
 const WAVES_P1 := [[["shest", 3]], [["shest", 2], ["semka", 1]], [["shest", 3], ["semka", 1]]]
@@ -206,6 +275,10 @@ const STAGE_HEAL := {"battle": 25.0, "ambush": 25.0, "elite": 40.0}
 const WAVES_ELITE := [[["smotr", 1], ["shest", 2]], [["shest", 2], ["semka", 2]], [["smotr", 1], ["semka", 2]]]
 
 static func waves_for(_d: Dictionary, type: String, pos: int) -> Array:
+	if String(_d.get("boss", "")) == "g67_fortuna":
+		if type == "elite":
+			return PZ_ELITE
+		return PZ_WAVES.get(clampi(pos, 0, 3), PZ_WAVES[3])
 	if type == "elite":
 		return WAVES_ELITE
 	return WAVES_P1 if pos == 0 else WAVES_BATTLE
@@ -244,6 +317,7 @@ const ARTIFACTS := [
 	{"id": "platinum_badge", "name": "Платиновый значок", "rar": "редкий", "desc": "Добивание на [E] лечит на 8 и даёт 5 голды."},
 	{"id": "cracked_phone", "name": "Телефон с треснутым экраном", "rar": "обычный", "desc": "+25 % урона, пока здоровье ниже 35 %."},
 	{"id": "garlic_aura", "name": "ЧЕСНОЧНАЯ АУРА", "rar": "событие", "desc": "Враги в 2,5 м наносят на 10 % меньше урона (боссы — вдвое слабее эффект)."},
+	{"id": "reserve_05", "name": "АВАРИЙНЫЙ ЗАПАС 0.5", "rar": "секрет", "desc": "5 зарядов на забег: попадание бутылкой Водяры даёт всплеск 3,5 м (+60 % урона, замедление 40 % на 3 с)."},
 	{"id": "hamster_aura", "name": "ХОМЯЧЬЯ АУРА", "rar": "событие", "desc": "+2 голды за каждого поверженного врага."},
 	{"id": "collar_67", "name": "ОШЕЙНИК 67", "rar": "событие", "desc": "Смертельный удар оставляет 1 здоровье и даёт 2 с неуязвимости; раз за забег."},
 	{"id": "beanie", "name": "Шапка-бини", "rar": "обычный", "desc": "+20 к максимуму здоровья."},
@@ -293,3 +367,20 @@ const CLIP_WHY := {
 	"AD01": "перед первым выходом во двор", "CL01": "после первого захода во ДВОР",
 	"NEWS01": "после первой победы над Мишей Минасяном", "EXTRA01": "после третьей встречи с КРОТОМ",
 }
+
+## Доступность встреч КРОТА района 2 на позиции pos забега: КРОТ 4 — после позиции 1; КРОТ 5 — после позиции 3, если КРОТ 4 пройден и не на соседней позиции
+static func pz_krot_ok(id: String, pos: int, seen_krot4: bool, k4pos: int) -> bool:
+	if id == "krot4":
+		return pos >= 1
+	if id == "krot5":
+		return pos >= 3 and seen_krot4 and (k4pos < 0 or pos >= k4pos + 2)
+	return false
+
+## Пять бутылок района 2: номер → [позиция, реплика Пахана]
+const PZ_BOTTLES := [
+	{"n": 1, "pos": Vector3(9.4, 0, -77.5), "line": "Пригодится. Не спрашивай."},
+	{"n": 2, "pos": Vector3(41.0, 0, -157.5), "line": "Аварийный запас."},
+	{"n": 3, "pos": Vector3(-12.5, 0, -80.0), "line": "В хозяйстве всё пригодится."},
+	{"n": 4, "pos": Vector3(-41.0, 0, -136.0), "line": "Четыре. Я уже не могу остановиться."},
+	{"n": 5, "pos": Vector3(10.0, 0, -168.0), "line": "Пятая. Легенда."},
+]

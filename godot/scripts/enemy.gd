@@ -21,9 +21,13 @@ const KINDS := {
 const SKINS := {
 	"g67_shest": {"model": "g67", "path": "res://assets/golda67/g67_enemy_shestyorka.glb", "key": "g67_shest", "height": 1.75, "noweapon": true, "own": true, "clip": "Punch"},
 	"g67_semka": {"model": "g67", "path": "res://assets/golda67/g67_enemy_semechnik.glb", "key": "g67_semka", "height": 1.6, "noweapon": true, "own": true, "clip": "Punch"},
+	"g67_pz_ctl": {"model": "g67", "path": "res://assets/golda67/podzemka/g67_enemy_controller.glb", "key": "g67_pz_ctl", "height": 1.78, "noweapon": true, "own": true, "clip": "PzCStrike", "pz": "ctl"},
+	"g67_pz_prm": {"model": "g67", "path": "res://assets/golda67/podzemka/g67_enemy_promoter.glb", "key": "g67_pz_prm", "height": 1.74, "noweapon": true, "own": true, "clip": "PzPThrow", "pz": "prm"},
+	"g67_pz_bnc": {"model": "g67", "path": "res://assets/golda67/podzemka/g67_enemy_bouncer.glb", "key": "g67_pz_bnc", "height": 2.05, "noweapon": true, "own": true, "clip": "PzBOver", "pz": "bnc"},
 	"g67_smotr": {"model": "g67", "path": "res://assets/golda67/g67_enemy_smotryashchiy.glb", "key": "g67_smotr", "height": 2.35, "noweapon": true, "own": true, "clip": "Punch", "hp": 300.0},
 }
 const BOSS_LOOK := {
+	"g67_fortuna": {"model": "g67", "path": "res://assets/golda67/g67_fortuna.glb", "key": "g67_fortuna_boss", "scale": 1.08, "own": true},
 	"g67_misha": {"model": "g67", "path": "res://assets/golda67/g67_misha.glb", "key": "g67_misha_boss", "scale": 1.25, "own": true},
 	"courier": {"model": "drey", "scale": 1.3, "own": true}, "golem": {"model": "bot", "scale": 1.9}, "hype": {"model": "hater", "scale": 1.35},
 	"dislike": {"model": "bot", "scale": 1.75}, "major": {"model": "clipper", "scale": 1.4}, "strike": {"model": "hater", "scale": 1.45},
@@ -193,7 +197,15 @@ func _ready() -> void:
 		poses = Poses.bot()
 	if boss_id == "g67_misha":
 		poses.merge(G67Misha.clips(), true)      # свои клипы: захват, стойка, натянутая цепь, трон
+	if boss_id == "g67_fortuna":
+		poses.merge(G67Fortuna.clips(), true)    # свои клипы: калькулятор, лента, монеты, жест «турникеты», касса, зажат створкой
+	if cfg.has("pz"):
+		poses.merge(G67Poses.clips_pz(), true)
 	rig.setup(String(cfg.get("path", "res://assets/models/" + m + ".glb")), height, poses, boss_id != "", -1.0 if m == "pahan" else 1.0, String(cfg.get("key", m + ("_n" if cfg.get("noweapon", false) else ""))))
+	if cfg.has("pz"):
+		rig.style_map = (G67Poses.PZ_ROLES[String(cfg["pz"])] as Dictionary).duplicate()
+	if boss_id == "g67_fortuna":
+		G67Fortuna.attach_props(rig)
 	if boss_id == "g67_misha":
 		G67Models.misha_chain(rig)        # золотая цепь на груди — идёт за анимацией
 	if not cfg.get("own", false) and (cfg.has("tint") or cfg.has("alpha") or cfg.has("emit")):
@@ -296,7 +308,18 @@ func _update_bar() -> void:
 	hp_bar.texture = ImageTexture.create_from_image(bar_img)
 	hp_bar.visible = k < 1.0 and state != "dead"
 
+var shield_off_t := 0.0     # щит Контролёра сбит: лёгкие удары спереди проходят полностью
+var wall_hit := false
+var still_t := 0.0          # сколько секунд стоит без движения вне атаки (проверка «застрял»)
+var last_pos := Vector3.ZERO
+
 func _physics_process(dt: float) -> void:
+	shield_off_t = maxf(0.0, shield_off_t - dt)
+	if state in ["chase", "idle", "walk", "approach"] and not cfg.has("keep") and global_position.distance_to(last_pos) < 0.02:
+		still_t += dt
+	else:
+		still_t = 0.0
+	last_pos = global_position
 	t += dt
 	age += dt
 	poise_t += dt
@@ -464,6 +487,12 @@ func _physics_process(dt: float) -> void:
 				state = "recover"
 				t = 0.0
 			if t > charge_len or not game.in_arena(global_position + charge_dir, 0.5):
+				if cfg.has("pz") and not game.in_arena(global_position + charge_dir, 0.5):
+					wall_hit = true
+					stun(2.0)
+					game.popup(global_position + Vector3(0, height + 0.3, 0), "ОТКРЫТ", Color(1, 0.9, 0.3))
+					if rig != null and rig.has_clip("PzBWall"):
+						rig.play("PzBWall", 0.1)
 				state = "recover"
 				t = 0.0
 		"special":
@@ -917,7 +946,13 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		_phase_deny(dir)
 		return
 	var raw_damage := dmg
-	if cfg.get("shield", false) and not heavy:
+	var fr0 := Vector3(sin(face), 0, cos(face))
+	if cfg.get("shield", false) and cfg.has("pz") and (heavy or fr0.dot(-dir) <= 0.3 or source_id == "bottle") and shield_off_t <= 0.0:
+		shield_off_t = 3.0
+		game.popup(global_position + Vector3(0, height + 0.2, 0), "ЩИТ СБИТ", Color(1, 0.8, 0.3))
+		if rig != null and rig.has_clip("PzCBroken"):
+			rig.play("PzCBroken", 0.1)
+	if cfg.get("shield", false) and not heavy and shield_off_t <= 0.0:
 		var front := Vector3(sin(face), 0, cos(face))
 		if front.dot(-dir) > 0.3:
 			dmg *= 0.25
@@ -1316,8 +1351,13 @@ func _die(dir: Vector3, heavy: bool, launch := 0.0, knock := 5.0) -> void:
 		rig.play("Fly", 0.06)
 	else:
 		kb = dir * 5.0 * (0.3 if boss_id != "" else 1.0)
+		if boss_id == "g67_fortuna":
+			kb = Vector3.ZERO
+			rig.play("Idle", 0.2)          # босс не падает: финал ставит сцена (g67_root.gd _fortuna_outro)
 		var front := Vector3(sin(face), 0, cos(face)).dot(-dir) > 0.0
-		if cfg["model"] == "pahan":
+		if boss_id == "g67_fortuna":
+			pass
+		elif cfg["model"] == "pahan":
 			rig.play_for("Death", 1.6, 0.06)
 		else:
 			rig.play_for("DeathA" if front else "DeathB", 0.9 if boss_id == "" else 1.6, 0.06)
