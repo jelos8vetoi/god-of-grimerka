@@ -18,7 +18,7 @@
 ## Модели — настоящие дома и уличные вещи проекта (assets/racing, лицом по +X) и модели приквела (assets/golda67).
 ## Повторяющиеся модели различаются оттенком, ростом и посадкой (tint), у каждой вещи есть причина стоять там, где она стоит.
 class_name G67Yard
-extends Node3D
+extends G67District
 
 const R := "res://assets/racing/"
 ## зоны двора (координаты двора = координаты мира): c — центр боя, h — полуразмеры прямоугольника боя (x, z),
@@ -53,8 +53,6 @@ const EVENT_SPOTS := {"burmalda": Vector3(33.0, 0.0, -14.0), "button": Vector3(-
 const STASH_R := 1.2
 const HOME_DOOR := Vector3(0.0, 0.0, 34.2)      # перед дверью подъезда (сама дверь — z 35.2): отсюда домой в хаб
 
-var solids: Array = []         # [центр в координатах двора, радиус] — где нельзя появляться врагам
-var missing: Array = []
 var m_asphalt: StandardMaterial3D
 var m_walk: StandardMaterial3D
 var m_curb: StandardMaterial3D
@@ -148,7 +146,6 @@ const PEOPLE := [
 	{"id": "g67_npc_taxi_driver", "h": 1.76, "pos": Vector3(30.2, 0.02, 9.6), "yaw": -PI * 0.5,
 		"base": "NLeanBack", "alts": ["NTaxiPhone", "NHips", "NJacket"], "poi": Vector3(30, 1.4, 22), "shot_side": -1.0},
 ]
-var lifes: Array = []          # поведение всех жителей (G67Life): кому смотреть на героя — ставит Golda67
 static var secret_tag := false     # победил Мишу — у подъезда появляется маленькое граффити
 static var crowd_seed := 1
 ## Коробка Миши: турники (x, z, поворот, размер), борта и место трона — их читает бой (зацеп цепи) и постановка выхода
@@ -175,7 +172,8 @@ var tribune: Node3D
 var flood: Array = []          # лампы четырёх мачт (OmniLight3D): до боя приглушены, включаются по очереди
 var court_lights: Array = []   # общий свет коробки: [лампа, базовая энергия]
 var fans: Array = []           # зрители у коробки (Rig)     # меняется на каждый забег: очередь каждый раз другая
-var boss_spot := Vector3(2, 0, -44.5)        # где ждёт Миша (у своей машины, на ковре)
+func _init() -> void:
+	boss_spot = Vector3(2, 0, -44.5)        # где ждёт Миша (у своей машины, на ковре)
 
 ## Точки входа врагов в зону боя: четыре места у края зоны (из-за гаражей, из соседнего подъезда, из-за машин, с проезда…)
 static func entry_points(id: String) -> Array:
@@ -1294,7 +1292,6 @@ func sway_tick(t: float) -> void:
 			(n as Node3D).rotation.z = sin(t * 2.0 + (n as Node3D).position.x) * k
 
 ## Стайки голубей вне зон боя: сидят, клюют; героя ближе 2,5 м — взлетают дугой и садятся в другом месте
-var hero: Node3D = null
 var lamps: Array = []
 var gust_t := 0.0
 var laundry: Node3D = null

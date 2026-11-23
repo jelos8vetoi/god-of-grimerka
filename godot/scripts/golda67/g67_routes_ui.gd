@@ -146,6 +146,10 @@ func _activate(i: int) -> void:
 	if i >= 0:
 		(marks[i] as Mark).pulse()
 		G.game.main.ui("card")
+		var mk: Mark = marks[i]
+		if mk.kind == "district" and mk.state != "lock" and G67Data.DISTRICTS.has(mk.id):
+			G.sel_district = mk.id
+			G.game.toast("Следующий забег: %s" % mk.label)
 
 # ---------------------------------------------------------------- рисунки
 ## Лист в клетку на стене: районы от руки, план двора (дома, проезды, позиции), КРОТ

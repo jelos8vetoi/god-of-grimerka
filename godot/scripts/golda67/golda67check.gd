@@ -155,6 +155,21 @@ func _run() -> void:
 			_finish()
 			return
 	for arg in OS.get_cmdline_user_args():
+		if String(arg).begins_with("--g67-clipshot="):
+			var cs := String(arg).substr(15).split(":")
+			G.play_clip(String(cs[0]))
+			await wait(0.3)
+			while G.clip != null and is_instance_valid(G.clip) and G.clip.t < float(cs[1]):
+				await get_tree().process_frame
+			await wait(0.2)
+			var meshes := 0
+			if G.clip != null and is_instance_valid(G.clip):
+				meshes = G.clip.world.find_children("*", "MeshInstance3D", true, false).size()
+			print("GOLDA67CHECK   CLIPSHOT %s t=%.1f мешей мира ролика: %d" % [String(cs[0]), G.clip.t if G.clip != null else -1.0, meshes])
+			await shot("clipshot_" + String(cs[0]))
+			_finish()
+			return
+	for arg in OS.get_cmdline_user_args():
 		if String(arg).begins_with("--g67-clip="):
 			await _clip_log(G, String(arg).substr(11))
 			_finish()
@@ -3877,6 +3892,47 @@ func _ev02_check(g, G: Golda67, P) -> void:
 	ok(last_t >= 30.0 and last_t <= 42.0, "длительность события %.1f с (30–42)" % last_t)
 	ok(G.clip_seen("EV02"), "досмотренный ролик — в clips_seen")
 
+## Фон роликов: в сценах V00, AD01, CL01, NEWS01 двор построен целиком (сетки двора) и хотя бы один дом/борт в кадре камеры
+func _aabb_in_frustum(bb: AABB, planes: Array) -> bool:
+	for p in planes:
+		var pl: Plane = p
+		var q := Vector3(bb.position.x + (bb.size.x if pl.normal.x > 0.0 else 0.0), bb.position.y + (bb.size.y if pl.normal.y > 0.0 else 0.0), bb.position.z + (bb.size.z if pl.normal.z > 0.0 else 0.0))
+		if pl.distance_to(q) < 0.0:
+			return false
+	return true
+
+func _clip_bg_check(g, G: Golda67) -> void:
+	for cid in ["V00", "AD01", "CL01", "NEWS01"]:
+		G.play_clip(cid)
+		await wait(0.3)
+		await until(func(): return G.clip != null and is_instance_valid(G.clip) and G.clip.t >= 3.0, 20.0)
+		await wait(0.2)
+		var n_mesh := 0
+		var in_view := 0
+		if G.clip != null and is_instance_valid(G.clip):
+			var yd: G67Yard = null
+			for ch in G.clip.world.get_children():
+				if ch is G67Yard:
+					yd = ch
+			n_mesh = yd.find_children("*", "MeshInstance3D", true, false).size() if yd != null else 0
+			var planes: Array = G.clip.cam.get_frustum()
+			if yd != null:
+				for ch in yd.get_children():
+					var nm := String(ch.name)
+					if ch is Node3D and (nm.begins_with("khrushchevka") or nm.begins_with("panel_tower") or nm.begins_with("g67_brick") or nm.begins_with("g67_house") or nm.begins_with("fence")):
+						if _aabb_in_frustum(yd._node_aabb(ch), planes):
+							in_view += 1
+			if cid == "AD01":
+				await shot("bg_AD01")
+			if cid == "V00":
+				await shot("bg_V00")
+			if cid == "CL01":
+				await shot("bg_CL01")
+		ok(n_mesh > 200 and in_view >= 1, "фон ролика %s: сеток двора %d (нужно > 200), домов/бортов в кадре %d" % [cid, n_mesh, in_view])
+		if G.clip != null and is_instance_valid(G.clip):
+			G.clip.skip()
+			await wait(0.5)
+
 ## iPhone Пахана: плейлист, управление, заглушение музыки локации, список скрыт в бою, остановка
 func _phone_check(g, G: Golda67) -> void:
 	var ph: G67Phone = G.phone_get()
@@ -3936,6 +3992,7 @@ func _phone_check(g, G: Golda67) -> void:
 
 func _run_dvor(g, G: Golda67, P) -> void:
 	await _phone_check(g, G)
+	await _clip_bg_check(g, G)
 	# шаги в приквеле: подъезд — бетон, двор — по поверхности
 	G.step_log.clear()
 	G.play_step(Vector3(0, 0.0, 0))

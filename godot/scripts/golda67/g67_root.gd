@@ -13,6 +13,8 @@ const REACH := 1.4            # с какого расстояния предм�
 const TITLE := "ГОЛДА 67"
 const HUB_CAM_LEN := 3.2      # длина штанги камеры в подъезде (тесно), во дворе — прежние 4,6
 const YARD_CAM_LEN := 4.6
+const PZ_CAM_LEN := 3.6
+var sel_district := "dvor"
 const FADE_FAR := 1.3         # камера ближе этого к плечам героя — он начинает таять
 const FADE_NEAR := 0.6        # на этом расстоянии прозрачность 0,75
 const FADE_MAX := 0.75
@@ -228,6 +230,7 @@ func enter_hub() -> void:
 	room_state = ""
 	run = {}
 	game.reset_arena()
+	G67District.use("yard")
 	_swap_world(func(w: G67World): w.build("g67_hub"))
 	var p = game.player
 	p.max_hp = hp_max()
@@ -311,7 +314,15 @@ func apply_styles() -> void:
 
 # ---------------------------------------------------------------- забег
 ## Двор строится один раз на забег. Герой выходит из двери подъезда и идёт ногами, мир между этапами не пересобирается.
+func _build_pz_world() -> void:
+	_swap_world(func(w: G67World): w.build_podzemka())
+	krot_k = {}
+	world.district.hero = game.player
+
 func _build_yard_world() -> void:
+	if String(run.get("district", "dvor")) == "podzemka":
+		_build_pz_world()
+		return
 	_swap_world(func(w: G67World): w.build_yard())
 	krot_k = {}
 	if world.yard != null:
@@ -328,12 +339,21 @@ func _build_yard_world() -> void:
 	world.build_event_props()
 	_place_krot_yard()
 	_build_stash()
+	world.add_descent()
 
 ## Герой — у двери дома лицом во двор, камера за спиной
 func _stand_at_home() -> void:
 	game.cam_len = YARD_CAM_LEN
 	var p = game.player
-	p.global_position = G67Yard.HOME_DOOR + Vector3(0, 0.05, -4.5)
+	if G67District.is_podzemka():
+		game.cam_len = PZ_CAM_LEN
+		p.global_position = G67Podzemka.STAIRS_TOP
+		p.velocity = Vector3.ZERO
+		p.face = PI
+		game.cam_yaw = 0.0
+		game.fx.prewarm(p.global_position)
+		return
+	p.global_position = G67District.pt("home") + Vector3(0, 0.05, -4.5)
 	p.velocity = Vector3.ZERO
 	p.face = PI
 	game.cam_yaw = 0.0
@@ -376,8 +396,9 @@ func start_run(district_id := "dvor") -> void:
 	var ss := start_style()
 	if game.player.hero == "pahan" and String(game.player.style.id) != ss:
 		game.player.set_style(ss)
+	G67District.use("podzemka" if district_id == "podzemka" else "yard")
 	_seed_yard()
-	run["stash"] = _stash_plan()
+	run["stash"] = _stash_plan() if district_id != "podzemka" else {"spots": [], "taken": []}
 	game.buddy.visible = false
 	game.buddy.global_position = Vector3(0, -50, 0)
 	events.append(["run", district_id])
@@ -441,6 +462,7 @@ func resume_run() -> void:
 	room = (sv["room"] as Dictionary).duplicate(true)
 	_migrate_run()
 	place = "run"
+	G67District.use("podzemka" if String(run.get("district", "dvor")) == "podzemka" else "yard")
 	_seed_yard()
 	game.buddy.visible = false
 	game.buddy.global_position = Vector3(0, -50, 0)
@@ -570,7 +592,7 @@ func _ambush_tick() -> void:
 		var g: Dictionary = world.gates[i]
 		if not bool(g["auto"]):
 			continue
-		var z: Dictionary = G67Yard.zone(String((g["option"] as Dictionary).get("place", "")))
+		var z: Dictionary = G67District.zone_of(String((g["option"] as Dictionary).get("place", "")))
 		var c: Vector3 = z["c"]
 		var h: Vector2 = (z["h"] as Vector2) - Vector2(2, 2)
 		if absf(pp.x - c.x) < h.x and absf(pp.z - c.z) < h.y:
@@ -710,7 +732,8 @@ func enter_room(r: Dictionary) -> void:
 	fin_room = 0.0
 	var type := String(r["type"])
 	var zid := String(r.get("place", "podezd"))
-	var zone := G67Yard.zone("sport" if type == "boss" else zid)
+	var pz := G67District.is_podzemka()
+	var zone := G67District.zone_of(("arena" if pz else "sport") if type == "boss" else zid)
 	if type != "event":
 		game.set_arena(zone["c"], zone["h"])
 	world.clear_gates()
@@ -718,9 +741,9 @@ func enter_room(r: Dictionary) -> void:
 		world.points = world.points.filter(func(pt): return String(pt["id"]) != "storage")      # открытый бокс прошлого этапа закрыт
 	var p = game.player
 	if type == "boss":
-		world.bound_zone("sport", false)
+		world.bound_zone("arena" if pz else "sport", pz)
 		world.drop_statist()
-		p.global_position = G67Yard.BOSS_ENTRY
+		p.global_position = G67District.pt("boss_entry")
 		p.velocity = Vector3.ZERO
 		p.face = PI
 		game.cam_yaw = 0.0
@@ -761,11 +784,12 @@ func enter_room(r: Dictionary) -> void:
 		"boss":
 			room_state = "boss"
 			var bid := String(d["boss"])
-			var b = game._make_enemy("", bid, world.yard.boss_spot + Vector3(0, 0.05, 0))
+			var b = game._make_enemy("", bid, G67District.pt("boss_spot") + Vector3(0, 0.05, 0))
 			game.boss_e = b
 			var bd: Dictionary = game.story["BOSS"][bid]
 			game.boss_name.text = "%s — %s" % [bd["n"], bd["sub"]]
-			_boss_intro(b)
+			if not pz:
+				_boss_intro(b)
 			_save_run("fight")
 	busy = false
 
@@ -791,10 +815,10 @@ func _spawn(foe: String) -> void:
 	# вход из точек зоны (не ближе 7 м к герою); нет подходящей — любое место зоны, как раньше
 	var zid := String(room.get("place", "podezd"))
 	var pts: Array = []
-	for sp in G67Yard.zone(zid).get("spawns", []):
+	for sp in G67District.zone_of(zid).get("spawns", []):
 		pts.append(sp[0])
 	if pts.is_empty():
-		pts = G67Yard.entry_points(zid)
+		pts = G67District.entry_pts(zid)
 	pts.shuffle()
 	for q in pts:
 		if (q as Vector3).distance_to(pp) >= 7.0:
@@ -1320,6 +1344,14 @@ func must_seen() -> bool:
 
 ## Типы вариантов позиции p по правилам генератора: battle, elite, fit, storage, kiosk, break, boss, event (короткое), rags
 func _tokens_at(p: int, rags_taken: bool) -> Array:
+	if String(run.get("district", "dvor")) == "podzemka":
+		match p:
+			0: return ["battle"]
+			1: return ["battle", "fit"]
+			2: return ["elite", "storage", "battle"]
+			3: return ["kiosk", "battle"]
+			4: return ["break"]
+		return ["boss"]
 	var unseen := not must_seen()
 	match p:
 		0: return ["battle"]
@@ -1372,6 +1404,10 @@ func route_options(next: int) -> Array:
 	var tpl := int(run.get("tpl", 0))
 	var runs := int(meta().get("runs", 0))
 	var out: Array = []
+	if String(run.get("district", "dvor")) == "podzemka":
+		for t in tokens:
+			out.append(G67Data.pz_option(String(t), next, tpl))
+		return out
 	for t in tokens:
 		match String(t):
 			"battle":
@@ -1410,7 +1446,7 @@ func play_event(ev: String) -> void:
 		return
 	if ev in G67Data.EVENTS_SHORT:
 		run["ev_pulls"] = 0
-		var sp: Vector3 = G67Yard.EVENT_SPOTS[ev]
+		var sp: Vector3 = G67District.event_spots()[ev]
 		world._point("ev_" + ev, String(G67Data.EVENT_NAMES[ev]), "дёрнуть рычаг" if ev == "burmalda" else "нажать кнопку", sp + (Vector3(0, 0, 1.4) if ev == "burmalda" else Vector3(0, 0, 1.0)))
 		return                          # этап закроется, когда событие отыграно
 	_stage_end()
@@ -1419,7 +1455,7 @@ var ev_idle := 0.0
 
 func _ev_tick() -> void:
 	if room_state == "reward" and String(room.get("type", "")) == "event" and String(room.get("ev", "")) == "burmalda" and int(run.get("ev_pulls", 0)) >= 1 and not ev_busy:
-		var sp: Vector3 = G67Yard.EVENT_SPOTS["burmalda"]
+		var sp: Vector3 = G67District.event_spots()["burmalda"]
 		ev_idle += get_physics_process_delta_time()
 		if Vector2(game.player.global_position.x - sp.x, game.player.global_position.z - sp.z).length() > 3.0 or ev_idle > 6.0:
 			game.toast("Автомат замолчал")
@@ -1427,7 +1463,7 @@ func _ev_tick() -> void:
 
 ## «ТРЯПКИ! ТРЯПКИ!»: ролик EV02 (досмотрел или пропустил — событие считается увиденным), РЕСПЕКТ мирного этапа, герой у двери бокса
 func _play_rags() -> void:
-	var door: Vector3 = G67Yard.EVENT_SPOTS["rags"]
+	var door: Vector3 = G67District.event_spots()["rags"]
 	game.player.global_position = door + Vector3(0, 0.05, 1.8)
 	game.player.velocity = Vector3.ZERO
 	await play_clip("EV02")
@@ -1465,7 +1501,7 @@ func _ev_finish() -> void:
 var ev_busy := false
 
 func _ev_tray_pos() -> Vector3:
-	return (G67Yard.EVENT_SPOTS["burmalda"] as Vector3) + Vector3(0, 0.3, 0.9)
+	return (G67District.event_spots()["burmalda"] as Vector3) + Vector3(0, 0.3, 0.9)
 
 ## Рывок рычага: один бесплатно, ещё два по BURMALDA_COST
 # ---- мини-сцены событий: камера ведёт Golda67, ввод закрыт (scene_busy), пропуск удержанием, страховка 12 с
@@ -1594,7 +1630,7 @@ func _burmalda_pull() -> void:
 
 func _burmalda_scene(pick: String, first: bool) -> void:
 	var L := G67Voice.EVENT_BURMALDA
-	var sp: Vector3 = G67Yard.EVENT_SPOTS["burmalda"]
+	var sp: Vector3 = G67District.event_spots()["burmalda"]
 	game.player.global_position = sp + Vector3(1.0, 0.05, 1.3)           # у рычага, сбоку от окна
 	var pp: Vector3 = game.player.global_position
 	_ev_begin()
@@ -1745,7 +1781,7 @@ func _button_press() -> void:
 
 func _button_scene(id: String) -> void:
 	var L := G67Voice.EVENT_BUTTON
-	var sp: Vector3 = G67Yard.EVENT_SPOTS["button"]
+	var sp: Vector3 = G67District.event_spots()["button"]
 	var p = game.player
 	p.global_position = sp + Vector3(-0.9, 0.05, 0.9)                           # левее кнопки: не перекрывает её
 	var pp: Vector3 = p.global_position
@@ -1950,7 +1986,7 @@ func _button_outcome(id: String) -> void:
 				_drop_coin(p.global_position + Vector3(randf_range(-1.0, 1.0), 0, randf_range(-1.0, 1.0)), 5, true)
 		"alarms":
 			game.banner("СИГНАЛИЗАЦИИ", "машины на парковке орут", Color(1.0, 0.5, 0.3), 2.4)
-			var par: Vector3 = (G67Yard.zone("parking")["c"] as Vector3)
+			var par: Vector3 = (G67District.zone_of("parking")["c"] as Vector3)
 			for k in 3:
 				var lt := OmniLight3D.new()
 				lt.light_color = Color(1.0, 0.6, 0.1) if k % 2 == 0 else Color(1.0, 0.15, 0.1)
@@ -2357,7 +2393,7 @@ func _place_krot(where: String) -> void:
 ## Во дворе КРОТ стоит на своём месте с постройки двора и весь забег (зоны под него не переставляются)
 func _place_krot_yard() -> void:
 	var k := krot_next()
-	if not k.is_empty() and G67Yard.ZONES.has(String(k["where"])):
+	if not k.is_empty() and G67District.has_zone(String(k["where"])):
 		_place_krot(String(k["where"]))
 
 # ---------------------------------------------------------------- постановка встреч КРОТА
@@ -2642,7 +2678,7 @@ func play_step(pos: Vector3) -> void:
 	if place == "hub":
 		kind = "step_stairs" if pos.y > 0.45 else "step_concrete"
 	else:
-		kind = "step_" + G67Yard.surface_at(pos)
+		kind = "step_" + String({"tile": "concrete", "puddle": "asphalt", "earth": "snow"}.get(G67District.surface(pos), G67District.surface(pos)))
 	step_log.append(kind)
 	if step_log.size() > 40:
 		step_log.pop_front()
@@ -3040,7 +3076,7 @@ func result_new_run() -> void:
 	if bool(result.get("won", false)) and bool((meta().get("flags", {}) as Dictionary).get("boss_misha", false)):
 		unlock_clip("NEWS01")
 	await enter_hub()
-	await start_run("dvor")
+	await start_run(sel_district)
 
 # ---------------------------------------------------------------- HUD и взаимодействие
 ## Строка вверху экрана вместо главы и задания кампании
@@ -3066,7 +3102,7 @@ func next_line() -> String:
 		if type == "boss":
 			parts.append("КОРОБКА — %s" % String(G67Data.ROOM_HINT["boss"]))
 		else:
-			parts.append("%s — %s" % [String(G67Yard.zone(String(o.get("place", "")))["name"]).to_upper(), String(G67Data.ROOM_NAMES[type])])
+			parts.append("%s — %s" % [String(G67District.zone_of(String(o.get("place", "")))["name"]).to_upper(), String(G67Data.ROOM_NAMES[type])])
 	return "ДАЛЬШЕ: " + " · ".join(parts)
 
 ## Подсказки предметов подъезда по состоянию: сервант, дверь, стойка стилей, карта
@@ -3259,7 +3295,17 @@ func use(id: String) -> void:
 		if paused_run():
 			resume_run()
 		else:
-			start_run("dvor")
+			start_run(sel_district)
+	elif id == "descent":
+		if bool((meta().get("flags", {}) as Dictionary).get("boss_misha", false)):
+			if room_state == "open":
+				data["run"] = {}
+				events.append(["descent"])
+				start_run("podzemka")
+			else:
+				game.toast("Сначала закончи этап")
+		else:
+			game.toast("Закрыто. Миша не разрешал")
 	elif id == "home":
 		if room_state == "open":
 			go_home()

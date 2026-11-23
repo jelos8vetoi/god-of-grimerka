@@ -50,7 +50,7 @@ const MUST := {"ev_rags": "rags"}
 static func stage_title(type: String, place: String, ev := "") -> String:
 	if type == "event" and ev != "":
 		return String(EVENT_NAMES.get(ev, "СОБЫТИЕ"))
-	return "%s · %s" % [String(ROOM_NAMES.get(type, type)), String(G67Yard.zone(place)["name"]).to_upper()]
+	return "%s · %s" % [String(ROOM_NAMES.get(type, type)), String(G67District.zone_of(place)["name"]).to_upper()]
 
 const ROUTES_DVOR := [
 	[
@@ -81,6 +81,16 @@ const ROUTES_DVOR := [
 		[{"type": "boss", "place": "sport"}],
 	],
 ]
+## Район 2 «ПОДЗЕМКА»: шесть позиций (PODZEMKA_DESIGN.md, раздел 2); места подставляет pz_option
+const ROUTES_PZ := [
+	[{"type": "battle", "place": "gate1"}],
+	[{"type": "battle", "place": "gallery"}, {"type": "fit", "place": "gallery"}],
+	[{"type": "elite", "place": "cross"}, {"type": "storage", "place": "cross"}, {"type": "battle", "place": "cross"}],
+	[{"type": "kiosk", "place": "arcade"}, {"type": "battle", "place": "arcade"}],
+	[{"type": "break", "place": "staff"}],
+	[{"type": "boss", "place": "arena"}],
+]
+
 const DISTRICTS := {
 	"dvor": {
 		"name": "ДВОР", "boss": "g67_misha", "unlock": "bottles", "flag": "boss_misha",
@@ -95,11 +105,24 @@ const DISTRICTS := {
 			5: [[["shest", 3], ["semka", 1]], [["shest", 2], ["semka", 1]]],
 		},
 	},
+	"podzemka": {
+		"name": "ПОДЗЕМКА", "boss": "g67_fortuna", "unlock": "tyaga812", "flag": "boss_fortuna",
+		"routes": ROUTES_PZ,
+		"route": ROUTES_PZ[0],
+		"music": "loc_g67_podzemka",
+		"waves": {},      # TODO этап 3: свои волны (Контролёр, Зазывала, Вышибала); пока состав двора (WAVES_*)
+	},
 }
 
 ## Босс первого района. Формат — как у боссов кампании (story.json → BOSS): его читает enemy._setup_boss.
 ## Приёмы фаз — существующие приёмы боссов; свой особый приём — enemy._special («РАЗМАХ ЦЕПЬЮ»).
 const BOSSES := {
+	"g67_fortuna": {      # ЗАГЛУШКА этапа 1: простой босс без антракта и ворот фаз; настоящий бой — этап 5
+		"n": "FORTUNA 812", "sub": "владелец турникетов", "sp": "FT", "hp": 1200, "r": 30, "spd": 110, "c": "#3fa34d", "dmg": 7, "gap": 1.6, "xp": 0, "armor": 1.0,
+		"poise": 200,
+		"phases": [["slam", "charge"], ["shock", "slam", "charge"], ["leap", "slam", "shock"]],
+		"barks": ["", "", ""],
+	},
 	"g67_misha": {
 		"n": "МИША МИНАСЯН", "sub": "главный авторитет двора", "sp": "G1", "hp": 2600, "r": 30, "spd": 116, "c": "#d9a23a", "dmg": 7, "gap": 1.6, "xp": 0, "armor": 0.7, "antract": true,      # armor — множитель урона по нему вне окон «ОТКРЫТ»
 		"poise": 320, "gate": true,      # фазы не проскакивают (enemy._phase_shift); равновесие выше, чем у остальных боссов
@@ -194,7 +217,23 @@ const ROOM_GOLDA := {"battle": 20, "ambush": 20, "elite": 40, "fit": 0, "storage
 const BREAK_HEAL := 0.45      # доля максимума здоровья
 
 static func district(id: String) -> Dictionary:
-	return DISTRICTS.get(id, DISTRICTS["dvor"])
+	if not DISTRICTS.has(id):
+		push_error("G67Data.district: неизвестный район «%s»" % id)
+		return DISTRICTS["dvor"]
+	return DISTRICTS[id]
+
+## Место варианта этапа района 2 по позиции и шаблону забега
+static func pz_option(t: String, pos: int, tpl: int) -> Dictionary:
+	match t:
+		"battle":
+			var pl := ["gate1", "gallery", "cross", ("arcade" if tpl % 2 == 0 else "tunnel")]
+			return {"type": "battle", "place": pl[clampi(pos, 0, 3)]}
+		"elite": return {"type": "elite", "place": "cross"}
+		"fit": return {"type": "fit", "place": "gallery"}
+		"storage": return {"type": "storage", "place": "cross"}
+		"kiosk": return {"type": "kiosk", "place": "arcade"}
+		"break": return {"type": "break", "place": "staff"}
+	return {"type": "boss", "place": "arena"}
 
 ## Волны боя: позиция 1 — три волны; бой на позициях 2 и 4 — три волны; элита — три волны
 const WAVES_P1 := [[["shest", 3]], [["shest", 2], ["semka", 1]], [["shest", 3], ["semka", 1]]]
