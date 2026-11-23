@@ -31,6 +31,7 @@ const CONSULT_ZONE := Vector2(10.0, 7.0)
 const CONSULT_STUN := 2.5
 const CONSULT_HP_GATE := 0.8     # консультация доступна ниже 80 % здоровья
 const PIN_OPEN := 2.0
+const EXHALE := 1.2                  # «выдох» после ЧЕКА и СДАЧИ: босс пересчитывает на калькуляторе, открыт (окно урона)
 const PAUSES := [2.4, 2.0, 1.6]      # пауза между приёмами по фазам, с
 const NO_ZONE_FIRST := 8.0           # в первые секунды боя платных зон нет
 const CYCLE := ["f_gates", "f_zone", "f_check", "f_change"]
@@ -144,6 +145,16 @@ static func attach_props(rig) -> void:
 	chest.add_child(tape)
 	tape.position = Vector3(0.0, 0.02, 0.0)
 	tape.rotation_degrees = Vector3(0, 0, 38)
+
+## Окно «выдох»: через at секунд босс открыт EXHALE секунд (броня снята), над ним «ОТКРЫТ»
+static func _exhale(e, at: float) -> void:
+	e._at(at, func():
+		if not is_instance_valid(e) or e.state != "special":
+			return
+		e.weak_t = EXHALE
+		e.rig.play_for("FPhase", EXHALE, 0.1)
+		e.game.popup(e.global_position + Vector3(0, e.height + 0.5, 0), "ОТКРЫТ", Color(1.0, 0.9, 0.3))
+		e.game.golda.events.append(["fz_exhale"]))
 
 static func _front(e) -> Vector3:
 	return Vector3(sin(e.face), 0, cos(e.face))
@@ -264,7 +275,8 @@ static func _check(e, ar, ph: int) -> void:
 		if ph >= 1:
 			_strip(e, ar, yaw + PI * 0.5)
 		e.game.golda.events.append(["fz_check"]))
-	e.sp_dur = 1.2
+	_exhale(e, 1.0)
+	e.sp_dur = 1.0 + EXHALE
 
 static func _change(e, ph: int) -> void:
 	say(e, "change")
@@ -281,7 +293,8 @@ static func _change(e, ph: int) -> void:
 				var land: Vector3 = e.global_position + Vector3(sin(a), 0, cos(a)) * (6.0 + randf() * 3.0)
 				e.get_tree().create_timer(0.7).timeout.connect(func(): if g.golda != null and g.golda.arena != null: g.golda.arena.coin_drop(land))
 		g.golda.events.append(["fz_change", CHANGE_COINS * offsets.size()]))
-	e.sp_dur = 1.3
+	_exhale(e, 1.1)
+	e.sp_dur = 1.1 + EXHALE
 
 static func _consult(e, ar) -> void:
 	say(e, "consult")
