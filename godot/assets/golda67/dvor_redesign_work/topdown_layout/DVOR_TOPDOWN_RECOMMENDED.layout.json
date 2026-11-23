@@ -678,16 +678,30 @@
    "label": "РЫНОК"
   },
   {
-   "id": "MK2",
+   "id": "kiosk_grey",
    "cat": "gar",
    "x": -20,
-   "y": -9.5,
-   "w": 5.6,
-   "h": 6,
-   "model": "kiosk_90s",
+   "y": -10,
+   "w": 2.6,
+   "h": 2.6,
+   "model": "kiosk_grey",
    "yaw": 180,
-   "hgt": 4.3,
-   "label": ""
+   "hgt": 2.0,
+   "label": "",
+   "mark": true
+  },
+  {
+   "id": "kiosk_rusty",
+   "cat": "gar",
+   "x": -25,
+   "y": -10,
+   "w": 3.0,
+   "h": 3.0,
+   "model": "kiosk_rusty",
+   "yaw": 180,
+   "hgt": 2.0,
+   "label": "",
+   "mark": true
   },
   {
    "id": "kiosk_rusty",
@@ -768,17 +782,16 @@
    "mark": true
   },
   {
-   "id": "«ШАУРМА 67»",
+   "id": "SHAWA",
    "cat": "act",
    "x": 44,
-   "y": -10,
-   "w": 5.2,
-   "h": 5.2,
-   "model": "game:g67_shawarma_kiosk",
-   "yaw": 0,
-   "hgt": 2.0,
-   "label": "«ШАУРМА 67»",
-   "mark": true
+   "y": -9.5,
+   "w": 5.6,
+   "h": 6,
+   "model": "kiosk_90s",
+   "yaw": 180,
+   "hgt": 4.3,
+   "label": "«ШАУРМА 67»"
   },
   {
    "id": "остановка",
@@ -2642,22 +2655,22 @@
    "cat": "boss",
    "x": 6,
    "y": 112,
-   "w": 33,
-   "h": 21.8,
-   "model": "hockey_rink",
+   "w": 26,
+   "h": 22.5,
+   "model": "",
    "yaw": 0,
-   "hgt": 2.5,
-   "label": "КОРОБКА МИШИ 33 × 22 м"
+   "hgt": 3.0,
+   "label": "КОРОБКА МИШИ 26 × 22,5 м (канон)"
   },
   {
    "id": "трон",
    "cat": "boss",
    "x": 6,
-   "y": 126,
+   "y": 120.5,
    "w": 2.4,
    "h": 2.4,
    "model": "game:g67_misha_throne",
-   "yaw": 180,
+   "yaw": 0,
    "hgt": 2.0,
    "label": "трон",
    "mark": true
@@ -2665,7 +2678,7 @@
   {
    "id": "трибуна",
    "cat": "boss",
-   "x": 27,
+   "x": 23.5,
    "y": 112,
    "w": 4.4,
    "h": 4.4,
@@ -2678,8 +2691,8 @@
   {
    "id": "машина Миши",
    "cat": "boss",
-   "x": -16,
-   "y": 122,
+   "x": -13,
+   "y": 120,
    "w": 3.6,
    "h": 3.6,
    "model": "game:g67_misha_car",
@@ -2699,6 +2712,70 @@
    "yaw": 0,
    "hgt": 8,
    "label": "ШКОЛЬНЫЙ СТАДИОН"
+  },
+  {
+   "id": "SCHOOL",
+   "cat": "gar",
+   "x": -110,
+   "y": 122,
+   "w": 28,
+   "h": 15.5,
+   "model": "school",
+   "yaw": 180,
+   "hgt": 14,
+   "label": "ШКОЛА № 67"
+  },
+  {
+   "id": "навес",
+   "cat": "open",
+   "x": -16,
+   "y": -93,
+   "w": 3.2,
+   "h": 3.2,
+   "model": "yard_shelter",
+   "yaw": 0,
+   "hgt": 2.0,
+   "label": "навес",
+   "mark": true
+  },
+  {
+   "id": "беседка",
+   "cat": "open",
+   "x": -112,
+   "y": -76,
+   "w": 5.6,
+   "h": 5.6,
+   "model": "gazebo",
+   "yaw": 0,
+   "hgt": 2.0,
+   "label": "беседка",
+   "mark": true
+  },
+  {
+   "id": "беседка",
+   "cat": "open",
+   "x": 118,
+   "y": 82,
+   "w": 5.6,
+   "h": 5.6,
+   "model": "gazebo",
+   "yaw": 0,
+   "hgt": 2.0,
+   "label": "беседка",
+   "mark": true
+  },
+  {
+   "id": "yard_shelter",
+   "cat": "open",
+   "x": -84,
+   "y": 108,
+   "w": 3.2,
+   "h": 3.2,
+   "model": "yard_shelter",
+   "yaw": 90,
+   "hgt": 2.0,
+   "label": "",
+   "mark": true
   }
  ],
  "paths": [

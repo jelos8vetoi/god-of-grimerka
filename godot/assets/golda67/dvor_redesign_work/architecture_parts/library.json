@@ -406,13 +406,13 @@
   "section": "buildings",
   "source": "russian_panel_house_asset",
   "size": [
-   16.85,
-   59.88,
+   31.08,
+   104.39,
    27.0
   ],
-  "tris": 252,
-  "mats": 1,
-  "mb": 2.3,
+  "tris": 32456,
+  "mats": 11,
+  "mb": 30.1,
   "note": "длинный девятиэтажный дом-«стена»"
  },
  "res_voxel_1": {
@@ -1155,5 +1155,369 @@
   "mats": 3,
   "mb": 2.3,
   "note": "лавка на гнутых трубах (TheLastCookie-404)"
+ },
+ "pine_ps1_1": {
+  "section": "props",
+  "source": "dvor_ps1_pines",
+  "size": [
+   13.65,
+   4.68,
+   9.82
+  ],
+  "tris": 300,
+  "mats": 1,
+  "mb": 0.3,
+  "note": "заснеженная ель, PS1-манера (Vova Truestory)"
+ },
+ "tree_winter": {
+  "section": "props",
+  "source": "dvor_winter_tree",
+  "size": [
+   2.92,
+   2.98,
+   8.5
+  ],
+  "tris": 14058,
+  "mats": 1,
+  "mb": 0.4,
+  "note": "голое зимнее дерево с ветками (JSLGames)"
+ },
+ "school": {
+  "section": "buildings",
+  "source": "dvor_school",
+  "size": [
+   27.92,
+   15.48,
+   13.83
+  ],
+  "tris": 22191,
+  "mats": 1,
+  "mb": 3.7,
+  "note": "трёхэтажная школа с крыльцом (dimmeyster)"
+ },
+ "elbox_tall": {
+  "section": "props",
+  "source": "dvor_transformer",
+  "size": [
+   0.99,
+   0.43,
+   1.97
+  ],
+  "tris": 2594,
+  "mats": 4,
+  "mb": 8.6,
+  "note": "высокий электрошкаф (MrUnity)"
+ },
+ "sign_1": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   0.2,
+   0.2,
+   10.0
+  ],
+  "tris": 22,
+  "mats": 1,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_2": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   0.2,
+   0.2,
+   8.0
+  ],
+  "tris": 22,
+  "mats": 1,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_3": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   0.2,
+   0.2,
+   7.0
+  ],
+  "tris": 22,
+  "mats": 1,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_4": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   1.6,
+   0.03,
+   5.0
+  ],
+  "tris": 28,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_5": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   3.0
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_6": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   3.0
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_7": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   3.0
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_8": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   3.0
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_9": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   3.0
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_10": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.72,
+   0.22,
+   2.72
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_11": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.4,
+   0.22,
+   2.4
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_12": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.4,
+   0.22,
+   2.4
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.7,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_13": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   2.0
+  ],
+  "tris": 426,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_14": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   2.0
+  ],
+  "tris": 426,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "yard_shelter": {
+  "section": "props",
+  "source": "dvor_yard_shelter",
+  "size": [
+   2.89,
+   3.41,
+   2.9
+  ],
+  "tris": 3187,
+  "mats": 1,
+  "mb": 2.8,
+  "note": "дворовый навес со столом и лавками (Elasta Kristya)"
+ },
+ "gazebo": {
+  "section": "props",
+  "source": "dvor_gazebo",
+  "size": [
+   5.52,
+   5.52,
+   3.4
+  ],
+  "tris": 1992,
+  "mats": 1,
+  "mb": 0.1,
+  "note": "деревянная беседка-шестигранник (anadaren)"
+ },
+ "pole_concrete": {
+  "section": "streets",
+  "source": "dvor_pole_concrete",
+  "size": [
+   1.92,
+   0.45,
+   9.0
+  ],
+  "tris": 3404,
+  "mats": 1,
+  "mb": 2.7,
+  "note": "бетонный столб (Kuutti Siitonen)"
+ },
+ "pole_wires": {
+  "section": "streets",
+  "source": "dvor_pole_wires",
+  "size": [
+   0.89,
+   16.07,
+   9.0
+  ],
+  "tris": 5486,
+  "mats": 1,
+  "mb": 2.1,
+  "note": "столб с пролётом проводов (3d.caster)"
+ },
+ "barrier_1": {
+  "section": "streets",
+  "source": "ph_concrete_road_barrier",
+  "size": [
+   1.55,
+   0.64,
+   0.83
+  ],
+  "tris": 60928,
+  "mats": 1,
+  "mb": 4.0,
+  "note": "бетонный блок в полоску (Poly Haven, CC0)"
+ },
+ "barrier_2": {
+  "section": "streets",
+  "source": "ph_concrete_road_barrier_02",
+  "size": [
+   1.57,
+   0.44,
+   1.11
+  ],
+  "tris": 23822,
+  "mats": 1,
+  "mb": 3.1,
+  "note": "бетонный блок (Poly Haven, CC0)"
+ },
+ "tyre_old": {
+  "section": "props",
+  "source": "ph_old_tyre",
+  "size": [
+   0.6,
+   0.16,
+   0.6
+  ],
+  "tris": 2880,
+  "mats": 1,
+  "mb": 2.4,
+  "note": "старая покрышка (Poly Haven, CC0)"
+ },
+ "trashbag": {
+  "section": "props",
+  "source": "ph_trashbag",
+  "size": [
+   0.53,
+   0.46,
+   0.57
+  ],
+  "tris": 4482,
+  "mats": 1,
+  "mb": 1.8,
+  "note": "мусорный мешок (Poly Haven, CC0)"
+ },
+ "barrel_blue": {
+  "section": "props",
+  "source": "ph_barrel_03",
+  "size": [
+   0.63,
+   0.64,
+   0.93
+  ],
+  "tris": 1473,
+  "mats": 1,
+  "mb": 0.6,
+  "note": "синяя бочка (Poly Haven, CC0)"
+ },
+ "trash_cans": {
+  "section": "props",
+  "source": "ph_metal_trash_can",
+  "size": [
+   1.78,
+   0.56,
+   0.91
+  ],
+  "tris": 13960,
+  "mats": 3,
+  "mb": 5.0,
+  "note": "два ржавых бака с крышками (Poly Haven, CC0)"
  }
 }
