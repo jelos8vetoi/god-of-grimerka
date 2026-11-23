@@ -223,10 +223,14 @@ func _run() -> void:
 		await _cam_check(g, G, g.player)
 		_finish()
 		return
-	if OS.get_cmdline_user_args().has("--g67-real"):
-		await _real_run(g, G)
-		_finish()
-		return
+	for arg in OS.get_cmdline_user_args():
+		if String(arg) == "--g67-real" or String(arg).begins_with("--g67-real="):
+			var rn := 0
+			if String(arg).begins_with("--g67-real="):
+				rn = int(String(arg).substr(11))
+			await _real_run(g, G, rn)
+			_finish()
+			return
 	ok(g.training == null and g.mode == "golda67", "режим приквела (mode = %s), это не арена" % g.mode)
 	ok(G.place == "hub" and G.world is G67World, "место — подъезд")
 	ok(G.world.missing.is_empty(), "все модели хаба на месте (нет: %s)" % ", ".join(G.world.missing))
@@ -1179,13 +1183,190 @@ func _flurr_check(g, G: Golda67, P) -> void:
 
 ## --g67-real: путь игрока с роликами по ходу (первый показ не пропускается — ждём), чистое сохранение, весь забег
 ## до босса. Проверяет, что ролики не ломают игру: двери, комнаты, выход Миши (он на месте и в кадре).
+## Бот с клавиатуры: поворачивает камеру на ближайшего врага, идёт к нему (W), бьёт (ЛКМ), перекатывается (Shift) из красных кругов; страховка по времени
+func _bot_fight(g, G: Golda67, limit_s: float) -> Dictionary:
+	var P = g.player
+	var t0 := Time.get_ticks_msec()
+	var roll_cd := 0.0
+	var res := {"timeout": false}
+	while G.room_state in ["fight", "boss"]:
+		if float(Time.get_ticks_msec() - t0) / 1000.0 > limit_s:
+			res["timeout"] = true
+			Input.action_release("up")
+			Input.action_release("attack")
+			await _clear_room(g, G, 60.0)
+			break
+		if G.scene_busy() or G.clip != null:
+			Input.action_release("up")
+			await wait(0.2)
+			continue
+		var best = null
+		var bd := 1e9
+		for e in g.enemies:
+			if is_instance_valid(e) and e.state != "dead":
+				var d: float = (e as Node3D).global_position.distance_to(P.global_position)
+				if d < bd:
+					bd = d
+					best = e
+		if best == null:
+			Input.action_release("up")
+			await wait(0.25)
+			continue
+		var to: Vector3 = (best as Node3D).global_position - P.global_position
+		to.y = 0.0
+		g.cam_yaw = atan2(-to.x, -to.z)
+		roll_cd = maxf(0.0, roll_cd - 0.1)
+		if int(float(Time.get_ticks_msec() - t0) / 1000.0) % 20 == 0 and not res.has("d%d" % int(float(Time.get_ticks_msec() - t0) / 20000.0)):
+			res["d%d" % int(float(Time.get_ticks_msec() - t0) / 20000.0)] = true
+			print("GOLDA67CHECK   REAL бот: t=%.0f врагов=%d ближайший %s %.1f м состояние=%s hp=%.0f ожидают=%d" % [float(Time.get_ticks_msec() - t0) / 1000.0, g.enemies.size(), String(best.name), bd, String(best.state), float(P.hp), G.pending.size()])
+		var danger := false
+		for zz in g.zones:
+			if String(zz.get("kind", "")) == "tele" and "n" in zz and is_instance_valid(zz["n"]):
+				var zp: Vector3 = (zz["n"] as Node3D).global_position
+				if Vector2(zp.x - P.global_position.x, zp.z - P.global_position.z).length() < float(zz.get("r", 2.0)) + 0.6:
+					danger = true
+		for e2 in g.enemies:
+			if is_instance_valid(e2) and e2.state != "dead" and String(e2.state) in ["wind", "windup", "attack", "slam"] and (e2 as Node3D).global_position.distance_to(P.global_position) < 4.2:
+				danger = true
+		if danger and roll_cd <= 0.0:
+			roll_cd = 0.9
+			Input.action_release("up")
+			var side := "left" if int(Time.get_ticks_msec() / 1000) % 2 == 0 else "right"
+			Input.action_press(side)
+			Input.action_press("down")
+			Input.action_press("roll")
+			await wait(0.12)
+			Input.action_release("roll")
+			await wait(0.3)
+			Input.action_release("down")
+			Input.action_release("left")
+			Input.action_release("right")
+			continue
+		if bd > 2.3:
+			Input.action_press("up")
+			Input.action_release("attack")
+		else:
+			Input.action_release("up")
+			Input.action_press("attack")
+			await wait(0.07)
+			Input.action_release("attack")
+		await wait(0.1)
+	Input.action_release("up")
+	Input.action_release("attack")
+	Input.action_release("down")
+	return res
+
+## Журнал забега (только в проверке): позиции жителей/прохожих, состояние боя, пузыри и голоса, FPS, застрявшие враги
+func _real_journal(g, G: Golda67, J: Dictionary) -> void:
+	var last_pos := {}
+	while J["on"]:
+		await wait(0.25)
+		if G.world == null or G.world.yard == null or G.place != "run":
+			continue
+		var yd = G.world.yard
+		var P = g.player
+		J["samples"] = int(J["samples"]) + 1
+		var fps := float(Engine.get_frames_per_second())
+		J["fps_sum"] = float(J["fps_sum"]) + fps
+		if fps < float(J["fps_min"]):
+			J["fps_min"] = fps
+			J["fps_min_at"] = "комната %s, %.0f с, %s" % [String(G.room.get("type", "")), float(Time.get_ticks_msec() - int(J["t0"])) / 1000.0, G.room_state]
+		var actors: Array = []
+		for rid in yd.residents:
+			actors.append((yd.residents[rid].rig as Node3D))
+		var yl: G67YardLife = G.ylife_get()
+		for w in yl.walkers:
+			if is_instance_valid(w["rig"]):
+				actors.append(w["rig"])
+		var fighting: bool = G.room_state in ["fight", "boss"]
+		if fighting:
+			var place := String(G.room.get("place", ""))
+			if place != "":
+				var zn: Dictionary = G67Yard.zone(place)
+				var c: Vector3 = zn["c"]
+				var h: Vector2 = zn["h"]
+				for a in actors:
+					if absf(a.global_position.x - c.x) < h.x and absf(a.global_position.z - c.z) < h.y and a.visible:
+						J["obs_a"] = int(J["obs_a"]) + 1
+		# (б) житель ближе 1,2 м к точке, к которой герой подходит
+		for pt in G.world.points:
+			var pp: Vector3 = pt["pos"]
+			if String(pt["id"]).begins_with("talk_") or Vector2(pp.x - P.global_position.x, pp.z - P.global_position.z).length() > 2.5:
+				continue
+			for a in actors:
+				if Vector2(a.global_position.x - pp.x, a.global_position.z - pp.z).length() < 1.2 and a.visible:
+					J["obs_b"] = int(J["obs_b"]) + 1
+					(J["notes"] as Array).append("житель у точки %s" % String(pt["id"]))
+					break
+		# (в) враги без движения > 4 с вне своей атаки
+		var stat: Dictionary = J["stat"]
+		for e in g.enemies:
+			if not is_instance_valid(e) or e.state == "dead":
+				continue
+			var id: int = e.get_instance_id()
+			var p2: Vector3 = (e as Node3D).global_position
+			var st: Dictionary = stat.get(id, {"p": p2, "t": 0.0})
+			if (st["p"] as Vector3).distance_to(p2) < 0.05 and String(e.state) in ["chase", "idle", "walk"] and not G.scene_busy():
+				st["t"] = float(st["t"]) + 0.25
+				if float(st["t"]) > 4.0 and not bool(st.get("flag", false)):
+					st["flag"] = true
+					J["obs_c"] = int(J["obs_c"]) + 1
+					(J["notes"] as Array).append("враг %s стоит >4 с в состоянии %s у %s" % [String(e.name), String(e.state), str(p2)])
+			else:
+				st["t"] = 0.0
+				st["flag"] = false
+			st["p"] = p2
+			stat[id] = st
+		# (г) пузыри/голоса при ролике, диалоге, ev_cam, выходе босса; (д) два голоса сразу
+		var bk: G67Barks = G.barks_get()
+		var busy: bool = G.clip != null or g.mode == "dlg" or G.ev_cam or G.ev_busy or G.scene_t >= 0.0
+		var voices := 0
+		for ch in bk.get_children():
+			if ch is AudioStreamPlayer3D and (ch as AudioStreamPlayer3D).playing:
+				voices += 1
+		if busy and (bk.bubbles.size() > 0 or voices > 0):
+			J["obs_d"] = int(J["obs_d"]) + 1
+			(J["notes"] as Array).append("пузырь/голос во время постановки (пузырей %d, голосов %d)" % [bk.bubbles.size(), voices])
+		if voices > 1:
+			J["obs_e"] = int(J["obs_e"]) + 1
+
+func _real_summary(g, G: Golda67, J: Dictionary, run_n: int) -> void:
+	var yl: G67YardLife = G.ylife_get()
+	var du: G67Duos = G.duos_get()
+	var bk: G67Barks = G.barks_get()
+	var micro := {}
+	for e in yl.log:
+		micro[String(e[1])] = int(micro.get(String(e[1]), 0)) + 1
+	var said := {}
+	for e in bk.log:
+		said[String(e[1])] = int(said.get(String(e[1]), 0)) + 1
+	var ds := 0
+	var de := 0
+	for e in du.log:
+		if String(e[2]) == "start":
+			ds += 1
+		elif String(e[2]) == "end":
+			de += 1
+	var evs := {}
+	for e in G.events:
+		evs[String(e[0])] = int(evs.get(String(e[0]), 0)) + 1
+	var out := {"run": run_n, "sec": snappedf(float(Time.get_ticks_msec() - int(J["t0"])) / 1000.0, 0.1), "stages": J["stages"], "boss": J["boss"], "events": evs, "micro": micro, "said": said, "duos_start": ds, "duos_end": de, "walkers": int(micro.get("walker", 0)), "obs_a_zone_frames": J["obs_a"], "obs_b_near_point": J["obs_b"], "obs_c_stuck_enemies": J["obs_c"], "obs_d_bubbles_in_scene": J["obs_d"], "obs_e_two_voices": J["obs_e"], "fps_min": J["fps_min"], "fps_min_at": J["fps_min_at"], "fps_mean": snappedf(float(J["fps_sum"]) / maxf(1.0, float(J["samples"])), 0.1), "samples": J["samples"], "notes": (J["notes"] as Array).slice(0, 20), "route": str(G.run.get("route", G.run.keys()))}
+	var js := JSON.stringify(out, "  ")
+	print("GOLDA67CHECK   REALSUM " + js.replace("\n", " "))
+	var f := FileAccess.open(OS.get_environment("TEMP") + "/g67_real_%d.json" % run_n, FileAccess.WRITE)
+	if f:
+		f.store_string(js)
+
 func _clips_wait(G: Golda67, sec := 120.0) -> void:
 	await wait(0.3)
 	await until(func(): return G.clip == null and G.hub_ui == null, sec)
 	await wait(0.4)
 
-func _real_run(g, G: Golda67) -> void:
+func _real_run(g, G: Golda67, run_n := 0) -> void:
 	var P = g.player
+	G.meta()["runs"] = run_n
+	var J := {"on": true, "t0": Time.get_ticks_msec(), "samples": 0, "fps_min": 1e9, "fps_min_at": "", "fps_sum": 0.0, "obs_a": 0, "obs_b": 0, "obs_c": 0, "obs_d": 0, "obs_e": 0, "stat": {}, "stages": [], "boss": {}, "notes": []}
+	_real_journal(g, G, J)
 	ok(await until(func(): return G.clip != null, 10.0), "REAL: первые ролики начинаются после того, как подъезд проявился")
 	ok(main.intro_fx == null or not main.intro_fx.busy, "REAL: к началу ролика шторка перехода уже ушла")
 	await _clips_wait(G)
@@ -1204,7 +1385,10 @@ func _real_run(g, G: Golda67) -> void:
 		if G.room_state == "boss":
 			break
 		if G.room_state == "fight":
-			ok(await _clear_room(g, G, 60.0), "REAL: комната %d (%s) зачищена" % [int(G.run["pos"]) + 1, String(G.room.get("type", ""))])
+			var st0 := Time.get_ticks_msec()
+			var br: Dictionary = await _bot_fight(g, G, 150.0)
+			(J["stages"] as Array).append({"n": int(G.run["pos"]) + 1, "type": String(G.room.get("type", "")), "sec": snappedf(float(Time.get_ticks_msec() - st0) / 1000.0, 0.1), "timeout": bool(br["timeout"]), "hp_left": snappedf(float(P.hp), 0.1)})
+			ok(not bool(br["timeout"]) and G.room_state != "fight", "REAL: комната %d (%s) пройдена ботом с клавиатуры за %.0f с%s" % [int(G.run["pos"]) + 1, String(G.room.get("type", "")), float(Time.get_ticks_msec() - st0) / 1000.0, " (ПРОВАЛ по времени, добито)" if bool(br["timeout"]) else ""])
 		await wait(0.5)
 		if G.hub_ui != null and G.hub_ui.kind == "fit":
 			var fo: Array = G.fit_options(String(G.room.get("type", "")) == "elite")
@@ -1254,6 +1438,25 @@ func _real_run(g, G: Golda67) -> void:
 	print("GOLDA67CHECK   REAL mode=%s panel=%s dlg=%d events=%s" % [g.mode, str(g.panel), g.dlg.size(), str(G.events.slice(-8))])
 	print("GOLDA67CHECK   REAL после постановки: valid=%s alive=%s state=%s hp=%s boss_e==B %s enemies=%d room=%s scene_t=%.2f boss_pos=%s player=%s" % [is_instance_valid(B), B.alive() if is_instance_valid(B) else "-", B.state if is_instance_valid(B) else "-", B.hp if is_instance_valid(B) else "-", g.boss_e == B, g.enemies.size(), G.room_state, G.scene_t, str(B.global_position) if is_instance_valid(B) else "-", str(P.global_position)])
 	ok(is_instance_valid(B) and B.alive() and (g.enemies.has(B) or g.boss_e == B), "REAL: бой с Мишей идёт")
+	var bt0 := Time.get_ticks_msec()
+	var bb: Dictionary = await _bot_fight(g, G, 300.0)
+	J["boss"] = {"sec": snappedf(float(Time.get_ticks_msec() - bt0) / 1000.0, 0.1), "hp_left": snappedf(float(P.hp), 0.1), "hp_max": float(P.max_hp), "timeout": bool(bb["timeout"]), "dead": bool(G.over) if "over" in G else false, "state": G.room_state}
+	print("GOLDA67CHECK   REAL бой с Мишей: %s" % str(J["boss"]))
+	await wait(1.5)
+	await _clips_wait(G, 60.0)
+	var results_seen: bool = await until(func(): return G.room_state == "over" or G.hub_ui != null or G.place == "hub", 20.0)
+	await shot("real_end_%d" % run_n)
+	if G.place != "hub":
+		if G.hub_ui != null:
+			await key(KEY_ENTER)
+			await wait(0.6)
+		await _go(G, P, "home")
+		await until(func(): return G.place == "hub", 12.0)
+		await _clips_wait(G, 60.0)
+	ok(G.place == "hub", "REAL %d: после победы — экран итогов и возврат в подъезд (место %s)" % [run_n, G.place])
+	J["on"] = false
+	await wait(0.4)
+	_real_summary(g, G, J, run_n)
 
 ## Этап 2: экраны предметов подъезда как у игрока — подойти, E, клавиши, мышь, Esc; снимки каждого экрана
 func _hub_screen(G: Golda67, P, id: String, kind: String) -> bool:
