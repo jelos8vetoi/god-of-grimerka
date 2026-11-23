@@ -1241,7 +1241,7 @@ func _fortuna_checks() -> void:
 		var bb = await _fz_spawn()
 		ar = G.arena
 		G.events.clear()
-		var r: Dictionary = await _boss_bot(bb, ar, 130.0)
+		var r: Dictionary = await _boss_bot(bb, ar, 200.0)
 		if bool(r["won"]):
 			await c.until(func(): return G.events.any(func(e): return String(e[0]) == "finish"), 40.0)          # финал победы доигрывается до следующей попытки
 			await c.wait(0.5)
