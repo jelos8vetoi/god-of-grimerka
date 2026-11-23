@@ -184,7 +184,7 @@ func _rand_sym() -> String:
 ## Поле для спина n: 67-й — все ротвейлеры; иначе случайное, не больше 4 ротвейлеров и без полного поля
 func make_field(n: int) -> Array:
 	var f: Array = []
-	if n > 0 and n % 67 == 0:
+	if n == 67:
 		for c in 5:
 			f.append(["dog", "dog", "dog"])
 		return f
@@ -234,14 +234,14 @@ func spin(n: int, turbo := false) -> void:
 		return
 	spinning = true
 	spin_n = n
-	_jackpot = n > 0 and n % 67 == 0
+	_jackpot = n == 67
 	_turbo = turbo
 	lbl_jp.visible = false
 	_jp_since = -1.0
-	bar_fill.size.x = 176.0 * float(n % 67 if n % 67 != 0 else 67) / 67.0
+	bar_fill.size.x = 176.0 * float(mini(n, 67)) / 67.0
 	field = make_field(n)
-	lbl_spin.text = "SPIN: %d / 67" % (n % 67 if n % 67 != 0 else 67)
-	lbl_left.text = "ДО ДЖЕКПОТА: %d" % (67 - (n % 67) if n % 67 != 0 else 0)
+	lbl_spin.text = "SPIN: %d / 67" % n if n <= 67 else "SPIN: %d" % n
+	lbl_left.text = "ДО ДЖЕКПОТА: %d" % maxi(0, 67 - n)
 	var base := 0.14 if turbo else 0.6
 	_stop_at = []
 	for c in 5:
@@ -283,7 +283,12 @@ func _process(dt: float) -> void:
 	if _done < 5:
 		return
 	var pay := pays(field)
-	var res := {"jackpot": _jackpot, "gold": int(pay["gold"]) + (67 if _jackpot else 0), "lines": pay["lines"], "field": field}
+	var dogs := 0
+	for col in field:
+		for sy in col:
+			if sy == "dog":
+				dogs += 1
+	var res := {"dogs": dogs, "near": dogs == 4 and not _jackpot, "jackpot": _jackpot, "gold": int(pay["gold"]) + (67 if _jackpot else 0), "lines": pay["lines"], "field": field}
 	if _jackpot:
 		lbl_jp.text = "JACKPOT 67"
 		lbl_jp.visible = true

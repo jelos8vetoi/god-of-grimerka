@@ -147,6 +147,9 @@ func run(g_, G_: Golda67) -> void:
 			break
 	ok(run_ok, "хребет бегом за %.0f с" % (float(Time.get_ticks_msec() - t0) / 1000.0))
 	var total := _path_len(RIDGE)
+	for did in ["shutter", "hamster"]:
+		(G.world.district as G67Podzemka).open_door(did)
+	await c.wait(0.3)
 	for nm in BRANCHES:
 		var br: Array = BRANCHES[nm]
 		var start: Array = br[0]
@@ -165,12 +168,13 @@ func run(g_, G_: Golda67) -> void:
 	await _shots()
 	await _enemy_shots()
 	await _dark_shots()
+	await _krot_checks()
+	await _hamster_checks()
 	await _routes()
 	await _full_run()
 	await _save_resume()
 	await _enemy_checks()
 	await _slot_checks()
-	await _krot_checks()
 	await _bot_battles()
 
 ## --pz-perfzones: средний и 1 % low кадр по зонам боя (6 с после прогрева 3 с)
@@ -630,3 +634,44 @@ func _krot_checks() -> void:
 	await c._cam_shot(g, "pz_krot5", Vector3(-37.0, 1.9, -108.4), Vector3(-40.0, 1.0, -110.6))
 	G._krot_done("krot5")
 	await c.wait(0.2)
+
+## Мини-игра хомяков: бот с точностью 80 % и 100 %, комбо, золотой; казино: поле на 67-м и после него; ОШЕЙНИК один раз
+func _hamster_checks() -> void:
+	var hg := G67HamsterGame.new()
+	hg.headless = true
+	hg.holes = []
+	for i in 24:
+		hg.holes.append(Rect2(Vector2(i * 10, 0), Vector2(8, 8)))
+	var r80: Dictionary = hg.simulate(0.8, 11)
+	ok(int(r80["score"]) > 0 and int(r80["best_combo"]) >= 2 and int(r80["hits"]) > 5 and float(r80["time_left"]) <= 0.0, "бот хомяков (80 %%): игра завершена, очки %d, комбо ×%d, попаданий %d, пропущено %d, золотых %d" % [int(r80["score"]), int(r80["best_combo"]), int(r80["hits"]), int(r80["misses"]), int(r80["golds"])])
+	var r100: Dictionary = hg.simulate(1.0, 12)
+	ok(int(r100["best_combo"]) == 5 and int(r100["golds"]) >= 1 and int(r100["golds"]) <= 2, "бот хомяков (100 %%): комбо ×5 достигнуто, золотых %d (1–2), очки %d" % [int(r100["golds"]), int(r100["score"])])
+	hg.free()
+	var layer := CanvasLayer.new()
+	layer.layer = 30
+	var hg2 := G67HamsterGame.new()
+	layer.add_child(hg2)
+	g.add_child(layer)
+	for k in 22:
+		await c.wait(0.3)
+		for h in hg2.hams.duplicate():
+			if not bool(h["hit"]) and float(h["age"]) > 0.25:
+				hg2.tap_hole(int(h["hole"]))
+	await c._cam_shot(g, "pz_hamster_game", P.global_position + Vector3(0, 2, 4), P.global_position)
+	hg2._end(false)
+	await c.wait(0.3)
+	await c._cam_shot(g, "pz_hamster_card", P.global_position + Vector3(0, 2, 4), P.global_position)
+	layer.queue_free()
+	var sc: G67SlotScreen = (G.world.district as G67Podzemka).slot_screen
+	var jf: Array = sc.make_field(67)
+	var later_jackpot := false
+	for n in [68, 134, 201]:
+		var f2: Array = sc.make_field(n)
+		var all_dogs := true
+		for col in f2:
+			for sy in col:
+				if sy != "dog":
+					all_dogs = false
+		if all_dogs:
+			later_jackpot = true
+	ok(jf[0][0] == "dog" and not later_jackpot, "джекпот ровно на 67-м спине, после 67-го поле целиком из ротвейлеров не выпадает")

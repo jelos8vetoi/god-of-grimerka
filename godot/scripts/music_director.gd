@@ -80,6 +80,8 @@ var _last_ctx := ""
 var _dieg_db := 0.0
 var gain_cur := 0.0                    # gain_db базовой ситуации, сглаженный 12 дБ/с
 var _dieg_node: Node3D
+var dieg2: AudioStreamPlayer3D     # второй слой диегетического источника (кроссфейд состояний)
+var _dieg_mix := 0.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -112,6 +114,13 @@ func _ready() -> void:
 	dieg.max_db = 0.0
 	dieg.volume_db = -80.0
 	add_child(dieg)
+	dieg2 = AudioStreamPlayer3D.new()
+	dieg2.bus = "MusicDiegetic"
+	dieg2.unit_size = 5.0
+	dieg2.attenuation_filter_cutoff_hz = 4500.0
+	dieg2.max_db = 0.0
+	dieg2.volume_db = -80.0
+	add_child(dieg2)
 
 # ---------- наборы ----------
 func stems_of(nm: String) -> Array:
@@ -271,16 +280,32 @@ func stinger(file: String) -> void:
 func stop_stinger() -> void:
 	sting.stop()
 
-func set_diegetic(stream: AudioStream, node: Node3D, db := 0.0) -> void:
+func set_diegetic(stream: AudioStream, node: Node3D, db := 0.0, max_dist := 0.0) -> void:
 	dieg.stream = stream
 	_dieg_node = node
 	_dieg_db = db
+	dieg.max_distance = max_dist
+	dieg2.max_distance = max_dist
+	_dieg_mix = 0.0
 	if stream != null and not silent:
 		dieg.play()
 
+## Второй слой источника и доля его в смеси (0 — только первый, 1 — только второй); плавность задаёт вызывающий
+func set_diegetic2(stream: AudioStream, mix: float) -> void:
+	_dieg_mix = clampf(mix, 0.0, 1.0)
+	if stream != null and dieg2.stream != stream:
+		dieg2.stream = stream
+	if _dieg_mix > 0.0 and stream != null and not dieg2.playing and not silent:
+		dieg2.play(dieg.get_playback_position() if dieg.playing else 0.0)
+
+func diegetic_playing() -> int:
+	return int(dieg.playing) + int(dieg2.playing)
+
 func stop_diegetic() -> void:
 	dieg.stop()
+	dieg2.stop()
 	_dieg_node = null
+	_dieg_mix = 0.0
 
 func _pick(new_cue: String) -> String:
 	var t := String(base.get("transition", ""))
@@ -499,4 +524,8 @@ func tick(dt: float) -> void:
 	# диегетический
 	if _dieg_node != null and is_instance_valid(_dieg_node):
 		dieg.global_position = _dieg_node.global_position
-		dieg.volume_db = _dieg_db
+		dieg2.global_position = _dieg_node.global_position
+		dieg.volume_db = _dieg_db + (linear_to_db(maxf(1.0 - _dieg_mix, 0.0001)) if dieg2.stream != null else 0.0)
+		dieg2.volume_db = _dieg_db + linear_to_db(maxf(_dieg_mix, 0.0001))
+		if _dieg_mix <= 0.0 and dieg2.playing:
+			dieg2.stop()

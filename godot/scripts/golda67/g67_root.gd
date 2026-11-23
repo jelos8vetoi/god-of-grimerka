@@ -568,6 +568,34 @@ func _build_stash() -> void:
 ## Монета подбирается сама, когда герой подошёл ближе 1,2 м и боя нет
 ## Слот DOG CASINO 67: спин на экране корпуса и крупно на время игры; 67-й спин — всё поле ротвейлеры
 var slot_busy := false
+## Реплики и награды казино: каждые 8 проигрышей — «КАЗИНО УБИВАЕТ МОЮ ЖИЗНЬ!» всё громче; «почти» — «Да вы издеваетесь, блядь!»; 67-й — награда и ОШЕЙНИК 67 один раз
+const CASINO_KILLS := ["казино убивает мою жизнь...", "КАЗИНО УБИВАЕТ МОЮ ЖИЗНЬ!", "КАЗИНО УБИВАЕТ МОЮ ЖИЗНЬ!!", "КАЗИНО УБИВАЕТ МОЮ ЖИЗНЬ!!!", "КАЗИНО УБИВАЕТ МОЮ ЖИЗНЬ!!!!!"]
+var casino_losses := 0
+
+func _casino_react(n: int, res: Dictionary, pz: G67Podzemka) -> void:
+	if bool(res["jackpot"]):
+		game.banner("ДААААА, БЛЯТЬ!", "ТРИ СОБАКИ!", Color(1, 0.85, 0.2), 3.0)
+		var m := meta()
+		if not bool(m.get("collar67", false)):
+			m["collar67"] = true
+			var arch: Array = m.get("archive", [])
+			if not arch.has("casino67"):
+				arch.append("casino67")
+			m["archive"] = arch
+			_note_new("ОШЕЙНИК 67 — запись в архиве")
+		events.append(["casino_jackpot", n])
+	elif bool(res.get("near", false)):
+		game.toast("Да вы издеваетесь, блядь!")
+		pz.dog_bark()
+		events.append(["casino_near", n])
+	elif int(res["gold"]) == 0:
+		casino_losses += 1
+		if casino_losses % 8 == 0:
+			var lv := mini(casino_losses / 8 - 1, CASINO_KILLS.size() - 1)
+			game.toast(CASINO_KILLS[lv])
+			events.append(["casino_kills", lv])
+	save()
+
 func _slot_use() -> void:
 	var pz := world.district as G67Podzemka if world != null else null
 	if pz == null or pz.slot_screen == null or slot_busy:
@@ -587,6 +615,7 @@ func _slot_use() -> void:
 	game.add_child(layer)
 	pz.slot_screen.spin(n, Input.is_key_pressed(KEY_SHIFT))
 	var res: Dictionary = await pz.slot_screen.finished
+	_casino_react(n, res, pz)
 	if bool(res["jackpot"]):
 		await get_tree().create_timer(2.5).timeout
 	else:
@@ -597,6 +626,80 @@ func _slot_use() -> void:
 	layer.queue_free()
 	slot_busy = false
 	events.append(["slot", n, bool(res["jackpot"])])
+
+var _hamster_first_enter := false
+var hamster_busy := false
+var hamster_greeted := false
+
+## Мини-игра хомяков: оверлей на время игры; награда — ХОМЯЧЬЯ АУРА (первый раз) или голда забега по очкам (не больше 30)
+func _hamster_play() -> void:
+	if hamster_busy:
+		return
+	hamster_busy = true
+	var layer := CanvasLayer.new()
+	layer.layer = 30
+	var hg := G67HamsterGame.new()
+	layer.add_child(hg)
+	game.add_child(layer)
+	var res: Dictionary = await hg.finished
+	if bool(res.get("closed", false)) or not res.has("score"):
+		var again: Dictionary = {"score": hg.score, "skipped": hg.done and hg.t_left > 0.0}
+		res = again
+	layer.queue_free()
+	hamster_busy = false
+	var m := meta()
+	if not bool(m.get("hamster_done", false)):
+		m["hamster_done"] = true
+		var arch: Array = m.get("archive", [])
+		if not arch.has("hamsters"):
+			arch.append("hamsters")
+		m["archive"] = arch
+		if not run.is_empty():
+			take_art("hamster_aura", (run["arts"] as Array)[0] if (run["arts"] as Array).size() >= slots() else "")
+		game.toast("ХОМЯЧЬЯ АУРА: +2 голды за каждого врага")
+	elif not run.is_empty():
+		var g := mini(30, int(res["score"]) / 10)
+		run["golda"] = int(run["golda"]) + g
+		run["earned"] = int(run.get("earned", 0)) + g
+		game.toast("Хомяки заплатили: +%d голды" % g)
+	save()
+	events.append(["hamster_game", int(res["score"])])
+var pz_dieg := ""
+var casino_mix := 0.0
+
+## Позиционная музыка секретных комнат через MusicDirector: хомяки (слышно с 12 м, у закрытой двери глухо), казино (до 25 м, два слоя по числу спинов)
+func _pz_music_tick(dt: float) -> void:
+	var pzm := world.district as G67Podzemka if world != null else null
+	if pzm == null or pzm.music_casino == null:
+		return
+	var dir = game.main.audio.director
+	var hp: Vector3 = game.player.global_position
+	if not hamster_greeted and G67Podzemka.room_at(hp) == "hamster":
+		hamster_greeted = true
+		game.toast("Бля, я реально сюда за хомяками пришёл")
+		events.append(["hamster_enter"])
+	var dh := hp.distance_to(pzm.music_hamster.global_position)
+	var dc := hp.distance_to(pzm.music_casino.global_position)
+	var want := ""
+	if dh < 12.0:
+		want = "hamster"
+	elif dc < 25.0:
+		want = "casino"
+	if want != pz_dieg:
+		pz_dieg = want
+		if want == "hamster":
+			var closed: bool = not bool(pzm.door_open_flags.get("hamster", false))
+			dir.set_diegetic(load("res://assets/music/ev_g67_hamster.ogg"), pzm.music_hamster, -14.0 if closed else -3.0, 14.0)
+		elif want == "casino":
+			dir.set_diegetic(load("res://assets/music/ev_g67_casino_a.ogg"), pzm.music_casino, -4.0, 26.0)
+		else:
+			dir.stop_diegetic()
+	if want == "hamster":
+		dir._dieg_db = -14.0 if not bool(pzm.door_open_flags.get("hamster", false)) else -3.0
+	if want == "casino":
+		var n := int(meta().get("casino_spins", 0))
+		casino_mix = move_toward(casino_mix, 1.0 if n >= 60 else 0.0, dt / 4.0)
+		dir.set_diegetic2(load("res://assets/music/ev_g67_casino_b.ogg"), casino_mix)
 
 func _stash_tick(dt: float) -> void:
 	if stash_nodes.is_empty():
@@ -3372,6 +3475,7 @@ func _physics_process(dt: float) -> void:
 			_scene_tick(dt)
 	_marks_tick()
 	_krot_tick(dt)
+	_pz_music_tick(dt)
 	_crowd_tick()
 	if place == "run" and not busy and not game.over and not run.is_empty():
 		if room_state == "fight":
@@ -3468,6 +3572,15 @@ func use(id: String) -> void:
 		_button_press()
 	elif id == "slot":
 		_slot_use()
+	elif id == "hamster_game":
+		_hamster_play()
+	elif id == "shutter" or id == "hamster_door":
+		var pzd := world.district as G67Podzemka
+		if pzd != null and pzd.open_door("shutter" if id == "shutter" else "hamster"):
+			game.toast("Рольставня поднимается" if id == "shutter" else "Дверь скрипит")
+			events.append(["door_open", id])
+			if id == "hamster_door":
+				_hamster_first_enter = true
 	elif id == "elite_fit":
 		if room_state == "reward" and String(room.get("type", "")) == "elite":
 			world.points = world.points.filter(func(pt): return String(pt["id"]) != "elite_fit")

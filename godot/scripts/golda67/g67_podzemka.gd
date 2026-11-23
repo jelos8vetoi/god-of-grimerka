@@ -173,6 +173,10 @@ var prop_count := 0
 var slot_screen: G67SlotScreen = null
 var slot_vp: SubViewport = null
 var slot_button: MeshInstance3D = null
+var music_casino: Marker3D = null
+var music_hamster: Marker3D = null
+var door_nodes := {}
+var door_open_flags := {}
 var dog_node: Node3D = null
 var spit_node: Node3D = null
 var dog_yaw := 0.0
@@ -206,6 +210,7 @@ func build() -> void:
 		_modules()
 		_decorate()
 		_slot_screen()
+		_doors()
 	_zone_lights()
 
 func _m(c: Color, rough: float) -> StandardMaterial3D:
@@ -1029,3 +1034,51 @@ func _crate(pos: Vector3, size: Vector3) -> void:
 	mi.position = pos
 	add_child(mi)
 	_collider(pos, size)
+
+## Двери секретных комнат: рольставня казино и дверь хомяков — закрыты (блокер + панель), открываются по [E] (open_door)
+func _doors() -> void:
+	music_casino = Marker3D.new()
+	music_casino.position = Vector3(-52.2, 1.2, -122.0)
+	add_child(music_casino)
+	music_hamster = Marker3D.new()
+	music_hamster.position = Vector3(48.0, 1.2, -146.0)
+	add_child(music_hamster)
+	for d in [["shutter", Vector3(-44.25, 0.0, -122.0), Vector3(0.3, 3.6, 4.0), Color(0.55, 0.57, 0.6)], ["hamster", Vector3(44.0, 0.0, -146.0), Vector3(0.3, 3.2, 4.0), Color(0.42, 0.28, 0.16)]]:
+		var size: Vector3 = d[2]
+		var pos: Vector3 = d[1]
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = size
+		mi.mesh = bm
+		var mt := StandardMaterial3D.new()
+		mt.albedo_color = d[3]
+		mt.roughness = 0.6
+		mt.metallic = 0.5 if String(d[0]) == "shutter" else 0.0
+		mi.material_override = mt
+		mi.position = pos + Vector3(0, size.y * 0.5, 0)
+		add_child(mi)
+		var sb := StaticBody3D.new()
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = size
+		cs.shape = bs
+		sb.add_child(cs)
+		sb.position = mi.position
+		add_child(sb)
+		door_nodes[String(d[0])] = [mi, sb]
+		door_open_flags[String(d[0])] = false
+
+func open_door(id: String) -> bool:
+	if not door_nodes.has(id) or bool(door_open_flags.get(id, false)):
+		return false
+	door_open_flags[id] = true
+	var mi: MeshInstance3D = door_nodes[id][0]
+	var sb: StaticBody3D = door_nodes[id][1]
+	sb.queue_free()
+	var tw := mi.create_tween()
+	if id == "shutter":
+		tw.tween_property(mi, "position:y", mi.position.y + 3.4, 1.1)
+	else:
+		tw.tween_property(mi, "rotation:y", PI * 0.5, 0.9)
+		tw.parallel().tween_property(mi, "position:z", mi.position.z - 1.8, 0.9)
+	return true

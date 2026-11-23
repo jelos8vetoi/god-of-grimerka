@@ -464,6 +464,9 @@ func build_podzemka() -> void:
 	yard = null
 	hook_points = []
 	missing.append_array(pz.missing)
+	_point("shutter", "РОЛЬСТАВНЯ", "поднять", Vector3(-42.4, 0.0, -122.0))
+	_point("hamster_door", "НЕ ТРОГАТЬ. ТУТ ХОМЯКИ", "открыть дверь", Vector3(42.2, 0.0, -146.0))
+	_point("hamster_game", "ТАПАТЬ ХОМЯКОВ", "играть, 45 с", Vector3(51.5, 0.0, -148.0))
 	_point("slot", "DOG CASINO 67", "[E] крутить (удерживай — турбо)", Vector3(-51.4, 0.0, -122.0))
 	_point("home", "НАВЕРХ, ДОМОЙ", "домой: забег сохранится, продолжишь отсюда же", G67Podzemka.STAIRS_TOP + Vector3(0, 0, 1.5))
 
