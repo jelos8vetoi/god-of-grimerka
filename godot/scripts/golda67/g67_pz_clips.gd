@@ -197,7 +197,7 @@ static func ad02(c: G67ClipPlayer) -> void:
 		tw.tween_property(wheel, "rotation", TAU * 1.5, 3.0).set_trans(Tween.TRANS_CUBIC)
 		_lbl(s, "FORTUNA 812", 72, GOLD, Vector2(0, fs.y * 0.68), fs.x)
 		_lbl(s, "МЫ ЗА ВАШИ ДЕНЬГИ", 36, Color.WHITE, Vector2(0, fs.y * 0.82), fs.x))
-	await c.wait(maxf(d4 + 1.6, 3.6))
+	await c.wait(maxf(d4 + 2.4, 4.6))
 	glow.queue_free()
 	logo.queue_free()
 

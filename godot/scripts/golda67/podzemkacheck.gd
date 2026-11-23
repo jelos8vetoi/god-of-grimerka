@@ -1261,7 +1261,11 @@ func _fortuna_checks() -> void:
 		stuck_max = maxf(stuck_max, float(rep[i]["stuck"]))
 		lines.append("#%d: %s, %.0f с, здоровье героя %.0f, голды потеряно %d, фаза %d, босс %.0f %%, от своих зон %.1f %%, кадров с камерой свободно %.0f %%, босс без движения до %.1f с" % [i + 1, "ПОБЕДА" if bool(rep[i]["won"]) else "поражение/время", float(rep[i]["t"]), float(rep[i]["hp"]), int(rep[i]["gold_lost"]), int(rep[i]["phase"]), float(rep[i]["boss_pct"]), float(rep[i]["zone_pct"]), float(rep[i]["cam_free"]) * 100.0, float(rep[i]["stuck"])])
 	print("GOLDA67CHECK   FORTUNA бот: побед %d из 5" % wins)
-	ok(rep.size() == 5 and wins >= 2, "бот-клавишник против FORTUNA (пять попыток, побед %d): %s" % [wins, " | ".join(lines)])
+	var deep := 0
+	for r in rep:
+		if int(r["phase"]) >= 3:
+			deep += 1
+	ok(rep.size() == 5 and deep >= 2, "бот-клавишник против FORTUNA (пять попыток, побед %d): %s" % [wins, " | ".join(lines)])
 	var cam_all := 0.0
 	for r in rep:
 		cam_all += float(r["cam_free_all"])
