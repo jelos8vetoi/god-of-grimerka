@@ -15,8 +15,11 @@
 class_name AudioImport
 extends Node
 
+@warning_ignore("unused_signal")
 signal progress(done: int, total: int, name: String)
+@warning_ignore("unused_signal")
 signal track_ready(track: Dictionary)
+@warning_ignore("unused_signal")
 signal track_failed(name: String, reason: String)
 signal finished(added: int, failed: int)
 
@@ -118,17 +121,17 @@ func _done(added: int, failed: int) -> void:
 
 ## Один файл: проверка, план, копия или декодирование, теги и обложка. {track} или {reason}
 func import_one(src: String) -> Dictionary:
-	var name := src.get_file()
+	var nm := src.get_file()
 	var why := refuse_reason(src)
 	if why != "":
-		results.append([name, why, "", ""])
+		results.append([nm, why, "", ""])
 		return {"reason": why}
 	if not FileAccess.file_exists(src):
-		results.append([name, "файл не найден", "", ""])
+		results.append([nm, "файл не найден", "", ""])
 		return {"reason": "файл не найден"}
 	var info := probe(src)
 	if not bool(info.get("ok", false)):
-		results.append([name, String(info["reason"]), "", String(info.get("codec", ""))])
+		results.append([nm, String(info["reason"]), "", String(info.get("codec", ""))])
 		return {"reason": String(info["reason"])}
 	var id := _unique_id()
 	var out_path := ""
@@ -148,12 +151,12 @@ func import_one(src: String) -> Dictionary:
 				res["reason"] = String(res.get("reason", TIMEOUT_NOTE))
 	if not bool(res.get("ok", false)):
 		_remove(out_path)
-		results.append([name, String(res.get("reason", "не удалось")), String(info["plan"]), String(info.get("codec", ""))])
+		results.append([nm, String(res.get("reason", "не удалось")), String(info["plan"]), String(info.get("codec", ""))])
 		return {"reason": String(res.get("reason", "не удалось"))}
 	var check := _playable(out_path)
 	if check != "":
 		_remove(out_path)
-		results.append([name, check, String(info["plan"]), String(info.get("codec", ""))])
+		results.append([nm, check, String(info["plan"]), String(info.get("codec", ""))])
 		return {"reason": check}
 	var cover := ""
 	var cb: PackedByteArray = info.get("cover_bytes", PackedByteArray())
@@ -168,7 +171,7 @@ func import_one(src: String) -> Dictionary:
 			cover = ""
 	var title := String(info.get("title", "")).strip_edges()
 	var artist := String(info.get("artist", "")).strip_edges()
-	results.append([name, "ok", String(info["plan"]), String(info.get("codec", ""))])
+	results.append([nm, "ok", String(info["plan"]), String(info.get("codec", ""))])
 	return {"track": {"id": id, "title": title if title != "" else src.get_file().get_basename(),
 		"artist": artist if artist != "" else "Моя музыка", "album": String(info.get("album", "")).strip_edges(),
 		"cover": cover, "path": out_path, "local": true, "format": String(info.get("codec", ""))}}
@@ -214,6 +217,7 @@ static func probe(path: String) -> Dictionary:
 	if size < 16:
 		return {"ok": false, "reason": "файл пустой"}
 	if size > MAX_SOURCE:
+		@warning_ignore("integer_division")
 		return {"ok": false, "reason": "файл больше %d МБ" % (MAX_SOURCE / 1048576)}
 	var head := f.get_buffer(64)
 	f.close()
@@ -357,9 +361,11 @@ static func _wav(path: String, info: Dictionary) -> Dictionary:
 	if tag == -1 or ch <= 0 or rate <= 0:
 		return {"ok": false, "codec": "WAV ?", "reason": "в WAV нет описания звука (fmt) — файл повреждён"}
 	if ch > 0 and rate > 0 and bits > 0:
+		@warning_ignore("integer_division")
 		info["duration"] = float(data) / float(rate * ch * maxi(1, bits / 8))
 	if tag in [1, 3] and bits in [8, 16, 24, 32, 64]:
 		if n > MAX_PCM:
+			@warning_ignore("integer_division")
 			return {"ok": false, "codec": "WAV PCM", "reason": "WAV больше %d МБ — сохраните его в FLAC или M4A" % (MAX_PCM / 1048576)}
 		info["plan"] = "copy"
 		info["out_ext"] = "wav"
@@ -427,6 +433,7 @@ static func _aiff(path: String, info: Dictionary) -> Dictionary:
 	if not bits in [8, 16, 24, 32]:
 		return {"ok": false, "codec": "AIFF", "reason": "AIFF %d бит не поддерживается" % bits}
 	if int(info["ssnd_len"]) * (1 if comp == "sowt" else 1) > MAX_PCM:
+		@warning_ignore("integer_division")
 		return {"ok": false, "codec": "AIFF", "reason": "AIFF больше %d МБ — сохраните его в FLAC или M4A" % (MAX_PCM / 1048576)}
 	info["bits"] = bits
 	info["float"] = comp in ["fl32", "FL32"]
@@ -446,6 +453,7 @@ func _aiff_to_wav(src: String, dst: String, info: Dictionary) -> Dictionary:
 	var ch := int(info["ch"])
 	var bits := int(info["bits"])
 	var rate := int(info["rate"])
+	@warning_ignore("integer_division")
 	var w := bits / 8
 	var total := int(info["ssnd_len"]) - int(info["ssnd_len"]) % (w * ch)
 	total = mini(total, int(info["frames"]) * w * ch) if int(info["frames"]) > 0 else total
@@ -480,6 +488,7 @@ func _aiff_to_wav(src: String, dst: String, info: Dictionary) -> Dictionary:
 					c[i + 1] = t
 			else:
 				for i in range(0, c.size() - w + 1, w):
+					@warning_ignore("integer_division")
 					for k in w / 2:
 						var t := c[i + k]
 						c[i + k] = c[i + w - 1 - k]

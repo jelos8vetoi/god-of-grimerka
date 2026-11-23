@@ -57,6 +57,7 @@ var mat: ShaderMaterial
 var cur := ""
 var switch_t := 0.0
 var lost_t := 0.0
+var lost_next := randf_range(40.0, 90.0)   # через сколько секунд следующая редкая потеря сигнала
 var frozen := {}                  # id камеры → ImageTexture (подмена MOD)
 var t := 0.0
 var fx_k := 1.0
@@ -145,12 +146,18 @@ func capture_all() -> void:
 		set_cam(keep)
 	switch_t = 0.0
 
+## кадр срывается на sec секунд (враг вошёл в кадр или вышел из него)
+func blip(sec: float) -> void:
+	lost_t = maxf(lost_t, sec)
+
 func tick(st: FNNight, dt: float) -> void:
 	t += dt
 	switch_t = maxf(0.0, switch_t - dt)
-	lost_t -= dt
-	if lost_t < -randf_range(14.0, 40.0):
+	lost_t = maxf(lost_t - dt, -1.0)
+	lost_next -= dt
+	if lost_next <= 0.0:
 		lost_t = randf_range(0.08, 0.25)            # редкая потеря сигнала
+		lost_next = randf_range(40.0, 90.0)
 	var on := st.monitor and not st.cams_dead() and not st.cam_broken(cur)
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if on and not st.cam_lies(cur) else SubViewport.UPDATE_DISABLED
 	if st.cam != cur:

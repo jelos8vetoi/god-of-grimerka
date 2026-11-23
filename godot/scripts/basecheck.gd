@@ -38,9 +38,9 @@ func frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 
 func tap(a: String) -> void:
 	await get_tree().physics_frame

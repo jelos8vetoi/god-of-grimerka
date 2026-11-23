@@ -17,7 +17,7 @@ var kept := {}
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 	for p in KEEP.slice(1):
 		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
@@ -31,7 +31,9 @@ func ok(cond: bool, text: String) -> void:
 	print(("FIVENIGHTSCHECK ok: " if cond else "FIVENIGHTSCHECK ОШИБКА: ") + text)
 
 func wait(t: float) -> void:
-	await get_tree().create_timer(t, true, false, true).timeout
+	var t0 := GameClock.ms()      # по игровым часам: в ускоренной проверке кадр = 1/N с
+	while GameClock.ms() - t0 < int(t * 1000.0):
+		await get_tree().process_frame
 
 func until(cond: Callable, sec: float) -> bool:
 	var t0 := GameClock.ms()
@@ -41,9 +43,9 @@ func until(cond: Callable, sec: float) -> bool:
 		await get_tree().process_frame
 	return bool(cond.call())
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm + ".png"))
 
 func key(k: Key, hold := 0.05) -> void:
 	for down in [true, false]:
@@ -74,7 +76,6 @@ const EDGES := {
 func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	await wait(2.0)
-	var grim0 = kept[KEEP[0]]
 	var quick := OS.get_cmdline_user_args().has("--fn-quick")
 	# ================= симуляции: честность и баланс =================
 	var sims := {}
@@ -102,6 +103,34 @@ func _run() -> void:
 				bad = false
 				print("FIVENIGHTSCHECK   слишком легко для «%s» в ночь %d" % [s, n + 1])
 	ok(bad, "лень, двери весь вечер, всё включено, «не отводит глаз» — проигрыш")
+	# ночь 2: первая минута спокойна — никто не встаёт к двери и решётке раньше своего порога, бездействие не бессмертно
+	var early_post := 0
+	var early_death := 0
+	var idle_win := 0
+	var deaths := 0
+	var att_spots := ["door_l", "door_r", "vent_l", "vent_t"]
+	for k in 200:
+		var cst := FNNight.new()
+		cst.setup(1, 500 + k * 13, {})
+		while cst.outcome == "" and cst.t < 7.0 * FNData.HOUR_SEC:
+			cst.step(0.1)
+			cst.take_events()
+			for id in cst.enemies:
+				var en: FNEnemy = cst.enemies[id]
+				if en.spot in att_spots and cst.t < float(cst.calm(id)[1]):
+					early_post += 1
+		if cst.outcome == "dead":
+			deaths += 1
+			if cst.t < 60.0:
+				early_death += 1
+		elif cst.outcome == "win":
+			idle_win += 1
+	ok(early_post == 0 and early_death == 0 and idle_win == 0 and deaths > 150, "ночь 2, 200 зёрен, бездействие: у двери и решётки раньше порога — %d раз, гибелей раньше 60 с — %d, побед — %d, гибелей всего %d" % [early_post, early_death, idle_win, deaths])
+	var calm_zero := true
+	for n in [0, 2, 3, 4, 5]:
+		for id in FNData.ORDER:
+			calm_zero = calm_zero and FNData.calm(n, id) == [0.0, 0.0]
+	ok(calm_zero and FNData.calm(1, "madk1d") == [20.0, 60.0] and FNData.calm(1, "balon") == [0.0, 52.0] and FNData.calm(1, "bot") == [0.0, 0.0], "спокойное начало задано только ночи 2, у остальных ночей — нули")
 	# ================= логика: двери, энергия, маршруты, атаки =================
 	_logic()
 	_incidents_logic()
@@ -201,7 +230,7 @@ func _ui_part() -> void:
 	var resumed: bool = await until(func(): return R.call_voice.playing and R.call_voice.stream != line1, 8.0)
 	ok(resumed, "звонок продолжился со следующей реплики")
 	var spoke: bool = await until(func(): return R.call_voice.playing, 9.0)
-	ok(spoke and R.call_voice.bus == "Phone" and R.ui.sub_box.visible, "реплика звонка звучит голосом из трубки (шина %s), субтитр на экране" % R.call_voice.bus)
+	ok(spoke and R.call_voice.bus == "PhoneVoice" and R.ui.sub_box.visible, "реплика звонка звучит голосом из трубки (шина %s), субтитр на экране" % R.call_voice.bus)
 	var held_t := R.call_t
 	ok(R.call_voice.stream != null and held_t >= R.call_voice.stream.get_length() - R.call_voice.get_playback_position() - 0.1, "субтитр держится, пока реплику договаривают (ещё %.1f с)" % held_t)
 	await key(KEY_F)
@@ -258,14 +287,14 @@ func _ui_part() -> void:
 		var row: Dictionary = UI.deck_rows[D["id"]]
 		var nm: Label = row["name"]
 		var stl: Label = row["state"]
-		var pr: Rect2 = (row["panel"] as Control).get_global_rect()
+		var pr_rect: Rect2 = (row["panel"] as Control).get_global_rect()
 		if nm.text != String(D["name"]) or stl.text == "" or not (row["panel"] as Control).is_visible_in_tree() or nm.get_minimum_size().x > nm.size.x + 1.0 or stl.get_minimum_size().x > stl.size.x + 1.0:
 			deck_names_ok = false
-		if deck_prev.size.x > 0.0 and pr.intersects(deck_prev):
+		if deck_prev.size.x > 0.0 and pr_rect.intersects(deck_prev):
 			deck_overlap = true
-		if not deck_screen.encloses(pr):
+		if not deck_screen.encloses(pr_rect):
 			deck_off = true
-		deck_prev = pr
+		deck_prev = pr_rect
 		deck_txt.append("[%s] %s — %s" % [D["key"], nm.text, stl.text])
 	ok(UI.deck.visible and UI.deck_rows.size() == 8 and deck_names_ok, "пульт: 8 устройств, у каждого клавиша, название и состояние — %s" % "; ".join(deck_txt))
 	ok(not deck_overlap and not deck_off, "пульт: плашки не перекрываются и целиком на экране")
@@ -355,6 +384,10 @@ func _ui_part() -> void:
 	await _hall_left(R, st)
 	await _ambience(R, st)
 	await _tension(R, st)
+	await _vents_check(R)
+	await _lock_lamps(R)
+	await _fan_check(R)
+	_voice_buses(R)
 	await _anomalies(R, st)
 	ok(R.cams.vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS, "рисуется только выбранная камера, пока монитор поднят")
 	await key(KEY_SPACE)
@@ -449,6 +482,8 @@ func _ui_part() -> void:
 	FNSave.loaded = false
 	ok(bool(FNSave.v("custom")) and (FNSave.v("beaten") as Array).has(0) and int(FNSave.v("unlocked")) >= 2, "повреждённый файл — загружена резервная копия (ночи открыты: %d)" % int(FNSave.v("unlocked")))
 	ok(FileAccess.get_file_as_string(KEEP[0]) == (grim0 if grim0 != null else ""), "сюжетное сохранение не тронуто")
+	await _tension_n1(R)
+	await _after_death(R)
 	# выход в меню режимов и кампания
 	R.to_terminal()
 	await wait(0.3)
@@ -461,6 +496,334 @@ func _ui_part() -> void:
 	main.game._to_menu()
 	await wait(1.0)
 	_finish()
+
+## механизмы вентиляции: картинка следует за st.seal, логика мгновенная
+func _vents_check(R: FiveNightsRoot) -> void:
+	var st: FNNight = R.st
+	var O: FNOffice = R.office
+	var keep := [st.seal["l"], st.seal["t"]]
+	st.set_seal("l", false)
+	st.set_seal("t", false)
+	await wait(1.0)
+	var stops := [0]
+	var cn := func(_s: String, _c: bool): stops[0] += 1
+	O.seal_stop.connect(cn)
+	var nodes_ok: bool = O.get_node_or_null("Ventilation/WallGrate/DamperPivot") != null and O.get_node_or_null("Ventilation/CeilingHatch/LeafPivotL") != null and O.get_node_or_null("Ventilation/CeilingHatch/LeafPivotR") != null and O.get_node_or_null("Ventilation/CeilingHatch/Damper") == null
+	ok(nodes_ok, "механизмы вентиляции: DamperPivot, LeafPivotL, LeafPivotR есть, старой пластины Damper на люке нет")
+	var rep_ok := true
+	for side in ["l", "t"]:
+		var ang := func() -> float: return O.wall_pivot.rotation.x if side == "l" else O.leaf_l.rotation.z
+		var open0: bool = O.seal_k[side] == 0.0 and absf(float(ang.call()) - FNOffice.SEAL_OPEN_ANGLE) < 0.06
+		st.set_seal(side, true)
+		await wait(0.12)
+		var mid: bool = O.seal_k[side] > 0.05 and O.seal_k[side] < 0.95 and float(ang.call()) > 0.05 and float(ang.call()) < FNOffice.SEAL_OPEN_ANGLE - 0.05
+		await wait(0.9)
+		var shut: bool = O.seal_k[side] == 1.0 and absf(float(ang.call())) <= 0.02
+		st.set_seal(side, false)
+		await wait(0.9)
+		var open1: bool = O.seal_k[side] == 0.0 and absf(float(ang.call()) - FNOffice.SEAL_OPEN_ANGLE) < 0.06
+		rep_ok = rep_ok and open0 and mid and shut and open1
+		ok(open0 and mid and shut and open1, "заслонка «%s»: открыта → через 0,12 с на полпути → через 0,9 с закрыта (угол %.3f) → снова открыта" % [side, float(ang.call())])
+	ok(stops[0] == 4, "сигнал упора: ровно один на каждый завершённый ход (%d из 4)" % stops[0])
+	var before_n: int = stops[0]
+	for i in 6:
+		st.set_seal("l", i % 2 == 0)
+		await get_tree().process_frame
+	await wait(1.2)
+	ok(O.seal_k["l"] == (1.0 if st.seal["l"] else 0.0) and stops[0] - before_n == 1, "шесть переключений по одному на кадр: картинка равна состоянию, упор один (%d)" % (stops[0] - before_n))
+	O.seal_stop.disconnect(cn)
+	var sd := FNSound.get_stream("damper_close")
+	var so := FNSound.get_stream("damper_open")
+	var sp := FNSound.get_stream("damper_stop")
+	var snd_ok := true
+	for w in [sd, so, sp]:
+		snd_ok = snd_ok and w.loop_mode == AudioStreamWAV.LOOP_DISABLED and w.get_length() <= 0.6
+	ok(snd_ok, "звуки заслонок одноразовые и короткие (%.2f, %.2f, %.2f с)" % [sd.get_length(), so.get_length(), sp.get_length()])
+	st.set_seal("l", keep[0])
+	st.set_seal("t", keep[1])
+	await wait(1.0)
+
+## настольный вентилятор: картинка идёт за ambience.fan_spin (звук и вращение совпадают)
+func _fan_check(R: FiveNightsRoot) -> void:
+	var O: FNOffice = R.office
+	var A: FNAmbience = R.ambience
+	var rotor: Node3D = O.desk_fan.rotor
+	ok(rotor != null and rotor.name == "RotorPivot", "вентилятор: RotorPivot найден")
+	ok(O.desk_tris_after < O.desk_tris_before, "старый вентилятор вырезан из стола: треугольников %d → %d (убрано %d, %.1f мс)" % [O.desk_tris_before, O.desk_tris_after, O.fan_cut_tris, O.fan_cut_ms])
+	var fan_pt: Node3D = O.get_node("Console/AudioPoints/Fan")
+	ok(fan_pt.global_position.distance_to(rotor.global_position) <= 0.2, "маркер звука вентилятора у двигателя (%.2f м от ротора)" % fan_pt.global_position.distance_to(rotor.global_position))
+	A.fan_spin = 1.0
+	await wait(0.3)
+	var q0: Quaternion = rotor.basis.get_rotation_quaternion()
+	await wait(1.0)
+	var turned: float = q0.angle_to(rotor.basis.get_rotation_quaternion())
+	ok(turned > 0.1 and A.fan_spin > 0.95, "обычная ночь: за 1 с ротор повернулся (шаг %.2f рад), fan_spin %.2f" % [turned, A.fan_spin])
+	R.set_paused(true)
+	await wait(0.2)
+	var qp: Quaternion = rotor.basis.get_rotation_quaternion()
+	await wait(0.5)
+	var held: float = qp.angle_to(rotor.basis.get_rotation_quaternion())
+	R.set_paused(false)
+	ok(held < 0.001, "на паузе ротор не вращается (%.4f рад)" % held)
+
+## лампы блокировки на механизмах вентиляции
+func _lock_lamps(R: FiveNightsRoot) -> void:
+	var st: FNNight = R.st
+	var O: FNOffice = R.office
+	var keep := [st.seal["l"], st.seal["t"]]
+	st.set_seal("l", false)
+	st.set_seal("t", false)
+	await wait(2.0)
+	var present: bool = true
+	for p in ["Ventilation/WallGrate/LockLamp", "Ventilation/CeilingHatch/LockLamp"]:
+		present = present and O.get_node_or_null(p) != null and O.get_node_or_null(p + "/Glow") != null
+	ok(present, "лампы блокировки LockLamp и Glow есть у решётки и у люка")
+	for side in ["l", "t"]:
+		var lamp: MeshInstance3D = O.lock_lamp[side]
+		var glow: OmniLight3D = O.lock_glow[side]
+		st.set_seal(side, true)
+		var amber := false
+		for i in 12:
+			await get_tree().process_frame
+			amber = amber or lamp.material_override == O.mats["amber_led"]
+		await wait(1.0)
+		var red: bool = lamp.material_override == O.mats["red_led"] and glow.light_energy > 0.1
+		st.set_seal(side, false)
+		await wait(2.0)      # ход 0,52 с + догорание 0,8 с + запас
+		var dark: bool = lamp.material_override == O.mats["off_led"] and glow.light_energy < 0.02
+		ok(amber and red and dark, "лампа «%s»: в ходу янтарная (%s), закрыта — красная со светом %.2f, открыта, после хода и догорания — погашена (%.3f)" % [side, str(amber), glow.light_energy if red else -1.0, glow.light_energy])
+	st.set_seal("l", true)
+	await wait(1.0)
+	O.power_on = false
+	O._vents(st, 0.0)
+	var off_ok: bool = (O.lock_lamp["l"] as MeshInstance3D).material_override == O.mats["off_led"] and (O.lock_glow["l"] as OmniLight3D).light_energy == 0.0
+	O.power_on = true
+	ok(off_ok, "без питания лампа блокировки погашена, света нет")
+	st.set_seal("l", keep[0])
+	st.set_seal("t", keep[1])
+	await wait(1.0)
+
+## эффекты шины: имена классов по порядку
+func _fx_names(bus: String) -> Array:
+	var out_a: Array = []
+	var i := AudioServer.get_bus_index(bus)
+	for k in AudioServer.get_bus_effect_count(i):
+		out_a.append(AudioServer.get_bus_effect(i, k).get_class())
+	return out_a
+
+func _fx_sig() -> Array:
+	return [AudioServer.bus_count, _fx_names("Phone"), _fx_names("RoomVoice"), _fx_names("PhoneVoice"), _fx_names("Voice")]
+
+## голоса в будке: Пахан — в комнате, начальник — из трубки на столе; Voice и Phone остались прежними
+func _voice_buses(R: FiveNightsRoot) -> void:
+	var _vi := AudioServer.get_bus_index("Voice")
+	var all_there := true
+	for b in ["Phone", "RoomVoice", "PhoneVoice"]:
+		var i := AudioServer.get_bus_index(b)
+		all_there = all_there and i >= 0 and AudioServer.get_bus_send(i) == "Voice"
+	var voice_clean := true
+	for n in _fx_names("Voice"):
+		voice_clean = voice_clean and n != "AudioEffectReverb" and n != "AudioEffectDelay"
+	ok(all_there and voice_clean, "шины RoomVoice и PhoneVoice есть и посылают в Voice; на Voice нет ревербератора и задержки")
+	var want_phone := ["AudioEffectHighPassFilter", "AudioEffectLowPassFilter", "AudioEffectDistortion", "AudioEffectHardLimiter"]
+	ok(_fx_names("Phone") == want_phone, "шина Phone прежняя: HP, LP, Distortion, HardLimiter")
+	var ri := AudioServer.get_bus_index("RoomVoice")
+	var rv: AudioEffectReverb = AudioServer.get_bus_effect(ri, 1) as AudioEffectReverb
+	ok(_fx_names("RoomVoice") == ["AudioEffectDelay", "AudioEffectReverb"] and rv != null and rv.wet <= 0.2 and rv.room_size <= 0.5, "RoomVoice: Delay + Reverb (wet %.2f, room_size %.2f)" % [rv.wet if rv != null else -1.0, rv.room_size if rv != null else -1.0])
+	var pi := AudioServer.get_bus_index("PhoneVoice")
+	var prv: AudioEffectReverb = AudioServer.get_bus_effect(pi, 4) as AudioEffectReverb
+	ok(_fx_names("PhoneVoice") == ["AudioEffectHighPassFilter", "AudioEffectLowPassFilter", "AudioEffectDistortion", "AudioEffectEQ6", "AudioEffectReverb", "AudioEffectHardLimiter"] and prv != null and prv.wet <= 0.12, "PhoneVoice: HP, LP, Distortion, EQ6, Reverb (wet %.2f), HardLimiter последним" % (prv.wet if prv != null else -1.0))
+	ok(R.pahan_voice.bus == "RoomVoice" and R.call_voice.bus == "PhoneVoice" and R.call_voice is AudioStreamPlayer3D, "pahan_voice → RoomVoice, call_voice → PhoneVoice (AudioStreamPlayer3D)")
+
+## напряжение, ночь 1: дальние ходы слышны (журнал cue_log), камеры срываются по событиям, первая «затихшая вентиляция» раньше
+func _tension_n1(R: FiveNightsRoot) -> void:
+	var cases := {"stage": "far", "arcade": "far", "storage": "far", "power": "far", "server": "far", "hall_l": "hall", "hall_r": "hall", "door_l": "door", "door_r": "door", "vent_l": "vent", "vent_t": "vent", "duct_l": "duct", "duct_t": "duct", "away": ""}
+	var kinds_ok := true
+	for k in cases:
+		kinds_ok = kinds_ok and FNCues.kind(k) == cases[k]
+	var far_ok: bool = FNCues.far_id("balon") == "thud" and FNCues.far_id("bot") == "grind" and FNCues.far_id("clipper") == "drag" and FNCues.far_id("mod") == "knock" and FNCues.far_id("madk1d") == "" and FNCues.far_id("ghost") == ""
+	var hall_ok: bool = FNCues.hall_id("balon") == "step_heavy" and FNCues.hall_id("bot") == "clank" and FNCues.hall_id("clipper") == "step" and FNCues.hall_id("ghost") == "step" and FNCues.hall_id("madk1d") == "step_heavy" and FNCues.hall_id("mod") == "step_heavy"
+	var free_ok := true
+	for e in FNAmbience.EVENTS:
+		free_ok = free_ok and not (String(e["id"]) in FNCues.FAR.values())
+	ok(kinds_ok and far_ok and hall_ok and free_ok, "звуки ходов: виды точек, дальние и коридорные записи по врагам, случайный фон дальними записями не пользуется")
+	var beaten_keep: Array = (FNSave.v("beaten") as Array).duplicate()
+	FNSave.put("beaten", [])
+	R.start_night(0)
+	await until(func(): return R.state == "night" and R.intro_t <= 0.0, 12.0)
+	await wait(0.3)
+	var st: FNNight = R.st
+	var A: FNAmbience = R.ambience
+	# 58…80 минус заставка ночи (≈3,6 с) и ожидание
+	ok(A.breath_next >= 53.0 and A.breath_next <= 80.0, "ночь 1: первая «затихшая вентиляция» через %.0f с" % A.breath_next)
+	for id in st.enemies:
+		(st.enemies[id] as FNEnemy).move_t = 1.0e6
+	var b: FNEnemy = st.enemies["balon"]
+	st.t = 20.0
+	A.hold_t = 0.0
+	R.cue_log.clear()
+	R.far_last = {}
+	b.go(st, "arcade")
+	await wait(0.1)
+	var far_n := 0
+	var far_dist := 0.0
+	for c in R.cue_log:
+		if c[3] == "far" and c[1] == "balon":
+			far_n += 1
+			far_dist = (c[5] as Vector3).distance_to(R.office.cam.global_position)
+	var arc_pos: Vector3 = R.cue_log[0][5]
+	var office_p: Vector3 = R.office.cam.global_position
+	ok(far_n == 1 and R.cue_log[0][4] == "thud" and far_dist >= 15.0 and far_dist <= 35.0 and arc_pos.x < office_p.x, "БАЛОН stage → arcade: дальний звук «thud» слева, %.1f м от будки (x %.1f)" % [far_dist, arc_pos.x])
+	var sp := FNCues.far_pos("stage")
+	var pw := FNCues.far_pos("power")
+	ok(absf(sp.x) < 3.0 and sp.z < -15.0 and pw.x > 0.0 and FNCues.far_pos("hall_l") != Vector3.ZERO and FNCues.far_pos("nowhere") == Vector3.ZERO, "акустические точки по плану: stage прямо впереди (%.1f; %.1f), power справа (x %.1f)" % [sp.x, sp.z, pw.x])
+	ok(R.said_far, "первая ночь: подсказка про шаги в здании прозвучала")
+	await wait(0.9)
+	ok(R.far_q.is_empty(), "второй удар походки БАЛОНА сыгран, очередь пуста")
+	A.hold_t = 0.0
+	b.go(st, "storage")
+	await wait(0.1)
+	far_n = 0
+	for c in R.cue_log:
+		if c[3] == "far":
+			far_n += 1
+	ok(far_n == 1, "повторный дальний ход раньше 9 с молчит (записей %d)" % far_n)
+	R.far_last = {}
+	var cl: FNEnemy = st.enemies["clipper"]
+	cl.go(st, "door_l")
+	await wait(0.1)
+	b.go(st, "power")
+	await wait(0.1)
+	far_n = 0
+	for c in R.cue_log:
+		if c[3] == "far":
+			far_n += 1
+	cl.go(st, "storage")
+	ok(far_n == 1, "при враге у двери дальний звук молчит (записей %d)" % far_n)
+	A.hold_t = 0.0
+	b.go(st, "hall_l")
+	await wait(0.1)
+	var hall_logged := false
+	for c in R.cue_log:
+		hall_logged = hall_logged or (c[3] == "hall" and c[4] == "step_heavy")
+	ok(hall_logged, "ход в левый коридор: запись «hall» / step_heavy")
+	R.far_q.append([5.0, "thud", Vector3.ZERO, 0.0, 1.0])
+	R.clear_transients()
+	ok(R.far_q.is_empty(), "clear_transients чистит очередь дальних ударов")
+	st.monitor = true
+	st.cam = "arcade"
+	R.cams.lost_t = -1.0
+	R._on_event("move", {"e": "balon", "from": "stage", "to": "arcade", "why": ""})
+	var lost_a: float = R.cams.lost_t
+	st.cam = "storage"
+	R.cams.lost_t = -1.0
+	R._on_event("move", {"e": "balon", "from": "stage", "to": "arcade", "why": ""})
+	var lost_b: float = R.cams.lost_t
+	ok(lost_a >= 0.3 and lost_a <= 0.5 and lost_b < 0.0, "камера: ход в кадр срывает сигнал (%.2f с), другая камера не тронута (%.2f)" % [lost_a, lost_b])
+	R.cams.lost_next = 0.0
+	await wait(0.2)
+	ok(R.cams.lost_next >= 39.0 and R.cams.lost_next <= 90.0, "редкая потеря сигнала: следующая через %.0f с" % R.cams.lost_next)
+	st.monitor = false
+	FNSave.put("beaten", [0])
+	R.start_night(0)
+	await until(func(): return R.state == "night" and R.intro_t <= 0.0, 12.0)
+	await wait(0.2)
+	st = R.st
+	for id in st.enemies:
+		(st.enemies[id] as FNEnemy).move_t = 1.0e6
+	st.t = 20.0
+	R.ambience.hold_t = 0.0
+	(st.enemies["balon"] as FNEnemy).go(st, "arcade")
+	await wait(0.1)
+	ok(not R.said_far, "подсказка про шаги — только пока первая ночь не пройдена")
+	R.start_night(1)
+	await until(func(): return R.state == "night" and R.intro_t <= 0.0, 12.0)
+	await wait(0.3)
+	# 100…140 минус заставка ночи
+	ok(R.ambience.breath_next >= 95.0 and R.ambience.breath_next <= 140.0, "ночь 2: «затихшая вентиляция» как раньше (%.0f с)" % R.ambience.breath_next)
+	FNSave.put("beaten", beaten_keep)
+
+## после смерти: пять гибелей подряд со звуком и «ЕЩЁ РАЗ» — ничего не тянется в новую ночь
+func _after_death(R: FiveNightsRoot) -> void:
+	var quiet_keep := R.quiet
+	R.quiet = false
+	var vol_keep: Dictionary = main.audio.vol.duplicate()
+	var causes := [["balon", "door_l"], ["madk1d", "vent_t"], ["bot", "door_r"], ["clipper", "door_l"], ["dark", "dark"]]
+	var stuck := 0
+	var looped := 0
+	var alive := true
+	var fx_before := _fx_sig()
+	var reached := 0
+	# заслонки закрыты → новая ночь: картинка сразу открыта, сигнал упора не приходит
+	var O: FNOffice = R.office
+	var stops_n := [0]
+	var on_stop := func(_s: String, _c: bool): stops_n[0] += 1
+	O.seal_stop.connect(on_stop)
+	R.st.set_seal("l", true)
+	R.st.set_seal("t", true)
+	await wait(0.8)
+	var closed_before: bool = O.seal_k["l"] == 1.0 and O.seal_k["t"] == 1.0
+	stops_n[0] = 0
+	R.start_night(1)
+	var open_now: bool = O.seal_k["l"] == 0.0 and O.seal_k["t"] == 0.0 and absf(O.wall_pivot.rotation.x - FNOffice.SEAL_OPEN_ANGLE) < 0.06 and absf(O.leaf_l.rotation.z - FNOffice.SEAL_OPEN_ANGLE) < 0.06
+	await wait(0.3)
+	O.seal_stop.disconnect(on_stop)
+	ok(closed_before and open_now and stops_n[0] == 0, "заслонки закрыты → новая ночь: в первом же кадре обе открыты (seal_k 0, углы открытые), сигналов упора %d" % stops_n[0])
+	for c in causes:
+		R.start_night(1)
+		await until(func(): return R.state == "night" and R.intro_t <= 0.0, 10.0)
+		await wait(1.5)
+		if c[0] == "dark":
+			R.st.power = 0.0
+			R.st.dark_need = 2.0
+		else:
+			R.st.attack(String(c[0]), String(c[1]))
+		var dead: bool = await until(func(): return R.state == "dead", 40.0)
+		await wait(1.0)
+		if dead:
+			reached += 1
+		var restart_ms := Time.get_ticks_msec()
+		R.start_night(R.night, R.levels)
+		await until(func(): return R.state == "night" and R.intro_t <= 0.0, 10.0)
+		await wait(3.0)
+		var since := float(Time.get_ticks_msec() - restart_ms) / 1000.0      # звук идёт в настоящем времени, часы проверки могут быть быстрее
+		for p in R.pool2:
+			var pl := p as AudioStreamPlayer
+			if pl.playing:
+				if pl.get_playback_position() > since + 0.25:
+					stuck += 1
+				if pl.stream is AudioStreamWAV and (pl.stream as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED:
+					looped += 1
+		for p in R.pool3:
+			var p3 := p as AudioStreamPlayer3D
+			if p3.playing:
+				if p3.get_playback_position() > since + 0.25:
+					stuck += 1
+				if p3.stream is AudioStreamWAV and (p3.stream as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED:
+					looped += 1
+		var layers := 0
+		for k in R.ambience.layers:
+			if (R.ambience.layers[k]["p"] as Node).get("playing"):
+				layers += 1
+		alive = alive and layers == 11
+	var st_stream: AudioStreamWAV = FNSound.get_stream("static")
+	ok(reached == 5 and stuck == 0 and looped == 0, "после смерти (звук включён): пять гибелей и «ЕЩЁ РАЗ» — дошли до экрана гибели %d раз, тянущихся звуков %d, зацикленных в пулах %d" % [reached, stuck, looped])
+	ok(st_stream.loop_mode == AudioStreamWAV.LOOP_DISABLED and st_stream.get_length() <= 1.5, "помехи «static» — вспышка без цикла (%.2f с)" % st_stream.get_length())
+	ok(alive, "фон живёт в каждой новой ночи (11 слоёв)")
+	R.to_terminal()
+	await wait(0.6)
+	var silent := true
+	for p in R.pool2:
+		silent = silent and not (p as AudioStreamPlayer).playing
+	for p in R.pool3:
+		silent = silent and not (p as AudioStreamPlayer3D).playing
+	ok(silent and not main.audio.hush_hold and R.hush_mode == "", "терминал: пулы молчат, мёртвая тишина снята")
+	ok(main.audio.vol == vol_keep, "громкости игрока те же, что до раздела")
+	FNActors.ensure_ir()
+	ok(FNActors._ir_added, "глобальная fn_ir добавлена один раз, повторный вызов пустой")
+	ok(R.ambience.fan_spin > 0.99, "перезапуск ночи после отключения питания: вентилятор снова на полной скорости (%.2f)" % R.ambience.fan_spin)
+	ok(_fx_sig() == fx_before, "после смертей и отключения питания шины голосов и их эффекты те же: %s" % str(_fx_sig()))
+	R.quiet = quiet_keep
 
 ## привычки игрока: обитатели подстраиваются под прошлое поведение (чистая логика)
 func _habits_check() -> void:
@@ -647,7 +1010,7 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 ## левый коридор CAM 4 — сцена: одна, звук совпадает с местом врага, свет не достаёт до двери ниши, враг виден в коридоре
 ## и не виден из-за угла ниши (сырая картинка камеры без шейдера); снимки c4_*
 ## пульт скрыт (учёба кончилась): энергия и часы на месте, F1 возвращает пульт и запоминает выбор, действия подписывает toast
-func _deck_hidden(R: FiveNightsRoot, st: FNNight) -> void:
+func _deck_hidden(R: FiveNightsRoot, _st: FNNight) -> void:
 	var UI: FNUI = R.ui
 	var pin_was := UI.deck_pin
 	var learn_was := UI.deck_learn_left
@@ -804,7 +1167,7 @@ func _tension(R: FiveNightsRoot, st_in: FNNight) -> void:
 	A.fan_spin = 1.0
 	A.duck_k = 0.0
 	A.hold_t = 0.0
-	var vent_ok: bool = await until(func(): return A.level("vent") > -40.0, 8.0)
+	var _vent_ok: bool = await until(func(): return A.level("vent") > -40.0, 8.0)
 	print("FIVENIGHTSCHECK   дыхание: вентиляция %.1f дБ, питание %s, hush «%s», состояние %s" % [A.level("vent"), str(st.power_out), R.hush_mode, R.state])
 	T.reset()
 	await wait(1.5)
@@ -932,6 +1295,13 @@ func _ambience(R: FiveNightsRoot, st: FNNight) -> void:
 	await wait(1.5)
 	var cut_ok: bool = A.level("lamp_hum") <= -55.0 and A.level("crt_whine") <= -55.0 and A.level("panel_hum") <= -55.0 and A.pitch("deskfan") < 0.9
 	await wait(5.5)
+	var fan_s0 := A.fan_spin
+	var fan_stopped: bool = await until(func(): return A.fan_spin < 0.02, 8.0)
+	var rotor: Node3D = R.office.desk_fan.rotor
+	var fq: Quaternion = rotor.basis.get_rotation_quaternion()
+	await wait(0.5)
+	var fan_still: float = fq.angle_to(rotor.basis.get_rotation_quaternion())
+	ok(fan_stopped and fan_still < 0.001, "отключение питания: вентилятор на столе встал вместе с fan_spin (%.2f → %.3f), за 0,5 с угол не изменился (%.4f рад)" % [fan_s0, A.fan_spin, fan_still])
 	var ev_ok := true
 	for i in 200:
 		var pe := A.pick_event(2, true)
@@ -941,7 +1311,14 @@ func _ambience(R: FiveNightsRoot, st: FNNight) -> void:
 	st.emergency_used = false
 	st.crank_p = 5.99
 	st.crank()
-	await wait(4.5)
+	await until(func(): return not st.power_out, 6.0)
+	await wait(0.2)
+	var fan_early: float = A.fan_spin
+	var fq2: Quaternion = rotor.basis.get_rotation_quaternion()
+	await wait(1.0)
+	var fan_turn: float = fq2.angle_to(rotor.basis.get_rotation_quaternion())
+	ok(fan_early < 0.9 and fan_turn > 0.02, "питание вернулось: fan_spin растёт плавно (через 0,2 с %.2f), ротор снова крутится (%.2f рад)" % [fan_early, fan_turn])
+	await wait(3.3)
 	ok(not st.power_out and A.level("lamp_hum") > -40.0 and A.pitch("deskfan") > 0.95, "питание вернулось: лампа гудит (%.1f дБ), вентилятор раскрутился (%.2f)" % [A.level("lamp_hum"), A.pitch("deskfan")])
 	var bad := false
 	var prev := ""
@@ -1103,6 +1480,7 @@ func _incidents_logic() -> void:
 	# приманка
 	var L := FNNight.new()
 	L.setup(1, 99)
+	L.t = 100.0      # спокойное начало ночи 2 прошло
 	var bal: FNEnemy = L.enemies["balon"]
 	for id in L.enemies:
 		(L.enemies[id] as FNEnemy).level = 0
@@ -1161,11 +1539,11 @@ func _logic() -> void:
 	ok(st2.outcome == "" and banged and b.spot != "door_l", "БАЛОН у закрытой двери постучал и ушёл (%s)" % b.spot)
 	b.go(st2, "door_l")
 	st2.set_door("l", false)
-	var at := -1.0
+	var _at := -1.0
 	for k in 200:
 		st2.step(0.1)
 		if st2.outcome != "":
-			at = st2.t
+			_at = st2.t
 			break
 	ok(st2.outcome == "dead" and st2.killer == "balon", "открыта — входит (через %.1f с после прихода, не мгновенно)" % (b.door_t))
 	ok(b.door_t >= float(FNData.ENEMIES["balon"]["linger"][1]) * 0.85, "до входа есть время среагировать (%.1f с)" % b.door_t)
@@ -1184,6 +1562,7 @@ func _logic() -> void:
 	# заслонка: правильная держит, неправильная — нет
 	var st4 := FNNight.new()
 	st4.setup(1, 11)
+	st4.t = 100.0      # спокойное начало ночи 2 прошло
 	for id in st4.enemies:
 		(st4.enemies[id] as FNEnemy).level = 0
 	var m: FNEnemy = st4.enemies["madk1d"]
@@ -1197,6 +1576,7 @@ func _logic() -> void:
 	ok(st4.outcome == "dead" and st4.killer == "madk1d", "MADK1D: закрыта не та заслонка — пролез")
 	var st5 := FNNight.new()
 	st5.setup(1, 12)
+	st5.t = 100.0      # спокойное начало ночи 2 прошло
 	for id in st5.enemies:
 		(st5.enemies[id] as FNEnemy).level = 0
 	var m2: FNEnemy = st5.enemies["madk1d"]
@@ -1267,7 +1647,6 @@ func _logic() -> void:
 		s9.setup(4, 100 + seed_v)
 		for id in s9.enemies:
 			(s9.enemies[id] as FNEnemy).level = 16
-		var guard := {"l": false, "r": false}
 		while s9.outcome == "" and s9.t < 300.0:
 			# игрок закрывает двери, когда кто-то пришёл, и открывает, когда ушёл; заслонки — по месту MADK1D
 			for sd in ["l", "r"]:

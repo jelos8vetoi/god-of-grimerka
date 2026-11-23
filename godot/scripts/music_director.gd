@@ -76,8 +76,9 @@ var via_k := 0.0
 var via_cue := ""
 var clock := 0.0
 var silent := false
-var _last_ctx := ""
 var _dieg_db := 0.0
+var muted_user := false               # ползунок «МУЗЫКА ИГРЫ» стоит на 0
+var chain_logged := false
 var gain_cur := 0.0                    # gain_db базовой ситуации, сглаженный 12 дБ/с
 var _dieg_node: Node3D
 var dieg3: AudioStreamPlayer3D     # третий слой (перкуссия казино)
@@ -161,12 +162,12 @@ func resolve_cue(want: String, fallback := "") -> String:
 	return got
 
 # ---------- журнал ----------
-func _ev(ev: String, c := "", owner := "", reason := "", trans := "") -> void:
+func _ev(ev: String, c := "", own := "", reason := "", trans := "") -> void:
 	var n := 0
 	for d in decks:
 		for p in d.players:
 			n += 1 if p.playing else 0
-	var e := {"t": snappedf(clock, 0.001), "ev": ev, "cue": c, "ctx": ctx, "owner": owner, "reason": reason, "transition": trans,
+	var e := {"t": snappedf(clock, 0.001), "ev": ev, "cue": c, "ctx": ctx, "owner": own, "reason": reason, "transition": trans,
 		"duck_db": snappedf(duck_db, 0.1), "gain_db": snappedf(float(base.get("gain_db", 0.0)), 0.1), "voice": _voice(), "players": n}
 	events.append(e)
 	if events.size() > 200:
@@ -184,6 +185,19 @@ func _voice() -> bool:
 			return true
 	return false
 
+## журнал цепочки звука: сохранённая громкость и шины (нужен, чтобы «нет музыки» не гадать)
+func _chain(why: String) -> void:
+	if audio == null:
+		return
+	var vm := float(audio.vol.get("Music", 1.0))
+	var parts: Array = []
+	for b in ["Master", "Music", "MusicMenu"]:
+		var i := AudioServer.get_bus_index(b)
+		parts.append("%s %.1f дБ%s" % [b, AudioServer.get_bus_volume_db(i) if i >= 0 else -999.0, " (mute)" if i >= 0 and AudioServer.is_bus_mute(i) else ""])
+	_ev("chain", cue, "", "%s: vol[Music]=%.2f; %s" % [why, vm, "; ".join(parts)])
+	if vm <= 0.0:
+		_ev("muted_by_user", cue, "", "МУЗЫКА ИГРЫ: 0 % в настройках")
+
 func snapshot() -> Dictionary:
 	var ds: Array = []
 	for d in decks:
@@ -196,7 +210,7 @@ func snapshot() -> Dictionary:
 	for d in decks:
 		for p in d.players:
 			playing += 1 if p.playing else 0
-	return {"cue": cue, "ctx": ctx, "decks": ds, "duck_db": duck_db, "overlays": ov, "playing": playing, "missing": missing,
+	return {"muted_by_user": muted_user, "cue": cue, "ctx": ctx, "decks": ds, "duck_db": duck_db, "overlays": ov, "playing": playing, "missing": missing,
 		"title_prog": title_prog, "title_started": title_started}
 
 func active_players() -> Array[AudioStreamPlayer]:
@@ -208,15 +222,15 @@ func active_players() -> Array[AudioStreamPlayer]:
 	return out
 
 # ---------- наложения ----------
-func _key(owner: Object) -> int:
-	return owner.get_instance_id()
+func _key(own: Object) -> int:
+	return own.get_instance_id()
 
-func _name(owner: Object) -> String:
-	return str(owner.get("name")) if owner is Node else str(owner)
+func _name(own: Object) -> String:
+	return str(own.get("name")) if own is Node else str(own)
 
-func enter_dialogue(owner: Object, kind := "talk") -> void:
+func enter_dialogue(own: Object, kind := "talk") -> void:
 	var k: Array = KINDS.get(kind, KINDS["talk"])
-	var old = overlays.get(_key(owner))
+	var old = overlays.get(_key(own))
 	if old != null and old["type"] == "dialogue":
 		if old["kind"] == kind:
 			if old["leaving"]:
@@ -228,11 +242,11 @@ func enter_dialogue(owner: Object, kind := "talk") -> void:
 		old["rel"] = float(k[2])
 		old["leaving"] = false
 		return
-	overlays[_key(owner)] = {"type": "dialogue", "ref": weakref(owner), "name": _name(owner), "kind": kind, "db": float(k[0]), "att": float(k[1]), "rel": float(k[2]), "leaving": false, "until": 0.0}
-	_ev("overlay_enter", cue, _name(owner), kind)
+	overlays[_key(own)] = {"type": "dialogue", "ref": weakref(own), "name": _name(own), "kind": kind, "db": float(k[0]), "att": float(k[1]), "rel": float(k[2]), "leaving": false, "until": 0.0}
+	_ev("overlay_enter", cue, _name(own), kind)
 
-func leave_dialogue(owner: Object) -> void:
-	var o = overlays.get(_key(owner))
+func leave_dialogue(own: Object) -> void:
+	var o = overlays.get(_key(own))
 	if o != null and o["type"] == "dialogue" and not o["leaving"]:
 		o["leaving"] = true
 		o["until"] = clock + HOLD
@@ -242,30 +256,30 @@ func bark(p: AudioStreamPlayer) -> void:
 	if p != null and not barks.has(p):
 		barks.append(p)
 
-func enter_cinematic(owner: Object, opts := {}) -> void:
-	if overlays.has(_key(owner)) and overlays[_key(owner)]["type"] == "cinematic":
+func enter_cinematic(own: Object, opts := {}) -> void:
+	if overlays.has(_key(own)) and overlays[_key(own)]["type"] == "cinematic":
 		return
 	var mode := String(opts.get("mode", "silence"))
-	overlays[_key(owner)] = {"type": "cinematic", "ref": weakref(owner), "name": _name(owner), "kind": mode, "db": -12.0 if mode == "duck" else 0.0, "att": 0.4, "rel": 1.2, "leaving": false, "until": 0.0}
-	_ev("overlay_enter", cue, _name(owner), "cinematic " + mode)
+	overlays[_key(own)] = {"type": "cinematic", "ref": weakref(own), "name": _name(own), "kind": mode, "db": -12.0 if mode == "duck" else 0.0, "att": 0.4, "rel": 1.2, "leaving": false, "until": 0.0}
+	_ev("overlay_enter", cue, _name(own), "cinematic " + mode)
 	var c := String(opts.get("cue", ""))
 	if c != "":
 		var path := c if c.begins_with("res://") else DIR + c + ".wav"
 		if ResourceLoader.exists(path):
 			cine.stream = load(path)
-			cine_owner = _key(owner)
-			cine_ref = weakref(owner)
+			cine_owner = _key(own)
+			cine_ref = weakref(own)
 			cine_goal = 1.0
 			cine_time = 0.3
 			cine.play()
 
-func leave_cinematic(owner: Object) -> void:
-	if owner == null:
+func leave_cinematic(own: Object) -> void:
+	if own == null:
 		return
-	var k := _key(owner)
+	var k := _key(own)
 	if overlays.has(k):
 		overlays.erase(k)
-		_ev("overlay_leave", cue, _name(owner), "cinematic")
+		_ev("overlay_leave", cue, _name(own), "cinematic")
 	if cine_owner == k:
 		cine_goal = 0.0
 		cine_time = 0.4
@@ -361,8 +375,8 @@ func _swap(new_cue: String) -> bool:
 		dk.goal = 0.0
 		dk.time = 1.0
 		return false
-	var tr := _pick(new_cue)
-	var tt: Array = TRANS[tr]
+	var xf := _pick(new_cue)
+	var tt: Array = TRANS[xf]
 	if active >= 0:
 		decks[active].goal = 0.0
 		decks[active].time = float(tt[0])
@@ -397,10 +411,10 @@ func _swap(new_cue: String) -> bool:
 		active = -1
 	cue = new_cue
 	if new_cue == "title":
-		title_prog = title_prog
-	if new_cue.begins_with("boss_") and tr == "boss_in":
+		_chain("вход title")
+	if new_cue.begins_with("boss_") and xf == "boss_in":
 		pass
-	_ev("cue", new_cue, "", "", tr)
+	_ev("cue", new_cue, "", "", xf)
 	return true
 
 func _release(dk: Deck) -> void:
@@ -424,8 +438,8 @@ func _duck_goal() -> float:
 	var deep_att := 0.35
 	for k in overlays.keys():
 		var o: Dictionary = overlays[k]
-		var owner = (o["ref"] as WeakRef).get_ref()
-		if owner == null or not is_instance_valid(owner):
+		var own = (o["ref"] as WeakRef).get_ref()
+		if own == null or not is_instance_valid(own):
 			_rel = float(o["rel"])
 			overlays.erase(k)
 			_ev("overlay_expire", cue, String(o["name"]), String(o["kind"]))
@@ -458,6 +472,18 @@ func _duck_goal() -> float:
 
 func tick(dt: float) -> void:
 	clock += dt
+	if audio != null:
+		var mu := float(audio.vol.get("Music", 1.0)) <= 0.0
+		if not chain_logged:
+			chain_logged = true
+			muted_user = mu
+			_chain("запуск")
+		elif mu != muted_user:
+			muted_user = mu
+			if mu:
+				_ev("muted_by_user", cue, "", "МУЗЫКА ИГРЫ: 0 % в настройках")
+			else:
+				_ev("unmuted_by_user", cue, "", "громкость музыки возвращена")
 	silent = String(base.get("ctx", "")) == "quiet"
 	var want_cue := String(base.get("cue", ""))
 	if _cinematic_silence():

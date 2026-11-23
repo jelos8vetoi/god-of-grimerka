@@ -1,0 +1,16 @@
+[gd_resource type="StandardMaterial3D" format=3]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/textures/concrete_floor_worn_02/Diffuse.jpg" id="Diffuse"]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/textures/concrete_floor_worn_02/nor_gl.jpg" id="nor_gl"]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/textures/concrete_floor_worn_02/Rough.jpg" id="Rough"]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/textures/concrete_floor_worn_02/AO.jpg" id="AO"]
+[resource]
+albedo_texture = ExtResource("Diffuse")
+normal_texture = ExtResource("nor_gl")
+normal_enabled = true
+roughness_texture = ExtResource("Rough")
+ao_texture = ExtResource("AO")
+ao_enabled = true
+albedo_color = Color(0.53, 0.54, 0.49, 1)
+uv1_triplanar = true
+uv1_world_triplanar = true
+uv1_scale = Vector3(0.48, 0.48, 0.48)

@@ -1,0 +1,169 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/fn_curated/phase2/horror_lighting_test.gd" id="r1"]
+[ext_resource type="Material" path="res://assets/fn_curated/materials/concrete_floor_worn_02.tres" id="r2"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase2/materials/ceiling_interior.tres" id="r3"]
+[ext_resource type="Material" path="res://assets/fn_curated/materials/worn_plaster_wall.tres" id="r4"]
+[ext_resource type="Material" path="res://assets/fn_curated/materials/grey_plaster.tres" id="r5"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/metal_office_desk/metal_office_desk.gltf" id="r6"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/television_02/television_02.gltf" id="r7"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/vef_ta68.glb" id="r8"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/power_box_01/power_box_01.gltf" id="r9"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/hanging_industrial_lamp/hanging_industrial_lamp.gltf" id="r10"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/straight.gltf" id="r11"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/flange_thin.gltf" id="r12"]
+
+[sub_resource type="BoxMesh" id="b0"]
+size = Vector3(3.8, 0.12, 4.4)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b4"]
+size = Vector3(3.8, 0.12, 4.4)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b8"]
+size = Vector3(0.12, 2.9, 4.4)
+material = ExtResource("r4")
+
+[sub_resource type="BoxMesh" id="b12"]
+size = Vector3(0.12, 2.9, 4.4)
+material = ExtResource("r4")
+
+[sub_resource type="BoxMesh" id="b16"]
+size = Vector3(3.8, 2.9, 0.14)
+material = ExtResource("r5")
+
+[sub_resource type="Environment" id="room"]
+background_mode = 1
+background_color = Color(0.07, 0.082, 0.09, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.68, 0.75, 1)
+ambient_light_energy = 0.38
+tonemap_mode = 2
+
+[sub_resource type="StandardMaterial3D" id="Phosphor"]
+albedo_color = Color(0.045, 0.103, 0.08, 1)
+roughness = 0.32
+emission_enabled = true
+emission = Color(0.14, 0.38, 0.29, 1)
+emission_energy_multiplier = 0.85
+
+[sub_resource type="QuadMesh" id="Glass"]
+size = Vector2(0.28, 0.22)
+material = SubResource("Phosphor")
+
+[node name="HorrorLightingTest" type="Node3D" ]
+script = ExtResource("r1")
+
+[node name="Floor" type="MeshInstance3D" parent="." ]
+position = Vector3(0, -0.06, 0)
+mesh = SubResource("b0")
+
+[node name="Ceiling" type="MeshInstance3D" parent="." ]
+position = Vector3(0, 2.96, 0)
+mesh = SubResource("b4")
+
+[node name="LeftWall" type="MeshInstance3D" parent="." ]
+position = Vector3(-1.96, 1.45, 0)
+mesh = SubResource("b8")
+
+[node name="RightWall" type="MeshInstance3D" parent="." ]
+position = Vector3(1.96, 1.45, 0)
+mesh = SubResource("b12")
+
+[node name="BackWall" type="MeshInstance3D" parent="." ]
+position = Vector3(0, 1.45, -2.2)
+mesh = SubResource("b16")
+
+[node name="World" type="WorldEnvironment" parent="." ]
+environment = SubResource("room")
+
+[node name="Desk" parent="." instance=ExtResource("r6")]
+position = Vector3(-0.3, 0, -1.37)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Monitor" parent="." instance=ExtResource("r7")]
+position = Vector3(-0.53, 0.788, -1.42)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Telephone" parent="." instance=ExtResource("r8")]
+position = Vector3(0.3, 0.788, -1.23)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Panel" parent="." instance=ExtResource("r9")]
+position = Vector3(1.16, 1.35, -2.05)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Lamp" parent="." instance=ExtResource("r10")]
+position = Vector3(-0.36, 3.48, -1.64)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Straight0" parent="." instance=ExtResource("r11")]
+position = Vector3(-1.43, 2.45, -1.64)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Flange0" parent="." instance=ExtResource("r12")]
+position = Vector3(-1.43, 2.45, -1.16889)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Straight1" parent="." instance=ExtResource("r11")]
+position = Vector3(-1.43, 2.45, -0.69778)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Flange1" parent="." instance=ExtResource("r12")]
+position = Vector3(-1.43, 2.45, -0.22667)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Straight2" parent="." instance=ExtResource("r11")]
+position = Vector3(-1.43, 2.45, 0.24444)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Flange2" parent="." instance=ExtResource("r12")]
+position = Vector3(-1.43, 2.45, 0.71555)
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Normal" type="OmniLight3D" parent="." ]
+position = Vector3(-0.34, 2.05, -1.51)
+light_color = Color(1, 0.72, 0.43, 1)
+light_energy = 3.2
+omni_range = 4.8
+omni_attenuation = 1.1
+shadow_enabled = true
+
+[node name="CRT" type="SpotLight3D" parent="." ]
+position = Vector3(-0.53, 1.04, -1.12)
+light_color = Color(0.42, 0.84, 0.68, 1)
+light_energy = 0.7
+spot_range = 2.1
+spot_attenuation = 1.1
+rotation_degrees = Vector3(-18, 180, 0)
+spot_angle = 75.0
+shadow_enabled = true
+
+[node name="Emergency" type="OmniLight3D" parent="." ]
+position = Vector3(1.52, 2.13, -1.77)
+light_color = Color(1, 0.18, 0.055, 1)
+light_energy = 2.2
+omni_range = 3.7
+omni_attenuation = 1.1
+shadow_enabled = true
+
+[node name="Residual" type="OmniLight3D" parent="." ]
+position = Vector3(-1.43, 0.28, 0.32)
+light_color = Color(0.37, 0.54, 0.65, 1)
+light_energy = 0.17
+omni_range = 2.4
+omni_attenuation = 1.1
+shadow_enabled = true
+
+[node name="Camera" type="Camera3D" parent="." ]
+position = Vector3(0.79, 1.34, 1.59)
+rotation = Vector3(-0.045652, 0.296708, 0)
+fov = 52
+current = true
+
+
+[node name="Phosphor" type="MeshInstance3D" parent="Monitor"]
+position = Vector3(-0.004, 0.225, 0.123)
+mesh = SubResource("Glass")
+cast_shadow = 0

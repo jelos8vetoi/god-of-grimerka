@@ -165,7 +165,7 @@ static func cond(e, c: String, r, dist: float) -> bool:
 	return false
 
 ## Форма метки для приёма: [радиус, половина угла, полуширина полосы]; пусто — у приёма своя метка (зона, волна) или нет удара
-static func tell_of(e, m: Dictionary) -> Array:
+static func tell_of(_e, m: Dictionary) -> Array:
 	match String(m["act"]):
 		"melee", "feint":
 			return [float(m.get("r", 2.2)), float(m.get("half", 1.1)), 0.0]

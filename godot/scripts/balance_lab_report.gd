@@ -62,7 +62,7 @@ static func _distribution(values: Array) -> Dictionary:
 	for value in values:
 		squared += (float(value) - mean) ** 2
 	return {"n": values.size(), "mean": mean, "min": values.min(), "max": values.max(),
-		"sample_sd": sqrt(squared / (values.size() - 1)) if values.size() > 1 else null}
+		"sample_sd": sqrt(squared / (values.size() - 1)) if values.size() > 1 else (null as Variant)}
 
 static func _matched_setups(group: Dictionary, profile: Dictionary) -> String:
 	var setups: Array = group.get("setups", []).duplicate(true)

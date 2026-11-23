@@ -124,12 +124,12 @@ func _fit() -> void:
 		l.scale = Vector2.ONE / k
 		l.size = (l.get_meta("box") as Vector2) * k
 
-func _text(parent: Node, s: String, size: int, col: Color, pos: Vector2, f: Font = null, rough := false) -> Label:
+func _text(parent: Node, s: String, sz: int, col: Color, pos: Vector2, f: Font = null, _rough := false) -> Label:
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", f if f != null else tech)
-	l.add_theme_font_size_override("font_size", size)
-	l.set_meta("fs", size)
+	l.add_theme_font_size_override("font_size", sz)
+	l.set_meta("fs", sz)
 	l.add_theme_color_override("font_color", col)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	l.add_theme_constant_override("outline_size", 0 if col == INK else 3)
@@ -671,17 +671,17 @@ func _tick_slots(p) -> void:
 		(s["name"] as Label).text = String(a[1])
 		(s["time"] as Label).text = String(a[4])
 		var k: float = clampf(float(a[3]), 0.0, 1.0)
-		var ready: bool = k >= 0.999
-		(s["icon"] as TextureRect).modulate = Color(1, 1, 1, 1.0 if ready else 0.5) if String(a[4]) == "" else Color(1, 1, 1, 0.15)
-		(s["edge"] as Line2D).default_color = WHITE if ready else GREY
-		(s["name"] as Label).add_theme_color_override("font_color", WHITE if ready else GREY)
+		var is_ready: bool = k >= 0.999
+		(s["icon"] as TextureRect).modulate = Color(1, 1, 1, 1.0 if is_ready else 0.5) if String(a[4]) == "" else Color(1, 1, 1, 0.15)
+		(s["edge"] as Line2D).default_color = WHITE if is_ready else GREY
+		(s["name"] as Label).add_theme_color_override("font_color", WHITE if is_ready else GREY)
 		# заливка поднимается снизу
 		var clip: Control = s["clip"]
 		var hgt := SLOT_R * 2.0 * k
 		clip.position = Vector2(-SLOT_R, SLOT_R - hgt)
 		clip.size = Vector2(SLOT_R * 2, hgt)
 		(s["fill"] as Polygon2D).position = Vector2(SLOT_R, hgt - SLOT_R)
-		(s["fill"] as Polygon2D).color = Color(1, 1, 1, 0.3 if ready else 0.14)
+		(s["fill"] as Polygon2D).color = Color(1, 1, 1, 0.3 if is_ready else 0.14)
 		var pips: Array = s["pips"]
 		for j in 3:
 			var part: float = clampf(k * 3.0 - j, 0.0, 1.0)

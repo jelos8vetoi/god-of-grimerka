@@ -28,7 +28,7 @@ var shots_n := 0
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_bytes(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_bytes(p) if FileAccess.file_exists(p) else (null as Variant)
 	MLSave.persist = false
 	FNSave.persist = false
 	AudioServer.set_bus_mute(0, true)
@@ -59,9 +59,9 @@ func until(cond: Callable, sec: float) -> bool:
 		await get_tree().process_frame
 	return bool(cond.call())
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm + ".png"))
 	shots_n += 1
 
 func key(k: Key) -> void:
@@ -81,7 +81,7 @@ func _resize(sz: Vector2i) -> void:
 			await get_tree().process_frame
 
 ## экран во всех размерах окна: аудит вёрстки и снимок; freeze — на время обхода игра стоит на паузе
-func visit(name: String, node: Node, freeze := false) -> void:
+func visit(nm: String, node: Node, freeze := false) -> void:
 	if freeze:
 		get_tree().paused = true
 	var bad := 0
@@ -94,14 +94,14 @@ func visit(name: String, node: Node, freeze := false) -> void:
 			real += " (окно %dx%d дало %dx%d)" % [sz.x, sz.y, ws.x, ws.y]
 		var issues: Array = MGUI.audit(node, get_viewport().get_visible_rect()) if is_instance_valid(node) else ["экран пропал"]
 		for s in issues:
-			print("UICHECK   %s @%dx%d: %s" % [name, sz.x, sz.y, String(s).replace("\n", " / ")])
+			print("UICHECK   %s @%dx%d: %s" % [nm, sz.x, sz.y, String(s).replace("\n", " / ")])
 		bad += issues.size()
-		await shot("%s_%dx%d" % [name, sz.x, sz.y])
+		await shot("%s_%dx%d" % [nm, sz.x, sz.y])
 	await _resize(sizes[0])
 	if freeze:
 		get_tree().paused = false
 	notes += bad
-	ok(bad == 0, "%s: %d размеров окна, замечаний %d%s" % [name, sizes.size(), bad, real])
+	ok(bad == 0, "%s: %d размеров окна, замечаний %d%s" % [nm, sizes.size(), bad, real])
 
 func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
@@ -497,7 +497,7 @@ func _five_nights() -> void:
 func _finish() -> void:
 	var same := true
 	for p in KEEP:
-		var now = FileAccess.get_file_as_bytes(p) if FileAccess.file_exists(p) else null
+		var now = FileAccess.get_file_as_bytes(p) if FileAccess.file_exists(p) else (null as Variant)
 		if (now == null) != (kept[p] == null) or (now != null and now != kept[p]):
 			same = false
 			print("UICHECK   изменён файл %s" % p)

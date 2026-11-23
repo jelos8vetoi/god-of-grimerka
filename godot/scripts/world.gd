@@ -433,7 +433,7 @@ func follow(p: Vector3) -> void:
 ## Подъезд — площадка, с которой начинается игра. Стиль — голый бетон: серые стены в разводах со швами опалубки
 ## и отверстиями от стяжек, трафаретная девятка, серая каменная плитка, светлый плинтус, холодный свет.
 ## На стенах — надписи маркером и баллончиком. Выход во двор — проём в стене z = -5.
-func _concrete(a: Color, b: Color, scale: float, seed_n: int) -> StandardMaterial3D:
+func _concrete(a: Color, b: Color, scl: float, seed_n: int) -> StandardMaterial3D:
 	var noise := FastNoiseLite.new()
 	noise.seed = seed_n
 	noise.frequency = 0.006
@@ -453,7 +453,7 @@ func _concrete(a: Color, b: Color, scale: float, seed_n: int) -> StandardMateria
 	m.roughness = 0.95
 	m.uv1_triplanar = true
 	m.uv1_world_triplanar = true
-	m.uv1_scale = Vector3.ONE * scale
+	m.uv1_scale = Vector3.ONE * scl
 	return m
 
 func _deco_hall(_T: Dictionary) -> void:

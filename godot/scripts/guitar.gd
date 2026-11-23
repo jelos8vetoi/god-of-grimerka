@@ -160,7 +160,7 @@ func moment(a: AttackData) -> void:
 		events.append([snd, 0])
 
 ## попадание: в дисторшне удар бьёт током; отметка такта потрачена
-func on_hit(a: AttackData, n: int) -> void:
+func on_hit(a: AttackData, _n: int) -> void:
 	if not active():
 		return
 	if distortion > 0.0:

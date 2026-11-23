@@ -51,9 +51,13 @@ const IR_SHADER := preload("res://scenes/five_nights/materials/fn_ir_pass.gdshad
 var eye_mats := {}                 # id → материал глаз (в скримере сила растёт, потом возвращается)
 
 ## глобальная переменная инфракрасной подсветки камер: регистрируется до первого материала врага
+static var _ir_added := false
+
 static func ensure_ir() -> void:
-	if not RenderingServer.global_shader_parameter_get_list().has(&"fn_ir"):
-		RenderingServer.global_shader_parameter_add("fn_ir", RenderingServer.GLOBAL_VAR_TYPE_VEC4, Vector4(0, -999, 0, 0))
+	if _ir_added:
+		return
+	_ir_added = true
+	RenderingServer.global_shader_parameter_add("fn_ir", RenderingServer.GLOBAL_VAR_TYPE_VEC4, Vector4(0, -999, 0, 0))
 
 static func ir_pass(tex: Texture2D, gain := 1.0) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
@@ -206,11 +210,11 @@ func _face(id: String, r: Rig) -> void:
 		e.position = Vector3(sx * sep * 0.5, 0, eye_z)
 		eyes.add_child(e)
 	# пасть: чёрный провал с красной глубиной и зубами; закрыта — щель (scale.y маленький)
-	var maw := Node3D.new()
-	maw.position = maw_at
-	anchor.add_child(maw)
-	office.box(Vector3.ZERO, Vector3(0.44 * hs, 0.3 * hs, 0.06 * hs), office._glow(Color(0.015, 0.0, 0.0), 1.0), maw)
-	office.box(Vector3(0, 0, -0.02 * hs), Vector3(0.36 * hs, 0.22 * hs, 0.02 * hs), office._glow(Color(0.10, 0.0, 0.0), 0.25), maw)
+	var maw_n := Node3D.new()
+	maw_n.position = maw_at
+	anchor.add_child(maw_n)
+	office.box(Vector3.ZERO, Vector3(0.44 * hs, 0.3 * hs, 0.06 * hs), office._glow(Color(0.015, 0.0, 0.0), 1.0), maw_n)
+	office.box(Vector3(0, 0, -0.02 * hs), Vector3(0.36 * hs, 0.22 * hs, 0.02 * hs), office._glow(Color(0.10, 0.0, 0.0), 0.25), maw_n)
 	var tooth := StandardMaterial3D.new()
 	tooth.albedo_color = Color(0.62, 0.56, 0.44)
 	tooth.roughness = 0.55
@@ -218,11 +222,11 @@ func _face(id: String, r: Rig) -> void:
 		var tx := -0.18 * hs + float(k) * 0.06 * hs
 		var th := (0.045 + 0.03 * fposmod(float(k) * 0.618, 1.0)) * hs
 		var tz := deg_to_rad(8.0 * sin(float(k) * 2.1))
-		office.box(Vector3(tx, 0.15 * hs - th * 0.5, 0.035 * hs), Vector3(0.026 * hs, th, 0.02 * hs), tooth, maw, Vector3(0, 0, tz))
+		office.box(Vector3(tx, 0.15 * hs - th * 0.5, 0.035 * hs), Vector3(0.026 * hs, th, 0.02 * hs), tooth, maw_n, Vector3(0, 0, tz))
 		var bh := (0.045 + 0.03 * fposmod(float(k) * 0.618 + 0.4, 1.0)) * hs
-		office.box(Vector3(tx + 0.03 * hs, -0.15 * hs + bh * 0.5, 0.035 * hs), Vector3(0.026 * hs, bh, 0.02 * hs), tooth, maw, Vector3(0, 0, -tz))
-	maw.scale = Vector3(1, 0.08, 1)
-	face[id] = {"eyes": eyes, "maw": maw, "hs": hs}
+		office.box(Vector3(tx + 0.03 * hs, -0.15 * hs + bh * 0.5, 0.035 * hs), Vector3(0.026 * hs, bh, 0.02 * hs), tooth, maw_n, Vector3(0, 0, -tz))
+	maw_n.scale = Vector3(1, 0.08, 1)
+	face[id] = {"eyes": eyes, "maw": maw_n, "hs": hs}
 
 ## БАЛОН: огромный балон VOZDUH за спиной, вентиль над головой, надпись на груди
 func _balon_costume(r: Rig) -> void:

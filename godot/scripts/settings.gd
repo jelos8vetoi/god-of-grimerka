@@ -57,10 +57,15 @@ static func set_window(w: Window, i: int) -> void:
 	var sz := Vector2i(int(WINDOWS[int(data["window"])][0]), int(WINDOWS[int(data["window"])][1]))
 	var scr := DisplayServer.screen_get_usable_rect(w.current_screen)
 	w.size = Vector2i(mini(sz.x, scr.size.x), mini(sz.y, scr.size.y))
+	@warning_ignore("integer_division")
 	w.position = scr.position + (scr.size - w.size) / 2
 
 static func _pct(x: float) -> String:
 	return "%d%%" % roundi(x * 100.0)
+
+## громкость: ноль показываем словом, чтобы тишину нельзя было принять за «5 %»
+static func _vol_pct(x: float) -> String:
+	return "ВЫКЛ" if roundi(x * 100.0) <= 0 else _pct(x)
 
 ## Строки настроек для обоих меню. Элемент — ["#ЗАГОЛОВОК"] или [функция текста, функция изменения(направление −1/+1)].
 ## audio — менеджер звука (main.audio), ipod — плеер игры или null (в главном меню его нет).
@@ -83,11 +88,11 @@ static func rows(w: Window, audio, ipod) -> Array:
 	r.append(["#ОБУЧЕНИЕ"])
 	r.append([func(): return "ПРАКТИКА В ОБУЧЕНИИ: " + ("ВКЛ" if bool(v("practice")) else "ВЫКЛ"), func(_d: int): put("practice", not bool(v("practice")))])
 	r.append(["#ЗВУК"])
-	r.append([func(): return "ОБЩАЯ ГРОМКОСТЬ: " + _pct(float(v("master"))), func(d: int): put("master", clampf(snappedf(float(v("master")) + 0.05 * d, 0.05), 0.0, 1.0), w)])
+	r.append([func(): return "ОБЩАЯ ГРОМКОСТЬ: " + _vol_pct(float(v("master"))), func(d: int): put("master", clampf(snappedf(float(v("master")) + 0.05 * d, 0.05), 0.0, 1.0), w)])
 	for b in [["Music", "МУЗЫКА ИГРЫ"], ["SFX", "ЭФФЕКТЫ"], ["Ambient", "ОКРУЖЕНИЕ"], ["Voice", "ГОЛОСА"]]:
 		var bus: String = b[0]
 		var nm: String = b[1]
-		r.append([func(): return "%s: %s" % [nm, _pct(float(audio.vol[bus]))], func(d: int): audio.set_volume(bus, clampf(snappedf(float(audio.vol[bus]) + 0.05 * d, 0.05), 0.0, 1.0))])
+		r.append([func(): return "%s: %s" % [nm, _vol_pct(float(audio.vol[bus]))], func(d: int): audio.set_volume(bus, clampf(snappedf(float(audio.vol[bus]) + 0.05 * d, 0.05), 0.0, 1.0))])
 	if ipod != null:
 		r.append([func(): return "IPOD: " + _pct(float(ipod.volume)), func(d: int): ipod.pause_set_volume(snappedf(float(ipod.volume) + 0.05 * d, 0.05))])
 	return r

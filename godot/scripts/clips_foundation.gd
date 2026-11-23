@@ -13,12 +13,12 @@ static func add_to(A: Dictionary, stance := "CombatIdle") -> void:
 	var k0: Array = A[stance]["k"][0]
 	var base: Dictionary = k0[1]
 	var ik = k0[2] if k0.size() > 2 and k0[2] is Dictionary else null
-	var mk := func(t: float, pose: Dictionary, ease := "") -> Array:
+	var mk := func(t: float, pose: Dictionary, ez := "") -> Array:
 		var r: Array = [t, pose]
 		if ik != null:
 			r.append(ik)
-		if ease != "":
-			r.append(ease)
+		if ez != "":
+			r.append(ez)
 		return r
 	# вбок: толчок дальней ногой, корпус и голова уходят с линии удара, приземление на ближнюю ногу
 	for row in [["DodgeL", 1.0], ["DodgeR", -1.0]]:
@@ -35,12 +35,12 @@ static func add_to(A: Dictionary, stance := "CombatIdle") -> void:
 		var b0: Array = A["Block"]["k"][0]
 		var bp: Dictionary = b0[1]
 		var bik = b0[2] if b0.size() > 2 and b0[2] is Dictionary else null
-		var bk := func(t: float, pose: Dictionary, ease := "") -> Array:
+		var bk := func(t: float, pose: Dictionary, ez := "") -> Array:
 			var r: Array = [t, pose]
 			if bik != null:
 				r.append(bik)
-			if ease != "":
-				r.append(ease)
+			if ez != "":
+				r.append(ez)
 			return r
 		A["BlockHit"] = {"d": 1.0, "n": 24, "ground": true, "ev": {"impact": 0.0}, "k": [bk.call(0.0, Poses.add(bp, {"spine": {"x": -0.18}, "hips": {"x": -0.08}, "head": {"x": 0.12}, "drop": 0.05})),
 			bk.call(0.4, Poses.add(bp, {"spine": {"x": -0.06}}), "out"), bk.call(1.0, bp, "io")]}

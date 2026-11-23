@@ -132,7 +132,7 @@ func _figure(room: String, p: Vector3, yaw: float) -> void:
 	f.visible = false
 	figures[room] = f
 
-func _lamp_row(room: String, o: Vector3, y: float, xs: Array, c: Color) -> void:
+func _lamp_row(_room: String, o: Vector3, y: float, xs: Array, c: Color) -> void:
 	for x in xs:
 		var n := node(o + Vector3(float(x), y, 0))
 		var d := MGProps.strip_lamp(n, 1.2, c)
@@ -204,6 +204,7 @@ func _stage(o: Vector3) -> void:
 	MGProps.caps(mic, Vector3(0, 1.55, 0.04), 0.03, 0.14, MGProps.mat("black"), Vector3(0.4, 0, 0))
 	MGProps.cable(self, o + Vector3(0.6, 1.0, -3.6), o + Vector3(1.6, 0.92, -4.6), 0.05, 0.008)
 	for i in 4:
+		@warning_ignore("integer_division")
 		var p := o + Vector3(-3.0 + float(i % 2) * 6.0, 0, 0.8 + float(i / 2) * 3.4)
 		# высота слота — с шарами над столом: столешница модели приходится на ~0,75 м
 		var tb := put("fn_party_table", p, float(i) * 0.15 - 0.2 + (PI if i % 2 == 1 else 0.0), Vector3(2.0, 1.4, 1.1), func(r): MGProps.party_table(r, i))
@@ -239,6 +240,7 @@ func _arcade(o: Vector3) -> void:
 	var names := ["VOZDUH RUN", "BALON FIGHTER", "ТЯГА 812", "MADK SKATE", "ОБЛАКО", "BOT WARS"]
 	var cols := [Color(0.9, 0.2, 0.2), Color(0.3, 0.6, 1.0), Color(0.9, 0.9, 0.9), Color(0.95, 0.6, 0.15), Color(0.6, 0.3, 1.0), Color(0.2, 1.0, 0.5)]
 	for i in 6:
+		@warning_ignore("integer_division")
 		var p := o + Vector3(-4.0 + float(i % 3) * 2.4, 0, -3.0 + float(i / 3) * 4.2)
 		var yaw := 0.0 if i < 3 else PI
 		var title: String = names[i]
@@ -261,6 +263,7 @@ func _arcade(o: Vector3) -> void:
 	var pc := put("fn_prize_counter", o + Vector3(4.7, 0, 2.0), -PI / 2, Vector3(2.3, 2.0, 1.5), func(r): MGProps.prize_counter(r))
 	pc.scale = Vector3.ONE * 0.95
 	for k in 6:                                                     # кабели автоматов по полу к розеткам
+		@warning_ignore("integer_division")
 		MGProps.cable(self, o + Vector3(-4.0 + float(k % 3) * 2.4, 0.05, -3.4 + float(k / 3) * 4.6 + (0.4 if k >= 3 else -0.4)), o + Vector3(-5.9, 0.02, -3.0 + k * 0.8), 0.0, 0.015)
 	MGProps.litter(node(o + Vector3(0, 0, 0.5)), 10, 4.0, 2)
 	for k in 3:
@@ -345,6 +348,7 @@ func _server(o: Vector3) -> void:
 	MGProps.box(self, o + Vector3(0, 2.6, -0.1), Vector3(8.6, 0.06, 0.5), MGProps.mat("metal"))
 	for k in 8:
 		var x := -3.0 + float(k % 4) * 2.0
+		@warning_ignore("integer_division")
 		var z := -2.0 + float(k / 4) * 3.8
 		MGProps.cable(self, o + Vector3(x, 2.58, -0.1), o + Vector3(x + 0.15, 2.1, z), 0.1, 0.02, MGProps.mat("red_dark") if k % 2 else MGProps.mat("blue_paint"))
 	var term := node(o + Vector3(4.2, 0, 1.6), -PI / 2)

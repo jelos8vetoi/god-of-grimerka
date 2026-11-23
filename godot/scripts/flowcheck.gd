@@ -48,9 +48,9 @@ func frames(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 
 func tap(a: String) -> void:
 	await get_tree().physics_frame
@@ -177,6 +177,7 @@ func _sheets() -> void:
 					await RenderingServer.frame_post_draw
 					var img: Image = get_viewport().get_texture().get_image()
 					var side_px: int = mini(img.get_height(), img.get_width())
+					@warning_ignore("integer_division")
 					img = img.get_region(Rect2i((img.get_width() - side_px * TW / TH) / 2, 0, side_px * TW / TH, side_px))
 					img.resize(TW, TH)
 					img.convert(Image.FORMAT_RGBA8)
@@ -185,6 +186,7 @@ func _sheets() -> void:
 				await wait_switch()
 				var sheet := Image.create(TW * 4, TH * 2, false, Image.FORMAT_RGBA8)
 				for i in thumbs.size():
+					@warning_ignore("integer_division")
 					sheet.blit_rect(thumbs[i], Rect2i(0, 0, TW, TH), Vector2i((i % 4) * TW, (i / 4) * TH))
 				sheet.save_png(out.path_join("swap_%s_to_%s.png" % [a, b]))
 				print("FLOW лист: %s → %s" % [a, b])

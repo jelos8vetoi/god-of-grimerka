@@ -40,6 +40,7 @@ func _build() -> void:
 		c.art = a
 		c.has = got.has(String(a["id"]))
 		c.tex = G67Icons.tex("icon_art_" + String(a["id"]))
+		@warning_ignore("integer_division")
 		c.position = ORIGIN + Vector2((i % 6) * CELL.x, (i / 6) * (CELL.y + 26))
 		c.size = CELL
 		c.pivot_offset = Vector2(CELL.x * 0.5, CELL.y)

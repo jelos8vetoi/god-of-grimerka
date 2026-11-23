@@ -124,6 +124,7 @@ func tick_time(dt: float) -> bool:
 	time_left -= dt
 	var k := clampf(time_left / time_max, 0.0, 1.0)
 	MGUI.set_bar(time_bar, k, MGUI.RED if k < 0.25 else MGUI.TEXT_2)
+	@warning_ignore("integer_division")
 	time_l.text = "%d:%02d" % [int(maxf(time_left, 0.0)) / 60, int(maxf(time_left, 0.0)) % 60]
 	time_l.add_theme_color_override("font_color", MGUI.RED if k < 0.25 else MGUI.TEXT)
 	return time_left > 0.0

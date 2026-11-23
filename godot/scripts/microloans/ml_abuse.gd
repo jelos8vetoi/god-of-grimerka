@@ -130,6 +130,7 @@ static func run() -> Array:
 	var tail := int(e.career.d["carry_debt"])
 	e.new_game(12)
 	var tail_loan := e.active().filter(func(L): return bool(L.get("tail", false)))
+	@warning_ignore("integer_division")
 	add.call("бросить неделю — не бесплатный сброс", e.career.biz_count() == 0 and w1 <= w0 / 4 and tail > 0 and tail_loan.size() == 1 and int(e.career.d["carry_debt"]) == 0,
 		"долг был %d, куплено бизнесов %d; имущество и деньги %d → %d; хвост %d ₽ пришёл займом в новой неделе" % [debt0, bought, w0, w1, tail])
 
@@ -191,7 +192,8 @@ static func run() -> Array:
 	# 12. сохранение и загрузка посреди дня дают то же самое состояние (выручка и проценты не дублируются)
 	e = _game(51)
 	e.job_done("repair", 0.8)
-	e.take(int(e.offers[0]["id"])) if not e.offers.is_empty() else false
+	if not e.offers.is_empty():
+		e.take(int(e.offers[0]["id"]))
 	var s1 := JSON.stringify(e.to_dict())
 	var e3 := MLEconomy.new()
 	e3.career = MLCareer.new()
@@ -359,7 +361,9 @@ static func run() -> Array:
 					4: e.refinance([lo2], String(MLData.LENDER_ORDER[rng.randi() % 4]))
 					5: e.pay_min(lo2)
 					6: e.next_phase()
-					7: e.call_operator(int(e.offers[0]["id"])) if not e.offers.is_empty() else false
+					7:
+						if not e.offers.is_empty():
+							e.call_operator(int(e.offers[0]["id"]))
 			if e.ending == "":
 				e.surrender()
 			best_gain = maxi(best_gain, _wealth(e) - start_w)

@@ -35,7 +35,7 @@ func _build() -> void:
 	stage.add_child(wall)
 	lab("ПОДЪЕЗД · ПЛОЩАДКА · ПРАВАЯ СТЕНА", "caps", 13, Color(0.7, 0.66, 0.56), Vector2(70, 30))
 	lab("СТОЙКА СТИЛЕЙ", "display", 48, Color(0.92, 0.88, 0.76), Vector2(66, 46))
-	var open: Array = G.styles_open()
+	var is_open: Array = G.styles_open()
 	var madk := G.madk_open()
 	var cur := G.start_style()
 	for row in 2:
@@ -46,7 +46,7 @@ func _build() -> void:
 			s.sid = sid
 			s.style = Styles.by_id(sid)
 			s.hero = "ПАХАН" if row == 0 else "MADK1D"
-			s.open = (open.has(sid) if row == 0 else madk)
+			s.open = (is_open.has(sid) if row == 0 else madk)
 			s.held = sid == cur and row == 0
 			s.why = "" if s.open else "Откроется " + String(WHEN.get(sid, "позже")) + "."
 			s.position = Vector2(110 + k * 330, 176 + row * 336)
@@ -294,11 +294,11 @@ class Over extends Control:
 	var s: Slot
 	func _draw() -> void:
 		var f := MGUI.font("caps")
-		var name := s.style.title
+		var nm := s.style.title
 		var sz := 18
-		while sz > 12 and f.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x > size.x - 30:
+		while sz > 12 and f.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x > size.x - 30:
 			sz -= 1
-		draw_string(f, Vector2(16, size.y - 16), name.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, sz, Color(0.97, 0.93, 0.82) if s.open else Color(0.2, 0.16, 0.12))
+		draw_string(f, Vector2(16, size.y - 16), nm.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, sz, Color(0.97, 0.93, 0.82) if s.open else Color(0.2, 0.16, 0.12))
 		if s.held:
 			draw_set_transform(Vector2(size.x - 120, 26), 0.08, Vector2.ONE)
 			draw_rect(Rect2(Vector2.ZERO, Vector2(104, 26)), Color(0.86, 0.3, 0.2))

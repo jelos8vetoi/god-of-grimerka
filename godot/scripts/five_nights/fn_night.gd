@@ -79,6 +79,12 @@ func setup(n: int, seed_v: int, levels := {}) -> void:
 		e.setup(self, id, _level_for(id, 0))
 		enemies[id] = e
 
+## спокойное начало ночи для врага (для Custom Night — нет)
+func calm(id: String) -> Array:
+	if night >= FNData.NIGHTS.size():
+		return [0.0, 0.0]
+	return FNData.calm(night, id)
+
 func _level_for(id: String, h: int) -> int:
 	if night >= FNData.NIGHTS.size():
 		return clampi(int(custom.get(id, 0)), 0, 20)

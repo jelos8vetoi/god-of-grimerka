@@ -59,9 +59,10 @@ const ENEMIES := {
 const ORDER := ["balon", "madk1d", "bot", "clipper", "ghost", "mod"]
 
 ## Ночи: уровни врагов на 12 AM и прибавка по часам [час, +уровень]. Уровень 0–20, 0 — не ходит.
+## Необязательный ключ "calm": враг → [до какой секунды ночи он не ходит вообще, до какой не может встать к двери или решётке].
 const NIGHTS := [
 	{"title": "ПЕРВАЯ СМЕНА", "levels": {"balon": 2}, "ramp": {"balon": [[2, 1], [3, 1], [4, 1]]}},
-	{"title": "ОНИ УЖЕ ЗНАЮТ", "levels": {"balon": 4, "madk1d": 3, "clipper": 0}, "ramp": {"balon": [[2, 1], [4, 1]], "madk1d": [[2, 1], [3, 1], [4, 1]], "clipper": [[3, 2], [4, 1]]}},
+	{"title": "ОНИ УЖЕ ЗНАЮТ", "levels": {"balon": 4, "madk1d": 2, "clipper": 0}, "ramp": {"balon": [[2, 1], [4, 1]], "madk1d": [[1, 1], [2, 1], [3, 1], [4, 1]], "clipper": [[3, 2], [4, 1]]}, "calm": {"madk1d": [20.0, 60.0], "balon": [0.0, 52.0]}},
 	{"title": "НЕ СМОТРИ НА НЕГО", "levels": {"balon": 5, "madk1d": 5, "clipper": 3, "ghost": 4, "bot": 2}, "ramp": {"balon": [[3, 1], [5, 1]], "madk1d": [[2, 1], [4, 1]], "clipper": [[2, 1], [4, 2]], "ghost": [[3, 2], [5, 1]], "bot": [[2, 1], [4, 1]]}},
 	{"title": "ПОЛОМКА", "levels": {"balon": 6, "madk1d": 6, "clipper": 5, "ghost": 5, "bot": 5, "mod": 5}, "ramp": {"balon": [[2, 1], [4, 1]], "madk1d": [[3, 1], [5, 1]], "clipper": [[3, 1]], "ghost": [[4, 1]], "bot": [[2, 1], [4, 2]], "mod": [[2, 1], [3, 1], [5, 2]]}},
 	{"title": "ПОСЛЕДНЯЯ СМЕНА", "levels": {"balon": 9, "madk1d": 8, "clipper": 7, "ghost": 7, "bot": 7, "mod": 7}, "ramp": {"balon": [[2, 1], [3, 1], [5, 1]], "madk1d": [[2, 1], [4, 2]], "clipper": [[3, 1], [5, 1]], "ghost": [[3, 1], [5, 1]], "bot": [[2, 1], [4, 1]], "mod": [[3, 1], [4, 1], [5, 1]]}},
@@ -133,6 +134,13 @@ const PRESETS := {
 	"ВЕНТИЛЯЦИЯ": {"balon": 0, "madk1d": 20, "bot": 5, "clipper": 0, "ghost": 10, "mod": 0},
 	"ВСЕ НА 20": {"balon": 20, "madk1d": 20, "bot": 20, "clipper": 20, "ghost": 20, "mod": 20},
 }
+
+## спокойное начало ночи n для врага: [до какой секунды не ходит, до какой не встаёт к двери/решётке]; нет ключа — [0, 0]
+static func calm(n: int, enemy: String) -> Array:
+	if n < 0 or n >= NIGHTS.size():
+		return [0.0, 0.0]
+	var c: Dictionary = (NIGHTS[n] as Dictionary).get("calm", {})
+	return c.get(enemy, [0.0, 0.0])
 
 ## уровень врага в ночи n (0..5) в час h (0..5)
 static func level(n: int, enemy: String, h: int) -> int:

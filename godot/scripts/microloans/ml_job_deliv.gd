@@ -75,7 +75,7 @@ func _yard() -> void:
 	for hi in houses.size():
 		var hp: Vector3 = houses[hi][0]
 		var hy: float = houses[hi][1]
-		var b := MGModels.spawn("_none_", world_root, hp, hy, Vector3(24, 14, 10), func(r):
+		var _b := MGModels.spawn("_none_", world_root, hp, hy, Vector3(24, 14, 10), func(r):
 			if RaceProps.has("khrushchevka"):
 				RaceProps.spawn("khrushchevka", r, Vector3.ZERO, 0.0, 1.0, true)
 			else:
@@ -133,6 +133,7 @@ func _prop(id: String, p: Vector3, yaw_v: float, r: float) -> void:
 	obst.append({"c": Vector2(p.x, p.z), "r": r})
 
 func _parcels() -> void:
+	@warning_ignore("integer_division")
 	var n := 2 + int(cv("deliv_slots")) + (1 if eq("deliv") >= 2 else 0) + (2 if eq("deliv") >= 4 else 0) + tier / 2
 	var used := {}
 	for k in n:

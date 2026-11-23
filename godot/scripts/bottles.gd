@@ -222,9 +222,9 @@ func _physics_process(dt: float) -> void:
 		f["vel"] = (f["vel"] as Vector3) + Vector3(0, -GRAVITY * dt, 0)
 		var home = f.get("home")      # отскок рикошета доводится до цели: она успевает сдвинуться
 		if home != null and is_instance_valid(home) and home.alive():
-			var aim: Vector3 = home.global_position + Vector3(0, float(home.height) * 0.6, 0) - from
-			if aim.length() > 0.05:
-				f["vel"] = aim.normalized() * 20.0
+			var aim_at: Vector3 = home.global_position + Vector3(0, float(home.height) * 0.6, 0) - from
+			if aim_at.length() > 0.05:
+				f["vel"] = aim_at.normalized() * 20.0
 		var to := from + (f["vel"] as Vector3) * dt
 		f["life"] = float(f["life"]) - dt
 		var hit_e = null

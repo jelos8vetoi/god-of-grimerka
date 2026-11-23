@@ -83,7 +83,7 @@ func _run() -> void:
 		await get_tree().process_frame
 	print("MUSICCHECK заглавный трек вышел на уровень за %.1f с (title_prog %.2f)" % [(Time.get_ticks_msec() - ta) / 1000.0, D.title_prog])
 	await wait(0.5)
-	var snap := D.snapshot()
+	var _snap := D.snapshot()
 	var title_players := 0
 	for c in D.get_children():
 		if c is AudioStreamPlayer and (c as AudioStreamPlayer).bus == "MusicMenu":
@@ -93,7 +93,6 @@ func _run() -> void:
 	var ev0 := D.events.size()
 	var pos0 := D.title.get_playback_position()
 	var mono := true
-	var last := pos0
 	if main.menu != null:
 		main.menu.open_modes()
 		await wait(0.6)
@@ -214,20 +213,20 @@ func _run() -> void:
 	# (g) ролик с тишиной
 	manual(true)
 	await drive("loc_hall", 2.0)
-	var owner := Node.new()
-	add_child(owner)
-	D.enter_cinematic(owner, {"mode": "silence"})
+	var own := Node.new()
+	add_child(own)
+	D.enter_cinematic(own, {"mode": "silence"})
 	await drive("loc_hall", 1.8)
 	var stopped := D.cue == "" and not D.decks[0].live and not D.decks[1].live
 	var kept := 0.0
 	if D.memory.has("loc_hall"):
 		kept = float((D.memory["loc_hall"] as Array)[0])
-	D.leave_cinematic(owner)
+	D.leave_cinematic(own)
 	await drive("loc_hall", 0.5)
 	var pl: AudioStreamPlayer = D.active_players()[0] if D.active_players().size() > 0 else null
 	var now_pos: float = pl.get_playback_position() if pl != null else -1.0
 	ok(stopped and D.cue == "loc_hall" and absf(now_pos - (kept + 0.5)) <= 0.3, "ролик в тишину и обратно: набор вернулся с позиции %.1f → %.1f с (прошло 0,5 с)" % [kept, now_pos])
-	owner.queue_free()
+	own.queue_free()
 	# (h) пауза: приглушение −6 дБ, набор не меняется
 	var cue_before := D.cue
 	var t1 := Time.get_ticks_msec()
@@ -283,6 +282,7 @@ func _run() -> void:
 	await wait(3.0)
 	ok(D.cue == "title" and D.title_prog > 0.95 and D.title.playing and not D.title.stream_paused, "выход из «5 ночей»: заглавный трек вернулся (набор «%s», нарастание %.2f)" % [D.cue, D.title_prog])
 	await _golda67()
+	await _real_paths()
 	ok(worst <= 3.0, "самый большой шаг громкости музыкального проигрывателя за кадр: %.2f дБ (%s); тише %.0f дБ не считается" % [worst, worst_who, FADE_FLOOR])
 	print("MUSICCHECK ", "ok" if fails == 0 else "ОШИБКА: %d" % fails)
 	get_tree().quit(0 if fails == 0 else 1)
@@ -309,7 +309,6 @@ func last_trans(from: int) -> String:
 	return r
 
 func _golda67() -> void:
-	var ev := D.events.size()
 	main.start_golda67()
 	await frames(2)
 	var g67 = main.game.golda
@@ -365,7 +364,6 @@ func _golda67() -> void:
 	ok(D.ctx == "explore" and D.active_players().size() > 1 and D.active_players()[1].volume_db < -25.0, "m3 враги побеждены: ctx %s, драйв ушёл (%.1f дБ)" % [D.ctx, D.active_players()[1].volume_db if D.active_players().size() > 1 else -99.0])
 	# m4 КРОТ (реальные реплики) и m5 ДИДЖЕЙ: приглушение держится весь разговор
 	# m6 ролик, первый просмотр (конец — через _end(): сам ролик долгий)
-	var ev6 := D.events.size()
 	g67.play_clip("NEWS01")
 	await wait(1.2)
 	var silent_ok: bool = D.cue == "" and D._voice() and D.snapshot()["overlays"].size() >= 1
@@ -403,7 +401,7 @@ func _golda67() -> void:
 			if d.live and String(d.cue).begins_with("boss_") and d.gain() > 0.05:
 				boss_early = true
 		await get_tree().process_frame
-	var line_waited: bool = await until(func(): return not g.bark_b.playing, 12.0)
+	var _line_waited: bool = await until(func(): return not g.bark_b.playing, 12.0)
 	await wait(2.5)
 	var boss = g.boss_e
 	var stung := false
@@ -449,7 +447,7 @@ func _golda67() -> void:
 	boss.set("weak_t", 0.0)
 	await wait(1.0)
 	# m10 босс повержен обычным уроном
-	var ev10 := D.events.size()
+	var t10 := D.clock
 	boss.state = "chase"
 	boss.cool = 99.0
 	boss.move = ""
@@ -457,8 +455,8 @@ func _golda67() -> void:
 	boss.take_hit(999999.0, Vector3.FORWARD, 0.0, true)
 	await wait(2.0)
 	var won := false
-	for i in range(ev10, D.events.size()):
-		if D.events[i]["ev"] == "stinger" and String(D.events[i]["cue"]).ends_with("_win"):
+	for e in D.events:
+		if float(e["t"]) >= t10 - 0.01 and e["ev"] == "stinger" and String(e["cue"]).ends_with("_win"):
 			won = true
 	var over: bool = g67.room_state == "over"
 	await until(func(): return g67.hub_ui != null and g67.hub_ui.kind == "result", 12.0)
@@ -526,7 +524,7 @@ func key_tap(k: Key) -> void:
 		await get_tree().process_frame
 		await get_tree().process_frame
 
-func _talk_check(g67, g, who: String, start: Callable, tag: String) -> void:
+func _talk_check(_g67, g, who: String, start: Callable, tag: String) -> void:
 	start.call()
 	await wait(0.6)
 	var ok_all: bool = g.mode == "dlg"
@@ -545,6 +543,104 @@ func _talk_check(g67, g, who: String, start: Callable, tag: String) -> void:
 		# следующая реплика по нажатию, как у игрока
 		if n % 90 == 0:
 			g._dlg_advance()
-	var t_end := Time.get_ticks_msec()
+	var _t_end := Time.get_ticks_msec()
 	await wait(2.0)
 	ok(ok_all and n > 0 and D.duck_db > -0.5, "%s %s: приглушение не выше −5 дБ весь разговор (%d кадров, самое слабое %.1f дБ), через 2 с после конца %.1f дБ" % [tag, who, n, worst_duck, D.duck_db])
+
+# ---------- настоящие пути игрока: выходы в главное меню теми же вызовами, что у кнопок ----------
+func in_menu() -> bool:
+	return main.menu != null and is_instance_valid(main.menu) and main.game == null and main.minigame == null
+
+func menu_ready() -> void:
+	await until(func(): return in_menu(), 25.0)
+	await wait(0.4)
+
+## через 4 с после возврата в меню: музыка слышна на всех звеньях цепочки
+func menu_audible(tag: String) -> void:
+	var peak_menu := -200.0
+	var t_end := Time.get_ticks_msec() + 4000
+	while Time.get_ticks_msec() < t_end:
+		var i := AudioServer.get_bus_index("MusicMenu")
+		peak_menu = maxf(peak_menu, maxf(AudioServer.get_bus_peak_volume_left_db(i, 0), AudioServer.get_bus_peak_volume_right_db(i, 0)))
+		await get_tree().process_frame
+	var good: bool = D.cue == "title" and D.title.playing and not D.title.stream_paused and bus_db("Music") > -40.0 and peak_menu > -50.0 and bus_db("Master") > -40.0 and not main.audio.hush_hold and Engine.time_scale == 1.0
+	ok(good, "%s → главное меню: трек слышен (набор «%s», играет %s, пауза %s, шина Music %.1f дБ, пик MusicMenu %.1f дБ, hush %s, time_scale %.1f)" % [tag, D.cue, str(D.title.playing), str(D.title.stream_paused), bus_db("Music"), peak_menu, str(main.audio.hush_hold), Engine.time_scale])
+
+func path_fn(_die_tag := "") -> void:
+	main.menu.launch_minigame("five_nights")
+	await until(func(): return main.minigame != null and is_instance_valid(main.minigame) and main.minigame.state == "menu", 25.0)
+	await wait(1.5)
+	var R = main.minigame
+	R.start_night(1)
+	await until(func(): return R.state == "night" and R.intro_t <= 0.0, 12.0)
+	await wait(2.0)
+	R.st.attack("balon", "door_l")
+	await until(func(): return R.state == "dead", 40.0)
+	await wait(3.0)
+	R.to_terminal()
+	await wait(1.5)
+	R.quit_to_menu()
+	await menu_ready()
+
+func path_golda() -> void:
+	main.menu.launch_golda67()
+	await until(func(): return main.game != null and is_instance_valid(main.game) and main.game.golda != null, 25.0)
+	await wait(10.0)
+	main.game._to_menu()
+	await menu_ready()
+
+func path_story() -> void:
+	main.cinematic_start(FileAccess.file_exists("user://grimerka_save.json"), -1, "")
+	await until(func(): return main.game != null and is_instance_valid(main.game) and main.game.golda == null, 30.0)
+	await wait(10.0)
+	await key_tap(KEY_ESCAPE)
+	await wait(2.0)
+	main.game._to_menu()
+	await menu_ready()
+
+func _real_paths() -> void:
+	var vol_keep: float = main.audio.vol["Music"]
+	main.audio.set_volume("Music", 0.8, false)
+	main.show_menu()
+	await menu_ready()
+	await path_fn()
+	await menu_audible("5 НОЧЕЙ: гибель, В МЕНЮ ОХРАНЫ, выход")
+	main.menu.launch_golda67()
+	await until(func(): return main.game != null and is_instance_valid(main.game) and main.game.golda != null, 25.0)
+	await wait(10.0)
+	main.game._to_menu()
+	await menu_ready()
+	await menu_audible("ГОЛДА 67 → _to_menu()")
+	await path_story()
+	await menu_audible("сюжет → пауза → _to_menu()")
+	main.menu._open_settings()
+	await wait(3.0)
+	if main.menu.has_method("panel_back"):
+		main.menu.panel_back()
+	else:
+		await key_tap(KEY_ESCAPE)
+	await wait(0.5)
+	await menu_audible("SETTINGS → назад")
+	await path_fn()
+	await path_golda()
+	await path_story()
+	await path_fn()
+	await menu_audible("цепочка 5 НОЧЕЙ, ГОЛДА 67, сюжет, 5 НОЧЕЙ без пауз")
+	# ползунок на ноль виден в журнале режиссёра, возврат снимает причину
+	var t_mark := D.clock
+	main.audio.set_volume("Music", 0.0, false)
+	await wait(0.6)
+	var saw_mute := false
+	for e in D.events:
+		if float(e["t"]) >= t_mark and e["ev"] == "muted_by_user":
+			saw_mute = true
+	var snap_mute: bool = D.snapshot()["muted_by_user"]
+	main.audio.set_volume("Music", 0.8, false)
+	await wait(0.6)
+	var saw_unmute := false
+	for e in D.events:
+		if float(e["t"]) >= t_mark and e["ev"] == "unmuted_by_user":
+			saw_unmute = true
+	ok(saw_mute and snap_mute and saw_unmute and not D.snapshot()["muted_by_user"], "Music = 0: в журнале muted_by_user («МУЗЫКА ИГРЫ: 0 % в настройках»), после возврата громкости причина снята")
+	main.audio.set_volume("Music", vol_keep, false)
+

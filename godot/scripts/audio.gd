@@ -71,6 +71,26 @@ func room(cutoff_hz: float, gain_db: float) -> void:
 	room_lowpass.cutoff_hz = cutoff_hz
 	AudioServer.set_bus_volume_db(i, gain_db)
 
+## телефонная полоса: узкая, с лёгким хрипом (общая часть шин Phone и PhoneVoice)
+func _phone_chain(bus: int) -> void:
+	var hp := AudioEffectHighPassFilter.new()
+	hp.cutoff_hz = 420.0
+	AudioServer.add_bus_effect(bus, hp)
+	var lp := AudioEffectLowPassFilter.new()
+	lp.cutoff_hz = 3100.0
+	AudioServer.add_bus_effect(bus, lp)
+	var ds := AudioEffectDistortion.new()
+	ds.mode = AudioEffectDistortion.MODE_OVERDRIVE
+	ds.drive = 0.22
+	ds.pre_gain = 3.0
+	ds.post_gain = -2.0
+	AudioServer.add_bus_effect(bus, ds)
+
+func _phone_limiter(bus: int) -> void:
+	var plim := AudioEffectHardLimiter.new()
+	plim.ceiling_db = -2.0
+	AudioServer.add_bus_effect(bus, plim)
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for b in BUSES:
@@ -105,21 +125,60 @@ func _ready() -> void:
 		var pi := AudioServer.bus_count - 1
 		AudioServer.set_bus_name(pi, "Phone")
 		AudioServer.set_bus_send(pi, "Voice")
-		var hp := AudioEffectHighPassFilter.new()
-		hp.cutoff_hz = 420.0
-		AudioServer.add_bus_effect(pi, hp)
-		var lp := AudioEffectLowPassFilter.new()
-		lp.cutoff_hz = 3100.0
-		AudioServer.add_bus_effect(pi, lp)
-		var ds := AudioEffectDistortion.new()
-		ds.mode = AudioEffectDistortion.MODE_OVERDRIVE
-		ds.drive = 0.22
-		ds.pre_gain = 3.0
-		ds.post_gain = -2.0
-		AudioServer.add_bus_effect(pi, ds)
-		var plim := AudioEffectHardLimiter.new()
-		plim.ceiling_db = -2.0
-		AudioServer.add_bus_effect(pi, plim)
+		_phone_chain(pi)
+		_phone_limiter(pi)
+	# «RoomVoice» — голос человека в маленькой старой будке: ранние отражения и короткая комната
+	if AudioServer.get_bus_index("RoomVoice") < 0:
+		AudioServer.add_bus()
+		var rvi := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(rvi, "RoomVoice")
+		AudioServer.set_bus_send(rvi, "Voice")
+		AudioServer.set_bus_volume_db(rvi, -0.6)
+		var dl := AudioEffectDelay.new()
+		dl.dry = 1.0
+		dl.tap1_active = true
+		dl.tap1_delay_ms = 9.0
+		dl.tap1_level_db = -14.0
+		dl.tap1_pan = -0.45
+		dl.tap2_active = true
+		dl.tap2_delay_ms = 17.0
+		dl.tap2_level_db = -17.0
+		dl.tap2_pan = 0.5
+		dl.feedback_active = false
+		AudioServer.add_bus_effect(rvi, dl)
+		var rv := AudioEffectReverb.new()
+		rv.room_size = 0.42
+		rv.damping = 0.55
+		rv.spread = 0.7
+		rv.hipass = 0.3
+		rv.predelay_msec = 14.0
+		rv.predelay_feedback = 0.1
+		rv.dry = 1.0
+		rv.wet = 0.17
+		AudioServer.add_bus_effect(rvi, rv)
+	# «PhoneVoice» — трубка, лежащая на столе в будке: та же телефонная цепочка, плюс окраска динамика и малая комната
+	if AudioServer.get_bus_index("PhoneVoice") < 0:
+		AudioServer.add_bus()
+		var pvi := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(pvi, "PhoneVoice")
+		AudioServer.set_bus_send(pvi, "Voice")
+		AudioServer.set_bus_volume_db(pvi, 0.8)
+		_phone_chain(pvi)
+		var eq := AudioEffectEQ6.new()
+		eq.set_band_gain_db(2, -4.0)
+		eq.set_band_gain_db(3, 2.5)
+		eq.set_band_gain_db(4, 2.0)
+		AudioServer.add_bus_effect(pvi, eq)
+		var prv := AudioEffectReverb.new()
+		prv.room_size = 0.16
+		prv.damping = 0.8
+		prv.spread = 0.4
+		prv.hipass = 0.45
+		prv.predelay_msec = 6.0
+		prv.dry = 1.0
+		prv.wet = 0.06
+		AudioServer.add_bus_effect(pvi, prv)
+		_phone_limiter(pvi)
 	# подшины музыки: все идут в Music, поэтому ползунок, Master, фокус iPod и мёртвая тишина действуют на всё сразу
 	for sub in ["MusicBG", "MusicMenu", "MusicCine", "MusicDiegetic"]:
 		if AudioServer.get_bus_index(sub) < 0:

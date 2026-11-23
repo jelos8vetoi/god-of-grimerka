@@ -559,24 +559,26 @@ func _road() -> void:
 		var i1 := short_point(ditch.y)
 		var mid: Vector3 = (SP[i0] + SP[i1]) * 0.5
 		var ln := SP[i0].distance_to(SP[i1])
+		@warning_ignore("integer_division")
 		var yaw := atan2(ST[(i0 + i1) / 2].x, ST[(i0 + i1) / 2].z)
 		# вода в канаве — у самой поверхности: её видно, а дна под ней нет — кто не попал на мостик, тонет
 		var water := _box(mid + Vector3(0, -0.07, 0), Vector3(short_w + SHOULDER * 2.0 + 1.0, 0.04, ln + 0.5), yaw, mats["ditch"], false)
 		water.name = "Ditch"
 		_box(mid + Vector3(0, -0.12, 0), Vector3(plank, 0.24, ln + 1.2), yaw, mats["wood"], true)
 		for sd in [-1.0, 1.0]:
+			@warning_ignore("integer_division")
 			var right2: Vector3 = ST[(i0 + i1) / 2].cross(Vector3.UP)
 			_box(mid + right2 * sd * (short_w * 0.5 + SHOULDER) + Vector3(0, -0.8, 0), Vector3(0.4, 1.6, ln + 0.6), yaw, mats["black"], false)
-		var sign := Label3D.new()
-		sign.text = "ОСТОРОЖНО: КАНАВА"
-		sign.font_size = 44
-		sign.pixel_size = 0.008
-		sign.modulate = Color(1.0, 0.85, 0.2)
-		sign.outline_size = 14
+		var sgn := Label3D.new()
+		sgn.text = "ОСТОРОЖНО: КАНАВА"
+		sgn.font_size = 44
+		sgn.pixel_size = 0.008
+		sgn.modulate = Color(1.0, 0.85, 0.2)
+		sgn.outline_size = 14
 		var si := short_point(ditch.x - 10.0)
-		sign.position = SP[si] + ST[si].cross(Vector3.UP) * (short_w * 0.5 + SHOULDER + 0.6) + Vector3(0, 1.8, 0)
-		sign.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-		add_child(sign)
+		sgn.position = SP[si] + ST[si].cross(Vector3.UP) * (short_w * 0.5 + SHOULDER + 0.6) + Vector3(0, 1.8, 0)
+		sgn.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+		add_child(sgn)
 
 ## стена или блок: видимый ящик и (по желанию) столкновение
 func _box(pos: Vector3, size: Vector3, yaw: float, mat: Material, collide: bool, vis := true) -> MeshInstance3D:
@@ -894,7 +896,6 @@ func _gates() -> void:
 ## из моделей владельца (race_start_lights / race_grandstand / npc_spectator); нет файлов — ничего не ставится.
 func _start_dress() -> void:
 	var fi := at_s(start_s + 14.0)
-	var right: Vector3 = T[fi].cross(Vector3.UP)
 	var yaw := atan2(T[fi].x, T[fi].z)
 	var span: float = W[fi] + SHOULDER * 2.0 + 2.4
 	place_glb("res://assets/racing/race_start_lights.glb", P[fi], yaw, Vector3(span, 9.0, 12.0))
@@ -950,6 +951,7 @@ func _boxes() -> void:
 
 ## стартовые места: два ряда за финишной чертой
 func grid(k: int) -> Transform3D:
+	@warning_ignore("integer_division")
 	var s := start_s - 5.0 - float(k / 2) * 5.0
 	var i := at_s(s)
 	var right: Vector3 = T[i].cross(Vector3.UP)
@@ -983,6 +985,7 @@ func _free(p: Vector3, margin: float) -> bool:
 			return false
 	return true
 
+@warning_ignore("integer_division")
 func _decor() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(id)
@@ -1012,6 +1015,7 @@ func _decor() -> void:
 			match kind:
 				"garages":
 					var gp: Vector3 = edge + out * 2.6
+					@warning_ignore("integer_division")
 					_box(gp + Vector3(0, 1.4, 0), Vector3(5.0, 2.8, 3.6), yaw, mats["garage"] if (i / 4) % 2 == 0 else mats["garage2"], true, not RaceProps.has("garage"))
 					if RaceProps.has("garage"):
 						RaceProps.spawn("garage", self, gp, face, rng.randf_range(0.95, 1.08))
@@ -1022,6 +1026,7 @@ func _decor() -> void:
 						_graffiti(edge + out * 0.62 + Vector3(0, 2.4, 0), yaw + (PI * 0.5 if side > 0 else -PI * 0.5), String(graf[gk % graf.size()]), rng)
 						gk += 1
 				"industrial":
+					@warning_ignore_start("integer_division")
 					if (i / 8) % 4 == (0 if side > 0 else 2):
 						var tank_p: Vector3 = edge + out * 6.0
 						if _free(tank_p, 2.5):
@@ -1036,6 +1041,7 @@ func _decor() -> void:
 						pp.rotation.y = yaw
 						_box(edge + out * 3.0 + Vector3(0, 1.8, 0), Vector3(0.3, 3.6, 0.3), yaw, mats["metal"], false)
 				"dump":
+					@warning_ignore_restore("integer_division")
 					if rng.randf() < 0.6:
 						var dp: Vector3 = edge + out * 2.0
 						if RaceProps.spawn("dumpster", self, dp, face + rng.randf_range(-0.3, 0.3)) == null:
@@ -1061,12 +1067,15 @@ func _decor() -> void:
 					if rng.randf() < 0.15:
 						RaceProps.spawn("old_car", self, edge + out * 4.0, face + PI * 0.5 + rng.randf_range(-0.3, 0.3))
 				_:
+					@warning_ignore_start("integer_division")
 					if (i / 6) % 3 == 0:
 						if RaceProps.spawn("street_lamp", self, edge + out * 0.8, face) == null:
 							_lamp(edge + out * 0.8, yaw)
 					elif (i / 8) % 5 == 2 and _free(edge + out * 3.0, 1.5):
 						RaceProps.spawn("bus_stop" if side > 0 else "kiosk", self, edge + out * 3.0, face)
+					@warning_ignore_restore("integer_division")
 			# дома вдали — без моделей коробками (с моделями дома ставит _fill)
+			@warning_ignore("integer_division")
 			if (i / 24) % 2 == 0 and i % 24 == 0 and not RaceProps.has("khrushchevka"):
 				var hp: Vector3 = P[i] + right * side * (W[i] * 0.5 + 26.0)
 				if _free(hp, 17.0):
@@ -1171,9 +1180,11 @@ func _decks() -> void:
 			# леса: стойки по краям, перекладина, сетка сбоку, настил поверх полотна
 			for sd in [-1.0, 1.0]:
 				posts.append([Vector3(P[i].x, y * 0.5, P[i].z) + right * sd * (half + 0.5), yaw, y])
+				@warning_ignore("integer_division")
 				if (i / 4) % 2 == 0:
 					_box(P[i] + right * sd * (half + 0.5) + Vector3(0, 0.75, 0), Vector3(0.06, 1.5, 4.2), yaw, mats["net"], false)
 			_box(P[i] + Vector3(0, -0.22, 0), Vector3(half * 2.0 + 1.2, 0.16, 0.2), yaw, mats["metal"], false)
+			@warning_ignore("integer_division")
 			if y > 4.0 and (i / 4) % 3 == 0:
 				var br := _box(Vector3(P[i].x, y * 0.5, P[i].z), Vector3(half * 2.0 + 1.0, 0.1, 0.1), yaw, mats["metal"], false)
 				br.rotation.z = atan2(y, half * 2.0)

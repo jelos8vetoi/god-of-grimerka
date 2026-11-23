@@ -359,6 +359,7 @@ func _input(e: InputEvent) -> void:
 		return                       # то же нажатие E, что открыло экран
 	if dir != Vector2i.ZERO:
 		var col := sel % 3
+		@warning_ignore("integer_division")
 		var row := sel / 3
 		col = posmod(col + dir.x, 3)
 		row = posmod(row + dir.y, 3)

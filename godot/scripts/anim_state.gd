@@ -82,14 +82,14 @@ func jump() -> void:
 
 ## Каждый кадр. speed — горизонтальная скорость тела, м/с; turn — на сколько тело хочет довернуться (рад, + влево);
 ## floor — стоит ли на земле; vy — вертикальная скорость; combat — враги рядом; sprint — держит рывок.
-func tick(dt: float, speed: float, turn: float, floor: bool, vy: float, combat := false, sprint := false) -> void:
+func tick(dt: float, speed: float, turn: float, fl: bool, vy: float, combat := false, sprint := false) -> void:
 	t += dt
 	hold = max(0.0, hold - dt)
 	if my_clip != "" and rig.cur != my_clip:
 		_go("external")             # клип поставил контроллер напрямую (старый код ударов): переходы — с чистого листа
 		my_clip = ""
 	# ---- в воздухе ----
-	if not floor:
+	if not fl:
 		if state == "jump" and hold > 0.0:
 			return
 		if state != "fall" and (vy < -1.0 or state == "jump") and state != "action":

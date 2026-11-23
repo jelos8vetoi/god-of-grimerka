@@ -94,6 +94,7 @@ func _device() -> void:
 	# корпус из файла толще коробки: детали и винты — на его верх
 	var lift: float = maxf(0.0, float(shell.get_meta("h", 0.04)) - 0.035) if shell != null else 0.0
 	for k in names.size():
+		@warning_ignore("integer_division")
 		var p := Vector3(-w * 0.3 + (k % 2) * w * 0.6, lift + 0.05, -d * 0.22 + (k / 2) * d * 0.44)
 		var m := StandardMaterial3D.new()
 		m.albedo_color = [Color(0.2, 0.2, 0.22), Color(0.75, 0.6, 0.2), Color(0.3, 0.3, 0.6), Color(0.6, 0.6, 0.62)][k]

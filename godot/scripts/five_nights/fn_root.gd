@@ -29,6 +29,10 @@ var menu_st: FNNight
 var state := "menu"                 # menu / night / scare / dead / six
 var paused := false
 var night := 0
+var night_token := 0              # растёт в каждом start_night: отложенные реплики старой ночи молчат
+var tut_duct := false             # подсказки ночи 2 про MADK1D: каждая — один раз за попытку
+var tut_vent_l := false
+var tut_vent_t := false
 var levels := {}
 var quiet := false
 var look_key := 0.0
@@ -42,6 +46,11 @@ var ping_beep := 0.0
 var face_flash := 0.0
 var pending_reflection := false
 var said_door := false
+var far_pool: Array = []          # два проигрывателя для дальних ходов врагов (FNCues)
+var far_q: Array = []             # отложенные удары: [осталось с, id, позиция, дБ, высота]
+var far_last := {}                # враг → st.t последнего дальнего звука
+var cue_log: Array = []           # для проверок: [st.t, враг, точка, вид, id, позиция]
+var said_far := false
 var hint_t := 0.0
 var end_t := 0.0
 var finale_done := false
@@ -54,7 +63,7 @@ var whisper: AudioStreamPlayer      # GHOST: шёпот растёт с одер
 var air_tune: AudioStreamPlayer3D   # «последний шанс»
 var pool3: Array = []
 var pool2: Array = []
-var call_voice: AudioStreamPlayer   # голос начальника в трубке (assets/voice/FN_*.mp3, шина Phone → Voice)
+var call_voice: AudioStreamPlayer3D   # голос начальника в трубке (assets/voice/FN_*.mp3, шина PhoneVoice → Voice, из трубки на столе)
 var pahan_voice: AudioStreamPlayer  # мысли Пахана вслух (assets/voice/V_*.mp3 — его голос из кампании, шина Voice)
 ## Говорит всегда кто-то один. Строки по центру экрана (мысли Пахана и подсказки) идут очередью say_q: следующая
 ## появляется, когда прошлая отстояла своё и Пахан договорил. Пахан не начинает посреди реплики начальника — ждёт её
@@ -76,6 +85,7 @@ func _ready() -> void:
 	actors = FNActors.new()
 	add_child(actors)
 	actors.build(office, fac)
+	office.seal_stop.connect(_on_seal_stop)
 	cams = FNCams.new()
 	add_child(cams)
 	cams.build(fac, get_world_3d())
@@ -132,17 +142,32 @@ func _audio() -> void:
 		p3.max_db = 0.0                 # вблизи не громче, чем задано (иначе дверь у уха шла с +6 дБ и перегружала)
 		add_child(p3)
 		pool3.append(p3)
+	for k in 2:
+		var pf := AudioStreamPlayer3D.new()
+		pf.bus = "SFX"
+		pf.unit_size = 9.0
+		pf.max_db = 0.0
+		pf.attenuation_filter_cutoff_hz = 2400.0
+		pf.attenuation_filter_db = -24.0
+		add_child(pf)
+		far_pool.append(pf)
 	for k in 6:
 		var p2 := AudioStreamPlayer.new()
 		p2.bus = "SFX"
 		add_child(p2)
 		pool2.append(p2)
-	call_voice = AudioStreamPlayer.new()
-	call_voice.bus = "Phone" if AudioServer.get_bus_index("Phone") >= 0 else "Voice"
+	call_voice = AudioStreamPlayer3D.new()
+	call_voice.bus = "PhoneVoice" if AudioServer.get_bus_index("PhoneVoice") >= 0 else ("Phone" if AudioServer.get_bus_index("Phone") >= 0 else "Voice")
 	call_voice.volume_db = 1.0
+	call_voice.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
+	call_voice.panning_strength = 0.45
+	call_voice.attenuation_filter_cutoff_hz = 20500.0
 	add_child(call_voice)
+	var phone_at := office.get_node_or_null("Console/PhoneHit") as Node3D
+	if phone_at != null:
+		call_voice.global_position = phone_at.global_position
 	pahan_voice = AudioStreamPlayer.new()
-	pahan_voice.bus = "Voice"
+	pahan_voice.bus = "RoomVoice" if AudioServer.get_bus_index("RoomVoice") >= 0 else "Voice"
 	pahan_voice.volume_db = -1.0
 	add_child(pahan_voice)
 
@@ -210,6 +235,89 @@ func hush_end() -> void:
 func _snd_ok() -> bool:
 	return not quiet or (main != null and main.audiolog)
 
+## заслонка дошла до упора: глухой удар (закрытая — громче и ниже)
+func _on_seal_stop(s: String, closed: bool) -> void:
+	sfx3("damper_stop", FNOffice.point("vent_" + s), -4.0 if closed else -11.0, 1.0 if closed else 1.25)
+
+## дальний ход врага: звук из комнаты, где он встал; молчит при угрозе рядом, в первые секунды ночи, при скримере и чаще раза в FAR_GAP
+func _far_cue(e: String, to: String, blocked: bool) -> void:
+	if blocked or st.t < FNCues.FAR_FROM or scare.busy or FNCues.far_pos(to) == Vector3.ZERO or not st.enemies.has(e):
+		return
+	if st.t - float(far_last.get(e, -1000.0)) < FNCues.FAR_GAP:
+		return
+	far_last[e] = st.t
+	var id := FNCues.far_id(e)
+	var pos := FNCues.far_pos(to)
+	var db: float = float(FNCues.FAR_TRIM[id]) + FNCues.FAR_LEVEL
+	var pitch := randf_range(0.92, 1.0)
+	cue_log.append([st.t, e, to, "far", id, pos])
+	_far_play(id, pos, db, pitch)
+	if e == "balon":
+		far_q.append([randf_range(FNCues.STEP2_GAP[0], FNCues.STEP2_GAP[1]), id, pos, db + FNCues.STEP2_DB, pitch * FNCues.STEP2_PITCH])
+	ambience.cue_dip()
+	if night == 0 and e == "balon" and not said_far and not st.monitor and not (FNSave.v("beaten") as Array).has(0):
+		said_far = true
+		say("В здании кто-то ходит. Проверь камеры.", 3.5)
+
+func _far_play(id: String, pos: Vector3, db: float, pitch: float) -> void:
+	if not _snd_ok():
+		return
+	for p in far_pool:
+		var a := p as AudioStreamPlayer3D
+		if not a.playing:
+			a.stream = FNSound.pick(id)
+			a.global_position = pos
+			a.volume_db = db
+			a.pitch_scale = pitch
+			a.play()
+			return
+
+## зацикленный поток в одноразовом пуле не играем: он звучал бы до конца процесса
+func _loop_stream(s: AudioStream, id: String) -> bool:
+	if s is AudioStreamWAV and (s as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED:
+		push_error("FN: зацикленный звук «%s» в одноразовом пуле" % id)
+		return true
+	return false
+
+## глушит всё разовое: пулы звуков, шёпот и ползание, реплики, помехи и красные вспышки; настройки громкости игрока не трогает
+func clear_transients(keep_scream := false) -> void:
+	for p in far_pool:
+		(p as AudioStreamPlayer3D).stop()
+	far_q.clear()
+	for p in pool2:
+		(p as AudioStreamPlayer).stop()
+	for p in pool3:
+		(p as AudioStreamPlayer3D).stop()
+	if air_tune != null:
+		air_tune.stop()
+	if crawl != null:
+		crawl.stop()
+		crawl.volume_db = -60.0
+	if whisper != null:
+		whisper.stop()
+		whisper.volume_db = -60.0
+	if call_voice != null:
+		call_voice.stop()
+	_say_clear()
+	if ambience != null:
+		ambience.stop_events()
+	if not keep_scream and scream_p != null:
+		scream_p.stop()
+	if ui != null:
+		ui.hurt = 0.0
+		ui.neg = false
+		ui.inv_t = 0.0
+	face_flash = 0.0
+	if cams != null and cams.mat != null:
+		cams.mat.set_shader_parameter("jam", 0.0)
+		cams.mat.set_shader_parameter("haunt", 0.0)
+	hush_end()
+
+func _exit_tree() -> void:
+	hush_end()
+	if main != null and is_instance_valid(main) and main.audio != null:
+		main.audio.room(20500.0, 0.0)
+
 ## звук из точки (направление слышно): шаги у двери, стук в шахте
 func sfx3(id: String, pos: Vector3, vol := 0.0, pitch := 1.0) -> void:
 	if not _snd_ok():
@@ -217,7 +325,10 @@ func sfx3(id: String, pos: Vector3, vol := 0.0, pitch := 1.0) -> void:
 	for p in pool3:
 		var a := p as AudioStreamPlayer3D
 		if not a.playing:
-			a.stream = FNSound.pick(id)
+			var st3 := FNSound.pick(id)
+			if _loop_stream(st3, id):
+				return
+			a.stream = st3
 			a.global_position = pos
 			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
@@ -234,7 +345,10 @@ func sfx2(id: String, vol := 0.0, pitch := 1.0, bus := "SFX") -> void:
 	for p in pool2:
 		var a := p as AudioStreamPlayer
 		if not a.playing:
-			a.stream = FNSound.pick(id)
+			var st2 := FNSound.pick(id)
+			if _loop_stream(st2, id):
+				return
+			a.stream = st2
 			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
 			a.bus = FNSound.bus_for(id, bus)
@@ -247,6 +361,7 @@ func duck(on: bool) -> void:
 
 # ---------------- меню-терминал ----------------
 func _menu_scene() -> void:
+	clear_transients()
 	state = "menu"
 	menu.visible = true
 	menu.open_main()
@@ -275,6 +390,7 @@ func _menu_tick(dt: float) -> void:
 
 ## из меню мини-игры — в меню режимов GOD OF GRIMERKA
 func quit_to_menu() -> void:
+	clear_transients()
 	FNSave.save()
 	if main != null and main.has_method("end_minigame"):
 		main.end_minigame(ModeSelect.index_of("five_nights"))
@@ -285,14 +401,21 @@ func music_set() -> String:
 
 # ---------------- ночь ----------------
 func start_night(n: int, lv := {}) -> void:
+	clear_transients()
+	night_token += 1
+	var tok := night_token
 	night = n
 	levels = lv
 	var first_time: bool = (FNSave.v("beaten") as Array).is_empty()
 	FNSave.played()
+	tut_duct = false
+	tut_vent_l = false
+	tut_vent_t = false
 	if n < 5:
 		FNSave.put("current", n)
 	st = FNNight.new()
 	st.setup(n, int(Time.get_ticks_usec() % 2147483647), lv)
+	office.seal_reset(st)
 	menu.visible = false
 	ui.hud.visible = true
 	ui.night_begin(n, first_time)
@@ -307,6 +430,10 @@ func start_night(n: int, lv := {}) -> void:
 	office.dress(n)
 	anomaly.reset(int(st.rng.seed))
 	said_door = false
+	far_last = {}
+	far_q.clear()
+	cue_log.clear()
+	said_far = false
 	fix_hold = false
 	finale_done = false
 	call_muted = false
@@ -344,7 +471,7 @@ func start_night(n: int, lv := {}) -> void:
 				ui.tips.tip("reset")
 			ui.tips.tip(id)
 	get_tree().create_timer(4.0, true, false, true).timeout.connect(func():
-		if state == "night" and n < FNData.PAHAN["start"].size():
+		if tok == night_token and state == "night" and n < FNData.PAHAN["start"].size():
 			pahan_say(String(FNData.PAHAN["start"][n]), 3.5))
 
 func retry() -> void:
@@ -352,6 +479,7 @@ func retry() -> void:
 	start_night(night, levels)
 
 func to_terminal() -> void:
+	clear_transients()
 	set_paused(false)
 	call_voice.stop()
 	_say_clear()
@@ -385,10 +513,16 @@ func _process(dt: float) -> void:
 			if not paused:
 				_night_tick(dt)
 		"scare":
-			office.tick(st, dt, office.yaw) if false else null
+			if false:
+				office.tick(st, dt, office.yaw)
 			ui.tick(st, dt, cams)
 
 func _night_tick(dt: float) -> void:
+	for q in far_q.duplicate():
+		q[0] = float(q[0]) - dt
+		if float(q[0]) <= 0.0:
+			far_q.erase(q)
+			_far_play(String(q[1]), q[2], float(q[3]), float(q[4]))
 	# взгляд: мышь у края экрана или стрелки; при поднятом планшете — прямо
 	var vs := get_viewport().get_visible_rect().size
 	var mx := get_viewport().get_mouse_position().x / maxf(1.0, vs.x) - 0.5
@@ -413,6 +547,7 @@ func _night_tick(dt: float) -> void:
 	if state != "night":
 		return
 	office.tick(st, dt, look_in)
+	office.fan_tick(dt, ambience.fan_spin)
 	if fix_hold:
 		st.fix_cam(dt)
 	else:
@@ -515,18 +650,37 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"adapt":
 			adapt_log.append([String(d["e"]), String(d["how"])])
 		"move":
+			var blocked := ambience.events_blocked(st)
 			ambience.hold(6.0)
 			var to := String(d["to"])
 			var e := String(d["e"])
+			if st.monitor and (String(d["from"]) == st.cam or to == st.cam):
+				cams.blip(randf_range(0.3, 0.5))           # кадр срывается, когда кто-то выходит из него или входит
+				sfx2("static", -18.0, 1.2)
+			if FNCues.kind(to) == "far" and FNCues.far_id(e) != "":
+				_far_cue(e, to, blocked)
+			if night == 1 and e == "madk1d" and not (FNSave.v("beaten") as Array).has(1):
+				if to.begins_with("duct_") and not tut_duct:
+					tut_duct = true
+					say("В шахте кто-то ползёт. Слушай, с какой стороны.", 4.0)
+				elif to == "vent_l" and not tut_vent_l:
+					tut_vent_l = true
+					say("Стук в решётке слева. Z — закрыть заслонку.", 4.0)
+				elif to == "vent_t" and not tut_vent_t:
+					tut_vent_t = true
+					say("Стук над головой. X — закрыть люк.", 4.0)
 			if to in ["door_l", "door_r"]:
 				duck(true)
-				var snd := "clank" if e == "bot" else ("step" if e in ["clipper", "ghost"] else "step_heavy")
+				var snd := FNCues.hall_id(e)
+				cue_log.append([st.t, e, to, "door", snd, FNOffice.point(to)])
 				sfx3(snd, FNOffice.point(to), -2.0 if e != "clipper" else -6.0, 0.9)
 			elif to in ["hall_l", "hall_r"]:
 				var step_at := FNOffice.point(to)
 				if fac.spots.has(to) and st.enemies.has(e):
 					step_at = fac.spot(to, (st.enemies[e] as FNEnemy).pose).origin + Vector3(0, 0.2, 0)      # шаг слышен там, где враг стоит в коридоре
-				sfx3("step", step_at, -10.0, 0.8)
+				var hid := FNCues.hall_id(e)
+				cue_log.append([st.t, e, to, "hall", hid, step_at])
+				sfx3(hid, step_at, -9.0, 0.85)
 			elif to in ["vent_l", "vent_t"]:
 				sfx3("vent_bang", FNOffice.point(to), 2.0, 1.0)
 			if String(d.get("why", "")) == "retreat" and String(d["from"]).begins_with("door"):
@@ -539,6 +693,8 @@ func _on_event(k: String, d: Dictionary) -> void:
 			ambience.hold(6.0)
 			var at := String(d["at"])
 			sfx3("vent_bang" if at.begins_with("vent") else "door_down", FNOffice.point(at), 4.0, 0.7)
+			if at.begins_with("vent"):
+				office.seal_bang(at.substr(5))
 			office.shake = 0.5
 			if not said_door and at.begins_with("door"):
 				said_door = true
@@ -563,6 +719,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 				sfx3("click", office.lights[String(d["s"])].global_position, -10.0, 1.3)
 		"seal":
 			sfx3("click", FNOffice.point("vent_" + String(d["s"])), -4.0, 0.8)
+			sfx3("damper_close" if bool(d.get("closed", st.seal[String(d["s"])])) else "damper_open", FNOffice.point("vent_" + String(d["s"])), -5.0)
 			office.press("seal_" + String(d["s"]))
 			ui.toast("seal_" + String(d["s"]))
 		"monitor":
@@ -601,6 +758,7 @@ func _on_event(k: String, d: Dictionary) -> void:
 		"stare":
 			if st.monitor and st.cam == String(d["at"]):
 				sfx2("static", -20.0, 0.7)
+				cams.blip(0.12)
 		"cam_broken":
 			sfx2("power_down", -16.0, 2.6)
 			if not said_broken:
@@ -769,11 +927,12 @@ func _attack(eid: String, at: String) -> void:
 	FNSave.died(eid)
 	await scare.play("dark" if at == "dark" else eid, at, randi() % 3)
 	ui.hurt = 0.0
-	sfx2("static", -2.0)
 	_dead(eid, at)
 
 func _dead(eid: String, at: String) -> void:
 	state = "dead"
+	clear_transients(true)
+	sfx2("static", -2.0)
 	sfx2("sting_lose", -4.0)
 	var nm: String = FNData.ENEMIES[eid]["name"]
 	var hint := "Энергия кончилась. Двери, свет и камеры — всё в расход. Экономь: открывай двери, как только ушли." if at == "dark" else String(FNData.ENEMIES[eid]["counter"])

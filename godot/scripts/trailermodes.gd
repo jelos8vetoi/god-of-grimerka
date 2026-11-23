@@ -18,7 +18,7 @@ var count := 0
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 	MLSave.persist = false
 	FNSave.persist = false
 	RaceSave.persist = false

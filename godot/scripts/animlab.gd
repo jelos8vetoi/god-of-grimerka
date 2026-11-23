@@ -349,8 +349,11 @@ func _shake_report(s: Dictionary) -> void:
 		jerk.sort()
 		step.sort()
 		turn.sort()
+		@warning_ignore("integer_division")
 		var mj: float = jerk[jerk.size() / 2]
+		@warning_ignore("integer_division")
 		var ms: float = max(0.0001, float(step[step.size() / 2]))
+		@warning_ignore("integer_division")
 		print("ANIMLAB тряска %s — %s: шаг за кадр %.1f мм, рывок %.2f мм (%.0f%% шага), рывок поворота %.4f рад" % [s["n"], seg, ms * 1000.0, mj * 1000.0, mj / ms * 100.0, float(turn[turn.size() / 2])])
 		# с --fixed-fps число шагов физики на кадр скачет само по себе — плавность оценивается только с ключом --smooth (и без --fixed-fps)
 		if not OS.get_cmdline_user_args().has("--smooth"):
@@ -409,6 +412,7 @@ func _finish(s: Dictionary) -> void:
 	for i in thumbs.size():
 		var im: Image = thumbs[i]
 		im.convert(Image.FORMAT_RGBA8)
+		@warning_ignore("integer_division")
 		sheet.blit_rect(im, Rect2i(0, 0, TW, TH), Vector2i((i % 4) * TW, (i / 4) * TH))
 	sheet.save_png(out.path_join("lab_%s.png" % s["n"]))
 	if s.has("measure"):
@@ -443,18 +447,19 @@ func _on_skel() -> void:
 		if h < 0.03 and prev.has(s) and prev[s] != null:
 			var d := Vector2(a.x - (prev[s] as Vector3).x, a.z - (prev[s] as Vector3).z).length()
 			(meas["slip"] as Array).append(d / (1.0 / 30.0))
-		prev[s] = a if h < 0.03 else null
+		prev[s] = a if h < 0.03 else (null as Variant)
 
-func _measure_report(name: String) -> void:
+func _measure_report(nm: String) -> void:
 	measure_on = false
 	var sk: Skeleton3D = m_who.rig.skel
 	if sk.skeleton_updated.is_connected(_on_skel):
 		sk.skeleton_updated.disconnect(_on_skel)
 	var sl: Array = meas["slip"]
 	sl.sort()
+	@warning_ignore("integer_division")
 	var med: float = sl[sl.size() / 2] if not sl.is_empty() else 0.0
 	var p90: float = sl[int(sl.size() * 0.9)] if not sl.is_empty() else 0.0
-	print("ANIMLAB %s: опорная стопа — медиана %.2f м/с, 90%% кадров < %.2f м/с (кадров опоры %d); ниже пола до %.3f м" % [name, med, p90, sl.size(), meas["pen"]])
+	print("ANIMLAB %s: опорная стопа — медиана %.2f м/с, 90%% кадров < %.2f м/с (кадров опоры %d); ниже пола до %.3f м" % [nm, med, p90, sl.size(), meas["pen"]])
 	# стоя стопа неподвижна и так, поэтому мерило — 90-й процентиль: он ловит скольжение на старте, остановке и повороте
-	ok(p90 < 0.25, "%s: опорная стопа не скользит (90%% кадров < %.2f м/с)" % [name, p90])
-	ok(float(meas["pen"]) > -0.04, "%s: стопы не уходят под пол (%.3f м)" % [name, meas["pen"]])
+	ok(p90 < 0.25, "%s: опорная стопа не скользит (90%% кадров < %.2f м/с)" % [nm, p90])
+	ok(float(meas["pen"]) > -0.04, "%s: стопы не уходят под пол (%.3f м)" % [nm, meas["pen"]])
