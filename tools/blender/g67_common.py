@@ -560,12 +560,26 @@ def export(name, objs):
     return path
 
 
+MOVABLE = ("btn8", "knob", "antenna", "lid", "hose", "seat", "cass_door")
+
+
+def _merge_static(name, objs):
+    """Неподвижные части — в одну сетку (один вызов отрисовки вместо сотен), подвижные остаются отдельными узлами"""
+    stat = [o for o in objs if o.name.split(".")[0] not in MOVABLE]
+    mov = [o for o in objs if o.name.split(".")[0] in MOVABLE]
+    if len(stat) > 1:
+        stat = [join(name, stat)]
+    return stat + mov
+
+
 def finish(name, objs, views, size=1024, do_export=True):
     """Запечь, посчитать треугольники, отрендерить (до экспорта: рендер идёт с запечённым материалом) и экспортировать"""
     if os.environ.get("G67_FAST"):
+        objs = _merge_static(name, objs)
         per = sorted(((tris([o]), o.name) for o in objs), reverse=True)
         print("G67MODEL быстрый просмотр", name, "всего", sum(p[0] for p in per), per[:10])
         return 0
+    objs = _merge_static(name, objs)
     bake_atlas(objs, name, size)
     n = tris(objs)
     paths = render(name, views)

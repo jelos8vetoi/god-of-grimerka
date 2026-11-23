@@ -2720,6 +2720,8 @@ func _life15(g, G: Golda67, P) -> void:
 	yl.next_audible = 9999.0
 	await _life15b(g, G, P)
 	await _life15c(g, G, P)
+	await _voice3d_check(g, G, P)
+	await _model_shots(g, G, P)
 	P.global_position = Vector3(0, 0.05, 25)
 
 func _keys_of(v, depth := 0) -> Array:
@@ -2735,6 +2737,63 @@ func _keys_of(v, depth := 0) -> Array:
 
 func _cam_shot_look(g, name: String, pos: Vector3, node: Node3D, dy := 1.2) -> void:
 	await _cam_shot(g, name, pos, node.global_position + Vector3(0, dy, 0))
+
+## ДВОР 1.5: снимки с моделями на местах и фасадов других домов
+func _model_shots(g, G: Golda67, P) -> void:
+	var yd = G.world.yard
+	await _cam_shot(g, "mdl_podezd_intercom", Vector3(-0.2, 1.7, 31.6), Vector3(-1.4, 1.2, 35.0))
+	await _cam_shot(g, "mdl_podezd_door_canopy", Vector3(0.0, 1.9, 29.0), Vector3(0.0, 2.2, 35.0))
+	await _cam_shot(g, "mdl_garage_workbench", Vector3(-35.0, 1.7, -2.2), Vector3(-39.2, 0.9, -2.2))
+	await _cam_shot(g, "mdl_garage_radio", Vector3(-38.8, 1.4, 4.8), Vector3(-42.4, 0.5, 4.8))
+	await _cam_shot(g, "mdl_garage_box", Vector3(-37.2, 1.4, -3.2), Vector3(-40.6, 0.3, -3.2))
+	await _cam_shot(g, "mdl_garage_puhosos", Vector3(-35.2, 1.6, 8.0), Vector3(-39.0, 0.5, 8.0))
+	await _cam_shot(g, "mdl_playground_swing", Vector3(-1.5, 1.7, -8.0), Vector3(-1.5, 1.2, -12.5))
+	await _cam_shot(g, "mdl_playground_poster", Vector3(6.5, 1.5, -10.0), Vector3(9.7, 1.3, -10.0))
+	await _cam_shot(g, "mdl_playground_carpet", Vector3(-4.0, 1.8, 7.0), Vector3(-7.0, 1.3, 3.6))
+	await _cam_shot(g, "mdl_gazebo_table", Vector3(-21.5, 1.9, -28.5), Vector3(-24.2, 0.9, -31.4))
+	await _cam_shot(g, "mdl_shovel_roof", Vector3(-36.0, 1.8, -8.5), Vector3(-43.9, 3.0, -6.6))
+	var k := 0
+	for fc in yd.house_facades:
+		if k >= 6:
+			break
+		var n: Vector3 = fc["n"]
+		var mid: float = (float(fc["t0"]) + float(fc["t1"])) * 0.5
+		var wp := Vector3(float(fc["wall"]), 6.0, mid) if bool(fc["along_x"]) else Vector3(mid, 6.0, float(fc["wall"]))
+		await _cam_shot(g, "mdl_house_%d" % k, wp + n * 17.0 + Vector3(0, -2.5, 0), wp)
+		k += 1
+
+## ДВОР 1.5: голос у пузыря — играет позиционно, на 20 м не слышен (реплика не берётся)
+func _voice3d_check(g, G: Golda67, P) -> void:
+	var bk: G67Barks = G.barks_get()
+	var bab: G67Resident = G.world.yard.residents["g67_npc_babushka"]
+	var line := "BB|Гуля-гуля-гуля… Жрите, власть вы моя."
+	ok(G67Voice.path(line) != "", "голос: у строки бабушки есть готовый файл")
+	bk.last_any = -100.0
+	bk.last_line = {}
+	P.global_position = (bab.rig as Node3D).global_position + Vector3(4.0, 0.05, 0.0)
+	for c in bk.get_children():
+		if c is AudioStreamPlayer3D:
+			c.queue_free()
+	var said: bool = bk.say(bab.rig, line, {"force": true})
+	await wait(0.2)
+	var ap: AudioStreamPlayer3D = null
+	for c in bk.get_children():
+		if c is AudioStreamPlayer3D:
+			ap = c
+	ok(said and ap != null and ap.stream != null and ap.playing, "голос: AudioStreamPlayer3D играет (поток %s, шина %s, max_distance %.0f)" % [str(ap != null and ap.stream != null), str(ap.bus) if ap != null else "-", ap.max_distance if ap != null else 0.0])
+	P.global_position = (bab.rig as Node3D).global_position + Vector3(20.0, 0.05, 0.0)
+	bk.last_any = -100.0
+	bk.last_line = {}
+	var n0 := 0
+	for c in bk.get_children():
+		if c is AudioStreamPlayer3D:
+			n0 += 1
+	var far_said: bool = bk.say(bab.rig, line, {})
+	var n1 := 0
+	for c in bk.get_children():
+		if c is AudioStreamPlayer3D:
+			n1 += 1
+	ok(not far_said and n1 == n0, "голос: на 20 м реплика жителя не берётся и не звучит")
 
 ## ДВОР 1.5, часть 3: снимки действий, точный hush, filyai, проходы
 func _life15c(g, G: Golda67, P) -> void:
@@ -3219,10 +3278,16 @@ func _marks_contrast(g, G: Golda67) -> void:
 			oc.look_at(spot, Vector3.UP)
 			await wait(0.4)
 			var img0: Image = g.get_viewport().get_texture().get_image()
-			var zn: Dictionary = g.fx.zone(spot, 2.0, Color(1.0, 0.16, 0.08))
-			await wait(0.4)
+			g.telegraph(spot, 2.0, 8.0, 0.0, null)
+			await wait(1.8)
 			var img1: Image = g.get_viewport().get_texture().get_image()
-			(zn["n"] as Node3D).queue_free()
+			if zid in ["garages", "gazebo"]:
+				await shot("mark_%s_%s" % [zid, "dark" if spot == dark else "lit"])
+			for zz in g.zones.duplicate():
+				if String(zz.get("kind", "")) == "tele":
+					g.zones.erase(zz)
+					if zz.has("n") and is_instance_valid(zz["n"]):
+						(zz["n"] as Node3D).queue_free()
 			var sc: Vector2 = oc.unproject_position(spot)
 			var edge: Vector2 = oc.unproject_position(spot + Vector3(2.0, 0, 0))
 			var rpx := absf(edge.x - sc.x)

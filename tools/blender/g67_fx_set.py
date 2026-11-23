@@ -62,6 +62,19 @@ def balcony_a(M):
     for sx in (0.0, 0.1):
         P.append(C.box("ski", (0.06, 0.012, 1.45), (0.55 + sx, -0.12, 0.85), rot=(R(3), R(4), 0), bevel=0.003, m=M["blue"], seg=1))
     P.append(C.box("crate", (0.5, 0.4, 0.4), (0.2, -0.55, 0.32), rot=(0, 0, R(12)), bevel=0.01, m=M["wood"]))
+    for k in range(11):
+        P.append(C.box("plank", (0.17, 0.012, 0.52), (-W / 2 + 0.15 + k * 0.2, -D + 0.012, 0.12 + 0.27), bevel=0.002, m=M["blue"] if k % 2 == 0 else M["red"], seg=1))
+    P.append(C.box("angle_top", (W - 0.1, 0.05, 0.03), (0, -D + 0.03, 0.12 + 0.555), bevel=0.002, m=M["rust"]))
+    for k in range(3):
+        x = -W / 2 + 0.08 + fw * (k + 0.5)
+        P.append(C.box("fort", (0.26, 0.04, 0.3), (x, -D + 0.035, fz1 - 0.2), bevel=0.003, m=M["frame"], seg=1))
+    P.append(C.box("sled_wall", (0.9, 0.05, 0.3), (-0.55, -0.1, 1.0), rot=(0, 0, R(90) + 0.1), bevel=0.01, m=M["red"]))
+    P.append(C.box("sh1", (0.7, 0.2, 0.025), (0.5, -0.15, 0.9), bevel=0.003, m=M["wood"]))
+    for k in range(4):
+        P.append(C.cyl("jar", 0.04, 0.12, (0.25 + k * 0.1, -0.15, 0.97), verts=10, bevel=0, m=M["glass"]))
+    P.append(C.cyl("antenna", 0.008, 0.9, (-0.9, -0.2, 1.95), verts=6, bevel=0, m=M["iron"]))
+    for k in range(4):
+        P.append(C.box("stain", (0.04 + 0.02 * k, 0.003, 0.5 + 0.12 * k), (-0.9 + k * 0.6, -D + 0.002, 0.12 - 0.1), bevel=0, m=M["stain"], seg=1))
     P.append(C.box("snow_par", (W - 0.14, 0.12, 0.04), (0, -D + 0.035, 0.12 + 0.57), bevel=0.014, m=M["snow"]))
     return P, [((4.0, -4.2, 2.2), (0, -0.45, 0.8)), ((1.2, -2.0, 1.1), (-0.3, -0.5, 0.7))]
 
@@ -96,6 +109,15 @@ def balcony_b(M):
     P.append(C.box("bframe2", (0.5, 0.025, 0.025), (0.03, -0.2, 0.62), rot=(0, R(30), 0), bevel=0.002, m=M["red"], seg=1))
     P.append(C.box("seat", (0.2, 0.07, 0.04), (-0.55, -0.2, 0.9), bevel=0.006, m=M["rubber"]))
     P.append(C.box("bar", (0.07, 0.4, 0.03), (0.4, -0.2, 0.95), bevel=0.003, m=M["iron"]))
+    for k in range(9):
+        P.append(C.box("slate", (0.2, 0.012, 0.6), (-W / 2 + 0.15 + k * 0.245, -D + 0.012 + (0.006 if k % 2 else 0.0), 0.42), bevel=0.002, m=M["conc2"], seg=1))
+    for k in range(12):
+        P.append(C.box("peg", (0.012, 0.012, 0.04), (-0.85 + k * 0.15, -0.2, 1.64 - 0.02 * abs(k - 5.5) * 0.05), bevel=0, m=M["wood"], seg=1))
+    P.append(C.box("soil_box", (0.7, 0.18, 0.16), (0.55, -D + 0.12, 0.2), bevel=0.01, m=M["wood"]))
+    P.append(C.box("soil", (0.66, 0.15, 0.03), (0.55, -D + 0.12, 0.29), bevel=0.005, m=M["stain"]))
+    P.append(C.cyl("antenna2", 0.008, 0.8, (0.9, -0.25, 1.5), verts=6, bevel=0, m=M["iron"]))
+    for k in range(3):
+        P.append(C.box("stain", (0.05, 0.003, 0.6), (-0.7 + k * 0.7, 0.002, 0.2), bevel=0, m=M["stain"], seg=1))
     P.append(C.box("snow_rail", (W, 0.09, 0.03), (0, -D + 0.03, 1.13), bevel=0.012, m=M["snow"]))
     return P, [((3.8, -4.0, 2.4), (0, -0.4, 0.8)), ((1.4, -1.8, 1.1), (-0.2, -0.3, 0.8))]
 

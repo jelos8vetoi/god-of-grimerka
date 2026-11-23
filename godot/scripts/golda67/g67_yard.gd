@@ -943,6 +943,8 @@ const FX_DEPTH := {"g67_fx_balcony_a": 0.9, "g67_fx_balcony_b": 0.85, "g67_fx_ac
 ## веса набора на дом: балкон А, балкон Б, кондиционер, тарелка
 const FX_STYLES := [[0.5, 0.1, 0.08, 0.06], [0.08, 0.45, 0.06, 0.1], [0.1, 0.1, 0.3, 0.3], [0.25, 0.25, 0.1, 0.1], [0.05, 0.05, 0.4, 0.35], [0.35, 0.05, 0.15, 0.2], [0.12, 0.4, 0.12, 0.05], [0.2, 0.2, 0.2, 0.2]]
 var fx_count := {}
+var house_facades: Array = []
+var windows_extended := false
 var house_log: Array = []
 
 func _node_aabb(n: Node) -> AABB:
@@ -1029,6 +1031,7 @@ func _house_fx() -> void:
 				var pole_b := dp + n * 1.25 - (Vector3(0, 0, 1) if along_x else Vector3(1, 0, 0)) * 0.95
 				_pillar(pole_a, 0.05, 2.3)
 				_pillar(pole_b, 0.05, 2.3)
+		house_facades.append({"wall": wall, "n": n, "along_x": along_x, "t0": t0, "t1": t1, "floors": floors, "seed": idx})
 		house_log.append([String(h.name), n, floors])
 		idx += 1
 
@@ -1462,6 +1465,39 @@ var facade_nodes: Array = []
 var smoke_nodes: Array = []
 var sign_texts: Array = []
 
+## Живые окна на всех фасадах, обращённых во двор: те же кванты и состояния, что у дома Пахана, достраиваются в тот же MultiMesh
+func _extend_windows() -> void:
+	if windows_extended or win_mm == null or house_facades.is_empty():
+		return
+	windows_extended = true
+	var mm: MultiMesh = win_mm.multimesh
+	var xf: Array = []
+	var cols: Array = []
+	for i in mm.instance_count:
+		xf.append(mm.get_instance_transform(i))
+		cols.append(mm.get_instance_color(i))
+	for fc in house_facades:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 4400 + int(fc["seed"]) * 17
+		var n: Vector3 = fc["n"]
+		var basis := Basis(Vector3.UP, atan2(n.x, n.z))
+		var t: float = float(fc["t0"]) + rng.randf_range(0.0, 1.5)
+		while t < float(fc["t1"]):
+			for fl in int(fc["floors"]):
+				if rng.randf() > 0.42:
+					continue
+				var kind := "warm" if rng.randf() < 0.45 else ("tv" if rng.randf() < 0.5 else "dark")
+				var st := {"kind": kind, "a": 1.0 if kind != "dark" else 0.0, "to": 1.0 if kind != "dark" else 0.0, "ph": rng.randf() * TAU}
+				var wp := Vector3(float(fc["wall"]), 1.6 + 3.0 * fl, t) if bool(fc["along_x"]) else Vector3(t, 1.6 + 3.0 * fl, float(fc["wall"]))
+				xf.append(Transform3D(basis, wp + n * 0.1))
+				win_state.append(st)
+				cols.append(_win_col(st))
+			t += 3.6
+	mm.instance_count = xf.size()
+	for i in xf.size():
+		mm.set_instance_transform(i, xf[i])
+		mm.set_instance_color(i, cols[i])
+
 func _facade_life() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 3535
@@ -1867,6 +1903,7 @@ func _zone_sport() -> void:
 	_life_signs()
 	_door_lamps()
 	_facade_life()
+	_extend_windows()
 	# мачты с прожекторами по углам — свет на лёд, длинные тени
 	for c in [Vector3(x0 - 0.9, 0, z0 - 0.9), Vector3(x1 + 0.9, 0, z0 - 0.9), Vector3(x0 - 0.9, 0, z1 + 0.9), Vector3(x1 + 0.9, 0, z1 + 0.9)]:
 		if _own("g67_floodlight_mast", c, atan2(2.0 - c.x, -38.0 - c.z), 8.6, "h", false) == null:

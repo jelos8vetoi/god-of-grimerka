@@ -11,8 +11,8 @@ R = math.radians
 C.reset()
 M = {
     "wood": C.mat("wood", (0.5, 0.36, 0.2), under=(0.34, 0.24, 0.13), wear=0.4, dirt=1.0, rough=0.85, scale=30, grain=(0.1, 1.0, 1.0)),
-    "tank": C.mat("tank", (0.93, 0.94, 0.92), under=(0.36, 0.17, 0.08), wear=0.33, dirt=0.8, rough=0.3, scale=11),
-    "motor": C.mat("motor", (0.85, 0.42, 0.06), under=(0.35, 0.16, 0.06), wear=0.55, dirt=1.0, rough=0.5, scale=45),
+    "tank": C.mat("tank", (0.98, 0.98, 0.96), under=(0.07, 0.07, 0.08), wear=0.22, dirt=0.35, rough=0.22, scale=11, streaks=0.0),
+    "motor": C.mat("motor", (0.6, 0.3, 0.08), under=(0.3, 0.14, 0.06), wear=0.5, dirt=1.0, rough=0.5, scale=25),
     "steel": C.mat("steel", (0.55, 0.56, 0.58), under=(0.4, 0.2, 0.1), wear=0.5, dirt=0.9, rough=0.4, scale=45),
     "zinc": C.mat("zinc", (0.6, 0.62, 0.65), under=(0.42, 0.22, 0.12), wear=0.45, dirt=1.0, rough=0.4, scale=30),
     "pipe": C.mat("pipe", (0.32, 0.18, 0.12), under=(0.3, 0.14, 0.07), wear=0.6, dirt=1.0, rough=0.55, scale=30),
@@ -75,7 +75,10 @@ for sx in (-0.275, -0.005):
     P.append(C.cyl("plate_rivet", 0.005, 0.004, (sx, -0.2265, 0.56), rot=(R(90), 0, 0), verts=8, bevel=0, m=M["steel"]))
 
 # мотор от «Дружбы»: оранжевый кожух, воздушный фильтр, ручка стартёра
-P.append(C.box("motor", (0.22, 0.2, 0.2), (0.3, 0.1, 0.33), bevel=0.012, m=M["motor"]))
+P.append(C.cyl("motor", 0.095, 0.26, (0.3, 0.1, 0.33), rot=(0, R(90), 0), verts=16, bevel=0.004, m=M["steel"]))
+for k in range(7):
+    P.append(C.cyl("cfin%d" % k, 0.115, 0.012, (0.2 + k * 0.035, 0.1, 0.33), rot=(0, R(90), 0), verts=16, bevel=0, m=M["steel"]))
+P.append(C.box("fuel", (0.12, 0.1, 0.1), (0.3, 0.1, 0.46), bevel=0.01, m=M["motor"]))
 P.append(C.cyl("fan", 0.085, 0.07, (0.42, 0.1, 0.34), rot=(0, R(90), 0), verts=14, bevel=0.004, m=M["steel"]))
 P.append(C.cyl("filter", 0.055, 0.07, (0.3, 0.1, 0.46), verts=12, bevel=0.005, m=M["zinc"]))
 P.append(C.cyl("starter", 0.03, 0.035, (0.3, 0.215, 0.36), rot=(R(90), 0, 0), verts=10, bevel=0.004, m=M["rubber"]))
@@ -101,20 +104,24 @@ P.append(neck)
 bag = C.sphere("bag", 0.15, (0.27, -0.17, 0.3), scale=(0.5, 0.12, 1.35), seg=14, m=M["cloth"])
 bag.rotation_euler = (0, R(6), 0)
 P.append(bag)
+for k, (dx, dz, sx, sz) in enumerate(((0.05, 0.08, 0.35, 0.8), (-0.05, -0.05, 0.3, 0.9), (0.08, -0.12, 0.28, 0.7), (-0.02, 0.15, 0.3, 0.6))):
+    P.append(C.sphere("fold%d" % k, 0.12, (0.27 + dx, -0.17 + (k - 1.5) * 0.012, 0.3 + dz), scale=(sx, 0.1, sz * 1.0), seg=10, m=M["cloth"]))
 P.append(C.torus("bag_clamp", 0.043, 0.008, (0.215, -0.16, 0.5), rot=(0, R(90), 0), ms=12, mn=4, m=M["steel"]))
 P.append(C.torus("bag_tape", 0.043, 0.012, (0.235, -0.16, 0.5), rot=(0, R(90), 0), ms=12, mn=4, m=M["tape"]))
 
 # гофрошланг (узел hose, ось у бака) с воронкой из ведра
 hpts = [(-0.14, -0.27, 0.43), (-0.2, -0.45, 0.35), (-0.33, -0.55, 0.22), (-0.48, -0.62, 0.17)]
 hose_parts = [C.cable("hose_tube", hpts, r=0.031, m=M["hosec"], res=6)]
-for k in range(10):
-    t = k / 9.0
-    # точка на ломаной с кубическим сглаживанием
-    seg_i = min(2, int(t * 3))
-    u = t * 3 - seg_i
-    a, b = hpts[seg_i], hpts[seg_i + 1]
-    p = [a[i] + (b[i] - a[i]) * u for i in range(3)]
-    hose_parts.append(C.torus("hrib%d" % k, 0.031, 0.0065, tuple(p), rot=(R(90), 0, R(35)), ms=10, mn=4, m=M["hosec"]))
+def _cr(p0, p1, p2, p3, t):
+    return [0.5 * ((2 * p1[a]) + (-p0[a] + p2[a]) * t + (2 * p0[a] - 5 * p1[a] + 4 * p2[a] - p3[a]) * t * t + (-p0[a] + 3 * p1[a] - 3 * p2[a] + p3[a]) * t ** 3) for a in range(3)]
+
+
+ext = [hpts[0]] + hpts + [hpts[-1]]
+for k in range(16):
+    t = k / 15.0 * 3.0
+    s_i = min(2, int(t))
+    pt = _cr(ext[s_i], ext[s_i + 1], ext[s_i + 2], ext[s_i + 3], t - s_i)
+    hose_parts.append(C.torus("hrib%d" % k, 0.031, 0.0065, tuple(pt), rot=(R(90), 0, R(35)), ms=10, mn=4, m=M["hosec"]))
 funnel = C.cyl("funnel", 0.045, 0.22, (-0.56, -0.66, 0.11), rot=(R(18), 0, R(8)), verts=18, bevel=0.005, m=M["zinc"], r2=0.17)
 hose_parts.append(funnel)
 hose_parts.append(C.torus("funnel_rim", 0.17, 0.011, (-0.585, -0.775, 0.215), rot=(R(18), 0, R(8)), ms=18, mn=5, m=M["zinc"]))

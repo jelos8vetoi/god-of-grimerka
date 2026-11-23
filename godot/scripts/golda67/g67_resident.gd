@@ -406,3 +406,9 @@ func use() -> void:
 	if G67Yard.secret_tag:
 		pool.append_array(G67LifeData.BARKS[id]["win"])
 	bk.say(rig, bk.pick(id + "_use", pool), {"force": true, "dur": 5.0})
+	var dir = g.game.main.audio.director
+	if dir != null:
+		dir.enter_dialogue(rig, "talk")                # музыка чуть тише на время разговора
+		get_tree().create_timer(5.0).timeout.connect(func():
+			if dir != null and is_instance_valid(rig):
+				dir.leave_dialogue(rig))
