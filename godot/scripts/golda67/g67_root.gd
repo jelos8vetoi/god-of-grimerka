@@ -405,6 +405,40 @@ func _court_tick() -> void:
 
 var court_toast_ms := -100000
 
+# ---------------------------------------------------------------- переход ДВОР → ПОДЗЕМКА
+## Спуск по лестнице под аркой дома № 81. Решётка открыта после первой победы над Мишей (флаг boss_misha).
+## Переход — загрузкой: шторка, новый мир Подземки, при первом спуске — её вступительный ролик AD02 (его показывает enter_room).
+## Сам переход повторяет точку «descent» прежнего двора: забег двора заканчивается, начинается забег района ПОДЗЕМКА.
+var descending := false
+
+func _descent_tick() -> void:
+	var dv: G67Dvor2 = world.dvor
+	if dv == null or descending or busy or not dv.gate_open or room_state != "open" or game.over:
+		return
+	var pp: Vector3 = game.player.global_position
+	var bt: Vector3 = dv.stairs_bottom()
+	if pp.y < -4.2 and Vector2(pp.x - bt.x, pp.z - bt.z).length() < 2.6:
+		descend()
+
+func descend() -> void:
+	if descending or busy:
+		return
+	descending = true
+	flush_coins()
+	events.append(["descent"])
+	var fx = game.main.intro_fx if game.main != null else null
+	if fx != null and game.main.user_play():
+		await fx.cover("ПОДЗЕМКА", "район 2 · вход платный, выход дороже")
+	if not is_instance_valid(self):
+		return
+	data["run"] = {}
+	await start_run("podzemka")
+	descending = false
+	if fx != null and game.main.user_play():
+		for i in 3:
+			await game.get_tree().process_frame
+		fx.reveal()
+
 func _enter_boss_dvor2() -> void:
 	busy = true
 	var dv: G67Dvor2 = world.dvor
@@ -506,7 +540,7 @@ func start_run(district_id := "dvor") -> void:
 	unlock_clip("CL01")                      # «КАК ЗАЙТИ ВО ДВОР» — в архив после входа во ДВОР
 	apply_fits()
 	wind_used = false
-	if not old_yard:
+	if not old_yard and district_id != "podzemka":
 		_start_dvor2(false)
 		return
 	_build_yard_world()
@@ -571,7 +605,7 @@ func resume_run() -> void:
 	game.buddy.visible = false
 	game.buddy.global_position = Vector3(0, -50, 0)
 	wind_used = false
-	if not old_yard:
+	if not old_yard and String(run.get("district", "dvor")) != "podzemka":
 		apply_fits()
 		game.player.hp = clampf(float(sv.get("hp", game.player.max_hp)), 1.0, game.player.max_hp)
 		_start_dvor2(true)
@@ -4464,6 +4498,7 @@ func _physics_process(dt: float) -> void:
 		_coins_tick(dt)
 		_second_wind()
 		_court_tick()
+		_descent_tick()
 	elif place == "run" and not busy and not game.over and not run.is_empty():
 		if room_state == "fight":
 			_fight_tick(dt)

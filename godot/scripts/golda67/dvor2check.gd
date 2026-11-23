@@ -301,6 +301,34 @@ func _run() -> void:
 	ok(G.turf.encs.all(func(e): return String(e["state"]) == "post") and g.enemies.size() == 14, "в новом забеге все группы снова на постах")
 	ok(G.world.dvor.gate_open, "решётка остаётся открытой в следующих забегах")
 	ok(int(G.run["golda"]) == 0, "голда прошлого забега сгорела")
+	# ================= спуск в ПОДЗЕМКУ =================
+	var top: Vector3 = G.world.dvor.stairs_top()
+	P.global_position = top + Vector3(-2.0, 0.05, 0)
+	await wait(0.3)
+	ok(G.room_state == "open" and not G.descending, "у открытой решётки забег идёт как обычно")
+	var bt: Vector3 = G.world.dvor.stairs_bottom()
+	for i in 900:
+		var dd: Vector3 = bt - P.global_position
+		if dd.length() < 0.6 or G.descending:
+			break
+		P.global_position += dd.normalized() * minf(dd.length(), 7.0 / 60.0)
+		P.velocity = Vector3.ZERO
+		await get_tree().physics_frame
+	var went: bool = await until(func(): return String(G.run.get("district", "")) == "podzemka", 30.0)
+	await until(func(): return not G.descending, 60.0)      # при первом спуске идёт вступительный ролик Подземки
+	ok(went, "спустился по лестнице под аркой — начался забег района ПОДЗЕМКА")
+	await wait(1.0)
+	ok(G.world.dvor == null and worlds() == 0, "двор выгружен: в памяти только Подземка")
+	ok(G.world.district != null and G67District.is_podzemka(), "мир — Подземка Devin")
+	ok(G.turf == null, "территории двора выключены")
+	ok(P.global_position.distance_to(G67Podzemka.STAIRS_TOP) < 6.0, "герой стоит у спуска Подземки (%.1f м от верха её лестницы)" % P.global_position.distance_to(G67Podzemka.STAIRS_TOP))
+	await shot("a10_podzemka")
+	# кадр ниже по лестнице Подземки, камерой за спиной героя — что мир на месте
+	P.global_position = G67Podzemka.STAIRS_TOP + Vector3(0, -2.0, -8.0)
+	P.face = PI
+	g.cam_yaw = 0.0
+	await wait(1.5)
+	await shot("a11_podzemka_stairs")
 	for p in KEEP:
 		var now = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
 		ok(now == kept[p], "файл игрока не тронут: " + p.get_file())
