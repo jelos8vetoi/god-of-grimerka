@@ -13,7 +13,7 @@ var P
 ## хребет и ветки: списки путевых точек (x, z)
 const RIDGE := [[0, 2], [0, -8], [0, -20], [0, -35], [0, -52], [0, -79], [0, -100], [0, -122], [0, -140], [0, -160], [0, -168], [0, -179]]
 const BRANCHES := {
-	"arcade": [[0, -122], [-14, -122], [-30, -122], [-41, -128], [-41, -136], [-41, -128], [-30, -122]],
+	"arcade": [[0, -122], [-14, -122], [-30, -122], [-41, -122], [-41, -128], [-41, -136], [-41, -128], [-41, -122], [-30, -122]],
 	"casino": [[-30, -122], [-46, -122], [-50, -122]],
 	"staff": [[0, -145], [-13, -145], [-20, -145]],
 	"tunnel_loop": [[0, -122], [14, -122], [38, -122], [42, -135], [42, -148], [42, -168], [20, -168], [10, -168], [8, -164], [8, -150]],
@@ -164,6 +164,7 @@ func run(g_, G_: Golda67) -> void:
 	print("GOLDA67CHECK   ПОДЗЕМКА длина хребта %.0f м, хребет + ветки %.0f м, шагом %.0f с" % [_path_len(RIDGE), total, walk_s])
 	await _shots()
 	await _enemy_shots()
+	await _dark_shots()
 	await _routes()
 	await _full_run()
 	await _save_resume()
@@ -331,12 +332,25 @@ func _decor_checks(pz: G67Podzemka, space: PhysicsDirectSpaceState3D) -> void:
 		if not have.has(String(sg[0])):
 			lost.append(String(sg[0]))
 	ok(lost.is_empty(), "надписи раздела 7 на месте (%d из %d, нет: %s)" % [G67Podzemka.SIGNS.size() - lost.size(), G67Podzemka.SIGNS.size(), str(lost.slice(0, 3))])
+	var mirrored: Array = []
+	for lb in pz.sign_nodes:
+		var lab := lb as Label3D
+		var rid: String = pz.room_at(Vector3(lab.position.x, 0.5, lab.position.z))
+		if rid == "" or lab.double_sided:
+			continue
+		var rr: Array = G67Podzemka.ROOMS[rid]
+		var to := Vector3((float(rr[0]) + float(rr[1])) * 0.5 - lab.position.x, 0.0, (float(rr[2]) + float(rr[3])) * 0.5 - lab.position.z)
+		var nrm: Vector3 = lab.global_transform.basis.z
+		if to.length() > 1.2 and nrm.dot(to.normalized()) < 0.0:
+			mirrored.append(lab.text.left(24))
+	ok(mirrored.is_empty(), "надписи читаются из помещения, зеркальных нет (%d, например %s)" % [mirrored.size(), str(mirrored.slice(0, 3))])
 	# предметы с коллизией: луч на высоте 0,7 м с трёх метров в центр упирается близко к предмету
 	var thru := 0
-	for pr in G67Podzemka.PROPS:
+	for pr in pz.all_props_cache:
 		if not bool(pr[6]):
 			continue
-		var ctr := G67Podzemka.fit(Vector3(float(pr[1]), 0.7 + float(pr[4]), float(pr[2])))
+		var raw := Vector3(float(pr[1]), 0.7 + float(pr[4]), float(pr[2]))
+		var ctr: Vector3 = raw if pr.size() > 7 else G67Podzemka.fit(raw)
 		var hit_any := false
 		for dv in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]:
 			var q := PhysicsRayQueryParameters3D.create(ctr + dv * 3.0, ctr)
@@ -541,3 +555,25 @@ func _enemy_shots() -> void:
 			await c._cam_shot(g, "pz_foe_%s_%d" % [sp[0], k], camp, tgt)
 		ok(en.rig.has_clip(String(sp[1])) and en.rig.has_clip(String(sp[2])) and en.rig.has_clip(String(sp[3])), "враг %s: клипы стойки, атаки и гибели есть, рост %.2f" % [sp[0], h])
 	c._kill_all(g)
+
+## Метки атак в самом тёмном месте (зал автоматов): враги живые, снимки по ходу замаха
+func _dark_shots() -> void:
+	c._kill_all(g)
+	for oe in g.enemies.duplicate():
+		if is_instance_valid(oe):
+			oe.queue_free()
+	await c.wait(0.3)
+	P.global_position = Vector3(-30, 0.05, -121)
+	G.room = {"type": "battle", "place": "arcade"}
+	G.room_state = "fight"
+	G.pending = []
+	G.wave_wait = 999.0
+	G._spawn("bouncer")
+	G._spawn("controller")
+	for k in 5:
+		await c.wait(0.8)
+		await c._cam_shot(g, "pz_dark_%d" % k, P.global_position + Vector3(0, 3.4, 5.5), P.global_position + Vector3(0, 0.4, -1.0))
+	c._kill_all(g)
+	for oe in g.enemies.duplicate():
+		if is_instance_valid(oe):
+			oe.queue_free()

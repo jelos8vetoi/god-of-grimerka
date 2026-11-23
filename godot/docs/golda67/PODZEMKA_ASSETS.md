@@ -92,3 +92,9 @@
 | скамья | `sf_bench` | Wooden Park Bench (TheMadraver) | 714 | 2 | простая деревянная |
 
 Не нашли годного / оставлено нашим: ларёк шаурмы и телефонов (наши вывески и наполнение), касса-щит, табло, колесо, хомячья стена, тоннель, быт комнаты персонала. Заменённые Blender-версии удалены из `assets/golda67/podzemka/`.
+
+## Передача 46: художественный проход (наполнение, свет)
+
+Новые модели Sketchfab (все CC-BY; в таблице авторство — см. `godot/docs/CREDITS_SKETCHFAB.md`): `sf_stall` Vietnamese Meat Market stall (Khoa Nguyen, 3689 тр.), `sf_boxes` CC0 Cardboard Box Closed (plaggy, 180), `sf_pallet` Wooden pallet (BlackMike, 304), `sf_extinguisher` psx fire extinguisher (Brainsick Games, 214), `sf_trash` Old Soviet Trash Can (Unka II, 116), `sf_hamster` Hamster (myuseum3, 660), `sf_sofa` Dream On low poly sofa (L_Krajewski, 1876), `sf_mop` Mop with Bucket (BrightMoon, 464). Фруктовый павильон, стойка с вешалками, панель и «трубы» удалены (не подошли). Ларёк `sf_kiosk_a` — без надписи над крышей; турникет `sf_turnstile` — трипод отдельным узлом `turnstile_arm` (3,5 тыс. тр. с рычагом).
+
+Экземпляры: ларьки в галерее 24 (плотный ряд обеих сторон), игровые автоматы 24 (два острова спина к спине), турникеты 22, паллеты 10, коробки 18, мусорки 6, хомяки 6, прочее по 1–3.

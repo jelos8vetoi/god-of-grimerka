@@ -25,25 +25,67 @@ for o in objs:
 bpy.context.view_layer.objects.active = objs[0]
 bpy.ops.object.parent_clear(type="CLEAR_KEEP_TRANSFORM")
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+split_key = os.environ.get("SF_SPLIT")
+split_obj = None
+if split_key:
+    sp = [o for o in objs if split_key in o.name]
+    rest = [o for o in objs if split_key not in o.name]
+    if sp and rest:
+        bpy.ops.object.select_all(action="DESELECT")
+        for o in sp:
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = sp[0]
+        if len(sp) > 1:
+            bpy.ops.object.join()
+        split_obj = bpy.context.view_layer.objects.active
+        split_obj.name = os.environ.get("SF_SPLIT_NAME", "split_part")
+        objs = rest
+        bpy.ops.object.select_all(action="DESELECT")
+        for o in objs:
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = objs[0]
 if len(objs) > 1:
     bpy.ops.object.join()
 ob = bpy.context.view_layer.objects.active
 for o in list(bpy.context.scene.objects):
-    if o != ob:
+    if o != ob and o != split_obj:
         bpy.data.objects.remove(o)
-ob.rotation_euler = (0, 0, math.radians(rotz))
+for _o in [ob] + ([split_obj] if split_obj else []):
+    _o.rotation_euler = (0, 0, math.radians(rotz))
+bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+bpy.context.view_layer.objects.active = ob
 mn = Vector((min((ob.matrix_world @ v.co)[i] for v in ob.data.vertices) for i in range(3)))
 mx = Vector((max((ob.matrix_world @ v.co)[i] for v in ob.data.vertices) for i in range(3)))
 size = mx - mn
 dim = {"z": size.z, "x": size.x, "y": size.y}[axis]
 k = height / dim if dim > 1e-6 else 1.0
-ob.scale = (k, k, k)
+for _o in [ob] + ([split_obj] if split_obj else []):
+    _o.scale = (k, k, k)
+bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+bpy.context.view_layer.objects.active = ob
 mn = Vector((min((ob.matrix_world @ v.co)[i] for v in ob.data.vertices) for i in range(3)))
 mx = Vector((max((ob.matrix_world @ v.co)[i] for v in ob.data.vertices) for i in range(3)))
-ob.location = Vector((-(mn.x + mx.x) / 2, -(mn.y + mx.y) / 2, -mn.z))
+for _o in [ob] + ([split_obj] if split_obj else []):
+    _o.location = Vector((-(mn.x + mx.x) / 2, -(mn.y + mx.y) / 2, -mn.z))
+bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+if split_obj:
+    bpy.context.view_layer.objects.active = split_obj
+    bpy.ops.object.select_all(action="DESELECT")
+    split_obj.select_set(True)
+    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="BOUNDS")
+bpy.context.view_layer.objects.active = ob
+cutz = os.environ.get("SF_CUTZ")
+if cutz:
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    kill = [f for f in bm.faces if f.calc_center_median().z > float(cutz)]
+    bmesh.ops.delete(bm, geom=kill, context="FACES")
+    bm.to_mesh(ob.data)
+    bm.free()
 t0 = sum(len(p.vertices) - 2 for p in ob.data.polygons)
 if t0 > tris:
     d = ob.modifiers.new("dec", "DECIMATE")
@@ -63,6 +105,8 @@ views = [((h * 0.9, -h * 2.2, size.z * 0.7), (0, 0, size.z * 0.45)), ((-h * 1.4,
 C.render("sf_" + name, views, ground=True)
 bpy.ops.object.select_all(action="DESELECT")
 ob.select_set(True)
+if split_obj:
+    split_obj.select_set(True)
 bpy.context.view_layer.objects.active = ob
 out = os.path.join(C.OUT, name + ".glb")
 bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", use_selection=True, export_apply=True, export_yup=True, export_image_format="JPEG", export_jpeg_quality=88)

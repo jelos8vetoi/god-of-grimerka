@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c35fxdgocusua"
-path="res://.godot/imported/sf_kiosk_b_Image_0.jpg-51acf61c1db2342cfca24f7db1e2788b.ctex"
+uid="uid://ffhqkls3f10b"
+path="res://.godot/imported/sf_stall_Image_0.jpg-684f5480bb9ae4f8e0f3468c6a75f10f.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "97fc16a9136ecf0633839c6e27c3a6a8"
+"md5": "3567bcea10585e221c85629b8b29dc14"
 }
 
 [deps]
 
-source_file="res://assets/golda67/podzemka/sf_kiosk_b_Image_0.jpg"
-dest_files=["res://.godot/imported/sf_kiosk_b_Image_0.jpg-51acf61c1db2342cfca24f7db1e2788b.ctex"]
+source_file="res://assets/golda67/podzemka/sf_stall_Image_0.jpg"
+dest_files=["res://.godot/imported/sf_stall_Image_0.jpg-684f5480bb9ae4f8e0f3468c6a75f10f.ctex"]
 
 [params]
 

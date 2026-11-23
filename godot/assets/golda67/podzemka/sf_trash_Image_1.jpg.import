@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dvtu7eh7gdv1b"
-path="res://.godot/imported/sf_kiosk_b_Image_2.jpg-e361d14b6f09ae258eb85bb3e7cb54fa.ctex"
+uid="uid://dj3c26agspxpb"
+path="res://.godot/imported/sf_trash_Image_1.jpg-4e2bc6cfc33f51d34822894b8eaf3c23.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "798cc83eadd94f1082bc4ffa1aecc384"
+"md5": "498e23c82ca78a4bcd7ba88e5243b6fc"
 }
 
 [deps]
 
-source_file="res://assets/golda67/podzemka/sf_kiosk_b_Image_2.jpg"
-dest_files=["res://.godot/imported/sf_kiosk_b_Image_2.jpg-e361d14b6f09ae258eb85bb3e7cb54fa.ctex"]
+source_file="res://assets/golda67/podzemka/sf_trash_Image_1.jpg"
+dest_files=["res://.godot/imported/sf_trash_Image_1.jpg-4e2bc6cfc33f51d34822894b8eaf3c23.ctex"]
 
 [params]
 

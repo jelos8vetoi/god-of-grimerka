@@ -442,11 +442,17 @@ func build_podzemka() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.02, 0.03, 0.03)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.5, 0.55, 0.55)
-	env.ambient_light_energy = 0.7
+	env.ambient_light_color = Color(0.45, 0.5, 0.52)
+	env.ambient_light_energy = 0.42
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 0.95
 	env.glow_enabled = true
-	env.glow_intensity = 0.5
+	env.glow_intensity = 0.4
+	env.ssao_enabled = true
+	env.ssao_intensity = 1.5
+	env.fog_enabled = true
+	env.fog_light_color = Color(0.1, 0.13, 0.13)
+	env.fog_density = 0.012
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)

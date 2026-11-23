@@ -163,6 +163,7 @@ var mat_conc: StandardMaterial3D
 var mat_earth: StandardMaterial3D
 var wall_count := 0
 var lamp_pts: Array = []
+var lamp_dead: Array = []
 var use_modules := false
 var mods := {}              # id модуля → [mesh, смещение узла в сцене]
 var mod_xf := {}            # id модуля → [Transform3D] для MultiMesh
@@ -305,14 +306,27 @@ func _collider(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
 	add_child(sb)
 
 func _lamps(id: String, x0: float, x1: float, z0: float, z1: float, y1: float, col: Color) -> void:
-	var nx := maxi(1, int(round((x1 - x0) / 8.0)))
-	var nz := maxi(1, int(round((z1 - z0) / 8.0)))
+	var nx := maxi(1, int(round((x1 - x0) / 10.0)))
+	var nz := maxi(1, int(round((z1 - z0) / 10.0)))
+	var dark_zone: bool = id in ["arcade", "arc_dead", "casino", "hamster"]
+	var tun_zone: bool = id in ["tun_e", "tunnel", "tun_n", "tun_w", "pocket", "tech"]
+	var hard_zone: bool = id in ["cash", "arena", "arena_link"]
 	for i in nx:
 		for j in nz:
+			var hsh := _hash(float(i) * 3.1 + x0, float(j) * 5.7 + z0, 2.0)
+			if (dark_zone and hsh < 0.7) or (tun_zone and hsh < 0.4) or (not hard_zone and not dark_zone and hsh < 0.18):
+				if not (use_modules and i == 0 and j == 0):
+					lamp_dead.append(Vector3(x0 + (float(i) + 0.5) * (x1 - x0) / float(nx), y1 - 0.4, z0 + (float(j) + 0.5) * (z1 - z0) / float(nz)))
+					continue
 			var l := OmniLight3D.new()
-			l.light_color = col
-			l.light_energy = 1.5
-			l.omni_range = 9.0 if y1 < 5.5 else 12.0
+			var warm := _hash(x0 + float(i), z0 + float(j), 7.0)
+			l.light_color = Color(1.0, 0.86, 0.6) if warm < 0.3 else (Color(0.8, 1.0, 0.85) if warm < 0.5 else (Color(1.0, 0.95, 0.5) if tun_zone else col))
+			if hard_zone:
+				l.light_color = Color(1.0, 0.98, 0.9) if warm > 0.3 else Color(1.0, 0.85, 0.35)
+			l.light_energy = 0.12 if dark_zone else (0.45 if tun_zone else (1.0 if hard_zone else 0.85))
+			l.omni_range = (7.0 if y1 < 5.5 else 9.0) if not hard_zone else 13.0
+			if hsh > 0.82 and not hard_zone:
+				flicker.append([l, l.light_energy, hsh * 9.0])
 			l.position = Vector3(x0 + (float(i) + 0.5) * (x1 - x0) / float(nx), y1 - 0.4, z0 + (float(j) + 0.5) * (z1 - z0) / float(nz))
 			l.shadow_enabled = KEY_LAMPS.has(id) and i == 0 and j == 0
 			add_child(l)
@@ -566,8 +580,8 @@ const OWNER_MODELS := {
 ## Посадочные точки слота для корпуса владельца (g67_pz_slot_cabinet): смещения от центра низа корпуса, м (лицо по +Z)
 ## Ассеты Sketchfab (CC0/CC-BY, CREDITS_SKETCHFAB.md): id предмета → файл в podzemka/. Есть файл — ставится вместо Blender-версии в своём размере
 const SF_MODELS := {
-	"turnstile": "sf_turnstile", "kiosk_odds": "sf_kiosk_a", "kiosk_exchange": "sf_kiosk_a", "kiosk_keys": "sf_kiosk_a", "kiosk_socks": "sf_kiosk_b",
-	"vend_drinks": "sf_vend_a", "vend_snacks": "sf_vend_b", "vend_change": "sf_vend_c", "vend_broken": "sf_vend_d", "arcade_a": "sf_arcade_a", "arcade_b": "sf_arcade_b", "booth": "sf_booth", "storage": "sf_lockers", "bench": "sf_bench",
+	"turnstile": "sf_turnstile", "kiosk_odds": "sf_kiosk_a", "kiosk_exchange": "sf_kiosk_a", "kiosk_keys": "sf_kiosk_a", "kiosk_socks": "sf_kiosk_a", "stall": "sf_stall", "boxes": "sf_boxes", "pallet": "sf_pallet", "extinguisher": "sf_extinguisher", "trash": "sf_trash",
+	"vend_drinks": "sf_vend_a", "vend_snacks": "sf_vend_b", "vend_change": "sf_vend_c", "vend_broken": "sf_vend_d", "arcade_a": "sf_arcade_a", "arcade_b": "sf_arcade_b", "booth": "sf_booth", "sofa": "sf_sofa", "mop": "sf_mop", "hamster_a": "sf_hamster", "hamster_b": "sf_hamster", "hamster_c": "sf_hamster", "storage": "sf_lockers", "bench": "sf_bench",
 }
 const SLOT_SOCKETS := {"screen_w": 1.04, "screen": Vector3(0.0, 1.143, 0.345), "screen_tilt": -9.0, "button": Vector3(0.454, 0.684, 0.41), "lamp_x": 0.643, "lamp_z0": 0.69, "lamp_z1": 1.51, "lamp_front": 0.32, "board": Vector3(-0.3, 1.45, 0.45), "jackpot": Vector3(0.3, 1.45, 0.45), "cabinet_height": 2.2}
 
@@ -592,7 +606,8 @@ func _fit_owner(inst: Node3D, height: float) -> void:
 	inst.position -= Vector3(bb.get_center().x, bb.position.y, bb.get_center().z) * k
 
 func _decorate() -> void:
-	for pr in PROPS:
+	all_props_cache = _all_props()
+	for pr in all_props_cache:
 		var path := PROP_PATH + String(pr[0]) + ".glb"
 		var owner_h := 0.0
 		if OWNER_MODELS.has(String(pr[0])):
@@ -610,7 +625,7 @@ func _decorate() -> void:
 		var inst: Node3D = (load(path) as PackedScene).instantiate()
 		add_child(inst)
 		var sc := float(pr[5])
-		inst.transform = Transform3D(Basis(Vector3.UP, float(pr[3])).scaled_local(Vector3(sc, sc, sc)), fit(Vector3(float(pr[1]), float(pr[4]), float(pr[2]))))
+		inst.transform = Transform3D(Basis(Vector3.UP, float(pr[3])).scaled_local(Vector3(sc, sc, sc)), (Vector3(float(pr[1]), float(pr[4]), float(pr[2])) if pr.size() > 7 else fit(Vector3(float(pr[1]), float(pr[4]), float(pr[2])))))
 		if owner_h > 0.0:
 			var wrap := Node3D.new()
 			wrap.transform = inst.transform
@@ -624,6 +639,16 @@ func _decorate() -> void:
 			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		prop_count += 1
 		inst.name = String(pr[0])
+		if pr.size() > 8 and pr[8] != null:
+			var gl := OmniLight3D.new()
+			gl.light_color = pr[8] as Color
+			gl.light_energy = 0.55
+			gl.omni_range = 2.6
+			gl.position = Vector3(0, 1.3, 0.7)
+			gl.shadow_enabled = false
+			inst.add_child(gl)
+			if _hash(float(pr[1]), float(pr[2]), 4.0) > 0.55:
+				flicker.append([gl, 0.55, float(pr[1]) * 0.7])
 		if String(pr[0]) == "shawarma_spit":
 			spit_node = inst.find_child("spit", true, false) as Node3D
 			for smi in inst.find_children("*", "MeshInstance3D", true, false):
@@ -633,16 +658,16 @@ func _decorate() -> void:
 					if smat != null:
 						smat.emission_enabled = false
 			var wl := OmniLight3D.new()
-			wl.light_color = Color(1.0, 0.75, 0.4)
-			wl.light_energy = 0.55
-			wl.omni_range = 2.2
-			wl.position = Vector3(0.0, 1.3, 0.35)
+			wl.light_color = Color(1.0, 0.93, 0.8)
+			wl.light_energy = 0.7
+			wl.omni_range = 2.4
+			wl.position = Vector3(0.1, 1.9, 0.5)
 			inst.add_child(wl)
 			var rl := OmniLight3D.new()
-			rl.light_color = Color(1.0, 0.15, 0.05)
-			rl.light_energy = 0.22
-			rl.omni_range = 1.0
-			rl.position = Vector3(0.0, 0.55, -0.2)
+			rl.light_color = Color(1.0, 0.45, 0.15)
+			rl.light_energy = 0.12
+			rl.omni_range = 0.9
+			rl.position = Vector3(0.0, 0.7, -0.45)
 			inst.add_child(rl)
 		if String(pr[0]) == "dog":
 			dog_node = inst
@@ -658,6 +683,20 @@ func _decorate() -> void:
 				first = false
 			var cpos := inst.transform * (bb.get_center())
 			_collider(cpos, Vector3(bb.size.x * sc, bb.size.y * sc, bb.size.z * sc), float(pr[3]))
+	for dg in signs_dyn:
+		var lb2 := Label3D.new()
+		lb2.text = String(dg[0])
+		lb2.font_size = 64
+		lb2.pixel_size = 0.0034
+		lb2.modulate = Color(1.0, 0.92, 0.55)
+		lb2.outline_size = 12
+		lb2.outline_modulate = Color(0.1, 0.05, 0.0, 0.9)
+		lb2.shaded = false
+		lb2.double_sided = false
+		lb2.position = dg[1]
+		lb2.rotation.y = float(dg[2])
+		add_child(lb2)
+		sign_nodes.append(lb2)
 	for sg in SIGNS:
 		var lb := Label3D.new()
 		lb.text = String(sg[0])
@@ -670,7 +709,8 @@ func _decorate() -> void:
 		lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lb.shaded = false
 		lb.position = fit(Vector3(float(sg[1]), float(sg[2]), float(sg[3])))
-		lb.rotation.y = float(sg[4])
+		lb.rotation.y = _inward_yaw(lb.position, float(sg[4]))
+		lb.double_sided = false
 		lb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(lb)
 		sign_nodes.append(lb)
@@ -859,3 +899,117 @@ func _dog_anim(dt: float, t: float) -> void:
 	dog_node.position = pos
 	dog_node.rotation = Vector3(pitch, yaw, 0)
 	dog_node.scale = sq
+
+## Поворот надписи так, чтобы она читалась из помещения: нормаль (+Z узла) смотрит к центру комнаты (по ближайшей оси)
+func _inward_yaw(p: Vector3, given: float) -> float:
+	var id := room_at(Vector3(p.x, 0.5, p.z))
+	if id == "":
+		id = room_at(Vector3(p.x, 0.5, p.z - 0.5))
+	if id == "":
+		return given
+	var r: Array = ROOMS[id]
+	var c := Vector2((float(r[0]) + float(r[1])) * 0.5, (float(r[2]) + float(r[3])) * 0.5)
+	var d := Vector2(c.x - p.x, c.y - p.z)
+	if d.length() < 1.2:
+		return given
+	if absf(d.x) > absf(d.y):
+		return PI * 0.5 if d.x > 0.0 else -PI * 0.5
+	return 0.0 if d.y > 0.0 else PI
+
+## Свои ряды и острова (координаты уже новые, без fit): ларьки галереи вплотную, острова автоматов, мелочь. [модель, x, z, yaw, y, масштаб, коллизия, true, свет экрана]
+const KIOSK_CYCLE := ["kiosk_odds", "kiosk_shawarma", "kiosk_keys", "kiosk_phones", "kiosk_exchange", "kiosk_socks"]
+const KIOSK_SIGNS := {"kiosk_odds": "МЕЛОЧИ · ВСЁ ПО 8", "kiosk_keys": "КЛЮЧИ ЗА 8 МИНУТ", "kiosk_exchange": "ОБМЕН · СДАЧА — ПОТОМ", "kiosk_socks": "НОСКИ. БАФЫ."}
+const SCREEN_COLORS := [Color(0.3, 0.9, 1.0), Color(1.0, 0.3, 0.8), Color(0.4, 1.0, 0.5), Color(1.0, 0.8, 0.3), Color(0.5, 0.5, 1.0)]
+
+func _all_props() -> Array:
+	var skip := ["kiosk_odds", "kiosk_exchange", "kiosk_keys", "kiosk_socks", "kiosk_phones", "kiosk_shawarma", "shawarma_spit", "arcade_a", "arcade_b"]
+	var out: Array = []
+	for pr in PROPS:
+		if not String(pr[0]) in skip:
+			out.append(pr)
+	var bulbs: Array = []
+	var k := 0
+	for seg in [[-70.0, -44.0], [-110.0, -88.0]]:
+		var zn: float = float(seg[1]) - 1.8
+		var n := 0
+		while zn - 1.5 > float(seg[0]) + 0.3:
+			for side: float in [-1.0, 1.0]:
+				var door_gap: bool = side < 0.0 and (absf(zn + 48.0) < 3.2 or absf(zn + 104.0) < 3.2)
+				if door_gap:
+					continue
+				var id: String = KIOSK_CYCLE[(k + (0 if side < 0.0 else 3)) % KIOSK_CYCLE.size()]
+				var cx: float = side * (6.25 - (1.15 if id in ["kiosk_shawarma", "kiosk_phones"] else 1.28))
+				var yaw: float = PI * 0.5 if side < 0.0 else -PI * 0.5
+				out.append([id, cx, zn, yaw, 0.0, 1.0, true, true, null])
+				if id == "kiosk_shawarma":
+					out.append(["shawarma_spit", cx - side * 0.55, zn - 0.6, yaw, 1.04, 1.0, false, true, null])
+				if KIOSK_SIGNS.has(id):
+					signs_dyn.append([String(KIOSK_SIGNS[id]), Vector3(cx - side * 1.32, 2.55, zn), yaw])
+				if _hash(cx, zn, 9.0) > 0.45:
+					out.append([["boxes", "pallet", "trash", "boxes"][int(_hash(zn, cx, 3.0) * 4.0) % 4], cx - side * 2.1, zn + 1.0 * side, _hash(cx, zn, 5.0) * 6.0, 0.0, 1.0, false, true, null])
+			# провод-времянка с лампочками поперёк прохода
+			for b in 9:
+				var t := float(b) / 8.0
+				bulbs.append(Vector3(lerpf(-6.0, 6.0, t), 3.4 - sin(t * PI) * -0.25 + 0.0, zn + 1.65))
+			zn -= 3.35
+			k += 1
+			n += 1
+	# острова автоматов зала: спина к спине, два ряда по шесть
+	var zi := 0
+	for zc in [-125.5, -116.5]:
+		for i in 6:
+			var x := -38.0 + float(i) * 2.9
+			var a1: String = "arcade_a" if (i + zi) % 2 == 0 else "arcade_b"
+			var a2: String = "arcade_b" if (i + zi) % 2 == 0 else "arcade_a"
+			var col: Color = SCREEN_COLORS[(i + zi * 2) % SCREEN_COLORS.size()]
+			out.append([a1, x, zc - 0.62, 0.0, 0.0, 1.0, true, true, col if i % 2 == 0 else null])
+			out.append([a2, x, zc + 0.62, PI, 0.0, 1.0, true, true, SCREEN_COLORS[(i + zi + 2) % SCREEN_COLORS.size()] if i % 2 == 1 else null])
+		out.append(["trash", -39.5, zc, 0.0, 0.0, 1.0, false, true, null])
+		zi += 1
+	for zz in [-130.0, -112.0]:
+		out.append(["boxes", -42.0, zz, 0.4, 0.0, 1.0, false, true, null])
+		out.append(["pallet", -41.0, zz + 0.9, 0.0, 0.0, 1.0, false, true, null])
+	# комната персонала, тоннель, техпомещение, хомячья: мелочь
+	out.append(["sofa", -27.1, -145.0, PI * 0.5, 0.0, 1.0, true, true, null])
+	out.append(["mop", -17.6, -149.0, 0.5, 0.0, 1.0, false, true, null])
+	out.append(["boxes", -18.0, -141.0, 0.3, 0.0, 1.0, false, true, null])
+	out.append(["trash", -17.5, -146.0, 0.0, 0.0, 1.0, false, true, null])
+	for tp in [[20.0, -123.4], [28.0, -121.0], [41.5, -131.0], [41.0, -146.5], [18.0, -168.0], [30.0, -169.5]]:
+		out.append(["pallet", tp[0], tp[1], 0.3, 0.0, 1.0, false, true, null])
+		out.append(["boxes", tp[0], tp[1], 0.7, 0.17, 1.0, false, true, null])
+	out.append(["boxes", 33.5, -162.0, 0.4, 0.0, 1.0, false, true, null])
+	out.append(["mop", 31.5, -158.0, 1.0, 0.0, 1.0, false, true, null])
+	for hp in [[46.0, -146.0], [47.5, -143.0], [54.0, -144.5], [56.5, -147.5], [52.0, -142.0], [49.5, -148.5]]:
+		out.append(["hamster_a", hp[0], hp[1], _hash(hp[0], hp[1], 6.0) * 6.0, 0.0, 1.3, false, true, null])
+	out.append(["extinguisher", 2.0, -44.6, 0.0, 0.0, 1.0, false, true, null])
+	out.append(["extinguisher", -17.0, -112.5, 0.0, 0.0, 1.0, false, true, null])
+	_string_bulbs(bulbs)
+	return out
+
+var signs_dyn: Array = []
+var all_props_cache: Array = []
+
+func _string_bulbs(pts: Array) -> void:
+	if pts.is_empty():
+		return
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var sm := SphereMesh.new()
+	sm.radius = 0.06
+	sm.height = 0.12
+	sm.radial_segments = 6
+	sm.rings = 3
+	mm.mesh = sm
+	mm.instance_count = pts.size()
+	for i in pts.size():
+		mm.set_instance_transform(i, Transform3D(Basis(), pts[i]))
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color(1.0, 0.85, 0.5)
+	mt.emission_enabled = true
+	mt.emission = Color(1.0, 0.8, 0.4)
+	mt.emission_energy_multiplier = 2.2
+	sm.material = mt
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)

@@ -154,17 +154,26 @@ def views_floor():
 def floor_dry(m=None):
     m = m or M()
     P = floor_base(m)
-    for i, (x, y) in enumerate(((-1.2, 0.8), (1.0, -1.1), (0.4, 1.4))):
-        P.append(C.cyl("oil%d" % i, 0.22 + 0.05 * i, 0.003, (x, y, 0.003), verts=12, bevel=0, m=m["stain"]))
+    # редкие плитки-заплатки другого оттенка вместо «горошка»
+    for i, (x, y, w, h) in enumerate(((-1.4, 0.9, 0.6, 0.4), (1.2, -1.3, 0.4, 0.5))):
+        P.append(C.box("patch%d" % i, (w, h, 0.004), (x, y, 0.002), rot=(0, 0, R(7 * i + 3)), bevel=0, m=m["stain"], seg=1))
     return P, views_floor()
+
+
+def _blob(P, m, name, cx, cy, parts):
+    for k, (dx, dy, rx, ry, rot) in enumerate(parts):
+        o = C.cyl("%s%d" % (name, k), 1.0, 0.004, (cx + dx, cy + dy, 0.004), verts=14, bevel=0, m=m["puddle"])
+        o.scale = (rx, ry, 1.0)
+        o.rotation_euler = (0, 0, R(rot))
+        P.append(o)
 
 
 def floor_wet(m=None):
     m = m or M()
     P = floor_base(m)
-    P.append(C.cyl("puddle", 1.0, 0.004, (-0.3, 0.2, 0.004), verts=18, bevel=0, m=m["puddle"]))
-    P[-1].scale = (1.0, 0.7, 1.0)
-    P.append(C.cyl("puddle2", 0.45, 0.004, (1.2, -1.0, 0.004), verts=14, bevel=0, m=m["puddle"]))
+    # неправильная лужа из наложенных эллипсов у края плитки и малая под капелью
+    _blob(P, m, "puddle", -0.9, 0.4, ((0, 0, 0.9, 0.5, 20), (0.5, 0.25, 0.6, 0.4, -35), (-0.4, -0.3, 0.5, 0.35, 70), (0.9, -0.1, 0.35, 0.22, 10)))
+    _blob(P, m, "drip", 1.3, -1.2, ((0, 0, 0.3, 0.2, 40), (0.2, 0.1, 0.18, 0.12, -20)))
     return P, views_floor()
 
 

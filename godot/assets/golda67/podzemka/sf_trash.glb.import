@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bt310kjdtyaox"
-path="res://.godot/imported/sf_kiosk_b.glb-8ebd413335961b9512d4acea2c289a14.scn"
+uid="uid://c13ejx43d1sm5"
+path="res://.godot/imported/sf_trash.glb-ce6456bc7cc212b1883dba29ff3c6eca.scn"
 
 [deps]
 
-source_file="res://assets/golda67/podzemka/sf_kiosk_b.glb"
-dest_files=["res://.godot/imported/sf_kiosk_b.glb-8ebd413335961b9512d4acea2c289a14.scn"]
+source_file="res://assets/golda67/podzemka/sf_trash.glb"
+dest_files=["res://.godot/imported/sf_trash.glb-ce6456bc7cc212b1883dba29ff3c6eca.scn"]
 
 [params]
 
