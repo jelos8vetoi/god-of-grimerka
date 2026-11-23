@@ -235,6 +235,7 @@ func _box(pos: Vector3, size: Vector3, mat: Material, solid := true) -> void:
 	add_child(mi)
 	if solid:
 		var sb := StaticBody3D.new()
+		sb.collision_layer = 1 | 8      # 8 — слой камеры (SpringArm3D в game.gd): без него камера проходила сквозь стены и потолки
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = size
@@ -302,6 +303,7 @@ func _room(id: String, r: Array) -> void:
 
 func _collider(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
 	var sb := StaticBody3D.new()
+	sb.collision_layer = 1 | 8          # 8 — слой камеры: стены и потолки держат камеру внутри помещения
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
 	bs.size = size

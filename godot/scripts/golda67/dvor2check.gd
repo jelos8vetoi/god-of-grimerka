@@ -301,6 +301,15 @@ func _run() -> void:
 	ok(G.turf.encs.all(func(e): return String(e["state"]) == "post") and g.enemies.size() == 14, "в новом забеге все группы снова на постах")
 	ok(G.world.dvor.gate_open, "решётка остаётся открытой в следующих забегах")
 	ok(int(G.run["golda"]) == 0, "голда прошлого забега сгорела")
+	# ================= бафы перед спуском =================
+	G.take_fit("heavy_hand"); G.take_fit("heavy_hand"); G.take_fit("authority"); G.take_fit("second_wind")
+	await wait(0.3)
+	var fits0: Dictionary = (G.run["fits"] as Dictionary).duplicate(true)
+	var dmg0: float = P.dmg_mul
+	var mhp0: float = P.max_hp
+	var goldc: int = int(G.run["golda"])
+	var enc0: String = JSON.stringify(G.run["enc"])
+	ok(int(fits0.get("heavy_hand", 0)) == 2 and fits0.size() == 3, "перед спуском три бафа, один второго уровня: %s" % str(fits0))
 	# ================= спуск в ПОДЗЕМКУ =================
 	var top: Vector3 = G.world.dvor.stairs_top()
 	P.global_position = top + Vector3(-2.0, 0.05, 0)
@@ -316,12 +325,19 @@ func _run() -> void:
 		await get_tree().physics_frame
 	var went: bool = await until(func(): return String(G.run.get("district", "")) == "podzemka", 30.0)
 	await until(func(): return not G.descending, 60.0)      # при первом спуске идёт вступительный ролик Подземки
+	await wait(0.5)
+	var had_clip: bool = G.clip != null
+	await until(func(): return G.clip == null, 180.0)
+	print("DVOR2CHECK | вступительный ролик при первом спуске: %s" % ("шёл, досмотрен" if had_clip else "не запускался"))
 	ok(went, "спустился по лестнице под аркой — начался забег района ПОДЗЕМКА")
 	await wait(1.0)
 	ok(G.world.dvor == null and worlds() == 0, "двор выгружен: в памяти только Подземка")
 	ok(G.world.district != null and G67District.is_podzemka(), "мир — Подземка Devin")
 	ok(G.turf == null, "территории двора выключены")
 	ok(P.global_position.distance_to(G67Podzemka.STAIRS_TOP) < 6.0, "герой стоит у спуска Подземки (%.1f м от верха её лестницы)" % P.global_position.distance_to(G67Podzemka.STAIRS_TOP))
+	var cams: Array = get_tree().root.find_children("*", "Camera3D", true, false)
+	print("DVOR2CHECK | после спуска: room_state=%s room=%s ворот=%d врагов=%d busy=%s clip=%s scene_t=%.1f" % [G.room_state, str(G.room), G.world.gates.size(), g.enemies.size(), str(G.busy), str(G.clip), G.scene_t])
+	print("DVOR2CHECK | герой %s face=%.2f | камера %s cam_yaw=%.2f cam_len=%.1f spring=%.2f | камер в дереве %d, текущих %d" % [str(P.global_position), P.face, str(g.cam.global_position), g.cam_yaw, g.cam_len, g.spring.get_hit_length(), cams.size(), cams.filter(func(c): return c.current).size()])
 	await shot("a10_podzemka")
 	# кадр ниже по лестнице Подземки, камерой за спиной героя — что мир на месте
 	P.global_position = G67Podzemka.STAIRS_TOP + Vector3(0, -2.0, -8.0)
@@ -329,6 +345,66 @@ func _run() -> void:
 	g.cam_yaw = 0.0
 	await wait(1.5)
 	await shot("a11_podzemka_stairs")
+	# ================= камера и HUD после спуска =================
+	P.global_position = G67Podzemka.STAIRS_TOP
+	P.face = PI
+	g.cam_yaw = 0.0
+	await wait(1.0)
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	var head: Vector3 = P.global_position + Vector3(0, 1.4, 0)
+	var q := PhysicsRayQueryParameters3D.create(head, cam.global_position, 1)
+	q.exclude = [P.get_rid()]
+	var hit: Dictionary = P.get_world_3d().direct_space_state.intersect_ray(q)
+	ok(hit.is_empty(), "между героем и камерой нет стен и перекрытий (камера внутри помещения, %s)" % str(cam.global_position))
+	ok(cam.global_position.distance_to(head) < 6.5 and not cam.is_position_behind(head), "Пахан в кадре, камера не дальше 6,5 м")
+	var hl: String = G.hud_line()
+	ok(not hl.strip_edges().ends_with("ДАЛЬШЕ:") and hl.find("ДАЛЬШЕ: \n") < 0, "пустой строки «ДАЛЬШЕ:» в HUD нет")
+	await shot("a12_pz_spawn")
+	# ================= бафы внизу, сохранение =================
+	var same := func() -> bool: return JSON.stringify(G.run["fits"]) == JSON.stringify(fits0)
+	ok(same.call(), "бафы и уровни внизу те же: %s" % str(G.run["fits"]))
+	ok(is_equal_approx(P.dmg_mul, dmg0) and is_equal_approx(P.max_hp, mhp0), "действие бафов то же: урон ×%.2f, здоровье %d" % [P.dmg_mul, int(P.max_hp)])
+	ok(int(G.run["golda"]) == goldc, "голда при герое: %d" % int(G.run["golda"]))
+	ok(points("to_dvor") == 1 and points("home") == 1, "в Подземке две разные точки: «ВО ДВОР» и «НАВЕРХ, ДОМОЙ»")
+	G._save_run("open")
+	var sv: Dictionary = JSON.parse_string(JSON.stringify(G.data["run"]))
+	var svf: Dictionary = (sv["run"] as Dictionary)["fits"]
+	var eq := svf.size() == fits0.size()
+	for k in fits0:
+		eq = eq and int(svf.get(k, 0)) == int(fits0[k])      # JSON читает числа дробными — сравниваем значения, а не текст
+	ok(eq, "бафы есть в записи забега и читаются из JSON: %s" % str(svf))
+	# ================= обратно во двор =================
+	G.use("to_dvor")
+	var came: bool = await until(func(): return String(G.run.get("district", "")) == "dvor" and G.world.dvor != null and not G.descending, 30.0)
+	ok(came, "«ВО ДВОР»: загружен новый двор")
+	await wait(1.0)
+	ok(worlds() == 1 and not G67District.is_podzemka(), "в памяти один двор, Подземка выгружена")
+	ok(P.global_position.distance_to(G.world.dvor.stairs_top()) < 10.0 and P.global_position.y > -0.5, "герой у решётки под аркой, на земле")
+	ok(G.world.dvor.gate_open, "решётка открыта")
+	ok(same.call() and is_equal_approx(P.dmg_mul, dmg0) and is_equal_approx(P.max_hp, mhp0), "бафы после возвращения те же, действие то же")
+	ok(JSON.stringify(G.run["enc"]) == enc0, "встречи двора в том же состоянии, что до спуска (награды не выдаются заново)")
+	ok(G.turf != null and G.room_state == "open", "территории двора снова работают")
+	await shot("a13_back_dvor")
+	# ================= второй спуск =================
+	var clips0: int = G.events.filter(func(e): return String(e[0]) == "clip").size()
+	G.descend()
+	var again: bool = await until(func(): return String(G.run.get("district", "")) == "podzemka" and not G.descending, 30.0)
+	await wait(1.0)
+	ok(again and same.call() and is_equal_approx(P.dmg_mul, dmg0), "второй спуск: бафы не удвоились и не пропали")
+	ok(G.events.filter(func(e): return String(e[0]) == "clip").size() == clips0, "вступительный ролик второй раз не идёт")
+	# тоннель и зал — кадры
+	for sh in [["a14_pz_gate", G67District.zone_of("gate1")], ["a15_pz_arcade", G67District.zone_of("arcade")]]:
+		var zz: Dictionary = sh[1]
+		if zz.is_empty() or not zz.has("c"):
+			continue
+		P.global_position = (zz["c"] as Vector3) + Vector3(0, 0.1, 0)
+		P.velocity = Vector3.ZERO
+		await wait(1.2)
+		var c2: Camera3D = get_viewport().get_camera_3d()
+		var q2 := PhysicsRayQueryParameters3D.create(P.global_position + Vector3(0, 1.4, 0), c2.global_position, 1)
+		q2.exclude = [P.get_rid()]
+		ok(P.get_world_3d().direct_space_state.intersect_ray(q2).is_empty(), "%s: камера внутри помещения" % String(sh[0]))
+		await shot(String(sh[0]))
 	for p in KEEP:
 		var now = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
 		ok(now == kept[p], "файл игрока не тронут: " + p.get_file())

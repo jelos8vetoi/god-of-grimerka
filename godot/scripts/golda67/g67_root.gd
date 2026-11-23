@@ -357,7 +357,7 @@ func _build_yard_world() -> void:
 ## Герой — у двери дома лицом во двор, камера за спиной
 # ---------------------------------------------------------------- новый ДВОР: забег без ворот и зон (этап A редизайна)
 ## Начать или продолжить забег в новом районе. Мир строится один раз на забег; враги стоят на своих территориях (G67Turf).
-func _start_dvor2(resumed: bool) -> void:
+func _start_dvor2(resumed: bool, from_arch := false) -> void:
 	_swap_world(func(w: G67World): w.build_dvor2())
 	krot_k = {}
 	var p = game.player
@@ -370,6 +370,10 @@ func _start_dvor2(resumed: bool) -> void:
 	p.velocity = Vector3.ZERO
 	p.face = PI                                 # лицом во двор, на север
 	game.cam_yaw = 0.0
+	if from_arch:                               # вернулся из Подземки: у решётки под аркой дома № 81, лицом к коробке (на запад)
+		p.global_position = world.dvor.stairs_top() + Vector3(-8.5, 0.05, 0.0)      # камера за спиной должна остаться снаружи решётки
+		p.face = -PI * 0.5
+		game.cam_yaw = PI * 0.5
 	game.fx.prewarm(p.global_position)
 	room = {}
 	room_state = "open"
@@ -380,7 +384,7 @@ func _start_dvor2(resumed: bool) -> void:
 	if bool(fl.get("boss_misha", false)):
 		world.dvor.open_gate(true)
 	world.dvor.set_court_open(turf.need_done())
-	game.banner("ДВОР", "ЗАБЕГ ПРОДОЛЖАЕТСЯ" if resumed else "микрорайон 67", Color(1.0, 0.8, 0.2), 2.4)
+	game.banner("ДВОР", "ЗАБЕГ ПРОДОЛЖАЕТСЯ" if resumed else ("вернулся из Подземки" if from_arch else "микрорайон 67"), Color(1.0, 0.8, 0.2), 2.4)
 	_save_run("open")
 
 var court_said := false
@@ -431,13 +435,74 @@ func descend() -> void:
 		await fx.cover("ПОДЗЕМКА", "район 2 · вход платный, выход дороже")
 	if not is_instance_valid(self):
 		return
+	var c := carry_out()
 	data["run"] = {}
-	await start_run("podzemka")
+	start_run("podzemka", c)          # без await: первый бой Подземки ждёт, пока герой спустится к турникету, — шторка не должна ждать вместе с ним
+	for i in 4:
+		await game.get_tree().process_frame
 	descending = false
 	if fx != null and game.main.user_play():
-		for i in 3:
-			await game.get_tree().process_frame
 		fx.reveal()
+
+## Обратно: точка «ВО ДВОР» у верха лестницы Подземки. Та же загрузка, что и вниз; герой выходит у решётки под аркой.
+## «НАВЕРХ, ДОМОЙ» (пауза забега и подъезд) остаётся как было.
+func ascend() -> void:
+	if descending or busy or place != "run" or room_state != "open":
+		return
+	descending = true
+	flush_coins()
+	events.append(["ascent"])
+	var fx = game.main.intro_fx if game.main != null else null
+	if fx != null and game.main.user_play():
+		await fx.cover("ДВОР", "микрорайон 67 · арка дома № 81")
+	if not is_instance_valid(self):
+		return
+	var c := carry_out()
+	data["run"] = {}
+	start_run("dvor", c, true)
+	for i in 4:
+		await game.get_tree().process_frame
+	descending = false
+	if fx != null and game.main.user_play():
+		fx.reveal()
+
+## Что герой несёт с собой между районами: бафы с уровнями, артефакты, перевыборы, купленное здоровье, голда и счёт забега.
+## Всё — простые значения (сохраняется в JSON как часть run). Остальное состояние района (встречи, сумки, ларёк, позиция)
+## откладывается в run["other"][район] и возвращается, когда герой приходит обратно, — ничего не выдаётся дважды.
+const CARRY := ["fits", "arts", "rerolls", "maxhp_buys", "golda", "respect", "kills", "earned", "spent", "rooms"]
+const KEEP_DVOR := ["enc", "pos", "stash", "stash_n", "kiosk", "tpl", "stages"]
+var run_tok := 0
+
+func _dup(v):
+	return v.duplicate(true) if (v is Dictionary or v is Array) else v
+
+func carry_out() -> Dictionary:
+	var c := {}
+	var snap := {}
+	for k in run:
+		if k == "other":
+			continue
+		if String(k) in CARRY:
+			c[k] = _dup(run[k])
+		else:
+			snap[k] = _dup(run[k])
+	var other: Dictionary = (run.get("other", {}) as Dictionary).duplicate(true)
+	other[String(run.get("district", "dvor"))] = snap
+	c["other"] = other
+	return c
+
+func _carry_in(c: Dictionary, district_id: String) -> void:
+	for k in CARRY:
+		if c.has(k):
+			run[k] = _dup(c[k])
+	var other: Dictionary = (c.get("other", {}) as Dictionary).duplicate(true)
+	var mine: Dictionary = other.get(district_id, {})
+	other.erase(district_id)
+	run["other"] = other
+	if district_id != "podzemka":
+		for k in KEEP_DVOR:
+			if mine.has(k):
+				run[k] = _dup(mine[k])
 
 func _enter_boss_dvor2() -> void:
 	busy = true
@@ -519,9 +584,10 @@ func hero_fade() -> void:
 			(gi as GeometryInstance3D).transparency = k
 
 ## Начать забег: район ДВОР, первый этап. До первой концовки madk1d остаётся в подъезде (SPEC, раздел 3).
-func start_run(district_id := "dvor") -> void:
+func start_run(district_id := "dvor", carry := {}, from_arch := false) -> void:
 	if busy:
 		return
+	run_tok += 1
 	place = "run"
 	var gold0 := 30 * up("gold")
 	run = {"district": district_id, "tpl": int(meta().get("runs", 0)) % 3, "pos": 0, "golda": gold0, "fits": {}, "respect": 0, "rooms": 0,
@@ -536,12 +602,14 @@ func start_run(district_id := "dvor") -> void:
 	run["stash"] = _stash_plan() if district_id != "podzemka" else {"spots": [], "taken": []}
 	game.buddy.visible = false
 	game.buddy.global_position = Vector3(0, -50, 0)
+	if not carry.is_empty():
+		_carry_in(carry, district_id)
 	events.append(["run", district_id])
 	unlock_clip("CL01")                      # «КАК ЗАЙТИ ВО ДВОР» — в архив после входа во ДВОР
 	apply_fits()
 	wind_used = false
 	if not old_yard and district_id != "podzemka":
-		_start_dvor2(false)
+		_start_dvor2(false, from_arch)
 		return
 	_build_yard_world()
 	_stand_at_home()
@@ -1387,7 +1455,10 @@ func district() -> Dictionary:
 func enter_room(r: Dictionary) -> void:
 	call_deferred("_place_krot_pz")
 	if G67District.is_podzemka() and int(run.get("pos", 1)) == 0 and not clip_seen("AD02") and game.main.user_play():
+		var tok0 := run_tok
 		await play_clip("AD02")          # реклама подземки — при первом спуске, до первого боя
+		if tok0 != run_tok or place != "run" or not G67District.is_podzemka():
+			return          # пока шёл ролик, забег сменился — эта комната уже ничья
 	flush_coins()
 	game.player.collision_mask |= 32          # слой 6: стенка проёма ограждения держит героя, враги проходят
 	_kiosk_hint()
@@ -1418,8 +1489,11 @@ func enter_room(r: Dictionary) -> void:
 			busy = false          # первый бой района — когда герой спустился и вошёл в зону
 			var zc: Vector3 = zone["c"]
 			var zh: Vector2 = zone["h"]
+			var tok := run_tok
 			while absf(game.player.global_position.x - zc.x) > zh.x - 1.5 or absf(game.player.global_position.z - zc.z) > zh.y - 1.5:
 				await game.get_tree().process_frame
+				if tok != run_tok or place != "run" or not G67District.is_podzemka():
+					return          # герой ушёл домой или во двор, не дойдя до турникета: это ожидание больше ничьё
 			busy = true
 		world.bound_zone(zid, true)
 		_keep_inside(zone)
@@ -4336,7 +4410,7 @@ func hud_line() -> String:
 		s += " · врагов: %d" % (alive() + pending.size())
 	if not arts().is_empty():
 		s += " · артефактов %d/%d" % [arts().size(), slots()]
-	if room_state == "open" and world != null:
+	if room_state == "open" and world != null and next_line() != "":
 		s += "\n" + next_line()
 	return s
 
@@ -4350,6 +4424,8 @@ func next_line() -> String:
 			parts.append("КОРОБКА — %s" % String(G67Data.ROOM_HINT["boss"]))
 		else:
 			parts.append("%s — %s" % [String(G67District.zone_of(String(o.get("place", "")))["name"]).to_upper(), String(G67Data.ROOM_NAMES[type])])
+	if parts.is_empty():
+		return ""                  # вариантов нет (например, сразу после спуска) — пустую строку «ДАЛЬШЕ:» не показываем
 	return "ДАЛЬШЕ: " + " · ".join(parts)
 
 ## Подсказки предметов подъезда по состоянию: сервант, дверь, стойка стилей, карта
@@ -4566,6 +4642,11 @@ func use(id: String) -> void:
 				game.toast("Сначала закончи этап")
 		else:
 			game.toast("Закрыто. Миша не разрешал")
+	elif id == "to_dvor":
+		if room_state == "open":
+			ascend()
+		else:
+			game.toast("Сначала разберись с этими")
 	elif id == "home":
 		if room_state == "open":
 			go_home()
