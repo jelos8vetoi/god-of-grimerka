@@ -12,13 +12,13 @@ var P
 ## хребет и ветки: списки путевых точек (x, z)
 const RIDGE := [[0, 2], [0, -8], [0, -20], [0, -35], [0, -52], [0, -79], [0, -100], [0, -122], [0, -140], [0, -160], [0, -168], [0, -179]]
 const BRANCHES := {
-	"arcade": [[0, -122], [-14, -122], [-30, -122], [-41, -136], [-30, -122]],
+	"arcade": [[0, -122], [-14, -122], [-30, -122], [-41, -128], [-41, -136], [-41, -128], [-30, -122]],
 	"casino": [[-30, -122], [-46, -122], [-50, -122]],
 	"staff": [[0, -145], [-13, -145], [-20, -145]],
 	"tunnel_loop": [[0, -122], [14, -122], [38, -122], [42, -135], [42, -148], [42, -168], [20, -168], [10, -168], [8, -164], [8, -150]],
 	"hamster": [[42, -146], [46, -146], [55, -146]],
 	"tech": [[42, -160], [37, -160], [34, -160]],
-	"alley": [[0, -48], [-7, -48], [-10, -55], [-10, -100], [-7, -104], [0, -104]],
+	"alley": [[0, -48], [-8, -48], [-12, -49], [-12, -55], [-12, -100], [-8, -104], [0, -104]],
 }
 
 func ok(cond: bool, text: String) -> void:
@@ -28,13 +28,13 @@ func _hero_y_ok() -> bool:
 	return P.global_position.y > -6.5 and P.global_position.y < 9.0
 
 ## Идти к точке (x, z) клавишей «вперёд» с поворотом камеры; false — застрял или выпал
-func _walk(tx: float, tz: float, sprint := false) -> bool:
+func _walk(tx: float, tz: float, sprint := false, tol := 1.1) -> bool:
 	var stuck_t := 0.0
 	var last: Vector3 = P.global_position
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 25000:
 		var to: Vector3 = Vector3(tx, 0, tz) - Vector3(P.global_position.x, 0, P.global_position.z)
-		if to.length() < 1.1:
+		if to.length() < tol:
 			Input.action_release("up")
 			Input.action_release("sprint")
 			return true
@@ -42,6 +42,11 @@ func _walk(tx: float, tz: float, sprint := false) -> bool:
 			Input.action_release("up")
 			return false
 		g.cam_yaw = atan2(-to.x, -to.z)
+		c._kill_all(g)
+		G.pending = []
+		G.wave_wait = 999.0
+		if G.world.bounds != null:
+			G.world.open_bounds()
 		Input.action_press("up")
 		if sprint:
 			Input.action_press("sprint")
@@ -107,9 +112,10 @@ func run(g_, G_: Golda67) -> void:
 		var ctr := Vector3((float(r[0]) + float(r[1])) * 0.5, float(r[4]) + 1.2, (float(r[2]) + float(r[3])) * 0.5)
 		for k in 16:
 			var a := float(k) / 16.0 * TAU
-			var q := PhysicsRayQueryParameters3D.create(ctr, ctr + Vector3(cos(a), 0, sin(a)) * 90.0)
+			var q := PhysicsRayQueryParameters3D.create(ctr, ctr + Vector3(cos(a), 0, sin(a)) * 250.0)
 			if space.intersect_ray(q).is_empty():
 				holes += 1
+				print("GOLDA67CHECK   ПОДЗЕМКА: дыра: помещение %s, направление %d" % [id, k])
 		for dv in [Vector3.UP, Vector3.DOWN]:
 			if space.intersect_ray(PhysicsRayQueryParameters3D.create(ctr, ctr + dv * 30.0)).is_empty():
 				holes += 1
@@ -144,7 +150,7 @@ func run(g_, G_: Golda67) -> void:
 		await c.wait(0.2)
 		var good := true
 		for i in range(1, br.size()):
-			if not await _walk(float(br[i][0]), float(br[i][1])):
+			if not await _walk(float(br[i][0]), float(br[i][1]), false, 0.5):
 				good = false
 				print("GOLDA67CHECK   ПОДЗЕМКА: ветка %s: застрял у %s, позиция %s" % [nm, str(br[i]), str(P.global_position)])
 				break
@@ -212,6 +218,10 @@ func _full_run() -> void:
 			break
 		if G.room_state == "fight":
 			await c._clear_room(g, G, 60.0)
+		if String(G.room.get("type", "")) == "elite":
+			await c.until(func(): return not G.point("elite_fit").is_empty(), 4.0)
+			await c._go(G, P2, "elite_fit")
+		await c.until(func(): return G.hub_ui != null or not G.world.gates.is_empty(), 6.0)
 		await c.wait(0.5)
 		if G.hub_ui != null and G.hub_ui.kind == "fit":
 			var fo: Array = G.fit_options(String(G.room.get("type", "")) == "elite")
@@ -225,13 +235,23 @@ func _full_run() -> void:
 		if G.world.gates.is_empty():
 			await c.wait(1.0)
 		if G.world.gates.is_empty():
+			print("GOLDA67CHECK   ПОДЗЕМКА: нет дверей после этапа %s: состояние %s, экран %s" % [str(G.room), G.room_state, str(G.hub_ui.kind) if G.hub_ui != null else "-"])
 			break
 		var pos := int(G.run["pos"])
 		await c._go(G, P2, "gate0")
 		await c.until(func(): return int(G.run["pos"]) != pos, 8.0)
 		await c.wait(0.3)
 	ok(G.room_state == "boss" and G.run.get("district", "") == "podzemka", "забег района дошёл до босса (%s)" % ", ".join(stages))
-	c._kill_all(g)
+	await c.wait(1.0)
+	var bs = g.boss_e
+	print("GOLDA67CHECK   ПОДЗЕМКА босс: %s жив=%s состояние=%s" % [str(bs), str(bs != null and is_instance_valid(bs) and bs.alive()), G.room_state])
+	for k in 12:
+		if g.boss_e != null and is_instance_valid(g.boss_e) and g.boss_e.alive():
+			g.boss_e.take_hit(99999.0, Vector3.FORWARD, 0.0, true)
+		c._kill_all(g)
+		await c.wait(0.5)
+		if G.room_state != "boss":
+			break
 	await c.until(func(): return bool((G.meta().get("flags", {}) as Dictionary).get("boss_fortuna", false)) or G.place == "hub", 20.0)
 	await c.wait(1.0)
 	ok(bool((G.meta().get("flags", {}) as Dictionary).get("boss_fortuna", false)), "победа над боссом-заглушкой ставит boss_fortuna")

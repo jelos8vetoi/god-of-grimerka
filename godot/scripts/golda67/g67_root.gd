@@ -317,6 +317,7 @@ func apply_styles() -> void:
 func _build_pz_world() -> void:
 	_swap_world(func(w: G67World): w.build_podzemka())
 	krot_k = {}
+	stash_nodes = {}
 	world.district.hero = game.player
 
 func _build_yard_world() -> void:
@@ -407,7 +408,7 @@ func start_run(district_id := "dvor") -> void:
 	wind_used = false
 	_build_yard_world()
 	_stand_at_home()
-	await enter_room({"type": "battle", "place": "podezd"})
+	await enter_room({"type": "battle", "place": "gate1" if district_id == "podzemka" else "podezd"})
 
 ## Домой посреди забега: дверь подъезда во дворе (между этапами, вне боя). Забег — в сохранение (data["run"]:
 ## забег, этап, здоровье, состояние), в подъезде он стоит на паузе; выход во двор продолжает его с двери подъезда —
@@ -749,6 +750,13 @@ func enter_room(r: Dictionary) -> void:
 		game.cam_yaw = 0.0
 		game.fx.prewarm(p.global_position)
 	elif type in ["battle", "elite", "ambush"]:
+		if pz and int(run["pos"]) == 0:
+			busy = false          # первый бой района — когда герой спустился и вошёл в зону
+			var zc: Vector3 = zone["c"]
+			var zh: Vector2 = zone["h"]
+			while absf(game.player.global_position.x - zc.x) > zh.x - 1.5 or absf(game.player.global_position.z - zc.z) > zh.y - 1.5:
+				await game.get_tree().process_frame
+			busy = true
 		world.bound_zone(zid, true)
 		_keep_inside(zone)
 	events.append(["room", type])
