@@ -204,8 +204,9 @@ def kiosk_shawarma():
     PR.kiosk_frame(m, P)
     PR.sign(P, m, "ШАУРМА 812", 2.4, 0.45, (0, -1.6, 2.5), bg="red", fg="ink", glow=True)
     # вертел на прилавке справа, нагреватель за ним
-    P += meat_cone(m, 0.55, -0.7, 1.12, rng)
-    P += heater(m, 0.55, -0.7, 1.55)
+    if os.environ.get("G67_OWN_MEAT"):
+        P += meat_cone(m, 0.55, -0.7, 1.12, rng)
+        P += heater(m, 0.55, -0.7, 1.55)
     P += slicer(m, 0.05, -0.55, 1.4)
     # лаваш, нарезка, соусы, готовые шаурмы
     P += lavash(m, -0.95, -0.75, 1.045, rng)
@@ -221,9 +222,6 @@ def kiosk_shawarma():
         P.append(C.box("price%d" % i, (0.2, 0.01, 0.1), (-0.3 + i * 0.25, -1.05, 1.18), bevel=0, m=m["yellow"], seg=1))
         P.append(C.text("pt%d" % i, ("67", "6,7", "812")[i], 0.07, (-0.3 + i * 0.25, -1.058, 1.18), rot=(R(90), 0, 0), font=C.FONT_IMPACT, extrude=0, m=m["ink"]))
     P.append(C.box("napk", (0.12, 0.1, 0.1), (0.85, -0.95, 1.09), bevel=0.006, m=m["paper"]))
-    # защитное стекло и жирные пятна
-    P.append(C.box("sneeze", (2.4, 0.01, 0.5), (0, -1.0, 1.4), rot=(R(-10), 0, 0), bevel=0, m=m["glassm"], seg=1))
-    P += grease(m, 0.0, -1.012, 1.38, rng)
     return P, PR.views()
 
 

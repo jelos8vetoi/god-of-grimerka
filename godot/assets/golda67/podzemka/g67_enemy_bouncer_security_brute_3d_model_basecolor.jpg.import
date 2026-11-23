@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dnhguut2p15j5"
-path="res://.godot/imported/g67_pz_dog_g67_pz_dog_n.png-2a509d9b2255670b372eb41ae38fb206.ctex"
+uid="uid://42ak21gbr0s3"
+path="res://.godot/imported/g67_enemy_bouncer_security_brute_3d_model_basecolor.jpg-6d0b2b9d52915382b339ad3e6fec4f57.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "474a22f158562da90b469c75c5152109"
+"md5": "b827e674551a8b7d313c32c3740f21bf"
 }
 
 [deps]
 
-source_file="res://assets/golda67/podzemka/g67_pz_dog_g67_pz_dog_n.png"
-dest_files=["res://.godot/imported/g67_pz_dog_g67_pz_dog_n.png-2a509d9b2255670b372eb41ae38fb206.ctex"]
+source_file="res://assets/golda67/podzemka/g67_enemy_bouncer_security_brute_3d_model_basecolor.jpg"
+dest_files=["res://.godot/imported/g67_enemy_bouncer_security_brute_3d_model_basecolor.jpg-6d0b2b9d52915382b339ad3e6fec4f57.ctex"]
 
 [params]
 

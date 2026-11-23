@@ -163,6 +163,7 @@ func run(g_, G_: Golda67) -> void:
 		ok(good, "ветка «%s» пройдена ногами (%.0f м)" % [nm, _path_len(br)])
 	print("GOLDA67CHECK   ПОДЗЕМКА длина хребта %.0f м, хребет + ветки %.0f м, шагом %.0f с" % [_path_len(RIDGE), total, walk_s])
 	await _shots()
+	await _enemy_shots()
 	await _routes()
 	await _full_run()
 	await _save_resume()
@@ -204,8 +205,8 @@ func _shots() -> void:
 		["pz_kiosk_socks", Vector3(0.2, 1.6, -66.4), Vector3(-3.7, 1.3, -66.0)], ["pz_cross", Vector3(0, 2.2, -112), Vector3(0, 1.5, -131)],
 		["pz_arcade", Vector3(-16.6, 2.0, -123.0), Vector3(-31.0, 1.2, -118.0)], ["pz_tunnel", Vector3(14, 1.7, -122), Vector3(36, 1.5, -122)],
 		["pz_hamster_door", Vector3(37.5, 1.7, -144.0), Vector3(44.0, 1.8, -146.0)], ["pz_hamster_city", Vector3(47.0, 1.9, -141.5), Vector3(51.5, 1.9, -152.5)],
-		["pz_casino_door", Vector3(-30.0, 1.7, -126.5), Vector3(-43.5, 1.5, -129.0)], ["pz_slot_3m", Vector3(-49.8, 1.6, -121.5), Vector3(-53.0, 1.1, -122.0)],
-		["pz_slot_1m", Vector3(-52.0, 1.3, -121.8), Vector3(-53.0, 1.1, -122.0)], ["pz_dog", Vector3(-46.0, 1.1, -119.5), Vector3(-48.0, 0.45, -121.0)],
+		["pz_casino_door", Vector3(-30.0, 1.7, -126.5), Vector3(-43.5, 1.5, -129.0)], ["pz_slot_3m", Vector3(-49.6, 1.5, -122.0), Vector3(-52.5, 1.15, -122.0)],
+		["pz_slot_1m", Vector3(-51.55, 1.3, -122.0), Vector3(-52.55, 1.15, -122.0)], ["pz_dog", Vector3(-45.5, 1.0, -121.0), Vector3(-48.0, 0.5, -121.0)], ["pz_dog34", Vector3(-46.5, 1.2, -118.8), Vector3(-48.0, 0.5, -121.0)], ["pz_spit", Vector3(-0.4, 1.7, -54.6), Vector3(-2.85, 1.5, -54.6)],
 		["pz_cash", Vector3(0, 2.4, -138), Vector3(0, 2.5, -160)], ["pz_arena", Vector3(0, 3.0, -172), Vector3(0, 1.5, -186)],
 		["pz_staff", Vector3(-15.0, 1.7, -145.0), Vector3(-24.0, 1.2, -145.0)],
 	]
@@ -503,3 +504,40 @@ func _slot_checks() -> void:
 	await c.wait(0.6)
 	sc.get_viewport().get_texture().get_image().save_png(out + "jackpot.png")
 	ok(true, "снимки слота: " + out + "{rest,spin,jackpot}.png")
+
+## Снимки врагов в игре: стойка, атака, гибель (клипы PzC*/PzP*/PzB*)
+func _enemy_shots() -> void:
+	var spec := [["controller", "PzCStance", "PzCStrike", "PzCDeath"], ["promoter", "PzPStance", "PzPThrow", "PzPDeath"], ["bouncer", "PzBStance", "PzBOver", "PzBDeath"]]
+	for sp in spec:
+		c._kill_all(g)
+		for oe in g.enemies.duplicate():
+			if is_instance_valid(oe):
+				oe.queue_free()
+		await c.wait(0.3)
+		G.room = {"type": "battle", "place": "gate1"}
+		G.room_state = "fight"
+		G.pending = []
+		G.wave_wait = 999.0
+		G._spawn(String(sp[0]))
+		await c.wait(0.4)
+		var en = null
+		for e in g.enemies:
+			if is_instance_valid(e) and String(e.get_meta("foe", "")) == String(sp[0]):
+				en = e
+		if en == null:
+			ok(false, "снимок врага %s: враг не появился" % sp[0])
+			continue
+		en.set_physics_process(false)
+		en.global_position = Vector3(0, 0.05, -34)
+		en.rotation.y = PI
+		en.face = PI
+		var h: float = float(en.height)
+		var camp := Vector3(0.0, h * 0.62, -34.0 + h * 2.1)
+		var tgt := Vector3(0.0, h * 0.5, -34.0)
+		for k in 3:
+			en.rig.play(String(sp[1 + k]), 0.05)
+			en.rig.flash(0.0)
+			await c.wait(0.45 if k < 2 else 1.9)
+			await c._cam_shot(g, "pz_foe_%s_%d" % [sp[0], k], camp, tgt)
+		ok(en.rig.has_clip(String(sp[1])) and en.rig.has_clip(String(sp[2])) and en.rig.has_clip(String(sp[3])), "враг %s: клипы стойки, атаки и гибели есть, рост %.2f" % [sp[0], h])
+	c._kill_all(g)

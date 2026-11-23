@@ -101,7 +101,16 @@ var flicker: Array = []
 var prop_count := 0
 var slot_screen: G67SlotScreen = null
 var slot_vp: SubViewport = null
-const SLOT_POS := Vector3(-53.0, 0.0, -122.0)
+var slot_button: MeshInstance3D = null
+var dog_node: Node3D = null
+var spit_node: Node3D = null
+var dog_yaw := 0.0
+var dog_base := Vector3.ZERO
+var dog_bark_t := -1.0
+var dog_joy_t := -1.0
+var dog_next_bark := 4.0
+var slot_lamps: Array = []
+const SLOT_POS := Vector3(-52.9, 0.0, -122.0)
 const SLOT_YAW := PI * 0.5
 var room_of_prop := {}
 const MOD := "res://assets/golda67/podzemka/g67_pz_"
@@ -414,7 +423,7 @@ const PROPS := [
 	["booth", 7.3, -36.0, -PI * 0.5, 0.0, 1.0, true],
 	["turnstile", -5.0, -36.0, 0.0, 0.0, 1.0, true], ["turnstile", -2.6, -36.0, 0.0, 0.0, 1.0, true], ["turnstile", 2.6, -36.0, 0.0, 0.0, 1.0, true], ["turnstile", 5.0, -36.0, 0.0, 0.0, 1.0, true],
 	["tariff_board", -6.0, -43.4, 0.0, 1.5, 0.8, false], ["queue_stand", -7.0, -30.0, 0.0, 0.0, 1.0, true], ["queue_stand", -5.5, -30.0, 0.0, 0.0, 1.0, true],
-	["kiosk_shawarma", -3.7, -54.0, PI * 0.5, 0.0, 1.0, true], ["kiosk_phones", -3.7, -60.0, PI * 0.5, 0.0, 1.0, true], ["kiosk_socks", -3.7, -66.0, PI * 0.5, 0.0, 1.0, true],
+	["kiosk_shawarma", -3.7, -54.0, PI * 0.5, 0.0, 1.0, true], ["shawarma_spit", -2.85, -54.6, PI * 0.5, 1.04, 1.0, false], ["kiosk_phones", -3.7, -60.0, PI * 0.5, 0.0, 1.0, true], ["kiosk_socks", -3.7, -66.0, PI * 0.5, 0.0, 1.0, true],
 	["kiosk_keys", 3.7, -54.0, -PI * 0.5, 0.0, 1.0, true], ["kiosk_odds", 3.7, -60.0, -PI * 0.5, 0.0, 1.0, true], ["kiosk_exchange", 3.7, -66.0, -PI * 0.5, 0.0, 1.0, true],
 	["kiosk_socks", -3.7, -93.0, PI * 0.5, 0.0, 1.0, true], ["kiosk_phones", -3.7, -99.0, PI * 0.5, 0.0, 1.0, true],
 	["kiosk_shawarma", 3.7, -93.0, -PI * 0.5, 0.0, 1.0, true], ["kiosk_odds", 3.7, -99.0, -PI * 0.5, 0.0, 1.0, true],
@@ -426,7 +435,7 @@ const PROPS := [
 	["arcade_a", -28.0, -115.4, 0.0, 0.0, 1.0, true], ["arcade_b", -31.0, -115.4, 0.0, 0.0, 1.0, true], ["arcade_a", -34.0, -115.4, 0.0, 0.0, 1.0, true],
 	["arcade_b", -20.0, -128.6, PI, 0.0, 1.0, true], ["arcade_a", -23.5, -128.6, PI, 0.0, 1.0, true], ["arcade_b", -27.0, -128.6, PI, 0.0, 1.0, true], ["arcade_a", -30.5, -128.6, PI, 0.0, 1.0, true], ["arcade_b", -34.0, -128.6, PI, 0.0, 1.0, true], ["arcade_a", -37.5, -128.6, PI, 0.0, 1.0, true],
 	["shutter", -43.5, -129.0, PI * 0.5, 0.0, 1.0, false], ["microwave", -39.0, -113.2, 0.0, 0.8, 1.0, false], ["chess", -40.8, -113.2, 0.0, 0.8, 1.0, false],
-	["slot_machine", -53.0, -122.0, PI * 0.5, 0.0, 1.0, true], ["kennel", -50.5, -124.6, 0.0, 0.0, 1.0, true], ["dog", -48.0, -121.0, PI * 0.5, 0.0, 1.0, true], ["collar67", -52.2, -124.8, 0.0, 0.0, 1.0, false],
+	["slot_machine", -52.9, -122.0, PI * 0.5, 0.0, 1.0, true], ["kennel", -50.5, -124.6, 0.0, 0.0, 1.0, true], ["dog", -48.0, -121.0, PI * 0.5, 0.0, 1.0, true], ["collar67", -52.2, -124.8, 0.0, 0.0, 1.0, false],
 	["door_tech", 43.4, -150.6, -PI * 0.5, 0.0, 1.0, false], ["door_tech", 39.6, -162.5, PI * 0.5, 0.0, 1.0, false],
 	["hamster_wall", 51.5, -152.5, 0.0, 0.0, 1.0, true], ["hamster_props", 49.0, -141.5, 0.0, 0.0, 1.0, false],
 	["hamster_a", 47.5, -150.6, 0.0, 0.9, 1.0, false], ["hamster_b", 50.0, -150.6, 0.0, 0.9, 1.0, false], ["hamster_c", 53.0, -150.6, 0.0, 0.9, 1.0, false], ["hamster_gold", 55.5, -150.6, 0.0, 2.1, 1.0, false],
@@ -476,12 +485,12 @@ const SIGNS := [
 
 ## Модели владельца (Tripo, PODZEMKA_TRIPO_PROMPTS.md): [файл без .glb, высота, м]. Файл есть — ставится вместо Blender-версии с авто-посадкой
 const OWNER_MODELS := {
-	"dog": ["g67_pz_dog", 0.75], "hamster_a": ["g67_pz_hamster", 0.5], "hamster_b": ["g67_pz_hamster", 0.5], "hamster_c": ["g67_pz_hamster", 0.5],
-	"hamster_gold": ["g67_pz_hamster_gold", 0.55], "kennel": ["g67_pz_dog_house", 1.5], "microwave": ["g67_pz_microwave", 0.32],
+	"dog": ["g67_pz_dog", 0.96], "hamster_a": ["g67_pz_hamster", 0.5], "hamster_b": ["g67_pz_hamster", 0.5], "hamster_c": ["g67_pz_hamster", 0.5],
+	"hamster_gold": ["g67_pz_hamster_gold", 0.55], "slot_machine": ["g67_pz_slot_cabinet", 2.2], "shawarma_spit": ["g67_pz_shawarma_spit", 1.0], "kennel": ["g67_pz_dog_house", 1.5], "microwave": ["g67_pz_microwave", 0.32],
 	"arcade_a": ["g67_pz_arcade_machine", 1.8], "arcade_b": ["g67_pz_arcade_machine", 1.8], "vend_drinks": ["g67_pz_vending_drinks", 1.9],
 }
 ## Посадочные точки слота для корпуса владельца (g67_pz_slot_cabinet): смещения от центра низа корпуса, м (лицо по +Z)
-const SLOT_SOCKETS := {"screen_w": 0.96, "screen": Vector3(0.0, 0.95, 0.5), "button": Vector3(0.0, 0.55, 0.55), "board": Vector3(-0.3, 1.45, 0.45), "jackpot": Vector3(0.3, 1.45, 0.45), "cabinet_height": 2.2}
+const SLOT_SOCKETS := {"screen_w": 1.04, "screen": Vector3(0.0, 1.143, 0.345), "screen_tilt": -9.0, "button": Vector3(0.454, 0.684, 0.41), "lamp_x": 0.643, "lamp_z0": 0.69, "lamp_z1": 1.51, "lamp_front": 0.32, "board": Vector3(-0.3, 1.45, 0.45), "jackpot": Vector3(0.3, 1.45, 0.45), "cabinet_height": 2.2}
 
 func _fit_owner(inst: Node3D, height: float) -> void:
 	var bb := AABB()
@@ -532,6 +541,24 @@ func _decorate() -> void:
 			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		prop_count += 1
 		inst.name = String(pr[0])
+		if String(pr[0]) == "shawarma_spit":
+			spit_node = inst.find_child("spit", true, false) as Node3D
+			var wl := OmniLight3D.new()
+			wl.light_color = Color(1.0, 0.75, 0.4)
+			wl.light_energy = 0.55
+			wl.omni_range = 2.2
+			wl.position = Vector3(0.0, 1.3, 0.35)
+			inst.add_child(wl)
+			var rl := OmniLight3D.new()
+			rl.light_color = Color(1.0, 0.15, 0.05)
+			rl.light_energy = 0.45
+			rl.omni_range = 1.2
+			rl.position = Vector3(0.0, 0.55, -0.2)
+			inst.add_child(rl)
+		if String(pr[0]) == "dog":
+			dog_node = inst
+			dog_yaw = float(pr[3])
+			dog_base = inst.position
 		if bool(pr[6]):
 			var bb := AABB()
 			var first := true
@@ -563,8 +590,8 @@ func _decorate() -> void:
 func _zone_lights() -> void:
 	var spots := [
 		[Vector3(0, 7.5, 3), Color(0.55, 0.7, 1.0), 2.5, 10.0], [Vector3(0, 1.8, -17), Color(0.3, 1.0, 0.4), 2.2, 7.0],
-		[Vector3(-30, 2.6, -122), Color(0.3, 0.8, 1.0), 1.6, 12.0], [Vector3(-26, 2.6, -118), Color(1.0, 0.3, 0.8), 1.6, 10.0],
-		[Vector3(-50, 2.0, -122), Color(1.0, 0.25, 0.7), 3.5, 9.0], [Vector3(-48, 2.2, -121), Color(0.2, 0.9, 1.0), 2.5, 8.0],
+		[Vector3(-30, 2.6, -122), Color(0.3, 0.8, 1.0), 1.0, 12.0], [Vector3(-26, 2.6, -118), Color(1.0, 0.3, 0.8), 1.0, 10.0],
+		[Vector3(-50, 2.0, -122), Color(1.0, 0.25, 0.7), 1.1, 8.0], [Vector3(-48, 2.2, -121), Color(0.2, 0.9, 1.0), 0.7, 6.0],
 		[Vector3(51, 2.5, -146), Color(1.0, 0.65, 0.3), 2.4, 12.0], [Vector3(0, 3.5, -179), Color(1.0, 0.95, 0.7), 3.0, 18.0],
 		[Vector3(0, 3.0, -150), Color(1.0, 0.95, 0.7), 2.5, 16.0],
 	]
@@ -612,6 +639,15 @@ func _zone_lights() -> void:
 
 func _process(_dt: float) -> void:
 	var t := Time.get_ticks_msec() * 0.001
+	_dog_anim(_dt, t)
+	if spit_node != null and is_instance_valid(spit_node):
+		spit_node.rotate_y(_dt * 0.55)
+	for lp in slot_lamps:
+		var on := (int(t * 3.0) + int(lp[2])) % 2 == 0
+		(lp[1] as StandardMaterial3D).emission_energy_multiplier = 2.4 if on else 0.15
+	if slot_button != null:
+		var pressed: bool = slot_screen != null and slot_screen.spinning
+		slot_button.scale.y = 0.55 if pressed else 1.0
 	for f in flicker:
 		var l: OmniLight3D = f[0]
 		var ph := float(f[2])
@@ -632,6 +668,11 @@ func _slot_screen() -> void:
 	add_child(slot_vp)
 	slot_screen = G67SlotScreen.new()
 	slot_vp.add_child(slot_screen)
+	slot_screen.finished.connect(func(r: Dictionary):
+		if bool(r["jackpot"]):
+			dog_joy()
+		elif int(r["gold"]) > 0:
+			dog_bark())
 	var q := MeshInstance3D.new()
 	var qm := QuadMesh.new()
 	qm.size = Vector2(SLOT_SOCKETS["screen_w"], SLOT_SOCKETS["screen_w"] * 586.0 / 1024.0)
@@ -642,6 +683,90 @@ func _slot_screen() -> void:
 	q.material_override = mt
 	q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var sk: Vector3 = SLOT_SOCKETS["screen"]
-	q.transform = Transform3D(Basis(Vector3.UP, SLOT_YAW), SLOT_POS + Basis(Vector3.UP, SLOT_YAW) * sk)
+	q.transform = Transform3D(Basis(Vector3.UP, SLOT_YAW) * Basis(Vector3.RIGHT, deg_to_rad(float(SLOT_SOCKETS["screen_tilt"]))), SLOT_POS + Basis(Vector3.UP, SLOT_YAW) * sk)
 	q.name = "slot_screen_quad"
 	add_child(q)
+	var yb := Basis(Vector3.UP, SLOT_YAW)
+	var bm := MeshInstance3D.new()
+	var bc := CylinderMesh.new()
+	bc.top_radius = 0.055
+	bc.bottom_radius = 0.06
+	bc.height = 0.05
+	bm.mesh = bc
+	var bmat := StandardMaterial3D.new()
+	bmat.albedo_color = Color(0.9, 0.05, 0.05)
+	bmat.emission_enabled = true
+	bmat.emission = Color(1.0, 0.1, 0.05)
+	bmat.emission_energy_multiplier = 1.6
+	bm.material_override = bmat
+	bm.transform = Transform3D(yb * Basis(Vector3.RIGHT, deg_to_rad(80.0)), SLOT_POS + yb * (SLOT_SOCKETS["button"] as Vector3))
+	bm.name = "spin_button"
+	add_child(bm)
+	slot_button = bm
+	for side in [-1.0, 1.0]:
+		for i in 7:
+			var t := float(i) / 6.0
+			var lm := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = 0.018
+			sm.height = 0.036
+			lm.mesh = sm
+			var lmat := StandardMaterial3D.new()
+			lmat.albedo_color = Color(1.0, 0.9, 0.5)
+			lmat.emission_enabled = true
+			lmat.emission = Color(1.0, 0.85, 0.4)
+			lmat.emission_energy_multiplier = 2.0
+			lm.material_override = lmat
+			lm.transform = Transform3D(Basis(), SLOT_POS + yb * Vector3(side * float(SLOT_SOCKETS["lamp_x"]), lerpf(float(SLOT_SOCKETS["lamp_z0"]), float(SLOT_SOCKETS["lamp_z1"]), t), float(SLOT_SOCKETS["lamp_front"])))
+			lm.name = "slot_lamp"
+			add_child(lm)
+			slot_lamps.append([lm, lmat, (i + (0 if side < 0.0 else 1)) % 2])
+
+## Собака — жёсткая модель (Tripo, без скелета): дыхание, поворот за героем, лай (рывок назад и вверх со сжатием), прыжок радости на джекпоте
+func dog_bark() -> void:
+	dog_bark_t = 0.0
+
+func dog_joy() -> void:
+	dog_joy_t = 0.0
+
+func _dog_anim(dt: float, t: float) -> void:
+	if dog_node == null or not is_instance_valid(dog_node):
+		return
+	var yaw := dog_yaw
+	var hv: Node3D = hero as Node3D if hero != null and is_instance_valid(hero) else null
+	if hv != null:
+		var to: Vector3 = hv.global_position - dog_node.global_position
+		if to.length() < 9.0:
+			var want := atan2(to.x, to.z)
+			var d := wrapf(want - dog_yaw, -PI, PI)
+			yaw = dog_yaw + clampf(d, -0.7, 0.7)
+		if to.length() < 6.0:
+			dog_next_bark -= dt
+			if dog_next_bark <= 0.0:
+				dog_next_bark = randf_range(5.0, 8.0)
+				dog_bark()
+	var breath := 1.0 + 0.012 * sin(t * 3.2)
+	var pos := dog_base
+	var pitch := 0.0
+	var sq := Vector3(1.0 / sqrt(breath), breath, 1.0 / sqrt(breath))
+	if dog_bark_t >= 0.0:
+		dog_bark_t += dt
+		var k := dog_bark_t / 0.35
+		if k >= 1.0:
+			dog_bark_t = -1.0
+		else:
+			var p := sin(k * PI)
+			pitch = -0.16 * p
+			pos += Vector3(0, 0.05 * p, 0)
+			sq = Vector3(1.0 + 0.04 * p, 1.0 - 0.06 * p, 1.0 + 0.04 * p)
+	if dog_joy_t >= 0.0:
+		dog_joy_t += dt
+		var kj := dog_joy_t / 1.8
+		if kj >= 1.0:
+			dog_joy_t = -1.0
+		else:
+			pos += Vector3(0, absf(sin(kj * PI * 3.0)) * 0.45 * (1.0 - kj), 0)
+			pitch = -0.1 * sin(kj * PI * 6.0)
+	dog_node.position = pos
+	dog_node.rotation = Vector3(pitch, yaw, 0)
+	dog_node.scale = sq

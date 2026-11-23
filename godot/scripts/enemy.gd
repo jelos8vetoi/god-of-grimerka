@@ -21,6 +21,9 @@ const KINDS := {
 const SKINS := {
 	"g67_shest": {"model": "g67", "path": "res://assets/golda67/g67_enemy_shestyorka.glb", "key": "g67_shest", "height": 1.75, "noweapon": true, "own": true, "clip": "Punch"},
 	"g67_semka": {"model": "g67", "path": "res://assets/golda67/g67_enemy_semechnik.glb", "key": "g67_semka", "height": 1.6, "noweapon": true, "own": true, "clip": "Punch"},
+	"g67_pz_ctl": {"model": "g67", "path": "res://assets/golda67/podzemka/g67_enemy_controller.glb", "key": "g67_pz_ctl", "height": 1.78, "noweapon": true, "own": true, "clip": "PzCStrike", "pz": "ctl"},
+	"g67_pz_prm": {"model": "g67", "path": "res://assets/golda67/podzemka/g67_enemy_promoter.glb", "key": "g67_pz_prm", "height": 1.74, "noweapon": true, "own": true, "clip": "PzPThrow", "pz": "prm"},
+	"g67_pz_bnc": {"model": "g67", "path": "res://assets/golda67/podzemka/g67_enemy_bouncer.glb", "key": "g67_pz_bnc", "height": 2.05, "noweapon": true, "own": true, "clip": "PzBOver", "pz": "bnc"},
 	"g67_smotr": {"model": "g67", "path": "res://assets/golda67/g67_enemy_smotryashchiy.glb", "key": "g67_smotr", "height": 2.35, "noweapon": true, "own": true, "clip": "Punch", "hp": 300.0},
 }
 const BOSS_LOOK := {
@@ -193,7 +196,11 @@ func _ready() -> void:
 		poses = Poses.bot()
 	if boss_id == "g67_misha":
 		poses.merge(G67Misha.clips(), true)      # свои клипы: захват, стойка, натянутая цепь, трон
+	if cfg.has("pz"):
+		poses.merge(G67Poses.clips_pz(), true)
 	rig.setup(String(cfg.get("path", "res://assets/models/" + m + ".glb")), height, poses, boss_id != "", -1.0 if m == "pahan" else 1.0, String(cfg.get("key", m + ("_n" if cfg.get("noweapon", false) else ""))))
+	if cfg.has("pz"):
+		rig.style_map = (G67Poses.PZ_ROLES[String(cfg["pz"])] as Dictionary).duplicate()
 	if boss_id == "g67_misha":
 		G67Models.misha_chain(rig)        # золотая цепь на груди — идёт за анимацией
 	if not cfg.get("own", false) and (cfg.has("tint") or cfg.has("alpha") or cfg.has("emit")):

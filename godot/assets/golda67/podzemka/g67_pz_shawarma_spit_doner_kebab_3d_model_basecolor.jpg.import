@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dgyuknxhvofar"
-path="res://.godot/imported/g67_pz_dog_g67_pz_dog_bc.png-989ee732b3590fdd6a6fb1f093d07998.ctex"
+uid="uid://4rtjm4xosgby"
+path="res://.godot/imported/g67_pz_shawarma_spit_doner_kebab_3d_model_basecolor.jpg-87d77e77e3c48860f11b00fe12e78600.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "39cdfd093cafd8a1040b99752ca4c1c3"
+"md5": "fdce84f5c0f8107e90b32c39c1d6b2da"
 }
 
 [deps]
 
-source_file="res://assets/golda67/podzemka/g67_pz_dog_g67_pz_dog_bc.png"
-dest_files=["res://.godot/imported/g67_pz_dog_g67_pz_dog_bc.png-989ee732b3590fdd6a6fb1f093d07998.ctex"]
+source_file="res://assets/golda67/podzemka/g67_pz_shawarma_spit_doner_kebab_3d_model_basecolor.jpg"
+dest_files=["res://.godot/imported/g67_pz_shawarma_spit_doner_kebab_3d_model_basecolor.jpg-87d77e77e3c48860f11b00fe12e78600.ctex"]
 
 [params]
 

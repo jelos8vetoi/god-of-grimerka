@@ -17,6 +17,8 @@ const GRID_Y := [95.0, 231.0, 367.0, 503.0]
 ## Положение спрайта в ячейке (от левого верхнего угла ячейки, пиксели исходного снимка) и размер: как на примере
 const SPR := {"dog": [Vector2(5, 7), Vector2(148, 126)], "dog2": [Vector2(4, 9), Vector2(148, 122)], "house": [Vector2(0, -37), Vector2(154, 174)],
 	"paw": [Vector2(-3, -17), Vector2(159, 174)], "a": [Vector2(38, 25), Vector2(76, 88)], "k": [Vector2(38, 23), Vector2(76, 88)]}
+## Выступ символов за ячейку (верх будки, лапа BONUS): маска шире REEL_RECT на CLIP_PAD сверху и по бокам
+const CLIP_PAD := Vector2(8, 40)
 const SYMS := ["dog", "dog2", "house", "paw", "a", "k"]
 const WEIGHTS := {"dog": 8, "dog2": 12, "house": 12, "paw": 12, "a": 30, "k": 26}
 const FALLBACK := {"dog": Color(0.2, 0.35, 0.8), "dog2": Color(0.75, 0.25, 0.6), "house": Color(0.9, 0.7, 0.15), "paw": Color(0.8, 0.1, 0.15), "a": Color(0.85, 0.2, 0.15), "k": Color(0.95, 0.8, 0.2)}
@@ -29,6 +31,8 @@ var spinning := false
 var spin_n := 0
 var rng := RandomNumberGenerator.new()
 var lbl_spin: Label
+var bar_fill: ColorRect
+var _jp_since := -1.0
 var lbl_left: Label
 var lbl_msg: Label
 var lbl_jp: Label
@@ -62,8 +66,8 @@ func _ready() -> void:
 	for c in 5:
 		var clip := Control.new()
 		clip.clip_contents = true
-		clip.position = Vector2(GRID_X[c], GRID_Y[0])
-		clip.size = Vector2(GRID_X[c + 1] - GRID_X[c], GRID_Y[3] - GRID_Y[0])
+		clip.position = Vector2(GRID_X[c] - CLIP_PAD.x, GRID_Y[0] - CLIP_PAD.y)
+		clip.size = Vector2(GRID_X[c + 1] - GRID_X[c] + CLIP_PAD.x * 2.0, GRID_Y[3] - GRID_Y[0] + CLIP_PAD.y)
 		add_child(clip)
 		var cells: Array = []
 		for r in 4:
@@ -102,7 +106,18 @@ func _panel() -> void:
 	pl.size = Vector2(190, 52)
 	add_child(pl)
 	lbl_spin = _label("SPIN: 0 / 67", Vector2(182, 522), 20, Color(1.0, 0.85, 0.3))
-	lbl_left = _label("ДО ДЖЕКПОТА: 67", Vector2(182, 546), 16, Color(0.9, 0.9, 0.9))
+	lbl_left = _label("ДО ДЖЕКПОТА: 67", Vector2(182, 543), 15, Color(0.9, 0.9, 0.9))
+	var bar_bg := ColorRect.new()
+	bar_bg.color = Color(0.25, 0.1, 0.1)
+	bar_bg.position = Vector2(182, 563)
+	bar_bg.size = Vector2(176, 6)
+	add_child(bar_bg)
+	bar_fill = ColorRect.new()
+	bar_fill.color = Color(1.0, 0.82, 0.2)
+	bar_fill.position = Vector2(182, 563)
+	bar_fill.size = Vector2(0, 6)
+	add_child(bar_fill)
+	_label("67 SPIN JACKPOT", Vector2(247, 560), 9, Color(1, 1, 1))
 	var pc := ColorRect.new()
 	pc.color = Color(0.1, 0.06, 0.04, 0.88)
 	pc.position = Vector2(372, 512)
@@ -145,7 +160,7 @@ func _set_cell(tr: TextureRect, sym: String, row: int, jitter := 0.0) -> void:
 	var d: Array = SPR[sym]
 	tr.texture = tex[sym]
 	tr.size = d[1]
-	tr.position = (d[0] as Vector2) + Vector2(0, float(row) * (GRID_Y[3] - GRID_Y[0]) / 3.0 + jitter)
+	tr.position = (d[0] as Vector2) + CLIP_PAD + Vector2(0, float(row) * (GRID_Y[3] - GRID_Y[0]) / 3.0 + jitter)
 	tr.pivot_offset = tr.size * 0.5
 
 func _show_field() -> void:
@@ -222,19 +237,24 @@ func spin(n: int, turbo := false) -> void:
 	_jackpot = n > 0 and n % 67 == 0
 	_turbo = turbo
 	lbl_jp.visible = false
+	_jp_since = -1.0
+	bar_fill.size.x = 176.0 * float(n % 67 if n % 67 != 0 else 67) / 67.0
 	field = make_field(n)
 	lbl_spin.text = "SPIN: %d / 67" % (n % 67 if n % 67 != 0 else 67)
 	lbl_left.text = "ДО ДЖЕКПОТА: %d" % (67 - (n % 67) if n % 67 != 0 else 0)
 	var base := 0.14 if turbo else 0.6
 	_stop_at = []
 	for c in 5:
-		_stop_at.append(base + float(c) * (0.07 if turbo else (0.32 if not _jackpot else 0.5)))
+		_stop_at.append(base + (float(c) * 0.07 if turbo else (float(c) * 0.32 if not _jackpot else 0.4 * float(c) + 0.1 * float(c) * float(c))))
 	_cols_on = [true, true, true, true, true]
 	_done = 0
 	_t = 0.0
 	_tick = 0.0
 
 func _process(dt: float) -> void:
+	if _jp_since >= 0.0:
+		_jp_since += dt
+		lbl_jp.visible = _jp_since < 2.5 or int(_jp_since * 3.0) % 2 == 0
 	if not spinning:
 		return
 	_t += dt
@@ -267,6 +287,7 @@ func _process(dt: float) -> void:
 	if _jackpot:
 		lbl_jp.text = "JACKPOT 67"
 		lbl_jp.visible = true
+		_jp_since = 0.0
 		coins.emitting = true
 		lbl_msg.text = "ДА НУ НАХУЙ"
 	elif int(pay["gold"]) > 0:
