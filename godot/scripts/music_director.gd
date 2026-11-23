@@ -78,6 +78,8 @@ var clock := 0.0
 var silent := false
 var _last_ctx := ""
 var _dieg_db := 0.0
+var muted_user := false               # ползунок «МУЗЫКА ИГРЫ» стоит на 0
+var chain_logged := false
 var gain_cur := 0.0                    # gain_db базовой ситуации, сглаженный 12 дБ/с
 var _dieg_node: Node3D
 
@@ -166,6 +168,19 @@ func _voice() -> bool:
 			return true
 	return false
 
+## журнал цепочки звука: сохранённая громкость и шины (нужен, чтобы «нет музыки» не гадать)
+func _chain(why: String) -> void:
+	if audio == null:
+		return
+	var vm := float(audio.vol.get("Music", 1.0))
+	var parts: Array = []
+	for b in ["Master", "Music", "MusicMenu"]:
+		var i := AudioServer.get_bus_index(b)
+		parts.append("%s %.1f дБ%s" % [b, AudioServer.get_bus_volume_db(i) if i >= 0 else -999.0, " (mute)" if i >= 0 and AudioServer.is_bus_mute(i) else ""])
+	_ev("chain", cue, "", "%s: vol[Music]=%.2f; %s" % [why, vm, "; ".join(parts)])
+	if vm <= 0.0:
+		_ev("muted_by_user", cue, "", "МУЗЫКА ИГРЫ: 0 % в настройках")
+
 func snapshot() -> Dictionary:
 	var ds: Array = []
 	for d in decks:
@@ -178,7 +193,7 @@ func snapshot() -> Dictionary:
 	for d in decks:
 		for p in d.players:
 			playing += 1 if p.playing else 0
-	return {"cue": cue, "ctx": ctx, "decks": ds, "duck_db": duck_db, "overlays": ov, "playing": playing, "missing": missing,
+	return {"muted_by_user": muted_user, "cue": cue, "ctx": ctx, "decks": ds, "duck_db": duck_db, "overlays": ov, "playing": playing, "missing": missing,
 		"title_prog": title_prog, "title_started": title_started}
 
 func active_players() -> Array[AudioStreamPlayer]:
@@ -346,6 +361,8 @@ func _swap(new_cue: String) -> bool:
 		active = -1
 	cue = new_cue
 	if new_cue == "title":
+		_chain("вход title")
+	if new_cue == "title":
 		title_prog = title_prog
 	if new_cue.begins_with("boss_") and tr == "boss_in":
 		pass
@@ -407,6 +424,18 @@ func _duck_goal() -> float:
 
 func tick(dt: float) -> void:
 	clock += dt
+	if audio != null:
+		var mu := float(audio.vol.get("Music", 1.0)) <= 0.0
+		if not chain_logged:
+			chain_logged = true
+			muted_user = mu
+			_chain("запуск")
+		elif mu != muted_user:
+			muted_user = mu
+			if mu:
+				_ev("muted_by_user", cue, "", "МУЗЫКА ИГРЫ: 0 % в настройках")
+			else:
+				_ev("unmuted_by_user", cue, "", "громкость музыки возвращена")
 	silent = String(base.get("ctx", "")) == "quiet"
 	var want_cue := String(base.get("cue", ""))
 	if _cinematic_silence():

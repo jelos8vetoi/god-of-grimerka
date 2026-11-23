@@ -322,15 +322,19 @@ func open_stats() -> void:
 		lines += "  %-14s %d\n" % [FNData.ENEMIES[id]["name"], int(deaths.get(id, 0))]
 	_show("stats", [{"text": "НАЗАД", "act": open_extras, "info": lines}])
 
+## громкость: ноль — «ВЫКЛ»
+func _vol_text(x: float) -> String:
+	return "ВЫКЛ" if roundi(x * 100.0) <= 0 else "%d %%" % roundi(x * 100.0)
+
 func open_settings() -> void:
 	var a = root.main.audio if root.main != null else null
 	var list: Array = []
-	list.append({"text": func(): return "ОБЩАЯ ГРОМКОСТЬ: %d %%" % roundi(float(Opts.v("master")) * 100.0), "step": func(d: int): Opts.put("master", clampf(snappedf(float(Opts.v("master")) + 0.05 * d, 0.05), 0.0, 1.0))})
+	list.append({"text": func(): return "ОБЩАЯ ГРОМКОСТЬ: " + _vol_text(float(Opts.v("master"))), "step": func(d: int): Opts.put("master", clampf(snappedf(float(Opts.v("master")) + 0.05 * d, 0.05), 0.0, 1.0))})
 	if a != null:
 		for b in [["Music", "МУЗЫКА"], ["Ambient", "ОКРУЖЕНИЕ"], ["SFX", "ЭФФЕКТЫ"], ["Voice", "ГОЛОСА"]]:
 			var bus: String = b[0]
 			var nm: String = b[1]
-			list.append({"text": func(): return "%s: %d %%" % [nm, roundi(float(a.vol[bus]) * 100.0)], "step": func(d: int): a.set_volume(bus, clampf(snappedf(float(a.vol[bus]) + 0.05 * d, 0.05), 0.0, 1.0))})
+			list.append({"text": func(): return "%s: %s" % [nm, _vol_text(float(a.vol[bus]))], "step": func(d: int): a.set_volume(bus, clampf(snappedf(float(a.vol[bus]) + 0.05 * d, 0.05), 0.0, 1.0))})
 	list.append({"text": func(): return "ГРОМКОСТЬ СКРИМЕРОВ: %d %%" % roundi(float((FNSave.v("settings") as Dictionary).get("scream", 1.0)) * 100.0), "step": func(d: int):
 		var ss: Dictionary = FNSave.v("settings")
 		ss["scream"] = clampf(snappedf(float(ss.get("scream", 1.0)) + 0.1 * d, 0.1), 0.2, 1.0)
