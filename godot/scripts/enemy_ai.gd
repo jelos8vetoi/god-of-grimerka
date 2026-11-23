@@ -249,7 +249,10 @@ static func strike(e, m: Dictionary, dist: float, dir: Vector3) -> Dictionary:
 			else:
 				for i in int(m.get("n", 1)):
 					var off := Vector3.ZERO if i == 0 else Vector3(randf_range(-3, 3), 0, randf_range(-3, 3))
-					g.telegraph(Vector3(at.x, 0, at.z) + off, float(m["zr"]), float(m["delay"]) + i * 0.15, dmg, e, {"col": col})
+					var tx := {"col": col}
+					if m.has("slow"):
+						tx["slow"] = float(m["slow"])
+					g.telegraph(Vector3(at.x, 0, at.z) + off, float(m["zr"]), float(m["delay"]) + i * 0.15, dmg, e, tx)
 			g.main.sfx("sfx_cast", -6.0)
 		"ring":
 			g.fx.slam(e.global_position, 1.2, col)
@@ -270,7 +273,7 @@ static func strike(e, m: Dictionary, dist: float, dir: Vector3) -> Dictionary:
 					g.fx.poof(at2, 1.0, col)
 			blink(e, "side")
 		"summon":
-			if summoned_alive(e) < int(TUNE["summon_cap"]):
+			if summoned_alive(e) < int(m.get("cap", TUNE["summon_cap"])):
 				_summon(e, m.get("kinds", ["bot"]), int(m.get("n", 1)), Vector3.INF)
 		"buff":
 			for o in g.enemies:

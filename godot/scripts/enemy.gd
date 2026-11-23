@@ -303,7 +303,18 @@ func _update_bar() -> void:
 	hp_bar.texture = ImageTexture.create_from_image(bar_img)
 	hp_bar.visible = k < 1.0 and state != "dead"
 
+var shield_off_t := 0.0     # щит Контролёра сбит: лёгкие удары спереди проходят полностью
+var wall_hit := false
+var still_t := 0.0          # сколько секунд стоит без движения вне атаки (проверка «застрял»)
+var last_pos := Vector3.ZERO
+
 func _physics_process(dt: float) -> void:
+	shield_off_t = maxf(0.0, shield_off_t - dt)
+	if state in ["chase", "idle", "walk", "approach"] and not cfg.has("keep") and global_position.distance_to(last_pos) < 0.02:
+		still_t += dt
+	else:
+		still_t = 0.0
+	last_pos = global_position
 	t += dt
 	age += dt
 	poise_t += dt
@@ -471,6 +482,12 @@ func _physics_process(dt: float) -> void:
 				state = "recover"
 				t = 0.0
 			if t > charge_len or not game.in_arena(global_position + charge_dir, 0.5):
+				if cfg.has("pz") and not game.in_arena(global_position + charge_dir, 0.5):
+					wall_hit = true
+					stun(2.0)
+					game.popup(global_position + Vector3(0, height + 0.3, 0), "ОТКРЫТ", Color(1, 0.9, 0.3))
+					if rig != null and rig.has_clip("PzBWall"):
+						rig.play("PzBWall", 0.1)
 				state = "recover"
 				t = 0.0
 		"special":
@@ -924,7 +941,13 @@ func take_hit(dmg: float, dir: Vector3, knock: float, heavy := false, launch := 
 		_phase_deny(dir)
 		return
 	var raw_damage := dmg
-	if cfg.get("shield", false) and not heavy:
+	var fr0 := Vector3(sin(face), 0, cos(face))
+	if cfg.get("shield", false) and cfg.has("pz") and (heavy or fr0.dot(-dir) <= 0.3 or source_id == "bottle") and shield_off_t <= 0.0:
+		shield_off_t = 3.0
+		game.popup(global_position + Vector3(0, height + 0.2, 0), "ЩИТ СБИТ", Color(1, 0.8, 0.3))
+		if rig != null and rig.has_clip("PzCBroken"):
+			rig.play("PzCBroken", 0.1)
+	if cfg.get("shield", false) and not heavy and shield_off_t <= 0.0:
 		var front := Vector3(sin(face), 0, cos(face))
 		if front.dot(-dir) > 0.3:
 			dmg *= 0.25

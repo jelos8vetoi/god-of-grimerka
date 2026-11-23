@@ -169,6 +169,7 @@ func run(g_, G_: Golda67) -> void:
 	await _enemy_shots()
 	await _dark_shots()
 	await _krot_checks()
+	await _mech_checks()
 	await _hamster_checks()
 	await _bottle_checks()
 	await _routes()
@@ -454,29 +455,39 @@ func _enemy_checks() -> void:
 func _bot_battles() -> void:
 	await G.enter_hub()
 	G.meta()["flags"]["boss_misha"] = true
-	G.sel_district = "podzemka"
-	await c._go(G, P, "exit")
-	await c.until(func(): return G.place == "run", 10.0)
+	G.start_run("podzemka")
+	await c.until(func(): return G.run.get("district", "") == "podzemka" and G.world != null and G.world.district is G67Podzemka, 12.0)
+	await c.wait(3.0)
+	G.wave_wait = 1.2
 	P.global_position = Vector3(0, 0.05, -33)
 	var report: Array = []
-	for n in 2:
-		await c.until(func(): return G.room_state == "fight", 15.0)
+	for n in 3:
+		await c.until(func(): return G.room_state == "fight", 20.0)
+		var comp := ""
 		var t0 := Time.get_ticks_msec()
 		P.hp = P.max_hp
-		await c.until(func(): return g.enemies.size() > 0, 8.0)
+		await c.wait(1.5)
+		print("GOLDA67CHECK   бот: бой %d room=%s state=%s waves=%d pending=%d alive=%d pos=%s busy=%s place=%s runpos=%s" % [n + 1, str(G.room), G.room_state, G.waves.size(), G.pending.size(), G.alive(), str(P.global_position), str(G.busy), G.place, str(G.run.get("pos", "?"))])
+		var kinds := {}
 		var br: Dictionary = await c._bot_fight(g, G, 150.0)
+		for e in G.events:
+			if String(e[0]) == "clear":
+				comp = String(e[1])
 		report.append("бой %d: %.0f с, здоровье %.0f из %.0f%s" % [n + 1, float(Time.get_ticks_msec() - t0) / 1000.0, float(P.hp), float(P.max_hp), " (таймаут)" if bool(br["timeout"]) else ""])
-		await c.wait(0.8)
+		print("GOLDA67CHECK   бот: бой %d итог %s" % [n + 1, report[-1]])
+		await c.wait(1.0)
 		if G.hub_ui != null:
 			await c.key(KEY_ESCAPE)
-		await c.until(func(): return not G.world.gates.is_empty(), 6.0)
+		await c.until(func(): return not G.world.gates.is_empty(), 8.0)
 		if G.world.gates.is_empty():
 			break
 		var pos := int(G.run["pos"])
 		await c._go(G, P, "gate0")
-		await c.until(func(): return int(G.run["pos"]) != pos, 8.0)
+		await c.until(func(): return int(G.run["pos"]) != pos, 10.0)
+		await c.wait(0.5)
+		G.wave_wait = 1.2
 	print("GOLDA67CHECK   ПОДЗЕМКА бот: %s" % "; ".join(report))
-	ok(report.size() >= 1, "бот-клавишник: сыграно боёв района %d, итог: %s" % [report.size(), "; ".join(report)])
+	ok(report.size() >= 3 and not "таймаут" in "; ".join(report), "бот-клавишник: три боя района сыграны, итог: %s" % "; ".join(report))
 
 ## Слот: правила поля и снимки экрана (в покое, вращение, джекпот)
 func _slot_checks() -> void:
@@ -690,3 +701,89 @@ func _bottle_checks() -> void:
 	await c.wait(3.0)
 	ok(G.has_art("reserve_05") and G.reserve_charges == 5 and (G.meta().get("artifacts", []) as Array).has("reserve_05"), "артефакт «АВАРИЙНЫЙ ЗАПАС 0.5» получен (5 зарядов), записан в коллекцию")
 	ok((G.run["arts"] as Array).filter(func(x): return not G67Data.ART_EVENT.has(String(x))).size() == slots_before, "артефакт не занимает слот")
+
+## Механики врагов района: щит сбивается на 3 с, флаер замедляет, лимит призыва в данных, рывок Вышибалы об стену, «застрял» на всех зонах боя
+func _mech_checks() -> void:
+	for oe in g.enemies.duplicate():
+		if is_instance_valid(oe):
+			oe.queue_free()
+	await c.wait(0.3)
+	G.room = {"type": "battle", "place": "gate1"}
+	G.room_state = "fight"
+	G.pending = []
+	G.wave_wait = 999.0
+	P.global_position = Vector3(0, 0.05, -33)
+	G._spawn("controller")
+	await c.wait(0.5)
+	var ctl = null
+	for e in g.enemies:
+		if is_instance_valid(e) and String(e.get_meta("foe", "")) == "controller":
+			ctl = e
+	if ctl != null:
+		ctl.set_physics_process(false)
+		var front := Vector3(sin(ctl.face), 0, cos(ctl.face))
+		var h0: float = ctl.hp
+		ctl.state = "idle"
+		ctl.take_hit(10.0, -front, 0.0, true)
+		var broke: bool = ctl.shield_off_t > 2.5
+		ctl.hp = h0
+		ctl.state = "idle"
+		ctl.hit_id = ""
+		ctl.take_hit(10.0, -front, 0.0, false)
+		var light_after: float = h0 - ctl.hp
+		ctl.hp = h0
+		ctl.shield_off_t = 0.0
+		ctl.state = "idle"
+		ctl.take_hit(10.0, front, 0.0, false)
+		var back_broke: bool = ctl.shield_off_t > 2.5
+		ok(broke and back_broke and light_after > 8.0, "щит Контролёра сбит на 3 с тяжёлым ударом и ударом в спину (лёгкий спереди теперь %.1f из 10)" % light_after)
+		ctl.hp = h0
+	P.slow_t = 0.0
+	g.telegraph(P.global_position, 2.0, 0.15, 1.0, null, {"slow": 1.5})
+	await c.wait(0.7)
+	ok(P.slow_t > 0.8, "флаер Зазывалы замедляет героя (slow_t %.2f)" % P.slow_t)
+	var fm: Dictionary = G67Data.FOES["promoter"]["moves"]
+	ok(int(fm["call"]["cap"]) == 2 and float(fm["flyer"]["slow"]) == 1.5, "призыв Зазывалы ограничен двумя, флаер замедляет на 1,5 с (данные)")
+	# рывок Вышибалы об стену арены
+	P.global_position = Vector3(-10, 0.05, -176)
+	G.room = {"type": "battle", "place": "arena"}
+	G._spawn("bouncer")
+	await c.wait(0.6)
+	var bn = null
+	for e in g.enemies:
+		if is_instance_valid(e) and String(e.get_meta("foe", "")) == "bouncer":
+			bn = e
+	if bn != null:
+		bn.global_position = Vector3(10.5, 0.05, -179)
+		bn.charge_dir = Vector3(1, 0, 0)
+		bn.state = "charge"
+		bn.t = 0.0
+		bn.charge_len = 3.0
+		await c.wait(0.8)
+		ok(bn.wall_hit, "Вышибала: рывок в стену арены → «ОТКРЫТ» (состояние «%s», удар о стену %s)" % [String(bn.state), str(bn.wall_hit)])
+	for oe in g.enemies.duplicate():
+		if is_instance_valid(oe):
+			oe.queue_free()
+	# «застрял»: четыре врага в каждой боевой зоне, герой в центре, 7 с — никто не стоит без движения больше 4 с вне атаки
+	for zid in ["gate1", "gallery", "cross", "arcade", "tunnel"]:
+		var z: Dictionary = G67Podzemka.ZONES[zid]
+		G.room = {"type": "battle", "place": zid}
+		G.room_state = "fight"
+		P.global_position = Vector3((z["c"] as Vector3).x, 0.05, (z["c"] as Vector3).z)
+		for k in 4:
+			G._spawn(["controller", "promoter", "controller", "bouncer" if zid != "tunnel" else "controller"][k])
+		var worst := 0.0
+		var worst_info := ""
+		for tick in 14:
+			await c.wait(0.5)
+			P.hp = P.max_hp
+			for e in g.enemies:
+				if is_instance_valid(e):
+					if float(e.still_t) > worst:
+						worst = float(e.still_t)
+						worst_info = "%s %s state=%s" % [String(e.get_meta("foe", "")), str(e.global_position), String(e.state)]
+		ok(worst < 4.0, "зона %s: враги не застревают (максимум без движения %.1f с: %s)" % [zid, worst, worst_info])
+		for oe in g.enemies.duplicate():
+			if is_instance_valid(oe):
+				oe.queue_free()
+		await c.wait(0.3)

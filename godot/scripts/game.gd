@@ -831,6 +831,8 @@ func _update_zones(dt: float) -> void:
 						shake(0.18)
 					if d < r0:
 						player.take_damage(z["dmg"], n.global_position, src, z.get("telemetry", {}))
+						if z.has("slow"):
+							player.slow_t = maxf(player.slow_t, float(z["slow"]))
 					if z.has("pool"):
 						pool(n.global_position, r0, float(z["pool"]), float(z["dmg"]) * 0.4, src, col, z.get("telemetry", {}))
 			"pool":
