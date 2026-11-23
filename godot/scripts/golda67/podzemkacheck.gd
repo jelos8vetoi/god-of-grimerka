@@ -4,6 +4,7 @@
 class_name PodzemkaCheck
 extends RefCounted
 
+var perf_only := false
 var c            # golda67check
 var g
 var G: Golda67
@@ -102,6 +103,9 @@ func run(g_, G_: Golda67) -> void:
 	G.wave_wait = 999.0
 	G.world.open_bounds()
 	await c.wait(0.5)
+	if perf_only:
+		await _perf()
+		return
 	# ---- лучи: нет дыр наружу
 	var space: PhysicsDirectSpaceState3D = pz.get_world_3d().direct_space_state
 	var holes := 0
@@ -161,6 +165,32 @@ func run(g_, G_: Golda67) -> void:
 	await _routes()
 	await _full_run()
 	await _save_resume()
+
+## --pz-perfzones: средний и 1 % low кадр по зонам боя (6 с после прогрева 3 с)
+func _perf() -> void:
+	for zid in G67Podzemka.ZONES:
+		var z: Dictionary = G67Podzemka.ZONES[zid]
+		var ctr: Vector3 = z["c"]
+		P.global_position = Vector3(ctr.x, 0.05, ctr.z)
+		P.velocity = Vector3.ZERO
+		await c.wait(3.0)
+		var ft: Array = []
+		var t0 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 6000:
+			var a := Time.get_ticks_usec()
+			await c.get_tree().process_frame
+			ft.append(float(Time.get_ticks_usec() - a) / 1000.0)
+		ft.sort()
+		var mean := 0.0
+		for v in ft:
+			mean += float(v)
+		mean /= float(ft.size())
+		var worst: Array = ft.slice(int(float(ft.size()) * 0.99))
+		var w := 0.0
+		for v in worst:
+			w += float(v)
+		w /= maxf(1.0, float(worst.size()))
+		print("GOLDA67CHECK   PZPERF %s: средний %.1f FPS, 1%% худших %.1f FPS" % [zid, 1000.0 / mean, 1000.0 / maxf(w, 0.01)])
 
 func _shots() -> void:
 	await c._cam_shot(g, "pz_stairs", Vector3(0, 7.5, 4.5), Vector3(0, 1.0, -14))

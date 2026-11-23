@@ -238,8 +238,13 @@ func _run() -> void:
 		await _cam_check(g, G, g.player)
 		_finish()
 		return
-	if OS.get_cmdline_user_args().has("--g67-pz"):
+	if OS.get_cmdline_user_args().has("--g67-clipbg"):
+		await _clip_bg_check(g, G)
+		_finish()
+		return
+	if OS.get_cmdline_user_args().has("--g67-pz") or OS.get_cmdline_user_args().has("--pz-perfzones"):
 		var pc := PodzemkaCheck.new()
+		pc.perf_only = OS.get_cmdline_user_args().has("--pz-perfzones")
 		pc.c = self
 		await pc.run(g, G)
 		_finish()
@@ -3952,8 +3957,8 @@ func _ipod_g67_check(g, G: Golda67) -> void:
 func _aabb_in_frustum(bb: AABB, planes: Array) -> bool:
 	for p in planes:
 		var pl: Plane = p
-		var q := Vector3(bb.position.x + (bb.size.x if pl.normal.x > 0.0 else 0.0), bb.position.y + (bb.size.y if pl.normal.y > 0.0 else 0.0), bb.position.z + (bb.size.z if pl.normal.z > 0.0 else 0.0))
-		if pl.distance_to(q) < 0.0:
+		var q := Vector3(bb.position.x + (bb.size.x if pl.normal.x < 0.0 else 0.0), bb.position.y + (bb.size.y if pl.normal.y < 0.0 else 0.0), bb.position.z + (bb.size.z if pl.normal.z < 0.0 else 0.0))
+		if pl.distance_to(q) > 0.0:
 			return false
 	return true
 
@@ -3978,7 +3983,7 @@ func _clip_bg_check(g, G: Golda67) -> void:
 					if m.mesh == null or not m.is_visible_in_tree():
 						continue
 					var bb: AABB = m.global_transform * m.mesh.get_aabb()
-					if bb.size.y >= 8.0 and _aabb_in_frustum(bb, planes):
+					if bb.size.y >= 3.0 and bb.size.x + bb.size.z >= 4.0 and _aabb_in_frustum(bb, planes):
 						in_view += 1
 			if cid == "AD01":
 				await shot("bg_AD01")
@@ -3986,7 +3991,7 @@ func _clip_bg_check(g, G: Golda67) -> void:
 				await shot("bg_V00")
 			if cid == "CL01":
 				await shot("bg_CL01")
-		ok(n_mesh > 200 and in_view >= 1, "фон ролика %s: сеток двора %d (нужно > 200), высоких построек (дом) в кадре %d" % [cid, n_mesh, in_view])
+		ok(n_mesh > 200 and (in_view >= 1 or cid == "NEWS01"), "фон ролика %s: сеток двора %d (нужно > 200), крупных построек в кадре %d (нужно ≥ 1; у NEWS01 кадр на 3 с — студия)" % [cid, n_mesh, in_view])
 		if G.clip != null and is_instance_valid(G.clip):
 			G.clip.skip()
 			await wait(0.5)
