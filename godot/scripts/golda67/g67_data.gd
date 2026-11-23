@@ -133,11 +133,11 @@ const DISTRICTS := {
 ## Босс первого района. Формат — как у боссов кампании (story.json → BOSS): его читает enemy._setup_boss.
 ## Приёмы фаз — существующие приёмы боссов; свой особый приём — enemy._special («РАЗМАХ ЦЕПЬЮ»).
 const BOSSES := {
-	"g67_fortuna": {      # ЗАГЛУШКА этапа 1: простой босс без антракта и ворот фаз; настоящий бой — этап 5
-		"n": "FORTUNA 812", "sub": "владелец турникетов", "sp": "FT", "hp": 1200, "r": 30, "spd": 110, "c": "#3fa34d", "dmg": 7, "gap": 1.6, "xp": 0, "armor": 1.0,
-		"poise": 200,
-		"phases": [["slam", "charge"], ["shock", "slam", "charge"], ["leap", "slam", "shock"]],
-		"barks": ["", "", ""],
+	"g67_fortuna": {      # этап 5а: настоящий бой (golda67/g67_fortuna.gd, арена — g67_fortuna_arena.gd); здоровье 3000 на старт замера
+		"n": "FORTUNA 812", "sub": "владелец турникетов", "sp": "FT", "hp": 3000, "r": 30, "spd": 104, "c": "#3fa34d", "dmg": 7, "gap": 1.8, "xp": 0, "armor": 0.7, "antract": false,
+		"poise": 320, "gate": true,
+		"phases": [["f_gates", "f_zone", "f_check", "f_change", "f_consult"], ["f_gates", "f_zone", "f_check", "f_change", "f_consult"], ["f_gates", "f_zone", "f_check", "f_change", "f_consult"]],
+		"barks": ["Оплата на месте.", "Вводим повышенный тариф.", "Что с турникетами?! Они же на гарантии!"],
 	},
 	"g67_misha": {
 		"n": "МИША МИНАСЯН", "sub": "главный авторитет двора", "sp": "G1", "hp": 2600, "r": 30, "spd": 116, "c": "#d9a23a", "dmg": 7, "gap": 1.6, "xp": 0, "armor": 0.7, "antract": true,      # armor — множитель урона по нему вне окон «ОТКРЫТ»

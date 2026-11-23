@@ -27,6 +27,7 @@ const SKINS := {
 	"g67_smotr": {"model": "g67", "path": "res://assets/golda67/g67_enemy_smotryashchiy.glb", "key": "g67_smotr", "height": 2.35, "noweapon": true, "own": true, "clip": "Punch", "hp": 300.0},
 }
 const BOSS_LOOK := {
+	"g67_fortuna": {"model": "g67", "path": "res://assets/golda67/g67_fortuna.glb", "key": "g67_fortuna_boss", "scale": 1.08, "own": true},
 	"g67_misha": {"model": "g67", "path": "res://assets/golda67/g67_misha.glb", "key": "g67_misha_boss", "scale": 1.25, "own": true},
 	"courier": {"model": "drey", "scale": 1.3, "own": true}, "golem": {"model": "bot", "scale": 1.9}, "hype": {"model": "hater", "scale": 1.35},
 	"dislike": {"model": "bot", "scale": 1.75}, "major": {"model": "clipper", "scale": 1.4}, "strike": {"model": "hater", "scale": 1.45},
@@ -196,6 +197,8 @@ func _ready() -> void:
 		poses = Poses.bot()
 	if boss_id == "g67_misha":
 		poses.merge(G67Misha.clips(), true)      # свои клипы: захват, стойка, натянутая цепь, трон
+	if boss_id == "g67_fortuna":
+		poses.merge(G67Fortuna.clips(), true)    # свои клипы: калькулятор, лента, монеты, жест «турникеты», касса, зажат створкой
 	if cfg.has("pz"):
 		poses.merge(G67Poses.clips_pz(), true)
 	rig.setup(String(cfg.get("path", "res://assets/models/" + m + ".glb")), height, poses, boss_id != "", -1.0 if m == "pahan" else 1.0, String(cfg.get("key", m + ("_n" if cfg.get("noweapon", false) else ""))))

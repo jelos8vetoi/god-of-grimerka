@@ -931,6 +931,8 @@ func _all_props() -> Array:
 	var skip := ["microwave", "chess", "kiosk_odds", "kiosk_exchange", "kiosk_keys", "kiosk_socks", "kiosk_phones", "kiosk_shawarma", "shawarma_spit", "arcade_a", "arcade_b"]
 	var out: Array = []
 	for pr in PROPS:
+		if String(pr[0]) == "turnstile" and float(pr[2]) < -170.0:
+			continue          # линии арены — игровые объекты G67FortunaArena
 		if not String(pr[0]) in skip:
 			out.append(pr)
 	var bulbs: Array = []

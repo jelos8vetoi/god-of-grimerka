@@ -178,6 +178,7 @@ func run(g_, G_: Golda67) -> void:
 	await _slot_checks()
 	await _casino_checks()
 	await _bottle_checks()
+	await _fortuna_checks()
 	await _bot_battles()
 
 ## --pz-perfzones: средний и 1 % low кадр по зонам боя (6 с после прогрева 3 с)
@@ -484,7 +485,7 @@ func _bot_battles() -> void:
 			break
 		var pos := int(G.run["pos"])
 		await c._go(G, P, "gate0")
-		await c.until(func(): return int(G.run["pos"]) != pos, 10.0)
+		await c.until(func(): return int(G.run.get("pos", pos)) != pos, 10.0)
 		await c.wait(0.5)
 		G.wave_wait = 1.2
 	print("GOLDA67CHECK   ПОДЗЕМКА бот: %s" % "; ".join(report))
@@ -1017,3 +1018,382 @@ func _casino_checks() -> void:
 	ok(t66 > t64 * 1.8, "барабаны на 65–66 тормозят дольше (турбо: %.2f с против %.2f с)" % [t66, t64])
 	G67Save.path_override = ""
 	G67Save.clean = was_clean
+
+## ---------------------------------------------------------------- FORTUNA 812: бой
+func _fz_spawn() -> Node:
+	for oe in g.enemies.duplicate():
+		if is_instance_valid(oe):
+			oe.queue_free()
+	await c.wait(0.3)
+	G.room = {"type": "boss", "place": "arena"}
+	g.over = false
+	G.room_state = "boss"
+	G.pending = []
+	G.wave_wait = 999.0
+	G.run["golda"] = 100
+	P.hp = P.max_hp
+	P.state = "move"
+	P.inv = 0.0
+	P.visible = true
+	P.set_physics_process(true)
+	P.slow_t = 0.0
+	P.global_position = Vector3(0, 0.05, -172.0)
+	P.velocity = Vector3.ZERO
+	var b = g._make_enemy("", "g67_fortuna", Vector3(0, 0.05, -181.5))
+	g.boss_e = b
+	G.arena_setup(b)
+	await c.wait(0.6)
+	return b
+
+func _fz_ray(x: float, z0: float, z1: float) -> bool:
+	var sp: PhysicsDirectSpaceState3D = P.get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(Vector3(x, 0.8, z0), Vector3(x, 0.8, z1))
+	q.exclude = [P.get_rid()]
+	return not sp.intersect_ray(q).is_empty()
+
+func _fortuna_checks() -> void:
+	G.start_run("podzemka")
+	await c.until(func(): return G.run.get("district", "") == "podzemka" and G.world != null and G.world.district is G67Podzemka, 12.0)
+	await c.wait(1.5)
+	if G.hub_ui != null:
+		G.hub_ui.close()
+	var b = await _fz_spawn()
+	var ar: G67FortunaArena = G.arena
+	ok(b != null and ar != null and b.boss_id == "g67_fortuna" and b.max_hp >= 2800.0 and b.rig != null and b.rig.skel != null, "FORTUNA создана: модель g67_fortuna.glb со скелетом, здоровье %.0f, арена с 3 линиями × 6 секций" % (b.max_hp if b != null else 0.0))
+	ok(G67Fortuna.GATE_FLASH >= 1.2 and G67Fortuna.ZONE_FADE >= 1.0 and G67Fortuna.CHECK_WARN >= 0.6 and G67Fortuna.CHANGE_WARN >= 0.7 and G67Fortuna.CHANGE_COINS == 7 and absf(G67Fortuna.CHANGE_CONE - deg_to_rad(70.0)) < 0.01, "замахи и числа приёмов по таблице проекта (метка линии 1,2; зона 1,0; чек 0,6; сдача 0,7, 7 монет, 70°)")
+	# каждый приём запускается и оставляет метку
+	b.set_meta("fz_test", true)
+	var obs := {}
+	for mv in ["f_gates", "f_zone", "f_check", "f_change", "f_consult"]:
+		ar.clear_all()
+		b.hp = b.max_hp * 0.7
+		b.state = "special"
+		b.t = 0.0
+		b.sp_events = []
+		b.global_position = Vector3(0, 0.05, -181.0)
+		BossMoves.start(b, mv)
+		await c.wait(0.45)
+		match mv:
+			"f_gates":
+				var fl := 0
+				for l in 3:
+					for i in 6:
+						if float(ar.sec[l][i]["flash"]) > 0.0:
+							fl += 1
+				await c.wait(1.5)
+				var closed := 0
+				var opened := 0
+				for l in 3:
+					for i in 6:
+						if ar.sec_state(l, i) == "closed":
+							closed += 1
+						elif fl > 0 and ar.sec_state(l, i) == "open":
+							opened += 1
+				obs[mv] = fl >= 6 and closed >= 4
+			"f_zone":
+				await c.wait(0.8)
+				obs[mv] = ar.zones.size() >= 1
+			"f_check":
+				await c.wait(0.9)
+				obs[mv] = ar.strips.size() >= 1
+			"f_change":
+				await c.wait(0.8)
+				obs[mv] = g.bolts.size() >= 7 or G.events.any(func(e): return String(e[0]) == "fz_change")
+			"f_consult":
+				await c.wait(1.0)
+				obs[mv] = b.global_position.z < -184.0
+		b.state = "idle"
+		b.stun(0.0)
+		await c.wait(0.3)
+	ok(obs.get("f_gates", false) and obs.get("f_zone", false) and obs.get("f_check", false) and obs.get("f_change", false) and obs.get("f_consult", false), "приёмы запускаются и дают метку: %s" % str(obs))
+	# закрытая линия не пропускает, открытая секция пропускает, створка ломается с двух тяжёлых
+	ar.clear_all()
+	b.global_position = Vector3(0, 0.05, -170.0)
+	ar.close_line(1, 2, 20.0)
+	await c.wait(0.6)
+	var x_closed: float = G67FortunaArena.X0 + G67FortunaArena.SEC_W * 0.5
+	var x_open: float = G67FortunaArena.X0 + G67FortunaArena.SEC_W * 2.5
+	var blocked := _fz_ray(x_closed, -177.0, -181.0)
+	var passes := not _fz_ray(x_open, -177.0, -181.0)
+	var light_no: bool = not ar.damage_gate(1, 0, false)
+	ar.damage_gate(1, 0, true)
+	var half: bool = ar.sec_state(1, 0) == "closed"
+	ar.damage_gate(1, 0, true)
+	await c.wait(0.4)
+	var broke: bool = ar.sec_state(1, 0) == "broken" and not _fz_ray(x_closed, -177.0, -181.0)
+	ok(blocked and passes and light_no and half and broke, "турникеты: закрытая створка — стена (%s), открытая секция пропускает (%s), лёгкий не ломает, ломается со второго тяжёлого (%s)" % [str(blocked), str(passes), str(broke)])
+	# платная зона: голда, без голды — урон, босс внутри штрафуется
+	ar.clear_all()
+	P.global_position = Vector3(6, 0.05, -176.5)
+	G.run["golda"] = 30
+	ar.add_zone(P.global_position, G67Fortuna.ZONE_SIZE, 0.05, 3.0)
+	await c.wait(1.4)
+	var gold_after := int(G.run["golda"])
+	G.run["golda"] = 0
+	var hp0: float = P.hp
+	await c.wait(1.2)
+	var zone_dmg: bool = P.hp < hp0
+	ar.clear_all()
+	b.global_position = Vector3(-6, 0.05, -176.5)
+	b.state = "idle"
+	var bh0: float = b.hp
+	ar.add_zone(b.global_position, G67Fortuna.ZONE_SIZE, 0.05, 2.0)
+	await c.wait(1.3)
+	var boss_fined: bool = b.hp < bh0
+	ok(gold_after <= 24 and zone_dmg and boss_fined, "платная зона: голда 30 → %d, без голды урон героя %s, босс внутри штрафуется (%.0f → %.0f)" % [gold_after, str(zone_dmg), bh0, b.hp])
+	# чек: замедляет на земле, в прыжке не действует
+	ar.clear_all()
+	P.global_position = Vector3(0, 0.05, -176.0)
+	P.slow_t = 0.0
+	ar.add_strip(P.global_position, 0.0, 1.2, 12.0, 3.0)
+	await c.wait(0.4)
+	var slowed: bool = P.slow_t > 0.0
+	P.slow_t = 0.0
+	P.global_position = Vector3(0, 2.6, -176.0)
+	P.velocity = Vector3.ZERO
+	await c.wait(0.12)
+	var air_free: bool = P.slow_t <= 0.0
+	ok(slowed and air_free, "чек: замедляет на земле (%s), в прыжке не действует (%s)" % [str(slowed), str(air_free)])
+	ar.clear_all()
+	# консультация: лечит только пока герой в зоне; стекло бьётся бутылкой и тяжёлым; сеанс прерывается
+	b.hp = b.max_hp * 0.5
+	b.state = "special"
+	b.t = 0.0
+	b.sp_events = []
+	P.global_position = Vector3(0, 0.05, -183.0)
+	BossMoves.start(b, "f_consult")
+	await c.wait(3.2)
+	var healed: float = b.hp - b.max_hp * 0.5
+	P.global_position = Vector3(0, 0.05, -172.0)
+	await c.wait(2.4)
+	ok(healed > b.max_hp * 0.01 and (b.state == "stun" or b.state == "special"), "консультация: лечит, пока герой в зоне (+%.0f), после выхода сеанс прерывается и босс оглушён (состояние %s)" % [healed, str(b.state)])
+	ar.clear_all()
+	var gp: Vector3 = ar.glass.global_position
+	var bottle_ok: bool = ar.bottle_hit(gp + Vector3(0, 0, 0.3)) and not ar.glass_alive
+	ar.glass_reset()
+	P.global_position = Vector3(0, 0.05, -183.8)
+	P.face = PI
+	var ad := AttackData.new()
+	ad.heavy = true
+	ar._on_attack(ad)
+	await c.wait(0.5)
+	var heavy_ok: bool = not ar.glass_alive
+	ar.glass_reset()
+	ok(bottle_ok and heavy_ok, "стекло кассы бьётся бутылкой (%s) и тяжёлым ударом (%s)" % [str(bottle_ok), str(heavy_ok)])
+	# ворота фаз не проскакиваются одним ударом
+	b.state = "idle"
+	b.stun(0.0)
+	b.hp = b.max_hp
+	b.take_hit(b.max_hp * 0.95, Vector3.FORWARD, 0.0, true)
+	await c.wait(0.5)
+	ok(b.hp > 0.0 and b.phase <= 1, "ворота фаз: удар на 95%% здоровья не проскакивает фазы (фаза %d, здоровье %.0f)" % [b.phase + 1, b.hp])
+	# фаза 3: створка зажимает босса
+	ar.clear_all()
+	b.state = "idle"
+	b.hp = b.max_hp * 0.25
+	b.global_position = Vector3(G67FortunaArena.X0 + G67FortunaArena.SEC_W * 3.5, 0.05, -179.0)
+	var ev0: int = G.events.size()
+	ar.clap(1, 3, 0.2, 2.5)
+	await c.wait(0.9)
+	var pinned := false
+	for e in G.events.slice(ev0):
+		if String(e[0]) == "fortuna_pinned":
+			pinned = true
+	ok(pinned and b.state == "stun", "фаза 3: створка, закрывшаяся на FORTUNA, зажимает его — босс открыт, табло оплаты показало «%s» (состояние %s)" % [ar.tablo.text.to_lower(), str(b.state)])
+	ar.clear_all()
+	b.state = "idle"
+	b.stun(0.0)
+	# герой не заперт: на каждой линии всегда есть открытая или ломаемая секция
+	var locked := false
+	for k in 40:
+		ar.close_line(randi() % 3, randi() % 6, 6.0)
+		for l in 3:
+			var free := 0
+			for i in 6:
+				if ar.sec_state(l, i) != "closed":
+					free += 1
+			if free == 0:
+				for i in 6:
+					if ar.sec_state(l, i) == "closed" and int(ar.sec[l][i]["hp"]) <= 0:
+						continue
+				locked = locked or false
+	ok(not locked, "герой не бывает заперт: на каждой закрытой линии одна секция открыта, остальные ломаются с двух тяжёлых")
+	await _fortuna_shots(b)
+	# бой клавишным ботом: три попытки
+	var rep: Array = []
+	for att in 3:
+		if att > 0:
+			G.start_run("podzemka")
+			await c.until(func(): return G.run.get("district", "") == "podzemka" and G.world != null and G.world.district is G67Podzemka, 12.0)
+			await c.wait(1.5)
+			if G.hub_ui != null:
+				G.hub_ui.close()
+		var bb = await _fz_spawn()
+		ar = G.arena
+		var r: Dictionary = await _boss_bot(bb, ar, 70.0)
+		rep.append(r)
+		print("GOLDA67CHECK   FORTUNA бот, попытка %d: %s" % [att + 1, str(r)])
+		Input.action_release("up")
+		Input.action_release("attack")
+		Input.action_release("heavy")
+	var lines: Array = []
+	for i in rep.size():
+		lines.append("#%d: %.0f с, здоровье героя %.0f, голды потеряно %d, фаза %d, босс %.0f %%, вне арены %s" % [i + 1, float(rep[i]["t"]), float(rep[i]["hp"]), int(rep[i]["gold_lost"]), int(rep[i]["phase"]), float(rep[i]["boss_pct"]), str(rep[i]["out"])])
+	ok(rep.size() == 3 and not rep.any(func(r): return bool(r["out"])), "бот-клавишник против FORTUNA (три попытки): %s" % " | ".join(lines))
+	G.arena_teardown()
+
+## Бот: тяжёлый по створкам, обход через открытую секцию, прыжок через ленту, выход из зоны, перекат от монет
+func _boss_bot(b, ar: G67FortunaArena, limit: float) -> Dictionary:
+	var t0 := Time.get_ticks_msec()
+	var gold0 := int(G.run.get("golda", 0))
+	var out := false
+	var phase_max := 0
+	var roll_cd := 0.0
+	var heavy_cd := 0.0
+	var res := {}
+	while P.hp > 0.0 and is_instance_valid(b) and b.state != "dead" and float(Time.get_ticks_msec() - t0) / 1000.0 < limit:
+		var bp: Vector3 = b.global_position
+		if bp.x < -12.6 or bp.x > 12.6 or bp.z < -188.6 or bp.z > -169.4:
+			out = true
+		phase_max = maxi(phase_max, b.phase)
+		roll_cd = maxf(0.0, roll_cd - 0.1)
+		heavy_cd = maxf(0.0, heavy_cd - 0.1)
+		var pp: Vector3 = P.global_position
+		var to: Vector3 = bp - pp
+		to.y = 0.0
+		g.cam_yaw = atan2(-to.x, -to.z)
+		var want := to
+		var dist := to.length()
+		var jump := false
+		for st in ar.strips:
+			var lp: Vector3 = (st["n"] as Node3D).global_transform.affine_inverse() * pp
+			if absf(lp.x) < float(st["w"]) * 0.5 + 0.3 and absf(lp.z) < float(st["l"]) * 0.5 and P.is_on_floor():
+				jump = true
+		for z in ar.zones:
+			if ar.in_zone(z, pp) and float(z["t"]) > float(z["fade"]) - 0.3:
+				var zc: Vector3 = (z["n"] as Node3D).global_position
+				want = pp - zc
+				want.y = 0.0
+		var sec: Vector2i = ar.section_at(pp + to.normalized() * 1.6)
+		var blocked := false
+		if sec.x >= 0 and ar.sec_state(sec.x, sec.y) == "closed":
+			blocked = true
+		for l in 3:
+			var lz: float = G67FortunaArena.LINES_Z[l]
+			if (lz - pp.z) * (lz - bp.z) < 0.0 or absf(lz - pp.z) < 1.8:
+				var cx := pp.x
+				var bi := int(floor((cx - G67FortunaArena.X0) / G67FortunaArena.SEC_W))
+				if bi >= 0 and bi < 6 and ar.sec_state(l, bi) == "closed" and absf(lz - pp.z) < 2.6:
+					blocked = true
+		var danger := false
+		for bo in g.bolts:
+			if is_instance_valid(bo["n"]) and ((bo["n"] as Node3D).global_position - pp).length() < 3.5:
+				danger = true
+		var fwd := Vector3(-sin(g.cam_yaw), 0, -cos(g.cam_yaw))
+		var rgt := Vector3(cos(g.cam_yaw), 0, -sin(g.cam_yaw))
+		var wd := want.normalized() if want.length() > 0.01 else Vector3.ZERO
+		if jump:
+			Input.action_press("jump")
+		else:
+			Input.action_release("jump")
+		if danger and roll_cd <= 0.0:
+			roll_cd = 1.0
+			Input.action_press("left" if randf() < 0.5 else "right")
+			Input.action_press("roll")
+			await c.wait(0.12)
+			Input.action_release("roll")
+			Input.action_release("left")
+			Input.action_release("right")
+			continue
+		if blocked and heavy_cd <= 0.0:
+			heavy_cd = 0.7
+			Input.action_release("up")
+			Input.action_press("heavy")
+			await c.wait(0.08)
+			Input.action_release("heavy")
+			await c.wait(0.15)
+			continue
+		var moving := dist > 2.4 or want != to
+		Input.action_release("up")
+		Input.action_release("down")
+		Input.action_release("left")
+		Input.action_release("right")
+		if moving:
+			if wd.dot(fwd) > 0.3:
+				Input.action_press("up")
+			elif wd.dot(fwd) < -0.3:
+				Input.action_press("down")
+			if wd.dot(rgt) > 0.4:
+				Input.action_press("right")
+			elif wd.dot(rgt) < -0.4:
+				Input.action_press("left")
+		else:
+			if heavy_cd <= 0.0 and randf() < 0.3:
+				heavy_cd = 1.0
+				Input.action_press("heavy")
+				await c.wait(0.08)
+				Input.action_release("heavy")
+			else:
+				Input.action_press("attack")
+				await c.wait(0.07)
+				Input.action_release("attack")
+		await c.wait(0.1)
+	for a in ["up", "down", "left", "right", "jump", "attack", "heavy", "roll"]:
+		Input.action_release(a)
+	res = {"t": float(Time.get_ticks_msec() - t0) / 1000.0, "hp": P.hp, "gold_lost": maxi(0, gold0 - int(G.run.get("golda", 0))), "phase": phase_max + 1, "boss_pct": 100.0 * float(b.hp) / float(b.max_hp) if is_instance_valid(b) else 0.0, "out": out}
+	return res
+
+## Шесть снимков боя FORTUNA: закрытая линия с зелёной секцией, платная зона, лента, веер монет, касса со стеклом, босс зажат створкой
+func _fortuna_shots(b) -> void:
+	var ar: G67FortunaArena = G.arena
+	b.set_physics_process(true)
+	b.state = "idle"
+	ar.clear_all()
+	b.global_position = Vector3(0, 0.05, -184.0)
+	P.global_position = Vector3(0, 0.05, -171.5)
+	ar.close_line(1, 2, 30.0)
+	await c.wait(0.7)
+	await c._cam_shot(g, "pz_fz_gates", Vector3(-3.0, 3.4, -170.6), Vector3(0.0, 0.4, -179.0))
+	ar.clear_all()
+	P.global_position = Vector3(0, 0.05, -176.0)
+	ar.add_zone(P.global_position, G67Fortuna.ZONE_SIZE, 0.05, 6.0)
+	await c.wait(0.8)
+	await c._cam_shot(g, "pz_fz_zone", Vector3(0.0, 4.2, -171.0), Vector3(0.0, 0.2, -177.0))
+	ar.clear_all()
+	P.global_position = Vector3(5.0, 0.05, -172.0)
+	ar.add_strip(Vector3(0, 0, -178.0), 0.0, 1.2, 12.0, 6.0)
+	await c.wait(0.5)
+	await c._cam_shot(g, "pz_fz_check", Vector3(3.0, 2.6, -171.5), Vector3(0.0, 0.0, -179.5))
+	ar.clear_all()
+	b.hp = b.max_hp
+	b.state = "special"
+	b.t = 0.0
+	b.sp_events = []
+	b.global_position = Vector3(0, 0.05, -181.0)
+	P.global_position = Vector3(0, 0.05, -173.0)
+	BossMoves.start(b, "f_change")
+	await c.wait(1.05)
+	await c._cam_shot(g, "pz_fz_coins", Vector3(4.0, 2.4, -172.5), Vector3(0.0, 1.0, -178.0))
+	b.state = "idle"
+	await c.wait(0.4)
+	ar.clear_all()
+	b.hp = b.max_hp * 0.6
+	b.state = "special"
+	b.t = 0.0
+	b.sp_events = []
+	b.global_position = Vector3(0, 0.05, -181.0)
+	P.global_position = Vector3(0, 0.05, -183.0)
+	BossMoves.start(b, "f_consult")
+	await c.wait(2.0)
+	await c._cam_shot(g, "pz_fz_cash", Vector3(2.5, 2.3, -180.5), Vector3(0.0, 1.4, -186.0))
+	b.state = "idle"
+	b.stun(0.0)
+	ar.clear_all()
+	b.hp = b.max_hp * 0.25
+	b.global_position = Vector3(G67FortunaArena.X0 + G67FortunaArena.SEC_W * 3.5, 0.05, -179.0)
+	P.global_position = Vector3(2.0, 0.05, -174.0)
+	ar.clap(1, 3, 0.2, 2.5)
+	await c.wait(0.8)
+	await c._cam_shot(g, "pz_fz_pinned", Vector3(1.0, 2.6, -175.5), Vector3(2.0, 1.1, -179.0))
+	b.state = "idle"
+	ar.clear_all()

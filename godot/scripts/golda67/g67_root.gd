@@ -635,6 +635,32 @@ func _slot_use(force_turbo := false) -> void:
 var _hamster_first_enter := false
 var hamster_busy := false
 var bottle_busy := false
+var arena: G67FortunaArena = null
+
+## Арена FORTUNA: турникеты, зоны, касса со стеклом; создаётся с боссом, убирается с концом боя
+func arena_setup(boss) -> void:
+	if arena != null and is_instance_valid(arena):
+		arena.queue_free()
+	arena = G67FortunaArena.new()
+	world.add_child(arena)
+	arena.build(game, self)
+	arena.boss = boss
+	arena.boss_pinned.connect(func():
+		if boss != null and is_instance_valid(boss):
+			G67Fortuna.say(boss, "pinned")
+			G67Fortuna.hard_stun(boss, G67Fortuna.PIN_OPEN, "FPinned")
+			game.popup(boss.global_position + Vector3(0, boss.height + 0.4, 0), "ОТКРЫТ", Color(1.0, 0.9, 0.3))
+			events.append(["fortuna_pinned"]))
+	arena.glass_broken.connect(func():
+		if boss != null and is_instance_valid(boss) and boss.state == "special":
+			G67Fortuna.say(boss, "glass")
+			G67Fortuna.hard_stun(boss, G67Fortuna.CONSULT_STUN, "FStun"))
+	events.append(["arena_ready"])
+
+func arena_teardown() -> void:
+	if arena != null and is_instance_valid(arena):
+		arena.queue_free()
+	arena = null
 var reserve_charges := 0
 var reserve_lb: Label = null
 
@@ -1289,6 +1315,8 @@ func enter_room(r: Dictionary) -> void:
 			var bid := String(d["boss"])
 			var b = game._make_enemy("", bid, G67District.pt("boss_spot") + Vector3(0, 0.05, 0))
 			game.boss_e = b
+			if pz and bid == "g67_fortuna":
+				arena_setup(b)
 			var bd: Dictionary = game.story["BOSS"][bid]
 			game.boss_name.text = "%s — %s" % [bd["n"], bd["sub"]]
 			if not pz:

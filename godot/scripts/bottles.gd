@@ -290,6 +290,8 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 	game.main.sfx("sfx_glass", -3.0, 1.15)
 	_play_splash(at)
 	hits_log.append({"kind": "enemy" if enemy != null else "world", "enemy": enemy, "pos": at})
+	if game.golda != null and game.golda.get("arena") != null:
+		game.golda.arena.bottle_hit(at)
 	var slow_s: float = a.extra.get("slow", 0.0)
 	var reserve := false
 	if enemy != null and game.golda != null and game.golda.has_method("reserve_use"):
