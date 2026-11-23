@@ -15,7 +15,7 @@ const ROWS := 3
 const GRID_X := [128.0, 284.0, 440.0, 596.0, 752.0, 908.0]
 const GRID_Y := [95.0, 231.0, 367.0, 503.0]
 ## Положение спрайта в ячейке (от левого верхнего угла ячейки, пиксели исходного снимка) и размер: как на примере
-const SPR := {"dog": [Vector2(5, 5), Vector2(148, 126)], "dog2": [Vector2(4, 9), Vector2(148, 122)], "house": [Vector2(0, -37), Vector2(154, 174)],
+const SPR := {"dog": [Vector2(4, 4), Vector2(148, 126)], "dog2": [Vector2(4, 9), Vector2(148, 122)], "house": [Vector2(0, -37), Vector2(154, 174)],
 	"paw": [Vector2(-3, -17), Vector2(159, 174)], "a": [Vector2(38, 25), Vector2(76, 88)], "k": [Vector2(38, 23), Vector2(76, 88)]}
 ## Выступ символов за ячейку (верх будки, лапа BONUS): маска шире REEL_RECT на CLIP_PAD сверху и по бокам
 const CLIP_PAD := Vector2(8, 40)
@@ -228,6 +228,7 @@ var _cols_on: Array = []
 var _done := 0
 var _jackpot := false
 var _turbo := false
+var stop_total := 0.0
 
 func spin(n: int, turbo := false) -> void:
 	if spinning:
@@ -242,10 +243,12 @@ func spin(n: int, turbo := false) -> void:
 	field = make_field(n)
 	lbl_spin.text = "SPIN: %d / 67" % n if n <= 67 else "SPIN: %d" % n
 	lbl_left.text = "ДО ДЖЕКПОТА: %d" % maxi(0, 67 - n)
-	var base := 0.14 if turbo else 0.6
+	var calm := 2.0 if (n == 65 or n == 66) else 1.0       # 65–66: барабаны тормозят заметно дольше
+	var base := (0.14 if turbo else 0.6) * calm
 	_stop_at = []
 	for c in 5:
-		_stop_at.append(base + (float(c) * 0.07 if turbo else (float(c) * 0.32 if not _jackpot else 0.4 * float(c) + 0.1 * float(c) * float(c))))
+		_stop_at.append(base + (float(c) * 0.07 * calm if turbo else (float(c) * 0.32 * calm if not _jackpot else 0.4 * float(c) + 0.1 * float(c) * float(c))))
+	stop_total = float(_stop_at.back())
 	_cols_on = [true, true, true, true, true]
 	_done = 0
 	_t = 0.0

@@ -80,6 +80,8 @@ var _last_ctx := ""
 var _dieg_db := 0.0
 var gain_cur := 0.0                    # gain_db базовой ситуации, сглаженный 12 дБ/с
 var _dieg_node: Node3D
+var dieg3: AudioStreamPlayer3D     # третий слой (перкуссия казино)
+var _dieg3_gain := 0.0
 var dieg2: AudioStreamPlayer3D     # второй слой диегетического источника (кроссфейд состояний)
 var _dieg_mix := 0.0
 
@@ -121,6 +123,13 @@ func _ready() -> void:
 	dieg2.max_db = 0.0
 	dieg2.volume_db = -80.0
 	add_child(dieg2)
+	dieg3 = AudioStreamPlayer3D.new()
+	dieg3.bus = "MusicDiegetic"
+	dieg3.unit_size = 5.0
+	dieg3.attenuation_filter_cutoff_hz = 4500.0
+	dieg3.max_db = 0.0
+	dieg3.volume_db = -80.0
+	add_child(dieg3)
 
 # ---------- наборы ----------
 func stems_of(nm: String) -> Array:
@@ -298,14 +307,31 @@ func set_diegetic2(stream: AudioStream, mix: float) -> void:
 	if _dieg_mix > 0.0 and stream != null and not dieg2.playing and not silent:
 		dieg2.play(dieg.get_playback_position() if dieg.playing else 0.0)
 
+## Слой 3 (перкуссия): gain 0…1 линейно; играет синхронно с первым слоем
+func set_diegetic3(stream: AudioStream, gain: float) -> void:
+	_dieg3_gain = clampf(gain, 0.0, 1.0)
+	if stream != null and dieg3.stream != stream:
+		dieg3.stream = stream
+	if _dieg3_gain > 0.0 and stream != null and not dieg3.playing and not silent:
+		dieg3.play(dieg.get_playback_position() if dieg.playing else 0.0)
+
 func diegetic_playing() -> int:
-	return int(dieg.playing) + int(dieg2.playing)
+	return int(dieg.playing) + int(dieg2.playing) + int(dieg3.playing)
+
+## Логический источник (узел с потоком) — один на все слои; не зависит от того, включён ли звук в проверках
+func diegetic_sources() -> int:
+	return 1 if _dieg_node != null and dieg.stream != null else 0
 
 func stop_diegetic() -> void:
 	dieg.stop()
 	dieg2.stop()
+	dieg3.stop()
+	dieg.stream = null
+	dieg2.stream = null
+	dieg3.stream = null
 	_dieg_node = null
 	_dieg_mix = 0.0
+	_dieg3_gain = 0.0
 
 func _pick(new_cue: String) -> String:
 	var t := String(base.get("transition", ""))
@@ -527,5 +553,9 @@ func tick(dt: float) -> void:
 		dieg2.global_position = _dieg_node.global_position
 		dieg.volume_db = _dieg_db + (linear_to_db(maxf(1.0 - _dieg_mix, 0.0001)) if dieg2.stream != null else 0.0)
 		dieg2.volume_db = _dieg_db + linear_to_db(maxf(_dieg_mix, 0.0001))
+		dieg3.global_position = _dieg_node.global_position
+		dieg3.volume_db = _dieg_db - 4.0 + linear_to_db(maxf(_dieg3_gain, 0.0001))
+		if _dieg3_gain <= 0.0 and dieg3.playing:
+			dieg3.stop()
 		if _dieg_mix <= 0.0 and dieg2.playing:
 			dieg2.stop()

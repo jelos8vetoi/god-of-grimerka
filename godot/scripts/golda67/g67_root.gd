@@ -598,7 +598,7 @@ func _casino_react(n: int, res: Dictionary, pz: G67Podzemka) -> void:
 			events.append(["casino_kills", lv])
 	save()
 
-func _slot_use() -> void:
+func _slot_use(force_turbo := false) -> void:
 	var pz := world.district as G67Podzemka if world != null else null
 	if pz == null or pz.slot_screen == null or slot_busy:
 		return
@@ -615,9 +615,12 @@ func _slot_use() -> void:
 	tr.set_anchors_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(tr)
 	game.add_child(layer)
-	pz.slot_screen.spin(n, Input.is_key_pressed(KEY_SHIFT))
+	pz.slot_screen.spin(n, Input.is_key_pressed(KEY_SHIFT) or force_turbo)
 	var res: Dictionary = await pz.slot_screen.finished
 	_casino_react(n, res, pz)
+	if n == 66:
+		_casino_accent(pz)
+		await get_tree().create_timer(1.0).timeout
 	if bool(res["jackpot"]):
 		await get_tree().create_timer(2.5).timeout
 	else:
@@ -757,8 +760,10 @@ func _pz_music_tick(dt: float) -> void:
 		want = "hamster"
 	elif dc < 25.0:
 		want = "casino"
+	var fresh := false
 	if want != pz_dieg:
 		pz_dieg = want
+		fresh = true
 		if want == "hamster":
 			var closed: bool = not bool(pzm.door_open_flags.get("hamster", false))
 			dir.set_diegetic(load("res://assets/music/ev_g67_hamster.ogg"), pzm.music_hamster, -14.0 if closed else -3.0, 14.0)
@@ -769,9 +774,64 @@ func _pz_music_tick(dt: float) -> void:
 	if want == "hamster":
 		dir._dieg_db = -14.0 if not bool(pzm.door_open_flags.get("hamster", false)) else -3.0
 	if want == "casino":
-		var n := int(meta().get("casino_spins", 0))
-		casino_mix = move_toward(casino_mix, 1.0 if n >= 60 else 0.0, dt / 4.0)
-		dir.set_diegetic2(load("res://assets/music/ev_g67_casino_b.ogg"), casino_mix)
+		_casino_music(dir, pzm, dt, fresh)
+	else:
+		pzm.lamp_rate = 3.0
+
+const CASINO_BAR := 3.404            # такт референса, с (кроссфейд 60–64 стартует по его границе)
+var casino_cf_on := false
+var casino_perc := 0.0
+var casino_duck_t := 0.0
+
+## Состояния музыки казино по счётчику спинов: 1–49 обычная; 50–59 + перкуссия и лампы живее; 60–64 кроссфейд 4 с на драйвовую по границе такта; 65–67 драйвовая; после 67-го возврат за 6 с
+func _casino_music(dir, pzm: G67Podzemka, dt: float, fresh: bool) -> void:
+	var n := int(meta().get("casino_spins", 0))
+	if fresh:
+		casino_mix = 1.0 if (n >= 60 and n <= 67) else 0.0
+		casino_perc = 1.0 if (n >= 50 and n <= 59) else 0.0
+		casino_cf_on = casino_mix >= 1.0
+	if n >= 60 and n <= 67:
+		if not casino_cf_on and fmod(dir.dieg.get_playback_position(), CASINO_BAR) < 0.12:
+			casino_cf_on = true
+		if casino_cf_on:
+			casino_mix = move_toward(casino_mix, 1.0, dt / 4.0)
+	elif n >= 68:
+		casino_cf_on = false
+		casino_mix = move_toward(casino_mix, 0.0, dt / 6.0)
+	else:
+		casino_mix = move_toward(casino_mix, 0.0, dt / 2.0)
+	casino_perc = move_toward(casino_perc, 1.0 if (n >= 50 and n <= 59) else 0.0, dt / 1.5)
+	pzm.lamp_rate = 7.5 if (n >= 50 and n <= 67) else 3.0
+	casino_duck_t = maxf(0.0, casino_duck_t - dt)
+	dir._dieg_db = -4.0 - (40.0 if casino_duck_t > 0.0 else 0.0)
+	dir.set_diegetic2(load("res://assets/music/ev_g67_casino_b.ogg"), casino_mix)
+	dir.set_diegetic3(load("res://assets/music/ev_g67_casino_perc.ogg"), casino_perc)
+
+## Акцент 66-го спина: удар и пауза (музыка казино на 0,9 с глохнет)
+func _casino_accent(pz: G67Podzemka) -> void:
+	var pl := AudioStreamPlayer3D.new()
+	pl.stream = load("res://assets/music/ev_g67_casino_accent.ogg")
+	pl.bus = "MusicDiegetic"
+	pl.unit_size = 5.0
+	pz.music_casino.add_child(pl)
+	pl.play()
+	pl.finished.connect(pl.queue_free)
+	casino_duck_t = 0.9
+	events.append(["casino_accent"])
+
+## Музыка района глохнет: в комнате казино и в 5 м от открытой рольставни; в комнате хомяков и в 6 м от открытой двери (пока звучит трек)
+func pz_duck_district() -> bool:
+	var pzm := world.district as G67Podzemka if world != null else null
+	if pzm == null or pzm.music_casino == null or game.player == null:
+		return false
+	var hp: Vector3 = game.player.global_position
+	if G67Podzemka.room_at(hp) == "casino" and bool(pzm.door_open_flags.get("shutter", false)):
+		return true
+	if bool(pzm.door_open_flags.get("shutter", false)) and hp.distance_to(Vector3(-44.25, 0.0, -122.0)) < 5.0:
+		return true
+	if G67Podzemka.room_at(hp) == "hamster":
+		return true
+	return bool(pzm.door_open_flags.get("hamster", false)) and hp.distance_to(Vector3(44.0, 0.0, -146.0)) < 6.0
 
 func _stash_tick(dt: float) -> void:
 	if stash_nodes.is_empty():
@@ -3492,6 +3552,12 @@ func _tv_node() -> Node3D:
 	return tv_marker
 
 func music_context() -> Dictionary:
+	var r := _music_context_base()
+	if G67District.is_podzemka() and pz_duck_district():
+		r["duck_db"] = -30.0
+	return r
+
+func _music_context_base() -> Dictionary:
 	var dir = game.main.audio.director
 	var res := {"dialogue": "talk", "boss_set": ""}
 	var ph = phone_get()

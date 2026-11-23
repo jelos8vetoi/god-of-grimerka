@@ -185,6 +185,7 @@ var dog_bark_t := -1.0
 var dog_joy_t := -1.0
 var dog_next_bark := 4.0
 var slot_lamps: Array = []
+var lamp_rate := 3.0          # частота мигания ламп корпуса слота; растёт с 50-го спина
 const SLOT_POS := Vector3(-52.9, 0.0, -122.0)
 const SLOT_YAW := PI * 0.5
 var room_of_prop := {}
@@ -777,7 +778,7 @@ func _process(_dt: float) -> void:
 	if spit_node != null and is_instance_valid(spit_node):
 		spit_node.rotate_y(_dt * 0.55)
 	for lp in slot_lamps:
-		var on := (int(t * 3.0) + int(lp[2])) % 2 == 0
+		var on := (int(t * lamp_rate) + int(lp[2])) % 2 == 0
 		(lp[1] as StandardMaterial3D).emission_energy_multiplier = 2.4 if on else 0.15
 	if slot_button != null:
 		var pressed: bool = slot_screen != null and slot_screen.spinning
@@ -962,7 +963,7 @@ func _all_props() -> Array:
 	# острова автоматов зала: спина к спине, два ряда по шесть
 	var zi := 0
 	for zc in [-125.5, -116.5]:
-		for i in 6:
+		for i in 5:
 			var x := -38.0 + float(i) * 2.9
 			var a1: String = "arcade_a" if (i + zi) % 2 == 0 else "arcade_b"
 			var a2: String = "arcade_b" if (i + zi) % 2 == 0 else "arcade_a"
@@ -990,7 +991,6 @@ func _all_props() -> Array:
 	out.append(["chess", -40.2, -110.6, 0.0, 0.9, 1.0, false, true, null])
 	_crate(Vector3(-39.6, 0.45, -110.6), Vector3(1.9, 0.9, 0.9))
 	out.append(["extinguisher", 2.0, -44.6, 0.0, 0.0, 1.0, false, true, null])
-	out.append(["extinguisher", -17.0, -112.5, 0.0, 0.0, 1.0, false, true, null])
 	_string_bulbs(bulbs)
 	return out
 

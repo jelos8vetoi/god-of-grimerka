@@ -177,6 +177,7 @@ func run(g_, G_: Golda67) -> void:
 	await _save_resume()
 	await _enemy_checks()
 	await _slot_checks()
+	await _casino_checks()
 	await _bot_battles()
 
 ## --pz-perfzones: средний и 1 % low кадр по зонам боя (6 с после прогрева 3 с)
@@ -825,3 +826,124 @@ func _mech_checks() -> void:
 			if is_instance_valid(oe):
 				oe.queue_free()
 		await c.wait(0.3)
+
+func _snap_slot(name: String, delay: float) -> void:
+	await c.wait(delay)
+	var pzs: G67Podzemka = G.world.district as G67Podzemka
+	if pzs != null and pzs.slot_vp != null:
+		pzs.slot_vp.get_texture().get_image().save_png(OS.get_environment("TEMP") + "/g67_" + name + ".png")
+
+## Казино: музыка по состояниям счётчика, один источник, возвращение, сценарий 40 → гибель → новый забег → 27 → джекпот на 67-м → 68-й обычный (настоящий файл сохранения)
+func _casino_checks() -> void:
+	G67Save.path_override = "user://g67check_casino.json"
+	var was_clean: bool = G67Save.clean
+	G67Save.clean = false
+	G.start_run("podzemka")
+	await c.until(func(): return G.run.get("district", "") == "podzemka" and G.world != null and G.world.district is G67Podzemka, 12.0)
+	await c.wait(1.5)
+	var pzm: G67Podzemka = G.world.district as G67Podzemka
+	var dir = g.main.audio.director
+	pzm.open_door("shutter")
+	G.meta()["casino_spins"] = 0
+	var far := Vector3(0, 0.05, -60)
+	var near := Vector3(-47.0, 0.05, -122)
+	var counts: Array = []
+	for k in 3:
+		P.global_position = near
+		G._pz_music_tick(0.1)
+		G._pz_music_tick(0.1)
+		counts.append(dir.diegetic_sources())
+		P.global_position = far
+		G._pz_music_tick(0.1)
+		counts.append(dir.diegetic_sources())
+	P.global_position = near
+	G._pz_music_tick(0.1)
+	G._pz_music_tick(0.1)
+	var before: int = dir.diegetic_sources()
+	var spin_once := func(): await G._slot_use(true)
+	spin_once.call()
+	await c.wait(0.5)
+	G._pz_music_tick(0.1)
+	ok(counts == [1, 0, 1, 0, 1, 0] and before == 1 and dir.diegetic_sources() == 1, "источник музыки казино: после трёх входов-выходов %s, во время открытого экрана слота %d (ровно 1 внутри, 0 снаружи)" % [str(counts), dir.diegetic_sources()])
+	await c.until(func(): return not G.slot_busy, 8.0)
+	# состояния по счётчику
+	var states: Array = []
+	for n in [30, 55, 62]:
+		G.meta()["casino_spins"] = n
+		P.global_position = far
+		G._pz_music_tick(0.1)
+		P.global_position = near
+		G._pz_music_tick(0.1)
+		states.append([n, G.casino_mix, G.casino_perc, pzm.lamp_rate])
+	ok(states[0][1] == 0.0 and states[0][2] == 0.0 and states[1][2] == 1.0 and states[1][3] > 6.0 and states[2][1] == 1.0 and states[2][2] == 0.0, "состояние музыки при входе по сохранённому счётчику: 30 → обычная, 55 → перкуссия и лампы живее (%.1f), 62 → сразу драйвовая (смесь %.1f)" % [states[1][3], states[2][1]])
+	G.meta()["casino_spins"] = 59
+	P.global_position = far
+	G._pz_music_tick(0.1)
+	P.global_position = near
+	G._pz_music_tick(0.1)
+	G.meta()["casino_spins"] = 60
+	var ticks := 0
+	while G.casino_mix < 1.0 and ticks < 200:
+		G._pz_music_tick(0.1)
+		ticks += 1
+	ok(ticks >= 38 and ticks <= 46, "кроссфейд на драйвовую при 60-м спине идёт 4 с (%.1f с, старт по границе такта %.3f с)" % [float(ticks) * 0.1, G.CASINO_BAR])
+	G.meta()["casino_spins"] = 68
+	ticks = 0
+	while G.casino_mix > 0.0 and ticks < 200:
+		G._pz_music_tick(0.1)
+		ticks += 1
+	ok(ticks >= 56 and ticks <= 64, "после джекпота возврат к обычной музыке за 6 с (%.1f с)" % (float(ticks) * 0.1))
+	# музыка района глохнет
+	P.global_position = near
+	var ducked_in: bool = G.pz_duck_district() and float(G.music_context().get("duck_db", 0.0)) < -20.0
+	P.global_position = Vector3(-30, 0.05, -122)
+	var ducked_out: bool = not G.pz_duck_district()
+	P.global_position = Vector3(-41.0, 0.05, -122)
+	var ducked_door: bool = G.pz_duck_district()
+	ok(ducked_in and ducked_out and ducked_door, "музыка района глохнет в казино и в 5 м от открытой рольставни (внутри %s, снаружи %s, у шторы %s)" % [str(ducked_in), str(not ducked_out), str(ducked_door)])
+	G.meta()["casino_spins"] = 55
+	G._pz_music_tick(0.1)
+	P.global_position = Vector3(-47.0, 0.05, -122)
+	await c.wait(0.3)
+	if G.hub_ui != null:
+		G.hub_ui.close()
+	await c.wait(0.3)
+	await c._cam_shot(g, "pz_slot_lamps", Vector3(-47.0, 1.7, -121.2), Vector3(-52.9, 1.3, -122.0))
+	# сценарий: 40 спинов → гибель → новый забег → 27 → джекпот на 67-м → 68-й обычный
+	G.meta()["casino_spins"] = 0
+	G.events.clear()
+	for i in 40:
+		await G._slot_use(true)
+	G67Save.save_all(G.data)
+	G.on_dead()
+	await c.wait(0.5)
+	G67Save.save_all(G.data)
+	G.data = G67Save.load_all()
+	G.start_run("podzemka")
+	await c.until(func(): return G.run.get("district", "") == "podzemka" and G.world != null and G.world.district is G67Podzemka, 12.0)
+	await c.wait(1.5)
+	var kept: int = int(G.meta().get("casino_spins", -1))
+	for i in 27:
+		if int(G.meta().get("casino_spins", 0)) == 65:
+			pass
+		var nn: int = int(G.meta().get("casino_spins", 0)) + 1
+		if nn == 66 or nn == 67:
+			_snap_slot("slot_%d" % nn, 0.45)
+		await G._slot_use(true)
+	var jack: Array = G.events.filter(func(e): return String(e[0]) == "slot" and bool(e[2]))
+	await G._slot_use(true)
+	var jack2: Array = G.events.filter(func(e): return String(e[0]) == "slot" and bool(e[2]))
+	var last_slot: Array = G.events.filter(func(e): return String(e[0]) == "slot").back()
+	ok(kept == 40 and jack.size() == 1 and int(jack[0][1]) == 67 and jack2.size() == 1 and int(last_slot[1]) == 68 and not bool(last_slot[2]), "сценарий казино: счётчик пережил гибель и новый забег (%d), джекпот ровно один на %s-м, 68-й обычный" % [kept, str(jack[0][1]) if jack.size() > 0 else "?"])
+	# торможение барабанов на 65–66 дольше
+	var sc: G67SlotScreen = (G.world.district as G67Podzemka).slot_screen
+	sc.spinning = false
+	sc.spin(64, true)
+	var t64: float = sc.stop_total
+	sc.spinning = false
+	sc.spin(66, true)
+	var t66: float = sc.stop_total
+	sc.spinning = false
+	ok(t66 > t64 * 1.8, "барабаны на 65–66 тормозят дольше (турбо: %.2f с против %.2f с)" % [t66, t64])
+	G67Save.path_override = ""
+	G67Save.clean = was_clean
