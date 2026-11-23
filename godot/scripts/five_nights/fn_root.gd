@@ -29,6 +29,7 @@ var menu_st: FNNight
 var state := "menu"                 # menu / night / scare / dead / six
 var paused := false
 var night := 0
+var night_token := 0              # растёт в каждом start_night: отложенные реплики старой ночи молчат
 var tut_duct := false             # подсказки ночи 2 про MADK1D: каждая — один раз за попытку
 var tut_vent_l := false
 var tut_vent_t := false
@@ -213,6 +214,49 @@ func hush_end() -> void:
 func _snd_ok() -> bool:
 	return not quiet or (main != null and main.audiolog)
 
+## зацикленный поток в одноразовом пуле не играем: он звучал бы до конца процесса
+func _loop_stream(s: AudioStream, id: String) -> bool:
+	if s is AudioStreamWAV and (s as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED:
+		push_error("FN: зацикленный звук «%s» в одноразовом пуле" % id)
+		return true
+	return false
+
+## глушит всё разовое: пулы звуков, шёпот и ползание, реплики, помехи и красные вспышки; настройки громкости игрока не трогает
+func clear_transients(keep_scream := false) -> void:
+	for p in pool2:
+		(p as AudioStreamPlayer).stop()
+	for p in pool3:
+		(p as AudioStreamPlayer3D).stop()
+	if air_tune != null:
+		air_tune.stop()
+	if crawl != null:
+		crawl.stop()
+		crawl.volume_db = -60.0
+	if whisper != null:
+		whisper.stop()
+		whisper.volume_db = -60.0
+	if call_voice != null:
+		call_voice.stop()
+	_say_clear()
+	if ambience != null:
+		ambience.stop_events()
+	if not keep_scream and scream_p != null:
+		scream_p.stop()
+	if ui != null:
+		ui.hurt = 0.0
+		ui.neg = false
+		ui.inv_t = 0.0
+	face_flash = 0.0
+	if cams != null and cams.mat != null:
+		cams.mat.set_shader_parameter("jam", 0.0)
+		cams.mat.set_shader_parameter("haunt", 0.0)
+	hush_end()
+
+func _exit_tree() -> void:
+	hush_end()
+	if main != null and is_instance_valid(main) and main.audio != null:
+		main.audio.room(20500.0, 0.0)
+
 ## звук из точки (направление слышно): шаги у двери, стук в шахте
 func sfx3(id: String, pos: Vector3, vol := 0.0, pitch := 1.0) -> void:
 	if not _snd_ok():
@@ -220,7 +264,10 @@ func sfx3(id: String, pos: Vector3, vol := 0.0, pitch := 1.0) -> void:
 	for p in pool3:
 		var a := p as AudioStreamPlayer3D
 		if not a.playing:
-			a.stream = FNSound.pick(id)
+			var st3 := FNSound.pick(id)
+			if _loop_stream(st3, id):
+				return
+			a.stream = st3
 			a.global_position = pos
 			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
@@ -237,7 +284,10 @@ func sfx2(id: String, vol := 0.0, pitch := 1.0, bus := "SFX") -> void:
 	for p in pool2:
 		var a := p as AudioStreamPlayer
 		if not a.playing:
-			a.stream = FNSound.pick(id)
+			var st2 := FNSound.pick(id)
+			if _loop_stream(st2, id):
+				return
+			a.stream = st2
 			a.volume_db = vol + FNSound.trim(id)
 			a.pitch_scale = pitch
 			a.bus = FNSound.bus_for(id, bus)
@@ -250,6 +300,7 @@ func duck(on: bool) -> void:
 
 # ---------------- меню-терминал ----------------
 func _menu_scene() -> void:
+	clear_transients()
 	state = "menu"
 	menu.visible = true
 	menu.open_main()
@@ -278,6 +329,7 @@ func _menu_tick(dt: float) -> void:
 
 ## из меню мини-игры — в меню режимов GOD OF GRIMERKA
 func quit_to_menu() -> void:
+	clear_transients()
 	FNSave.save()
 	if main != null and main.has_method("end_minigame"):
 		main.end_minigame(ModeSelect.index_of("five_nights"))
@@ -288,6 +340,9 @@ func music_set() -> String:
 
 # ---------------- ночь ----------------
 func start_night(n: int, lv := {}) -> void:
+	clear_transients()
+	night_token += 1
+	var tok := night_token
 	night = n
 	levels = lv
 	var first_time: bool = (FNSave.v("beaten") as Array).is_empty()
@@ -350,7 +405,7 @@ func start_night(n: int, lv := {}) -> void:
 				ui.tips.tip("reset")
 			ui.tips.tip(id)
 	get_tree().create_timer(4.0, true, false, true).timeout.connect(func():
-		if state == "night" and n < FNData.PAHAN["start"].size():
+		if tok == night_token and state == "night" and n < FNData.PAHAN["start"].size():
 			pahan_say(String(FNData.PAHAN["start"][n]), 3.5))
 
 func retry() -> void:
@@ -358,6 +413,7 @@ func retry() -> void:
 	start_night(night, levels)
 
 func to_terminal() -> void:
+	clear_transients()
 	set_paused(false)
 	call_voice.stop()
 	_say_clear()
@@ -785,11 +841,12 @@ func _attack(eid: String, at: String) -> void:
 	FNSave.died(eid)
 	await scare.play("dark" if at == "dark" else eid, at, randi() % 3)
 	ui.hurt = 0.0
-	sfx2("static", -2.0)
 	_dead(eid, at)
 
 func _dead(eid: String, at: String) -> void:
 	state = "dead"
+	clear_transients(true)
+	sfx2("static", -2.0)
 	sfx2("sting_lose", -4.0)
 	var nm: String = FNData.ENEMIES[eid]["name"]
 	var hint := "Энергия кончилась. Двери, свет и камеры — всё в расход. Экономь: открывай двери, как только ушли." if at == "dark" else String(FNData.ENEMIES[eid]["counter"])

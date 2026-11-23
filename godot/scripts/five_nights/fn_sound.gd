@@ -279,16 +279,16 @@ static func _make(id: String) -> AudioStreamWAV:
 				var on := 1.0 if fposmod(t, 1.1) < 0.8 else 0.0
 				b[i] = on * 0.35 * (signf(sin(TAU * 420.0 * t)) * 0.5 + sin(TAU * 470.0 * t)) * (0.5 + 0.5 * signf(sin(TAU * 20.0 * t)))
 			return _wav(b)
-		"static":         # помехи камеры
-			var b := _buf(1.5)
+		"static":         # вспышка помех камеры: одноразовая, без зацикливания
+			var b := _buf(1.1)
 			for i in b.size():
 				var t := float(i) / RATE
 				var x := rng.randf_range(-1, 1) * 0.5
 				if rng.randf() < 0.002:
 					x *= 3.0
-				b[i] = x * (0.8 + 0.2 * sin(TAU * 60.0 * t))
-			_loop_fade(b, 0.05)
-			return _wav(b, true)
+				var env := minf(t / 0.03, 1.0) * clampf((1.1 - t) / 0.45, 0.0, 1.0)
+				b[i] = x * (0.8 + 0.2 * sin(TAU * 60.0 * t)) * env
+			return _wav(b)
 		"ping":           # писк сервера: два коротких
 			var b := _buf(0.5)
 			for i in b.size():
@@ -329,7 +329,7 @@ static func _make(id: String) -> AudioStreamWAV:
 				lp += (rng.randf_range(-1, 1) - lp) * 0.12
 				b[i] = lp * env * 1.2
 			_loop_fade(b, 0.05)
-			return _wav(b, true)
+			return _wav(b)
 		"heart":          # сердце — тише, ближе к концу «последнего шанса»
 			var b := _buf(0.9)
 			for i in b.size():
@@ -337,7 +337,7 @@ static func _make(id: String) -> AudioStreamWAV:
 				var a := exp(-t * 18.0) if t < 0.2 else exp(-(t - 0.22) * 16.0) * (1.0 if t >= 0.22 else 0.0) * 0.7
 				b[i] = sin(TAU * 52.0 * t) * a + sin(TAU * 104.0 * t) * a * 0.5 + rng.randf_range(-1, 1) * a * a * 0.25
 			_loop_fade(b, 0.02)
-			return _wav(b, true)
+			return _wav(b)
 		"music_box_air":  # «последний шанс»: Балон шипит вентилем — неровная мелодия свистом воздуха
 			var melody := [0, 3, 7, 6, 3, 0, -2, 0]
 			var b := _buf(6.4)

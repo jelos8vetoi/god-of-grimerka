@@ -51,9 +51,13 @@ const IR_SHADER := preload("res://scenes/five_nights/materials/fn_ir_pass.gdshad
 var eye_mats := {}                 # id → материал глаз (в скримере сила растёт, потом возвращается)
 
 ## глобальная переменная инфракрасной подсветки камер: регистрируется до первого материала врага
+static var _ir_added := false
+
 static func ensure_ir() -> void:
-	if not RenderingServer.global_shader_parameter_get_list().has(&"fn_ir"):
-		RenderingServer.global_shader_parameter_add("fn_ir", RenderingServer.GLOBAL_VAR_TYPE_VEC4, Vector4(0, -999, 0, 0))
+	if _ir_added:
+		return
+	_ir_added = true
+	RenderingServer.global_shader_parameter_add("fn_ir", RenderingServer.GLOBAL_VAR_TYPE_VEC4, Vector4(0, -999, 0, 0))
 
 static func ir_pass(tex: Texture2D, gain := 1.0) -> ShaderMaterial:
 	var m := ShaderMaterial.new()

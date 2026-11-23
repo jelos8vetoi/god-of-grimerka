@@ -477,6 +477,7 @@ func _ui_part() -> void:
 	FNSave.loaded = false
 	ok(bool(FNSave.v("custom")) and (FNSave.v("beaten") as Array).has(0) and int(FNSave.v("unlocked")) >= 2, "повреждённый файл — загружена резервная копия (ночи открыты: %d)" % int(FNSave.v("unlocked")))
 	ok(FileAccess.get_file_as_string(KEEP[0]) == (grim0 if grim0 != null else ""), "сюжетное сохранение не тронуто")
+	await _after_death(R)
 	# выход в меню режимов и кампания
 	R.to_terminal()
 	await wait(0.3)
@@ -489,6 +490,68 @@ func _ui_part() -> void:
 	main.game._to_menu()
 	await wait(1.0)
 	_finish()
+
+## после смерти: пять гибелей подряд со звуком и «ЕЩЁ РАЗ» — ничего не тянется в новую ночь
+func _after_death(R: FiveNightsRoot) -> void:
+	var quiet_keep := R.quiet
+	R.quiet = false
+	var vol_keep: Dictionary = main.audio.vol.duplicate()
+	var causes := [["balon", "door_l"], ["madk1d", "vent_t"], ["bot", "door_r"], ["clipper", "door_l"], ["dark", "dark"]]
+	var stuck := 0
+	var looped := 0
+	var alive := true
+	var reached := 0
+	for c in causes:
+		R.start_night(1)
+		await until(func(): return R.state == "night" and R.intro_t <= 0.0, 10.0)
+		await wait(1.5)
+		if c[0] == "dark":
+			R.st.power = 0.0
+			R.st.dark_need = 2.0
+		else:
+			R.st.attack(String(c[0]), String(c[1]))
+		var dead: bool = await until(func(): return R.state == "dead", 40.0)
+		await wait(1.0)
+		if dead:
+			reached += 1
+		R.start_night(R.night, R.levels)
+		await until(func(): return R.state == "night" and R.intro_t <= 0.0, 10.0)
+		await wait(3.0)
+		for p in R.pool2:
+			var pl := p as AudioStreamPlayer
+			if pl.playing:
+				if pl.get_playback_position() > 5.0:
+					stuck += 1
+				if pl.stream is AudioStreamWAV and (pl.stream as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED:
+					looped += 1
+		for p in R.pool3:
+			var p3 := p as AudioStreamPlayer3D
+			if p3.playing:
+				if p3.get_playback_position() > 5.0:
+					stuck += 1
+				if p3.stream is AudioStreamWAV and (p3.stream as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED:
+					looped += 1
+		var layers := 0
+		for k in R.ambience.layers:
+			if (R.ambience.layers[k]["p"] as Node).get("playing"):
+				layers += 1
+		alive = alive and layers == 11
+	var st_stream: AudioStreamWAV = FNSound.get_stream("static")
+	ok(reached == 5 and stuck == 0 and looped == 0, "после смерти (звук включён): пять гибелей и «ЕЩЁ РАЗ» — дошли до экрана гибели %d раз, тянущихся звуков %d, зацикленных в пулах %d" % [reached, stuck, looped])
+	ok(st_stream.loop_mode == AudioStreamWAV.LOOP_DISABLED and st_stream.get_length() <= 1.5, "помехи «static» — вспышка без цикла (%.2f с)" % st_stream.get_length())
+	ok(alive, "фон живёт в каждой новой ночи (11 слоёв)")
+	R.to_terminal()
+	await wait(0.6)
+	var silent := true
+	for p in R.pool2:
+		silent = silent and not (p as AudioStreamPlayer).playing
+	for p in R.pool3:
+		silent = silent and not (p as AudioStreamPlayer3D).playing
+	ok(silent and not main.audio.hush_hold and R.hush_mode == "", "терминал: пулы молчат, мёртвая тишина снята")
+	ok(main.audio.vol == vol_keep, "громкости игрока те же, что до раздела")
+	FNActors.ensure_ir()
+	ok(FNActors._ir_added, "глобальная fn_ir добавлена один раз, повторный вызов пустой")
+	R.quiet = quiet_keep
 
 ## привычки игрока: обитатели подстраиваются под прошлое поведение (чистая логика)
 func _habits_check() -> void:
@@ -1131,6 +1194,7 @@ func _incidents_logic() -> void:
 	# приманка
 	var L := FNNight.new()
 	L.setup(1, 99)
+	L.t = 100.0      # спокойное начало ночи 2 прошло
 	var bal: FNEnemy = L.enemies["balon"]
 	for id in L.enemies:
 		(L.enemies[id] as FNEnemy).level = 0
@@ -1212,6 +1276,7 @@ func _logic() -> void:
 	# заслонка: правильная держит, неправильная — нет
 	var st4 := FNNight.new()
 	st4.setup(1, 11)
+	st4.t = 100.0      # спокойное начало ночи 2 прошло
 	for id in st4.enemies:
 		(st4.enemies[id] as FNEnemy).level = 0
 	var m: FNEnemy = st4.enemies["madk1d"]
@@ -1225,6 +1290,7 @@ func _logic() -> void:
 	ok(st4.outcome == "dead" and st4.killer == "madk1d", "MADK1D: закрыта не та заслонка — пролез")
 	var st5 := FNNight.new()
 	st5.setup(1, 12)
+	st5.t = 100.0      # спокойное начало ночи 2 прошло
 	for id in st5.enemies:
 		(st5.enemies[id] as FNEnemy).level = 0
 	var m2: FNEnemy = st5.enemies["madk1d"]
