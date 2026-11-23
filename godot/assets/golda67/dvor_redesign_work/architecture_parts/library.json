@@ -791,5 +791,369 @@
   "mats": 1,
   "mb": 0.0,
   "note": "светофор"
+ },
+ "tree_dead_tall": {
+  "section": "props",
+  "source": "dvor_dead_tree_ps1",
+  "size": [
+   1.96,
+   1.9,
+   9.0
+  ],
+  "tris": 269,
+  "mats": 1,
+  "mb": 0.1,
+  "note": "сухое дерево, PS1-манера (Wersaus33)"
+ },
+ "tree_dead_1": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   5.24,
+   3.27,
+   7.22
+  ],
+  "tris": 168,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "tree_dead_2": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   5.24,
+   3.27,
+   7.22
+  ],
+  "tris": 168,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "tree_dead_3": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   2.93,
+   2.56,
+   8.27
+  ],
+  "tris": 173,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "tree_dead_4": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   2.93,
+   2.56,
+   8.27
+  ],
+  "tris": 173,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "tree_dead_5": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   3.37,
+   3.1,
+   6.78
+  ],
+  "tris": 281,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "tree_dead_6": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   3.37,
+   3.1,
+   6.78
+  ],
+  "tris": 281,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "flowerbed": {
+  "section": "props",
+  "source": "dvor_flowerbed",
+  "size": [
+   2.1,
+   2.1,
+   0.5
+  ],
+  "tris": 284,
+  "mats": 1,
+  "mb": 0.8,
+  "note": "бетонная клумба (Unka II)"
+ },
+ "garage_block_rusty": {
+  "section": "garages",
+  "source": "dvor_garage_block",
+  "size": [
+   7.74,
+   16.31,
+   2.85
+  ],
+  "tris": 8367,
+  "mats": 3,
+  "mb": 9.6,
+  "note": "ржавый гаражный блок с открытыми воротами (olegolegperepelica)"
+ },
+ "garage_metal_1": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   7.12,
+   3.5,
+   2.05
+  ],
+  "tris": 3054,
+  "mats": 1,
+  "mb": 0.8,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_2": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   6.09,
+   3.64,
+   2.74
+  ],
+  "tris": 2918,
+  "mats": 1,
+  "mb": 3.4,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_3": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   6.77,
+   4.9,
+   2.47
+  ],
+  "tris": 1862,
+  "mats": 1,
+  "mb": 4.1,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_4": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   5.58,
+   3.41,
+   0.49
+  ],
+  "tris": 32,
+  "mats": 1,
+  "mb": 3.2,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_5": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   5.54,
+   3.29,
+   2.0
+  ],
+  "tris": 1290,
+  "mats": 1,
+  "mb": 3.2,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_6": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   0.08,
+   2.99,
+   2.0
+  ],
+  "tris": 272,
+  "mats": 1,
+  "mb": 3.2,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_7": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   0.01,
+   3.19,
+   1.65
+  ],
+  "tris": 352,
+  "mats": 1,
+  "mb": 3.2,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "hockey_rink": {
+  "section": "streets",
+  "source": "dvor_hockey_rink",
+  "size": [
+   21.76,
+   33.03,
+   2.5
+  ],
+  "tris": 4718,
+  "mats": 13,
+  "mb": 0.8,
+  "note": "хоккейная коробка с бортами, стеклом и воротами (rockleyr)"
+ },
+ "kiosk_90s": {
+  "section": "streets",
+  "source": "dvor_kiosk_90s",
+  "size": [
+   5.59,
+   5.98,
+   4.28
+  ],
+  "tris": 1668,
+  "mats": 7,
+  "mb": 3.3,
+  "note": "павильон 90-х с витринами (Vagabondare)"
+ },
+ "kiosk_rusty": {
+  "section": "streets",
+  "source": "dvor_kiosk_rusty",
+  "size": [
+   3.01,
+   2.65,
+   2.72
+  ],
+  "tris": 289,
+  "mats": 1,
+  "mb": 1.8,
+  "note": "ржавый киоск (randombug)"
+ },
+ "payphone": {
+  "section": "props",
+  "source": "dvor_payphone",
+  "size": [
+   1.98,
+   1.11,
+   2.27
+  ],
+  "tris": 3846,
+  "mats": 1,
+  "mb": 2.3,
+  "note": "таксофон (Richard Speight)"
+ },
+ "seesaw": {
+  "section": "props",
+  "source": "dvor_seesaw",
+  "size": [
+   2.0,
+   0.75,
+   1.17
+  ],
+  "tris": 996,
+  "mats": 1,
+  "mb": 1.5,
+  "note": "качалка (targa)"
+ },
+ "sled": {
+  "section": "props",
+  "source": "dvor_sled",
+  "size": [
+   1.26,
+   0.45,
+   0.22
+  ],
+  "tris": 476,
+  "mats": 3,
+  "mb": 0.0,
+  "note": "санки (sam)"
+ },
+ "slide_rusty": {
+  "section": "props",
+  "source": "dvor_slide",
+  "size": [
+   0.81,
+   6.09,
+   2.52
+  ],
+  "tris": 992,
+  "mats": 1,
+  "mb": 6.6,
+  "note": "ржавая горка (shtran)"
+ },
+ "snow_pile": {
+  "section": "props",
+  "source": "dvor_snow_pile",
+  "size": [
+   4.04,
+   2.5,
+   0.84
+  ],
+  "tris": 12537,
+  "mats": 1,
+  "mb": 3.7,
+  "note": "сугроб с грязным снегом (Creates 3D)"
+ },
+ "swings": {
+  "section": "props",
+  "source": "dvor_swings",
+  "size": [
+   1.61,
+   3.07,
+   2.65
+  ],
+  "tris": 2648,
+  "mats": 1,
+  "mb": 1.0,
+  "note": "качели (TheLastCookie-404)"
+ },
+ "urn_red": {
+  "section": "props",
+  "source": "dvor_trash_can",
+  "size": [
+   0.52,
+   0.52,
+   0.52
+  ],
+  "tris": 116,
+  "mats": 1,
+  "mb": 3.3,
+  "note": "урна (Unka II)"
+ },
+ "van_uaz452": {
+  "section": "props",
+  "source": "dvor_uaz452",
+  "size": [
+   2.52,
+   4.4,
+   1.9
+  ],
+  "tris": 7970,
+  "mats": 2,
+  "mb": 2.0,
+  "note": "УАЗ-452 «буханка» (Sergey Egelsky)"
+ },
+ "bench_ussr": {
+  "section": "props",
+  "source": "dvor_ussr_bench",
+  "size": [
+   0.73,
+   2.07,
+   1.16
+  ],
+  "tris": 1248,
+  "mats": 3,
+  "mb": 2.3,
+  "note": "лавка на гнутых трубах (TheLastCookie-404)"
  }
 }

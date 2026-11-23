@@ -164,7 +164,7 @@ def draw(V, extra_title=''):
                 tw = d.textlength(ln, font=fo); d.text(((a[0] + b[0]) / 2 - tw / 2, ty), ln, fill=col, font=fo)
                 svg.append('<text x="%d" y="%d" font-size="%d" font-weight="bold" text-anchor="middle" fill="rgb%s">%s</text>' % ((a[0] + b[0]) / 2, ty + sz, sz, col, ln))
                 ty += sz + 3
-    order = ['open', 'deco', 'road', 'sec', 'gar', 'res', 'boss']
+    order = ['open', 'deco', 'road', 'walk', 'sec', 'gar', 'res', 'boss']
     for c in order:
         for it in V['items']:
             if it['k'] == 'rect' and it['cat'] == c and it['id'] == 'snow': rect(it)
