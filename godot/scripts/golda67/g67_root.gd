@@ -315,6 +315,12 @@ func apply_styles() -> void:
 # ---------------------------------------------------------------- забег
 ## Двор строится один раз на забег. Герой выходит из двери подъезда и идёт ногами, мир между этапами не пересобирается.
 func _build_pz_world() -> void:
+	if ylife != null and is_instance_valid(ylife):
+		ylife.queue_free()
+	ylife = null
+	if duos != null and is_instance_valid(duos):
+		duos.queue_free()
+	duos = null
 	_swap_world(func(w: G67World): w.build_podzemka())
 	krot_k = {}
 	stash_nodes = {}

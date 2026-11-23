@@ -107,6 +107,16 @@ const LIFE_PLACES := {
 }
 
 ## Сирена кнопки: все жители в 30 м поворачиваются к столбу; у одного-двух — реплика
+## Таймер, привязанный к этому узлу: гаснет вместе с ним (двор выгружается при спуске в подземку)
+func _tmr(sec: float, _always := true, _ignore := true, _phys := false) -> Timer:
+	var t := Timer.new()
+	t.one_shot = true
+	t.wait_time = maxf(sec, 0.01)
+	add_child(t)
+	t.timeout.connect(t.queue_free, CONNECT_DEFERRED)
+	t.start()
+	return t
+
 func siren_look(pos: Vector3) -> void:
 	var said := 0
 	for rid in residents:
@@ -863,7 +873,7 @@ func crowd_react(kind: String) -> int:
 		var life: G67Life = fan.get_meta("life")
 		var clip: String = ("S" if bool(fan.get_meta("seated", false)) else "") + String(pool[rng.randi() % pool.size()])
 		var delay := rng.randf_range(0.05, 0.7)
-		get_tree().create_timer(delay, false).timeout.connect(func():
+		_tmr(delay, false).timeout.connect(func():
 			if is_instance_valid(life):
 				life.react(clip))
 		n += 1
