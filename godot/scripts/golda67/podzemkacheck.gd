@@ -124,6 +124,7 @@ func run(g_, G_: Golda67) -> void:
 			if space.intersect_ray(PhysicsRayQueryParameters3D.create(ctr, ctr + dv * 30.0)).is_empty():
 				holes += 1
 	ok(holes == 0, "лучи из центров %d помещений (16 направлений + вверх/вниз) упираются в коллизию, дыр: %d" % [G67Podzemka.ROOMS.size(), holes])
+	await _decor_checks(pz, space)
 	# ---- хребет ногами
 	var t0 := Time.get_ticks_msec()
 	var ridge_ok := true
@@ -193,11 +194,20 @@ func _perf() -> void:
 		print("GOLDA67CHECK   PZPERF %s: средний %.1f FPS, 1%% худших %.1f FPS" % [zid, 1000.0 / mean, 1000.0 / maxf(w, 0.01)])
 
 func _shots() -> void:
-	await c._cam_shot(g, "pz_stairs", Vector3(0, 7.5, 4.5), Vector3(0, 1.0, -14))
-	await c._cam_shot(g, "pz_gallery", Vector3(0, 1.8, -48), Vector3(0, 1.8, -105))
-	await c._cam_shot(g, "pz_cross", Vector3(0, 2.2, -112), Vector3(0, 1.5, -131))
-	await c._cam_shot(g, "pz_tunnel", Vector3(14, 1.7, -122), Vector3(36, 1.5, -122))
-	await c._cam_shot(g, "pz_arena", Vector3(0, 3.0, -172), Vector3(0, 1.5, -186))
+	P.global_position = Vector3(0, 0.05, -300)
+	var V := [
+		["pz_stairs", Vector3(0, 7.5, 4.5), Vector3(0, 1.0, -14)], ["pz_gate1", Vector3(0, 1.9, -28), Vector3(0, 1.2, -40)],
+		["pz_gallery", Vector3(0, 1.8, -48), Vector3(0, 1.8, -105)], ["pz_kiosk_shawarma", Vector3(0.2, 1.6, -54.6), Vector3(-3.7, 1.3, -54.0)],
+		["pz_kiosk_socks", Vector3(0.2, 1.6, -66.4), Vector3(-3.7, 1.3, -66.0)], ["pz_cross", Vector3(0, 2.2, -112), Vector3(0, 1.5, -131)],
+		["pz_arcade", Vector3(-16.6, 2.0, -123.0), Vector3(-31.0, 1.2, -118.0)], ["pz_tunnel", Vector3(14, 1.7, -122), Vector3(36, 1.5, -122)],
+		["pz_hamster_door", Vector3(37.5, 1.7, -144.0), Vector3(44.0, 1.8, -146.0)], ["pz_hamster_city", Vector3(47.0, 1.9, -141.5), Vector3(51.5, 1.9, -152.5)],
+		["pz_casino_door", Vector3(-30.0, 1.7, -126.5), Vector3(-43.5, 1.5, -129.0)], ["pz_slot_3m", Vector3(-49.8, 1.6, -121.5), Vector3(-53.0, 1.1, -122.0)],
+		["pz_slot_1m", Vector3(-52.0, 1.3, -121.8), Vector3(-53.0, 1.1, -122.0)], ["pz_dog", Vector3(-46.0, 1.1, -119.5), Vector3(-48.0, 0.45, -121.0)],
+		["pz_cash", Vector3(0, 2.4, -138), Vector3(0, 2.5, -160)], ["pz_arena", Vector3(0, 3.0, -172), Vector3(0, 1.5, -186)],
+		["pz_staff", Vector3(-15.0, 1.7, -145.0), Vector3(-24.0, 1.2, -145.0)],
+	]
+	for v in V:
+		await c._cam_shot(g, String(v[0]), v[1], v[2])
 
 ## 200 маршрутов района 2: гарантии как во дворе
 func _routes() -> void:
@@ -304,3 +314,69 @@ func _save_resume() -> void:
 	await G.resume_run()
 	await c.wait(1.0)
 	ok(G.run.get("district", "") == "podzemka" and G.world.district is G67Podzemka and int(G.run.get("pos", -1)) == pos0, "продолжение забега района 2 (позиция %d → %d)" % [pos0, int(G.run.get("pos", -1))])
+
+## Оформление: надписи, модели, коллизия предметов, ширина проходов, свободные точки входа и стойки
+func _decor_checks(pz: G67Podzemka, space: PhysicsDirectSpaceState3D) -> void:
+	ok(pz.use_modules, "модули Blender загружены (use_modules)")
+	ok(pz.missing.is_empty(), "все модели на месте (нет: %s)" % ", ".join(pz.missing.slice(0, 6)))
+	var have := {}
+	for ch in pz.find_children("*", "Label3D", true, false):
+		have[String((ch as Label3D).text)] = true
+	var lost: Array = []
+	for sg in G67Podzemka.SIGNS:
+		if not have.has(String(sg[0])):
+			lost.append(String(sg[0]))
+	ok(lost.is_empty(), "надписи раздела 7 на месте (%d из %d, нет: %s)" % [G67Podzemka.SIGNS.size() - lost.size(), G67Podzemka.SIGNS.size(), str(lost.slice(0, 3))])
+	# предметы с коллизией: луч на высоте 0,7 м с трёх метров в центр упирается близко к предмету
+	var thru := 0
+	for pr in G67Podzemka.PROPS:
+		if not bool(pr[6]):
+			continue
+		var ctr := Vector3(float(pr[1]), 0.7 + float(pr[4]), float(pr[2]))
+		var hit_any := false
+		for dv in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]:
+			var q := PhysicsRayQueryParameters3D.create(ctr + dv * 3.0, ctr)
+			var h := space.intersect_ray(q)
+			if not h.is_empty() and (h["position"] as Vector3).distance_to(ctr) < 2.4:
+				hit_any = true
+		if not hit_any:
+			thru += 1
+			print("GOLDA67CHECK   ПОДЗЕМКА: предмет без коллизии: %s (%.1f; %.1f)" % [String(pr[0]), float(pr[1]), float(pr[2])])
+	ok(thru == 0, "герой не проходит сквозь ларьки, автоматы, турникеты и колонны (без коллизии: %d)" % thru)
+	# ширина проходов вдоль хребта: свободный поперечник ≥ 2 м
+	var narrow := 0
+	for i in range(1, RIDGE.size()):
+		var p0 := Vector3(float(RIDGE[i - 1][0]), 0.9, float(RIDGE[i - 1][1]))
+		var p1 := Vector3(float(RIDGE[i][0]), 0.9, float(RIDGE[i][1]))
+		var dirv := (p1 - p0).normalized()
+		var side := Vector3(-dirv.z, 0, dirv.x)
+		var steps := int((p1 - p0).length() / 4.0)
+		for k in range(1, steps + 1):
+			var pt := p0 + dirv * 4.0 * float(k)
+			if pt.y < 0.0:
+				continue
+			var span := 0.0
+			for sd in [side, -side]:
+				var h := space.intersect_ray(PhysicsRayQueryParameters3D.create(pt, pt + sd * 6.0))
+				span += (h["position"] as Vector3).distance_to(pt) if not h.is_empty() else 6.0
+			if span < 2.0:
+				narrow += 1
+	ok(narrow == 0, "проходы хребта не уже 2 м после расстановки предметов (узких мест: %d)" % narrow)
+	# точки входа врагов и стойки этапов свободны от коллизии
+	var blocked := 0
+	for zid in G67Podzemka.ZONES:
+		var z: Dictionary = G67Podzemka.ZONES[zid]
+		var pts: Array = []
+		for sp in z.get("spawns", []):
+			pts.append(sp[0])
+		pts.append(G67World.gate_spot({"type": "battle", "place": zid})["pos"])
+		for p in pts:
+			var qp := PhysicsShapeQueryParameters3D.new()
+			var sh := SphereShape3D.new()
+			sh.radius = 0.4
+			qp.shape = sh
+			qp.transform = Transform3D(Basis(), Vector3(float(p.x), 0.9, float(p.z)))
+			if not space.intersect_shape(qp, 1).is_empty():
+				blocked += 1
+				print("GOLDA67CHECK   ПОДЗЕМКА: занята точка зоны %s: %s" % [zid, str(p)])
+	ok(blocked == 0, "точки входа врагов и стойки этапов свободны (занято: %d)" % blocked)
