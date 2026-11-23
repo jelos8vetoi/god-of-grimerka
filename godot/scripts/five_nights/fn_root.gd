@@ -29,6 +29,9 @@ var menu_st: FNNight
 var state := "menu"                 # menu / night / scare / dead / six
 var paused := false
 var night := 0
+var tut_duct := false             # подсказки ночи 2 про MADK1D: каждая — один раз за попытку
+var tut_vent_l := false
+var tut_vent_t := false
 var levels := {}
 var quiet := false
 var look_key := 0.0
@@ -289,6 +292,9 @@ func start_night(n: int, lv := {}) -> void:
 	levels = lv
 	var first_time: bool = (FNSave.v("beaten") as Array).is_empty()
 	FNSave.played()
+	tut_duct = false
+	tut_vent_l = false
+	tut_vent_t = false
 	if n < 5:
 		FNSave.put("current", n)
 	st = FNNight.new()
@@ -518,6 +524,16 @@ func _on_event(k: String, d: Dictionary) -> void:
 			ambience.hold(6.0)
 			var to := String(d["to"])
 			var e := String(d["e"])
+			if night == 1 and e == "madk1d" and not (FNSave.v("beaten") as Array).has(1):
+				if to.begins_with("duct_") and not tut_duct:
+					tut_duct = true
+					say("В шахте кто-то ползёт. Слушай, с какой стороны.", 4.0)
+				elif to == "vent_l" and not tut_vent_l:
+					tut_vent_l = true
+					say("Стук в решётке слева. Z — закрыть заслонку.", 4.0)
+				elif to == "vent_t" and not tut_vent_t:
+					tut_vent_t = true
+					say("Стук над головой. X — закрыть люк.", 4.0)
 			if to in ["door_l", "door_r"]:
 				duck(true)
 				var snd := "clank" if e == "bot" else ("step" if e in ["clipper", "ghost"] else "step_heavy")

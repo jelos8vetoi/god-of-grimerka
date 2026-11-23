@@ -102,6 +102,34 @@ func _run() -> void:
 				bad = false
 				print("FIVENIGHTSCHECK   слишком легко для «%s» в ночь %d" % [s, n + 1])
 	ok(bad, "лень, двери весь вечер, всё включено, «не отводит глаз» — проигрыш")
+	# ночь 2: первая минута спокойна — никто не встаёт к двери и решётке раньше своего порога, бездействие не бессмертно
+	var early_post := 0
+	var early_death := 0
+	var idle_win := 0
+	var deaths := 0
+	var att_spots := ["door_l", "door_r", "vent_l", "vent_t"]
+	for k in 200:
+		var cst := FNNight.new()
+		cst.setup(1, 500 + k * 13, {})
+		while cst.outcome == "" and cst.t < 7.0 * FNData.HOUR_SEC:
+			cst.step(0.1)
+			cst.take_events()
+			for id in cst.enemies:
+				var en: FNEnemy = cst.enemies[id]
+				if en.spot in att_spots and cst.t < float(cst.calm(id)[1]):
+					early_post += 1
+		if cst.outcome == "dead":
+			deaths += 1
+			if cst.t < 60.0:
+				early_death += 1
+		elif cst.outcome == "win":
+			idle_win += 1
+	ok(early_post == 0 and early_death == 0 and idle_win == 0 and deaths > 150, "ночь 2, 200 зёрен, бездействие: у двери и решётки раньше порога — %d раз, гибелей раньше 60 с — %d, побед — %d, гибелей всего %d" % [early_post, early_death, idle_win, deaths])
+	var calm_zero := true
+	for n in [0, 2, 3, 4, 5]:
+		for id in FNData.ORDER:
+			calm_zero = calm_zero and FNData.calm(n, id) == [0.0, 0.0]
+	ok(calm_zero and FNData.calm(1, "madk1d") == [20.0, 60.0] and FNData.calm(1, "balon") == [0.0, 52.0] and FNData.calm(1, "bot") == [0.0, 0.0], "спокойное начало задано только ночи 2, у остальных ночей — нули")
 	# ================= логика: двери, энергия, маршруты, атаки =================
 	_logic()
 	_incidents_logic()
