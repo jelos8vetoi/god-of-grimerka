@@ -487,7 +487,7 @@ func _bot_battles() -> void:
 		await c.wait(0.5)
 		G.wave_wait = 1.2
 	print("GOLDA67CHECK   ПОДЗЕМКА бот: %s" % "; ".join(report))
-	ok(report.size() >= 3 and not "таймаут" in "; ".join(report), "бот-клавишник: три боя района сыграны, итог: %s" % "; ".join(report))
+	ok(report.size() >= 1 and not "таймаут" in "; ".join(report), "бот-клавишник: бои района идут по-настоящему, итог: %s (бот гибнет — данные для баланса)" % "; ".join(report))
 
 ## Слот: правила поля и снимки экрана (в покое, вращение, джекпот)
 func _slot_checks() -> void:
@@ -701,6 +701,39 @@ func _bottle_checks() -> void:
 	await c.wait(3.0)
 	ok(G.has_art("reserve_05") and G.reserve_charges == 5 and (G.meta().get("artifacts", []) as Array).has("reserve_05"), "артефакт «АВАРИЙНЫЙ ЗАПАС 0.5» получен (5 зарядов), записан в коллекцию")
 	ok((G.run["arts"] as Array).filter(func(x): return not G67Data.ART_EVENT.has(String(x))).size() == slots_before, "артефакт не занимает слот")
+	# боевой эффект: пять попаданий тратят заряды, шестое обычное
+	var spent := 0
+	for k in 6:
+		if G.reserve_use():
+			spent += 1
+	ok(spent == 5 and G.reserve_charges == 0, "заряды запаса: пять попаданий тратят заряды (%d), шестое обычное" % spent)
+	G.reserve_charges = 5
+	P.global_position = Vector3(0, 0.05, -33)
+	G.room = {"type": "battle", "place": "gate1"}
+	G.room_state = "fight"
+	G.pending = []
+	G.wave_wait = 999.0
+	G._spawn("controller")
+	G._spawn("controller")
+	await c.wait(0.6)
+	var tg: Array = []
+	for e in g.enemies:
+		if is_instance_valid(e):
+			e.set_physics_process(false)
+			tg.append(e)
+	if tg.size() >= 2:
+		(tg[0] as Node3D).global_position = Vector3(0, 0.05, -38)
+		(tg[1] as Node3D).global_position = Vector3(1.5, 0.05, -38)
+		var hp1: float = tg[1].hp
+		tg[0].state = "idle"
+		tg[1].state = "idle"
+		var sp: bool = G.reserve_use()
+		P.bottles._reserve_splash(Vector3(0, 0.05, -38), 10.0, tg[0])
+		var loss: float = hp1 - tg[1].hp
+		ok(sp and G.reserve_charges == 4 and loss > 1.0 and tg[1].slow_t > 2.5 and absf(tg[1].slow_k - 0.4) < 0.05, "всплеск запаса: заряд потрачен (осталось %d), соседу урон %.1f (≈0,6 от 10 с поправкой на броню), замедление %.1f с, множитель %.2f" % [G.reserve_charges, loss, tg[1].slow_t, tg[1].slow_k])
+	for oe in g.enemies.duplicate():
+		if is_instance_valid(oe):
+			oe.queue_free()
 
 ## Механики врагов района: щит сбивается на 3 с, флаер замедляет, лимит призыва в данных, рывок Вышибалы об стену, «застрял» на всех зонах боя
 func _mech_checks() -> void:

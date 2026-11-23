@@ -578,6 +578,8 @@ func _casino_react(n: int, res: Dictionary, pz: G67Podzemka) -> void:
 		var m := meta()
 		if not bool(m.get("collar67", false)):
 			m["collar67"] = true
+			if not run.is_empty():
+				take_art("collar_67")
 			var arch: Array = m.get("archive", [])
 			if not arch.has("casino67"):
 				arch.append("casino67")
@@ -631,6 +633,30 @@ var _hamster_first_enter := false
 var hamster_busy := false
 var bottle_busy := false
 var reserve_charges := 0
+var reserve_lb: Label = null
+
+## Попадание бутылкой Водяры: тратит заряд «АВАРИЙНОГО ЗАПАСА 0.5» (5 на забег), шестое попадание обычное
+func reserve_use() -> bool:
+	if reserve_charges <= 0 or not has_art("reserve_05"):
+		return false
+	reserve_charges -= 1
+	run["reserve"] = reserve_charges
+	_reserve_hud()
+	events.append(["reserve_hit", reserve_charges])
+	return true
+
+func _reserve_hud() -> void:
+	if reserve_lb == null or not is_instance_valid(reserve_lb):
+		var cl := CanvasLayer.new()
+		cl.layer = 12
+		reserve_lb = Label.new()
+		reserve_lb.position = Vector2(1060, 150)
+		reserve_lb.add_theme_font_size_override("font_size", 22)
+		reserve_lb.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+		cl.add_child(reserve_lb)
+		game.add_child(cl)
+	reserve_lb.text = "ЗАПАС 0.5: %d / 5" % reserve_charges
+	reserve_lb.visible = reserve_charges > 0
 
 ## Подбор бутылки: герой «уходит за угол» (на 1,6 с скрыт, камера остаётся снаружи), выходит с бутылкой; HUD «БУТЫЛКИ: n/5»; на 5/5 открывается техпомещение
 func _bottle_pick(n: int) -> void:
@@ -668,6 +694,7 @@ func _reserve_final() -> void:
 	take_art("reserve_05")
 	reserve_charges = 5
 	run["reserve"] = 5
+	_reserve_hud()
 	var arch: Array = meta().get("archive", [])
 	if not arch.has("reserve05"):
 		arch.append("reserve05")

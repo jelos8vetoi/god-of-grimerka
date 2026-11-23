@@ -262,6 +262,20 @@ func _physics_process(dt: float) -> void:
 		n.rotation += (f["spin"] as Vector3) * dt
 
 ## бутылка разбилась: стекло, вода, урон и замедление
+## «АВАРИЙНЫЙ ЗАПАС 0.5»: всплеск 3,5 м — остальным в радиусе +60 % урона попадания и замедление 40 % на 3 с (боссу +30 % и 20 % на 1,5 с)
+func _reserve_splash(at: Vector3, base: float, main_enemy) -> void:
+	game.fx.ring(at, 3.5, Color(1.0, 0.85, 0.2, 0.75), 0.45)
+	game.fx.sparks(at, Vector3.UP, 22, Color(1.0, 0.9, 0.4), 1.4, 90.0)
+	game.popup(at + Vector3(0, 1.4, 0), "ЗАПАС 0.5", Color(1.0, 0.85, 0.3))
+	for e in game.enemies:
+		if not is_instance_valid(e) or not e.alive() or e.global_position.distance_to(at) > 3.5:
+			continue
+		var boss: bool = String(e.boss_id) != ""
+		if e != main_enemy:
+			e.take_hit(base * (0.3 if boss else 0.6), (e.global_position - at).normalized(), 2.0, false)
+		if is_instance_valid(e):
+			e.slow(1.5 if boss else 3.0, 0.2 if boss else 0.4)
+
 func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 	var a: AttackData = f["a"]
 	var power: float = f["power"]
@@ -277,9 +291,15 @@ func _shatter(f: Dictionary, at: Vector3, normal: Vector3, enemy) -> void:
 	_play_splash(at)
 	hits_log.append({"kind": "enemy" if enemy != null else "world", "enemy": enemy, "pos": at})
 	var slow_s: float = a.extra.get("slow", 0.0)
+	var reserve := false
+	if enemy != null and game.golda != null and game.golda.has_method("reserve_use"):
+		reserve = game.golda.reserve_use()
 	if enemy != null:
 		var h := HitInfo.new()
 		h.damage = p.combat.damage_for(a, enemy) * float(f.get("mul", 1.0))
+		if reserve:
+			h.damage *= 1.3 if String(enemy.boss_id) != "" else 1.6
+			_reserve_splash(at, p.combat.damage_for(a, enemy) * float(f.get("mul", 1.0)), enemy)
 		# LAST DROP: усиленный бросок по оглушённому, согнувшемуся или лежащему — кратный урон и подброс
 		var ld: float = a.extra.get("last_drop", 0.0)
 		if ld > 0.0 and (enemy.state in ["stun", "down", "getup"] or enemy.react_state() in ["HEAVY_STAGGER", "EXECUTION_READY"]):
