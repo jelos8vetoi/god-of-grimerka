@@ -1,0 +1,30 @@
+[
+ {
+  "as": "dvor_smoke_stacks",
+  "uid": "ffaf6bfbd8b84eb985dee2a35ba79440",
+  "title": "Industrial Smoke Stacks",
+  "author": "FrodoUndead",
+  "author_url": "https://sketchfab.com/FrodoUndead",
+  "url": "https://sketchfab.com/3d-models/industrial-smoke-stacks-ffaf6bfbd8b84eb985dee2a35ba79440",
+  "license": "CC Attribution (CC-BY)",
+  "license_slug": "by",
+  "license_url": "http://creativecommons.org/licenses/by/4.0/",
+  "faces": 2868,
+  "date": "2026-11-23",
+  "changed": "масштаб, упрощение сетки, слияние частей, текстуры уменьшены"
+ },
+ {
+  "as": "dvor_white_tower",
+  "uid": "81fed59a7aa14a18a75c2df9fc59b8bd",
+  "title": "White Tower, Uralmash, Constructivist",
+  "author": "monray",
+  "author_url": "https://sketchfab.com/monray",
+  "url": "https://sketchfab.com/3d-models/white-tower-uralmash-constructivist-81fed59a7aa14a18a75c2df9fc59b8bd",
+  "license": "CC Attribution (CC-BY)",
+  "license_slug": "by",
+  "license_url": "http://creativecommons.org/licenses/by/4.0/",
+  "faces": 2952,
+  "date": "2026-11-23",
+  "changed": "масштаб, упрощение сетки, слияние частей, текстуры уменьшены"
+ }
+]

@@ -58,13 +58,14 @@ def model(mid):
     root.location = (0, 0, -500)      # исходник прячем под землю
     return CACHE[mid]
 
-def put(mid, x, y, yaw_deg, fit=None, nm=''):
+def put(mid, x, y, yaw_deg, fit=None, nm='', k0=None):
     src = model(mid)
     if src is None: return None
     root, objs, lo, hi = src
     sx, sy = hi.x - lo.x, hi.y - lo.y
     k = 1.0
     if fit is not None: k = fit / max(sx, sy, 1e-6)
+    if k0 is not None: k = k0
     holder = bpy.data.objects.new(nm or mid, None); sc.collection.objects.link(holder)
     mp = {}
     for o in objs:
@@ -86,6 +87,15 @@ for it in L['items']:
     x, y, w, h, m = it['x'], it['y'], it['w'], it['h'], it['model']
     if it['cat'] == 'road':
         box(it['id'], x, y, w, h, 0.0, 0.04, 'road')
+    if m == 'site':
+        # долгострой: бетонный каркас в два этажа, пожарная лестница
+        for fl in (0.0, 3.4, 6.8):
+            box('slab', x, y, w, h, fl, fl + 0.3, 'box')
+        for ix in range(6):
+            for iy in range(4):
+                box('col', x - w / 2 + 1 + ix * (w - 2) / 5, y - h / 2 + 1 + iy * (h - 2) / 3, 0.5, 0.5, 0, 6.8, 'box')
+        put('stair_steel', x + w / 2 + 2, y - 4, 0, None, 'stair', 0.5)
+        continue
     if m == 'court':
         box('ice', x, y, w, h, 0.0, 0.06, 'ice')
         for bx, by, bw, bh in ((x, y - h / 2, w, 0.25), (x, y + h / 2, w, 0.25), (x - w / 2, y, 0.25, h), (x + w / 2, y, 0.25, h)):
@@ -111,16 +121,25 @@ for it in L['items']:
         if 'mast' in m: fit = None
     put(m, x, y, yaw, fit, it['id'])
 
-# заборы и дальний план
-for i in range(int((x1 - x0 + 4) / 6.5) + 1):
-    put('fence_concrete', x0 - 1 + i * 6.5, y1 - 1.6, 0, None, 'fence_n')
-for i in range(int((y1 - y0) / 6.5) + 1):
-    put('fence_concrete', x0 + 1.4, y0 + 3 + i * 6.5, 90, None, 'fence_w')
-for mid, tx, ty, yw in (('tower_16_wide', -24, y1 + 44, 0), ('tower_9_wide', 34, y1 + 36, 0), ('tower_16_slab', x0 - 30, 34, 0), ('tower_9_slab', x0 - 26, -18, 0),
-                        ('tower_9_wide', x1 + 44, 44, 90), ('tower_16_slab', x1 + 30, -24, 0), ('tower_9_slab', 8, y0 - 34, 90)):
+# заборы, фонари и дальний план
+BIG = (x1 - x0) > 200
+fence = 'fence_rhombus' if BIG else 'fence_concrete'
+step = 3.43 if BIG else 6.5
+for i in range(int((x1 - x0 - 4) / step)):
+    put(fence, x0 + 3 + i * step, y1 - 2.4, 90 if BIG else 0, None, 'fence_n')
+for i in range(int((y1 - y0 - 6) / step)):
+    put(fence, x0 + 2.4, y0 + 4 + i * step, 0 if BIG else 90, None, 'fence_w')
+if BIG:
+    for i, lx in enumerate(range(int(x0) + 12, int(x1) - 8, 26)):
+        if abs(lx - 66) > 8: put('lamp_%d' % (1 + i % 2), lx, -29.4, 90, None, 'lamp', 2.4)
+    for i, ly in enumerate(range(int(y0) + 14, int(y1) - 8, 26)):
+        if abs(ly + 24) > 8: put('lamp_3', 60.6, ly, 0, None, 'lamp', 2.4)
+far = 70 if BIG else 44
+for mid, tx, ty, yw in (('tower_16_wide', -60, y1 + far, 0), ('tower_9_wide', 40, y1 + far - 8, 0), ('tower_16_slab', x0 - far, 60, 0), ('tower_9_slab', x0 - far + 6, -40, 0),
+                        ('tower_9_wide', x1 + far, 70, 90), ('tower_16_slab', x1 + far - 10, -50, 0), ('tower_9_slab', -40, y0 - far, 90), ('tower_16_wide', 90, y0 - far - 10, 0)):
     put(mid, tx, ty, yw, None, 'skyline')
 
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT, 'blender_source', 'dvor_blockout.blend'))
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT, 'blender_source', 'dvor_blockout%s.blend' % ('_c' if (x1 - x0) > 200 else '')))
 
 def view(nm, pos, look, lens=28, res=(1600, 900), ortho=None):
     cam.location = pos
@@ -128,23 +147,39 @@ def view(nm, pos, look, lens=28, res=(1600, 900), ortho=None):
     cam.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
     cam.data.type = 'ORTHO' if ortho else 'PERSP'
     if ortho: cam.data.ortho_scale = ortho
-    cam.data.lens = lens; cam.data.clip_start = 0.3; cam.data.clip_end = 900
+    cam.data.lens = lens; cam.data.clip_start = 0.3; cam.data.clip_end = 2500
     sc.render.resolution_x, sc.render.resolution_y = res
     sc.render.filepath = os.path.join(ROOT, 'previews', 'blockout_' + nm + '.png')
     bpy.ops.render.render(write_still=True); print('VIEW', nm, flush=True)
 
 cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+P = 'c_' if BIG else ''
 sh.show_shadows = False
-view('01_top', (cx, cy, 300), (cx, cy + 0.001, 0), res=(1400, 1500), ortho=(y1 - y0) + 14)
+view(P + '01_top', (cx, cy, 500), (cx, cy + 0.001, 0), res=(1500, 1500), ortho=(y1 - y0) + 14)
 sh.show_shadows = True
-view('02_aerial_south', (cx - 20, y0 - 75, 85), (cx, cy + 5, 0), lens=32)
-view('03_aerial_northeast', (x1 + 60, y1 + 50, 70), (cx, cy, 0), lens=32)
-view('04_aerial_west', (x0 - 70, cy - 10, 60), (cx, cy + 5, 4), lens=32)
-view('05_from_home_door', (-6, -29.5, 1.9), (8, 20, 6), lens=22)
-view('06_courtyard_to_arch', (6, 2, 1.8), (16, 27, 5), lens=24)
-view('07_garage_lane', (-31, -29, 1.8), (-33, 6, 2.2), lens=22)
-view('08_back_lane_to_court', (-22, 40, 1.8), (16, 52, 3), lens=22)
-view('09_kiosk_corner', (12, -29, 1.8), (30, -42, 2.5), lens=22)
-view('10_court_from_gate', (16, 42, 2.0), (16, 64, 2.5), lens=20)
-view('11_nook', (-30, 20, 1.8), (-44, 30, 2), lens=22)
+if BIG:
+    view('c_02_aerial_south', (cx - 30, y0 - 150, 170), (cx, cy - 10, 0), lens=30)
+    view('c_03_aerial_northeast', (x1 + 110, y1 + 90, 130), (cx + 10, cy + 20, 0), lens=30)
+    view('c_04_aerial_west', (x0 - 120, cy + 20, 110), (cx - 30, cy + 20, 4), lens=30)
+    view('c_05_from_home_door', (-6, -107.5, 1.9), (10, -60, 7), lens=22)
+    view('c_06_arch_to_street', (14, -40, 1.8), (10, 60, 12), lens=22)
+    view('c_07_market', (-60, -17, 1.8), (10, -9, 3), lens=22)
+    view('c_08_crossroads_mcqueen', (74, -19, 1.8), (92, -8, 1.5), lens=22)
+    view('c_09_wasteland_to_towers', (10, 6, 1.8), (6, 80, 14), lens=22)
+    view('c_10_gsk_lane', (-72, 33, 1.8), (-140, 34, 1.5), lens=22)
+    view('c_11_court_from_gate', (6, 96, 2.0), (6, 122, 2.5), lens=20)
+    view('c_12_boiler_stadium', (-64, 100, 1.8), (-100, 120, 14), lens=22)
+    view('c_13_brick_yard', (-70, -86, 1.8), (-110, -100, 6), lens=22)
+    view('c_14_panel_yard', (80, 96, 1.8), (124, 90, 10), lens=22)
+else:
+    view('02_aerial_south', (cx - 20, y0 - 75, 85), (cx, cy + 5, 0), lens=32)
+    view('03_aerial_northeast', (x1 + 60, y1 + 50, 70), (cx, cy, 0), lens=32)
+    view('04_aerial_west', (x0 - 70, cy - 10, 60), (cx, cy + 5, 4), lens=32)
+    view('05_from_home_door', (-6, -29.5, 1.9), (8, 20, 6), lens=22)
+    view('06_courtyard_to_arch', (6, 2, 1.8), (16, 27, 5), lens=24)
+    view('07_garage_lane', (-31, -29, 1.8), (-33, 6, 2.2), lens=22)
+    view('08_back_lane_to_court', (-22, 40, 1.8), (16, 52, 3), lens=22)
+    view('09_kiosk_corner', (12, -29, 1.8), (30, -42, 2.5), lens=22)
+    view('10_court_from_gate', (16, 42, 2.0), (16, 64, 2.5), lens=20)
+    view('11_nook', (-30, 20, 1.8), (-44, 30, 2), lens=22)
 print('DONE')

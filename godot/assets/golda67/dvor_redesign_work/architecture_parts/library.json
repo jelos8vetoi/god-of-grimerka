@@ -362,5 +362,434 @@
   "mats": 1,
   "mb": 0.2,
   "note": "заснеженная ель или куст"
+ },
+ "res_brick_5": {
+  "section": "buildings",
+  "source": "soviet_residential_building",
+  "size": [
+   59.58,
+   15.35,
+   18.18
+  ],
+  "tris": 9912,
+  "mats": 13,
+  "mb": 4.3,
+  "note": "кирпичная пятиэтажка, скатная крыша"
+ },
+ "res_panel_9": {
+  "section": "buildings",
+  "source": "soviet_panel_house",
+  "size": [
+   17.68,
+   16.65,
+   28.83
+  ],
+  "tris": 6413,
+  "mats": 2,
+  "mb": 6.6,
+  "note": "панельная девятиэтажка-башня, антенны"
+ },
+ "res_panel_7": {
+  "section": "buildings",
+  "source": "low_poly_-_soviet__apartment_building_8k",
+  "size": [
+   12.49,
+   30.38,
+   21.0
+  ],
+  "tris": 10392,
+  "mats": 1,
+  "mb": 2.8,
+  "note": "серая панельная семиэтажка"
+ },
+ "res_long_9": {
+  "section": "buildings",
+  "source": "russian_panel_house_asset",
+  "size": [
+   16.85,
+   59.88,
+   27.0
+  ],
+  "tris": 252,
+  "mats": 1,
+  "mb": 2.3,
+  "note": "длинный девятиэтажный дом-«стена»"
+ },
+ "res_voxel_1": {
+  "section": "buildings",
+  "source": "soviet_panelki__voxel_style_apartment_buildings",
+  "size": [
+   13.1,
+   42.74,
+   13.31
+  ],
+  "tris": 3764,
+  "mats": 24,
+  "mb": 0.3,
+  "note": "пятиэтажка в воксельной манере"
+ },
+ "res_voxel_2": {
+  "section": "buildings",
+  "source": "soviet_panelki__voxel_style_apartment_buildings",
+  "size": [
+   13.1,
+   42.74,
+   13.31
+  ],
+  "tris": 3764,
+  "mats": 24,
+  "mb": 0.3,
+  "note": "пятиэтажка в воксельной манере"
+ },
+ "pitch_fenced": {
+  "section": "streets",
+  "source": "football_stadium",
+  "size": [
+   38.93,
+   25.55,
+   8.0
+  ],
+  "tris": 497336,
+  "mats": 1,
+  "mb": 46.8,
+  "note": "футбольная коробка с сеткой и воротами"
+ },
+ "bus_laz": {
+  "section": "props",
+  "source": "laz-699_soviet_bus",
+  "size": [
+   2.72,
+   10.71,
+   3.27
+  ],
+  "tris": 766,
+  "mats": 1,
+  "mb": 3.4,
+  "note": "автобус ЛАЗ-699"
+ },
+ "mcqueen": {
+  "section": "props",
+  "source": "lightning_mcqueen_xbox_360",
+  "size": [
+   2.07,
+   4.54,
+   1.49
+  ],
+  "tris": 11462,
+  "mats": 5,
+  "mb": 2.0,
+  "note": "Молния Маккуин (персонаж Disney/Pixar, модель из игры для Xbox 360)"
+ },
+ "market_row_3": {
+  "section": "streets",
+  "source": "low-poly_russian_kiosk_meal_bread_and_techno",
+  "size": [
+   16.92,
+   6.15,
+   3.76
+  ],
+  "tris": 809,
+  "mats": 2,
+  "mb": 1.0,
+  "note": "три ларька в ряд: мясо, хлеб, «ТЕХНО-СКЛАД»"
+ },
+ "bench_concrete": {
+  "section": "props",
+  "source": "old_soviet_bench_rework",
+  "size": [
+   0.96,
+   2.81,
+   0.85
+  ],
+  "tris": 9788,
+  "mats": 4,
+  "mb": 10.2,
+  "note": "лавка с бетонными боковинами"
+ },
+ "kiosk_grey": {
+  "section": "streets",
+  "source": "old_soviet_railway_station_kiosk",
+  "size": [
+   1.91,
+   2.14,
+   2.67
+  ],
+  "tris": 520,
+  "mats": 1,
+  "mb": 0.9,
+  "note": "серый киоск с шатровой крышей"
+ },
+ "kiosk_blue": {
+  "section": "streets",
+  "source": "post-soviet_kiosk_psx_style",
+  "size": [
+   2.53,
+   2.38,
+   2.7
+  ],
+  "tris": 98,
+  "mats": 1,
+  "mb": 1.0,
+  "note": "бело-синий ларёк"
+ },
+ "shop_cafe_tyre": {
+  "section": "buildings",
+  "source": "roadside_building",
+  "size": [
+   9.91,
+   7.9,
+   5.56
+  ],
+  "tris": 1649,
+  "mats": 1,
+  "mb": 0.9,
+  "note": "придорожный дом: кафе, магазин, шиномонтаж, банкомат"
+ },
+ "shop_house": {
+  "section": "buildings",
+  "source": "roadside_shop_and_cafe_updated",
+  "size": [
+   17.54,
+   20.59,
+   9.33
+  ],
+  "tris": 1772,
+  "mats": 1,
+  "mb": 1.2,
+  "note": "дом с магазином, пристройкой и двориком за забором"
+ },
+ "garage_row_brick": {
+  "section": "garages",
+  "source": "soviet_brick_storage__garage_low_poly",
+  "size": [
+   4.2,
+   26.49,
+   3.17
+  ],
+  "tris": 3202,
+  "mats": 1,
+  "mb": 2.7,
+  "note": "кирпичный ряд боксов на 26 м"
+ },
+ "stair_steel": {
+  "section": "props",
+  "source": "staircase_modular_frame_-_steel",
+  "size": [
+   3.14,
+   9.12,
+   18.57
+  ],
+  "tris": 55128,
+  "mats": 4,
+  "mb": 12.2,
+  "note": "стальная пожарная лестница в четыре марша"
+ },
+ "fence_rhombus": {
+  "section": "walls",
+  "source": "the_soviet_fence",
+  "size": [
+   0.4,
+   3.43,
+   2.97
+  ],
+  "tris": 640,
+  "mats": 1,
+  "mb": 0.4,
+  "note": "бетонная плита забора «ромбик»"
+ },
+ "car_zhiguli_1": {
+  "section": "props",
+  "source": "zhiguli_soviet_cars",
+  "size": [
+   1.8,
+   4.18,
+   1.43
+  ],
+  "tris": 1024,
+  "mats": 1,
+  "mb": 4.4,
+  "note": "«Жигули»"
+ },
+ "car_zhiguli_2": {
+  "section": "props",
+  "source": "zhiguli_soviet_cars",
+  "size": [
+   1.8,
+   4.25,
+   1.43
+  ],
+  "tris": 1052,
+  "mats": 1,
+  "mb": 4.5,
+  "note": "«Жигули»"
+ },
+ "car_zhiguli_3": {
+  "section": "props",
+  "source": "zhiguli_soviet_cars",
+  "size": [
+   1.8,
+   4.12,
+   1.43
+  ],
+  "tris": 944,
+  "mats": 1,
+  "mb": 4.5,
+  "note": "«Жигули»"
+ },
+ "car_zhiguli_4": {
+  "section": "props",
+  "source": "zhiguli_soviet_cars",
+  "size": [
+   1.8,
+   4.18,
+   1.43
+  ],
+  "tris": 1024,
+  "mats": 1,
+  "mb": 3.5,
+  "note": "«Жигули»"
+ },
+ "smoke_stacks": {
+  "section": "buildings",
+  "source": "dvor_smoke_stacks",
+  "size": [
+   13.97,
+   3.07,
+   42.0
+  ],
+  "tris": 2868,
+  "mats": 3,
+  "mb": 4.1,
+  "note": "дымовые трубы котельной (Sketchfab, FrodoUndead, CC-BY)"
+ },
+ "white_tower": {
+  "section": "buildings",
+  "source": "dvor_white_tower",
+  "size": [
+   13.32,
+   11.45,
+   29.0
+  ],
+  "tris": 2942,
+  "mats": 6,
+  "mb": 1.4,
+  "note": "водонапорная башня-конструктивизм (Sketchfab, monray, CC-BY)"
+ },
+ "lamp_1": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   1.39,
+   0.27,
+   3.56
+  ],
+  "tris": 1198,
+  "mats": 2,
+  "mb": 0.0,
+  "note": "уличный фонарь"
+ },
+ "lamp_2": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   2.54,
+   0.27,
+   3.56
+  ],
+  "tris": 2146,
+  "mats": 2,
+  "mb": 0.1,
+  "note": "уличный фонарь"
+ },
+ "lamp_3": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   2.76,
+   0.24,
+   3.49
+  ],
+  "tris": 892,
+  "mats": 2,
+  "mb": 0.0,
+  "note": "уличный фонарь"
+ },
+ "lamp_4": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   1.5,
+   0.24,
+   3.49
+  ],
+  "tris": 620,
+  "mats": 2,
+  "mb": 0.0,
+  "note": "уличный фонарь"
+ },
+ "lamp_5": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   0.96,
+   0.27,
+   3.35
+  ],
+  "tris": 1174,
+  "mats": 2,
+  "mb": 0.0,
+  "note": "уличный фонарь"
+ },
+ "lamp_6": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   1.69,
+   0.27,
+   3.35
+  ],
+  "tris": 2098,
+  "mats": 2,
+  "mb": 0.1,
+  "note": "уличный фонарь"
+ },
+ "traffic_1": {
+  "section": "streets",
+  "source": "simple_low_poly_street_trafic_lights",
+  "size": [
+   0.34,
+   1.12,
+   3.48
+  ],
+  "tris": 1072,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "светофор"
+ },
+ "traffic_2": {
+  "section": "streets",
+  "source": "simple_low_poly_street_trafic_lights",
+  "size": [
+   0.34,
+   1.97,
+   3.48
+  ],
+  "tris": 1072,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "светофор"
+ },
+ "traffic_3": {
+  "section": "streets",
+  "source": "simple_low_poly_street_trafic_lights",
+  "size": [
+   0.34,
+   1.12,
+   3.48
+  ],
+  "tris": 1072,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "светофор"
  }
 }
