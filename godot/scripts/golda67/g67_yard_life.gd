@@ -184,7 +184,7 @@ func _marker(pos: Vector3, life := 8.0) -> Node3D:
 	var m := Node3D.new()
 	golda.add_child(m)
 	m.global_position = pos
-	golda._tmr(life).timeout.connect(m.queue_free)
+	golda.get_tree().create_timer(life).timeout.connect(m.queue_free)
 	return m
 
 func _resident(id: String):
@@ -221,7 +221,7 @@ func fire(id: String) -> void:
 				l.light_color = Color(1.0, 0.95, 0.8)
 				l.light_energy = 3.5
 				l.omni_range = 6.0
-				golda._tmr(2.0).timeout.connect(l.queue_free)
+				golda.get_tree().create_timer(2.0).timeout.connect(l.queue_free)
 			if rng.randf() < 0.4:
 				bk.pahan_say("car_lights")
 		"garage_crash":
@@ -317,12 +317,12 @@ func fire(id: String) -> void:
 			if not musya_done:
 				musya_done = true
 				_say_at(PLACE[id], "Z2|Муся, это ты?")
-				golda._tmr(5.0).timeout.connect(func():
+				golda.get_tree().create_timer(5.0).timeout.connect(func():
 					bk.pahan_say("musya", true)
 					var pg := G67Models.spawn("g67_pigeon", yard, Vector3(-46.5, 0.05, 3.0), 1.2, Vector3(0.35, 0.35, 0.35))
 					var gpm := G67Pigeon.attach(pg, 777)
 					gpm.feed(Vector3(-44.3, 0.05, 6.0))
-					golda._tmr(14.0).timeout.connect(pg.queue_free))
+					golda.get_tree().create_timer(14.0).timeout.connect(pg.queue_free))
 		"filyai":
 			G67Sound.play(self, "radio_jingle", PLACE[id], 2.0)
 			for rid in ["g67_npc_ushanka", "g67_npc_schoolboy"]:
@@ -401,7 +401,7 @@ func _window_prop(x: float, flap: bool) -> Dictionary:
 		fm.material_override = fmat
 		fm.position = Vector3(0.45, 0, 0)
 		pivot.add_child(fm)
-	golda._tmr(9.0).timeout.connect(root.queue_free)
+	golda.get_tree().create_timer(9.0).timeout.connect(root.queue_free)
 	return {"root": root, "pivot": pivot, "glow": glow}
 
 func _window_shout() -> void:
@@ -573,7 +573,7 @@ func dust_burst(pos: Vector3, count := 26, col := Color(0.93, 0.94, 0.96)) -> vo
 		tw.tween_property(mi, "scale", mi.scale * 2.2, 1.3)
 	var ft := create_tween()
 	ft.tween_property(mat, "albedo_color:a", 0.0, 1.0).set_delay(0.5)
-	golda._tmr(2.0).timeout.connect(holder.queue_free)
+	golda.get_tree().create_timer(2.0).timeout.connect(holder.queue_free)
 
 func _snow_puff(pos: Vector3) -> void:
 	dust_burst(pos)
@@ -602,7 +602,7 @@ func _snow_puff(pos: Vector3) -> void:
 	yard.add_child(pr)
 	pr.global_position = pos
 	pr.emitting = true
-	golda._tmr(2.5).timeout.connect(pr.queue_free)
+	golda.get_tree().create_timer(2.5).timeout.connect(pr.queue_free)
 
 const ROUTES := [
 	[Vector3(-14, 0, 34.5), Vector3(-10, 0, 28), Vector3(12, 0, 24), Vector3(22, 0, 14)],
