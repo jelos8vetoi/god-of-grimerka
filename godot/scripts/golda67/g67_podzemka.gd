@@ -7,7 +7,37 @@ extends G67District
 const T_WALL := 0.4
 
 ## id: [x0, x1, z0, z1, y_пола, y_потолка, поверхность, цвет света, имя]
+## Размеры после правки владельца (выше и шире); ROOMS_BASE — прежняя раскладка, от неё пересчитываются привязанные координаты (fit)
 const ROOMS := {
+	"stairs_top": [-6.0, 6.0, 0.0, 6.0, 5.0, 9.2, "concrete", Color(0.9, 1.0, 0.9), "верх спуска"],
+	"stairs_shaft": [-3.0, 3.0, -16.0, 0.0, 0.0, 9.2, "concrete", Color(0.7, 1.0, 0.75), "спуск"],
+	"stairs": [-6.0, 6.0, -26.0, -16.0, 0.0, 4.4, "tile", Color(0.7, 1.0, 0.75), "спуск"],
+	"gate1": [-10.5, 10.5, -44.0, -26.0, 0.0, 4.8, "tile", Color(0.9, 1.0, 0.95), "первый турникет"],
+	"gal_a": [-6.25, 6.25, -70.0, -44.0, 0.0, 4.4, "tile", Color(0.95, 1.0, 0.9), "торговая галерея"],
+	"gallery": [-11.5, 11.5, -88.0, -70.0, 0.0, 5.6, "tile", Color(1.0, 0.95, 0.8), "площадь галереи"],
+	"gal_b": [-6.25, 6.25, -110.0, -88.0, 0.0, 4.4, "tile", Color(0.95, 1.0, 0.9), "торговая галерея"],
+	"alley": [-14.0, -11.0, -106.0, -46.0, 0.0, 3.2, "concrete", Color(1.0, 0.85, 0.6), "служебный проход"],
+	"alley_n": [-11.0, -6.25, -50.0, -46.0, 0.0, 3.2, "concrete", Color(1.0, 0.85, 0.6), "служебный проход"],
+	"alley_s": [-11.0, -6.25, -106.0, -102.0, 0.0, 3.2, "concrete", Color(1.0, 0.85, 0.6), "служебный проход"],
+	"cross": [-14.0, 14.0, -134.0, -110.0, 0.0, 5.6, "tile", Color(0.9, 1.0, 0.95), "перекрёсток"],
+	"arc_link": [-16.0, -14.0, -126.0, -118.0, 0.0, 4.8, "tile", Color(0.9, 1.0, 0.95), "переход"],
+	"arcade": [-44.0, -16.0, -132.0, -109.0, 0.0, 4.8, "tile", Color(0.8, 1.0, 0.85), "зал автоматов"],
+	"arc_dead": [-44.0, -38.0, -138.0, -132.0, 0.0, 4.8, "tile", Color(0.8, 1.0, 0.85), "тупик"],
+	"casino": [-54.0, -44.0, -126.0, -118.0, 0.0, 3.8, "tile", Color(1.0, 0.5, 0.8), "DOG CASINO 67"],
+	"tun_e": [14.0, 36.0, -125.2, -120.0, 0.0, 3.8, "puddle", Color(0.75, 0.85, 1.0), "служебный тоннель"],
+	"tunnel": [36.0, 44.0, -150.0, -120.0, 0.0, 3.8, "puddle", Color(0.75, 0.85, 1.0), "тоннель (расширение)"],
+	"tun_n": [38.8, 44.0, -166.0, -150.0, 0.0, 3.8, "puddle", Color(0.75, 0.85, 1.0), "служебный тоннель"],
+	"tun_w": [14.0, 44.0, -171.2, -166.0, 0.0, 3.8, "puddle", Color(0.75, 0.85, 1.0), "служебный тоннель"],
+	"hamster": [44.0, 59.0, -153.0, -139.0, 0.0, 5.0, "earth", Color(1.0, 0.7, 0.35), "КРОТЫ ХОМЯКИ"],
+	"tech": [30.8, 38.8, -164.0, -156.0, 0.0, 3.4, "concrete", Color(0.8, 0.9, 1.0), "техпомещение"],
+	"staff": [-28.5, -16.5, -150.0, -140.0, 0.0, 3.4, "tile", Color(1.0, 0.85, 0.6), "комната персонала"],
+	"cash": [-16.5, 16.5, -166.0, -134.0, 0.0, 6.5, "tile", Color(1.0, 1.0, 0.8), "кассовый комплекс"],
+	"pocket": [6.0, 14.0, -170.0, -166.0, 0.0, 3.8, "concrete", Color(1.0, 0.9, 0.5), "закуток за будками"],
+	"arena_link": [-4.0, 4.0, -170.0, -166.0, 0.0, 6.5, "tile", Color(1.0, 1.0, 0.8), "ворота арены"],
+	"arena": [-12.0, 12.0, -188.0, -170.0, 0.0, 7.5, "tile", Color(1.0, 0.95, 0.75), "арена"],
+}
+
+const ROOMS_BASE := {
 	"stairs_top": [-6.0, 6.0, 0.0, 6.0, 5.0, 8.2, "concrete", Color(0.9, 1.0, 0.9), "верх спуска"],
 	"stairs_shaft": [-3.0, 3.0, -16.0, 0.0, 0.0, 8.2, "concrete", Color(0.7, 1.0, 0.75), "спуск"],
 	"stairs": [-6.0, 6.0, -26.0, -16.0, 0.0, 3.2, "tile", Color(0.7, 1.0, 0.75), "спуск"],
@@ -39,19 +69,19 @@ const ROOMS := {
 ## проёмы: ось стены ("x" — стена x = коорд, проём по z; "z" — стена z = коорд, проём по x), коорд, от, до
 const DOORS := [
 	["z", 0.0, -3.0, 3.0], ["z", -16.0, -3.0, 3.0], ["z", -26.0, -4.0, 4.0],
-	["z", -44.0, -3.0, 3.0], ["z", -70.0, -3.0, 3.0], ["z", -88.0, -3.0, 3.0], ["z", -110.0, -3.0, 3.0],
-	["x", -5.0, -50.0, -46.0], ["x", -5.0, -106.0, -102.0], ["x", -11.0, -50.0, -46.0], ["x", -11.0, -106.0, -102.0],
-	["x", -12.0, -126.0, -118.0], ["x", -16.0, -126.0, -118.0], ["z", -132.0, -43.0, -39.0],
+	["z", -44.0, -3.75, 3.75], ["z", -70.0, -3.75, 3.75], ["z", -88.0, -3.75, 3.75], ["z", -110.0, -3.75, 3.75],
+	["x", -6.25, -50.0, -46.0], ["x", -6.25, -106.0, -102.0], ["x", -11.0, -50.0, -46.0], ["x", -11.0, -106.0, -102.0],
+	["x", -14.0, -126.0, -118.0], ["x", -16.0, -126.0, -118.0], ["z", -132.0, -43.0, -39.0],
 	["x", -44.0, -124.0, -120.0],
-	["x", 12.0, -124.0, -120.0], ["x", 36.0, -124.0, -120.0], ["z", -150.0, 40.0, 44.0],
-	["x", 44.0, -148.0, -144.0], ["x", 40.0, -161.5, -158.5],
-	["z", -166.0, 40.0, 44.0], ["x", 14.0, -169.5, -166.5], ["z", -166.0, 8.0, 12.0],
-	["z", -134.0, -3.0, 3.0], ["x", -14.0, -147.0, -143.0],
+	["x", 14.0, -125.2, -120.0], ["x", 36.0, -125.2, -120.0], ["z", -150.0, 38.8, 44.0],
+	["x", 44.0, -148.0, -144.0], ["x", 38.8, -162.0, -158.0],
+	["z", -166.0, 38.8, 44.0], ["x", 14.0, -170.0, -166.5], ["z", -166.0, 8.0, 12.0],
+	["z", -134.0, -3.75, 3.75], ["x", -16.5, -147.0, -143.0],
 	["z", -166.0, -3.0, 3.0], ["z", -170.0, -3.0, 3.0],
 ]
 
 ## зоны боя (ключи совпадают с G67Data.pz_option); spawns — [[точка]]
-const ZONES := {
+const ZONES_BASE := {
 	"stairs": {"c": Vector3(0, 0, -21), "h": Vector2(6, 5), "name": "спуск"},
 	"gate1": {"c": Vector3(0, 0, -35), "h": Vector2(9, 9), "name": "первый турникет", "spawns": [[Vector3(-7.5, 0.05, -42)], [Vector3(7.5, 0.05, -42)], [Vector3(-7.5, 0.05, -28)], [Vector3(7.5, 0.05, -28)]]},
 	"gallery": {"c": Vector3(0, 0, -79), "h": Vector2(10, 9), "name": "торговая галерея", "spawns": [[Vector3(-8.5, 0.05, -86)], [Vector3(8.5, 0.05, -86)], [Vector3(-8.5, 0.05, -72)], [Vector3(8.5, 0.05, -72)]]},
@@ -63,10 +93,50 @@ const ZONES := {
 }
 
 ## именованные точки (G67District.pt)
-const POINTS := {
+const POINTS_BASE := {
 	"home": Vector3(0, 5, 3), "storage": Vector3(-9.0, 0, -128.0), "kiosk": Vector3(-20.0, 0, -116.0), "rest": Vector3(-20.0, 0, -145.0),
 	"gate_boss": Vector3(0, 0, -160.0), "boss_entry": Vector3(0, 0.05, -173.5), "boss_spot": Vector3(0, 0, -185.0), "fit": Vector3(-3.5, 0, -79.0),
 }
+## Привязка прежних координат к новой раскладке комнат: точка внутри комнаты ROOMS_BASE переносится в ту же относительную точку ROOMS
+static func fit(v: Vector3) -> Vector3:
+	for id in ROOMS_BASE:
+		var o: Array = ROOMS_BASE[id]
+		if v.x >= float(o[0]) and v.x <= float(o[1]) and v.z >= float(o[2]) and v.z <= float(o[3]):
+			var n: Array = ROOMS[id]
+			var kx := (float(n[1]) - float(n[0])) / (float(o[1]) - float(o[0]))
+			var kz := (float(n[3]) - float(n[2])) / (float(o[3]) - float(o[2]))
+			return Vector3(float(n[0]) + (v.x - float(o[0])) * kx, v.y, float(n[2]) + (v.z - float(o[2])) * kz)
+	return v
+
+static func _room_k(v: Vector3) -> Vector2:
+	for id in ROOMS_BASE:
+		var o: Array = ROOMS_BASE[id]
+		if v.x >= float(o[0]) and v.x <= float(o[1]) and v.z >= float(o[2]) and v.z <= float(o[3]):
+			var n: Array = ROOMS[id]
+			return Vector2((float(n[1]) - float(n[0])) / (float(o[1]) - float(o[0])), (float(n[3]) - float(n[2])) / (float(o[3]) - float(o[2])))
+	return Vector2.ONE
+
+static func _fit_zones() -> Dictionary:
+	var r := {}
+	for id in ZONES_BASE:
+		var z: Dictionary = (ZONES_BASE[id] as Dictionary).duplicate(true)
+		var k := _room_k(z["c"])
+		z["h"] = Vector2((z["h"] as Vector2).x * k.x, (z["h"] as Vector2).y * k.y)
+		z["c"] = fit(z["c"])
+		if z.has("spawns"):
+			for sp in z["spawns"]:
+				sp[0] = fit(sp[0])
+		r[id] = z
+	return r
+
+static func _fit_points() -> Dictionary:
+	var r := {}
+	for id in POINTS_BASE:
+		r[id] = fit(POINTS_BASE[id])
+	return r
+
+static var ZONES: Dictionary = _fit_zones()
+static var POINTS: Dictionary = _fit_points()
 const FIT_YAW := 1.5708
 const STAIRS_TOP := Vector3(0, 5.05, 3.0)
 const KEY_LAMPS := ["cross", "gallery", "cash", "arena"]
@@ -396,7 +466,11 @@ func _modules() -> void:
 						wid = "wall_a" if h2 < 0.55 else ("wall_b" if h2 < 0.7 else ("wall_c" if h2 < 0.85 else "wall_d"))
 					var d := Vector3(mi_, 0, 0) if axis == "x" else Vector3(0, 0, mi_)
 					var pos2 := Vector3(coord + 0.4 * mi_, y0, c2) if axis == "x" else Vector3(c2, y0, coord + 0.4 * mi_)
-					_put_mod(wid, Transform3D(Basis(Vector3.UP, atan2(d.x, d.z)).scaled_local(Vector3(L2 / float(n2) / 4.0, hs, 1)), pos2))
+					if surf == "tile" and y1 - y0 > 3.4:
+						_put_mod(wid, Transform3D(Basis(Vector3.UP, atan2(d.x, d.z)).scaled_local(Vector3(L2 / float(n2) / 4.0, 1.0, 1)), pos2))
+						_put_mod("wall_conc", Transform3D(Basis(Vector3.UP, atan2(d.x, d.z)).scaled_local(Vector3(L2 / float(n2) / 4.0, (y1 - y0 - 3.2) / 3.2, 1)), pos2 + Vector3(0, 3.2, 0)))
+					else:
+						_put_mod(wid, Transform3D(Basis(Vector3.UP, atan2(d.x, d.z)).scaled_local(Vector3(L2 / float(n2) / 4.0, hs, 1)), pos2))
 	_put_mod("stairs", Transform3D(Basis(Vector3.UP, PI), Vector3(0, 0, 0)))
 	for id in mod_xf:
 		var md: Array = _mod(String(id))
@@ -423,9 +497,9 @@ const PROPS := [
 	["booth", 7.3, -36.0, -PI * 0.5, 0.0, 1.0, true],
 	["turnstile", -5.0, -36.0, 0.0, 0.0, 1.0, true], ["turnstile", -2.6, -36.0, 0.0, 0.0, 1.0, true], ["turnstile", 2.6, -36.0, 0.0, 0.0, 1.0, true], ["turnstile", 5.0, -36.0, 0.0, 0.0, 1.0, true],
 	["tariff_board", -6.0, -43.4, 0.0, 1.5, 0.8, false], ["queue_stand", -7.0, -30.0, 0.0, 0.0, 1.0, true], ["queue_stand", -5.5, -30.0, 0.0, 0.0, 1.0, true],
-	["kiosk_shawarma", -3.7, -54.0, PI * 0.5, 0.0, 1.0, true], ["shawarma_spit", -2.85, -54.6, PI * 0.5, 1.04, 1.0, false], ["kiosk_phones", -3.7, -60.0, PI * 0.5, 0.0, 1.0, true], ["kiosk_socks", -3.7, -66.0, PI * 0.5, 0.0, 1.0, true],
-	["kiosk_keys", 3.7, -54.0, -PI * 0.5, 0.0, 1.0, true], ["kiosk_odds", 3.7, -60.0, -PI * 0.5, 0.0, 1.0, true], ["kiosk_exchange", 3.7, -66.0, -PI * 0.5, 0.0, 1.0, true],
-	["kiosk_socks", -3.7, -93.0, PI * 0.5, 0.0, 1.0, true], ["kiosk_phones", -3.7, -99.0, PI * 0.5, 0.0, 1.0, true],
+	["kiosk_shawarma", -3.7, -54.0, PI * 0.5, 0.0, 1.0, true], ["shawarma_spit", -3.18, -54.6, PI * 0.5, 1.04, 1.0, false], ["kiosk_phones", -3.7, -60.0, PI * 0.5, 0.0, 1.0, true], ["kiosk_socks", -3.6, -66.0, PI * 0.5, 0.0, 1.0, true],
+	["kiosk_keys", 3.55, -54.0, -PI * 0.5, 0.0, 1.0, true], ["kiosk_odds", 3.55, -60.0, -PI * 0.5, 0.0, 1.0, true], ["kiosk_exchange", 3.55, -66.0, -PI * 0.5, 0.0, 1.0, true],
+	["kiosk_socks", -3.6, -93.0, PI * 0.5, 0.0, 1.0, true], ["kiosk_phones", -3.7, -99.0, PI * 0.5, 0.0, 1.0, true],
 	["kiosk_shawarma", 3.7, -93.0, -PI * 0.5, 0.0, 1.0, true], ["kiosk_odds", 3.7, -99.0, -PI * 0.5, 0.0, 1.0, true],
 	["bench", -8.0, -79.0, PI * 0.5, 0.0, 1.0, true], ["bench", 8.0, -79.0, -PI * 0.5, 0.0, 1.0, true], ["bin", -8.4, -73.0, 0.0, 0.0, 1.0, true], ["bin", 8.4, -85.0, 0.0, 0.0, 1.0, true],
 	["cross_green", 9.6, -72.0, -PI * 0.5, 1.4, 1.0, false], ["vend_drinks", 9.2, -76.0, -PI * 0.5, 0.0, 1.0, true], ["gas_balloon", 3.9, -107.0, 0.0, 0.0, 1.0, true],
@@ -486,10 +560,15 @@ const SIGNS := [
 ## Модели владельца (Tripo, PODZEMKA_TRIPO_PROMPTS.md): [файл без .glb, высота, м]. Файл есть — ставится вместо Blender-версии с авто-посадкой
 const OWNER_MODELS := {
 	"dog": ["g67_pz_dog", 0.96], "hamster_a": ["g67_pz_hamster", 0.5], "hamster_b": ["g67_pz_hamster", 0.5], "hamster_c": ["g67_pz_hamster", 0.5],
-	"hamster_gold": ["g67_pz_hamster_gold", 0.55], "slot_machine": ["g67_pz_slot_cabinet", 2.2], "shawarma_spit": ["g67_pz_shawarma_spit", 1.0], "kennel": ["g67_pz_dog_house", 1.5], "microwave": ["g67_pz_microwave", 0.32],
+	"hamster_gold": ["g67_pz_hamster_gold", 0.55], "slot_machine": ["g67_pz_slot_cabinet", 2.2], "shawarma_spit": ["g67_pz_shawarma_spit", 1.35], "kennel": ["g67_pz_dog_house", 1.5], "microwave": ["g67_pz_microwave", 0.32],
 	"arcade_a": ["g67_pz_arcade_machine", 1.8], "arcade_b": ["g67_pz_arcade_machine", 1.8], "vend_drinks": ["g67_pz_vending_drinks", 1.9],
 }
 ## Посадочные точки слота для корпуса владельца (g67_pz_slot_cabinet): смещения от центра низа корпуса, м (лицо по +Z)
+## Ассеты Sketchfab (CC0/CC-BY, CREDITS_SKETCHFAB.md): id предмета → файл в podzemka/. Есть файл — ставится вместо Blender-версии в своём размере
+const SF_MODELS := {
+	"turnstile": "sf_turnstile", "kiosk_odds": "sf_kiosk_a", "kiosk_exchange": "sf_kiosk_a", "kiosk_keys": "sf_kiosk_a", "kiosk_socks": "sf_kiosk_b",
+	"vend_drinks": "sf_vend_a", "vend_snacks": "sf_vend_b", "vend_change": "sf_vend_c", "vend_broken": "sf_vend_d", "arcade_a": "sf_arcade_a", "arcade_b": "sf_arcade_b", "booth": "sf_booth", "storage": "sf_lockers", "bench": "sf_bench",
+}
 const SLOT_SOCKETS := {"screen_w": 1.04, "screen": Vector3(0.0, 1.143, 0.345), "screen_tilt": -9.0, "button": Vector3(0.454, 0.684, 0.41), "lamp_x": 0.643, "lamp_z0": 0.69, "lamp_z1": 1.51, "lamp_front": 0.32, "board": Vector3(-0.3, 1.45, 0.45), "jackpot": Vector3(0.3, 1.45, 0.45), "cabinet_height": 2.2}
 
 func _fit_owner(inst: Node3D, height: float) -> void:
@@ -521,13 +600,17 @@ func _decorate() -> void:
 			if ResourceLoader.exists(op):
 				path = op
 				owner_h = float(OWNER_MODELS[String(pr[0])][1])
+		if owner_h <= 0.0 and SF_MODELS.has(String(pr[0])):
+			var sp: String = PROP_PATH.get_base_dir() + "/" + String(SF_MODELS[String(pr[0])]) + ".glb"
+			if ResourceLoader.exists(sp):
+				path = sp
 		if not ResourceLoader.exists(path):
 			missing.append(path)
 			continue
 		var inst: Node3D = (load(path) as PackedScene).instantiate()
 		add_child(inst)
 		var sc := float(pr[5])
-		inst.transform = Transform3D(Basis(Vector3.UP, float(pr[3])).scaled_local(Vector3(sc, sc, sc)), Vector3(float(pr[1]), float(pr[4]), float(pr[2])))
+		inst.transform = Transform3D(Basis(Vector3.UP, float(pr[3])).scaled_local(Vector3(sc, sc, sc)), fit(Vector3(float(pr[1]), float(pr[4]), float(pr[2]))))
 		if owner_h > 0.0:
 			var wrap := Node3D.new()
 			wrap.transform = inst.transform
@@ -543,6 +626,12 @@ func _decorate() -> void:
 		inst.name = String(pr[0])
 		if String(pr[0]) == "shawarma_spit":
 			spit_node = inst.find_child("spit", true, false) as Node3D
+			for smi in inst.find_children("*", "MeshInstance3D", true, false):
+				var sm := (smi as MeshInstance3D).mesh
+				for si in sm.get_surface_count():
+					var smat := sm.surface_get_material(si) as BaseMaterial3D
+					if smat != null:
+						smat.emission_enabled = false
 			var wl := OmniLight3D.new()
 			wl.light_color = Color(1.0, 0.75, 0.4)
 			wl.light_energy = 0.55
@@ -551,8 +640,8 @@ func _decorate() -> void:
 			inst.add_child(wl)
 			var rl := OmniLight3D.new()
 			rl.light_color = Color(1.0, 0.15, 0.05)
-			rl.light_energy = 0.45
-			rl.omni_range = 1.2
+			rl.light_energy = 0.22
+			rl.omni_range = 1.0
 			rl.position = Vector3(0.0, 0.55, -0.2)
 			inst.add_child(rl)
 		if String(pr[0]) == "dog":
@@ -580,7 +669,7 @@ func _decorate() -> void:
 		lb.width = 1400.0 if String(sg[0]).length() > 24 else 900.0
 		lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lb.shaded = false
-		lb.position = Vector3(float(sg[1]), float(sg[2]), float(sg[3]))
+		lb.position = fit(Vector3(float(sg[1]), float(sg[2]), float(sg[3])))
 		lb.rotation.y = float(sg[4])
 		lb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(lb)
@@ -597,7 +686,7 @@ func _zone_lights() -> void:
 	]
 	for sp in spots:
 		var l := OmniLight3D.new()
-		l.position = sp[0]
+		l.position = fit(sp[0])
 		l.light_color = sp[1]
 		l.light_energy = sp[2]
 		l.omni_range = sp[3]
@@ -606,7 +695,7 @@ func _zone_lights() -> void:
 	# мигающие лампы: три ближайших к ключевым точкам
 	for pos in [Vector3(0, 3.1, -26), Vector3(40, 2.4, -135), Vector3(-30, 3.2, -122)]:
 		var l2 := OmniLight3D.new()
-		l2.position = pos
+		l2.position = fit(pos)
 		l2.light_color = Color(0.85, 0.95, 0.9)
 		l2.light_energy = 1.8
 		l2.omni_range = 8.0
@@ -618,7 +707,7 @@ func _zone_lights() -> void:
 		var p := GPUParticles3D.new()
 		p.amount = 6
 		p.lifetime = 1.0
-		p.position = pos
+		p.position = fit(pos) + Vector3(0, 0.8, 0)
 		var pm := ParticleProcessMaterial.new()
 		pm.direction = Vector3(0, -1, 0)
 		pm.spread = 2.0

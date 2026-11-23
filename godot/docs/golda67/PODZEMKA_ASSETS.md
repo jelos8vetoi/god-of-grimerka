@@ -71,3 +71,24 @@
 | `g67_pz_wall_c` | `blender_source/podzemka/g67_pz_wall_c.blend` | `podzemka/g67_pz_wall_c.glb` | 1103 | то же + техдверь в нише; слабое: дверь плоская |
 | `g67_pz_wall_conc` | `blender_source/podzemka/g67_pz_wall_conc.blend` | `podzemka/g67_pz_wall_conc.glb` | 236 | бетонная плита со стыками; слабое: однообразна |
 | `g67_pz_wall_d` | `blender_source/podzemka/g67_pz_wall_d.blend` | `podzemka/g67_pz_wall_d.glb` | 720 | то же + ниша с полкой; слабое: ниша мелкая |
+
+## Ассеты Sketchfab (передача 45; лицензии CC0 / CC-BY, полная таблица — `godot/docs/CREDITS_SKETCHFAB.md`)
+
+Обработка — `tools/blender/g67_sf_prep.py`, скачивание — `tools/sketchfab-get.cjs`, перекодирование текстур — `tools/g67_glb_fixtex.py`. Исходники — `blender_source/sketchfab_src/`.
+
+| Позиция | Файл в игре | Оригинал (автор) | Треугольники | Экземпляров | В игре |
+|---|---|---|---|---|---|
+| турникет | `sf_turnstile` | Retro Turnstile (1PathFinder) | 5970 → 2500 | 22 | зелёная тумба с трипод-рычагом, читается; створки не отдельным узлом |
+| ларёк (мелочи, обмен, ключи) | `sf_kiosk_a` | Ice Cream Stall (Ivan-Kanaev) | 191 | 3 | русский ларёк с витриной; на вывеске «МОРОЖЕНОЕ» (запечено в модели) |
+| ларёк (носки) | `sf_kiosk_b` | Fruit and Vegetable Store (Elena.An) | 9711 → 6000 | 2 | яркий павильон с постером ягод, не по стилю зоны |
+| автомат напитков | `sf_vend_a` | Vending machine - Blue cow (tboiston) | 2268 | 1 | читается |
+| автомат снеков | `sf_vend_b` | psx vending machine (Brainsick Games) | 44 | 1 | читается |
+| автомат размена | `sf_vend_c` | Plussy vending machine (Rusty-exe) | 1182 | 1 | жёлтый, читается |
+| сломанный автомат | `sf_vend_d` | Rusty Old Newspaper Vending Machine (chrisg4919) | 872 | 1 | ржавый синий шкаф |
+| игровой автомат | `sf_arcade_a` | Arcade machine (ion_omat) | 1530 | 6 | старый жёлтый |
+| игровой автомат | `sf_arcade_b` | arcade machine (joindead) | 3069 | 6 | цветной, экран пустой |
+| кассовая будка | `sf_booth` | Ticket Booth (daedaljs) | 367 | 1 | красно-белая |
+| камера хранения | `sf_lockers` | Locker (neverfollow81) | 1670 | 1 | синие шкафчики |
+| скамья | `sf_bench` | Wooden Park Bench (TheMadraver) | 714 | 2 | простая деревянная |
+
+Не нашли годного / оставлено нашим: ларёк шаурмы и телефонов (наши вывески и наполнение), касса-щит, табло, колесо, хомячья стена, тоннель, быт комнаты персонала. Заменённые Blender-версии удалены из `assets/golda67/podzemka/`.

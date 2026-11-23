@@ -235,8 +235,8 @@ static func clips_pz() -> Dictionary:
 	C["PzCWalk"] = _walk(1.0, _mix(stiff, {"rarm": {"x": 0.0}}))
 	C["PzCRun"] = _walk(0.62, _mix(stiff, {"spine": {"x": 0.12}}))
 	C["PzCShield"] = _loop(2.4, _mix(stiff, {"larm": {"x": -1.0, "z": 0.2}, "lfa": {"x": -1.45, "y": -0.5}, "spine": {"y": 0.15}}), {"larm": {"x": -0.03}})
-	C["PzCStrike"] = _seq(1.2, stiff, [[0.0, {}], [0.32, {"larm": {"x": -1.5, "z": 0.5}, "lfa": {"x": -0.4}, "spine": {"y": 0.55}, "head": {"y": 0.2}}, "io"], [0.46, {"larm": {"x": -1.5, "z": 0.5}, "lfa": {"x": -0.4}, "spine": {"y": 0.55}}],
-		[0.58, {"larm": {"x": -0.5, "z": -0.8}, "lfa": {"x": -0.2}, "spine": {"y": -0.6}, "head": {"y": -0.2}}, "out"], [0.8, {"larm": {"x": -0.5, "z": -0.8}, "spine": {"y": -0.5}}], [1.0, {}]], false)
+	C["PzCStrike"] = _seq(1.2, stiff, [[0.0, {}], [0.32, {"larm": {"x": 1.2, "z": 0.8}, "lfa": {"x": -0.3}, "spine": {"y": 0.6}, "head": {"y": 0.25}}, "io"], [0.46, {"larm": {"x": 1.3, "z": 0.85}, "lfa": {"x": -0.3}, "spine": {"y": 0.65}}],
+		[0.58, {"larm": {"x": -1.0, "z": -0.3}, "lfa": {"x": -0.2}, "spine": {"y": -0.6}, "head": {"y": -0.2}}, "out"], [0.8, {"larm": {"x": -0.8, "z": -0.3}, "spine": {"y": -0.5}}], [1.0, {}]], false)
 	C["PzCStrike2"] = _seq(1.3, stiff, [[0.0, {}], [0.38, {"larm": {"x": -0.2, "z": 1.0}, "lfa": {"x": -0.2}, "spine": {"y": 0.7}}, "io"], [0.62, {"larm": {"x": -1.0, "z": -0.9}, "spine": {"y": -0.7}}, "out"], [1.0, {}]], false)
 	C["PzCTicket"] = _seq(1.8, stiff, [[0.0, {}], [0.3, {"rarm": {"x": -1.35, "z": -0.15}, "rfa": {"x": -0.2}, "head": {"x": 0.05}, "spine": {"x": 0.05}}], [0.7, {"rarm": {"x": -1.35, "z": -0.15}, "rfa": {"x": -0.2}, "head": {"x": -0.1}}], [1.0, {}]], false)
 	C["PzCBroken"] = _loop(1.8, _mix(stiff, {"larm": {"z": 0.9, "x": 0.4}, "lfa": {"x": 0.0}, "spine": {"z": 0.12}, "head": {"z": 0.2}}), {"spine": {"z": -0.25}, "head": {"z": -0.4}, "hips": {"z": 0.08}})

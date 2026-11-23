@@ -15,7 +15,7 @@ const ROWS := 3
 const GRID_X := [128.0, 284.0, 440.0, 596.0, 752.0, 908.0]
 const GRID_Y := [95.0, 231.0, 367.0, 503.0]
 ## Положение спрайта в ячейке (от левого верхнего угла ячейки, пиксели исходного снимка) и размер: как на примере
-const SPR := {"dog": [Vector2(5, 7), Vector2(148, 126)], "dog2": [Vector2(4, 9), Vector2(148, 122)], "house": [Vector2(0, -37), Vector2(154, 174)],
+const SPR := {"dog": [Vector2(5, 5), Vector2(148, 126)], "dog2": [Vector2(4, 9), Vector2(148, 122)], "house": [Vector2(0, -37), Vector2(154, 174)],
 	"paw": [Vector2(-3, -17), Vector2(159, 174)], "a": [Vector2(38, 25), Vector2(76, 88)], "k": [Vector2(38, 23), Vector2(76, 88)]}
 ## Выступ символов за ячейку (верх будки, лапа BONUS): маска шире REEL_RECT на CLIP_PAD сверху и по бокам
 const CLIP_PAD := Vector2(8, 40)

@@ -201,12 +201,12 @@ func _shots() -> void:
 	P.global_position = Vector3(0, 0.05, -300)
 	var V := [
 		["pz_stairs", Vector3(0, 7.5, 4.5), Vector3(0, 1.0, -14)], ["pz_gate1", Vector3(0, 1.9, -28), Vector3(0, 1.2, -40)],
-		["pz_gallery", Vector3(0, 1.8, -48), Vector3(0, 1.8, -105)], ["pz_kiosk_shawarma", Vector3(0.2, 1.6, -54.6), Vector3(-3.7, 1.3, -54.0)],
-		["pz_kiosk_socks", Vector3(0.2, 1.6, -66.4), Vector3(-3.7, 1.3, -66.0)], ["pz_cross", Vector3(0, 2.2, -112), Vector3(0, 1.5, -131)],
+		["pz_gallery", Vector3(0, 1.8, -48), Vector3(0, 1.8, -105)], ["pz_kiosk_shawarma", Vector3(0.2, 1.6, -54.6), Vector3(-4.6, 1.3, -54.0)],
+		["pz_kiosk_socks", Vector3(0.2, 1.6, -66.4), Vector3(-4.5, 1.3, -66.0)], ["pz_kiosk_keys", Vector3(-0.4, 1.6, -54.6), Vector3(4.4, 1.2, -54.0)], ["pz_cross", Vector3(0, 2.2, -112), Vector3(0, 1.5, -131)],
 		["pz_arcade", Vector3(-16.6, 2.0, -123.0), Vector3(-31.0, 1.2, -118.0)], ["pz_tunnel", Vector3(14, 1.7, -122), Vector3(36, 1.5, -122)],
 		["pz_hamster_door", Vector3(37.5, 1.7, -144.0), Vector3(44.0, 1.8, -146.0)], ["pz_hamster_city", Vector3(47.0, 1.9, -141.5), Vector3(51.5, 1.9, -152.5)],
 		["pz_casino_door", Vector3(-30.0, 1.7, -126.5), Vector3(-43.5, 1.5, -129.0)], ["pz_slot_3m", Vector3(-49.6, 1.5, -122.0), Vector3(-52.5, 1.15, -122.0)],
-		["pz_slot_1m", Vector3(-51.55, 1.3, -122.0), Vector3(-52.55, 1.15, -122.0)], ["pz_dog", Vector3(-45.5, 1.0, -121.0), Vector3(-48.0, 0.5, -121.0)], ["pz_dog34", Vector3(-46.5, 1.2, -118.8), Vector3(-48.0, 0.5, -121.0)], ["pz_spit", Vector3(-0.4, 1.7, -54.6), Vector3(-2.85, 1.5, -54.6)],
+		["pz_slot_1m", Vector3(-51.55, 1.3, -122.0), Vector3(-52.55, 1.15, -122.0)], ["pz_dog", Vector3(-45.5, 1.0, -121.0), Vector3(-48.0, 0.5, -121.0)], ["pz_dog34", Vector3(-46.5, 1.2, -118.8), Vector3(-48.0, 0.5, -121.0)], ["pz_spit", Vector3(-0.6, 1.7, -54.6), Vector3(-3.9, 1.6, -54.6)],
 		["pz_cash", Vector3(0, 2.4, -138), Vector3(0, 2.5, -160)], ["pz_arena", Vector3(0, 3.0, -172), Vector3(0, 1.5, -186)],
 		["pz_staff", Vector3(-15.0, 1.7, -145.0), Vector3(-24.0, 1.2, -145.0)],
 	]
@@ -336,7 +336,7 @@ func _decor_checks(pz: G67Podzemka, space: PhysicsDirectSpaceState3D) -> void:
 	for pr in G67Podzemka.PROPS:
 		if not bool(pr[6]):
 			continue
-		var ctr := Vector3(float(pr[1]), 0.7 + float(pr[4]), float(pr[2]))
+		var ctr := G67Podzemka.fit(Vector3(float(pr[1]), 0.7 + float(pr[4]), float(pr[2])))
 		var hit_any := false
 		for dv in [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]:
 			var q := PhysicsRayQueryParameters3D.create(ctr + dv * 3.0, ctr)
