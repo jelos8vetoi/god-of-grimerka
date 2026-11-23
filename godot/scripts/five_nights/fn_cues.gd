@@ -47,24 +47,24 @@ static func hall_id(enemy: String) -> String:
 ## Звук присутствия у двери: разовые записи по кругу, пока враг стоит; ids чередуются, extra — вместо очередного звука с вероятностью extra_p
 const PRESENCE := {
 	"balon": {"ids": ["door_breath"], "gap": [2.6, 4.2], "first": [0.9, 1.6], "db": -9.0, "extra": "rustle", "extra_p": 0.3},
-	"clipper": {"ids": ["blade"], "gap": [0.9, 1.5], "first": [0.0, 0.0], "db": -1.0},
+	"clipper": {"ids": ["blade"], "gap": [0.9, 1.5], "first": [0.0, 0.0], "db": 3.0},
 	"bot": {"ids": ["servo", "mech_tick"], "gap": [1.4, 2.4], "first": [0.6, 1.2], "db": -6.0},
-	"mod": {"ids": ["zap", "relay"], "gap": [1.6, 2.8], "first": [0.8, 1.4], "db": 5.0},
+	"mod": {"ids": ["zap", "relay"], "gap": [1.6, 2.8], "first": [0.8, 1.4], "db": 12.0},
 }
 const BEHIND_DOOR_DB := -5.0           # дверь закрыта: то же, но глуше
-const ARRIVE_DB := -8.0                # шаг прихода к двери (было −2)
-const RETREAT_DB := [-8.0, -12.0, -16.0]   # три удаляющихся шага
+const ARRIVE_DB := -3.0                # шаг прихода к двери (было −2)
+const RETREAT_DB := [-14.5, -17.5, -20.5]   # три удаляющихся шага
 const RETREAT_GAP := [0.45, 0.6]
 const RETREAT_AT := [0.0, 0.45, 0.9]   # доля пути от двери к коридору
 
 ## MADK1D в шахте: события по состоянию вместо петли. steps: [доля пути duct_t/duct_need, id, дБ, доля расстояния от дальней точки к решётке]
 const DUCT := {
 	"enter": {"id": "duct_far", "db": -6.0},
-	"steps": [[0.38, "duct_move", -11.0, 0.35], [0.68, "duct_move", -6.0, 0.75]],
+	"steps": [[0.38, "duct_move", -7.0, 0.35], [0.68, "duct_move", 0.5, 0.75]],
 	"burst": [2, 3], "burst_gap": [0.28, 0.5],
 	"quiet_from": 0.8,
-	"arrive": {"id": "grate_hit", "db": 2.0},
-	"at_grate": {"id": "rustle", "gap": [1.3, 2.2], "db": -8.0},
+	"arrive": {"id": "grate_hit", "db": 6.0},
+	"at_grate": {"id": "rustle", "gap": [1.3, 2.2], "db": -5.0},
 	"bang": {"id": "grate_hit", "db": 4.0},
 	"leave": {"id": "duct_far", "db": [-8.0, -13.0], "gap": [0.6, 0.9]},
 }

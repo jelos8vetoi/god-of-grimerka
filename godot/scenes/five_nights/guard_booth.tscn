@@ -450,6 +450,9 @@ size = Vector3(0.006, 1.15, 0.13)
 albedo_color = Color(0.72, 0.45, 0.2, 1)
 roughness = 0.63
 
+[sub_resource type="BoxMesh" id="Box_Guide"]
+size = Vector3(0.02, 0.95, 0.03)
+
 [sub_resource type="BoxMesh" id="Box_StripeA"]
 size = Vector3(0.6, 0.03, 0.004)
 
@@ -934,8 +937,18 @@ rotation = Vector3(-0.23, 0, 0)
 mesh = SubResource("Box_0_615_0_029_0_04")
 material_override = ExtResource("steel")
 
+[node name="GuideL" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(-0.355, 0.235, 0.05)
+mesh = SubResource("Box_Guide")
+material_override = ExtResource("steel")
+
+[node name="GuideR" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0.355, 0.235, 0.05)
+mesh = SubResource("Box_Guide")
+material_override = ExtResource("steel")
+
 [node name="DamperPivot" type="Node3D" parent="Ventilation/WallGrate"]
-position = Vector3(0, 0.208, -0.084)
+position = Vector3(0, 0.208, 0.055)
 
 [node name="Damper" type="MeshInstance3D" parent="Ventilation/WallGrate/DamperPivot"]
 position = Vector3(0, -0.208, 0)
@@ -967,7 +980,7 @@ mesh = SubResource("Sphere_0_019_0_038_12_6")
 material_override = SubResource("VentEyes")
 
 [node name="VentMark" type="Label3D" parent="Ventilation/WallGrate"]
-position = Vector3(0, 0.299, 0.002)
+position = Vector3(0, 0.74, 0.002)
 font = ExtResource("Russo")
 text = "ВЕНТИЛЯЦИЯ"
 font_size = 26

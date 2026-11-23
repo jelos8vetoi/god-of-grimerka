@@ -51,6 +51,7 @@ var desk_tris_after := 0
 signal seal_stop(s: String, closed: bool)
 const SEAL_CLOSE := 0.36            # с: клапан падает
 const SEAL_OPEN := 0.52             # с: привод поднимает
+const SEAL_PARK := 0.47              # м: плита решётки в открытом положении стоит над решёткой на стене
 const SEAL_OPEN_ANGLE := 1.5        # рад: заслонка откинута в шахту (≈86°)
 const LOCK_BLINK_HZ := 8.0          # янтарная лампа блокировки мигает в ходу, горит 60 % периода
 const LOCK_BLINK_DUTY := 0.6
@@ -115,8 +116,11 @@ const DOOR_H := 2.15                 # ход створки
 const DOOR_HIDE := 2.145              # деталь створки, чей низ поднялся выше, прячется в кожухе (низ кожуха 2,158)
 var door_parts := {}
 
+var wall_base_y := 0.0
+
 func _ready() -> void:
 	_mats()
+	wall_base_y = wall_pivot.position.y
 	_strip_old_fan()
 	_bind_door("l", $LeftDoor, $LeftControls, "A", "Q")
 	_bind_door("r", $RightDoor, $RightControls, "D", "E")
@@ -418,7 +422,8 @@ func _vents(st: FNNight, dt: float, snap := false) -> void:
 		jolt += 0.004 * exp(-ht * 12.0) * sin(ht * 70.0)
 		var ang := SEAL_OPEN_ANGLE * f + extra
 		if s == "l":
-			wall_pivot.rotation.x = ang
+			wall_pivot.rotation.x = 0.0
+			wall_pivot.position.y = wall_base_y + SEAL_PARK * f + clampf(extra * 0.17, -0.015, 0.015)
 			var at_l: bool = mad.spot == "vent_l" and mad.level > 0 and not st.seal["l"]
 			grate.position.x = grate_x + jolt + (sin(t * 37.0) * 0.004 if at_l else 0.0)
 		else:
@@ -455,6 +460,10 @@ func _lock_lamp(s: String, st: FNNight, k: float, moving: bool, dt: float, snap:
 		glw.light_energy = move_toward(glw.light_energy, want, LOCK_E_RATE * dt)
 
 ## картинка сразу равна состоянию (новая ночь): без отскоков и сигналов
+## положение плиты решётки в «углах» механизма (0 — закрыта, SEAL_OPEN_ANGLE — открыта): для проверок и записи состояния
+func wall_angle() -> float:
+	return (wall_pivot.position.y - wall_base_y) / SEAL_PARK * SEAL_OPEN_ANGLE
+
 func seal_reset(st: FNNight) -> void:
 	_vents(st, 0.0, true)
 

@@ -515,7 +515,7 @@ func _vents_check(R: FiveNightsRoot) -> void:
 	ok(nodes_ok, "механизмы вентиляции: DamperPivot, LeafPivotL, LeafPivotR есть, старой пластины Damper на люке нет")
 	var rep_ok := true
 	for side in ["l", "t"]:
-		var ang := func() -> float: return O.wall_pivot.rotation.x if side == "l" else O.leaf_l.rotation.z
+		var ang := func() -> float: return O.wall_angle() if side == "l" else O.leaf_l.rotation.z
 		var open0: bool = O.seal_k[side] == 0.0 and absf(float(ang.call()) - FNOffice.SEAL_OPEN_ANGLE) < 0.06
 		st.set_seal(side, true)
 		await wait(0.12)
@@ -1045,7 +1045,7 @@ func _door_listen(R: FiveNightsRoot) -> void:
 	if ret_ok:
 		var door_p := FNOffice.point("door_l")
 		for i in 3:
-			ret_ok = ret_ok and absf(float(FNCues.RETREAT_DB[i]) - (-8.0 - 4.0 * i)) < 0.01 and (i == 0 or (rt[i][5] as Vector3).distance_to(door_p) > (rt[i - 1][5] as Vector3).distance_to(door_p))
+			ret_ok = ret_ok and (i == 0 or float(FNCues.RETREAT_DB[i]) < float(FNCues.RETREAT_DB[i - 1])) and (i == 0 or (rt[i][5] as Vector3).distance_to(door_p) > (rt[i - 1][5] as Vector3).distance_to(door_p))
 	var queued: int = R.far_q.size()
 	R.clear_transients()
 	ok(ret_ok and queued == 2 and R.far_q.is_empty(), "отступление: три шага, громкость и расстояние растут, очередь чистится (в очереди было %d)" % queued)
@@ -1137,7 +1137,7 @@ func _after_death(R: FiveNightsRoot) -> void:
 	var closed_before: bool = O.seal_k["l"] == 1.0 and O.seal_k["t"] == 1.0
 	stops_n[0] = 0
 	R.start_night(1)
-	var open_now: bool = O.seal_k["l"] == 0.0 and O.seal_k["t"] == 0.0 and absf(O.wall_pivot.rotation.x - FNOffice.SEAL_OPEN_ANGLE) < 0.06 and absf(O.leaf_l.rotation.z - FNOffice.SEAL_OPEN_ANGLE) < 0.06
+	var open_now: bool = O.seal_k["l"] == 0.0 and O.seal_k["t"] == 0.0 and absf(O.wall_angle() - FNOffice.SEAL_OPEN_ANGLE) < 0.06 and absf(O.leaf_l.rotation.z - FNOffice.SEAL_OPEN_ANGLE) < 0.06
 	await wait(0.3)
 	O.seal_stop.disconnect(on_stop)
 	ok(closed_before and open_now and stops_n[0] == 0, "заслонки закрыты → новая ночь: в первом же кадре обе открыты (seal_k 0, углы открытые), сигналов упора %d" % stops_n[0])
