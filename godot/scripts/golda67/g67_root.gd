@@ -3790,12 +3790,13 @@ func _fortuna_outro(e) -> void:
 	if ar != null:
 		ar.tablo.text = "ТЯГА-812 — ВЫДАНА БЕЗ ЧЕКА"
 	await _fz_wait(2.5 * k)
+	p.set_physics_process(true)
 	if prev != null and is_instance_valid(prev):
 		prev.make_current()
-	else:
+	elif is_instance_valid(game.cam):
 		game.cam.make_current()
-	cam.queue_free()
-	p.set_physics_process(true)
+	if is_instance_valid(cam):
+		cam.queue_free()
 	events.append(["fortuna_outro"])
 
 func _boss_down(e) -> void:
