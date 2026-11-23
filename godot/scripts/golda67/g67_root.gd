@@ -914,7 +914,6 @@ func talk_begin(partner, kind: String, lines: Array) -> void:
 		_plan(M, M + S * sd * (3.2 + sep * 0.6) + A * 0.8 + Vector3(0, 0.1, 0), M, 62.0, M - S * sd * (3.2 + sep * 0.6) + A * 0.8 + Vector3(0, 0.1, 0)),                       # 0 общий: оба в профиль
 		_plan(M, Qh + S * sd * 1.5 - A * 0.9 + Vector3(0, 0.1, 0), Qh, 38.0, Qh - S * sd * 1.5 - A * 0.9 + Vector3(0, 0.1, 0)),                          # 1 собеседник в три четверти
 		_plan(M, Qh + A * 0.9 + S * sd * 0.55 + Vector3(0, 0.25, 0), Hh, 44.0, Qh + A * 0.9 - S * sd * 0.55 + Vector3(0, 0.25, 0))]                          # 2 через плечо собеседника на Пахана
-	var extra_idx := -1
 	match kind:
 		"kiosk":
 			talk_shots.append(_plan(M, M + S * sd * (5.0 + sep * 0.6) + Vector3(0, 1.0, 0), Vector3(39.9, 1.5, 7.0), 56.0))   # 3 окно ларька и очередь
@@ -1517,7 +1516,7 @@ func togo_pool() -> Array:
 func kiosk_buy(id: String) -> String:
 	if kiosk_why(id) != "":
 		return ""
-	var k := kiosk_item(id)
+	var _k := kiosk_item(id)
 	var paid := kiosk_price(id)
 	run["golda"] = int(run["golda"]) - paid
 	run["spent"] = int(run.get("spent", 0)) + paid
@@ -1840,9 +1839,9 @@ func music_context() -> Dictionary:
 		res["cue"] = dir.resolve_cue("loc_g67_" + last_district, "loc_snow") if back else dir.resolve_cue("loc_g67_hub", "loc_hall")
 		res["layers"] = [1.0, 0.0, 0.0]
 		res["transition"] = "cross"
-		var tv := _tv_node()
-		if tv != null:
-			res["via"] = tv
+		var tv_n := _tv_node()
+		if tv_n != null:
+			res["via"] = tv_n
 		return res
 	last_district = String(run.get("district", last_district))
 	var yard: String = dir.resolve_cue("loc_g67_" + last_district, "loc_snow")

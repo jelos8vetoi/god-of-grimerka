@@ -118,11 +118,11 @@ func _fit() -> void:
 	stage.scale = Vector2.ONE * k
 	stage.position = (vs - STAGE * k) * 0.5
 
-func _text(parent: Node, s: String, size: int, col: Color, pos: Vector2, f: Font = null, rough := false) -> Label:
+func _text(parent: Node, s: String, sz: int, col: Color, pos: Vector2, f: Font = null, rough := false) -> Label:
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", f if f != null else tech)
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", sz)
 	l.add_theme_color_override("font_color", col)
 	l.position = pos
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -195,12 +195,12 @@ func _apply_golda() -> void:
 	_g67_done = true
 	for i in tabs.size():
 		var tb: Dictionary = tabs[i]
-		var size: int = TABS[i][2]
-		var w: float = serif.get_string_size(G67_TABS[i], HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		var sz: int = TABS[i][2]
+		var w: float = serif.get_string_size(G67_TABS[i], HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x
 		(tb["label"] as Label).text = G67_TABS[i]
-		(tb["root"] as Control).size = Vector2(w + 20, size * 1.1)
-		(tb["band"] as Polygon2D).polygon = torn(w + 60.0, size * 1.02, 31 + i, 40.0)
-		(tb["tag"] as Polygon2D).position = Vector2(w * 0.55, size * 0.98)
+		(tb["root"] as Control).size = Vector2(w + 20, sz * 1.1)
+		(tb["band"] as Polygon2D).polygon = torn(w + 60.0, sz * 1.02, 31 + i, 40.0)
+		(tb["tag"] as Polygon2D).position = Vector2(w * 0.55, sz * 0.98)
 	if panel_caps.size() > 1:
 		(panel_caps[1] as Label).text = "РЕСПЕКТ"
 	if hints_root != null:
@@ -212,27 +212,27 @@ func _tab_name(i: int) -> String:
 func _build_tabs() -> void:
 	for i in TABS.size():
 		var d: Array = TABS[i]
-		var size: int = d[2]
+		var sz: int = d[2]
 		var root := Control.new()
 		root.position = d[1]
 		root.rotation = deg_to_rad(float(d[3]))
 		var tname: String = _tab_name(i)
-		var w: float = serif.get_string_size(tname, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-		root.size = Vector2(w + 20, size * 1.1)
+		var w: float = serif.get_string_size(tname, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x
+		root.size = Vector2(w + 20, sz * 1.1)
 		root.mouse_filter = Control.MOUSE_FILTER_STOP
 		root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		stage.add_child(root)
 		var band := Polygon2D.new()
-		band.polygon = torn(w + 60.0, size * 1.02, 31 + i, 40.0)
-		band.position = Vector2(0, size * 0.1)
+		band.polygon = torn(w + 60.0, sz * 1.02, 31 + i, 40.0)
+		band.position = Vector2(0, sz * 0.1)
 		band.color = WHITE
 		band.material = worn
 		root.add_child(band)
-		var lab := _text(root, tname, size, WHITE, Vector2.ZERO, serif, true)
+		var lab := _text(root, tname, sz, WHITE, Vector2.ZERO, serif, true)
 		var tag := Polygon2D.new()
 		tag.polygon = torn(190.0, 34.0, 60 + i, 10.0)
 		tag.color = RED
-		tag.position = Vector2(w * 0.55, size * 0.98)
+		tag.position = Vector2(w * 0.55, sz * 0.98)
 		tag.rotation = deg_to_rad(-5.0)
 		root.add_child(tag)
 		var tl := _text(tag, "ОТКРЫТЬ  ⏎", 20, WHITE, Vector2(18, 3), serif)
@@ -687,6 +687,7 @@ func _confirm_menu() -> void:
 	_rows([["ОСТАТЬСЯ", func(): _open_page(5)], ["ВЫЙТИ В ГЛАВНОЕ МЕНЮ", func(): game._to_menu()]])
 
 static func _time(s: float) -> String:
+	@warning_ignore("integer_division")
 	return "%d:%02d" % [int(s) / 60, int(s) % 60]
 
 # ---------------- карточка страницы и её детали ----------------
@@ -775,10 +776,10 @@ func _rows(actions: Array) -> void:
 				_card_activate(-1 if e.button_index == MOUSE_BUTTON_RIGHT else 1))
 	_refresh()
 
-func _line(parent: Node, fn: Callable, size: int, col: Color, f: Font = null) -> Label:
+func _line(parent: Node, fn: Callable, sz: int, col: Color, f: Font = null) -> Label:
 	var l := Label.new()
 	l.add_theme_font_override("font", f if f != null else tech)
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", sz)
 	l.add_theme_color_override("font_color", col)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size = Vector2(300, 0)
@@ -786,15 +787,15 @@ func _line(parent: Node, fn: Callable, size: int, col: Color, f: Font = null) ->
 	card_live.append(func(): l.text = String(fn.call()))
 	return l
 
-func _big(parent: Node, s: String, size: int) -> void:
+func _big(parent: Node, s: String, sz: int) -> void:
 	var l := Label.new()
 	l.text = s
 	l.add_theme_font_override("font", serif)
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", sz)
 	l.add_theme_color_override("font_color", WHITE)
 	l.material = worn
 	l.clip_text = true
-	l.custom_minimum_size = Vector2(300, size * 1.15)
+	l.custom_minimum_size = Vector2(300, sz * 1.15)
 	parent.add_child(l)
 
 func _note(s: String) -> void:

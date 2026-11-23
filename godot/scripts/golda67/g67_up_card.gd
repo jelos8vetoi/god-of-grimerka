@@ -162,12 +162,12 @@ func _fit(f: Font, text: String, sz: int, wmax: float) -> int:
 ## Название в одну строку, если влезает; иначе — две строки по словам (не режем посреди слова)
 func _title_lines() -> Array:
 	var fd := MGUI.font("display")
-	var name := String(info["name"])
-	if fd.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x <= SIZE.x - 132.0:
-		return [name]
-	var words := name.split(" ")
+	var nm := String(info["name"])
+	if fd.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x <= SIZE.x - 132.0:
+		return [nm]
+	var words := nm.split(" ")
 	if words.size() < 2:
-		return [name]
+		return [nm]
 	var half := int(ceil(words.size() / 2.0))
 	return [" ".join(words.slice(0, half)), " ".join(words.slice(half))]
 
@@ -256,7 +256,7 @@ static func value_text(uid: String, level: int) -> String:
 	return ""
 
 ## Рисунок ветки в квадрате r (общий для карточки и удостоверения)
-static func draw_face(ci: CanvasItem, uid: String, r: Rect2, lock: bool, level: int, maxl: int, tt: float, coin: Texture2D) -> void:
+static func draw_face(ci: CanvasItem, uid: String, r: Rect2, lock: bool, level: int, _maxl: int, tt: float, coin: Texture2D) -> void:
 	var c := r.get_center()
 	var s := r.size.x / 96.0
 	var ink := BEIGE if not lock else Color(0.3, 0.3, 0.32)

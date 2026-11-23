@@ -196,6 +196,7 @@ func _draw() -> void:
 				draw_circle(kc, b.size.x * 0.05, Color(0.75, 0.74, 0.7))
 				draw_circle(kc, b.size.x * 0.03, Color(0.55, 0.54, 0.5))
 			for k in 6:                                   # клавиши каналов
+				@warning_ignore("integer_division")
 				draw_rect(Rect2(Vector2(px + b.size.x * (0.03 + (k % 2) * 0.09), b.position.y + b.size.y * (0.52 + (k / 2) * 0.07)), Vector2(b.size.x * 0.07, b.size.y * 0.045)), Color(0.86, 0.82, 0.7))
 			draw_rect(Rect2(Vector2(b.position.x + b.size.x * 0.1, b.end.y), Vector2(b.size.x * 0.08, 5)), Color(0.1, 0.07, 0.05))
 			draw_rect(Rect2(Vector2(b.end.x - b.size.x * 0.18, b.end.y), Vector2(b.size.x * 0.08, 5)), Color(0.1, 0.07, 0.05))

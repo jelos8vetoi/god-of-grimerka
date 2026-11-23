@@ -232,6 +232,7 @@ func dress(n: int) -> void:
 	var chalk := _glow(Color(0.85, 0.82, 0.75), 0.25)
 	# зарубки на стене справа от стола: по одной на смену, каждая пятая — поперёк
 	for q in k + 1:
+		@warning_ignore("integer_division")
 		var bx := 1.62 + float(q % 5) * 0.045 + float(q / 5) * 0.3
 		box(Vector3(bx, 1.02, -1.692), Vector3(0.012, 0.13, 0.004), chalk, dress_root, Vector3(0, 0, 0.06 * (q % 3 - 1)))
 	if k >= 4:
@@ -365,8 +366,8 @@ func _vents(st: FNNight, dt: float, snap := false) -> void:
 
 ## лампа блокировки на раме: нет питания — погашена, в ходу — мигает янтарным, закрыта — красная, открыта — гаснет с догоранием
 func _lock_lamp(s: String, st: FNNight, k: float, moving: bool, dt: float, snap: bool) -> void:
-	var lamp: MeshInstance3D = lock_lamp[s]
-	var glow: OmniLight3D = lock_glow[s]
+	var lamp_n: MeshInstance3D = lock_lamp[s]
+	var glw: OmniLight3D = lock_glow[s]
 	var live: bool = power_on and not st.glitches.has("leds_off")
 	var mat: Material = mats["off_led"]
 	var want := 0.0
@@ -382,12 +383,12 @@ func _lock_lamp(s: String, st: FNNight, k: float, moving: bool, dt: float, snap:
 			col = LOCK_RED
 		else:
 			want = LOCK_E_MOVE * clampf(1.0 - float(seal_since[s]) / LOCK_AFTERGLOW, 0.0, 1.0)
-	lamp.material_override = mat
-	glow.light_color = col
+	lamp_n.material_override = mat
+	glw.light_color = col
 	if moving or snap or not live:
-		glow.light_energy = want
+		glw.light_energy = want
 	else:
-		glow.light_energy = move_toward(glow.light_energy, want, LOCK_E_RATE * dt)
+		glw.light_energy = move_toward(glw.light_energy, want, LOCK_E_RATE * dt)
 
 ## картинка сразу равна состоянию (новая ночь): без отскоков и сигналов
 func seal_reset(st: FNNight) -> void:

@@ -105,6 +105,7 @@ func _fin(b: PackedFloat32Array, peak := 0.9) -> PackedFloat32Array:
 	for v in b:
 		m = maxf(m, absf(v))
 	var k := peak / m
+	@warning_ignore("integer_division")
 	var edge := mini(48, b.size() / 4)
 	for i in b.size():
 		var g := k

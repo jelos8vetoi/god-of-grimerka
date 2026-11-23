@@ -459,7 +459,8 @@ func _process(dt: float) -> void:
 			if not paused:
 				_night_tick(dt)
 		"scare":
-			office.tick(st, dt, office.yaw) if false else null
+			if false:
+				office.tick(st, dt, office.yaw)
 			ui.tick(st, dt, cams)
 
 func _night_tick(dt: float) -> void:

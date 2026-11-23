@@ -17,7 +17,7 @@ var kept := {}
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 	for p in KEEP.slice(1):
 		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
@@ -31,7 +31,9 @@ func ok(cond: bool, text: String) -> void:
 	print(("FIVENIGHTSCHECK ok: " if cond else "FIVENIGHTSCHECK ОШИБКА: ") + text)
 
 func wait(t: float) -> void:
-	await get_tree().create_timer(t, true, false, true).timeout
+	var t0 := GameClock.ms()      # по игровым часам: в ускоренной проверке кадр = 1/N с
+	while GameClock.ms() - t0 < int(t * 1000.0):
+		await get_tree().process_frame
 
 func until(cond: Callable, sec: float) -> bool:
 	var t0 := GameClock.ms()
@@ -41,9 +43,9 @@ func until(cond: Callable, sec: float) -> bool:
 		await get_tree().process_frame
 	return bool(cond.call())
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm + ".png"))
 
 func key(k: Key, hold := 0.05) -> void:
 	for down in [true, false]:
@@ -74,7 +76,6 @@ const EDGES := {
 func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	await wait(2.0)
-	var grim0 = kept[KEEP[0]]
 	var quick := OS.get_cmdline_user_args().has("--fn-quick")
 	# ================= симуляции: честность и баланс =================
 	var sims := {}
@@ -286,14 +287,14 @@ func _ui_part() -> void:
 		var row: Dictionary = UI.deck_rows[D["id"]]
 		var nm: Label = row["name"]
 		var stl: Label = row["state"]
-		var pr: Rect2 = (row["panel"] as Control).get_global_rect()
+		var pr_rect: Rect2 = (row["panel"] as Control).get_global_rect()
 		if nm.text != String(D["name"]) or stl.text == "" or not (row["panel"] as Control).is_visible_in_tree() or nm.get_minimum_size().x > nm.size.x + 1.0 or stl.get_minimum_size().x > stl.size.x + 1.0:
 			deck_names_ok = false
-		if deck_prev.size.x > 0.0 and pr.intersects(deck_prev):
+		if deck_prev.size.x > 0.0 and pr_rect.intersects(deck_prev):
 			deck_overlap = true
-		if not deck_screen.encloses(pr):
+		if not deck_screen.encloses(pr_rect):
 			deck_off = true
-		deck_prev = pr
+		deck_prev = pr_rect
 		deck_txt.append("[%s] %s — %s" % [D["key"], nm.text, stl.text])
 	ok(UI.deck.visible and UI.deck_rows.size() == 8 and deck_names_ok, "пульт: 8 устройств, у каждого клавиша, название и состояние — %s" % "; ".join(deck_txt))
 	ok(not deck_overlap and not deck_off, "пульт: плашки не перекрываются и целиком на экране")
@@ -590,7 +591,7 @@ func _fx_sig() -> Array:
 
 ## голоса в будке: Пахан — в комнате, начальник — из трубки на столе; Voice и Phone остались прежними
 func _voice_buses(R: FiveNightsRoot) -> void:
-	var vi := AudioServer.get_bus_index("Voice")
+	var _vi := AudioServer.get_bus_index("Voice")
 	var all_there := true
 	for b in ["Phone", "RoomVoice", "PhoneVoice"]:
 		var i := AudioServer.get_bus_index(b)
@@ -875,7 +876,7 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 ## левый коридор CAM 4 — сцена: одна, звук совпадает с местом врага, свет не достаёт до двери ниши, враг виден в коридоре
 ## и не виден из-за угла ниши (сырая картинка камеры без шейдера); снимки c4_*
 ## пульт скрыт (учёба кончилась): энергия и часы на месте, F1 возвращает пульт и запоминает выбор, действия подписывает toast
-func _deck_hidden(R: FiveNightsRoot, st: FNNight) -> void:
+func _deck_hidden(R: FiveNightsRoot, _st: FNNight) -> void:
 	var UI: FNUI = R.ui
 	var pin_was := UI.deck_pin
 	var learn_was := UI.deck_learn_left
@@ -1032,7 +1033,7 @@ func _tension(R: FiveNightsRoot, st_in: FNNight) -> void:
 	A.fan_spin = 1.0
 	A.duck_k = 0.0
 	A.hold_t = 0.0
-	var vent_ok: bool = await until(func(): return A.level("vent") > -40.0, 8.0)
+	var _vent_ok: bool = await until(func(): return A.level("vent") > -40.0, 8.0)
 	print("FIVENIGHTSCHECK   дыхание: вентиляция %.1f дБ, питание %s, hush «%s», состояние %s" % [A.level("vent"), str(st.power_out), R.hush_mode, R.state])
 	T.reset()
 	await wait(1.5)
@@ -1390,11 +1391,11 @@ func _logic() -> void:
 	ok(st2.outcome == "" and banged and b.spot != "door_l", "БАЛОН у закрытой двери постучал и ушёл (%s)" % b.spot)
 	b.go(st2, "door_l")
 	st2.set_door("l", false)
-	var at := -1.0
+	var _at := -1.0
 	for k in 200:
 		st2.step(0.1)
 		if st2.outcome != "":
-			at = st2.t
+			_at = st2.t
 			break
 	ok(st2.outcome == "dead" and st2.killer == "balon", "открыта — входит (через %.1f с после прихода, не мгновенно)" % (b.door_t))
 	ok(b.door_t >= float(FNData.ENEMIES["balon"]["linger"][1]) * 0.85, "до входа есть время среагировать (%.1f с)" % b.door_t)
@@ -1498,7 +1499,6 @@ func _logic() -> void:
 		s9.setup(4, 100 + seed_v)
 		for id in s9.enemies:
 			(s9.enemies[id] as FNEnemy).level = 16
-		var guard := {"l": false, "r": false}
 		while s9.outcome == "" and s9.t < 300.0:
 			# игрок закрывает двери, когда кто-то пришёл, и открывает, когда ушёл; заслонки — по месту MADK1D
 			for sd in ["l", "r"]:

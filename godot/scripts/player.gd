@@ -458,7 +458,7 @@ func start_slide(dir: Vector3) -> void:
 	game.main.sfx("sfx_roll", -5.0, 0.7 if hero == "pahan" else 1.1)
 	moves_log.append(["slide", hero])
 
-func _slide_tick(dt: float, _dir: Vector3) -> void:
+func _slide_tick(_dt: float, _dir: Vector3) -> void:
 	var M: Dictionary = MOVE[hero]
 	var k: float = clampf(t / float(M["slide_t"]), 0.0, 1.0)
 	var v: float = lerpf(float(M["slide_v"]), float(M["slide_end"]), k * k)
@@ -730,13 +730,13 @@ func _physics_process(dt: float) -> void:
 	velocity.y -= 20.0 * dt
 	move_and_slide()
 	body.rotation.y = face + spin_off
-	var tr := false
+	var xf := false
 	if state == "attack" and combat.cur != null:
 		var hh: Array = combat.cur.hits
 		var kk := combat.k()
-		tr = kk >= float(hh[0]) - 0.16 and kk <= float(hh[hh.size() - 1]) + 0.14
-	trail.enabled = tr
-	if tr and feel.has(style.id):
+		xf = kk >= float(hh[0]) - 0.16 and kk <= float(hh[hh.size() - 1]) + 0.14
+	trail.enabled = xf
+	if xf and feel.has(style.id):
 		(feel[style.id] as WeaponFeel).swing(1.0)
 	_board_tick(dt)
 	if feel.has("board_ride"):

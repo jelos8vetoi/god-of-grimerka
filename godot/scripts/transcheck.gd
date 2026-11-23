@@ -10,7 +10,7 @@ var save_text = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	save_text = FileAccess.get_file_as_string("user://grimerka_save.json") if FileAccess.file_exists("user://grimerka_save.json") else null
+	save_text = FileAccess.get_file_as_string("user://grimerka_save.json") if FileAccess.file_exists("user://grimerka_save.json") else (null as Variant)
 	AudioServer.set_bus_mute(0, true)
 	_run()
 
@@ -44,9 +44,9 @@ func click() -> void:
 		Input.parse_input_event(e)
 		await wait(0.04)
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 
 func skip_dialog() -> void:
 	var n := 0

@@ -88,14 +88,14 @@ func reset_player(at: Vector3) -> void:
 	P.hp = 1.0e6
 	P.slow_t = 0.0
 
-func shot(name: String, at: Vector3) -> void:
+func shot(nm: String, at: Vector3) -> void:
 	cam.global_position = at + Vector3(0.01, 10.0, 7.0)
 	cam.look_at(at, Vector3.UP)
 	cam.fov = 60.0
 	cam.make_current()
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 	cam.clear_current(true)
 
 ## Один приём моба: метка, урон внутри / вне зоны, отдых
@@ -144,7 +144,6 @@ func one_move(kind: String, id: String) -> void:
 
 ## Ближний удар за краем метки не попадает
 func edge_case(kind: String, id: String) -> void:
-	var m: Dictionary = EnemyAI.MOVES[kind][id]
 	var e = game._make_enemy(kind, "", Vector3(0, 0.05, 0))
 	e.cool = 999.0
 	await frames(70)
@@ -332,7 +331,6 @@ func _run() -> void:
 	# ---- 5б. адаптация ----
 	var ab = game._make_enemy("", "golem", Vector3(0, 0.05, -2.0))
 	await frames(80)
-	var seen := {}
 	for fact in [["air", 0.8, "anti_air"], ["behind", 0.9, "turn_strike"], ["block_streak", 2.0, "guard_break"], ["close", 0.95, "close_burst"]]:
 		R.air = 0.0
 		R.behind = 0.0

@@ -215,7 +215,7 @@ static func _coin_fall(c: G67ClipPlayer, coin: Node2D, i: int, r: float, fs: Vec
 
 # ---------------------------------------------------------------- V00 — трейлер «ТУРНИР 67»
 static func v00(c: G67ClipPlayer) -> void:
-	var y := _yard(c)
+	var _y := _yard(c)
 	_snow(c, Vector3(0, 12, 25), Vector3(30, 4, 30))
 	var door := Vector3(0.0, 0.0, 35.6)
 	var m := c.actor("misha", "misha", door + Vector3(0, 0, -0.6), PI)
@@ -261,7 +261,7 @@ static func v00(c: G67ClipPlayer) -> void:
 	# 0:08–0:11 — FORTUNA 812 у турникета ПОДЗЕМКИ открывает створку жестом ведущего; тарифы вылетают плашками
 	var U := Vector3(60, 0, 0)
 	_metro(c, U)
-	var ft := c.actor("fortuna", "fortuna", U + Vector3(-0.9, 0, 0.6), 0.5)
+	var _ft := c.actor("fortuna", "fortuna", U + Vector3(-0.9, 0, 0.6), 0.5)
 	c.anim("fortuna", "CPresent", 0.0)
 	var flap := c.box(Vector3(0.05, 0.75, 0.6), U + Vector3(0.0, 0.85, 0.3), Color(0.75, 0.85, 0.95, 1.0), 0.2)
 	c.cam_at(U + Vector3(1.6, 1.5, 3.4), U + Vector3(-0.3, 1.1, 0.3), 46.0)
@@ -280,7 +280,7 @@ static func v00(c: G67ClipPlayer) -> void:
 	# 0:11–0:14 — Королевский XVII щёлкает кольцевой лампой: Пахан пропадает в белом
 	var K := Vector3(120, 0, 0)
 	var p := c.actor("pahan", "pahan", K, 0.0)
-	var kx := c.actor("korolevsky", "korolevsky", K + Vector3(1.3, 0, 1.0), -2.2)
+	var _kx := c.actor("korolevsky", "korolevsky", K + Vector3(1.3, 0, 1.0), -2.2)
 	c.anim("korolevsky", "CLamp", 0.0)
 	c.box(Vector3(8, 0.1, 8), K + Vector3(0, -0.05, 0), Color(0.08, 0.08, 0.1))
 	c.box(Vector3(8, 4, 0.1), K + Vector3(0, 2, -1.5), Color(0.12, 0.1, 0.14))
@@ -345,7 +345,7 @@ static func v00(c: G67ClipPlayer) -> void:
 	p.queue_free()
 	# 0:17–0:21 — madk1d суёт телефон Пахану; «СПИСАНО 6 700 ГОЛДЫ»
 	var p2 := c.actor("pahan", "pahan", door + Vector3(1.2, 0, -6.0), PI * 0.1)
-	var mk := c.actor("madk1d", "madk1d", door + Vector3(1.0, 0, -7.1), PI * 0.05)
+	var _mk := c.actor("madk1d", "madk1d", door + Vector3(1.0, 0, -7.1), PI * 0.05)
 	c.anim("madk1d", "CPhoneOut", 0.1)
 	c.cam_at(door + Vector3(2.4, 1.45, -8.6), door + Vector3(1.1, 1.2, -6.4), 42.0)
 	c.shake(0.3)
@@ -374,7 +374,7 @@ static func _metro(c: G67ClipPlayer, U: Vector3) -> void:
 	for x in [-0.55, 0.55]:
 		c.box(Vector3(0.28, 1.05, 0.9), U + Vector3(x, 0.52, 0.3), Color(0.55, 0.57, 0.6))
 		c.box(Vector3(0.2, 0.06, 0.2), U + Vector3(x, 1.08, 0.55), Color(0.2, 0.9, 0.35), 2.0)
-	var tab := c.box(Vector3(2.6, 0.5, 0.06), U + Vector3(0, 2.6, -1.4), Color(0.05, 0.05, 0.05))
+	var _tab := c.box(Vector3(2.6, 0.5, 0.06), U + Vector3(0, 2.6, -1.4), Color(0.05, 0.05, 0.05))
 	var l3 := Label3D.new()
 	l3.text = "ВХОД ПО ТАРИФУ"
 	l3.font_size = 48
@@ -436,7 +436,7 @@ static func _ad_card(c: G67ClipPlayer, bg: Color, acc: Color, brand: String) -> 
 
 static func _tariff(c: G67ClipPlayer, card: Control, text: String, small: bool) -> void:
 	var fs := c.frame.size
-	var n := card.get_child_count()
+	var _n := card.get_child_count()
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_override("font", c.game.main.font)
@@ -516,13 +516,13 @@ static func _logo(c: G67ClipPlayer) -> Control:
 		s.add_child(r)
 		var tex_path := "res://assets/golda67/ui/logo_golda67.png"
 		if ResourceLoader.exists(tex_path):
-			var tr := TextureRect.new()
-			tr.texture = load(tex_path)
-			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			tr.size = Vector2(fs.x * 0.7, fs.y * 0.5)
-			tr.position = Vector2(fs.x * 0.15, fs.y * 0.2)
-			s.add_child(tr)
+			var xf := TextureRect.new()
+			xf.texture = load(tex_path)
+			xf.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			xf.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			xf.size = Vector2(fs.x * 0.7, fs.y * 0.5)
+			xf.position = Vector2(fs.x * 0.15, fs.y * 0.2)
+			s.add_child(xf)
 		else:
 			var l := Label.new()
 			l.text = "ГОЛДА 67"
@@ -613,7 +613,7 @@ static func cl01(c: G67ClipPlayer) -> void:
 	c.cam_at(gate + Vector3(2.1, 1.5, 2.3), start + Vector3(0, 1.4, 0), 50.0)
 	c.cam_to(gate + Vector3(1.9, 1.4, 0.25), gate + Vector3(0, 1.4, 0.9), 3.6, 46.0)
 	for i in 3:
-		var st := c.plate("ШАГ %d" % (i + 1), "caption", 1.0)
+		var _st := c.plate("ШАГ %d" % (i + 1), "caption", 1.0)
 		await c.wait(1.2)
 	# четвёртый шаг — цепь за калитку: стоп-кадр на рывке
 	c.chain(_chest(m), gate + Vector3(0.55, 1.1, 0.0), 3.2)
@@ -664,7 +664,7 @@ static func news01(c: G67ClipPlayer) -> void:
 	var S := Vector3(400, 0, 400)
 	c.box(Vector3(12, 0.1, 10), S + Vector3(0, -0.05, 0), Color(0.06, 0.07, 0.1))
 	c.box(Vector3(12, 6, 0.2), S + Vector3(0, 3, -2.6), Color(0.09, 0.12, 0.25))
-	var scr := c.box(Vector3(4.2, 2.3, 0.05), S + Vector3(1.6, 2.2, -2.45), Color(0.2, 0.35, 0.9), 0.8)
+	var _scr := c.box(Vector3(4.2, 2.3, 0.05), S + Vector3(1.6, 2.2, -2.45), Color(0.2, 0.35, 0.9), 0.8)
 	var logo3 := Label3D.new()
 	logo3.text = "РАЙОННЫЙ ВЕСТНИК 67"
 	logo3.font_size = 64
@@ -673,7 +673,7 @@ static func news01(c: G67ClipPlayer) -> void:
 	logo3.position = S + Vector3(1.6, 2.2, -2.4)
 	c.world.add_child(logo3)
 	c.prop("g67_news_desk", S + Vector3(0, 0, 0.3), 0.0, Vector3(2.6, 0.92, 1.2), "h")
-	var an := c.actor("anchor", "anchor", S + Vector3(0, 0, -0.55), 0.0)
+	var _an := c.actor("anchor", "anchor", S + Vector3(0, 0, -0.55), 0.0)
 	c.anim("anchor", "NCross", 0.0)
 	c.light(S + Vector3(0, 3.0, 3.0), Color(1, 0.96, 0.9), 2.2, 12.0)
 	c.light(S + Vector3(-3, 2.0, 1.0), Color(0.5, 0.6, 1.0), 1.0, 8.0)
@@ -772,7 +772,7 @@ static func story01(c: G67ClipPlayer) -> void:
 	c.cam_at(_head(mk) + Vector3(0.2, 0.05, -0.85), _head(mk), 52.0)
 	await c.say(L("STORY01", 4), 0.4)
 
-static func _len(c: G67ClipPlayer, line: String) -> float:
+static func _len(_c: G67ClipPlayer, line: String) -> float:
 	var pth := G67Voice.path(line)
 	if pth != "":
 		return (load(pth) as AudioStream).get_length()
@@ -910,7 +910,7 @@ static func extra01(c: G67ClipPlayer) -> void:
 	c.box(Vector3(0.08, 0.75, 0.08), R + Vector3(-0.7, 0.38, 0.55), Color(0.2, 0.2, 0.2))
 	c.box(Vector3(0.08, 0.75, 0.08), R + Vector3(0.7, 0.38, 0.55), Color(0.2, 0.2, 0.2))
 	# микрофон на подставке
-	var arm := c.box(Vector3(0.03, 0.3, 0.03), R + Vector3(0.3, 0.95, 0.75), Color(0.1, 0.1, 0.1))
+	var _arm := c.box(Vector3(0.03, 0.3, 0.03), R + Vector3(0.3, 0.95, 0.75), Color(0.1, 0.1, 0.1))
 	var mic := MeshInstance3D.new()
 	var cm := CapsuleMesh.new()
 	cm.radius = 0.05

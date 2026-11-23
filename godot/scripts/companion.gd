@@ -337,12 +337,12 @@ func duo_ready() -> bool:
 func duo_acting() -> bool:
 	return duo_act_t > 0.0
 
-func duo_act(clip: String, len: float) -> void:
+func duo_act(clip: String, ln: float) -> void:
 	if not duo_on:
 		return
 	_face_to(duo_at if game.player == null else duo_at)
-	rig.play_for(clip, len, 0.05)
-	duo_act_t = len
+	rig.play_for(clip, ln, 0.05)
+	duo_act_t = ln
 
 ## отпустить: напарник снова свой (обычное поведение), оружие убирается
 func duo_release() -> void:

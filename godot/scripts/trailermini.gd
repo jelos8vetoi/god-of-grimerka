@@ -19,7 +19,7 @@ var only := ""
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_bytes(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_bytes(p) if FileAccess.file_exists(p) else (null as Variant)
 	MLSave.persist = false
 	FNSave.persist = false
 	AudioServer.set_bus_mute(0, true)
@@ -158,6 +158,7 @@ func _microloans() -> void:
 	var T := U.tree_ui
 	await grab("ME_", 78, func(i: int, _k: float):
 		if i % 6 == 0:
+			@warning_ignore("integer_division")
 			T._pick(String(T.order[(i / 6 * 5) % T.order.size()])))
 	e.money = 300000
 	for b in ["workshop", "cleaning", "delivery"]:
@@ -247,6 +248,7 @@ func _five_nights() -> void:
 	var cams := ["stage", "arcade", "storage", "server", "power"]
 	await grab("FD_", 150, func(i: int, _k: float):
 		if i % 30 == 0:
+			@warning_ignore("integer_division")
 			st.set_cam(cams[(i / 30) % cams.size()]))
 	st.set_monitor(false)
 	b.look = false
@@ -371,7 +373,7 @@ func _roster(R: FiveNightsRoot) -> void:
 func _finish() -> void:
 	var same := true
 	for p in KEEP:
-		var now = FileAccess.get_file_as_bytes(p) if FileAccess.file_exists(p) else null
+		var now = FileAccess.get_file_as_bytes(p) if FileAccess.file_exists(p) else (null as Variant)
 		if (now == null) != (kept[p] == null) or (now != null and now != kept[p]):
 			same = false
 			print("TRAILERMINI изменён файл ", p)

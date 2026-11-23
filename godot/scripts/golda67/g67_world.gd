@@ -152,18 +152,18 @@ func _apt_door(pos: Vector3, yaw: float, number: String, tint: Color) -> void:
 ## Перила: стойки и поручень от a до b (на высоте пола этих точек), плюс невидимая стенка, чтобы не упасть.
 func _railing(a: Vector3, b: Vector3) -> void:
 	var d := b - a
-	var len := d.length()
+	var ln := d.length()
 	var mid := (a + b) * 0.5
 	var yaw := atan2(d.x, d.z)
 	var top := MeshInstance3D.new()
 	var tb := BoxMesh.new()
-	tb.size = Vector3(0.07, 0.05, len)
+	tb.size = Vector3(0.07, 0.05, ln)
 	top.mesh = tb
 	top.material_override = m_wood
 	top.position = mid + Vector3(0, 0.95, 0)
 	top.rotation.y = yaw
 	add_child(top)
-	var n := int(ceil(len / 0.22))
+	var n := int(ceil(ln / 0.22))
 	for i in n + 1:
 		var bar := MeshInstance3D.new()
 		var bm := BoxMesh.new()
@@ -172,7 +172,7 @@ func _railing(a: Vector3, b: Vector3) -> void:
 		bar.material_override = m_metal
 		bar.position = a + d * (float(i) / float(n)) + Vector3(0, 0.465, 0)
 		add_child(bar)
-	var sz := Vector3(0.12, 1.3, len)
+	var sz := Vector3(0.12, 1.3, ln)
 	_body_box(mid + Vector3(0, 0.65, 0), sz, yaw, 1)          # камера смотрит сквозь прутья
 
 ## Лампа: плафон на потолке или стене и свет от него

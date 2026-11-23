@@ -31,7 +31,7 @@ func _ready() -> void:
 	RaceSave.persist = false
 	if role == "":
 		for p in KEEP:
-			kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+			kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 		_host_run()
 	else:
 		_client_run()
@@ -383,7 +383,7 @@ func _client_main(N: RaceNet) -> void:
 	# дальше ведёт бот — до финиша
 	L.ai = RaceAI.new()
 	L.ai.setup(L, race, "hard", 9)
-	var hostr: RaceRider = race.riders.filter(func(r): return r.puppet)[0]
+	var _hostr: RaceRider = race.riders.filter(func(r): return r.puppet)[0]
 	var hits := L.events.filter(func(e): return e[0] == "hit").size()
 	var fin: bool = await until(func(): return race.state == "results", 150.0)
 	ok(L.events.filter(func(e): return e[0] == "hit").size() > hits or L.events.any(func(e): return e[0] == "hit"), "попадание по мне пришло событием от хоста")

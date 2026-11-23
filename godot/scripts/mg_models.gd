@@ -191,13 +191,13 @@ static func _flat_basis(ps: PackedScene) -> Basis:
 		for i in 3:
 			for j in 3:
 				C[i][j] += q[i] * q[j]
-	var tr: float = C[0][0] + C[1][1] + C[2][2]
+	var xf: float = C[0][0] + C[1][1] + C[2][2]
 	# наименьшее направление = наибольшее у (tr·I − C): степенной метод
 	var v := Vector3(1, 0.3, 0.2).normalized()
 	for it in 60:
 		var nv := Vector3()
 		for i in 3:
-			nv[i] = tr * v[i] - (C[i][0] * v.x + C[i][1] * v.y + C[i][2] * v.z)
+			nv[i] = xf * v[i] - (C[i][0] * v.x + C[i][1] * v.y + C[i][2] * v.z)
 		v = nv.normalized()
 	if v.x < 0.0:
 		v = -v                                       # лицо смотрело по +X — оно и будет вверху
@@ -216,6 +216,7 @@ static func _verts(n: Node, xf: Transform3D, out: PackedVector3Array) -> void:
 		for si in mesh.get_surface_count():
 			var arr := mesh.surface_get_arrays(si)
 			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			@warning_ignore("integer_division")
 			var step := maxi(1, vs.size() / 4000)
 			for i in range(0, vs.size(), step):
 				out.append(x * vs[i])

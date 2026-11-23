@@ -23,5 +23,6 @@ static func fast() -> bool:
 static func ms() -> int:
 	var f := fps()
 	if f > 0:
+		@warning_ignore("integer_division")
 		return int(Engine.get_process_frames() * 1000 / f)
 	return Time.get_ticks_msec()

@@ -75,15 +75,15 @@ func build(r: FiveNightsRoot) -> void:
 		points[n] = (office.get_node("Console/AudioPoints/" + n) as Node3D).global_position
 	var bus := "Room" if AudioServer.get_bus_index("Room") >= 0 else "Ambient"
 	for l in LAYERS:
-		var name: String = l[0]
-		var s := load(AMB_DIR + name + ".ogg") as AudioStreamOggVorbis
+		var nm: String = l[0]
+		var s := load(AMB_DIR + nm + ".ogg") as AudioStreamOggVorbis
 		s.loop = true
 		var place: String = l[1]
 		var p: Node
 		if place == "":
 			var p2 := AudioStreamPlayer.new()
 			p2.stream = s
-			p2.bus = "Ambient" if name == "tablet_noise" else bus
+			p2.bus = "Ambient" if nm == "tablet_noise" else bus
 			p = p2
 		else:
 			var p3 := AudioStreamPlayer3D.new()
@@ -95,8 +95,8 @@ func build(r: FiveNightsRoot) -> void:
 		add_child(p)
 		if p is AudioStreamPlayer3D:
 			(p as AudioStreamPlayer3D).global_position = points[place.substr(2)]
-		layers[name] = {"p": p, "base": float(l[2]), "db": float(l[2])}
-		phase[name] = [randf() * TAU, randf() * TAU]
+		layers[nm] = {"p": p, "base": float(l[2]), "db": float(l[2])}
+		phase[nm] = [randf() * TAU, randf() * TAU]
 	for k in 4:
 		var e := AudioStreamPlayer3D.new()
 		e.bus = bus
@@ -114,12 +114,12 @@ func _exit_tree() -> void:
 		root.main.audio.room(20500.0, 0.0)
 
 ## текущая громкость слоя, дБ (с MASTER_DB)
-func level(name: String) -> float:
-	var p: Node = layers[name]["p"]
+func level(nm: String) -> float:
+	var p: Node = layers[nm]["p"]
 	return (p as Node).get("volume_db")
 
-func pitch(name: String) -> float:
-	return float((layers[name]["p"] as Node).get("pitch_scale"))
+func pitch(nm: String) -> float:
+	return float((layers[nm]["p"] as Node).get("pitch_scale"))
 
 func duck(on: bool) -> void:
 	duck_k = 1.0 if on else 0.0
@@ -204,8 +204,8 @@ func _on_lamp_dip() -> void:
 	if randf() < 0.06 + 0.05 * float(mini(root.night, 5)):
 		root.sfx3("zap", points["Lamp"], -18.0 + MASTER_DB, randf_range(0.94, 1.06))
 
-func _drift(name: String, a: float, b: float) -> float:
-	var ph: Array = phase[name]
+func _drift(nm: String, a: float, b: float) -> float:
+	var ph: Array = phase[nm]
 	return 0.75 * sin(TAU * t / a + float(ph[0])) + 0.75 * sin(TAU * t / b + float(ph[1]))
 
 func _new_night(st: FNNight) -> void:

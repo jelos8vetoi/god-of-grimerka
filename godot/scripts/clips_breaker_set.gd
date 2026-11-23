@@ -13,8 +13,8 @@ static func add_to(A: Dictionary) -> void:
 	# ---------- стойка ----------
 	# toprock: вес с ноги на ногу, корпус качается, руки ходят накрест
 	var tl: Dictionary = MadkClips.mg({"hips": {"y": -0.22}, "spine": {"y": 0.25, "x": 0.05}, "lup": {"x": -0.35, "z": -0.12}, "lleg": {"x": 0.55}, "rup": {"x": 0.05}, "rleg": {"x": 0.2}, "larm": {"x": -0.5, "z": 0.3}, "rarm": {"x": 0.3, "z": -0.5}})
-	var tr: Dictionary = MadkClips.mg({"hips": {"y": 0.22}, "spine": {"y": -0.25, "x": 0.05}, "rup": {"x": -0.35, "z": 0.12}, "rleg": {"x": 0.55}, "lup": {"x": 0.05}, "lleg": {"x": 0.2}, "rarm": {"x": -0.5, "z": -0.3}, "larm": {"x": 0.3, "z": 0.5}})
-	A["BrIdle"] = {"d": 1.0, "loop": true, "ground": true, "ease": "io", "k": [[0.0, tl], [0.25, MadkClips.mg({"drop": 0.02})], [0.5, tr], [0.75, MadkClips.mg({"drop": 0.02})], [1.0, tl]]}
+	var xf: Dictionary = MadkClips.mg({"hips": {"y": 0.22}, "spine": {"y": -0.25, "x": 0.05}, "rup": {"x": -0.35, "z": 0.12}, "rleg": {"x": 0.55}, "lup": {"x": 0.05}, "lleg": {"x": 0.2}, "rarm": {"x": -0.5, "z": -0.3}, "larm": {"x": 0.3, "z": 0.5}})
+	A["BrIdle"] = {"d": 1.0, "loop": true, "ground": true, "ease": "io", "k": [[0.0, tl], [0.25, MadkClips.mg({"drop": 0.02})], [0.5, xf], [0.75, MadkClips.mg({"drop": 0.02})], [1.0, tl]]}
 	# вариация покоя: прокатил плечи и обозначил удар рукой
 	A["BrIdleVar"] = {"d": 2.2, "ground": true, "k": [[0.0, g],
 		[0.2, MadkClips.mg({"spine": {"y": 0.35, "z": 0.1}, "larm": {"x": 0.5, "z": 0.3}, "rarm": {"x": -0.6}}), "io"],

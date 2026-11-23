@@ -108,16 +108,16 @@ func _rots(r: Rig) -> Array:
 		a.append((r.skel.global_transform.basis * r.skel.get_bone_global_pose(b).basis).y.normalized() if b >= 0 else Vector3.UP)
 	return a
 
-func _check(r: Rig, who: String, roles: Array, defs: Dictionary) -> void:
+func _check(r: Rig, whom: String, roles: Array, defs: Dictionary) -> void:
 	# роли
 	var miss := []
 	for role in roles:
 		if r.role_clip(role) == "":
 			miss.append(role)
 	if not roles.is_empty():
-		ok(miss.is_empty(), "%s: у всех %d ролей есть клип%s" % [who, roles.size(), "" if miss.is_empty() else " (нет: %s)" % ", ".join(miss)])
+		ok(miss.is_empty(), "%s: у всех %d ролей есть клип%s" % [whom, roles.size(), "" if miss.is_empty() else " (нет: %s)" % ", ".join(miss)])
 	r.style_map = {"light": "Heavy"}
-	ok(r.role_clip("light") == "Heavy", "%s: стиль подменяет клип роли (light → %s)" % [who, r.role_clip("light")])
+	ok(r.role_clip("light") == "Heavy", "%s: стиль подменяет клип роли (light → %s)" % [whom, r.role_clip("light")])
 	r.style_map = {}
 	# опорная высота стоп — первый кадр покоя
 	_pose_at(r, "Idle", 0.0)
@@ -146,7 +146,7 @@ func _check(r: Rig, who: String, roles: Array, defs: Dictionary) -> void:
 				var d := _feet_low(r) - base
 				lo = min(lo, d)
 				hi = max(hi, d)
-			if r.weapon != null and who != "madk1d" and not OFF_GROUND.has(clip) and not r.holstered:
+			if r.weapon != null and whom != "madk1d" and not OFF_GROUND.has(clip) and not r.holstered:
 				var wp := r.weapon_points(0.0, 1.0)
 				if not wp.is_empty():
 					if (wp[1] as Vector3).y < tip_low:
@@ -166,17 +166,17 @@ func _check(r: Rig, who: String, roles: Array, defs: Dictionary) -> void:
 			notes.append("стопы %+.3f…%+.3f м" % [lo, hi])
 			# в беге есть фаза полёта: проверяем только, что нога касается пола и не тонет
 			if abs(lo) > 0.04 or (not cyc and not lifts and hi > 0.04):
-				ok(false, "%s %s: стопы не на полу (%+.3f…%+.3f м)" % [who, clip, lo, hi])
+				ok(false, "%s %s: стопы не на полу (%+.3f…%+.3f м)" % [whom, clip, lo, hi])
 		if tip_low < INF:
 			notes.append("конец балона %.2f м у %.2f" % [tip_low, tip_u])
 			if tip_low < -0.07:
-				ok(false, "%s %s: балон уходит под землю (%.2f м)" % [who, clip, tip_low])
+				ok(false, "%s %s: балон уходит под землю (%.2f м)" % [whom, clip, tip_low])
 		# рывок: насколько кость повернулась за 1/160 клипа. Быстрый удар на мелком шаге даёт немного,
 		# перескок решения IK (локоть или кисть на другую сторону) остаётся большим при любом шаге
 		var lim := 45.0
 		notes.append("макс. шаг %.0f° (%s)" % [jump, jump_at])
 		if jump > lim:
-			ok(false, "%s %s: рывок %.0f° за 1/160 клипа" % [who, clip, jump])
+			ok(false, "%s %s: рывок %.0f° за 1/160 клипа" % [whom, clip, jump])
 		if def.get("loop", false):
 			_pose_at(r, clip, 0.0)
 			var a := _rots(r)
@@ -187,8 +187,8 @@ func _check(r: Rig, who: String, roles: Array, defs: Dictionary) -> void:
 				gap = max(gap, rad_to_deg((a[j] as Vector3).angle_to(b[j])))
 			notes.append("стык цикла %.1f°" % gap)
 			if gap > 2.0:
-				ok(false, "%s %s: цикл не замкнут (%.1f°)" % [who, clip, gap])
-		print("    %s %s: %s" % [who, clip, ", ".join(notes)])
+				ok(false, "%s %s: цикл не замкнут (%.1f°)" % [whom, clip, gap])
+		print("    %s %s: %s" % [whom, clip, ", ".join(notes)])
 	r.set_holstered(false)
 	# события: проигрываем вручную с шагом кадра, считаем пришедшие
 	var got := {}
@@ -219,7 +219,7 @@ func _check(r: Rig, who: String, roles: Array, defs: Dictionary) -> void:
 			line.append("%s %d/%d" % [e, have, want])
 			if have != want:
 				good = false
-		ok(good, "%s %s: события по кадрам (%s)" % [who, clip, ", ".join(line)])
+		ok(good, "%s %s: события по кадрам (%s)" % [whom, clip, ", ".join(line)])
 	r.clip_event.disconnect(on)
 
 func _holster(r: Rig) -> void:
@@ -273,8 +273,8 @@ func _equip_state(r: Rig, clip: String, u: float) -> void:
 	else:
 		r.set_holstered(false)
 
-func _seq(r: Rig, who: String, clip: String) -> void:
+func _seq(r: Rig, whom: String, clip: String) -> void:
 	var list := []
 	for i in 16:
 		list.append("%s:%.4f" % [clip, i / 15.0])
-	await _render(r, list, "seq_%s_%s.png" % [who, clip])
+	await _render(r, list, "seq_%s_%s.png" % [whom, clip])

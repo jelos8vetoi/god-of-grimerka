@@ -241,8 +241,8 @@ static func _hook(e) -> void:
 
 ## Натянутая цепь между двумя точками: звенья, вылет за 0,15 с, через sec — убирается
 static func _chain(g, from: Vector3, to: Vector3, sec: float) -> void:
-	var len := from.distance_to(to)
-	if len < 0.3:
+	var ln := from.distance_to(to)
+	if ln < 0.3:
 		return
 	var root := Node3D.new()
 	root.name = "misha_hook_chain"
@@ -265,13 +265,13 @@ static func _chain(g, from: Vector3, to: Vector3, sec: float) -> void:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = link
-	var n := clampi(int(len / 0.15), 2, 110)
+	var n := clampi(int(ln / 0.15), 2, 110)
 	mm.instance_count = n
 	for i in n:
 		var b := Basis(Vector3(1, 0, 0), PI * 0.5)                     # кольцо вдоль цепи
 		if i % 2 == 1:
 			b = Basis(Vector3(0, 0, 1), PI * 0.5) * b                   # через одно — поперёк
-		mm.set_instance_transform(i, Transform3D(b, Vector3(0, 0, -len * (float(i) + 0.5) / float(n))))
+		mm.set_instance_transform(i, Transform3D(b, Vector3(0, 0, -ln * (float(i) + 0.5) / float(n))))
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mm
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

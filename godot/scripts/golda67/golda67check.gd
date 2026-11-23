@@ -15,7 +15,7 @@ var kept := {}
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for p in KEEP:
-		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+		kept[p] = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 	AudioServer.set_bus_mute(0, true)
 	G67Save.clean = true          # прогресс игрока в приквеле на проверку не влияет
 	_run()
@@ -37,9 +37,9 @@ func key(k: Key, hold := 0.06) -> void:
 		Input.parse_input_event(e)
 		await wait(hold if down else 0.06)
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name + ".png"))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm + ".png"))
 
 func until(cond: Callable, sec: float) -> bool:
 	var t0 := GameClock.ms()
@@ -51,7 +51,7 @@ func until(cond: Callable, sec: float) -> bool:
 
 func save_same() -> bool:
 	var p := "user://grimerka_save.json"
-	var now = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else null
+	var now = FileAccess.get_file_as_string(p) if FileAccess.file_exists(p) else (null as Variant)
 	return now == kept[p]
 
 func _run() -> void:
@@ -281,7 +281,7 @@ func _run() -> void:
 	await _clip_check(g, G, P)
 	await _flurr_check(g, G, P)
 	await _ui3_check(g, G, P)
-	await _save_check(g, G)
+	_save_check(g, G)
 	await _talks_check(g, G, P)
 	# ================= забег: район ДВОР =================
 	await _run_dvor(g, G, P)
@@ -365,18 +365,18 @@ func _yard_people(g, G: Golda67) -> void:
 
 ## Постановки КРОТА для встреч 4–10: их районов ещё нет, поэтому КРОТ снимается на площадке в стороне от всего
 ## с простыми заменителями вещей (автомат, кольцевая лампа, сервер, столик с пакетом). Только для оценки поз.
-func _krot_stage(g, G: Golda67) -> void:
+func _krot_stage(g, _G: Golda67) -> void:
 	var root := Node3D.new()
 	root.name = "krot_stage"
 	g.add_child(root)
 	root.global_position = Vector3(300, 0, 300)
-	var floor := MeshInstance3D.new()
+	var fl := MeshInstance3D.new()
 	var fm := BoxMesh.new()
 	fm.size = Vector3(12, 0.1, 12)
-	floor.mesh = fm
-	floor.position = Vector3(0, -0.05, 0)
-	floor.material_override = _mat(Color(0.32, 0.32, 0.34))
-	root.add_child(floor)
+	fl.mesh = fm
+	fl.position = Vector3(0, -0.05, 0)
+	fl.material_override = _mat(Color(0.32, 0.32, 0.34))
+	root.add_child(fl)
 	var wall := MeshInstance3D.new()
 	var wm := BoxMesh.new()
 	wm.size = Vector3(12, 5, 0.2)
@@ -384,11 +384,11 @@ func _krot_stage(g, G: Golda67) -> void:
 	wall.position = Vector3(0, 2.5, -2.6)
 	wall.material_override = _mat(Color(0.22, 0.24, 0.28))
 	root.add_child(wall)
-	var key := OmniLight3D.new()
-	key.position = Vector3(2.0, 3.0, 3.0)
-	key.omni_range = 14.0
-	key.light_energy = 3.0
-	root.add_child(key)
+	var k := OmniLight3D.new()
+	k.position = Vector3(2.0, 3.0, 3.0)
+	k.omni_range = 14.0
+	k.light_energy = 3.0
+	root.add_child(k)
 	var fill := OmniLight3D.new()
 	fill.position = Vector3(-3.0, 2.0, 1.5)
 	fill.omni_range = 10.0
@@ -537,13 +537,13 @@ func _krot_shot(g, kr, nm: String, dist := 2.0, side := 1.0, front := 1.0) -> vo
 	oc.queue_free()
 
 ## Озвучка главы 1: манифест, реальные разговоры, обрыв при перелистывании и пропуске, пауза, выкрики, отсутствующий файл
-func _voice_check(g, G: Golda67, P) -> void:
+func _voice_check(g, G: Golda67, _P) -> void:
 	G67Voice.reload()
 	var d = JSON.parse_string(FileAccess.get_file_as_string(G67Voice.MANIFEST)) if FileAccess.file_exists(G67Voice.MANIFEST) else null
 	if not (d is Dictionary):
 		print("GOLDA67CHECK   озвучка главы 1: манифеста нет — пропуск")
 		return
-	var ready := 0
+	var is_ready := 0
 	var bad: Array = []
 	var total := 0
 	for e in (d["lines"] as Array):
@@ -555,11 +555,11 @@ func _voice_check(g, G: Golda67, P) -> void:
 			var pth := G67Voice.path(line)
 			var st = load(pth) if pth != "" else null
 			if st is AudioStream and (st as AudioStream).get_length() > 0.2:
-				ready += 1
+				is_ready += 1
 			else:
 				bad.append(String(e["id"]))
-	ok(bad.is_empty(), "озвучка главы 1: готовых реплик %d из %d, все находятся игрой и читаются%s" % [ready, total, "" if bad.is_empty() else " (не читаются: %s)" % str(bad)])
-	if ready == 0:
+	ok(bad.is_empty(), "озвучка главы 1: готовых реплик %d из %d, все находятся игрой и читаются%s" % [is_ready, total, "" if bad.is_empty() else " (не читаются: %s)" % str(bad)])
+	if is_ready == 0:
 		return
 	# разговор с DJ FLÜRR: голос главы 1, перелистывание обрывает прежнюю реплику, Tab — пропуск
 	var fl0 = G.meta().get("flurr", -1)
@@ -608,7 +608,7 @@ func _voice_check(g, G: Golda67, P) -> void:
 
 ## Ролики главы 1: каждый целиком (снимки каждые 2 с), голоса, субтитры, без пропуска при первом показе,
 ## пропуск при повторе, архив и телевизор в подъезде
-func _clip_check(g, G: Golda67, P) -> void:
+func _clip_check(g, G: Golda67, _P) -> void:
 	ok(not G.auto_clips, "в проверке ролики не запускаются сами по ходу игры")
 	ok(G.clip_open("V00"), "трейлер V00 открыт с первого входа (телевизор в подъезде)")
 	var all_ok := true
@@ -622,7 +622,8 @@ func _clip_check(g, G: Golda67, P) -> void:
 			all_ok = false
 			print("GOLDA67CHECK   ролик %s не открылся" % cid)
 			continue
-		ok(G.scene_busy() and g.intro_busy(), "%s: пока идёт ролик, управление закрыто" % cid) if cid == "STORY01" else null
+		if cid == "STORY01":
+			ok(G.scene_busy() and g.intro_busy(), "%s: пока идёт ролик, управление закрыто" % cid)
 		if cid == "STORY01":
 			await key(KEY_ENTER)
 			await wait(0.3)
@@ -864,7 +865,7 @@ func _madk_idle(g, P, sec: float) -> Dictionary:
 	return {"acts": b.events.slice(ev0), "team": T.events.slice(team0), "near": near, "foe": b.foe != null}
 
 ## B01: добивание на [E] без командного приёма: TEAM FINISHER нет, madk1d не появляется, перезарядка помощи не идёт
-func _madk_no_finisher(g, G: Golda67, P) -> void:
+func _madk_no_finisher(g, _G: Golda67, P) -> void:
 	var e = null
 	for x in g.enemies:
 		if is_instance_valid(x) and x.alive():
@@ -1001,7 +1002,8 @@ func _flurr_check(g, G: Golda67, P) -> void:
 		for k in n:
 			seen.append("krot%d" % (k + 1))
 		G.meta()["seen"] = seen
-		ok(G.flurr_state() == n, "состояние %d = завершено встреч КРОТА: %d" % [n, n]) if n in [0, 3, 10] else null
+		if n in [0, 3, 10]:
+			ok(G.flurr_state() == n, "состояние %d = завершено встреч КРОТА: %d" % [n, n])
 		P.global_position = Vector3(pt["pos"].x, pt["pos"].y + 0.05, pt["pos"].z)
 		P.velocity = Vector3.ZERO
 		await wait(0.25)
@@ -1165,7 +1167,7 @@ func _hub_screen(G: Golda67, P, id: String, kind: String) -> bool:
 
 func _hub_screens(g, G: Golda67, P) -> void:
 	# значок «новый разговор» над dj flürr, пока его новый разговор не услышан
-	ok(G.mark_talk != null and G.mark_talk.visible == G.flurr_new(), "над dj flürr — значок нового разговора (%s)" % str(G.mark_talk.visible if G.mark_talk != null else null))
+	ok(G.mark_talk != null and G.mark_talk.visible == G.flurr_new(), "над dj flürr — значок нового разговора (%s)" % str(G.mark_talk.visible if G.mark_talk != null else (null as Variant)))
 	# АВТОРИТЕТ РАЙОНА: покупка уровня за РЕСПЕКТ настоящими клавишами
 	G.meta()["respect"] = 60
 	ok(await _hub_screen(G, P, "upgrades", "upgrades"), "стол улучшений открывает «АВТОРИТЕТ РАЙОНА»")
@@ -1747,7 +1749,7 @@ func _n01_check(g, G: Golda67, P) -> void:
 	G.wave_wait = 0.0
 
 ## N04: серия ударов героя в защитную стойку Миши — «ВЕРНУЛ» не роняет разбор попаданий
-func _n04_check(g, G: Golda67, P, B) -> void:
+func _n04_check(_g, _G: Golda67, P, B) -> void:
 	await _misha_set(B, P, "m_guard", Vector3(0, 0.05, 0.2))
 	await wait(0.4)
 	P.global_position = B.global_position + Vector3(sin(B.face), 0, cos(B.face)) * 1.7
@@ -1983,15 +1985,15 @@ func _result_to_hub(G: Golda67) -> bool:
 
 ## Весь видимый текст узла (подписи и кнопки)
 func _all_text(n: Node) -> String:
-	var out := ""
+	var res_txt := ""
 	for c in n.find_children("*", "Label", true, false):
-		out += String(c.text) + "\n"
+		res_txt += String(c.text) + "\n"
 	for c in n.find_children("*", "Button", true, false):
-		out += String(c.text) + "\n"
+		res_txt += String(c.text) + "\n"
 	for c in n.find_children("*", "Control", true, false):
 		if c.get("text") != null and not (c is Label) and not (c is Button):
-			out += String(c.get("text")) + "\n"
-	return out
+			res_txt += String(c.get("text")) + "\n"
+	return res_txt
 
 ## Надписи диорамы внутри стола 1600×900
 func _text_fits(U) -> bool:
@@ -2004,7 +2006,7 @@ func _text_fits(U) -> bool:
 	return good
 
 ## Страницы паузы приквела: шесть вкладок, нет слов кампании
-func _pause_pages(g, G: Golda67, where: String) -> void:
+func _pause_pages(g, _G: Golda67, where: String) -> void:
 	var banned := ["прослуш", "тишина перед", "магазин", "ад-либ", "в разработке"]
 	var names := []
 	for i in 6:
@@ -2164,7 +2166,7 @@ func _ui3_check(g, G: Golda67, P) -> void:
 	await wait(0.3)
 
 ## E2 / E3: целые отметки в старых сохранениях; запись через временный файл; восстановление из резерва
-func _save_check(g, G: Golda67) -> void:
+func _save_check(_g, _G: Golda67) -> void:
 	var was_clean := G67Save.clean
 	G67Save.clean = false
 	G67Save.path_override = "user://g67check_save.json"
@@ -2479,7 +2481,6 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	Input.parse_input_event(ew)
 	ok(P.global_position.distance_to(pf0) < 0.3 and G.hub_ui == FU, "герой за экраном не сдвинулся")
 	# перевыбор с клавиатуры: S ведёт с бирки на «ПЕРЕВЫБРАТЬ», Enter
-	var old_offer: Array = G.fit_offer.duplicate()
 	FU.select(0)
 	await key(KEY_S)
 	ok(FU.sel == 3, "S с бирки ведёт на «ПЕРЕВЫБРАТЬ»")

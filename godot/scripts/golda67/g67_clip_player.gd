@@ -488,7 +488,7 @@ func box(size: Vector3, pos: Vector3, col: Color, glow := 0.0) -> MeshInstance3D
 func chain(from: Vector3, to: Vector3, sec: float) -> void:
 	var n := Node3D.new()
 	world.add_child(n)
-	var len := from.distance_to(to)
+	var ln := from.distance_to(to)
 	n.global_position = from
 	n.look_at(to, Vector3.UP if absf((to - from).normalized().y) < 0.95 else Vector3.RIGHT)
 	var link := TorusMesh.new()
@@ -502,13 +502,13 @@ func chain(from: Vector3, to: Vector3, sec: float) -> void:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = link
-	var cnt := clampi(int(len / 0.12), 2, 80)
+	var cnt := clampi(int(ln / 0.12), 2, 80)
 	mm.instance_count = cnt
 	for i in cnt:
 		var b := Basis(Vector3(1, 0, 0), PI * 0.5)
 		if i % 2 == 1:
 			b = Basis(Vector3(0, 0, 1), PI * 0.5) * b
-		mm.set_instance_transform(i, Transform3D(b, Vector3(0, 0, -len * (float(i) + 0.5) / float(cnt))))
+		mm.set_instance_transform(i, Transform3D(b, Vector3(0, 0, -ln * (float(i) + 0.5) / float(cnt))))
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mm
 	n.add_child(mi)
@@ -627,5 +627,5 @@ func flash(col := Color.WHITE, sec := 0.25) -> void:
 	tw.tween_property(r, "color:a", 0.0, sec)
 	tw.tween_callback(r.queue_free)
 
-func sfx(name: String, db := 0.0, pitch := 1.0) -> void:
-	game.main.sfx(name, db, pitch)
+func sfx(nm: String, db := 0.0, pitch := 1.0) -> void:
+	game.main.sfx(nm, db, pitch)

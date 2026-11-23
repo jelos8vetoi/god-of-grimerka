@@ -308,8 +308,8 @@ func _key_row(body: Node2D, k: Array, y: float) -> float:
 			sl.position = Vector2(x + 2, y + 5)
 			body.add_child(sl)
 			x += 22.0
-		var name := key_name(String(acts[i]))
-		var w: float = maxf(58.0, tech_b.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 27).x + 34.0)
+		var nm := key_name(String(acts[i]))
+		var w: float = maxf(58.0, tech_b.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 27).x + 34.0)
 		var sh := Polygon2D.new()
 		sh.polygon = _para(w, 46, 9)
 		sh.color = RED
@@ -320,7 +320,7 @@ func _key_row(body: Node2D, k: Array, y: float) -> float:
 		p.color = WHITE
 		p.position = Vector2(x, y)
 		body.add_child(p)
-		var kl := _label(name, tech_b, 27, INK)
+		var kl := _label(nm, tech_b, 27, INK)
 		kl.position = Vector2(x, y + 4)
 		kl.size = Vector2(w, 38)
 		kl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -561,8 +561,8 @@ class Drill extends Control:
 		tl.position = Vector2(x0 + 30, y + 3)
 		body.add_child(tl)
 		y += 30.0
-		var name: String = TutorialCard.fill(String(data.get("title", cur_id)))
-		var head := _lab("%s — ШАГ %d/%d" % [name, step + 1, steps.size()] if steps.size() > 1 else name, serif, 26, TutorialCard.WHITE)
+		var nm2: String = TutorialCard.fill(String(data.get("title", cur_id)))
+		var head := _lab("%s — ШАГ %d/%d" % [nm2, step + 1, steps.size()] if steps.size() > 1 else nm2, serif, 26, TutorialCard.WHITE)
 		head.position = Vector2(x0 + 18, y)
 		head.size = Vector2(PW - 36, 30)
 		head.clip_text = true

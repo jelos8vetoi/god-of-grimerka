@@ -170,6 +170,7 @@ class Garage extends Control:
 	func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.15, 0.14, 0.13))
 		for y in range(96, 600, 34):                       # блоки стены
+			@warning_ignore("integer_division")
 			var off := 0 if (y / 34) % 2 == 0 else 60
 			for x in range(-60 + off, int(size.x), 120):
 				draw_rect(Rect2(Vector2(x, y), Vector2(118, 32)), Color(0.19, 0.18, 0.165))

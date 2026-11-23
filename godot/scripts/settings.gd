@@ -57,6 +57,7 @@ static func set_window(w: Window, i: int) -> void:
 	var sz := Vector2i(int(WINDOWS[int(data["window"])][0]), int(WINDOWS[int(data["window"])][1]))
 	var scr := DisplayServer.screen_get_usable_rect(w.current_screen)
 	w.size = Vector2i(mini(sz.x, scr.size.x), mini(sz.y, scr.size.y))
+	@warning_ignore("integer_division")
 	w.position = scr.position + (scr.size - w.size) / 2
 
 static func _pct(x: float) -> String:

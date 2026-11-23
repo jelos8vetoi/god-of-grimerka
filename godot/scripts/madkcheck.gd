@@ -44,7 +44,7 @@ func frames(n: int) -> void:
 		await get_tree().physics_frame
 
 ## крупный план своей камерой: ang — с какой стороны (0 — спереди, PI — сзади, ±PI/2 — сбоку)
-func close(name: String, ang := 0.6, dist := 2.6) -> void:
+func close(nm: String, ang := 0.6, dist := 2.6) -> void:
 	var f := Vector3(sin(P.face + ang), 0, cos(P.face + ang))
 	var at: Vector3 = P.global_position + Vector3(0, 0.75, 0)
 	cam.global_position = at + f * dist + Vector3(0, 0.45, 0)
@@ -54,7 +54,7 @@ func close(name: String, ang := 0.6, dist := 2.6) -> void:
 	cam.make_current()
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 	cam.clear_current(true)
 	game.buddy.visible = true
 

@@ -391,6 +391,7 @@ func _scene_microloans(vp: SubViewport) -> void:
 		pm.size = Vector3(0.32, 0.005, 0.42)
 		p.mesh = pm
 		p.material_override = paper
+		@warning_ignore("integer_division")
 		p.position = Vector3(-0.65 + float(k % 5) * 0.3, 0.78 + float(k) * 0.004, 0.32 + float(k / 5) * 0.26)
 		p.rotation.y = float(k) * 0.37
 		vp.add_child(p)

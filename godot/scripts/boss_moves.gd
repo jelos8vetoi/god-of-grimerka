@@ -465,7 +465,7 @@ static func start_part(e, move: String) -> void:
 	e.sp_events.sort_custom(func(x, y): return float(x[0]) < float(y[0]))
 
 ## Рывок босса по прямой (как charge у story-приёмов, но со своим уроном и скоростью)
-static func _charge(e, dmg: float, speed: float, len: float) -> void:
+static func _charge(e, dmg: float, speed: float, ln: float) -> void:
 	var p = e.game.player
 	var d: Vector3 = p.global_position - e.global_position
 	d.y = 0
@@ -473,7 +473,7 @@ static func _charge(e, dmg: float, speed: float, len: float) -> void:
 	e.face = atan2(e.charge_dir.x, e.charge_dir.z)
 	e.charge_dmg = dmg
 	e.charge_v = speed
-	e.charge_len = len
+	e.charge_len = ln
 	e.charge_r = float(e.cfg["range"]) * 0.7
 	e.state = "charge"
 	e.t = 0.0

@@ -500,13 +500,13 @@ func open(title: String, lines: Array, items: Array, _w := 760.0, mode := "list"
 			box.custom_minimum_size = Vector2(cw, 0)
 			var cv := MGUI.vbox(MGUI.S1)
 			box.add_child(cv)
-			var tr := TextureRect.new()
-			tr.texture = thumb(String(spec["thumb"]))
-			tr.custom_minimum_size = Vector2(cw - 2.0 * MGUI.S2, 88 if mode == "cards" else 66)
-			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			cv.add_child(tr)
+			var xf := TextureRect.new()
+			xf.texture = thumb(String(spec["thumb"]))
+			xf.custom_minimum_size = Vector2(cw - 2.0 * MGUI.S2, 88 if mode == "cards" else 66)
+			xf.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			xf.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			xf.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cv.add_child(xf)
 			if mode == "cards":
 				lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				lab.custom_minimum_size = Vector2(cw - 2.0 * MGUI.S2, 0)
@@ -880,16 +880,16 @@ func _node_rect(L: Dictionary) -> Rect2:
 	var col := func(o: Dictionary) -> float: return clampf(float(int(o["due"]) - e.day + 1), 0.0, 8.0)
 	var mates: Array = e.loans.filter(func(o): return o["lender"] == L["lender"] and o["status"] != "closed")
 	mates.sort_custom(func(p, q): return int(p["due"]) < int(q["due"]) if int(p["due"]) != int(q["due"]) else int(p["id"]) < int(q["id"]))
-	var rows: Array = []                      # ряд → столбцы занятых узлов
+	var rws: Array = []                      # ряд → столбцы занятых узлов
 	var my_row := 0
 	for o in mates:
 		var cx: float = col.call(o) * st.x
 		var r := 0
-		while r < rows.size() and (rows[r] as Array).any(func(x): return absf(float(x) - cx) < FLOW_NODE.x + 6.0):
+		while r < rws.size() and (rws[r] as Array).any(func(x): return absf(float(x) - cx) < FLOW_NODE.x + 6.0):
 			r += 1
-		if r == rows.size():
-			rows.append([])
-		(rows[r] as Array).append(cx)
+		if r == rws.size():
+			rws.append([])
+		(rws[r] as Array).append(cx)
 		if int(o["id"]) == int(L["id"]):
 			my_row = r
 			break
@@ -1347,14 +1347,19 @@ func job_tier(jid: String) -> int:
 	var t := 1
 	match jid:
 		"podezd":
+			@warning_ignore("integer_division")
 			t += C.rank("w_suction") / 2 + C.rank("w_hose") + C.eq("tyaga") / 2
 		"repair":
+			@warning_ignore("integer_division")
 			t += C.rank("w_fix") / 2 + int(C.v("repair_hard")) + int(C.rank("w_multi"))
 		"deliv":
+			@warning_ignore("integer_division")
 			t += C.rank("w_legs") / 2 + C.rank("w_chain") + C.eq("deliv") / 2
 		"sound":
+			@warning_ignore("integer_division")
 			t += C.rank("w_ear") / 2 + int(C.v("sound_hard")) + C.eq("sound") / 2
 		"junk":
+			@warning_ignore("integer_division")
 			t += C.rank("w_eye") / 2 + int(C.v("junk_cap") / 2.0)
 	return clampi(t, 1, 5)
 

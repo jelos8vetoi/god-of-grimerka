@@ -83,7 +83,7 @@ func _run() -> void:
 		await get_tree().process_frame
 	print("MUSICCHECK заглавный трек вышел на уровень за %.1f с (title_prog %.2f)" % [(Time.get_ticks_msec() - ta) / 1000.0, D.title_prog])
 	await wait(0.5)
-	var snap := D.snapshot()
+	var _snap := D.snapshot()
 	var title_players := 0
 	for c in D.get_children():
 		if c is AudioStreamPlayer and (c as AudioStreamPlayer).bus == "MusicMenu":
@@ -93,7 +93,6 @@ func _run() -> void:
 	var ev0 := D.events.size()
 	var pos0 := D.title.get_playback_position()
 	var mono := true
-	var last := pos0
 	if main.menu != null:
 		main.menu.open_modes()
 		await wait(0.6)
@@ -214,20 +213,20 @@ func _run() -> void:
 	# (g) ролик с тишиной
 	manual(true)
 	await drive("loc_hall", 2.0)
-	var owner := Node.new()
-	add_child(owner)
-	D.enter_cinematic(owner, {"mode": "silence"})
+	var own := Node.new()
+	add_child(own)
+	D.enter_cinematic(own, {"mode": "silence"})
 	await drive("loc_hall", 1.8)
 	var stopped := D.cue == "" and not D.decks[0].live and not D.decks[1].live
 	var kept := 0.0
 	if D.memory.has("loc_hall"):
 		kept = float((D.memory["loc_hall"] as Array)[0])
-	D.leave_cinematic(owner)
+	D.leave_cinematic(own)
 	await drive("loc_hall", 0.5)
 	var pl: AudioStreamPlayer = D.active_players()[0] if D.active_players().size() > 0 else null
 	var now_pos: float = pl.get_playback_position() if pl != null else -1.0
 	ok(stopped and D.cue == "loc_hall" and absf(now_pos - (kept + 0.5)) <= 0.3, "ролик в тишину и обратно: набор вернулся с позиции %.1f → %.1f с (прошло 0,5 с)" % [kept, now_pos])
-	owner.queue_free()
+	own.queue_free()
 	# (h) пауза: приглушение −6 дБ, набор не меняется
 	var cue_before := D.cue
 	var t1 := Time.get_ticks_msec()
@@ -310,7 +309,6 @@ func last_trans(from: int) -> String:
 	return r
 
 func _golda67() -> void:
-	var ev := D.events.size()
 	main.start_golda67()
 	await frames(2)
 	var g67 = main.game.golda
@@ -365,7 +363,6 @@ func _golda67() -> void:
 	ok(D.ctx == "explore" and D.active_players().size() > 1 and D.active_players()[1].volume_db < -25.0, "m3 враги побеждены: ctx %s, драйв ушёл (%.1f дБ)" % [D.ctx, D.active_players()[1].volume_db if D.active_players().size() > 1 else -99.0])
 	# m4 КРОТ (реальные реплики) и m5 ДИДЖЕЙ: приглушение держится весь разговор
 	# m6 ролик, первый просмотр (конец — через _end(): сам ролик долгий)
-	var ev6 := D.events.size()
 	g67.play_clip("NEWS01")
 	await wait(1.2)
 	var silent_ok: bool = D.cue == "" and D._voice() and D.snapshot()["overlays"].size() >= 1
@@ -403,7 +400,7 @@ func _golda67() -> void:
 			if d.live and String(d.cue).begins_with("boss_") and d.gain() > 0.05:
 				boss_early = true
 		await get_tree().process_frame
-	var line_waited: bool = await until(func(): return not g.bark_b.playing, 12.0)
+	var _line_waited: bool = await until(func(): return not g.bark_b.playing, 12.0)
 	await wait(2.5)
 	var boss = g.boss_e
 	var stung := false
@@ -498,7 +495,7 @@ func key_tap(k: Key) -> void:
 		await get_tree().process_frame
 		await get_tree().process_frame
 
-func _talk_check(g67, g, who: String, start: Callable, tag: String) -> void:
+func _talk_check(_g67, g, who: String, start: Callable, tag: String) -> void:
 	start.call()
 	await wait(0.6)
 	var ok_all: bool = g.mode == "dlg"
@@ -517,7 +514,7 @@ func _talk_check(g67, g, who: String, start: Callable, tag: String) -> void:
 		# следующая реплика по нажатию, как у игрока
 		if n % 90 == 0:
 			g._dlg_advance()
-	var t_end := Time.get_ticks_msec()
+	var _t_end := Time.get_ticks_msec()
 	await wait(2.0)
 	ok(ok_all and n > 0 and D.duck_db > -0.5, "%s %s: приглушение не выше −5 дБ весь разговор (%d кадров, самое слабое %.1f дБ), через 2 с после конца %.1f дБ" % [tag, who, n, worst_duck, D.duck_db])
 
@@ -540,7 +537,7 @@ func menu_audible(tag: String) -> void:
 	var good: bool = D.cue == "title" and D.title.playing and not D.title.stream_paused and bus_db("Music") > -40.0 and peak_menu > -50.0 and bus_db("Master") > -40.0 and not main.audio.hush_hold and Engine.time_scale == 1.0
 	ok(good, "%s → главное меню: трек слышен (набор «%s», играет %s, пауза %s, шина Music %.1f дБ, пик MusicMenu %.1f дБ, hush %s, time_scale %.1f)" % [tag, D.cue, str(D.title.playing), str(D.title.stream_paused), bus_db("Music"), peak_menu, str(main.audio.hush_hold), Engine.time_scale])
 
-func path_fn(die_tag := "") -> void:
+func path_fn(_die_tag := "") -> void:
 	main.menu.launch_minigame("five_nights")
 	await until(func(): return main.minigame != null and is_instance_valid(main.minigame) and main.minigame.state == "menu", 25.0)
 	await wait(1.5)

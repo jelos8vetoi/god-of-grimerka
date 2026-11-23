@@ -53,12 +53,12 @@ static func save() -> void:
 static func record(track: String, mode: String, t: float) -> bool:
 	_load()
 	var recs: Dictionary = data["records"]
-	var tr: Dictionary = recs.get(track, {})
-	var old := float(tr.get(mode, 0.0))
+	var xf: Dictionary = recs.get(track, {})
+	var old := float(xf.get(mode, 0.0))
 	if old > 0.0 and old <= t:
 		return false
-	tr[mode] = snappedf(t, 0.01)
-	recs[track] = tr
+	xf[mode] = snappedf(t, 0.01)
+	recs[track] = xf
 	save()
 	return true
 
@@ -80,6 +80,7 @@ static func setup_actions() -> void:
 			keys = bound
 		for k in keys:
 			var e := InputEventKey.new()
+			@warning_ignore("int_as_enum_without_cast")
 			e.physical_keycode = int(k)
 			InputMap.action_add_event(nm, e)
 		for mb in a[3]:

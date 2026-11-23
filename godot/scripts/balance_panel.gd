@@ -77,12 +77,12 @@ func _ready() -> void:
 	var names := DirAccess.get_files_at("user://survival_reports") if DirAccess.dir_exists_absolute("user://survival_reports") else PackedStringArray()
 	names.sort()
 	names.reverse()
-	for name in names:
-		if not name.ends_with(".json") or runs.size() >= 50:
+	for nm in names:
+		if not nm.ends_with(".json") or runs.size() >= 50:
 			continue
-		var value = JSON.parse_string(FileAccess.get_file_as_string("user://survival_reports".path_join(name)))
+		var value = JSON.parse_string(FileAccess.get_file_as_string("user://survival_reports".path_join(nm)))
 		if value is Dictionary and value.get("heroes") is Dictionary and value.get("attacks") is Dictionary and value.get("bosses") is Dictionary and value.get("survival") is Dictionary:
-			picks.add_item(str(value.get("created_utc", name)))
+			picks.add_item(str(value.get("created_utc", nm)))
 			runs.append(value)
 	if not runs.is_empty():
 		run = runs[0]

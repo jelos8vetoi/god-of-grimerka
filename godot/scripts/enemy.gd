@@ -307,14 +307,14 @@ func _physics_process(dt: float) -> void:
 		poise_max = poise_base
 		poise = min(poise, poise_max)
 	if st_bar != null:
-		var show: bool = poise_t < 2.6 and poise < poise_max - 0.5 and state != "dead"
+		var on: bool = poise_t < 2.6 and poise < poise_max - 0.5 and state != "dead"
 		var k: float = clampf(poise / max(1.0, poise_max), 0.0, 1.0)
-		if show and abs(k - st_k) > 0.02:
+		if on and abs(k - st_k) > 0.02:
 			st_k = k
 			st_img.fill(Color(0, 0, 0, 0.6))
 			st_img.fill_rect(Rect2i(1, 1, int(62 * k), 2), Color(1.0, 0.85, 0.3) if break_n == 0 else Color(1.0, 0.55, 0.25))
 			st_bar.texture = ImageTexture.create_from_image(st_img)
-		st_bar.visible = show
+		st_bar.visible = on
 	slow_t = max(0.0, slow_t - dt)
 	weak_t = max(0.0, weak_t - dt)
 	buff_t = max(0.0, buff_t - dt)
@@ -841,8 +841,8 @@ func _process(_dt: float) -> void:
 			shield_fx.scale = Vector3.ONE * height * 1.5
 		if shield_fx:
 			shield_fx.visible = on
-	var ready := exec_ready()
-	if ready and exec_mark == null:
+	var is_ready := exec_ready()
+	if is_ready and exec_mark == null:
 		exec_mark = Label3D.new()
 		exec_mark.text = "✕"
 		exec_mark.font_size = 96
@@ -854,7 +854,7 @@ func _process(_dt: float) -> void:
 		exec_mark.position = Vector3(0, height + 0.75, 0)
 		add_child(exec_mark)
 	if exec_mark != null:
-		exec_mark.visible = ready
+		exec_mark.visible = is_ready
 		exec_mark.scale = Vector3.ONE * (1.0 + 0.15 * sin(c * 9.0))
 	if state == "stun":
 		if stars == null:

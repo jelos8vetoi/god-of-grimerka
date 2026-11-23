@@ -45,6 +45,7 @@ func _build() -> void:
 		var b := Box.new()
 		b.num = NUMS[k]
 		b.paint = Color(0.27, 0.36, 0.5)          # весь блок одного синего, как в подъезде
+		@warning_ignore("integer_division")
 		b.position = BOX0 + Vector2((k % COLS) * (BOX.x + GAP.x), (k / COLS) * (BOX.y + GAP.y))
 		b.size = BOX
 		b.pivot_offset = BOX * 0.5
@@ -356,9 +357,9 @@ class Letter extends Control:
 		var w := r.size.x - 68
 		var head := text.get_slice(":", 0)
 		var body := text.substr(text.find(":") + 1).strip_edges()
-		var sign := ""
+		var sgn := ""
 		if body.contains("Подпись — "):
-			sign = body.substr(body.find("Подпись — ") + 10).trim_suffix(".")
+			sgn = body.substr(body.find("Подпись — ") + 10).trim_suffix(".")
 			body = body.substr(0, body.find("Подпись — ")).strip_edges()
 		match look:
 			"news":
@@ -372,9 +373,9 @@ class Letter extends Control:
 				draw_rect(Rect2(Vector2(x, r.position.y + 30), Vector2(w, 40)), Color(0.12, 0.1, 0.09, a))
 				draw_string(fc, Vector2(x + 14, r.position.y + 58), head.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.95, 0.78, 0.4, a))
 				draw_multiline_string(fd, Vector2(x, r.position.y + 130), body, HORIZONTAL_ALIGNMENT_LEFT, w, 30, -1, ink)
-				if sign != "":
+				if sgn != "":
 					draw_set_transform(Vector2(x + w - 230, r.position.y + 290), -0.06, Vector2.ONE)
-					draw_string(fd, Vector2.ZERO, sign, HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color(0.2, 0.2, 0.5, a))
+					draw_string(fd, Vector2.ZERO, sgn, HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color(0.2, 0.2, 0.5, a))
 					draw_line(Vector2(-10, 10), Vector2(230, 6), Color(0.2, 0.2, 0.5, 0.6 * a), 1.5)
 					draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 			_:

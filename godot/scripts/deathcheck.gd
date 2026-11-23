@@ -15,7 +15,7 @@ var cam_watch := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	save_text = FileAccess.get_file_as_string("user://grimerka_save.json") if FileAccess.file_exists("user://grimerka_save.json") else null
+	save_text = FileAccess.get_file_as_string("user://grimerka_save.json") if FileAccess.file_exists("user://grimerka_save.json") else (null as Variant)
 	AudioServer.set_bus_mute(0, true)
 	RenderingServer.frame_pre_draw.connect(_cam_sample)
 	_run()
@@ -52,9 +52,9 @@ func key(k: Key) -> void:
 		Input.parse_input_event(e)
 		await wait(0.06)
 
-func shot(name: String) -> void:
+func shot(nm: String) -> void:
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(out.path_join(name))
+	get_viewport().get_texture().get_image().save_png(out.path_join(nm))
 
 func skip_dialog() -> void:
 	var n := 0
@@ -170,7 +170,6 @@ func _run() -> void:
 	ok(by_enemy, "Пахана убил обычный враг")
 	await wait(0.05)
 	await watch("enemy")
-	var alive_cd: float = g.buddy.cd
 	ok(g.buddy.velocity.length() < 0.5, "напарник в сцене гибели стоит")
 	await key(KEY_ENTER)
 	await wait(0.8)

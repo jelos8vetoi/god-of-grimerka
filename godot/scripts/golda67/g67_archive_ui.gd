@@ -90,9 +90,9 @@ func _build_tvs() -> void:
 	var no := 1
 	for sec in G67Data.ARCHIVE_CLIPS:
 		for cid in sec[1]:
-			var open: bool = G.clip_open(cid)
-			list.append({"type": "clip", "id": cid, "cat": String(sec[0]), "no": no, "title": G67Clips.title(cid) if open else "???",
-				"state": ("seen" if G.clip_seen(cid) else "new") if open else "lock", "preview": PREVIEW % cid if ResourceLoader.exists(PREVIEW % cid) else "",
+			var is_open: bool = G.clip_open(cid)
+			list.append({"type": "clip", "id": cid, "cat": String(sec[0]), "no": no, "title": G67Clips.title(cid) if is_open else "???",
+				"state": ("seen" if G.clip_seen(cid) else "new") if is_open else "lock", "preview": PREVIEW % cid if ResourceLoader.exists(PREVIEW % cid) else "",
 				"why": "Запись появится " + String(G67Data.CLIP_WHY.get(cid, "позже")) + "."})
 			no += 1
 	for k in G67Data.ARCHIVE_ENDINGS:
@@ -183,19 +183,19 @@ func _build_sleeve() -> void:
 
 func _counters() -> void:
 	var total := 0
-	var open := 0
+	var open_n := 0
 	var seen := 0
 	var fresh := 0
 	for r in recs:
 		if r["type"] in ["clip", "event", "ending"]:
 			total += 1
 			if r["state"] != "lock":
-				open += 1
+				open_n += 1
 			if r["state"] == "seen":
 				seen += 1
 			if r["state"] == "new":
 				fresh += 1
-	c_all.text = "ЗАПИСЕЙ %d / %d" % [open, total]
+	c_all.text = "ЗАПИСЕЙ %d / %d" % [open_n, total]
 	c_seen.text = "ПРОСМОТРЕНО %d" % seen
 	c_new.text = ("НОВЫХ %d" % fresh) if fresh > 0 else ""
 
