@@ -253,7 +253,7 @@ def layout(V):
             out.append({'id': it['id'], 'cat': it['cat'], 'x': it['cx'], 'y': it['cy'], 'w': it['w'], 'h': it['h'], 'model': it['model'], 'yaw': it['yaw'], 'hgt': it['hgt'], 'label': it['label'].replace('\n', ' ')})
         if it['k'] == 'mark' and it['model']:
             out.append({'id': it['label'] or it['model'], 'cat': it['cat'], 'x': it['cx'], 'y': it['cy'], 'w': it['r'] * 2, 'h': it['r'] * 2, 'model': it['model'], 'yaw': it['yaw'], 'hgt': 2.0, 'label': it['label'], 'mark': True})
-    return {'name': V['name'], 'x': V['x'], 'y': V['y'], 'items': out}
+    return {'name': V['name'], 'x': V['x'], 'y': V['y'], 'items': out, 'paths': [it['pts'] for it in V['items'] if it['k'] == 'path']}
 
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
