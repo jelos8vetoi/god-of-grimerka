@@ -238,6 +238,12 @@ func _run() -> void:
 		await _cam_check(g, G, g.player)
 		_finish()
 		return
+	if OS.get_cmdline_user_args().has("--g67-pz"):
+		var pc := PodzemkaCheck.new()
+		pc.c = self
+		await pc.run(g, G)
+		_finish()
+		return
 	for arg in OS.get_cmdline_user_args():
 		if String(arg) == "--g67-real" or String(arg).begins_with("--g67-real="):
 			var rn := 0
@@ -3892,6 +3898,56 @@ func _ev02_check(g, G: Golda67, P) -> void:
 	ok(last_t >= 30.0 and last_t <= 42.0, "длительность события %.1f с (30–42)" % last_t)
 	ok(G.clip_seen("EV02"), "досмотренный ролик — в clips_seen")
 
+## iPod приквела: страница «Любимые треки Пахана», обложка, один звук за раз, без дублей и без записи в настройки
+func _ipod_g67_check(g, G: Golda67) -> void:
+	var ip = g.ipod
+	ip.open()
+	await wait(0.9)
+	ip._go_to_page("Плейлисты")
+	ip.selected = 0
+	ip._refresh()
+	await wait(0.5)
+	var pl: Array = ip._items()
+	ok(pl.size() == 4 and String(pl[0]) == "Любимые треки Пахана", "iPod: страница «Плейлисты» в приквеле — %s" % str(pl))
+	await shot("ipod_playlists")
+	ip._go_to_page("Любимые треки Пахана")
+	ip.selected = 0
+	ip._refresh()
+	var items: Array = ip._items()
+	var i17 := items.find("Форэн Кисуля Флоу 3")
+	ok(items.size() >= 16 and i17 >= 0, "iPod: в плейлисте %d треков, №17 «Форэн Кисуля Флоу 3» на месте %d" % [items.size(), i17])
+	ip.selected = maxi(i17, 0)
+	ip._select()
+	await wait(1.0)
+	ok(ip.player.stream != null and ip.player.playing and ip.g67_playing(), "iPod: выбор трека запускает его (поток есть, играет)")
+	ok(ip._cover_for_track(ip.tracks[ip.track_index]) != null, "iPod: обложка плейлиста загружается")
+	await shot("ipod_now_playing")
+	var ph: G67Phone = G.phone_get()
+	ok(not ph.active(), "iPod: вкладка паузы не играет одновременно")
+	await wait(1.6)
+	ok(String(main.audio.cur) == "", "iPod: музыка режима глохнет (набор «%s»)" % String(main.audio.cur))
+	var n_g67: int = ip.g67_tracks().size()
+	ip.close(true)
+	await wait(0.5)
+	ip.open()
+	await wait(0.6)
+	ok(ip.g67_tracks().size() == n_g67 and ip.tracks.size() == ip.tracks.map(func(t): return String(t["id"])).size(), "iPod: после повторного открытия треков плейлиста %d (было %d), дублей нет" % [ip.g67_tracks().size(), n_g67])
+	var ids: Array = ip.tracks.map(func(t): return String(t["id"]))
+	var uniq := {}
+	for i in ids:
+		uniq[i] = true
+	ok(uniq.size() == ids.size(), "iPod: id треков уникальны")
+	ph.play(1)
+	await wait(0.4)
+	ok(not ip.g67_playing() and ph.active(), "iPod: запуск из вкладки паузы останавливает плеер iPod")
+	ph.stop()
+	ip._save_settings()
+	var st := FileAccess.get_file_as_string("user://grimerka_ipod.json") if FileAccess.file_exists("user://grimerka_ipod.json") else ""
+	ok(not st.contains("g67_") and not st.contains("Любимые треки"), "iPod: в файле настроек нет треков плейлиста")
+	ip.player.stop()
+	ip.close(true)
+	await wait(0.4)
+
 ## Фон роликов: в сценах V00, AD01, CL01, NEWS01 двор построен целиком (сетки двора) и хотя бы один дом/борт в кадре камеры
 func _aabb_in_frustum(bb: AABB, planes: Array) -> bool:
 	for p in planes:
@@ -3917,18 +3973,20 @@ func _clip_bg_check(g, G: Golda67) -> void:
 			n_mesh = yd.find_children("*", "MeshInstance3D", true, false).size() if yd != null else 0
 			var planes: Array = G.clip.cam.get_frustum()
 			if yd != null:
-				for ch in yd.get_children():
-					var nm := String(ch.name)
-					if ch is Node3D and (nm.begins_with("khrushchevka") or nm.begins_with("panel_tower") or nm.begins_with("g67_brick") or nm.begins_with("g67_house") or nm.begins_with("fence")):
-						if _aabb_in_frustum(yd._node_aabb(ch), planes):
-							in_view += 1
+				for mi in yd.find_children("*", "MeshInstance3D", true, false):
+					var m := mi as MeshInstance3D
+					if m.mesh == null or not m.is_visible_in_tree():
+						continue
+					var bb: AABB = m.global_transform * m.mesh.get_aabb()
+					if bb.size.y >= 8.0 and _aabb_in_frustum(bb, planes):
+						in_view += 1
 			if cid == "AD01":
 				await shot("bg_AD01")
 			if cid == "V00":
 				await shot("bg_V00")
 			if cid == "CL01":
 				await shot("bg_CL01")
-		ok(n_mesh > 200 and in_view >= 1, "фон ролика %s: сеток двора %d (нужно > 200), домов/бортов в кадре %d" % [cid, n_mesh, in_view])
+		ok(n_mesh > 200 and in_view >= 1, "фон ролика %s: сеток двора %d (нужно > 200), высоких построек (дом) в кадре %d" % [cid, n_mesh, in_view])
 		if G.clip != null and is_instance_valid(G.clip):
 			G.clip.skip()
 			await wait(0.5)
@@ -3993,6 +4051,7 @@ func _phone_check(g, G: Golda67) -> void:
 func _run_dvor(g, G: Golda67, P) -> void:
 	await _phone_check(g, G)
 	await _clip_bg_check(g, G)
+	await _ipod_g67_check(g, G)
 	# шаги в приквеле: подъезд — бетон, двор — по поверхности
 	G.step_log.clear()
 	G.play_step(Vector3(0, 0.0, 0))

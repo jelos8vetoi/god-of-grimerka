@@ -3154,7 +3154,7 @@ func music_context() -> Dictionary:
 	var dir = game.main.audio.director
 	var res := {"dialogue": "talk", "boss_set": ""}
 	var ph = phone_get()
-	var phone_on: bool = ph != null and ph.active()
+	var phone_on: bool = (ph != null and ph.active()) or (game.ipod != null and game.ipod.g67_playing())
 	if place == "hub":
 		var back := hub_back_t > 0.0
 		res["ctx"] = "explore"

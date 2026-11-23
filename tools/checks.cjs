@@ -63,6 +63,7 @@ const C = [
   { name: 'mode', key: 'modecheck', ok: /MODECHECK ok\s*$/m, groups: ['modes'] },
   { name: 'training', key: 'trainingcheck', ok: /TRAININGCHECK ok\s*$/m, groups: ['modes'] },
   { name: 'golda67', key: 'golda67check', ok: /GOLDA67CHECK ok\s*$/m, groups: ['modes', 'golda67'] },
+  { name: 'podzemka', key: 'golda67check', extra: ['--g67-pz'], ok: /GOLDA67CHECK oks*$/m, groups: ['golda67'], t: 900 },
   { name: 'survival', key: 'playtest-survival', ok: /SURVIVALPLAY ok\s*$/m, groups: ['modes', 'survival'], t: 1500 },
   // Endless Survival и Balance Lab: плейтест клавишами (выше), тесты логики без окна, стенд баланса.
   // root — тесту нужна своя папка данных игрока (пишет настоящее сохранение кампании в неё); uargs — ключи после «--»

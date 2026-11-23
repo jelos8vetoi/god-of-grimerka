@@ -904,7 +904,7 @@ func _settings_payload(local_tracks: Array) -> Dictionary:
 		"bass_boost": bass_boost, "repeat_mode": repeat_mode,
 		"button_sounds_enabled": button_sounds_enabled, "button_sounds_volume": button_sounds_volume,
 		"ui_motion_mode": ui_motion_mode, "earbuds_in": earbuds_in, "tracks": local_tracks,
-		"track_id": String(tracks[track_index]["id"]) if track_index >= 0 and track_index < tracks.size() else "",
+		"track_id": String(tracks[track_index]["id"]) if track_index >= 0 and track_index < tracks.size() and not bool(tracks[track_index].get("g67", false)) else "",
 		"time": player.get_playback_position() if player.stream != null else 0.0}
 
 
