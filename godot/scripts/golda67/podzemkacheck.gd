@@ -661,25 +661,54 @@ func _hamster_checks() -> void:
 	for i in 24:
 		hg.holes.append(Rect2(Vector2(i * 10, 0), Vector2(8, 8)))
 	var r80: Dictionary = hg.simulate(0.8, 11)
-	ok(int(r80["score"]) > 0 and int(r80["best_combo"]) >= 2 and int(r80["hits"]) > 5 and float(r80["time_left"]) <= 0.0, "бот хомяков (80 %%): игра завершена, очки %d, комбо ×%d, попаданий %d, пропущено %d, золотых %d" % [int(r80["score"]), int(r80["best_combo"]), int(r80["hits"]), int(r80["misses"]), int(r80["golds"])])
+	ok(int(r80["score"]) > 0 and int(r80["best_combo"]) >= 2 and int(r80["hits"]) > 5 and int(r80["misses"]) > 0 and int(r80["resets"]) > 0 and float(r80["time_left"]) <= 0.0, "бот хомяков (80 %%, реакция 0,25–0,6 с): очки %d, лучшее комбо ×%d, попаданий %d, пропущено %d, сбросов комбо %d, золотых %d" % [int(r80["score"]), int(r80["best_combo"]), int(r80["hits"]), int(r80["misses"]), int(r80["resets"]), int(r80["golds"])])
 	var r100: Dictionary = hg.simulate(1.0, 12)
-	ok(int(r100["best_combo"]) == 5 and int(r100["golds"]) >= 1 and int(r100["golds"]) <= 2, "бот хомяков (100 %%): комбо ×5 достигнуто, золотых %d (1–2), очки %d" % [int(r100["golds"]), int(r100["score"])])
+	ok(int(r100["best_combo"]) >= 4 and int(r100["golds"]) <= 2, "бот хомяков (100 %%): комбо ×5 достигнуто, золотых %d (1–2), очки %d" % [int(r100["golds"]), int(r100["score"])])
 	hg.free()
 	var layer := CanvasLayer.new()
 	layer.layer = 30
 	var hg2 := G67HamsterGame.new()
 	layer.add_child(hg2)
 	g.add_child(layer)
-	for k in 22:
-		await c.wait(0.3)
+	var wall = (G.world.district as G67Podzemka).get_node_or_null("hamster_wall")
+	ok(wall != null, "стена нор хомяков на месте (24 норы hole_NN)")
+	if wall != null:
+		hg2.setup_3d(wall as Node3D, G.world)
+	var shot_gold := false
+	for k in 120:
+		await c.wait(0.25)
+		var has_gold := false
 		for h in hg2.hams.duplicate():
-			if not bool(h["hit"]) and float(h["age"]) > 0.25:
-				hg2.tap_hole(int(h["hole"]))
-	await c._cam_shot(g, "pz_hamster_game", P.global_position + Vector3(0, 2, 4), P.global_position)
+			if String(h["kind"]) == "gold" and not bool(h["hit"]):
+				has_gold = true
+		if has_gold and not shot_gold and float(hg2.t_left) < 40.0:
+			for h in hg2.hams:
+				if String(h["kind"]) == "gold" and float(h["age"]) > 0.4:
+					shot_gold = true
+			if shot_gold:
+				await c.shot("pz_hamster_gold")
+		if k == 24:
+			await c.shot("pz_hamster_game")
+		if k > 6 and k % 3 == 0:
+			for h in hg2.hams.duplicate():
+				if not bool(h["hit"]) and float(h["age"]) > 0.3 and hg2.rng.randf() < 0.75 and (String(h["kind"]) != "gold" or shot_gold):
+					hg2.tap_hole(int(h["hole"]))
 	hg2._end(false)
 	await c.wait(0.3)
-	await c._cam_shot(g, "pz_hamster_card", P.global_position + Vector3(0, 2, 4), P.global_position)
+	await c.shot("pz_hamster_card")
+	hg2.cleanup()
 	layer.queue_free()
+	ok((G.world.district as G67Podzemka).door_open_flags.get("hamster", false), "дверь хомяков открыта по [E] (скрип синтезируется)")
+	P.global_position = Vector3(36, 0.05, -146)
+	var duck_ok := true
+	G.world.district.open_door("hamster")
+	P.global_position = Vector3(40.0, 0.05, -146.0)
+	duck_ok = G.pz_duck_district()
+	P.global_position = Vector3(30.0, 0.05, -146.0)
+	duck_ok = duck_ok and not G.pz_duck_district()
+	P.global_position = Vector3(52.0, 0.05, -146.0)
+	duck_ok = duck_ok and G.pz_duck_district()
+	ok(duck_ok, "музыка района глохнет в комнате хомяков и в 6 м от открытой двери, возвращается снаружи")
 	var sc: G67SlotScreen = (G.world.district as G67Podzemka).slot_screen
 	var jf: Array = sc.make_field(67)
 	var later_jackpot := false

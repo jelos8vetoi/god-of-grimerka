@@ -716,7 +716,15 @@ func _hamster_play() -> void:
 	var hg := G67HamsterGame.new()
 	layer.add_child(hg)
 	game.add_child(layer)
+	var pzh := world.district as G67Podzemka
+	var wall = pzh.get_node_or_null("hamster_wall") if pzh != null else null
+	if wall != null:
+		hg.setup_3d(wall as Node3D, world)
+	var frozen: bool = game.player.is_physics_processing()
+	game.player.set_physics_process(false)
 	var res: Dictionary = await hg.finished
+	game.player.set_physics_process(frozen)
+	hg.cleanup()
 	if bool(res.get("closed", false)) or not res.has("score"):
 		var again: Dictionary = {"score": hg.score, "skipped": hg.done and hg.t_left > 0.0}
 		res = again
@@ -3752,6 +3760,15 @@ func use(id: String) -> void:
 		var pzd := world.district as G67Podzemka
 		if pzd != null and pzd.open_door("shutter" if id == "shutter" else "hamster"):
 			game.toast("Рольставня поднимается" if id == "shutter" else "Дверь скрипит")
+			if id == "hamster_door":
+				var cr := AudioStreamPlayer3D.new()
+				cr.stream = G67HamsterGame.synth_creak()
+				cr.unit_size = 6.0
+				pzd.add_child(cr)
+				cr.global_position = Vector3(44.0, 1.4, -146.0)
+				cr.play()
+				cr.finished.connect(cr.queue_free)
+				events.append(["door_creak"])
 			events.append(["door_open", id])
 			if id == "hamster_door":
 				_hamster_first_enter = true
