@@ -1,0 +1,16 @@
+[gd_resource type="StandardMaterial3D" format=3]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/textures/worn_plaster_wall/Diffuse.jpg" id="Diffuse"]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/textures/worn_plaster_wall/nor_gl.jpg" id="nor_gl"]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/textures/worn_plaster_wall/Rough.jpg" id="Rough"]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/textures/worn_plaster_wall/AO.jpg" id="AO"]
+[resource]
+albedo_texture = ExtResource("Diffuse")
+normal_texture = ExtResource("nor_gl")
+normal_enabled = true
+roughness_texture = ExtResource("Rough")
+ao_texture = ExtResource("AO")
+ao_enabled = true
+albedo_color = Color(0.63, 0.59, 0.46, 1)
+uv1_triplanar = true
+uv1_world_triplanar = true
+uv1_scale = Vector3(0.6, 0.6, 0.6)

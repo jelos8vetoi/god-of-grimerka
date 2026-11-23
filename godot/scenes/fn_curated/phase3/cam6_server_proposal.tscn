@@ -1,0 +1,322 @@
+[gd_scene format=3]
+
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/rubber.tres" id="r1"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/chalk.tres" id="r2"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/slate.tres" id="r3"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/rack_console.glb" id="r4"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/metal_office_desk/metal_office_desk.gltf" id="r5"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/television_02/television_02.gltf" id="r6"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/utility_box_01/utility_box_01.gltf" id="r7"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/straight.gltf" id="r8"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/phase2/models/ducts/flange_thin.gltf" id="r9"]
+[ext_resource type="Font" path="res://assets/fonts/RussoOne-Regular.ttf" id="r10"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/models/hanging_industrial_lamp/hanging_industrial_lamp.gltf" id="r11"]
+
+[sub_resource type="BoxMesh" id="b0"]
+size = Vector3(10, 0.16, 9)
+material = ExtResource("r1")
+
+[sub_resource type="BoxMesh" id="b4"]
+size = Vector3(10, 0.16, 9)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b8"]
+size = Vector3(0.16, 3, 9)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b12"]
+size = Vector3(0.028, 1.05, 9)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b16"]
+size = Vector3(10, 3, 0.16)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b20"]
+size = Vector3(10, 1.05, 0.028)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b24"]
+size = Vector3(0.16, 3, 9)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b28"]
+size = Vector3(0.028, 1.05, 9)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b32"]
+size = Vector3(10, 3, 0.16)
+material = ExtResource("r2")
+
+[sub_resource type="BoxMesh" id="b36"]
+size = Vector3(10, 1.05, 0.028)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b40"]
+size = Vector3(10, 0.17, 0.22)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b44"]
+size = Vector3(10, 0.17, 0.22)
+material = ExtResource("r3")
+
+[sub_resource type="BoxMesh" id="b48"]
+size = Vector3(10, 0.17, 0.22)
+material = ExtResource("r3")
+
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.04, 0.055, 0.062, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.50, 0.61, 0.66, 1)
+ambient_light_energy = 0.24
+tonemap_mode = 2
+
+[node name="RoomRoot" type="Node3D" ]
+metadata/room_id = "server"
+metadata/facility_origin = Vector3(135, 0, 0)
+metadata/sway_degrees = 5
+
+[node name="Geometry" type="Node3D" parent="." ]
+
+[node name="Props" type="Node3D" parent="." ]
+
+[node name="Lighting" type="Node3D" parent="." ]
+
+[node name="EnemySpots" type="Node3D" parent="." ]
+
+[node name="AnomalyAnchors" type="Node3D" parent="." ]
+
+[node name="Floor_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, -0.08, 0)
+mesh = SubResource("b0")
+
+[node name="Ceiling_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 3.08, 0)
+mesh = SubResource("b4")
+
+[node name="SideWall_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(-5.08, 1.5, 0)
+mesh = SubResource("b8")
+
+[node name="Dado_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(-4.986, 0.525, 0)
+mesh = SubResource("b12")
+
+[node name="EndWall_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 1.5, -4.58)
+mesh = SubResource("b16")
+
+[node name="Dado_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 0.525, -4.486)
+mesh = SubResource("b20")
+
+[node name="SideWall_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(5.08, 1.5, 0)
+mesh = SubResource("b24")
+
+[node name="Dado_3" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(4.986, 0.525, 0)
+mesh = SubResource("b28")
+
+[node name="EndWall_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 1.5, 4.58)
+mesh = SubResource("b32")
+
+[node name="Dado_4" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 0.525, 4.486)
+mesh = SubResource("b36")
+
+[node name="CeilingBeam_1" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 2.915, -2.79)
+mesh = SubResource("b40")
+
+[node name="CeilingBeam_2" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 2.915, 0)
+mesh = SubResource("b44")
+
+[node name="CeilingBeam_3" type="MeshInstance3D" parent="Geometry" ]
+position = Vector3(0, 2.915, 2.79)
+mesh = SubResource("b48")
+
+[node name="rack_console_1" parent="Props" instance=ExtResource("r4")]
+position = Vector3(-3.15, 0, -2.45)
+rotation_degrees = Vector3(0, -90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="rack_console_2" parent="Props" instance=ExtResource("r4")]
+position = Vector3(-1.39, 0, -2.45)
+rotation_degrees = Vector3(0, -90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="rack_console_3" parent="Props" instance=ExtResource("r4")]
+position = Vector3(0.37, 0, -2.45)
+rotation_degrees = Vector3(0, -90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="rack_console_4" parent="Props" instance=ExtResource("r4")]
+position = Vector3(2.13, 0, -2.45)
+rotation_degrees = Vector3(0, -90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="rack_console_5" parent="Props" instance=ExtResource("r4")]
+position = Vector3(-3.75, 0, 1.82)
+rotation_degrees = Vector3(0, -90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="rack_console_6" parent="Props" instance=ExtResource("r4")]
+position = Vector3(-1.92, 0, 1.82)
+rotation_degrees = Vector3(0, -90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="metal_office_desk_1" parent="Props" instance=ExtResource("r5")]
+position = Vector3(4.02, 0, 0.35)
+rotation_degrees = Vector3(0, -90, 0)
+scale = Vector3(0.83, 0.83, 0.83)
+
+[node name="television_02_1" parent="Props" instance=ExtResource("r6")]
+position = Vector3(4.02, 0.655, 0.48)
+rotation_degrees = Vector3(0, -90, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="utility_box_01_1" parent="Props" instance=ExtResource("r7")]
+position = Vector3(3.59, 0, -3.86)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="straight_1" parent="Props" instance=ExtResource("r8")]
+position = Vector3(-3.83, 2.62, -3.55)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="flange_thin_1" parent="Props" instance=ExtResource("r9")]
+position = Vector3(-3.83, 2.62, -3.07889)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="straight_2" parent="Props" instance=ExtResource("r8")]
+position = Vector3(-3.83, 2.62, -2.60778)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="flange_thin_2" parent="Props" instance=ExtResource("r9")]
+position = Vector3(-3.83, 2.62, -2.13667)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="straight_3" parent="Props" instance=ExtResource("r8")]
+position = Vector3(-3.83, 2.62, -1.66556)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="flange_thin_3" parent="Props" instance=ExtResource("r9")]
+position = Vector3(-3.83, 2.62, -1.19445)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="straight_4" parent="Props" instance=ExtResource("r8")]
+position = Vector3(-3.83, 2.62, -0.72334)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="flange_thin_4" parent="Props" instance=ExtResource("r9")]
+position = Vector3(-3.83, 2.62, -0.25223)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="straight_5" parent="Props" instance=ExtResource("r8")]
+position = Vector3(-3.83, 2.62, 0.21888)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="flange_thin_5" parent="Props" instance=ExtResource("r9")]
+position = Vector3(-3.83, 2.62, 0.68999)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="straight_6" parent="Props" instance=ExtResource("r8")]
+position = Vector3(-3.83, 2.62, 1.1611)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="flange_thin_6" parent="Props" instance=ExtResource("r9")]
+position = Vector3(-3.83, 2.62, 1.63221)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="straight_7" parent="Props" instance=ExtResource("r8")]
+position = Vector3(-3.83, 2.62, 2.10332)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="flange_thin_7" parent="Props" instance=ExtResource("r9")]
+position = Vector3(-3.83, 2.62, 2.57443)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(1, 1, 1)
+
+[node name="Legend_1" type="Label3D" parent="Props" ]
+position = Vector3(0.25, 2.46, -4.45)
+rotation_degrees = Vector3(0, 0, 0)
+text = "06   /   АРХИВ КОПИЙ"
+font = ExtResource("r10")
+font_size = 64
+pixel_size = 0.0033
+outline_size = 0
+modulate = Color(0.45, 0.57, 0.56, 1)
+shaded = true
+double_sided = false
+
+[node name="ColdAisle_1" type="OmniLight3D" parent="Lighting" ]
+position = Vector3(-1.8, 2.45, -0.66)
+light_color = Color(0.57, 0.79, 1, 1)
+light_energy = 3.4
+omni_range = 6.3
+omni_attenuation = 1.22
+shadow_enabled = true
+
+[node name="ServiceBay_1" type="OmniLight3D" parent="Lighting" ]
+position = Vector3(3.15, 2.1, -3.3)
+light_color = Color(0.95, 0.67, 0.38, 1)
+light_energy = 2.2
+omni_range = 4.4
+omni_attenuation = 1.22
+shadow_enabled = true
+
+[node name="ReturnSpill_1" type="OmniLight3D" parent="Lighting" ]
+position = Vector3(-3.65, 2.62, 2.72)
+light_color = Color(0.38, 0.7, 0.74, 1)
+light_energy = 1.35
+omni_range = 4.1
+omni_attenuation = 1.22
+shadow_enabled = true
+
+[node name="hanging_industrial_lamp_1" parent="Props" instance=ExtResource("r11")]
+position = Vector3(-1.8, 2.99, -0.66)
+rotation_degrees = Vector3(0, 0, 0)
+scale = Vector3(0.34, 0.34, 0.34)
+
+[node name="Pose0" type="Marker3D" parent="EnemySpots" ]
+position = Vector3(0, 0, 0)
+rotation = Vector3(0, -0.9, 0)
+
+[node name="Pose1" type="Marker3D" parent="EnemySpots" ]
+position = Vector3(-2, 0, 0)
+rotation = Vector3(0, 0.5, 0)
+
+[node name="Pose2" type="Marker3D" parent="EnemySpots" ]
+position = Vector3(2, 0, 3.2)
+rotation = Vector3(0, 2.8, 0)
+
+[node name="Figure" type="Marker3D" parent="AnomalyAnchors" ]
+position = Vector3(-4.3, 0, 3.8)
+rotation = Vector3(0, 2.4, 0)
+
+[node name="CameraAnchor" type="Camera3D" parent="." ]
+position = Vector3(4.4, 2.7, 3.8)
+rotation = Vector3(-0.25508, 0.898318, 0)
+fov = 64
+current = true
+far = 60.0
+
+[node name="RoomEnvironment" type="WorldEnvironment" parent="Lighting" ]
+environment = SubResource("env")
