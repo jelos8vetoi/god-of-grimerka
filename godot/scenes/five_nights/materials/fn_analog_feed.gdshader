@@ -8,6 +8,7 @@ uniform float gain = 1.0;
 uniform vec3 tint = vec3(0.94, 1.0, 0.91);
 uniform float wobble = 0.8;
 uniform float fx = 1.0;
+uniform bool stage_detail = false;
 
 uniform float switch_k = 0.0;
 uniform float switch_phase = 0.0;
@@ -43,19 +44,22 @@ void fragment() {
 	float desync = max(interference, max(lost, recovery));
 
 	// Luma bandwidth is lower horizontally. Line timing varies independently of pixel grain.
-	uv.x += fx * ((line_noise - 0.5) * (0.0015 + 0.008 * step(0.955, tear)) * wobble
+	uv.x += fx * ((line_noise - 0.5) * (0.0015 + (stage_detail ? 0.003 : 0.008) * step(0.955, tear)) * wobble
 		+ sync_bar * sin(t * 1.2) * 0.002
 		+ tear_shift * (0.37 * desync + 0.36 * switch_k * switch_bar)
 		+ sin(uv.y * 52.0 + t * 17.0) * 0.022 * bot_band * jam
 		+ sin(uv.y * 13.0 - t * 3.2) * 0.020 * haunt);
 	uv.y += fx * (switch_k * (hash(vec2(field, 3.0)) - 0.5) * 0.17
 		+ recovery * (hash(vec2(field, 9.0)) - 0.5) * 0.08);
-	vec3 sample_rgb = texture(feed, uv).rgb * 0.56;
-	sample_rgb += (texture(feed, uv - vec2(px.x * 0.92, 0.0)).rgb
-		+ texture(feed, uv + vec2(px.x * 0.92, 0.0)).rgb) * 0.22;
+	vec3 sample_rgb = texture(feed, uv).rgb;
+	if (!stage_detail) {
+		sample_rgb *= 0.56;
+		sample_rgb += (texture(feed, uv - vec2(px.x * 0.92, 0.0)).rgb
+			+ texture(feed, uv + vec2(px.x * 0.92, 0.0)).rgb) * 0.22;
+	}
 	float light = pow(max(luma(sample_rgb), 0.0), 0.88) * gain;
 	light *= 1.0 + wobble * fx * (0.026 * sin(t * 1.39) + 0.012 * sin(t * 4.2));
-	vec3 picture = (vec3(light) + (sample_rgb - luma(sample_rgb)) * 0.19) * mix(vec3(1.0), tint, 0.76);
+	vec3 picture = (vec3(light) + (sample_rgb - luma(sample_rgb)) * (stage_detail ? 0.32 : 0.19)) * mix(vec3(1.0), tint, 0.76);
 
 	// GHOST carries a red image echo. MOD still supplies the original frozen frame, with a quiet sync seam.
 	if (haunt > 0.0) {
@@ -76,10 +80,14 @@ void fragment() {
 	vec2 line_key = vec2(floor(streak_at), row) + field * vec2(7.0, 11.0);
 	float track = mix(hash(line_key), hash(line_key + vec2(1.0, 0.0)), fract(streak_at)) - 0.5;
 	float line_strength = 0.018 + 0.105 * smoothstep(0.42, 0.98, line_noise);
-	picture += (grain * noise_k * 0.77 + track * line_strength) * fx;
-	picture *= 1.0 - fx * (0.044 * visible_lines * (0.5 - scan * 0.5) + 0.029 * sync_bar);
+	float texture_strength = stage_detail ? 0.66 : 1.0;
+	picture += (grain * noise_k * 0.77 + track * line_strength * texture_strength) * fx;
+	picture *= 1.0 - fx * (0.044 * visible_lines * texture_strength * (0.5 - scan * 0.5) + 0.029 * sync_bar);
 	vec2 edge = UV - 0.5;
-	picture *= 1.0 - 0.53 * dot(edge, edge);
+	picture *= 1.0 - (stage_detail ? 0.39 : 0.53) * dot(edge, edge);
+	if (stage_detail) {
+		picture = picture / (vec3(1.0) + max(picture - 0.44, vec3(0.0)) * 0.58);
+	}
 
 	// BOT adds a rolling RF band. The source remains dimly present between the bands.
 	float rf = jam * (0.79 + 0.19 * bot_band);

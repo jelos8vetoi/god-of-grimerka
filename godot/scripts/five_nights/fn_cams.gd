@@ -1,4 +1,4 @@
-## Один 480×270 SubViewport: камера переезжает между точками, а старый канал
+## Один SubViewport: камера переезжает между точками, а старый канал
 ## держится до срыва синхронизации. MOD получает исходный снимок пустой комнаты.
 class_name FNCams
 extends Node
@@ -6,6 +6,9 @@ extends Node
 enum SignalState { NORMAL, SWITCHING, INTERFERENCE, LOST, RECOVERY }
 
 const SIZE := Vector2i(480, 270)
+const STAGE_SIZE := Vector2i(960, 540)
+const DEFAULT_ENV := preload("res://scenes/five_nights/materials/cctv_environment.tres")
+const STAGE_ENV := preload("res://scenes/five_nights/materials/cam01_environment.tres")
 const FEED_SHADER := preload("res://scenes/five_nights/materials/fn_analog_feed.gdshader")
 const SWITCH_TIME := 0.22
 const TUNE_TIME := 0.075
@@ -14,7 +17,7 @@ const IR := 0.85
 
 ## Яркость, оттенок люминофора, шум и нестабильность усиления отдельных линий.
 const LOOKS := {
-	"stage": [1.32, Vector3(1.02, 1.0, 0.88), 0.052, 0.64],
+	"stage": [1.21, Vector3(1.02, 1.0, 0.97), 0.031, 0.42],
 	"arcade": [1.28, Vector3(0.82, 0.99, 0.91), 0.071, 0.91],
 	"storage": [1.23, Vector3(1.04, 0.99, 0.79), 0.066, 0.68],
 	"hall_l": [1.27, Vector3(1.0, 0.97, 0.92), 0.045, 0.57],
@@ -38,6 +41,7 @@ var signal_state := SignalState.NORMAL
 var recovery_t := 0.0
 var was_lost := false
 var capturing := false
+var ir_strength := IR
 var frozen := {}
 var t := 0.0
 var fx_k := 1.0
@@ -55,14 +59,14 @@ func build(f: FNFacility, world: World3D) -> void:
 	add_child(vp)
 	cam = Camera3D.new()
 	cam.far = 60.0
-	cam.environment = preload("res://scenes/five_nights/materials/cctv_environment.tres")
+	cam.environment = DEFAULT_ENV
 	vp.add_child(cam)
 	mat = ShaderMaterial.new()
 	mat.shader = FEED_SHADER
 	mat.set_shader_parameter("feed", vp.get_texture())
 
 func _ir() -> void:
-	RenderingServer.global_shader_parameter_set("fn_ir", Vector4(cam.global_position.x, cam.global_position.y, cam.global_position.z, IR))
+	RenderingServer.global_shader_parameter_set("fn_ir", Vector4(cam.global_position.x, cam.global_position.y, cam.global_position.z, ir_strength))
 
 func _place_cam(id: String) -> void:
 	if id != cur:
@@ -70,6 +74,7 @@ func _place_cam(id: String) -> void:
 		recovery_t = 0.0
 	cur = id
 	var c: Dictionary = fac.cams[id]
+	_source_profile(id == "stage")
 	cam.global_position = c["pos"]
 	cam.look_at(c["look"], Vector3.UP)
 	cam.fov = float(c["fov"])
@@ -81,6 +86,15 @@ func _place_cam(id: String) -> void:
 	mat.set_shader_parameter("noise_k", look[2])
 	mat.set_shader_parameter("wobble", look[3])
 	sway = deg_to_rad(float(c.get("sway", 0.0)))
+
+func _source_profile(stage: bool) -> void:
+	var dimensions := STAGE_SIZE if stage else SIZE
+	if vp.size != dimensions:
+		vp.size = dimensions
+		vp.msaa_3d = Viewport.MSAA_2X if stage else Viewport.MSAA_DISABLED
+	ir_strength = 0.61 if stage else IR
+	cam.environment = STAGE_ENV if stage else DEFAULT_ENV
+	mat.set_shader_parameter("stage_detail", stage)
 
 ## Menu, snapshots and anomalies position the camera immediately. Player channel selection uses _tune().
 func set_cam(id: String) -> void:
@@ -94,6 +108,7 @@ func set_cam(id: String) -> void:
 func peek_office() -> void:
 	if pending != "":
 		set_cam(pending)
+	_source_profile(false)
 	cam.global_position = Vector3(1.7, 2.45, 1.45)
 	cam.look_at(Vector3(-0.2, 1.0, -0.7), Vector3.UP)
 	cam.fov = 76.0

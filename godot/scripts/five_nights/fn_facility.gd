@@ -9,6 +9,8 @@
 class_name FNFacility
 extends Node3D
 
+const StageArt := preload("res://scripts/five_nights/fn_stage_art.gd")
+
 var office: FNOffice
 var hall_l: FNCorridor             # левый коридор — сцена, собранная в редакторе
 var cams := {}                     # id → {pos, look, fov, sway}
@@ -182,53 +184,14 @@ func _hall(s: float, x: float, id: String) -> void:
 
 # ---------------- главный зал: сцена, занавес, столы праздника ----------------
 func _stage(o: Vector3) -> void:
-	_shell(o, Vector3(14, 4.2, 12))
-	office.box(o + Vector3(0, 0.45, -4.4), Vector3(8, 0.9, 3.0), MGProps.mat("wood_dark"), self)   # сцена
-	office.box(o + Vector3(0, 0.92, -2.9), Vector3(8, 0.06, 0.08), m("red"), self)
-	for k in 7:
-		var lamp := MGProps.glow(Color(1.0, 0.8, 0.4), 1.4)
-		MGProps.ball(self, o + Vector3(-3.6 + k * 1.2, 0.93, -2.86), 0.04, lamp)
-		blink.append(lamp)
-	for side in [-1.0, 1.0]:
-		var cn := node(o + Vector3(side * 3.8, 0, -5.2))
-		MGProps.curtain(cn, 1.8, 4.0)
-		var sp := put("fn_stage_speaker", o + Vector3(side * 3.4, 0.9, -3.4), -side * 0.3, Vector3(0.8, 1.7, 0.85), func(r): MGProps.speaker(r))
-		sp.scale = Vector3.ONE * 0.9
-	office.box(o + Vector3(0, 3.9, -5.4), Vector3(9.6, 0.5, 0.2), m("red"), self)
-	office.label("ОБЛАКО", o + Vector3(0, 3.35, -5.85), 260, Color(0.85, 0.08, 0.06))
-	office.label("ЦЕНТР РАЗВЛЕЧЕНИЙ И ХРАНЕНИЯ ДАННЫХ", o + Vector3(0, 2.75, -5.85), 70, Color(0.85, 0.82, 0.76))
-	# микрофон на стойке в центре сцены
-	var mic := node(o + Vector3(0.6, 0.9, -3.6))
-	MGProps.cyl(mic, Vector3(0, 0.75, 0), 0.01, 0.01, 1.5, MGProps.mat("steel"))
-	MGProps.cyl(mic, Vector3(0, 0.02, 0), 0.15, 0.15, 0.03, MGProps.mat("black"))
-	MGProps.caps(mic, Vector3(0, 1.55, 0.04), 0.03, 0.14, MGProps.mat("black"), Vector3(0.4, 0, 0))
-	MGProps.cable(self, o + Vector3(0.6, 1.0, -3.6), o + Vector3(1.6, 0.92, -4.6), 0.05, 0.008)
-	for i in 4:
-		@warning_ignore("integer_division")
-		var p := o + Vector3(-3.0 + float(i % 2) * 6.0, 0, 0.8 + float(i / 2) * 3.4)
-		# высота слота — с шарами над столом: столешница модели приходится на ~0,75 м
-		var tb := put("fn_party_table", p, float(i) * 0.15 - 0.2 + (PI if i % 2 == 1 else 0.0), Vector3(2.0, 1.4, 1.1), func(r): MGProps.party_table(r, i))
-		for c in tb.get_children():
-			if c.has_meta("balloon"):
-				balloons.append(c)
-	# гирлянда флажков через зал
-	var gl := PackedVector3Array()
-	for k in 9:
-		var tt := float(k) / 8.0
-		gl.append(o + Vector3(-6.5 + tt * 13.0, 3.6 - sin(tt * PI) * 0.6, 1.5))
-	MGProps.tube(self, gl, 0.006, MGProps.mat("rubber"))
-	for k in 16:
-		var tt := float(k + 0.5) / 16.0
-		MGProps.box(self, o + Vector3(-6.5 + tt * 13.0, 3.48 - sin(tt * PI) * 0.6, 1.5), Vector3(0.18, 0.22, 0.005), MGProps.mat("red") if k % 2 == 0 else MGProps.mat("paper"), Vector3(0, 0, PI / 4))
-	office.label("СОТРУДНИК МЕСЯЦА", o + Vector3(6.94, 2.6, -2.0), 60, Color(0.2, 0.2, 0.2), Vector3(0, -PI / 2, 0))
-	var ps := node(o + Vector3(6.93, 1.8, -2.0), -PI / 2)
-	MGProps.poster(ps, "БАЛОН", "работает без выходных · всегда улыбается", Color(0.75, 0.05, 0.05), 0.7, 0.9)
-	MGProps.litter(node(o + Vector3(0, 0, 2.2)), 12, 4.5, 1)
-	_spot("stage", o + Vector3(0, 4.0, 1.0), o + Vector3(0, 0.9, -4.4), 3.5, 28.0, Color(1.0, 0.35, 0.3))
-	_omni("stage", o + Vector3(-4, 3.8, 3), 0.35, 7.0)
-	_omni("stage", o + Vector3(4, 3.8, 3), 0.25, 7.0)
+	var room := StageArt.new()
+	room.name = "MainHall"
+	room.position = o
+	add_child(room)
+	room.build()
+	lights["stage"] = room.lights
 	_figure("stage", o + Vector3(-6.2, 0, -5.2), 0.6)
-	cams["stage"] = {"pos": o + Vector3(6.4, 3.9, 5.4), "look": o + Vector3(-0.5, 1.0, -3.0), "fov": 64.0, "sway": 7.0}
+	cams["stage"] = {"pos": o + Vector3(5.73, 3.53, 5.47), "look": o + Vector3(-0.74, 1.12, -3.58), "fov": 51.0, "sway": 1.6}
 	spots["stage"] = [_xf(o + Vector3(0, 0.9, -4.3), 0.0), _xf(o + Vector3(-2.2, 0.9, -4.6), 0.3), _xf(o + Vector3(1.8, 0, 2.2), -0.6)]
 
 # ---------------- игровая зона: автоматы, призы, ковёр ----------------
