@@ -8,7 +8,6 @@ uniform float gain = 1.0;
 uniform vec3 tint = vec3(0.94, 1.0, 0.91);
 uniform float wobble = 0.8;
 uniform float fx = 1.0;
-uniform bool stage_detail = false;
 
 uniform float switch_k = 0.0;
 uniform float switch_phase = 0.0;
@@ -69,13 +68,13 @@ void fragment() {
 
 	// A narrow horizontal aperture preserves the person and room silhouette.
 	vec2 tap = vec2(texel.x * 0.71, 0.0);
-	float aperture = stage_detail ? 0.065 : 0.105;
+	float aperture = 0.075;
 	vec3 rgb = texture(feed, uv).rgb * (1.0 - 2.0 * aperture);
 	rgb += (texture(feed, uv - tap).rgb + texture(feed, uv + tap).rgb) * aperture;
 	float source_y = luma(rgb);
 	float signal = encode_luma(pow(max(source_y, 0.0), 0.91) * gain);
 	signal *= 1.0 + wobble * fx * (0.023 * sin(t * 1.39) + 0.011 * sin(t * 4.2));
-	vec3 picture = (vec3(signal) + (rgb - source_y) * (stage_detail ? 0.23 : 0.17)) * mix(vec3(1.0), tint, 0.67);
+	vec3 picture = (vec3(signal) + (rgb - source_y) * 0.21) * mix(vec3(1.0), tint, 0.67);
 
 	// MOD's splice and GHOST's echo belong to the existing game events.
 	float splice = 1.0 - smoothstep(0.0, 0.009, abs(UV.y - (0.966 + sin(t * 5.8) * 0.007)));

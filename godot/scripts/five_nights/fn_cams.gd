@@ -5,9 +5,9 @@ extends Node
 
 enum SignalState { NORMAL, SWITCHING, INTERFERENCE, LOST, RECOVERY }
 
-const SIZE := Vector2i(480, 270)
-const STAGE_SIZE := Vector2i(960, 540)
-const DEFAULT_ENV := preload("res://scenes/five_nights/materials/cctv_environment.tres")
+const SIZE := Vector2i(960, 540)
+const OFFICE_PEEK_ENV := preload("res://scenes/five_nights/materials/cctv_environment.tres")
+const DEFAULT_ENV := preload("res://scenes/five_nights/materials/room_camera_environment.tres")
 const STAGE_ENV := preload("res://scenes/five_nights/materials/cam01_environment.tres")
 const FEED_SHADER := preload("res://scenes/five_nights/materials/fn_analog_feed.gdshader")
 const SWITCH_TIME := 0.22
@@ -18,14 +18,14 @@ const IR := 0.85
 ## Яркость, оттенок люминофора, шум и нестабильность усиления отдельных линий.
 const LOOKS := {
 	"stage": [1.21, Vector3(1.02, 1.0, 0.97), 0.031, 0.42],
-	"arcade": [1.28, Vector3(0.82, 0.99, 0.91), 0.071, 0.91],
-	"storage": [1.23, Vector3(1.04, 0.99, 0.79), 0.066, 0.68],
-	"hall_l": [1.27, Vector3(1.0, 0.97, 0.92), 0.045, 0.57],
-	"hall_r": [1.34, Vector3(0.90, 0.97, 0.92), 0.061, 0.83],
-	"server": [1.26, Vector3(0.78, 0.95, 1.04), 0.042, 0.46],
-	"vent": [1.24, Vector3(0.88, 0.95, 0.84), 0.086, 1.05],
-	"power": [1.28, Vector3(1.02, 0.96, 0.81), 0.057, 1.12],
-	"room9": [1.19, Vector3(1.03, 0.84, 0.80), 0.074, 0.97],
+	"arcade": [1.23, Vector3(0.94, 1.00, 0.96), 0.046, 0.62],
+	"storage": [1.20, Vector3(1.02, 0.99, 0.91), 0.040, 0.52],
+	"hall_l": [1.18, Vector3(1.00, 0.99, 0.94), 0.039, 0.56],
+	"hall_r": [1.22, Vector3(0.97, 1.00, 0.94), 0.044, 0.62],
+	"server": [1.25, Vector3(0.89, 0.98, 1.01), 0.038, 0.51],
+	"vent": [1.24, Vector3(0.95, 1.00, 0.93), 0.049, 0.64],
+	"power": [1.21, Vector3(1.02, 0.98, 0.89), 0.045, 0.60],
+	"room9": [1.18, Vector3(1.02, 0.93, 0.87), 0.048, 0.59],
 }
 
 var fac: FNFacility
@@ -54,7 +54,7 @@ func build(f: FNFacility, world: World3D) -> void:
 	vp = SubViewport.new()
 	vp.size = SIZE
 	vp.world_3d = world
-	vp.msaa_3d = Viewport.MSAA_DISABLED
+	vp.msaa_3d = Viewport.MSAA_2X
 	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	add_child(vp)
 	cam = Camera3D.new()
@@ -88,13 +88,8 @@ func _place_cam(id: String) -> void:
 	sway = deg_to_rad(float(c.get("sway", 0.0)))
 
 func _source_profile(stage: bool) -> void:
-	var dimensions := STAGE_SIZE if stage else SIZE
-	if vp.size != dimensions:
-		vp.size = dimensions
-		vp.msaa_3d = Viewport.MSAA_2X if stage else Viewport.MSAA_DISABLED
 	ir_strength = 0.61 if stage else IR
 	cam.environment = STAGE_ENV if stage else DEFAULT_ENV
-	mat.set_shader_parameter("stage_detail", stage)
 
 ## Menu, snapshots and anomalies position the camera immediately. Player channel selection uses _tune().
 func set_cam(id: String) -> void:
@@ -108,7 +103,8 @@ func set_cam(id: String) -> void:
 func peek_office() -> void:
 	if pending != "":
 		set_cam(pending)
-	_source_profile(false)
+	ir_strength = IR
+	cam.environment = OFFICE_PEEK_ENV
 	cam.global_position = Vector3(1.7, 2.45, 1.45)
 	cam.look_at(Vector3(-0.2, 1.0, -0.7), Vector3.UP)
 	cam.fov = 76.0

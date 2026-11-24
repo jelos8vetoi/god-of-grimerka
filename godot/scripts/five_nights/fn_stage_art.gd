@@ -148,9 +148,9 @@ func _lighting() -> void:
 	_spot("UpperBackdrop", Vector3(-0.78, 3.92, -4.51), Vector3(-0.10, 2.55, -5.91),
 		1.55, 51.0, 4.1, Color("#e0c49f"))
 	_spot("PosterWash", Vector3(-4.81, 3.21, -0.93), Vector3(-6.48, 1.19, -1.60),
-		2.38, 44.0, 5.5, Color("#e7d4ae"))
+		1.75, 42.0, 5.0, Color("#e7d4ae"))
 	_spot("HouseSpill", Vector3(4.46, 3.74, 3.86), Vector3(2.0, 0.72, 1.20),
-		1.67, 45.0, 7.0, Color("#c1c6b7"))
+		1.10, 41.0, 5.9, Color("#c1c6b7"))
 
 func _stage_fixture(from: Vector3, aim: Vector3) -> void:
 	var direction := (aim - from).normalized()
