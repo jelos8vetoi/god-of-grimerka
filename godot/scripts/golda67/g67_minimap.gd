@@ -242,7 +242,7 @@ func goal() -> Dictionary:
 			return {"text": "Найди КРОТА", "pos": _pt("krot")}
 		if not bool(G.run.get("rested", false)) and p.hp < p.max_hp * 0.7:
 			return {"text": "Подготовься к встрече с Мишей: беседка или шаурма", "pos": G67Dvor2.to3(G67Dvor2.REST.x, G67Dvor2.REST.y)}
-		return {"text": "Победи Мишу — коробка на севере", "pos": dv.court_center() + Vector3(0, 0, dv.court.size.y * 0.5 + 1.5)}
+		return {"text": "Победи Мишу — коробка на севере", "pos": dv.court_center() + Vector3(0, 0, dv.court.size.y * 0.5 - 3.5)}      # точка внутри коробки, за калиткой: бой начинается, когда герой вошёл
 	if G67District.is_podzemka():
 		if G.room_state == "boss":
 			return {"text": "Победи FORTUNA 812", "pos": null}

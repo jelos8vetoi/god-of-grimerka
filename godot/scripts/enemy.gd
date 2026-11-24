@@ -437,6 +437,12 @@ func _physics_process(dt: float) -> void:
 				var nv: Vector3 = game.golda.nav_dir(self, p.global_position, dt)
 				if nv != Vector3.ZERO:
 					mv = nv
+				if game.golda.turf != null and not game.golda.turf.active.is_empty():      # новый двор: за край своей территории враг не уходит
+					var oc: Vector3 = global_position - game.arena_c
+					if absf(oc.x) > game.arena_h.x - 1.0 or absf(oc.z) > game.arena_h.y - 1.0:
+						var back := Vector3(-oc.x, 0.0, -oc.z).normalized()
+						if mv.dot(back) < 0.2:
+							mv = back                # стрелок, пятясь, упирается в границу и дальше не отходит
 			if p.state == "dead":
 				mv = Vector3.ZERO
 			var wet: float = (slow_k if slow_t > 0.0 else 1.0) * (1.25 if buff_t > 0.0 else 1.0)       # облит водой — медленнее, усилен — быстрее

@@ -3777,7 +3777,8 @@ func _krot_after(kr: Rig) -> void:
 
 func talk_krot() -> void:
 	var k := krot_next()
-	if k.is_empty() or (place == "run" and (alive() > 0 or not pending.is_empty())):
+	var fighting: bool = (room_state != "open") if turf != null else (alive() > 0 or not pending.is_empty())      # в новом дворе враги стоят на постах весь забег — мешает только идущий бой
+	if k.is_empty() or (place == "run" and fighting):
 		game.toast("Сначала разберись с этими")
 		return
 	var cctv: String = {"krot4": "PZ_KROT04_CCTV", "krot5": "PZ_KROT05_CCTV"}.get(String(k["id"]), "")

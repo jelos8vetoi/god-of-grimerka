@@ -440,9 +440,7 @@ func _run_tick(gg, g, p, dt: float) -> void:
 		var ctr = null
 		if gg.turf != null and not gg.turf.active.is_empty():
 			ctr = gg.turf.active["c"]
-		if ctr != null and p.global_position.distance_to(ctr) > 24.0:
-			go(ctr)                          # за убегающим с территории не гонимся: иначе бой засчитают брошенным
-		elif fd > 2.1:
+		if fd > 2.1:
 			hold(KEY_C, false)
 			go(foe.global_position)
 		else:
