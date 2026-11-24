@@ -1570,7 +1570,9 @@ func _tension(R: FiveNightsRoot, st_in: FNNight) -> void:
 			continue
 		if R.fac.cams.has(id):
 			R.cams.set_cam(id)
-			if absf(float(R.cams.mat.get_shader_parameter("gain")) - float(FNCams.LOOKS[id]["gain"])) > 0.001:
+			var look = FNCams.LOOKS[id]          # у камер P2 характер — массив [яркость, оттенок, зерно, …], раньше был словарь
+			var look_gain: float = float(look[0]) if look is Array else float(look["gain"])
+			if absf(float(R.cams.mat.get_shader_parameter("gain")) - look_gain) > 0.001:
 				applied = false
 	ok(all_looks and applied, "у всех камер свой характер (%d записей), set_cam применяет яркость" % ids.size())
 	for id in saved:
