@@ -62,7 +62,6 @@ var msg_t := 0.0
 var sub_box: PanelContainer
 var sub_l: Label
 var sub_skip: Control
-var hint_box: VBoxContainer
 var tablet: Control
 var tablet_k := 0.0
 var tablet_pose := -1.0
@@ -114,15 +113,10 @@ var tip_box: PanelContainer
 var tip_l: Label
 var tip_id := ""                    # над какой плашкой мышь
 var tip_3d := ""                    # над какой кнопкой будки мышь (ставит fn_root)
-## Пульт — учебная помощь: виден первые DECK_LEARN секунд первой ночи нового сохранения, потом скрыт; F1 закрепляет его
-## (deck_pin, настройка «deck» в сохранении). Без пульта действия устройств коротко подписывает toast.
-const DECK_LEARN := 75.0
+## Расширенный пульт включается через F1 или настройки.
 const TOAST_LEN := 1.6
-const HINT_LEN := 6.0
 var deck_pin := false
-var deck_learn_left := 0.0
 var deck_shown := false
-var hint_left := 0.0
 var toast_l: Label
 var toast_t := 0.0
 var look_hint := false              # первая ночь: подсказка «как осмотреться»
@@ -220,31 +214,23 @@ func setup(r) -> void:
 	msg_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	msg_l.set_meta("audit_skip", true)
 	hud.add_child(msg_l)
-	# звонок: узкая плашка снизу по центру — значок, реплика, «F — сбросить»
-	sub_box = MGUI.panel(true, null, MGUI.S3)
+	# Небольшие субтитры с обводкой для контраста поверх ярких экранов.
+	sub_box = MGUI.panel(true, null, MGUI.S1)
+	sub_box.add_theme_stylebox_override("panel", MGUI.box(Color(0.01, 0.01, 0.012, 0.32), 3, 0, Color.TRANSPARENT, MGUI.S1))
 	sub_box.visible = false
 	hud.add_child(sub_box)
-	var sh2 := MGUI.hbox(MGUI.S3)
-	sub_box.add_child(sh2)
-	var sic := MGIcon.make("call", 18, MGUI.TEXT_2)
-	sic.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	sh2.add_child(sic)
-	sub_l = MGUI.label("", "mono", Color(0.92, 0.9, 0.84), 560.0)
-	sh2.add_child(sub_l)
-	sub_skip = MGUI.hints([["F", "сбросить"]])
-	sub_skip.size_flags_vertical = Control.SIZE_SHRINK_END
-	sh2.add_child(sub_skip)
-	# без пульта на экране первые секунды ночи напоминаем, как его вернуть и где справка
-	hint_box = MGUI.vbox(MGUI.S1)
-	hint_box.visible = false
-	hint_box.modulate.a = 0.55
-	hint_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(hint_box)
-	var hr := MGUI.hints([["F1", "пульт"], ["H", "справка"]])
-	hr.alignment = BoxContainer.ALIGNMENT_END
-	hint_box.add_child(hr)
+	var subtitles := MGUI.vbox(2)
+	sub_box.add_child(subtitles)
+	sub_l = _out(MGUI.label("", "small", Color(0.92, 0.9, 0.84)))
+	sub_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	subtitles.add_child(sub_l)
+	var skip_label := _out(MGUI.label("F  Прервать звонок", "micro", MGUI.TEXT_2))
+	skip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitles.add_child(skip_label)
+	sub_skip = skip_label
 	_deck()
-	deck_pin = bool((FNSave.v("settings") as Dictionary).get("deck", false))
+	deck_pin = extended_hints_enabled()
 	_tablet()
 	_dark()
 	_pause()
@@ -294,11 +280,12 @@ func _deck() -> void:
 	hud.add_child(toast_l)
 	toast_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	toast_l.visible = false
-	tip_box = MGUI.panel(true, null, MGUI.S3)
+	tip_box = MGUI.panel(true, null, MGUI.S1)
+	tip_box.add_theme_stylebox_override("panel", MGUI.box(Color(0.01, 0.01, 0.012, 0.53), 3, 0, Color.TRANSPARENT, MGUI.S1))
 	tip_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tip_box.visible = false
 	hud.add_child(tip_box)
-	tip_l = MGUI.label("", "small", MGUI.TEXT, 520.0)
+	tip_l = _out(MGUI.label("", "small", MGUI.TEXT))
 	tip_box.add_child(tip_l)
 
 ## состояние устройства для пульта: [надпись, цвет, включено, недоступно, что сделает нажатие]
@@ -341,59 +328,69 @@ func dev_tip(st: FNNight, id: String) -> String:
 	return "%s   [%s]\n%s" % [head, D["key"], D["tip"]]
 
 func _deck_tick(st: FNNight) -> void:
-	var on2: bool = tablet_k < 0.5 and not st.power_out and (card == null or card.get_child_count() == 0) and not pause_box.visible and String(root.state) == "night"
-	on2 = on2 and (deck_pin or deck_learn_left > 0.0)
-	deck.visible = on2
-	if on2 != deck_shown:
-		deck_shown = on2
+	var office_visible: bool = tablet_k < 0.5 and not st.power_out and card.get_child_count() == 0 and not pause_box.visible and String(root.state) == "night"
+	var detailed := office_visible and deck_pin
+	deck.visible = detailed
+	if detailed != deck_shown:
+		deck_shown = detailed
 		_layout.call_deferred()
-	var hover := tip_id if tip_id != "" else tip_3d
-	for id in deck_rows:
-		var r: Dictionary = deck_rows[id]
-		var s := dev_state(st, String(id))
-		(r["state"] as Label).text = String(s[0])
-		(r["state"] as Label).add_theme_color_override("font_color", s[1])
-		var sb: StyleBoxFlat = r["sb"]
-		var on: bool = s[2]
-		var dis: bool = s[3]
-		sb.bg_color = Color(0.2, 0.03, 0.03, 0.62) if on and (s[1] as Color) == RED else (Color(0.2, 0.16, 0.04, 0.62) if on else Color(0.03, 0.03, 0.04, 0.62))
-		sb.border_color = (s[1] as Color) if on else (Color(0.95, 0.93, 0.88) if hover == id else Color(0.24, 0.24, 0.27))
-		sb.set_border_width_all(2 if on or hover == id else 1)
-		(r["name"] as Label).add_theme_color_override("font_color", MGUI.TEXT_3 if dis else MGUI.TEXT)
-		(r["panel"] as Control).modulate.a = 0.6 if dis else 1.0
-	var tip := dev_tip(st, hover) if on2 and hover != "" else ""
-	if tip == "" and on2 and look_hint:
-		tip = "Осмотреться — мышь к краю экрана или стрелки ← →. Пульт внизу: клавиша, устройство, состояние."
-	if tip_l.text != tip:
+	var hover := tip_id if detailed and tip_id != "" else tip_3d
+	var tip := ""
+	if detailed:
+		for id in deck_rows:
+			var r: Dictionary = deck_rows[id]
+			var s := dev_state(st, String(id))
+			(r["state"] as Label).text = String(s[0])
+			(r["state"] as Label).add_theme_color_override("font_color", s[1])
+			var sb: StyleBoxFlat = r["sb"]
+			var on: bool = s[2]
+			var dis: bool = s[3]
+			sb.bg_color = Color(0.2, 0.03, 0.03, 0.62) if on and (s[1] as Color) == RED else (Color(0.2, 0.16, 0.04, 0.62) if on else Color(0.03, 0.03, 0.04, 0.62))
+			sb.border_color = (s[1] as Color) if on else (Color(0.95, 0.93, 0.88) if hover == id else Color(0.24, 0.24, 0.27))
+			sb.set_border_width_all(2 if on or hover == id else 1)
+			(r["name"] as Label).add_theme_color_override("font_color", MGUI.TEXT_3 if dis else MGUI.TEXT)
+			(r["panel"] as Control).modulate.a = 0.6 if dis else 1.0
+		tip = dev_tip(st, hover)
+	elif office_visible and deck_rows.has(hover):
+		var data: Dictionary = deck_rows[hover]["d"]
+		var title: String = data["name"]
+		tip = "%s  ·  %s" % [data["key"], title.left(1) + title.substr(1).to_lower()]
+	if office_visible and tip == "":
+		if hover == "phone" and sub_box.visible:
+			tip = "F  ·  Прервать звонок"
+		elif look_hint:
+			tip = "← →  Осмотреться     ПРОБЕЛ  Планшет     H  Справка"
+	var show_tip := tip != "" and toast_t <= 0.0
+	if tip_l.text != tip or tip_box.visible != show_tip:
 		tip_l.text = tip
-		tip_box.visible = tip != ""
+		tip_box.visible = show_tip
 		_layout.call_deferred()
-	elif tip == "" and tip_box.visible:
-		tip_box.visible = false
 
-## начало ночи: на первой ночи нового сохранения пульт виден, в остальные — только если закреплён (F1)
-func night_begin(n: int, first_time: bool) -> void:
+func night_begin(_night: int, _first_time: bool) -> void:
 	tablet_k = 0.0
 	tablet_pose = -1.0
 	tablet.hide()
 	cam9_btn.hide()
-	deck_learn_left = DECK_LEARN if n == 0 and first_time else 0.0
-	hint_left = 0.0 if deck_pin or deck_learn_left > 0.0 else HINT_LEN
+	tip_id = ""
+	tip_3d = ""
 	toast_t = 0.0
 	toast_l.visible = false
 
-## F1: закрепить пульт или убрать
+static func extended_hints_enabled() -> bool:
+	return bool((FNSave.v("settings") as Dictionary).get("deck", false))
+
+## F1 и меню меняют одну настройку.
 func toggle_deck_pin() -> void:
 	deck_pin = not deck_pin
-	deck_learn_left = 0.0
-	hint_left = 0.0
+	tip_id = ""
+	toast_t = 0.0
 	var cfg: Dictionary = FNSave.v("settings")
 	cfg["deck"] = deck_pin
 	FNSave.save()
 
-## без пульта: «<устройство> — <состояние>» внизу по центру на TOAST_LEN секунд
+## В обучении кратко подтверждаем действие устройства.
 func toast(id: String) -> void:
-	if deck_shown or tablet_k > 0.5 or root.st == null or root.st.power_out or not deck_rows.has(id):
+	if not look_hint or deck_pin or tablet_k > 0.5 or root.st == null or root.st.power_out or not deck_rows.has(id):
 		return
 	var D: Dictionary = deck_rows[id]["d"]
 	toast_l.text = "%s — %s" % [D["name"], dev_state(root.st, id)[0]]
@@ -405,7 +402,7 @@ func _toast_tick(st: FNNight, dt: float) -> void:
 	toast_t = maxf(0.0, toast_t - dt)
 	var k := minf(minf(toast_t, TOAST_LEN - toast_t) / 0.15, 1.0)
 	toast_l.modulate.a = clampf(k, 0.0, 1.0)
-	toast_l.visible = toast_t > 0.0 and not deck_shown and tablet_k < 0.5 and not st.power_out
+	toast_l.visible = toast_t > 0.0 and not deck_shown and tablet_k < 0.5 and not st.power_out and not pause_box.visible
 
 ## надпись поверх сцены: тёмная обводка, чтобы читалась на любом фоне
 func _out(l: Label) -> Label:
@@ -438,24 +435,25 @@ func _layout() -> void:
 		var dw := deck.get_combined_minimum_size().x
 		deck.position = Vector2((s.x - dw) * 0.5, s.y - 12.0 - DECK_H)
 		deck_top = deck.position.y if deck_shown else s.y - EDGE + 10.0
+		tip_l.custom_minimum_size.x = minf(520.0, s.x - EDGE * 2.0) if deck_shown else 0.0
+		tip_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if deck_shown else TextServer.AUTOWRAP_OFF
 		tip_box.reset_size()
 		var ts := tip_box.get_combined_minimum_size()
 		tip_box.position = Vector2((s.x - ts.x) * 0.5, deck_top - ts.y - 8.0)
 	power_box.reset_size()
-	power_box.position = Vector2(EDGE, deck_top - 10.0 - maxf(64.0, power_box.get_combined_minimum_size().y))
+	power_box.position = Vector2(EDGE, deck_top - 10.0 - power_box.get_combined_minimum_size().y)
 	alarm_l.position = Vector2(s.x * 0.2, EDGE)
 	alarm_l.size = Vector2(s.x * 0.6, 30)
 	msg_l.position = Vector2(s.x * 0.25, s.y * 0.64)
 	msg_l.size = Vector2(s.x * 0.5, 50)
+	sub_l.custom_minimum_size.x = minf(500.0, s.x - EDGE * 2.0)
 	sub_box.reset_size()
 	# звонок — над плашкой генератора, если она на экране (обе живут снизу по центру)
 	var lift := 110.0 if dark_box != null and dark_box.visible else 0.0
-	var tip_h: float = (tip_box.get_combined_minimum_size().y + 8.0) if tip_box != null and tip_box.visible else 0.0
+	var tip_h: float = (tip_box.get_combined_minimum_size().y + 8.0) if tip_box.visible else (24.0 if toast_l.visible else 0.0)
 	sub_box.position = Vector2((s.x - sub_box.get_combined_minimum_size().x) * 0.5, s.y - EDGE - sub_box.get_combined_minimum_size().y - (70 if deck_shown or lift > 0.0 else 10) - lift - tip_h)
 	toast_l.reset_size()
 	toast_l.position = Vector2((s.x - toast_l.get_combined_minimum_size().x) * 0.5, s.y - 12.0 - 34.0)
-	hint_box.reset_size()
-	hint_box.position = Vector2(s.x - EDGE - hint_box.get_combined_minimum_size().x, s.y - EDGE - hint_box.get_combined_minimum_size().y)
 	if tablet != null:
 		_cctv_layout(s)
 		_pose_tablet()
@@ -797,13 +795,13 @@ func tick(st: FNNight, dt: float, cams: FNCams) -> void:
 	@warning_ignore("integer_division")
 	var e_txt := ("хватит на ~%d:%02d" % [int(eta) / 60, int(eta) % 60]) if not hide_usage and not st.power_out else ("нагрузка: нет данных" if hide_usage else "")
 	eta_l.text = e_txt
+	var show_eta := hide_usage or deck_pin
+	if eta_l.visible != show_eta:
+		eta_l.visible = show_eta
+		_layout.call_deferred()
 	_tablet_motion(st, dt)
 	clock_box.visible = tablet_k < 0.75
 	power_box.visible = tablet_k < 0.75 and not st.power_out
-	if String(root.state) == "night" and not root.paused and root.intro_t <= 0.0:
-		deck_learn_left = maxf(0.0, deck_learn_left - dt)
-		hint_left = maxf(0.0, hint_left - dt)
-	hint_box.visible = tablet_k < 0.60 and hint_left > 0.0 and not deck_shown and String(root.state) == "night"
 	_deck_tick(st)
 	_toast_tick(st, dt)
 	# ложная тревога MOD
@@ -825,7 +823,7 @@ func alarm(text: String) -> void:
 	alarm_l.text = text
 	alarm_t = 3.5
 
-## реплика звонка: плашка снизу по центру; can_skip — показать «F — сбросить»
+## Реплика звонка и необязательная подсказка клавиши.
 func sub(text: String, can_skip := false) -> void:
 	sub_l.text = text
 	sub_box.visible = text != ""
@@ -834,7 +832,7 @@ func sub(text: String, can_skip := false) -> void:
 
 ## подсказки клавиш будки (первая ночь): "office" — показать, "" — убрать
 func hints(kind: String) -> void:
-	look_hint = kind != ""                 # клавиши теперь всегда на пульте; на первой ночи добавляется «как осмотреться»
+	look_hint = kind != ""
 
 func show_dark(on: bool, k := 0.0) -> void:
 	if dark_box.visible != on:
