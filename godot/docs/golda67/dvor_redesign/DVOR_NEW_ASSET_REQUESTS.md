@@ -89,3 +89,25 @@ Sketchfab Standard: её исходник нельзя распространя�
 | 11 | Автобус или маршрутка, грузовик | остановка, улицы | `paz bus low poly`, `gazelle marshrutka`, `soviet truck` | LOW |
 | 12 | Школьный стадион: ворота, трибунка | поле рядом с коробкой | `football goal low poly`, `soviet schoolyard` | LOW |
 | 13 | Заборы: бетонный «ромбик», сетка-рабица | границы ГСК, стройки, стадиона | `soviet concrete fence`, `chain link fence low poly` | LOW |
+
+## Модели торговцев (2026-11-24)
+
+Сейчас торговцы — существующие жители с другим оттенком. Как только файл появится в `godot/assets/golda67/`, игра возьмёт его сама (`G67DvorFolk.TRADERS[*].own`); скелет поставлю сам (`tools/rig-horror.py`, шаблон Пахана). Формат GLB, T-поза, лицом вперёд.
+
+### Петрович, гаражный мастер — `g67_npc_petrovich.glb`
+
+- **Путь:** `godot/assets/golda67/g67_npc_petrovich.glb`
+- **Промпт (967 символов):**
+
+```text
+A sturdy Russian garage mechanic in his late fifties, calm squinting face, grey stubble, short grey hair under a black knitted cap pushed up on the forehead. Faded dark green quilted work vest over a thick brown sweater with rolled sleeves, oil-stained canvas apron with one big front pocket, grey work trousers, heavy brown boots. Fingerless wool gloves, a wrench handle and a rag stick out of the apron pocket, a pencil behind the ear. Broad shoulders, big hands, slight belly. Colours: dark green, brown, grey, one bright accent in a red neckerchief. Stylized low-poly 3D game character, chibi proportions (big head, short limbs), bold readable silhouette, hand-painted textures, muted post-soviet colours with one bright accent. Full body, strict T-pose, arms straight out to the sides, legs apart, fingers simplified, clothes not fused to arms or between legs, clean topology for rigging. No readable text. Single character, no ground, no background, game-ready.
+```
+
+### Жора-перекуп — `g67_npc_zhora.glb`
+
+- **Путь:** `godot/assets/golda67/g67_npc_zhora.glb`
+- **Промпт (901 символов):**
+
+```text
+A lean shifty Russian street reseller in his thirties, narrow sly face, thin moustache, sharp eyes, gold tooth in a half-smile. Flat grey cap, long black leather coat open at the front, burgundy turtleneck, dark trousers, pointed black shoes. Several wristwatches on the left forearm over the sleeve, a thick gold chain, a small checkered market bag on the right shoulder. Thin body, coat tails kept clear of the legs. Colours: black, burgundy, grey, one bright accent in gold jewellery. Stylized low-poly 3D game character, chibi proportions (big head, short limbs), bold readable silhouette, hand-painted textures, muted post-soviet colours with one bright accent. Full body, strict T-pose, arms straight out to the sides, legs apart, fingers simplified, clothes not fused to arms or between legs, clean topology for rigging. No readable text. Single character, no ground, no background, game-ready.
+```

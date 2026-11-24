@@ -65,11 +65,11 @@ const FOLK := [
 
 ## Торговцы: в забеге один из двух (run["trader"]). Модели — временные: существующие жители с другим оттенком.
 const TRADERS := {
-	"petrovich": {"code": "PT", "title": "ПЕТРОВИЧ", "model": "g67_npc_ushanka", "h": 1.74, "tint": Color(0.62, 0.56, 0.5), "at": [-54.6, 20.0], "look": [-48.0, 20.0], "base": "NHips", "alts": ["NThink", "NCross"],
+	"petrovich": {"code": "PT", "title": "ПЕТРОВИЧ", "model": "g67_npc_ushanka", "own": "g67_npc_petrovich", "h": 1.74, "tint": Color(0.62, 0.56, 0.5), "at": [-54.6, 20.0], "look": [-48.0, 20.0], "base": "NHips", "alts": ["NThink", "NCross"],
 		"hello": ["PT|Заходи. Что разболталось?", "PT|Опять ты. Десятку мою не видел?"], "show": ["PT|Вот это — на руку. Вот это — на спину. А это вообще на всю жизнь."],
 		"buy": ["PT|Держи. Гарантия — пока не сломается.", "PT|Подтянул. Теперь не разболтается. Ну, не сразу."], "poor": ["PT|Это не цена, это себестоимость. Приходи, как наскребёшь."],
 		"fight": ["PT|Ворота закрыл. Меня нет."], "bye": ["PT|Давай. И не бей этим по железу. По людям — можно."], "hit": ["PT|Ты чего?! Всё, закрыто. Иди отсюда, пока ключ на тридцать два не достал."], "closed": "Петрович закрыл ворота: «Сегодня без меня»"},
-	"zhora": {"code": "ZH", "title": "ЖОРА-ПЕРЕКУП", "model": "g67_npc_taxi_driver", "h": 1.78, "tint": Color(0.42, 0.4, 0.44), "at": [94.6, 41.0], "look": [99.0, 37.0], "base": "NCarLean", "alts": ["NTaxiPhone", "NPockets"],
+	"zhora": {"code": "ZH", "title": "ЖОРА-ПЕРЕКУП", "model": "g67_npc_taxi_driver", "own": "g67_npc_zhora", "h": 1.78, "tint": Color(0.42, 0.4, 0.44), "at": [94.6, 41.0], "look": [99.0, 37.0], "base": "NCarLean", "alts": ["NTaxiPhone", "NPockets"],
 		"hello": ["ZH|Тихо. Ты один? Точно один? Подходи.", "ZH|О, постоянный. Для постоянных у меня отдельный багажник. Шучу. Один он."], "show": ["ZH|Последнее. Вот прям последнее. Вчера было два."],
 		"buy": ["ZH|Это — для своих. Ты свой? Ну вот и будешь."], "poor": ["ZH|Без денег я только здороваюсь."],
 		"fight": ["ZH|Меня тут не было."], "bye": ["ZH|Ты меня не видел. Я тебя — тем более."], "hit": ["ZH|Понял. Багажник закрыт. И ты меня точно не видел."], "closed": "Жора захлопнул багажник и сидит в машине"},
@@ -106,6 +106,11 @@ static func _dir(yaw: float) -> Vector3:
 
 func _spawn(d: Dictionary, key: String) -> Dictionary:
 	var path := MODELS + String(d["model"]) + ".glb"
+	if d.has("own") and ResourceLoader.exists(MODELS + String(d["own"]) + ".glb"):      # своя модель от владельца — вместо перекрашенного жителя
+		d = d.duplicate()
+		d["model"] = d["own"]
+		d.erase("tint")
+		path = MODELS + String(d["own"]) + ".glb"
 	if not ResourceLoader.exists(path):
 		return {}
 	var at: Array = d["at"]
