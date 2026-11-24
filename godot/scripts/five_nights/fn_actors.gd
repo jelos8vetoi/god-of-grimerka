@@ -18,6 +18,8 @@ var LOOK := {
 var office: FNOffice
 var fac: FNFacility
 var rigs := {}                     # id → Rig
+var door_visuals := {}
+var door_lit := {}
 var face := {}                     # id → {eyes, maw}
 var place_key := {}                # id → где поставлен (чтобы не переставлять каждый кадр)
 var t := 0.0
@@ -275,6 +277,7 @@ func tick(st: FNNight, dt: float) -> void:
 	for id in FNData.ORDER:
 		var e: FNEnemy = st.enemies[id]
 		var r: Rig = rigs[id]
+		_door_appearance(id, r, e.spot in ["door_l", "door_r"] and not e.entered)
 		if e.level <= 0 and id != "balon":
 			r.visible = false
 			continue
@@ -454,9 +457,71 @@ func maw(id: String, k: float) -> void:
 
 func hide_all() -> void:
 	for id in rigs:
-		(rigs[id] as Rig).visible = false
+		var rig: Rig = rigs[id]
+		rig.visible = false
+		_door_appearance(String(id), rig, false)
 		scare_pose(String(id), false)
 	place_key.clear()
+
+## Переключаем локальные копии материалов только на пороге. Исходные материалы
+## рига и его IR-проход возвращаются в комнатах и перед скримером.
+func _door_appearance(id: String, rig: Rig, at_door: bool) -> void:
+	if bool(door_lit.get(id, false)) == at_door:
+		return
+	if not door_visuals.has(id):
+		door_visuals[id] = _door_bindings(rig)
+	door_lit[id] = at_door
+	var bound: Array = door_visuals[id]
+	for entry in bound:
+		var node: VisualInstance3D = entry[0]
+		node.layers = FNOffice.DOOR_LAYER if at_door else int(entry[1])
+		if node is Label3D:
+			(node as Label3D).shaded = at_door or bool(entry[2])
+		elif node is MeshInstance3D:
+			var mesh := node as MeshInstance3D
+			for binding: Array in entry[2]:
+				var surface: int = binding[0]
+				var material: Material = binding[2] if at_door else binding[1]
+				if surface < 0:
+					mesh.material_override = material
+				else:
+					mesh.set_surface_override_material(surface, material)
+
+func _door_bindings(rig: Rig) -> Array:
+	var bindings: Array = []
+	var copies := {}
+	for node in rig.find_children("*", "VisualInstance3D", true, false):
+		var visual := node as VisualInstance3D
+		if visual is Label3D:
+			bindings.append([visual, visual.layers, (visual as Label3D).shaded])
+			continue
+		var mesh := visual as MeshInstance3D
+		if mesh == null or mesh.mesh == null:
+			continue
+		var surfaces: Array = []
+		if mesh.material_override != null:
+			var original := mesh.material_override
+			surfaces.append([-1, original, _door_material(original, copies)])
+		else:
+			for i in mesh.mesh.get_surface_count():
+				var source := mesh.get_active_material(i)
+				if source != null:
+					surfaces.append([i, mesh.get_surface_override_material(i), _door_material(source, copies)])
+		bindings.append([mesh, mesh.layers, surfaces])
+	return bindings
+
+func _door_material(source: Material, copies: Dictionary) -> BaseMaterial3D:
+	if copies.has(source):
+		return copies[source]
+	var local := source.duplicate() as BaseMaterial3D if source is BaseMaterial3D else StandardMaterial3D.new()
+	local.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	local.disable_ambient_light = true
+	local.emission_enabled = false
+	local.metallic_specular = minf(local.metallic_specular, 0.16)
+	local.roughness = maxf(local.roughness, 0.44)
+	local.disable_receive_shadows = false
+	copies[source] = local
+	return local
 
 ## после скримера: модель возвращается на своё место в риге
 func scare_pose(id: String, _on: bool) -> void:

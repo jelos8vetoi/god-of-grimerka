@@ -14,6 +14,8 @@ const YAW_MAX := deg_to_rad(64.0)
 const LOOK_RATE := 8.0
 const W := 2.2
 const DOOR_Z := -0.4
+# Слой для ниши и стоящих в ней ригов; тот же бит, что в P0.
+const DOOR_LAYER := 2
 
 @onready var cam: Camera3D = $PlayerCamera
 @onready var rest_view := cam.transform
@@ -112,6 +114,7 @@ func _ready() -> void:
 	_strip_old_fan()
 	_bind_door("l", $LeftDoor, $LeftControls, "A", "Q")
 	_bind_door("r", $RightDoor, $RightControls, "D", "E")
+	_isolate_door_lighting()
 	_bind_button("phone", $Console/PhoneHit, 0.1)
 	var panel := $Console/Switchboard
 	_bind_button("seal_l", panel.get_node("LeftSeal"), 0.06)
@@ -130,6 +133,24 @@ func _bind_door(side: String, doorway: Node3D, controls: Node3D, door_key: Strin
 	_bind_button("light_" + side, controls.get_node("LightHit"), 0.12)
 	(controls.get_node("DoorLabel") as Label3D).text = "ДВЕРЬ  ·  " + door_key
 	(controls.get_node("LightLabel") as Label3D).text = "СВЕТ  ·  " + light_key
+
+func _isolate_door_lighting() -> void:
+	for node in find_children("*", "Light3D", true, false):
+		var light := node as Light3D
+		if light != lights["l"] and light != lights["r"] and light != scare_light:
+			light.light_cull_mask &= ~DOOR_LAYER
+	for recess in [$Shell/LeftRecess, $Shell/RightRecess]:
+		for child in recess.get_children():
+			var surface := child as MeshInstance3D
+			if surface == null:
+				continue
+			var source := surface.material_override as BaseMaterial3D
+			if source == null:
+				continue
+			var local := source.duplicate() as BaseMaterial3D
+			local.disable_ambient_light = true
+			surface.material_override = local
+			surface.layers = DOOR_LAYER
 
 func _bind_button(id: String, node: Node3D, radius: float) -> void:
 	buttons[id] = {"node": node, "r": radius, "rest": node.position}
@@ -278,6 +299,7 @@ func dress(n: int) -> void:
 		alarm_lamp.light_color = Color(1.0, 0.1, 0.06)
 		alarm_lamp.light_energy = 0.0
 		alarm_lamp.omni_range = 3.2
+		alarm_lamp.light_cull_mask &= ~DOOR_LAYER
 		alarm_lamp.position = Vector3(W - 0.25, 2.3, 0.0)
 		dress_root.add_child(alarm_lamp)
 	if k >= 4:
@@ -291,7 +313,7 @@ func dress(n: int) -> void:
 	lamp_base = lamp_rated * float([0.9, 0.9, 0.85, 0.78, 0.7, 0.6, 0.75][k]) / 0.9
 	instab = [0.0, 0.15, 0.3, 0.5, 0.7, 1.0, 0.6][k]
 
-## аварийная лампа над правой дверью: медленно пульсирует, когда кто-то стоит у любой двери или шахты
+## Аварийная лампа над правой дверью.
 func alarm_pulse(danger: bool, dt: float) -> void:
 	if alarm_lamp == null or not is_instance_valid(alarm_lamp):
 		return
@@ -450,9 +472,12 @@ func tick(st: FNNight, dt: float, look_in: float) -> void:
 	if not beams_aimed:
 		beams_aimed = true
 		for s in ["l", "r"]:
-			(lights[s] as SpotLight3D).look_at(FNOffice.point("door_" + s) + Vector3(0, 1.25, 0.2), Vector3.UP)      # конус по центру того места, где стоят враги
+			var beam: SpotLight3D = lights[s]
+			var side := -1.0 if s == "l" else 1.0
+			beam.look_at(Vector3(side * 3.09, 1.09, -0.25), Vector3.UP)
+			beam.spot_angle = 40.0
 	power_on = not st.power_out
-	alarm_pulse(st.enemies.values().any(func(e): return (e as FNEnemy)._at_door()), dt)
+	alarm_pulse(false, dt) # Индикатор не выдаёт присутствие за дверью.
 	_look(st, dt, look_in)
 	for s in ["l", "r"]:
 		var want := 0.0 if st.door[s] else 1.0
