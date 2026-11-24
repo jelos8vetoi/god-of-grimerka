@@ -446,6 +446,25 @@ size = Vector3(0.9, 0.006, 0.62)
 [sub_resource type="BoxMesh" id="DecayWallStreak"]
 size = Vector3(0.006, 1.15, 0.13)
 
+[sub_resource type="StandardMaterial3D" id="DamperPaint"]
+albedo_color = Color(0.72, 0.45, 0.2, 1)
+roughness = 0.63
+
+[sub_resource type="BoxMesh" id="Box_Guide"]
+size = Vector3(0.02, 0.95, 0.03)
+
+[sub_resource type="BoxMesh" id="Box_StripeA"]
+size = Vector3(0.6, 0.03, 0.004)
+
+[sub_resource type="BoxMesh" id="Box_StripeB"]
+size = Vector3(0.3, 0.03, 0.004)
+
+[sub_resource type="BoxMesh" id="Box_StripeLA"]
+size = Vector3(0.28, 0.004, 0.03)
+
+[sub_resource type="BoxMesh" id="Box_StripeLB"]
+size = Vector3(0.14, 0.004, 0.03)
+
 [sub_resource type="StandardMaterial3D" id="DamperSteel"]
 albedo_color = Color(0.23, 0.25, 0.26, 1)
 metallic = 0.6
@@ -656,8 +675,8 @@ position = Vector3(0, 0, 0.01)
 font = ExtResource("Russo")
 text = "ЛЕВЫЙ КОРИДОР"
 font_size = 36
-pixel_size = 0.00165
-modulate = Color(0.5, 0.45, 0.34, 1)
+pixel_size = 0.0009075
+modulate = Color(0.42, 0.4, 0.36, 1)
 outline_size = 0
 double_sided = false
 shaded = false
@@ -768,8 +787,8 @@ position = Vector3(0, 0, 0.01)
 font = ExtResource("Russo")
 text = "ПРАВЫЙ КОРИДОР"
 font_size = 36
-pixel_size = 0.00165
-modulate = Color(0.5, 0.45, 0.34, 1)
+pixel_size = 0.0009075
+modulate = Color(0.42, 0.4, 0.36, 1)
 outline_size = 0
 double_sided = false
 shaded = false
@@ -918,13 +937,33 @@ rotation = Vector3(-0.23, 0, 0)
 mesh = SubResource("Box_0_615_0_029_0_04")
 material_override = ExtResource("steel")
 
+[node name="GuideL" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(-0.355, 0.235, 0.05)
+mesh = SubResource("Box_Guide")
+material_override = ExtResource("steel")
+
+[node name="GuideR" type="MeshInstance3D" parent="Ventilation/WallGrate"]
+position = Vector3(0.355, 0.235, 0.05)
+mesh = SubResource("Box_Guide")
+material_override = ExtResource("steel")
+
 [node name="DamperPivot" type="Node3D" parent="Ventilation/WallGrate"]
-position = Vector3(0, 0.208, -0.084)
+position = Vector3(0, 0.208, 0.055)
 
 [node name="Damper" type="MeshInstance3D" parent="Ventilation/WallGrate/DamperPivot"]
 position = Vector3(0, -0.208, 0)
 mesh = SubResource("Box_0_615_0_416_0_018")
-material_override = SubResource("DamperSteel")
+material_override = SubResource("DamperPaint")
+
+[node name="StripeA" type="MeshInstance3D" parent="Ventilation/WallGrate/DamperPivot/Damper"]
+position = Vector3(0, 0.09, 0.011)
+mesh = SubResource("Box_StripeA")
+material_override = SubResource("Rubber")
+
+[node name="StripeB" type="MeshInstance3D" parent="Ventilation/WallGrate/DamperPivot/Damper"]
+position = Vector3(0, -0.09, 0.011)
+mesh = SubResource("Box_StripeB")
+material_override = SubResource("Rubber")
 
 [node name="Eyes" type="Node3D" parent="Ventilation/WallGrate"]
 position = Vector3(0, 0.02, -0.166)
@@ -941,7 +980,7 @@ mesh = SubResource("Sphere_0_019_0_038_12_6")
 material_override = SubResource("VentEyes")
 
 [node name="VentMark" type="Label3D" parent="Ventilation/WallGrate"]
-position = Vector3(0, 0.299, 0.002)
+position = Vector3(0, 0.74, 0.002)
 font = ExtResource("Russo")
 text = "ВЕНТИЛЯЦИЯ"
 font_size = 26
@@ -1030,7 +1069,17 @@ position = Vector3(-0.335, 0.028, 0)
 [node name="LeafL" type="MeshInstance3D" parent="Ventilation/CeilingHatch/LeafPivotL"]
 position = Vector3(0.1675, 0, 0)
 mesh = SubResource("Box_Leaf")
-material_override = SubResource("DamperSteel")
+material_override = SubResource("DamperPaint")
+
+[node name="StripeA" type="MeshInstance3D" parent="Ventilation/CeilingHatch/LeafPivotL/LeafL"]
+position = Vector3(0, -0.011, -0.15)
+mesh = SubResource("Box_StripeLA")
+material_override = SubResource("Rubber")
+
+[node name="StripeB" type="MeshInstance3D" parent="Ventilation/CeilingHatch/LeafPivotL/LeafL"]
+position = Vector3(0, -0.011, 0.15)
+mesh = SubResource("Box_StripeLB")
+material_override = SubResource("Rubber")
 
 [node name="LeafPivotR" type="Node3D" parent="Ventilation/CeilingHatch"]
 position = Vector3(0.335, 0.028, 0)
@@ -1038,7 +1087,17 @@ position = Vector3(0.335, 0.028, 0)
 [node name="LeafR" type="MeshInstance3D" parent="Ventilation/CeilingHatch/LeafPivotR"]
 position = Vector3(-0.1675, 0, 0)
 mesh = SubResource("Box_Leaf")
-material_override = SubResource("DamperSteel")
+material_override = SubResource("DamperPaint")
+
+[node name="StripeA" type="MeshInstance3D" parent="Ventilation/CeilingHatch/LeafPivotR/LeafR"]
+position = Vector3(0, -0.011, -0.15)
+mesh = SubResource("Box_StripeLA")
+material_override = SubResource("Rubber")
+
+[node name="StripeB" type="MeshInstance3D" parent="Ventilation/CeilingHatch/LeafPivotR/LeafR"]
+position = Vector3(0, -0.011, 0.15)
+mesh = SubResource("Box_StripeLB")
+material_override = SubResource("Rubber")
 
 [node name="WallFixtures" type="Node3D" parent="."]
 

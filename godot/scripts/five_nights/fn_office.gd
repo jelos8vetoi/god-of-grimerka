@@ -54,11 +54,12 @@ var desk_tris_after := 0
 signal seal_stop(s: String, closed: bool)
 const SEAL_CLOSE := 0.36            # с: клапан падает
 const SEAL_OPEN := 0.52             # с: привод поднимает
+const SEAL_PARK := 0.47              # м: плита решётки в открытом положении стоит над решёткой на стене
 const SEAL_OPEN_ANGLE := 1.5        # рад: заслонка откинута в шахту (≈86°)
 const LOCK_BLINK_HZ := 8.0          # янтарная лампа блокировки мигает в ходу, горит 60 % периода
 const LOCK_BLINK_DUTY := 0.6
 const LOCK_E_MOVE := 0.55           # свет лампы: янтарный в ходу и при догорании после открытия
-const LOCK_E_CLOSED := 0.3          # красный свет у закрытой
+const LOCK_E_CLOSED := 0.5          # красный свет у закрытой
 const LOCK_E_RATE := 6.0            # ед./с: плавная смена вне мигания
 const LOCK_AFTERGLOW := 0.8         # с: янтарное догорание после упора открытой
 const LOCK_AMBER := Color(1.0, 0.6, 0.2)
@@ -88,6 +89,10 @@ var photo_tex := {
 }
 var yaw := 0.0                     # −1 налево .. +1 направо (как в FNNight)
 var yaw_v := 0.0
+const PITCH_UP := deg_to_rad(36.0)   # взгляд вверх (на люк над столом): pitch_k 0…1
+var pitch_k := 0.0
+var pitch_v := 0.0
+var pitch_target := 0.0            # 0 — прямо, 1 — вверх; ставит ввод (FiveNightsRoot)
 var shake := 0.0
 var font: Font = preload("res://assets/fonts/RussoOne-Regular.ttf")
 var mats := {}
@@ -110,8 +115,13 @@ var event_gain := 1.0
 var supply := 1.0
 var power_on := true
 
+var door_parts := {}               # ламели створки [узел, низ] — их читает проверка; двигает и прячет их сама створка (fn_rolling_shutter.gd)
+
+var wall_base_y := 0.0
+
 func _ready() -> void:
 	_mats()
+	wall_base_y = wall_pivot.position.y
 	_strip_old_fan()
 	_bind_door("l", $LeftDoor, $LeftControls, "A", "Q")
 	_bind_door("r", $RightDoor, $RightControls, "D", "E")
@@ -127,6 +137,10 @@ func _ready() -> void:
 
 func _bind_door(side: String, doorway: Node3D, controls: Node3D, door_key: String, light_key: String) -> void:
 	doors[side] = doorway.get_node("Track/Shutter")
+	door_parts[side] = []
+	for c in doors[side].get_children():
+		if c is MeshInstance3D and (c as MeshInstance3D).mesh != null:
+			door_parts[side].append([c, (c as Node3D).position.y + (c as MeshInstance3D).mesh.get_aabb().position.y])
 	lights[side] = doorway.get_node("Beam")
 	leds["door_" + side] = controls.get_node("LED")
 	led_glow[side] = controls.get_node("LedGlow")
@@ -420,7 +434,8 @@ func _vents(st: FNNight, dt: float, snap := false) -> void:
 		jolt += 0.004 * exp(-ht * 12.0) * sin(ht * 70.0)
 		var ang := SEAL_OPEN_ANGLE * f + extra
 		if s == "l":
-			wall_pivot.rotation.x = ang
+			wall_pivot.rotation.x = 0.0
+			wall_pivot.position.y = wall_base_y + SEAL_PARK * f + clampf(extra * 0.17, -0.015, 0.015)
 			var at_l: bool = mad.spot == "vent_l" and mad.level > 0 and not st.seal["l"]
 			grate.position.x = grate_x + jolt + (sin(t * 37.0) * 0.004 if at_l else 0.0)
 		else:
@@ -457,6 +472,10 @@ func _lock_lamp(s: String, st: FNNight, k: float, moving: bool, dt: float, snap:
 		glw.light_energy = move_toward(glw.light_energy, want, LOCK_E_RATE * dt)
 
 ## картинка сразу равна состоянию (новая ночь): без отскоков и сигналов
+## положение плиты решётки в «углах» механизма (0 — закрыта, SEAL_OPEN_ANGLE — открыта): для проверок и записи состояния
+func wall_angle() -> float:
+	return (wall_pivot.position.y - wall_base_y) / SEAL_PARK * SEAL_OPEN_ANGLE
+
 func seal_reset(st: FNNight) -> void:
 	_vents(st, 0.0, true)
 
@@ -517,10 +536,14 @@ func _look(st: FNNight, dt: float, target: float) -> void:
 	yaw = clampf(target + (offset + speed * dt) * decay, -1.0, 1.0)
 	yaw_v = (yaw_v - LOOK_RATE * speed * dt) * decay
 	st.yaw = yaw
+	var p_off := pitch_k - pitch_target
+	var p_speed := pitch_v + LOOK_RATE * p_off
+	pitch_k = clampf(pitch_target + (p_off + p_speed * dt) * decay, 0.0, 1.0)
+	pitch_v = (pitch_v - LOOK_RATE * p_speed * dt) * decay
 	var sh := Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake * 0.03
 	shake = maxf(0.0, shake - dt * 2.5)
 	cam.position = rest_view.origin
-	cam.basis = Basis(Vector3.UP, -yaw * YAW_MAX + sh.x) * rest_view.basis * Basis.from_euler(Vector3(sh.y, 0, sh.x * 0.3))
+	cam.basis = Basis(Vector3.UP, -yaw * YAW_MAX + sh.x) * rest_view.basis * Basis(Vector3.RIGHT, PITCH_UP * pitch_k) * Basis.from_euler(Vector3(sh.y, 0, sh.x * 0.3))
 
 func _lighting(st: FNNight, dt: float) -> void:
 	# Короткий провал люминофора и более медленный розжиг. Все источники в будке читают одно питание.
