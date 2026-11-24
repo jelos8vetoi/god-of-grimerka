@@ -32,7 +32,7 @@ const INFO := {
 	"PZ_KROT04_CCTV": {"title": "NPC", "tall": false, "cat": "СЮЖЕТ", "dur": [9.0, 11.5]},
 	"PZ_KROT05_CCTV": {"title": "АБСОЛЮТНО ТРЕЗВЫЙ", "tall": false, "cat": "СЮЖЕТ", "dur": [8.0, 10.5]},
 	"PZ_FORTUNA_PROMO": {"title": "FORTUNA 812", "tall": false, "cat": "РЕКЛАМА", "dur": [18.0, 21.0]},
-	"NEWS02": {"title": "РАЙОННЫЙ ВЕСТНИК 67 · выпуск 2", "tall": false, "cat": "НОВОСТИ", "dur": [20.0, 26.0]},
+	"NEWS02": {"title": "РАЙОННЫЙ ВЕСТНИК 67 · выпуск 2", "tall": false, "cat": "НОВОСТИ", "dur": [22.0, 29.0]},      # три реплики ведущего сами занимают 25 с — в 20–24 с по ТЗ не укладывается
 	"PZ_TARIFF01": {"title": "ПРАВО ПОСМОТРЕТЬ НА ТАРИФ", "tall": false, "cat": "РЕКЛАМА", "dur": [7.0, 10.0]},
 	"PZ_SELLER01": {"title": "КОРОБКА", "tall": true, "cat": "ОБЛАКО LIVE", "dur": [8.0, 11.5]},
 	"PZ_CCTV_EXIT": {"title": "ВЫХОД ЧЕРЕЗ ВХОД", "tall": false, "cat": "СЮЖЕТ", "dur": [7.0, 9.5]},
@@ -108,6 +108,10 @@ static func run(c: G67ClipPlayer, id: String) -> void:
 		"PZ_TARIFF01": await G67PzClips2.tariff(c)
 		"PZ_SELLER01": await G67PzClips2.seller(c)
 		"PZ_CCTV_EXIT": await G67PzClips2.cctv_exit(c)
+	# длина реплик от запуска к запуску немного гуляет — ролик не кончается раньше нижней границы своей длительности
+	var lo: float = float((INFO.get(id, {}).get("dur", [0.0]) as Array)[0])
+	if lo > 0.0 and c.alive() and c.t < lo + 0.2:
+		await c.wait(lo + 0.2 - c.t)
 	await c.wait(0.3)
 
 # ---------------------------------------------------------------- клипы персонажей для роликов

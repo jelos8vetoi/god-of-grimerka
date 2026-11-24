@@ -55,8 +55,9 @@ static func cl02(c: G67ClipPlayer) -> void:
 		t.pivot_offset = Vector2(150, 75)
 		card["t"] = t
 		card["l"] = _l(t, "БЕСПЛАТНЫЙ\nПРОХОД", 34, Color(0.1, 0.4, 0.15), Vector2(34, 26)))
-	await _say(c, "CL02", 0)
-	await _say(c, "CL02", 1, 0.2)
+	await c.wait(1.0)
+	await _say(c, "CL02", 0, 0.5)
+	await _say(c, "CL02", 1, 0.5)
 	var d := c.say_async(G67Clips.L("CL02", 2))
 	await c.wait(d * 0.62)
 	# талон переворачивается: «67 ₽»
@@ -70,7 +71,7 @@ static func cl02(c: G67ClipPlayer) -> void:
 		(card["l"] as Label).add_theme_color_override("font_color", RED))
 	tw.tween_property(t, "scale:x", 1.0, 0.18)
 	G67Sound.play(c, "click")
-	await c.wait(d * 0.38 + 1.2)
+	await c.wait(d * 0.38 + 1.8)
 	c.vhs(1.0, 0.25)
 	G67Sound.play(c, "hit_cut")
 	await c.wait(0.25)
