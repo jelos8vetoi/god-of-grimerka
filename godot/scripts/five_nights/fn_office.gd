@@ -79,8 +79,8 @@ var slat_open: Array = []
 @onready var dark_eyes: Node3D = $NightEffects/BlackoutEyes
 
 var photo_tex := {
-	"normal": preload("res://assets/minigames/fn_office_photo.png"),
-	"wrong": preload("res://assets/minigames/fn_office_photo_wrong.png"),
+	"normal": preload("res://assets/fn_curated/oblako/opening_photo.jpg"),
+	"wrong": preload("res://assets/fn_curated/oblako/opening_photo_wrong.jpg"),
 }
 var yaw := 0.0                     # −1 налево .. +1 направо (как в FNNight)
 var yaw_v := 0.0

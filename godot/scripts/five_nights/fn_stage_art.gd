@@ -9,6 +9,9 @@ const CHAIR := preload("res://assets/fn_curated/phase3/models/painted_wooden_cha
 const PENDANT := preload("res://assets/fn_curated/models/hanging_industrial_lamp/hanging_industrial_lamp.gltf")
 const SERVICE_DOOR := preload("res://assets/fn_curated/phase2/models/service_door.glb")
 const TOOLBOX := preload("res://assets/fn_curated/models/metal_toolbox/metal_toolbox.gltf")
+const SHOW_POSTER := preload("res://assets/fn_curated/oblako/show_poster.tres")
+const STAGE_DRAWING := preload("res://assets/fn_curated/oblako/kids_stage.tres")
+const BALON_STICKER := preload("res://assets/fn_curated/oblako/sticker_balon.tres")
 const TYPE := preload("res://assets/fonts/RussoOne-Regular.ttf")
 
 var lights: Array[Light3D] = []
@@ -103,15 +106,10 @@ func _auditorium() -> void:
 	_prop(SERVICE_DOOR, Vector3(-6.87, 0, -3.35), PI / 2)
 	var foyer := _node(Vector3(-6.911, 2.21, -1.21), PI / 2)
 	var paper := _finish(CHALK, Color("#bcb088"), 1.0)
-	var pigment := _finish(CHALK, Color("#798b7a"), 1.0)
 	MGProps.box(foyer, Vector3(0, 0, 0), Vector3(1.06, 1.30, 0.027), WOOD)
-	MGProps.box(foyer, Vector3(0, 0, 0.018), Vector3(0.97, 1.21, 0.012), paper)
-	MGProps.box(foyer, Vector3(0, 0.02, 0.027), Vector3(0.78, 0.63, 0.01), pigment)
-	_cloud(foyer, Vector3(0.03, 0.036, 0.038), 0.34, paper)
-	_print(foyer, "УТРЕННИК", Vector3(0, 0.434, 0.031), 42, Color("#38392c"))
-	_print(foyer, "ГЛАВНЫЙ ЗАЛ", Vector3(0, -0.45, 0.031), 27, Color("#4a4234"))
-	var rules := _node(Vector3(-6.908, 1.89, 0.37), PI / 2)
-	MGProps.poster(rules, "ПРОГРАММА", "объявления для гостей", Color("#8d7450"), 0.48, 0.59)
+	MGProps.quad(foyer, Vector3(-0.018, 0.008, 0.018), Vector2(0.79, 1.185), SHOW_POSTER, Vector3(0, 0, 0.027))
+	MGProps.quad(foyer, Vector3(0.437, -0.497, 0.020), Vector2(0.127, 0.127), BALON_STICKER, Vector3(0, 0, -0.11))
+	MGProps.quad(self, Vector3(-6.941, 1.89, 0.34), Vector2(0.51, 0.3825), STAGE_DRAWING, Vector3(0, PI / 2, -0.049))
 
 	# Кабель идёт к служебной двери, а не пересекает главный план на уровне лиц.
 	for offset: float in [0.0, 0.064]:

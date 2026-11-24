@@ -1,6 +1,6 @@
-[gd_scene load_steps=153 format=3]
+[gd_scene load_steps=158 format=3]
 
-[ext_resource type="Texture2D" path="res://assets/minigames/fn_office_photo.png" id="OpeningPhoto"]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/oblako/opening_photo.jpg" id="OpeningPhoto"]
 [ext_resource type="Script" path="res://scripts/five_nights/fn_office.gd" id="Controller"]
 [ext_resource type="Material" path="res://scenes/five_nights/materials/plaster.tres" id="plaster"]
 [ext_resource type="Material" path="res://scenes/five_nights/materials/enamel.tres" id="enamel"]
@@ -15,6 +15,10 @@
 [ext_resource type="Material" path="res://scenes/five_nights/materials/office_wall.tres" id="OfficePlaster"]
 [ext_resource type="Material" path="res://scenes/five_nights/materials/office_dado.tres" id="OfficeDado"]
 [ext_resource type="Material" path="res://scenes/five_nights/materials/office_ceiling.tres" id="OfficeCeiling"]
+[ext_resource type="Material" path="res://assets/fn_curated/oblako/balon_poster.tres" id="BalonPoster"]
+[ext_resource type="Material" path="res://assets/fn_curated/oblako/kids_balon_bot.tres" id="KidsDrawing"]
+[ext_resource type="Material" path="res://assets/fn_curated/oblako/sticker_cloud.tres" id="CloudSticker"]
+[ext_resource type="Material" path="res://assets/fn_curated/oblako/sticker_valve.tres" id="ValveSticker"]
 
 [sub_resource type="StandardMaterial3D" id="Rubber"]
 albedo_color = Color(0.065, 0.071, 0.074, 1)
@@ -242,14 +246,17 @@ size = Vector3(0.009, 0.108, 0.005)
 [sub_resource type="BoxMesh" id="Box_0_48_0_63_0_016"]
 size = Vector3(0.48, 0.63, 0.016)
 
-[sub_resource type="BoxMesh" id="Box_0_431_0_453_0_005"]
-size = Vector3(0.431, 0.453, 0.005)
+[sub_resource type="QuadMesh" id="MascotPrint"]
+size = Vector2(0.404, 0.606)
 
 [sub_resource type="BoxMesh" id="Box_0_65_0_4_0_016"]
 size = Vector3(0.65, 0.4, 0.016)
 
-[sub_resource type="BoxMesh" id="Box_0_024_0_36_0_004"]
-size = Vector3(0.024, 0.36, 0.004)
+[sub_resource type="QuadMesh" id="DrawingPrint"]
+size = Vector2(0.478, 0.359)
+
+[sub_resource type="QuadMesh" id="OfficeSticker"]
+size = Vector2(0.121, 0.121)
 
 [sub_resource type="BoxMesh" id="Box_0_425_0_342_0_033"]
 size = Vector3(0.425, 0.342, 0.033)
@@ -260,8 +267,10 @@ size = Vector3(0.394, 0.308, 0.006)
 [sub_resource type="StandardMaterial3D" id="Photograph"]
 albedo_texture = ExtResource("OpeningPhoto")
 albedo_color = Color(0.89, 0.88, 0.85, 1)
-roughness = 0.77
+metallic_specular = 0.19
+roughness = 0.89
 metallic = 0
+texture_repeat = false
 resource_local_to_scene = true
 
 [sub_resource type="QuadMesh" id="Quad_0_345_0_257"]
@@ -1691,56 +1700,42 @@ mesh = SubResource("Box_0_48_0_63_0_016")
 material_override = SubResource("Paper")
 
 [node name="Print" type="MeshInstance3D" parent="WallFixtures/MascotPoster"]
-position = Vector3(0, 0.059, 0.009)
-mesh = SubResource("Box_0_431_0_453_0_005")
-material_override = SubResource("OxideRed")
+position = Vector3(-0.006, 0.001, 0.010)
+rotation = Vector3(0, 0, -0.014)
+mesh = SubResource("MascotPrint")
+material_override = ExtResource("BalonPoster")
+cast_shadow = 0
 
-[node name="Headline" type="Label3D" parent="WallFixtures/MascotPoster"]
-position = Vector3(0, 0.069, 0.014)
-font = ExtResource("Russo")
-text = "БАЛОН —\nЛИЦО\nОБЛАКА"
-font_size = 43
-pixel_size = 0.0014
-modulate = Color(0.9, 0.86, 0.74, 1)
-outline_size = 0
-double_sided = false
-shaded = true
-
-[node name="Caption" type="Label3D" parent="WallFixtures/MascotPoster"]
-position = Vector3(0, -0.237, 0.014)
-font = ExtResource("Russo")
-text = "Улыбайся. Он видит."
-font_size = 20
-pixel_size = 0.00124
-modulate = Color(0.13, 0.12, 0.1, 1)
-outline_size = 0
-double_sided = false
-shaded = true
-
-[node name="StaffNotice" type="Node3D" parent="WallFixtures"]
+[node name="DrawingBoard" type="Node3D" parent="WallFixtures"]
 position = Vector3(1.18, 1.74, -1.662)
 rotation = Vector3(0.04, -0.05, -0.0314)
 
-[node name="Card" type="MeshInstance3D" parent="WallFixtures/StaffNotice"]
+[node name="Card" type="MeshInstance3D" parent="WallFixtures/DrawingBoard"]
 position = Vector3(0, 0, 0)
 mesh = SubResource("Box_0_65_0_4_0_016")
 material_override = SubResource("Paper")
 
-[node name="Rule" type="MeshInstance3D" parent="WallFixtures/StaffNotice"]
-position = Vector3(-0.295, 0, 0.01)
-mesh = SubResource("Box_0_024_0_36_0_004")
-material_override = SubResource("OxideRed")
+[node name="Drawing" type="MeshInstance3D" parent="WallFixtures/DrawingBoard"]
+position = Vector3(-0.048, 0.006, 0.011)
+rotation = Vector3(0, 0, 0.041)
+mesh = SubResource("DrawingPrint")
+material_override = ExtResource("KidsDrawing")
+cast_shadow = 0
 
-[node name="Text" type="Label3D" parent="WallFixtures/StaffNotice"]
-position = Vector3(0.015, 0, 0.011)
-font = ExtResource("Russo")
-text = "НЕ СПАТЬ.\nНЕ УМИРАТЬ.\nНЕ ПИТЬ ИЗ КУЛЕРА."
-font_size = 34
-pixel_size = 0.00161
-modulate = Color(0.48, 0.053, 0.032, 1)
-outline_size = 0
-double_sided = false
-shaded = true
+[node name="CloudSticker" type="MeshInstance3D" parent="WallFixtures/DrawingBoard"]
+position = Vector3(0.247, -0.103, 0.012)
+rotation = Vector3(0, 0, -0.12)
+mesh = SubResource("OfficeSticker")
+material_override = ExtResource("CloudSticker")
+cast_shadow = 0
+
+[node name="ValveSticker" type="MeshInstance3D" parent="WallFixtures"]
+position = Vector3(-1.275, 1.254, -1.674)
+rotation = Vector3(0, 0, 0.097)
+scale = Vector3(0.82, 0.82, 1)
+mesh = SubResource("OfficeSticker")
+material_override = ExtResource("ValveSticker")
+cast_shadow = 0
 
 [node name="OpeningPhoto" type="Node3D" parent="WallFixtures"]
 position = Vector3(0.36, 1.795, -1.66)

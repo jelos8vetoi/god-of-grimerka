@@ -269,9 +269,12 @@ func _arcade(o: Vector3) -> void:
 	_prop(SERVICE_DOOR, o + Vector3(5.85, 0, -2.87), -PI / 2)
 	_prop(PENDANT, o + Vector3(3.2, 3.34, 1.25), 0.0, 0.58)
 	_sign(o + Vector3(5.89, 2.30, 2.0), -PI / 2, "ОБМЕН ЖЕТОНОВ", 1.50, 39, RED_DADO, Color("#e0cba0"))
-	for k in 3:
-		MGProps.poster(node(o + Vector3(-3.9 + k * 1.55, 1.96, -4.93)), ["КЛУБ ОБЛАКО", "ЖЕТОНЫ", "ДЕНЬ РОЖДЕНИЯ"][k],
-			"игровая зона", Color("#c59b67"), 0.62, 0.83)
+	MGProps.quad(self, o + Vector3(-1.95, 1.88, -4.938), Vector2(0.77, 1.155),
+		preload("res://assets/fn_curated/oblako/arcade_flyer.tres"), Vector3(0, 0, -0.039))
+	MGProps.quad(self, o + Vector3(-1.43, 1.43, -4.938), Vector2(0.168, 0.168),
+		preload("res://assets/fn_curated/oblako/sticker_bot.tres"), Vector3(0, 0, 0.093))
+	MGProps.quad(self, o + Vector3(5.938, 1.98, 1.44), Vector2(0.176, 0.176),
+		preload("res://assets/fn_curated/oblako/sticker_cloud.tres"), Vector3(0, -PI / 2, -0.08))
 	MGProps.cable(self, o + Vector3(-4.4, 2.71, -4.81), o + Vector3(4.4, 2.73, -4.81), 0.29, 0.012, MGProps.mat("rubber"))
 	for k in 12:
 		var along := float(k + 1) / 13.0
