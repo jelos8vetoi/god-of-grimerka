@@ -1,190 +1,340 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=27 format=3]
 
-[ext_resource type="Material" path="res://scenes/five_nights/materials/laminate.tres" id="laminate"]
-[ext_resource type="Material" path="res://scenes/five_nights/materials/steel.tres" id="steel"]
-[ext_resource type="Material" path="res://scenes/five_nights/materials/enamel.tres" id="enamel"]
+[ext_resource type="Material" path="res://assets/fn_curated/materials/rusty_painted_metal.tres" id="Hood"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/steel.tres" id="Steel"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/enamel.tres" id="Shell"]
+[ext_resource type="FontFile" path="res://assets/fonts/RussoOne-Regular.ttf" id="Type"]
+[ext_resource type="Script" path="res://scripts/five_nights/fn_rolling_shutter.gd" id="Roll"]
 
-[sub_resource type="StandardMaterial3D" id="SafetyOchre"]
-albedo_color = Color(0.72, 0.45, 0.2, 1)
-roughness = 0.63
-metallic = 0
+[sub_resource type="StandardMaterial3D" id="Seal"]
+albedo_color = Color(0.07, 0.079, 0.075, 1)
+roughness = 0.96
+metallic_specular = 0.19
 
-[sub_resource type="StandardMaterial3D" id="Gasket"]
-albedo_color = Color(0.055, 0.065, 0.065, 1)
-roughness = 0.9
-metallic = 0
+[sub_resource type="StandardMaterial3D" id="Ochre"]
+albedo_color = Color(0.6, 0.39, 0.16, 1)
+roughness = 0.72
+metallic_specular = 0.19
 
-[sub_resource type="BoxMesh" id="Box_1_32_0_268_0_222"]
-size = Vector3(1.32, 0.268, 0.222)
+[sub_resource type="CylinderMesh" id="HexBolt"]
+top_radius = 0.014
+bottom_radius = 0.014
+height = 0.009
+radial_segments = 6
+rings = 0
 
-[sub_resource type="BoxMesh" id="Box_0_084_2_164_0_1"]
-size = Vector3(0.084, 2.164, 0.1)
+[sub_resource type="BoxMesh" id="CoverMesh"]
+size = Vector3(1.37, 0.282, 0.034)
 
-[sub_resource type="BoxMesh" id="Box_0_023_2_146_0_105"]
-size = Vector3(0.023, 2.146, 0.105)
+[sub_resource type="BoxMesh" id="TopReturnMesh"]
+size = Vector3(1.356, 0.04, 0.372)
 
-[sub_resource type="BoxMesh" id="Box_1_16_0_018_0_21"]
+[sub_resource type="BoxMesh" id="FrontLipMesh"]
+size = Vector3(1.34, 0.039, 0.191)
+
+[sub_resource type="BoxMesh" id="RearLipMesh"]
+size = Vector3(1.34, 0.037, 0.06)
+
+[sub_resource type="BoxMesh" id="BrushSealMesh"]
+size = Vector3(1.08, 0.022, 0.021)
+
+[sub_resource type="BoxMesh" id="EndCapLMesh"]
+size = Vector3(0.068, 0.269, 0.274)
+
+[sub_resource type="BoxMesh" id="MotorBoxMesh"]
+size = Vector3(0.146, 0.228, 0.209)
+
+[sub_resource type="BoxMesh" id="ServicePlateMesh"]
+size = Vector3(0.131, 0.176, 0.022)
+
+[sub_resource type="BoxMesh" id="MotorConduitMesh"]
+size = Vector3(0.048, 0.11, 0.056)
+
+[sub_resource type="BoxMesh" id="CoverTagMesh"]
+size = Vector3(0.145, 0.052, 0.01)
+
+[sub_resource type="BoxMesh" id="ChannelLMesh"]
+size = Vector3(0.116, 2.145, 0.164)
+
+[sub_resource type="BoxMesh" id="FoldedReturnLMesh"]
+size = Vector3(0.035, 2.121, 0.081)
+
+[sub_resource type="BoxMesh" id="ChannelSealLMesh"]
+size = Vector3(0.026, 2.116, 0.07)
+
+[sub_resource type="BoxMesh" id="MountingFlangeLMesh"]
+size = Vector3(0.067, 2.122, 0.048)
+
+[sub_resource type="BoxMesh" id="ImpactGuardLMesh"]
+size = Vector3(0.095, 0.359, 0.036)
+
+[sub_resource type="BoxMesh" id="SillMesh"]
 size = Vector3(1.16, 0.018, 0.21)
 
-[sub_resource type="BoxMesh" id="Box_1_06_0_005_0_08"]
-size = Vector3(1.06, 0.005, 0.08)
+[sub_resource type="BoxMesh" id="AntiSlipMesh"]
+size = Vector3(1.064, 0.005, 0.085)
 
-[sub_resource type="BoxMesh" id="Box_1_1_2_15_0_065"]
-size = Vector3(1.1, 2.15, 0.065)
-
-[sub_resource type="BoxMesh" id="Box_1_07_0_033_0_018"]
-size = Vector3(1.07, 0.033, 0.018)
-
-[sub_resource type="BoxMesh" id="Box_1_095_0_13_0_024"]
-size = Vector3(1.095, 0.13, 0.024)
-
-[sub_resource type="BoxMesh" id="Box_0_076_0_086_0_005"]
-size = Vector3(0.076, 0.086, 0.005)
-
-[sub_resource type="BoxMesh" id="Box_0_035_0_28_0_014"]
-size = Vector3(0.035, 0.28, 0.014)
+[sub_resource type="BoxMesh" id="Hazard1Mesh"]
+size = Vector3(0.107, 0.046, 0.006)
 
 [node name="Doorway" type="Node3D"]
 
-[node name="Housing" type="MeshInstance3D" parent="."]
-position = Vector3(0, 2.292, 0.054)
-mesh = SubResource("Box_1_32_0_268_0_222")
-material_override = ExtResource("laminate")
+[node name="Housing" type="Node3D" parent="."]
 
-[node name="GuideLeft" type="MeshInstance3D" parent="."]
-position = Vector3(-0.585, 1.082, 0.032)
-mesh = SubResource("Box_0_084_2_164_0_1")
-material_override = ExtResource("steel")
+[node name="Cover" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0, 2.308, 0.207)
+mesh = SubResource("CoverMesh")
+material_override = ExtResource("Hood")
 
-[node name="GuideRight" type="MeshInstance3D" parent="."]
-position = Vector3(0.585, 1.082, 0.032)
-mesh = SubResource("Box_0_084_2_164_0_1")
-material_override = ExtResource("steel")
+[node name="TopReturn" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0, 2.458, 0.033)
+mesh = SubResource("TopReturnMesh")
+material_override = ExtResource("Hood")
 
-[node name="LeftGasket" type="MeshInstance3D" parent="."]
-position = Vector3(-0.549, 1.073, 0.047)
-mesh = SubResource("Box_0_023_2_146_0_105")
-material_override = SubResource("Gasket")
+[node name="FrontLip" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0, 2.162, 0.125)
+mesh = SubResource("FrontLipMesh")
+material_override = ExtResource("Steel")
 
-[node name="RightGasket" type="MeshInstance3D" parent="."]
-position = Vector3(0.549, 1.073, 0.047)
-mesh = SubResource("Box_0_023_2_146_0_105")
-material_override = SubResource("Gasket")
+[node name="RearLip" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0, 2.164, -0.101)
+mesh = SubResource("RearLipMesh")
+material_override = ExtResource("Shell")
+
+[node name="BrushSeal" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0, 2.146, 0.025)
+mesh = SubResource("BrushSealMesh")
+material_override = SubResource("Seal")
+
+[node name="EndCapL" type="MeshInstance3D" parent="Housing"]
+position = Vector3(-0.652, 2.31, 0.048)
+mesh = SubResource("EndCapLMesh")
+material_override = ExtResource("Shell")
+
+[node name="CoverBoltLLow" type="MeshInstance3D" parent="Housing"]
+position = Vector3(-0.652, 2.202, 0.228)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="CoverBoltLHigh" type="MeshInstance3D" parent="Housing"]
+position = Vector3(-0.652, 2.416, 0.228)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="EndCapR" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0.652, 2.31, 0.048)
+mesh = SubResource("EndCapLMesh")
+material_override = ExtResource("Shell")
+
+[node name="CoverBoltRLow" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0.652, 2.202, 0.228)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="CoverBoltRHigh" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0.652, 2.416, 0.228)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="MotorBox" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0.759, 2.32, 0.081)
+mesh = SubResource("MotorBoxMesh")
+material_override = ExtResource("Shell")
+
+[node name="ServicePlate" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0.756, 2.32, 0.195)
+mesh = SubResource("ServicePlateMesh")
+material_override = ExtResource("Steel")
+
+[node name="MotorBoltTop" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0.759, 2.382, 0.211)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Hood")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="MotorBoltBottom" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0.759, 2.258, 0.211)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Hood")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="MotorConduit" type="MeshInstance3D" parent="Housing"]
+position = Vector3(0.762, 2.467, 0.075)
+mesh = SubResource("MotorConduitMesh")
+material_override = ExtResource("Steel")
+
+[node name="CoverTag" type="MeshInstance3D" parent="Housing"]
+position = Vector3(-0.497, 2.264, 0.227)
+mesh = SubResource("CoverTagMesh")
+material_override = ExtResource("Steel")
+
+[node name="CoverSerial" type="Label3D" parent="Housing"]
+position = Vector3(-0.497, 2.264, 0.233)
+font = ExtResource("Type")
+text = "ШР-12"
+font_size = 27
+pixel_size = 0.00087
+modulate = Color(0.15, 0.16, 0.13, 1)
+outline_size = 0
+shaded = true
+double_sided = false
+
+[node name="Guides" type="Node3D" parent="."]
+
+[node name="ChannelL" type="MeshInstance3D" parent="Guides"]
+position = Vector3(-0.58, 1.083, 0.047)
+mesh = SubResource("ChannelLMesh")
+material_override = ExtResource("Hood")
+
+[node name="FoldedReturnL" type="MeshInstance3D" parent="Guides"]
+position = Vector3(-0.536, 1.082, 0.1)
+mesh = SubResource("FoldedReturnLMesh")
+material_override = ExtResource("Steel")
+
+[node name="ChannelSealL" type="MeshInstance3D" parent="Guides"]
+position = Vector3(-0.538, 1.085, 0.023)
+mesh = SubResource("ChannelSealLMesh")
+material_override = SubResource("Seal")
+
+[node name="MountingFlangeL" type="MeshInstance3D" parent="Guides"]
+position = Vector3(-0.622, 1.075, 0.114)
+mesh = SubResource("MountingFlangeLMesh")
+material_override = ExtResource("Shell")
+
+[node name="ImpactGuardL" type="MeshInstance3D" parent="Guides"]
+position = Vector3(-0.611, 0.207, 0.144)
+mesh = SubResource("ImpactGuardLMesh")
+material_override = ExtResource("Hood")
+
+[node name="GuideBoltLHigh" type="MeshInstance3D" parent="Guides"]
+position = Vector3(-0.621, 1.967, 0.143)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="GuideBoltLMiddle" type="MeshInstance3D" parent="Guides"]
+position = Vector3(-0.621, 1.317, 0.143)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="GuideBoltLLow" type="MeshInstance3D" parent="Guides"]
+position = Vector3(-0.621, 0.656, 0.143)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="GuideBoltLGuard" type="MeshInstance3D" parent="Guides"]
+position = Vector3(-0.621, 0.281, 0.166)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="ChannelR" type="MeshInstance3D" parent="Guides"]
+position = Vector3(0.58, 1.083, 0.047)
+mesh = SubResource("ChannelLMesh")
+material_override = ExtResource("Hood")
+
+[node name="FoldedReturnR" type="MeshInstance3D" parent="Guides"]
+position = Vector3(0.536, 1.082, 0.1)
+mesh = SubResource("FoldedReturnLMesh")
+material_override = ExtResource("Steel")
+
+[node name="ChannelSealR" type="MeshInstance3D" parent="Guides"]
+position = Vector3(0.538, 1.085, 0.023)
+mesh = SubResource("ChannelSealLMesh")
+material_override = SubResource("Seal")
+
+[node name="MountingFlangeR" type="MeshInstance3D" parent="Guides"]
+position = Vector3(0.622, 1.075, 0.114)
+mesh = SubResource("MountingFlangeLMesh")
+material_override = ExtResource("Shell")
+
+[node name="ImpactGuardR" type="MeshInstance3D" parent="Guides"]
+position = Vector3(0.611, 0.207, 0.144)
+mesh = SubResource("ImpactGuardLMesh")
+material_override = ExtResource("Hood")
+
+[node name="GuideBoltRHigh" type="MeshInstance3D" parent="Guides"]
+position = Vector3(0.621, 1.967, 0.143)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="GuideBoltRMiddle" type="MeshInstance3D" parent="Guides"]
+position = Vector3(0.621, 1.317, 0.143)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="GuideBoltRLow" type="MeshInstance3D" parent="Guides"]
+position = Vector3(0.621, 0.656, 0.143)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
+
+[node name="GuideBoltRGuard" type="MeshInstance3D" parent="Guides"]
+position = Vector3(0.621, 0.281, 0.166)
+mesh = SubResource("HexBolt")
+material_override = ExtResource("Steel")
+rotation = Vector3(1.570796, 0, 0)
 
 [node name="Sill" type="MeshInstance3D" parent="."]
 position = Vector3(0, 0.01, -0.025)
-mesh = SubResource("Box_1_16_0_018_0_21")
-material_override = ExtResource("steel")
+mesh = SubResource("SillMesh")
+material_override = ExtResource("Steel")
 
-[node name="SillGrip" type="MeshInstance3D" parent="."]
-position = Vector3(0, 0.021, 0.002)
-mesh = SubResource("Box_1_06_0_005_0_08")
-material_override = SubResource("Gasket")
+[node name="AntiSlip" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.0195, 0.005)
+mesh = SubResource("AntiSlipMesh")
+material_override = SubResource("Seal")
 
 [node name="Track" type="Node3D" parent="."]
-position = Vector3(0, 1.075, -0.023)
+position = Vector3(0, 0, -0.023)
 
-[node name="Shutter" type="MeshInstance3D" parent="Track"]
-position = Vector3(0, 2.15, 0)
-mesh = SubResource("Box_1_1_2_15_0_065")
-material_override = ExtResource("enamel")
+[node name="Shutter" type="Node3D" parent="Track"]
+script = ExtResource("Roll")
 
-[node name="Fold1" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0, -0.85, 0.038)
-mesh = SubResource("Box_1_07_0_033_0_018")
-material_override = ExtResource("steel")
+[node name="PullRail" type="Node3D" parent="Track/Shutter"]
 
-[node name="Fold2" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0, -0.61, 0.038)
-mesh = SubResource("Box_1_07_0_033_0_018")
-material_override = ExtResource("steel")
-
-[node name="Fold3" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0, -0.37, 0.038)
-mesh = SubResource("Box_1_07_0_033_0_018")
-material_override = ExtResource("steel")
-
-[node name="Fold4" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0, -0.13, 0.038)
-mesh = SubResource("Box_1_07_0_033_0_018")
-material_override = ExtResource("steel")
-
-[node name="Fold5" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0, 0.11, 0.038)
-mesh = SubResource("Box_1_07_0_033_0_018")
-material_override = ExtResource("steel")
-
-[node name="Fold6" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0, 0.35, 0.038)
-mesh = SubResource("Box_1_07_0_033_0_018")
-material_override = ExtResource("steel")
-
-[node name="Fold7" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0, 0.59, 0.038)
-mesh = SubResource("Box_1_07_0_033_0_018")
-material_override = ExtResource("steel")
-
-[node name="Fold8" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0, 0.83, 0.038)
-mesh = SubResource("Box_1_07_0_033_0_018")
-material_override = ExtResource("steel")
-
-[node name="PullRail" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0, -0.995, 0.043)
-mesh = SubResource("Box_1_095_0_13_0_024")
-material_override = ExtResource("laminate")
-
-[node name="Reflector1" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(-0.445, -0.992, 0.058)
-rotation = Vector3(0, 0, -0.41)
-mesh = SubResource("Box_0_076_0_086_0_005")
-material_override = SubResource("SafetyOchre")
+[node name="Hazard1" type="MeshInstance3D" parent="Track/Shutter/PullRail"]
+position = Vector3(-0.428, 0.052, 0.04)
+mesh = SubResource("Hazard1Mesh")
+material_override = SubResource("Ochre")
+rotation = Vector3(0, 0, -0.35)
 cast_shadow = 0
 
-[node name="Reflector2" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(-0.269, -0.992, 0.058)
-rotation = Vector3(0, 0, -0.41)
-mesh = SubResource("Box_0_076_0_086_0_005")
-material_override = SubResource("SafetyOchre")
+[node name="Hazard2" type="MeshInstance3D" parent="Track/Shutter/PullRail"]
+position = Vector3(-0.214, 0.052, 0.04)
+mesh = SubResource("Hazard1Mesh")
+material_override = SubResource("Ochre")
+rotation = Vector3(0, 0, -0.35)
 cast_shadow = 0
 
-[node name="Reflector3" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(-0.093, -0.992, 0.058)
-rotation = Vector3(0, 0, -0.41)
-mesh = SubResource("Box_0_076_0_086_0_005")
-material_override = SubResource("SafetyOchre")
+[node name="Hazard3" type="MeshInstance3D" parent="Track/Shutter/PullRail"]
+position = Vector3(0, 0.052, 0.04)
+mesh = SubResource("Hazard1Mesh")
+material_override = SubResource("Ochre")
+rotation = Vector3(0, 0, -0.35)
 cast_shadow = 0
 
-[node name="Reflector4" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0.083, -0.992, 0.058)
-rotation = Vector3(0, 0, -0.41)
-mesh = SubResource("Box_0_076_0_086_0_005")
-material_override = SubResource("SafetyOchre")
+[node name="Hazard4" type="MeshInstance3D" parent="Track/Shutter/PullRail"]
+position = Vector3(0.214, 0.052, 0.04)
+mesh = SubResource("Hazard1Mesh")
+material_override = SubResource("Ochre")
+rotation = Vector3(0, 0, -0.35)
 cast_shadow = 0
 
-[node name="Reflector5" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0.259, -0.992, 0.058)
-rotation = Vector3(0, 0, -0.41)
-mesh = SubResource("Box_0_076_0_086_0_005")
-material_override = SubResource("SafetyOchre")
+[node name="Hazard5" type="MeshInstance3D" parent="Track/Shutter/PullRail"]
+position = Vector3(0.428, 0.052, 0.04)
+mesh = SubResource("Hazard1Mesh")
+material_override = SubResource("Ochre")
+rotation = Vector3(0, 0, -0.35)
 cast_shadow = 0
-
-[node name="Reflector6" type="MeshInstance3D" parent="Track/Shutter"]
-position = Vector3(0.435, -0.992, 0.058)
-rotation = Vector3(0, 0, -0.41)
-mesh = SubResource("Box_0_076_0_086_0_005")
-material_override = SubResource("SafetyOchre")
-cast_shadow = 0
-
-[node name="StopLeft" type="MeshInstance3D" parent="."]
-position = Vector3(-0.564, 0.34, 0.103)
-mesh = SubResource("Box_0_035_0_28_0_014")
-material_override = SubResource("SafetyOchre")
-
-[node name="StopRight" type="MeshInstance3D" parent="."]
-position = Vector3(0.564, 0.34, 0.103)
-mesh = SubResource("Box_0_035_0_28_0_014")
-material_override = SubResource("SafetyOchre")
 
 [node name="Beam" type="SpotLight3D" parent="."]
 position = Vector3(0, 1.93, 0.115)

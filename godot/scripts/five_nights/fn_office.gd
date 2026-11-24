@@ -16,6 +16,7 @@ const W := 2.2
 const DOOR_Z := -0.4
 # Слой для ниши и стоящих в ней ригов; тот же бит, что в P0.
 const DOOR_LAYER := 2
+const RollingShutter := preload("res://scripts/five_nights/fn_rolling_shutter.gd")
 
 @onready var cam: Camera3D = $PlayerCamera
 @onready var rest_view := cam.transform
@@ -483,8 +484,8 @@ func tick(st: FNNight, dt: float, look_in: float) -> void:
 		var want := 0.0 if st.door[s] else 1.0
 		var speed := 5.5 if want < door_y[s] else 3.2
 		door_y[s] = move_toward(door_y[s], want, dt * speed)
-		var door: MeshInstance3D = doors[s]
-		door.position.y = (door.mesh as BoxMesh).size.y * ease(door_y[s], 0.6)
+		var door: RollingShutter = doors[s]
+		door.set_opening(ease(door_y[s], 0.6))
 		var beam: SpotLight3D = lights[s]
 		var on: bool = st.light[s] and power_on
 		var bt: float = float(beam_t.get(s, 0.0))
