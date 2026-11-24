@@ -47,6 +47,17 @@ const EYE := {
 	"balon": [Color(1.0, 0.9, 0.78), 0.35], "madk1d": [Color(1.0, 0.12, 0.08), 0.8], "bot": [Color(1.0, 0.1, 0.06), 1.2],
 	"clipper": [Color(0.75, 0.9, 1.0), 0.5], "ghost": [Color(0.8, 0.85, 1.0), 0.25], "mod": [Color(1.0, 0.15, 0.1), 0.8],
 }
+# Внешние точки рига в нише (глубина по X, высота, мировой Z).
+# Запас до полотна и стен измерен по мешам FNStill, FNPeekL/R и FNLungeL/R.
+# FNOffice.point остаётся точкой игровых звуков и событий.
+const DOOR_STANDS := {
+	"balon": Vector3(3.04, 0.006, -0.23),
+	"madk1d": Vector3(3.09, 0.006, -0.29),
+	"bot": Vector3(2.98, 0.006, -0.29),
+	"clipper": Vector3(3.34, 0.254, -0.13),
+	"ghost": Vector3(3.07, 0.006, -0.28),
+	"mod": Vector3(3.38, 0.008, -0.22),
+}
 const IR_SHADER := preload("res://scenes/five_nights/materials/fn_ir_pass.gdshader")
 var eye_mats := {}                 # id → материал глаз (в скримере сила растёт, потом возвращается)
 
@@ -298,10 +309,9 @@ func _place(id: String, e: FNEnemy, r: Rig) -> void:
 			r.visible = false
 			return
 		"door_l", "door_r":
-			# стоит у проёма в нише, прижавшись к южной стене: косяк закрывает часть тела; лицом к охраннику
-			r.position = FNOffice.point(sp) + Vector3(0, 0, 0.18)
-			var to_guard := office.cam.global_position - r.position
-			r.basis = Basis(Vector3.RIGHT, -deg_to_rad(6.0)) * Basis(Vector3.UP, atan2(to_guard.x, to_guard.z))      # всё тело наклонено на 6° к −Z, в проём, от ступней
+			var side := -1.0 if sp == "door_l" else 1.0
+			r.position = (DOOR_STANDS[id] as Vector3) * Vector3(side, 1, 1)
+			r.rotation.y = -side * PI * 0.5
 			lunge_t[id] = false
 			r.play(_door_clip(sp, "FNPeek") if e.pose != 1 else "FNStill", 0.0)
 			return
