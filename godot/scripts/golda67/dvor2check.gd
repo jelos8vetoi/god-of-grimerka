@@ -853,6 +853,8 @@ func _run() -> void:
 		if dd.length() < 0.5:
 			if leg == 0:
 				leg = 1
+				await wait(0.6)
+				print("DVOR2CHECK | площадка: герой %s face=%.2f, камера %s, cam_yaw=%.2f pitch=%.2f, штанга %.2f из %.2f, упёрлась в %s" % [str(P.global_position), P.face, str(g.cam.global_position), g.cam_yaw, g.cam_pitch, g.spring.get_hit_length(), g.spring.spring_length, str(g.spring.get_collider() if g.spring.has_method("get_collider") else "?")])
 				await shot("t3_landing")
 				ok(not G.descending and String(G.run.get("district", "")) != "podzemka", "на нижней площадке перехода ещё нет: нужно свернуть в коридор")
 				continue
