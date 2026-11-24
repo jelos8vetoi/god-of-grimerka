@@ -203,6 +203,9 @@ func scream(kind: String, vol := 0.0) -> float:
 	scream_kind = kind
 	scream_at = GameClock.ms()
 	var pick := FNSound.scream_pick(kind)
+	var gate := FNAudioGate.scream(kind)          # AUDIO QUALITY GATE: выбранный вариант вместо прежних записей
+	if gate != null:
+		pick = [gate, 1]
 	scream_var = int(pick[1])
 	if scream_p == null:
 		scream_p = AudioStreamPlayer.new()
@@ -439,6 +442,8 @@ func clear_transients(keep_scream := false) -> void:
 		ambience.stop_events()
 	if not keep_scream and scream_p != null:
 		scream_p.stop()
+	if gate_cam_p != null:
+		gate_cam_p.stop()
 	if ui != null:
 		ui.hurt = 0.0
 		ui.neg = false
@@ -490,6 +495,24 @@ func sfx2(id: String, vol := 0.0, pitch := 1.0, bus := "SFX") -> void:
 			a.bus = FNSound.bus_for(id, bus)
 			a.play()
 			return
+
+## AUDIO QUALITY GATE: выбранный вариант щелчка камеры. Один проигрыватель: при быстрых переключениях новый щелчок
+## сменяет прежний, а не ложится поверх. false — варианта нет, играет прежний звук.
+var gate_cam_p: AudioStreamPlayer
+func _gate_cam() -> bool:
+	var s := FNAudioGate.cam()
+	if s == null:
+		return false
+	if not _snd_ok():
+		return true
+	if gate_cam_p == null:
+		gate_cam_p = AudioStreamPlayer.new()
+		gate_cam_p.bus = "SFX"
+		add_child(gate_cam_p)
+	gate_cam_p.stream = s
+	gate_cam_p.volume_db = -12.0 + FNAudioGate.CAM_DB
+	gate_cam_p.play()
+	return true
 
 ## тишина перед появлением: окружение уходит почти в ноль
 func duck(on: bool) -> void:
@@ -885,7 +908,8 @@ func _on_event(k: String, d: Dictionary) -> void:
 			if not d["on"]:
 				horror.on_monitor_down(st)
 		"cam":
-			sfx2("cam", -12.0)
+			if not _gate_cam():
+				sfx2("cam", -12.0)
 		"glitch":
 			sfx2("static", -16.0, 1.3)
 			if String(d["k"]) == "fake_alarm":
