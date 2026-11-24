@@ -829,7 +829,7 @@ func build_event_props() -> void:
 	_ev_mesh(a, _evb(Vector3(1.0, 2.0, 0.8)), Vector3(0, 1.0, 0), Color(0.42, 0.1, 0.09))
 	_ev_mesh(a, _evb(Vector3(0.62, 0.5, 0.05)), Vector3(0, 1.45, 0.41), Color(0.05, 0.05, 0.06))
 	var win := _ev_label(a, "7 7 7", Vector3(0, 1.45, 0.45), 56, Color(1.0, 0.85, 0.3))
-	_ev_label(a, "БУРМАЛДА", Vector3(0, 2.1, 0.2), 48, Color(1.0, 0.8, 0.25))
+	G67Sign.board(_ev_label(a, "БУРМАЛДА", Vector3(0, 2.2, 0.2), 48, Color(1.0, 0.8, 0.25)), 0.0, 0.0, Color(0.3, 0.06, 0.05))      # шапка автомата — щит на его крыше
 	var tray := _ev_mesh(a, _evb(Vector3(0.5, 0.22, 0.2)), Vector3(0, 0.45, 0.42), Color(0.08, 0.08, 0.09))
 	var lever := Node3D.new()
 	lever.position = Vector3(0.55, 1.2, 0.1)
@@ -957,7 +957,7 @@ func build_event_props() -> void:
 	lid.position = Vector3(0, 1.62, -0.14)
 	b.add_child(lid)
 	_ev_mesh(lid, _evb(Vector3(0.36, 0.03, 0.28)), Vector3(0, 0.04, 0.14), Color(0.7, 0.85, 0.9, 0.5))
-	_ev_label(b, "МОЖНО. А ЗАЧЕМ?", Vector3(0, 1.95, 0.05), 40, Color(1.0, 0.85, 0.8))
+	G67Sign.board(_ev_label(b, "МОЖНО. А ЗАЧЕМ?", Vector3(0, 1.95, 0.05), 40, Color(1.0, 0.85, 0.8)), 0.0, 0.5)      # табличка на своей ножке над кнопкой
 	var bl := OmniLight3D.new()
 	bl.light_color = Color(1.0, 0.2, 0.15)
 	bl.light_energy = 0.6
