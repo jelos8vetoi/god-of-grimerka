@@ -164,6 +164,20 @@ func slab(x: float, y: float, w: float, h: float, z0: float, z1: float, mat: Mat
 	add_child(mi)
 	return mi
 
+## Снег на плоской крыше дома: тонкая шапка по габариту модели, чуть меньше крыши (парапет остаётся виден)
+func _roof_snow(holder: Node3D, m: Dictionary, snow: Material) -> void:
+	var sz: Array = m["size"]
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(float(sz[0]) * 0.93, 0.16, float(sz[1]) * 0.93)
+	mi.mesh = bm
+	mi.material_override = snow
+	mi.position = Vector3(0, float(sz[2]) + 0.05, 0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.name = "roof_snow"
+	holder.add_child(mi)
+	count["roof_snow"] = int(count.get("roof_snow", 0)) + 1
+
 ## Преграда: коробка w × h плана, высотой hgt от z0. layer 1 — герой и враги, 8 — камера.
 func solid(x: float, y: float, w: float, h: float, hgt: float, yaw_deg := 0.0, z0 := 0.0, layer := 9) -> StaticBody3D:
 	var sb := StaticBody3D.new()
@@ -286,6 +300,8 @@ func build() -> void:
 		var hd := put(id, x, y, yw, 1.0, 0.0, maxf(w, h) if id.begins_with("game:") else 0.0)
 		if hd == null:
 			continue
+		if cat == "res" and man.has(id):
+			_roof_snow(hd, man[id], snow)
 		if not mark:
 			solid(x, y, w, h, float(it.get("hgt", 3.0)))
 		else:

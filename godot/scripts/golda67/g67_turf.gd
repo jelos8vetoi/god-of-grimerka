@@ -35,6 +35,25 @@ const TURFS := [
 		"say": ["Смотрящий: «Подойди».", ""]},
 ]
 
+## Необязательные конфликты (DVOR_RANDOM_CONFLICTS.md): каждый — раз в три забега (opt — в каком из трёх). Тот же автомат встречи,
+## что у территорий: заметили — предупредили — бой, уйти можно. bonus — надбавка к сумке, heal — «Термос» от спасённого.
+## Выбора стороны («рассуди») пока нет: конфликт решается боем или обходом.
+const EXTRAS := [
+	{"id": "school_kid", "name": "У ШКОЛЫ: ПРИЖАЛИ ШКОЛЬНИКА", "type": "battle", "wave": 0, "must": false, "opt": 0, "c": [-86.0, 104.0], "bonus": 10, "heal": 25.0,
+		"posts": [[-86.0, 105.2], [-84.4, 103.4], [-87.8, 103.2]], "from": [[-70.0, 98.0], [-96.0, 112.0]],
+		"say": ["Шестёрка: «Малой, не жадничай. Телефон покажи и иди».", "Шестёрка: «Ты иди, дядя. Тут воспитательная работа»."], "won": "Школьник: «Спасибо, дядь! Вот, мама чай дала — держите»."},
+	{"id": "unloading", "name": "ЗАДВОРКИ «ПРОДУКТОВ 24»", "type": "battle", "wave": 0, "must": false, "opt": 1, "c": [97.0, -37.0], "bonus": 15,
+		"posts": [[95.0, -36.6], [98.6, -36.0], [100.4, -37.6]], "from": [[110.0, -32.0], [84.0, -30.0]],
+		"say": ["Семечник: «Идёт. Не наш».", "Шестёрка: «Мужик, магазин закрыт. Учёт»."], "won": "В подсобке за «ПРОДУКТАМИ 24» нашлась заначка"},
+	{"id": "patrol", "name": "ПАТРУЛЬ НА ЗАДНЕМ ПРОЕЗДЕ", "type": "battle", "wave": 0, "must": false, "opt": 2, "c": [40.0, 88.0],
+		"posts": [[39.0, 88.0], [41.2, 88.6], [40.2, 86.6]], "from": [[60.0, 92.0], [20.0, 88.0]],
+		"say": ["Шестёрка: «Вон ещё один. Этот считается?»", "Шестёрка: «Этот — да. Слышь! Ты откуда и куда?»"]},
+	{"id": "garage_split", "name": "ГСК: ДЕДОВ ГАРАЖ № 31", "type": "battle", "wave": 1, "must": false, "opt": 0, "c": [-110.0, 56.0],
+		"posts": [[-112.0, 56.0], [-111.0, 57.6], [-108.0, 56.0], [-108.6, 57.8]], "from": [[-132.0, 56.0], [-90.0, 56.0]],
+		"say": ["Шестёрка: «Гараж дедов. Дед мой. Значит, и мот мой».", "Шестёрка: «Э. С шестьдесят седьмого. Рассуди»."]},
+]
+static var no_extras := false           # проверка двора ставит необязательные конфликты сама
+
 var g                       # Golda67
 var game
 var world                   # G67World
@@ -63,6 +82,31 @@ func setup(gg) -> void:
 			_post(e)
 		elif String(e["state"]) == "cleared" and int(sv.get("bag", 0)) > 0:
 			_drop_bag(e, int(sv["bag"]), bool(sv.get("fit", false)))
+	var n0 := int(g.meta().get("runs", 0))
+	for d_v in EXTRAS:
+		var d: Dictionary = d_v
+		if (g.run["enc"] as Dictionary).has(String(d["id"])) or (not no_extras and (n0 + int(d["opt"])) % 3 == 0):
+			add_extra(String(d["id"]))
+
+## Поставить необязательный конфликт (в начале забега — по расписанию; после загрузки — если он был в записи)
+func add_extra(id: String) -> Dictionary:
+	if not enc(id).is_empty():
+		return enc(id)
+	for d_v in EXTRAS:
+		var d: Dictionary = d_v
+		if String(d["id"]) != id:
+			continue
+		var sv: Dictionary = (g.run["enc"] as Dictionary).get(id, {})
+		var e := {"d": d, "id": id, "c": v3(d["c"]), "state": String(sv.get("s", "post")), "flees": int(sv.get("f", 0)), "foes": [], "wave_i": 0, "pending": [],
+			"t": 0.0, "cd": 0.0, "wait": 0.0, "lead": null, "said": 0, "bag": {}}
+		encs.append(e)
+		if String(e["state"]) == "post":
+			_post(e)
+			_keep(e)
+		elif String(e["state"]) == "cleared" and int(sv.get("bag", 0)) > 0:
+			_drop_bag(e, int(sv["bag"]), bool(sv.get("fit", false)))
+		return e
+	return {}
 
 func enc(id: String) -> Dictionary:
 	for e in encs:
@@ -284,7 +328,11 @@ func _cleared(e: Dictionary) -> void:
 	g.room_state = "open"
 	var spooked: bool = int(e["flees"]) > 0
 	var base: float = float(G67Data.ROOM_GOLDA["elite" if type == "elite" else "battle"]) * (1.5 if type == "ambush" else 1.0)
-	var gold := int(round(base * (0.5 if spooked else 1.0)))
+	var gold := int(round((base + float(d.get("bonus", 0))) * (0.5 if spooked else 1.0)))
+	if d.has("won") and not spooked:
+		game.toast(String(d["won"]))
+		if d.has("heal"):
+			game.player.hp = minf(game.player.max_hp, game.player.hp + float(d["heal"]))
 	_drop_bag(e, gold, not spooked)          # в сумке — выбор бафа (у элиты редкий); после побега — только половина голды
 	if g.fit_lv("semki") > 0 and not g.hurt_in_fight and not spooked:      # СЕМКИ: бой без полученного урона
 		var got: int = g.add_golda(G67Data.SEMKI_GOLD)

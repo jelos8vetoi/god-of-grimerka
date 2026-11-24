@@ -93,6 +93,10 @@ func pick_fit() -> void:
 	await wait(0.4)
 	if G.hub_ui != null and String(G.hub_ui.kind) == "fit" and not G.fit_offer.is_empty():
 		var id := String(G.fit_offer[0])
+		for o in G.fit_offer:              # «ЦЕПЬ НА УДАЧУ» меняет суммы голды, которые проверка сверяет ниже, — её не берём
+			if String(o) != "gold_chain":
+				id = String(o)
+				break
 		picked.append(id)
 		G.take_fit(id)
 		await wait(0.4)
@@ -588,6 +592,24 @@ func _run() -> void:
 		await shot("a22_krot")
 	else:
 		print("DVOR2CHECK | КРОТ: очередная встреча не во дворе (%s) — в районе его нет" % String(kn.get("id", "нет")))
+	# ================= необязательный конфликт =================
+	var n_enc: int = G.turf.encs.size()
+	var ex: Dictionary = G.turf.add_extra("school_kid")
+	ok(not ex.is_empty() and G.turf.encs.size() == n_enc + 1 and (ex["foes"] as Array).size() >= 2, "конфликт у школы поставлен: врагов %d" % (ex.get("foes", []) as Array).size())
+	ok(G.turf.need_done() == (G.turf.encs.filter(func(e): return bool(e["d"]["must"]) and not String(e["state"]) in ["cleared", "gone"]).is_empty() or G.turf.need_done()), "необязательный конфликт не мешает пути к Мише")
+	var g_x: int = int(G.run["golda"])
+	P.hp = P.max_hp * 0.5
+	var hp_x: float = P.hp
+	P.global_position = G67Dvor2.to3(-86.0, 90.0, 0.05)
+	await lead(-86.0, 103.0, func(): return String(ex["state"]) == "fight")
+	await until(func(): return String(ex["state"]) == "fight", 14.0)
+	ok(String(ex["state"]) == "fight", "подошёл — конфликт перешёл в бой")
+	var won_x: bool = await kill_enc("school_kid")
+	ok(won_x and points("bag_school_kid") == 1 and P.hp > hp_x, "победа: сумка на месте, школьник отдал чай (+здоровье)")
+	G.use("bag_school_kid")
+	await pick_fit()
+	ok(int(G.run["golda"]) - g_x >= 30, "в сумке 20 и 10 от школьника: +%d" % (int(G.run["golda"]) - g_x))
+	P.hp = P.max_hp
 	# ================= жители и торговец =================
 	await folk_block()
 	# ================= пять событий =================

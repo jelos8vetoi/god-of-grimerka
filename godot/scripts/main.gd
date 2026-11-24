@@ -542,6 +542,7 @@ func start_golda67() -> void:
 	game.main = self
 	add_child(game)
 	var uargs: Array = Array(OS.get_cmdline_user_args())
+	G67Turf.no_extras = uargs.any(func(a): return String(a).begins_with("--dvor2check"))
 	G67DvorEvents.all_for_check = uargs.any(func(a): return String(a).begins_with("--dvor2check"))      # проверка ставит все пять событий двора
 	Golda67.old_yard = not uargs.is_empty() and not uargs.any(func(a): return String(a).begins_with("--dvor2check") or String(a).begins_with("--launcher"))
 	var g67 := Golda67.new()
