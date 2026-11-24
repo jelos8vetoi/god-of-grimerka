@@ -91,8 +91,6 @@ func _build() -> void:
 	add_child(panel)
 	var box := _tab("P1 — УТВЕРЖДЕНО")
 	_build_screams(_tab("СКРИМЕРЫ (P1.2)"))
-	if capture == "" and FNAudioGate.TRIAL.keys().any(func(k): return FNAudioGate.variant(k) != ""):
-		(panel as TabContainer).current_tab = 1
 	var head := Label.new()
 	head.text = "5 НОЧЕЙ С ПАХАНОМ — AUDIO QUALITY GATE (P1)"
 	head.add_theme_font_size_override("font_size", 26)
@@ -180,7 +178,7 @@ func _title(box: Control, text: String, size := 19) -> void:
 
 ## P1.2, скримеры: у каждого своя запись; ORIGINAL — один из трёх прежних дублей
 func _build_screams(box: VBoxContainer) -> void:
-	_title(box, "СКРИМЕРЫ — P1.2, ждут приёмки (БАЛОН A2 утверждён, вкладка P1)", 24)
+	_title(box, "СКРИМЕРЫ — P1.2, играют по умолчанию (БАЛОН A2 — вкладка P1)", 24)
 	for it in SCREAMS:
 		var kind := String(it[0])
 		_title(box, "%s — %s" % [it[1], it[2]], 16)
@@ -210,8 +208,8 @@ func _scream_one(kind: String, v: String) -> void:
 	scream_p.play()
 
 func _all_trial(on: bool) -> void:
-	for k in FNAudioGate.TRIAL:
-		FNAudioGate.choose(k, String(FNAudioGate.TRIAL[k]) if on else "")
+	for it in SCREAMS:
+		FNAudioGate.choose("scream_" + String(it[0]), "a" if on else "")
 	get_tree().reload_current_scene()
 
 func _booth_scare(kind: String) -> void:

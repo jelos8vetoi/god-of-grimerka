@@ -9,11 +9,12 @@ class_name FNAudioGate
 const DIR := "res://assets/audio/fn/gate/"
 const FILE := "user://fn_audio_gate.json"
 const VERSION := 2
-const APPROVED := {"balon": "b", "cctv": "b", "madk1d": "a", "tablet": "a"}
-const KEYS := ["balon", "cctv", "madk1d", "tablet"]
-## P1.2: записи ждут приёмки на слух. В обычной игре по умолчанию играет прежний звук (""); новый включается в сцене
-## прослушивания («в игре») либо на один запуск ключом `-- --fnaudio=new` (все сразу).
-const TRIAL := {"scream_madk1d": "a", "scream_bot": "a", "scream_clipper": "a", "scream_ghost": "a", "scream_mod": "a", "scream_dark": "a"}
+const APPROVED := {"balon": "b", "cctv": "b", "madk1d": "a", "tablet": "a",
+	"scream_madk1d": "a", "scream_bot": "a", "scream_clipper": "a", "scream_ghost": "a", "scream_mod": "a", "scream_dark": "a"}      # скримеры P1.2
+const KEYS := ["balon", "cctv", "madk1d", "tablet", "scream_madk1d", "scream_bot", "scream_clipper", "scream_ghost", "scream_mod", "scream_dark"]
+## Записи, которые ещё ждут приёмки на слух: по умолчанию играет прежний звук (""), новый включается в сцене прослушивания
+## («в игре») либо на один запуск ключом `-- --fnaudio=new`. Сейчас таких нет: скримеры P1.2 приняты и перенесены в APPROVED.
+const TRIAL := {}
 const VARIANTS := ["", "a", "b"]
 const NAMES := {"": "ORIGINAL", "a": "A", "b": "B"}
 ## события шахты: вид → записи C1 (assets/audio/fn/sfx/madk_*) и прежние записи P0
