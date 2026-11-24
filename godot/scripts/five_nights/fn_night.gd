@@ -79,6 +79,17 @@ func setup(n: int, seed_v: int, levels := {}) -> void:
 		e.setup(self, id, _level_for(id, 0))
 		enemies[id] = e
 
+var arrive_gate := 0.0           # раньше этой секунды никто не встаёт к двери или решётке (разнесение угроз)
+
+func may_arrive() -> bool:
+	return t >= arrive_gate
+
+func note_arrive() -> void:
+	arrive_gate = maxf(arrive_gate, t + float(FNData.spacing(night)[0]))
+
+func note_leave() -> void:
+	arrive_gate = maxf(arrive_gate, t + float(FNData.spacing(night)[1]))
+
 ## спокойное начало ночи для врага (для Custom Night — нет)
 func calm(id: String) -> Array:
 	if night >= FNData.NIGHTS.size():

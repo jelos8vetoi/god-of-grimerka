@@ -5,9 +5,30 @@
 class_name FNMadk1d
 extends FNEnemy
 
+var duct_t := 0.0                # сколько ползёт по этой шахте
+var duct_need := 0.0
+
+## в шахте он не ждёт удачного броска: ползёт DUCT_SEC и выходит к решётке (или перелезает) — звук не тянется минутами
+func tick(st, dt: float) -> void:
+	if level > 0 and not entered and spot.begins_with("duct_") and queued == "":
+		duct_t += dt
+		if duct_t >= duct_need:
+			_move(st)
+		return
+	super.tick(st, dt)
+
+func go(st, to: String, why := "") -> void:
+	super.go(st, to, why)
+	if spot == to and to.begins_with("duct_"):
+		duct_t = 0.0
+		var D: Array = FNData.DUCT_SEC
+		duct_need = lerpf(float(D[0]), float(D[1]), clampf(float(level - 1) / 19.0, 0.0, 1.0)) * st.rng.randf_range(0.85, 1.2) * (0.6 if why == "switch" else 1.0)
+
 func _move(st) -> void:
 	match spot:
 		"vent":
+			if st.t < rest_until - float(FNData.DUCT_SEC[0]):
+				return                            # передышка: в шахту не лезет, пока не подойдёт срок (в шахте не ждёт минутами)
 			# лезет той шахтой, чью заслонку ты закрываешь реже (с 5-го уровня); слышно его по-прежнему
 			var p_left := 0.5
 			if level >= 5:

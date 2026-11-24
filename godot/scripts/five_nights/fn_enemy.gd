@@ -24,6 +24,11 @@ var look := false                # смотрит прямо в камеру (в
 var pose := 0                    # вариант позы в комнате (вид)
 var moves := 0
 var entered := false
+var rest_until := 0.0            # до этой секунды ночи он не встаёт к двери/решётке (передышка после того, как отбили)
+var rest_why := ""               # причина ближайшего ухода ("flinch" — согнали светом); сбрасывается после ухода
+var camped := false              # защита была закрыта ещё до его прихода
+var queued := ""                 # ждёт своей очереди встать к этому входу (передышка или разнесение угроз)
+var queued_why := ""
 
 func setup(st, eid: String, lvl: int) -> void:
 	id = eid
@@ -47,6 +52,12 @@ func tick(st, dt: float) -> void:
 		return
 	if _at_door():
 		_door_tick(st, dt)
+		return
+	if queued != "":
+		if _may_stand(st):
+			var q := queued
+			queued = ""
+			go(st, q, queued_why)
 		return
 	move_t -= dt
 	if move_t <= 0.0:
@@ -76,11 +87,22 @@ func _guard(st) -> bool:
 			return bool(st.seal["t"])
 	return false
 
+## передышка прошла и вход свободен по разнесению угроз
+func _may_stand(st) -> bool:
+	return st.t >= rest_until and st.may_arrive()
+
 func go(st, to: String, why := "") -> void:
 	if to == spot:
 		return
-	if to in ["door_l", "door_r", "vent_l", "vent_t"] and st.t < float(st.calm(id)[1]):
+	var to_att: bool = to in ["door_l", "door_r", "vent_l", "vent_t"]
+	if to_att and st.t < float(st.calm(id)[1]):
 		return
+	if to_att and not _may_stand(st):
+		queued = to                               # дойдёт, когда кончится передышка: ждёт на подходе, ход не теряется
+		queued_why = why
+		return
+	queued = ""
+	var from_att := _at_door()
 	prev = spot
 	spot = to
 	moves += 1
@@ -93,6 +115,12 @@ func go(st, to: String, why := "") -> void:
 		block_need = st.rng.randf_range(BLOCK_LEAVE[0], BLOCK_LEAVE[1])
 		var L: Array = cfg()["linger"]
 		linger = lerpf(float(L[0]), float(L[1]), float(level) / 20.0) * st.rng.randf_range(0.9, 1.15)
+		camped = _guard(st)
+		st.note_arrive()
+	elif from_att:
+		rest_until = st.t + FNData.rest_len(st.night, id, level, rest_why, camped) * st.rng.randf_range(0.9, 1.15)
+		rest_why = ""
+		st.note_leave()
 	st.emit("move", {"e": id, "from": prev, "to": to, "why": why})
 
 func _door_tick(st, dt: float) -> void:
