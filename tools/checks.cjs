@@ -63,6 +63,8 @@ const C = [
   { name: 'mode', key: 'modecheck', ok: /MODECHECK ok\s*$/m, groups: ['modes'] },
   { name: 'training', key: 'trainingcheck', ok: /TRAININGCHECK ok\s*$/m, groups: ['modes'] },
   { name: 'golda67', key: 'golda67check', ok: /GOLDA67CHECK ok\s*$/m, groups: ['modes', 'golda67'] },
+  { name: 'dvor2', key: 'dvor2check', ok: /DVOR2CHECK итог: ошибок 0\s*$/m, groups: ['modes', 'golda67', 'dvor2'] },      // новый ДВОР в забеге: территории, три ступени боя, отступление, сумки, Миша
+  { name: 'dvor2view', key: 'dvor2view', ok: /DVOR2VIEW ok\s*$/m, groups: ['dvor2'] },      // новый ДВОР: сборка, кадры, три маршрута ботом, решётка арки
   { name: 'podzemka', key: 'golda67check', extra: ['--g67-pz'], ok: /GOLDA67CHECK oks*$/m, groups: ['golda67'], t: 900 },
   { name: 'fortuna', key: 'golda67check', extra: ['--g67-fz'], ok: /GOLDA67CHECK oks*$/m, groups: ['golda67'], t: 1500 },
   { name: 'survival', key: 'playtest-survival', ok: /SURVIVALPLAY ok\s*$/m, groups: ['modes', 'survival'], t: 1500 },

@@ -17,6 +17,7 @@ const TUNE := {
 	"tokens": 2,         # ближних атакующих одновременно (как game.melee_attackers)
 	"gap": 0.3,          # минимум секунд между ударами двух разных врагов по герою
 	"summon_cap": 3,     # призванных одним фермером одновременно
+	"summon_total": 4,   # «ГОЛДА 67»: призванных на арене всего (двое Зазывал не собирают толпу из шести)
 }
 
 ## Поля приёма:
@@ -377,6 +378,8 @@ static func _summon(e, kinds: Array, n: int, at: Vector3) -> void:
 	g.main.sfx("sfx_cast", -6.0, 0.7)
 	for i in n:
 		if summoned_alive(e) >= int(TUNE["summon_cap"]) or g.enemies.size() > 20:
+			return
+		if g.golda != null and g.enemies.filter(func(o): return is_instance_valid(o) and o.state != "dead" and o.summoned_by != null).size() >= int(TUNE["summon_total"]):
 			return
 		var pos: Vector3 = at if at != Vector3.INF else e.global_position + Vector3(randf_range(-2.5, 2.5), 0, randf_range(-2.5, 2.5))
 		if not g.in_arena(pos, 1.0):

@@ -1,0 +1,1859 @@
+{
+ "res_block_a": {
+  "section": "buildings",
+  "source": "soviet_apartment_building__russian_far_east",
+  "size": [
+   31.95,
+   17.96,
+   13.28
+  ],
+  "tris": 25228,
+  "mats": 6,
+  "mb": 13.2,
+  "note": "четырёхэтажка, западный корпус"
+ },
+ "res_block_b": {
+  "section": "buildings",
+  "source": "soviet_apartment_building__russian_far_east",
+  "size": [
+   34.93,
+   18.32,
+   13.28
+  ],
+  "tris": 24299,
+  "mats": 6,
+  "mb": 13.1,
+  "note": "четырёхэтажка, восточный корпус"
+ },
+ "tower_16_wide": {
+  "section": "buildings",
+  "source": "street_city_7_for_games_free",
+  "size": [
+   40.99,
+   37.88,
+   48.38
+  ],
+  "tris": 56,
+  "mats": 1,
+  "mb": 0.2,
+  "note": "панельная башня-оболочка: только дальний план за границей района"
+ },
+ "tower_16_slab": {
+  "section": "buildings",
+  "source": "street_city_7_for_games_free",
+  "size": [
+   16.49,
+   40.66,
+   48.38
+  ],
+  "tris": 56,
+  "mats": 1,
+  "mb": 0.2,
+  "note": "панельная башня-оболочка: только дальний план за границей района"
+ },
+ "tower_9_wide": {
+  "section": "buildings",
+  "source": "street_city_7_for_games_free",
+  "size": [
+   31.76,
+   35.56,
+   31.69
+  ],
+  "tris": 80,
+  "mats": 2,
+  "mb": 7.9,
+  "note": "панельная башня-оболочка: только дальний план за границей района"
+ },
+ "tower_9_slab": {
+  "section": "buildings",
+  "source": "street_city_7_for_games_free",
+  "size": [
+   19.59,
+   32.69,
+   31.69
+  ],
+  "tris": 80,
+  "mats": 2,
+  "mb": 7.9,
+  "note": "панельная башня-оболочка: только дальний план за границей района"
+ },
+ "fastfood_lot": {
+  "section": "buildings",
+  "source": "mcdonalds-restaurant-low-poly",
+  "size": [
+   31.8,
+   30.5,
+   7.0
+  ],
+  "tris": 1893,
+  "mats": 3,
+  "mb": 11.5,
+  "note": "ресторан с проездом и забором; пилоны с логотипом сняты"
+ },
+ "garage_shell_graffiti": {
+  "section": "garages",
+  "source": "garage_rusty_01",
+  "size": [
+   6.3,
+   2.71,
+   1.87
+  ],
+  "tris": 352,
+  "mats": 1,
+  "mb": 1.0,
+  "note": "металлический гараж в граффити"
+ },
+ "garage_brick_double": {
+  "section": "garages",
+  "source": "old_garage",
+  "size": [
+   7.15,
+   11.29,
+   4.39
+  ],
+  "tris": 2204,
+  "mats": 11,
+  "mb": 12.2,
+  "note": "кирпичный бокс на двое ворот, шиферная крыша"
+ },
+ "garage_concrete_45": {
+  "section": "garages",
+  "source": "russian_garage_low-poly_game_model_4k_pbr_tex",
+  "size": [
+   3.8,
+   6.02,
+   2.78
+  ],
+  "tris": 2922,
+  "mats": 1,
+  "mb": 38.7,
+  "note": "бетонный гараж № 45, красные ворота"
+ },
+ "garage_tin_1": {
+  "section": "garages",
+  "source": "low_poly_garages",
+  "size": [
+   4.33,
+   2.8,
+   2.46
+  ],
+  "tris": 28,
+  "mats": 1,
+  "mb": 1.6,
+  "note": "жестяной гараж, цвет 1"
+ },
+ "garage_tin_2": {
+  "section": "garages",
+  "source": "low_poly_garages",
+  "size": [
+   4.38,
+   2.86,
+   2.4
+  ],
+  "tris": 40,
+  "mats": 1,
+  "mb": 1.7,
+  "note": "жестяной гараж, цвет 2"
+ },
+ "garage_tin_3": {
+  "section": "garages",
+  "source": "low_poly_garages",
+  "size": [
+   4.36,
+   2.8,
+   2.4
+  ],
+  "tris": 64,
+  "mats": 1,
+  "mb": 1.9,
+  "note": "жестяной гараж, цвет 3"
+ },
+ "garage_tin_4": {
+  "section": "garages",
+  "source": "low_poly_garages",
+  "size": [
+   4.41,
+   2.73,
+   2.46
+  ],
+  "tris": 52,
+  "mats": 1,
+  "mb": 1.7,
+  "note": "жестяной гараж, цвет 4"
+ },
+ "garage_tin_5": {
+  "section": "garages",
+  "source": "low_poly_garages",
+  "size": [
+   4.3,
+   2.95,
+   2.4
+  ],
+  "tris": 40,
+  "mats": 1,
+  "mb": 1.7,
+  "note": "жестяной гараж, цвет 5"
+ },
+ "car_vaz_21099": {
+  "section": "props",
+  "source": "1991_vaz_21099",
+  "size": [
+   2.02,
+   4.29,
+   1.41
+  ],
+  "tris": 1958,
+  "mats": 1,
+  "mb": 8.6,
+  "note": "ВАЗ-21099"
+ },
+ "bench_siberian": {
+  "section": "props",
+  "source": "bench_siberian_classic_01",
+  "size": [
+   2.13,
+   0.5,
+   0.67
+  ],
+  "tris": 1056,
+  "mats": 1,
+  "mb": 6.0,
+  "note": "лавка"
+ },
+ "dumpster_blue": {
+  "section": "props",
+  "source": "dumpster_russian_blue",
+  "size": [
+   1.35,
+   1.35,
+   1.19
+  ],
+  "tris": 44,
+  "mats": 1,
+  "mb": 2.4,
+  "note": "мусорный бак"
+ },
+ "elbox_green": {
+  "section": "props",
+  "source": "electrical_box_-_free",
+  "size": [
+   2.0,
+   0.51,
+   1.63
+  ],
+  "tris": 1475,
+  "mats": 1,
+  "mb": 19.8,
+  "note": "электрошкаф"
+ },
+ "elbox_rusty_pair": {
+  "section": "props",
+  "source": "rusty_street_electrical_boxes_1",
+  "size": [
+   2.03,
+   0.42,
+   1.85
+  ],
+  "tris": 898,
+  "mats": 1,
+  "mb": 2.2,
+  "note": "два ржавых шкафа"
+ },
+ "bus_stop_blue": {
+  "section": "streets",
+  "source": "old_russian_bus_stop",
+  "size": [
+   5.67,
+   5.58,
+   3.1
+  ],
+  "tris": 2494,
+  "mats": 4,
+  "mb": 37.4,
+  "note": "остановка из профлиста со знаком"
+ },
+ "fence_concrete": {
+  "section": "walls",
+  "source": "wall_low_poly",
+  "size": [
+   6.49,
+   0.69,
+   2.46
+  ],
+  "tris": 94,
+  "mats": 1,
+  "mb": 19.4,
+  "note": "бетонная плита забора и два столба"
+ },
+ "tree_leafy_pair": {
+  "section": "props",
+  "source": "tree_low_poly_lowpoly",
+  "size": [
+   10.73,
+   5.22,
+   8.99
+  ],
+  "tris": 1629,
+  "mats": 1,
+  "mb": 0.2,
+  "note": "два лиственных дерева (летние)"
+ },
+ "lamp_tube": {
+  "section": "props",
+  "source": "ceiling_lamp-10mb",
+  "size": [
+   1.5,
+   0.21,
+   0.08
+  ],
+  "tris": 2220,
+  "mats": 1,
+  "mb": 7.2,
+  "note": "линейный светильник"
+ },
+ "snow_pine_1": {
+  "section": "props",
+  "source": "snow_pine_tree_and_bush_pack_lowpoly",
+  "size": [
+   5.35,
+   5.12,
+   7.2
+  ],
+  "tris": 828,
+  "mats": 2,
+  "mb": 40.3,
+  "note": "заснеженная ель или куст"
+ },
+ "snow_pine_2": {
+  "section": "props",
+  "source": "snow_pine_tree_and_bush_pack_lowpoly",
+  "size": [
+   4.2,
+   4.34,
+   5.24
+  ],
+  "tris": 240,
+  "mats": 2,
+  "mb": 40.3,
+  "note": "заснеженная ель или куст"
+ },
+ "snow_pine_3": {
+  "section": "props",
+  "source": "snow_pine_tree_and_bush_pack_lowpoly",
+  "size": [
+   2.24,
+   2.3,
+   3.23
+  ],
+  "tris": 144,
+  "mats": 1,
+  "mb": 1.8,
+  "note": "заснеженная ель или куст"
+ },
+ "snow_pine_4": {
+  "section": "props",
+  "source": "snow_pine_tree_and_bush_pack_lowpoly",
+  "size": [
+   3.1,
+   3.02,
+   2.59
+  ],
+  "tris": 32,
+  "mats": 1,
+  "mb": 0.2,
+  "note": "заснеженная ель или куст"
+ },
+ "res_brick_5": {
+  "section": "buildings",
+  "source": "soviet_residential_building",
+  "size": [
+   59.58,
+   15.35,
+   18.18
+  ],
+  "tris": 9912,
+  "mats": 13,
+  "mb": 4.3,
+  "note": "кирпичная пятиэтажка, скатная крыша"
+ },
+ "res_panel_9": {
+  "section": "buildings",
+  "source": "soviet_panel_house",
+  "size": [
+   17.68,
+   16.65,
+   28.83
+  ],
+  "tris": 6413,
+  "mats": 2,
+  "mb": 6.6,
+  "note": "панельная девятиэтажка-башня, антенны"
+ },
+ "res_panel_7": {
+  "section": "buildings",
+  "source": "low_poly_-_soviet__apartment_building_8k",
+  "size": [
+   12.49,
+   30.38,
+   21.0
+  ],
+  "tris": 10392,
+  "mats": 1,
+  "mb": 2.8,
+  "note": "серая панельная семиэтажка"
+ },
+ "res_long_9": {
+  "section": "buildings",
+  "source": "russian_panel_house_asset",
+  "size": [
+   31.08,
+   104.39,
+   27.0
+  ],
+  "tris": 32456,
+  "mats": 11,
+  "mb": 30.1,
+  "note": "длинный девятиэтажный дом-«стена»"
+ },
+ "res_voxel_1": {
+  "section": "buildings",
+  "source": "soviet_panelki__voxel_style_apartment_buildings",
+  "size": [
+   13.1,
+   42.74,
+   13.31
+  ],
+  "tris": 3764,
+  "mats": 24,
+  "mb": 0.3,
+  "note": "пятиэтажка в воксельной манере"
+ },
+ "res_voxel_2": {
+  "section": "buildings",
+  "source": "soviet_panelki__voxel_style_apartment_buildings",
+  "size": [
+   13.1,
+   42.74,
+   13.31
+  ],
+  "tris": 3764,
+  "mats": 24,
+  "mb": 0.3,
+  "note": "пятиэтажка в воксельной манере"
+ },
+ "pitch_fenced": {
+  "section": "streets",
+  "source": "football_stadium",
+  "size": [
+   38.93,
+   25.55,
+   8.0
+  ],
+  "tris": 497336,
+  "mats": 1,
+  "mb": 46.8,
+  "note": "футбольная коробка с сеткой и воротами"
+ },
+ "bus_laz": {
+  "section": "props",
+  "source": "laz-699_soviet_bus",
+  "size": [
+   2.72,
+   10.71,
+   3.27
+  ],
+  "tris": 766,
+  "mats": 1,
+  "mb": 3.4,
+  "note": "автобус ЛАЗ-699"
+ },
+ "mcqueen": {
+  "section": "props",
+  "source": "lightning_mcqueen_xbox_360",
+  "size": [
+   2.07,
+   4.54,
+   1.49
+  ],
+  "tris": 11462,
+  "mats": 5,
+  "mb": 2.0,
+  "note": "Молния Маккуин (персонаж Disney/Pixar, модель из игры для Xbox 360)"
+ },
+ "market_row_3": {
+  "section": "streets",
+  "source": "low-poly_russian_kiosk_meal_bread_and_techno",
+  "size": [
+   16.92,
+   6.15,
+   3.76
+  ],
+  "tris": 809,
+  "mats": 2,
+  "mb": 1.0,
+  "note": "три ларька в ряд: мясо, хлеб, «ТЕХНО-СКЛАД»"
+ },
+ "bench_concrete": {
+  "section": "props",
+  "source": "old_soviet_bench_rework",
+  "size": [
+   0.96,
+   2.81,
+   0.85
+  ],
+  "tris": 9788,
+  "mats": 4,
+  "mb": 10.2,
+  "note": "лавка с бетонными боковинами"
+ },
+ "kiosk_grey": {
+  "section": "streets",
+  "source": "old_soviet_railway_station_kiosk",
+  "size": [
+   1.91,
+   2.14,
+   2.67
+  ],
+  "tris": 520,
+  "mats": 1,
+  "mb": 0.9,
+  "note": "серый киоск с шатровой крышей"
+ },
+ "kiosk_blue": {
+  "section": "streets",
+  "source": "post-soviet_kiosk_psx_style",
+  "size": [
+   2.53,
+   2.38,
+   2.7
+  ],
+  "tris": 98,
+  "mats": 1,
+  "mb": 1.0,
+  "note": "бело-синий ларёк"
+ },
+ "shop_cafe_tyre": {
+  "section": "buildings",
+  "source": "roadside_building",
+  "size": [
+   9.91,
+   7.9,
+   5.56
+  ],
+  "tris": 1649,
+  "mats": 1,
+  "mb": 0.9,
+  "note": "придорожный дом: кафе, магазин, шиномонтаж, банкомат"
+ },
+ "shop_house": {
+  "section": "buildings",
+  "source": "roadside_shop_and_cafe_updated",
+  "size": [
+   17.54,
+   20.59,
+   9.33
+  ],
+  "tris": 1772,
+  "mats": 1,
+  "mb": 1.2,
+  "note": "дом с магазином, пристройкой и двориком за забором"
+ },
+ "garage_row_brick": {
+  "section": "garages",
+  "source": "soviet_brick_storage__garage_low_poly",
+  "size": [
+   4.2,
+   26.49,
+   3.17
+  ],
+  "tris": 3202,
+  "mats": 1,
+  "mb": 2.7,
+  "note": "кирпичный ряд боксов на 26 м"
+ },
+ "stair_steel": {
+  "section": "props",
+  "source": "staircase_modular_frame_-_steel",
+  "size": [
+   3.14,
+   9.12,
+   18.57
+  ],
+  "tris": 55128,
+  "mats": 4,
+  "mb": 12.2,
+  "note": "стальная пожарная лестница в четыре марша"
+ },
+ "fence_rhombus": {
+  "section": "walls",
+  "source": "the_soviet_fence",
+  "size": [
+   0.4,
+   3.43,
+   2.97
+  ],
+  "tris": 640,
+  "mats": 1,
+  "mb": 0.4,
+  "note": "бетонная плита забора «ромбик»"
+ },
+ "car_zhiguli_1": {
+  "section": "props",
+  "source": "zhiguli_soviet_cars",
+  "size": [
+   1.8,
+   4.18,
+   1.43
+  ],
+  "tris": 1024,
+  "mats": 1,
+  "mb": 4.4,
+  "note": "«Жигули»"
+ },
+ "car_zhiguli_2": {
+  "section": "props",
+  "source": "zhiguli_soviet_cars",
+  "size": [
+   1.8,
+   4.25,
+   1.43
+  ],
+  "tris": 1052,
+  "mats": 1,
+  "mb": 4.5,
+  "note": "«Жигули»"
+ },
+ "car_zhiguli_3": {
+  "section": "props",
+  "source": "zhiguli_soviet_cars",
+  "size": [
+   1.8,
+   4.12,
+   1.43
+  ],
+  "tris": 944,
+  "mats": 1,
+  "mb": 4.5,
+  "note": "«Жигули»"
+ },
+ "car_zhiguli_4": {
+  "section": "props",
+  "source": "zhiguli_soviet_cars",
+  "size": [
+   1.8,
+   4.18,
+   1.43
+  ],
+  "tris": 1024,
+  "mats": 1,
+  "mb": 3.5,
+  "note": "«Жигули»"
+ },
+ "smoke_stacks": {
+  "section": "buildings",
+  "source": "dvor_smoke_stacks",
+  "size": [
+   13.97,
+   3.07,
+   42.0
+  ],
+  "tris": 2868,
+  "mats": 3,
+  "mb": 4.1,
+  "note": "дымовые трубы котельной (Sketchfab, FrodoUndead, CC-BY)"
+ },
+ "white_tower": {
+  "section": "buildings",
+  "source": "dvor_white_tower",
+  "size": [
+   13.32,
+   11.45,
+   29.0
+  ],
+  "tris": 2942,
+  "mats": 6,
+  "mb": 1.4,
+  "note": "водонапорная башня-конструктивизм (Sketchfab, monray, CC-BY)"
+ },
+ "lamp_1": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   1.39,
+   0.27,
+   3.56
+  ],
+  "tris": 1198,
+  "mats": 2,
+  "mb": 0.0,
+  "note": "уличный фонарь"
+ },
+ "lamp_2": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   2.54,
+   0.27,
+   3.56
+  ],
+  "tris": 2146,
+  "mats": 2,
+  "mb": 0.1,
+  "note": "уличный фонарь"
+ },
+ "lamp_3": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   2.76,
+   0.24,
+   3.49
+  ],
+  "tris": 892,
+  "mats": 2,
+  "mb": 0.0,
+  "note": "уличный фонарь"
+ },
+ "lamp_4": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   1.5,
+   0.24,
+   3.49
+  ],
+  "tris": 620,
+  "mats": 2,
+  "mb": 0.0,
+  "note": "уличный фонарь"
+ },
+ "lamp_5": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   0.96,
+   0.27,
+   3.35
+  ],
+  "tris": 1174,
+  "mats": 2,
+  "mb": 0.0,
+  "note": "уличный фонарь"
+ },
+ "lamp_6": {
+  "section": "streets",
+  "source": "simple_collection_of_low_poly_street_lights_v3",
+  "size": [
+   1.69,
+   0.27,
+   3.35
+  ],
+  "tris": 2098,
+  "mats": 2,
+  "mb": 0.1,
+  "note": "уличный фонарь"
+ },
+ "traffic_1": {
+  "section": "streets",
+  "source": "simple_low_poly_street_trafic_lights",
+  "size": [
+   0.34,
+   1.12,
+   3.48
+  ],
+  "tris": 1072,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "светофор"
+ },
+ "traffic_2": {
+  "section": "streets",
+  "source": "simple_low_poly_street_trafic_lights",
+  "size": [
+   0.34,
+   1.97,
+   3.48
+  ],
+  "tris": 1072,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "светофор"
+ },
+ "traffic_3": {
+  "section": "streets",
+  "source": "simple_low_poly_street_trafic_lights",
+  "size": [
+   0.34,
+   1.12,
+   3.48
+  ],
+  "tris": 1072,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "светофор"
+ },
+ "tree_dead_tall": {
+  "section": "props",
+  "source": "dvor_dead_tree_ps1",
+  "size": [
+   1.96,
+   1.9,
+   9.0
+  ],
+  "tris": 269,
+  "mats": 1,
+  "mb": 0.1,
+  "note": "сухое дерево, PS1-манера (Wersaus33)"
+ },
+ "tree_dead_1": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   5.24,
+   3.27,
+   7.22
+  ],
+  "tris": 168,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "tree_dead_2": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   5.24,
+   3.27,
+   7.22
+  ],
+  "tris": 168,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "tree_dead_3": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   2.93,
+   2.56,
+   8.27
+  ],
+  "tris": 173,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "tree_dead_4": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   2.93,
+   2.56,
+   8.27
+  ],
+  "tris": 173,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "tree_dead_5": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   3.37,
+   3.1,
+   6.78
+  ],
+  "tris": 281,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "tree_dead_6": {
+  "section": "props",
+  "source": "dvor_dead_trees",
+  "size": [
+   3.37,
+   3.1,
+   6.78
+  ],
+  "tris": 281,
+  "mats": 1,
+  "mb": 0.0,
+  "note": "сухое дерево из набора (FlunkedPunk)"
+ },
+ "flowerbed": {
+  "section": "props",
+  "source": "dvor_flowerbed",
+  "size": [
+   2.1,
+   2.1,
+   0.5
+  ],
+  "tris": 284,
+  "mats": 1,
+  "mb": 0.8,
+  "note": "бетонная клумба (Unka II)"
+ },
+ "garage_block_rusty": {
+  "section": "garages",
+  "source": "dvor_garage_block",
+  "size": [
+   7.74,
+   16.31,
+   2.85
+  ],
+  "tris": 8367,
+  "mats": 3,
+  "mb": 9.6,
+  "note": "ржавый гаражный блок с открытыми воротами (olegolegperepelica)"
+ },
+ "garage_metal_1": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   7.12,
+   3.5,
+   2.05
+  ],
+  "tris": 3054,
+  "mats": 1,
+  "mb": 0.8,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_2": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   6.09,
+   3.64,
+   2.74
+  ],
+  "tris": 2918,
+  "mats": 1,
+  "mb": 3.4,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_3": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   6.77,
+   4.9,
+   2.47
+  ],
+  "tris": 1862,
+  "mats": 1,
+  "mb": 4.1,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_4": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   5.58,
+   3.41,
+   0.49
+  ],
+  "tris": 32,
+  "mats": 1,
+  "mb": 3.2,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_5": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   5.54,
+   3.29,
+   2.0
+  ],
+  "tris": 1290,
+  "mats": 1,
+  "mb": 3.2,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_6": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   0.08,
+   2.99,
+   2.0
+  ],
+  "tris": 272,
+  "mats": 1,
+  "mb": 3.2,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "garage_metal_7": {
+  "section": "garages",
+  "source": "dvor_garages_pack",
+  "size": [
+   0.01,
+   3.19,
+   1.65
+  ],
+  "tris": 352,
+  "mats": 1,
+  "mb": 3.2,
+  "note": "металлический гараж из набора (olegolegperepelica)"
+ },
+ "hockey_rink": {
+  "section": "streets",
+  "source": "dvor_hockey_rink",
+  "size": [
+   21.76,
+   33.03,
+   2.5
+  ],
+  "tris": 4718,
+  "mats": 13,
+  "mb": 0.8,
+  "note": "хоккейная коробка с бортами, стеклом и воротами (rockleyr)"
+ },
+ "kiosk_90s": {
+  "section": "streets",
+  "source": "dvor_kiosk_90s",
+  "size": [
+   5.59,
+   5.98,
+   4.28
+  ],
+  "tris": 1668,
+  "mats": 7,
+  "mb": 3.3,
+  "note": "павильон 90-х с витринами (Vagabondare)"
+ },
+ "kiosk_rusty": {
+  "section": "streets",
+  "source": "dvor_kiosk_rusty",
+  "size": [
+   3.01,
+   2.65,
+   2.72
+  ],
+  "tris": 289,
+  "mats": 1,
+  "mb": 1.8,
+  "note": "ржавый киоск (randombug)"
+ },
+ "payphone": {
+  "section": "props",
+  "source": "dvor_payphone",
+  "size": [
+   1.98,
+   1.11,
+   2.27
+  ],
+  "tris": 3846,
+  "mats": 1,
+  "mb": 2.3,
+  "note": "таксофон (Richard Speight)"
+ },
+ "seesaw": {
+  "section": "props",
+  "source": "dvor_seesaw",
+  "size": [
+   2.0,
+   0.75,
+   1.17
+  ],
+  "tris": 996,
+  "mats": 1,
+  "mb": 1.5,
+  "note": "качалка (targa)"
+ },
+ "sled": {
+  "section": "props",
+  "source": "dvor_sled",
+  "size": [
+   1.26,
+   0.45,
+   0.22
+  ],
+  "tris": 476,
+  "mats": 3,
+  "mb": 0.0,
+  "note": "санки (sam)"
+ },
+ "slide_rusty": {
+  "section": "props",
+  "source": "dvor_slide",
+  "size": [
+   0.81,
+   6.09,
+   2.52
+  ],
+  "tris": 992,
+  "mats": 1,
+  "mb": 6.6,
+  "note": "ржавая горка (shtran)"
+ },
+ "snow_pile": {
+  "section": "props",
+  "source": "dvor_snow_pile",
+  "size": [
+   4.04,
+   2.5,
+   0.84
+  ],
+  "tris": 12537,
+  "mats": 1,
+  "mb": 3.7,
+  "note": "сугроб с грязным снегом (Creates 3D)"
+ },
+ "swings": {
+  "section": "props",
+  "source": "dvor_swings",
+  "size": [
+   1.61,
+   3.07,
+   2.65
+  ],
+  "tris": 2648,
+  "mats": 1,
+  "mb": 1.0,
+  "note": "качели (TheLastCookie-404)"
+ },
+ "urn_red": {
+  "section": "props",
+  "source": "dvor_trash_can",
+  "size": [
+   0.52,
+   0.52,
+   0.52
+  ],
+  "tris": 116,
+  "mats": 1,
+  "mb": 3.3,
+  "note": "урна (Unka II)"
+ },
+ "van_uaz452": {
+  "section": "props",
+  "source": "dvor_uaz452",
+  "size": [
+   2.52,
+   4.4,
+   1.9
+  ],
+  "tris": 7970,
+  "mats": 2,
+  "mb": 2.0,
+  "note": "УАЗ-452 «буханка» (Sergey Egelsky)"
+ },
+ "bench_ussr": {
+  "section": "props",
+  "source": "dvor_ussr_bench",
+  "size": [
+   0.73,
+   2.07,
+   1.16
+  ],
+  "tris": 1248,
+  "mats": 3,
+  "mb": 2.3,
+  "note": "лавка на гнутых трубах (TheLastCookie-404)"
+ },
+ "pine_ps1_1": {
+  "section": "props",
+  "source": "dvor_ps1_pines",
+  "size": [
+   13.65,
+   4.68,
+   9.82
+  ],
+  "tris": 300,
+  "mats": 1,
+  "mb": 0.3,
+  "note": "заснеженная ель, PS1-манера (Vova Truestory)"
+ },
+ "tree_winter": {
+  "section": "props",
+  "source": "dvor_winter_tree",
+  "size": [
+   2.92,
+   2.98,
+   8.5
+  ],
+  "tris": 14058,
+  "mats": 1,
+  "mb": 0.4,
+  "note": "голое зимнее дерево с ветками (JSLGames)"
+ },
+ "school": {
+  "section": "buildings",
+  "source": "dvor_school",
+  "size": [
+   27.92,
+   15.48,
+   13.83
+  ],
+  "tris": 22191,
+  "mats": 1,
+  "mb": 3.7,
+  "note": "трёхэтажная школа с крыльцом (dimmeyster)"
+ },
+ "elbox_tall": {
+  "section": "props",
+  "source": "dvor_transformer",
+  "size": [
+   0.99,
+   0.43,
+   1.97
+  ],
+  "tris": 2594,
+  "mats": 4,
+  "mb": 8.6,
+  "note": "высокий электрошкаф (MrUnity)"
+ },
+ "sign_1": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   0.2,
+   0.2,
+   10.0
+  ],
+  "tris": 22,
+  "mats": 1,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_2": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   0.2,
+   0.2,
+   8.0
+  ],
+  "tris": 22,
+  "mats": 1,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_3": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   0.2,
+   0.2,
+   7.0
+  ],
+  "tris": 22,
+  "mats": 1,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_4": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   1.6,
+   0.03,
+   5.0
+  ],
+  "tris": 28,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_5": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   3.0
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_6": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   3.0
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_7": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   3.0
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_8": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   3.0
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_9": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   3.0
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_10": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.72,
+   0.22,
+   2.72
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_11": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.4,
+   0.22,
+   2.4
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_12": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.4,
+   0.22,
+   2.4
+  ],
+  "tris": 170,
+  "mats": 2,
+  "mb": 0.7,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_13": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   2.0
+  ],
+  "tris": 426,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "sign_14": {
+  "section": "streets",
+  "source": "modular_russian_road_signs_pack_urban",
+  "size": [
+   2.0,
+   0.22,
+   2.0
+  ],
+  "tris": 426,
+  "mats": 2,
+  "mb": 0.6,
+  "note": "дорожный знак из набора (Unka II)"
+ },
+ "yard_shelter": {
+  "section": "props",
+  "source": "dvor_yard_shelter",
+  "size": [
+   2.89,
+   3.41,
+   2.9
+  ],
+  "tris": 3187,
+  "mats": 1,
+  "mb": 2.8,
+  "note": "дворовый навес со столом и лавками (Elasta Kristya)"
+ },
+ "gazebo": {
+  "section": "props",
+  "source": "dvor_gazebo",
+  "size": [
+   5.52,
+   5.52,
+   3.4
+  ],
+  "tris": 1992,
+  "mats": 1,
+  "mb": 0.1,
+  "note": "деревянная беседка-шестигранник (anadaren)"
+ },
+ "pole_concrete": {
+  "section": "streets",
+  "source": "dvor_pole_concrete",
+  "size": [
+   1.92,
+   0.45,
+   9.0
+  ],
+  "tris": 3404,
+  "mats": 1,
+  "mb": 2.7,
+  "note": "бетонный столб (Kuutti Siitonen)"
+ },
+ "pole_wires": {
+  "section": "streets",
+  "source": "dvor_pole_wires",
+  "size": [
+   0.89,
+   16.07,
+   9.0
+  ],
+  "tris": 5486,
+  "mats": 1,
+  "mb": 2.1,
+  "note": "столб с пролётом проводов (3d.caster)"
+ },
+ "barrier_1": {
+  "section": "streets",
+  "source": "ph_concrete_road_barrier",
+  "size": [
+   1.55,
+   0.64,
+   0.83
+  ],
+  "tris": 60928,
+  "mats": 1,
+  "mb": 4.0,
+  "note": "бетонный блок в полоску (Poly Haven, CC0)"
+ },
+ "barrier_2": {
+  "section": "streets",
+  "source": "ph_concrete_road_barrier_02",
+  "size": [
+   1.57,
+   0.44,
+   1.11
+  ],
+  "tris": 23822,
+  "mats": 1,
+  "mb": 3.1,
+  "note": "бетонный блок (Poly Haven, CC0)"
+ },
+ "tyre_old": {
+  "section": "props",
+  "source": "ph_old_tyre",
+  "size": [
+   0.6,
+   0.16,
+   0.6
+  ],
+  "tris": 2880,
+  "mats": 1,
+  "mb": 2.4,
+  "note": "старая покрышка (Poly Haven, CC0)"
+ },
+ "trashbag": {
+  "section": "props",
+  "source": "ph_trashbag",
+  "size": [
+   0.53,
+   0.46,
+   0.57
+  ],
+  "tris": 4482,
+  "mats": 1,
+  "mb": 1.8,
+  "note": "мусорный мешок (Poly Haven, CC0)"
+ },
+ "barrel_blue": {
+  "section": "props",
+  "source": "ph_barrel_03",
+  "size": [
+   0.63,
+   0.64,
+   0.93
+  ],
+  "tris": 1473,
+  "mats": 1,
+  "mb": 0.6,
+  "note": "синяя бочка (Poly Haven, CC0)"
+ },
+ "trash_cans": {
+  "section": "props",
+  "source": "ph_metal_trash_can",
+  "size": [
+   1.78,
+   0.56,
+   0.91
+  ],
+  "tris": 13960,
+  "mats": 3,
+  "mb": 5.0,
+  "note": "два ржавых бака с крышками (Poly Haven, CC0)"
+ },
+ "billboard_soviet": {
+  "section": "streets",
+  "source": "dvor_billboard_a",
+  "size": [
+   0.25,
+   3.98,
+   4.2
+  ],
+  "tris": 506,
+  "mats": 1,
+  "mb": 2.2,
+  "note": "советский щит «Учимся и работаем» (AspectStudios)"
+ },
+ "billboard_ad": {
+  "section": "streets",
+  "source": "dvor_billboard_b",
+  "size": [
+   5.57,
+   3.41,
+   8.5
+  ],
+  "tris": 2340,
+  "mats": 3,
+  "mb": 2.2,
+  "note": "рекламный щит на столбе (ne.k1t)"
+ },
+ "crow_1": {
+  "section": "props",
+  "source": "dvor_crow_a",
+  "size": [
+   210.07,
+   162.58,
+   346.07
+  ],
+  "tris": 2208,
+  "mats": 1,
+  "mb": 3.3,
+  "note": "ворона (Alexei Ostapenko)"
+ },
+ "crow_2": {
+  "section": "props",
+  "source": "dvor_crow_b",
+  "size": [
+   0.43,
+   0.58,
+   0.36
+  ],
+  "tris": 444,
+  "mats": 1,
+  "mb": 2.9,
+  "note": "ворона, низкополигональная (Tsar Games)"
+ },
+ "info_stand": {
+  "section": "props",
+  "source": "dvor_infostand",
+  "size": [
+   2.09,
+   0.25,
+   1.62
+  ],
+  "tris": 4762,
+  "mats": 2,
+  "mb": 6.4,
+  "note": "доска объявлений (Annelida)"
+ },
+ "laundry": {
+  "section": "props",
+  "source": "dvor_laundry_a",
+  "size": [
+   5.03,
+   7.99,
+   2.3
+  ],
+  "tris": 8693,
+  "mats": 5,
+  "mb": 2.8,
+  "note": "бельевые верёвки с бельём (Khoa Nguyen)"
+ },
+ "monument": {
+  "section": "props",
+  "source": "dvor_lenin",
+  "size": [
+   2.4,
+   3.03,
+   4.6
+  ],
+  "tris": 1858,
+  "mats": 1,
+  "mb": 0.1,
+  "note": "памятник, белёный (SanyaTankov)"
+ },
+ "mailbox": {
+  "section": "props",
+  "source": "dvor_mailbox",
+  "size": [
+   0.5,
+   0.49,
+   0.62
+  ],
+  "tris": 530,
+  "mats": 1,
+  "mb": 2.5,
+  "note": "синий почтовый ящик (bikravnis)"
+ },
+ "manhole": {
+  "section": "streets",
+  "source": "dvor_manhole",
+  "size": [
+   0.8,
+   0.8,
+   0.06
+  ],
+  "tris": 1456,
+  "mats": 2,
+  "mb": 2.7,
+  "note": "канализационный люк (Sirenko)"
+ },
+ "pallets": {
+  "section": "props",
+  "source": "dvor_pallets_b",
+  "size": [
+   2.43,
+   3.71,
+   0.96
+  ],
+  "tris": 1824,
+  "mats": 1,
+  "mb": 2.1,
+  "note": "поддоны (Anna Denisova)"
+ },
+ "rocket_slide": {
+  "section": "props",
+  "source": "dvor_rocket",
+  "size": [
+   7.07,
+   1.73,
+   4.75
+  ],
+  "tris": 4232,
+  "mats": 6,
+  "mb": 0.2,
+  "note": "ракета-горка (Occam)"
+ },
+ "snowman": {
+  "section": "props",
+  "source": "dvor_snowman_b",
+  "size": [
+   0.75,
+   1.11,
+   1.55
+  ],
+  "tris": 6798,
+  "mats": 2,
+  "mb": 0.9,
+  "note": "снеговик в цилиндре (Junaid Amin)"
+ },
+ "sofa_set": {
+  "section": "props",
+  "source": "dvor_sofa_a",
+  "size": [
+   3.41,
+   2.4,
+   0.85
+  ],
+  "tris": 3258,
+  "mats": 2,
+  "mb": 6.0,
+  "note": "старый диван и два кресла (MaX3Dd)"
+ },
+ "bush_bare": {
+  "section": "props",
+  "source": "dvor_xmas_tree",
+  "size": [
+   1.61,
+   1.87,
+   2.6
+  ],
+  "tris": 4547,
+  "mats": 4,
+  "mb": 0.5,
+  "note": "голый куст-деревце (shirlanne)"
+ },
+ "barrel_stove": {
+  "section": "props",
+  "source": "ph_barrel_stove",
+  "size": [
+   0.59,
+   0.59,
+   0.86
+  ],
+  "tris": 9216,
+  "mats": 1,
+  "mb": 2.1,
+  "note": "бочка-печка (Poly Haven, CC0)"
+ },
+ "boombox": {
+  "section": "props",
+  "source": "ph_boombox",
+  "size": [
+   0.72,
+   0.19,
+   0.47
+  ],
+  "tris": 10168,
+  "mats": 2,
+  "mb": 3.1,
+  "note": "магнитофон (Poly Haven, CC0)"
+ },
+ "box_cardboard": {
+  "section": "props",
+  "source": "ph_cardboard_box_01",
+  "size": [
+   0.39,
+   0.52,
+   0.34
+  ],
+  "tris": 16952,
+  "mats": 1,
+  "mb": 2.5,
+  "note": "картонная коробка (Poly Haven, CC0)"
+ },
+ "crate_plastic": {
+  "section": "props",
+  "source": "ph_plastic_crate_01",
+  "size": [
+   0.3,
+   0.41,
+   0.26
+  ],
+  "tris": 18320,
+  "mats": 1,
+  "mb": 3.3,
+  "note": "пластиковый ящик (Poly Haven, CC0)"
+ },
+ "cat_statue": {
+  "section": "props",
+  "source": "ph_concrete_cat_statue",
+  "size": [
+   0.32,
+   0.53,
+   0.6
+  ],
+  "tris": 11950,
+  "mats": 1,
+  "mb": 3.1,
+  "note": "бетонный кот (Poly Haven, CC0)"
+ },
+ "log_dead": {
+  "section": "props",
+  "source": "ph_dead_tree_trunk",
+  "size": [
+   3.05,
+   0.28,
+   0.29
+  ],
+  "tris": 101802,
+  "mats": 1,
+  "mb": 5.0,
+  "note": "сухое бревно (Poly Haven, CC0)"
+ },
+ "stump": {
+  "section": "props",
+  "source": "ph_tree_stump_01",
+  "size": [
+   1.43,
+   1.59,
+   0.57
+  ],
+  "tris": 41046,
+  "mats": 1,
+  "mb": 4.1,
+  "note": "пень (Poly Haven, CC0)"
+ },
+ "utility_box": {
+  "section": "streets",
+  "source": "ph_utility_box_01",
+  "size": [
+   0.52,
+   0.43,
+   1.12
+  ],
+  "tris": 4404,
+  "mats": 1,
+  "mb": 2.0,
+  "note": "серый электрошкаф (Poly Haven, CC0)"
+ },
+ "res_arch_81": {
+  "section": "buildings",
+  "source": "soviet_apartment_building__russian_far_east + tools/blender/dvor_arch.py",
+  "size": [
+   34.93,
+   18.32,
+   13.28
+  ],
+  "tris": 30193,
+  "mats": 18,
+  "mb": 14.6,
+  "note": "дом № 81 с аркой и спуском в Подземку; створки gate_L / gate_R и gate_chain — отдельные объекты",
+  "stairs": {
+   "gate_y": -6.96,
+   "x": [
+    -5.25,
+    0.75
+   ],
+   "run": 15.0,
+   "drop": 5.0,
+   "bottom_y": 8.04,
+   "link": [
+    3.0,
+    8.6,
+    -5.0
+   ],
+   "lamps": [
+    [
+     -2.2,
+     -7.9595287322998045
+    ],
+    [
+     -2.2,
+     -2.9595287322998045
+    ],
+    [
+     3.2,
+     -6.159528732299805
+    ],
+    [
+     3.2,
+     0.0
+    ],
+    [
+     3.2,
+     6.159528732299805
+    ]
+   ]
+  }
+ }
+}

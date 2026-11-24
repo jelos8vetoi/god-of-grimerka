@@ -56,8 +56,13 @@ static func pt(name: String) -> Vector3:
 static func fit_yaw() -> float:
 	return G67Podzemka.FIT_YAW if cur == "podzemka" else G67Yard.HANGER_YAW
 
+## Новый двор ставит автомат и кнопку на свои места (G67World.build_dvor2); прежний двор и Подземка поле очищают
+static var spots_dv := {}
+
 static func event_spots() -> Dictionary:
-	return {} if cur == "podzemka" else G67Yard.EVENT_SPOTS
+	if cur == "podzemka":
+		return {}
+	return spots_dv if not spots_dv.is_empty() else G67Yard.EVENT_SPOTS
 
 ## ---- поля и методы, которые дёргает root; у района без этих понятий остаются пустыми
 var solids: Array = []
