@@ -15,9 +15,9 @@ const HUB_CAM_LEN := 4.0      # длина штанги камеры в подъ
 const YARD_CAM_LEN := 4.6
 const PZ_CAM_LEN := 4.6
 var sel_district := "dvor"
-const FADE_FAR := 1.3         # камера ближе этого к плечам героя — он начинает таять
-const FADE_NEAR := 0.6        # на этом расстоянии прозрачность 0,75
-const FADE_MAX := 0.75
+const FADE_FAR := 2.1         # камера ближе этого к плечам героя — он начинает таять
+const FADE_NEAR := 1.0        # на этом расстоянии прозрачность 0,75
+const FADE_MAX := 0.82
 
 var game
 var world: G67World
@@ -726,6 +726,7 @@ func link_swap(down: bool) -> void:
 		dir = dv.link_dir()
 	p.face = atan2(dir.x, dir.z)
 	game.cam_yaw = atan2(-dir.x, -dir.z)
+	game.pivot.global_position = Vector3.ZERO          # камера встаёт за героя сразу, а не подлетает из прежнего района сквозь стены
 	if "cam_pitch" in game:
 		game.cam_pitch = pitch
 	if clip == null:

@@ -135,6 +135,14 @@ func _rebuild() -> void:
 			rects.append([r, vid])
 			if vid in ["house", "gar"] and model != "res_arch_81":
 				_solid(r.grow(0.35))
+			elif model == "res_arch_81":            # дом с аркой: крылья — стены, проезд посередине (10,5 м) свободен
+				var half: float = float(G.world.dvor.man["res_arch_81"]["size"][0]) * 0.5
+				var ax: float = float(it["x"])
+				var ay: float = float(it["y"])
+				for sg in [-1.0, 1.0]:
+					var y_a: float = ay + sg * 5.25
+					var y_b: float = ay + sg * half
+					_solid(Rect2(ax - 9.3, -maxf(y_a, y_b), 18.6, absf(y_b - y_a)).grow(0.3))
 		# реквизит с преградой (диваны, бочки, машины, ларьки) — тоже препятствие для маршрута: на карте не рисуется
 		var dv0: G67Dvor2 = G.world.dvor
 		for q_v in (dv0.props.get("props", []) as Array):
@@ -170,6 +178,12 @@ func _rebuild() -> void:
 			bb = r if first else bb.merge(r)
 			first = false
 		bb = bb.grow(cell * 2.0)
+		var doors: Array = []
+		for dd in G67Podzemka.DOORS:
+			if String(dd[0]) == "x":
+				doors.append(Rect2(float(dd[1]) - 1.6, float(dd[2]) + 0.3, 3.2, float(dd[3]) - float(dd[2]) - 0.6))
+			else:
+				doors.append(Rect2(float(dd[2]) + 0.3, float(dd[1]) - 1.6, float(dd[3]) - float(dd[2]) - 0.6, 3.2))
 		grid.region = Rect2i(int(floor(bb.position.x / cell)), int(floor(bb.position.y / cell)), int(ceil(bb.size.x / cell)), int(ceil(bb.size.y / cell)))
 		grid.cell_size = Vector2(cell, cell)
 		grid.update()
@@ -178,10 +192,15 @@ func _rebuild() -> void:
 			for cx in range(rg.position.x, rg.end.x):
 				var c := Vector2((float(cx) + 0.5) * cell, (float(cy) + 0.5) * cell)
 				var inside := false
-				for rr in rects:
-					if (rr[0] as Rect2).grow(0.2).has_point(c):
+				for rr in rects:                      # помещение без полосы у стен: маршрут не режет углы и не идёт сквозь стену соседнего зала
+					if (rr[0] as Rect2).grow(-0.45).has_point(c):
 						inside = true
 						break
+				if not inside:
+					for dr in doors:                  # проёмы между залами
+						if (dr as Rect2).has_point(c):
+							inside = true
+							break
 				if not inside:
 					grid.set_point_solid(Vector2i(cx, cy), true)
 		names = [[_room_c("cash"), "КАССЫ"], [_room_c("casino"), "CASINO"], [_room_c("arena"), "АРЕНА"], [_room_c("arcade"), "АВТОМАТЫ"], [_room_c("gallery"), "ГАЛЕРЕЯ"]]

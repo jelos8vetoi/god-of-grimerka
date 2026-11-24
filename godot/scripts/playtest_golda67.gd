@@ -48,6 +48,7 @@ var goal_t := 0.0
 var clips_seen: Array = []
 var hub_tries := 0
 var dead_now := false
+var last_dist := ""
 var kills0 := 0
 
 func _ready() -> void:
@@ -379,6 +380,12 @@ func _run_tick(gg, g, p, dt: float) -> void:
 	if not seen.has("run_in%d" % runs):
 		seen["run_in%d" % runs] = true
 		note("ЗАБЕГ", "район %s, герой %s" % [String(gg.run.get("district", "?")), str(p.global_position)])
+	var dist_now := String(gg.run.get("district", "?"))
+	if dist_now != last_dist:
+		if last_dist != "":
+			note("ПЕРЕХОД", "%s → %s: герой %s, камера %s, бафов %d, голда %d, предметы %s" % [last_dist, dist_now, str(p.global_position), str(g.cam.global_position), (gg.run.get("fits", {}) as Dictionary).size(), int(gg.run.get("golda", 0)), str(gg.run.get("items", {}))])
+			_later_shot("arrive_" + dist_now, 0.6)
+		last_dist = dist_now
 	var goal: Dictionary = gg.minimap.goal() if gg.minimap != null else {"text": "", "pos": null}
 	var gtext := String(goal.get("text", ""))
 	if gtext != last_goal:
@@ -473,6 +480,35 @@ func _run_tick(gg, g, p, dt: float) -> void:
 			tap(KEY_E)
 		_later_shot("use_" + near, 1.0)
 		return
+	# спуск в Подземку ногами: решётка → марш → площадка → проём → коридор (точки читаются у района, как у игрока с глаз)
+	if gg.world.dvor != null and gg.world.dvor.gate_open and gtext.find("Подземку") >= 0 and gg.room_state == "open":
+		var dv = gg.world.dvor
+		var top: Vector3 = dv.stairs_top()
+		var bot: Vector3 = dv.stairs_bottom()
+		var lk: Vector3 = dv.link_point()
+		var pp: Vector3 = p.global_position
+		if Vector2(pp.x - top.x, pp.z - top.z).length() < 2.0 or pp.y < -0.3:
+			if not seen.has("desc%d" % runs):
+				seen["desc%d" % runs] = true
+				note("СПУСК", "у решётки, иду вниз по лестнице: герой %s" % str(pp))
+				_later_shot("descent_top", 0.3)
+			var door := Vector3(bot.x, bot.y, bot.z + 3.6)
+			if pp.y > -4.6:
+				go(bot)
+				if pp.y < -2.0 and not seen.has("desc_mid%d" % runs):
+					seen["desc_mid%d" % runs] = true
+					_later_shot("descent_stairs", 0.05)
+			elif not seen.has("desc_door%d" % runs):
+				go(door)
+				if pp.distance_to(door) < 0.7:
+					seen["desc_door%d" % runs] = true
+					_later_shot("descent_landing", 0.05)
+			else:
+				go(lk)
+				if pp.distance_to(lk) < 3.0 and not seen.has("desc_corr%d" % runs):
+					seen["desc_corr%d" % runs] = true
+					_later_shot("descent_corridor", 0.05)
+			return
 	var gp = goal.get("pos")
 	if p.hp < p.max_hp * 0.7 and gg.world.dvor != null and int(gg.run.get("golda", 0)) >= 30 and not seen.has("kiosk" + str(runs)) and gg.room_state == "open":
 		var kp: Dictionary = gg.point("kiosk")
@@ -491,7 +527,7 @@ func _run_tick(gg, g, p, dt: float) -> void:
 	if path.size() >= 3:
 		var here := Vector2(p.global_position.x, p.global_position.z)
 		var k := 1
-		while k < path.size() - 1 and path[k].distance_to(here) < 3.0:
+		while k < path.size() - 1 and path[k].distance_to(here) < (1.7 if G67District.is_podzemka() else 3.0):
 			k += 1
 		to = Vector3(path[k].x, p.global_position.y, path[k].y)
 	go(to)
