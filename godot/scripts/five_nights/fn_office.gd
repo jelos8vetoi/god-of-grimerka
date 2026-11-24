@@ -531,9 +531,9 @@ func _lighting(st: FNNight, dt: float) -> void:
 		crt_next = randf_range(5.0, 14.0) if instab_eff() >= 0.7 else randf_range(9.0, 25.0)
 	crt_dip = maxf(0.0, crt_dip - dt)
 	var crt_k := (1.0 + 0.035 * sin(t * 2.3) + 0.02 * sin(t * 7.1)) * (0.75 if crt_dip > 0.0 else 1.0)
-	glow.light_energy = (0.46 if st.monitor else 0.30) * supply * crt_k
-	screen_mat.set_shader_parameter("brightness", (0.95 if st.monitor else 0.62) * supply * crt_k)
-	aux_mat.set_shader_parameter("brightness", 0.46 * supply * crt_k)
+	glow.light_energy = (0.062 if st.monitor else 0.045) * supply * crt_k
+	screen_mat.set_shader_parameter("brightness", (0.68 if st.monitor else 0.49) * supply * crt_k)
+	aux_mat.set_shader_parameter("brightness", 0.34 * supply * crt_k)
 	record_light.visible = power_on and fposmod(t, 1.6) < 1.1
 
 ## Скример и события ночи меняют и сам источник, и стекло светильника.

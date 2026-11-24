@@ -1,4 +1,4 @@
-[gd_scene load_steps=123 format=3]
+[gd_scene load_steps=131 format=3]
 
 [ext_resource type="Texture2D" path="res://assets/minigames/fn_office_photo.png" id="OpeningPhoto"]
 [ext_resource type="Script" path="res://scripts/five_nights/fn_office.gd" id="Controller"]
@@ -11,6 +11,10 @@
 [ext_resource type="PackedScene" path="res://scenes/five_nights/booth_door_controls.tscn" id="booth_door_controls"]
 [ext_resource type="FontFile" path="res://assets/fonts/RussoOne-Regular.ttf" id="Russo"]
 [ext_resource type="PackedScene" path="res://scenes/five_nights/security_console.tscn" id="security_console"]
+
+[ext_resource type="Material" path="res://scenes/five_nights/materials/office_wall.tres" id="OfficePlaster"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/office_dado.tres" id="OfficeDado"]
+[ext_resource type="Material" path="res://scenes/five_nights/materials/office_ceiling.tres" id="OfficeCeiling"]
 
 [sub_resource type="StandardMaterial3D" id="Rubber"]
 albedo_color = Color(0.065, 0.071, 0.074, 1)
@@ -44,7 +48,7 @@ metallic = 0
 resource_local_to_scene = true
 emission_enabled = true
 emission = Color(0.98, 0.91, 0.75, 1)
-emission_energy_multiplier = 0.6
+emission_energy_multiplier = 0.37
 
 [sub_resource type="StandardMaterial3D" id="Eyes"]
 albedo_color = Color(0.99, 0.9, 0.79, 1)
@@ -476,6 +480,23 @@ size = Vector3(0.034, 0.014, 0.012)
 [sub_resource type="BoxMesh" id="Box_Leaf"]
 size = Vector3(0.335, 0.018, 0.67)
 
+[sub_resource type="StandardMaterial3D" id="PanelJoint"]
+albedo_color = Color(0.085, 0.082, 0.069, 1)
+roughness = 0.95
+metallic_specular = 0.12
+
+[sub_resource type="BoxMesh" id="PanelJointFront"]
+size = Vector3(0.008, 0.89, 0.005)
+
+[sub_resource type="BoxMesh" id="PanelJointSide"]
+size = Vector3(0.006, 0.89, 0.008)
+
+[sub_resource type="BoxMesh" id="CornerGuard"]
+size = Vector3(0.021, 0.60, 0.073)
+
+[sub_resource type="BoxMesh" id="CeilingJoint"]
+size = Vector3(0.015, 0.012, 2.22)
+
 [node name="GuardBooth" type="Node3D"]
 script = ExtResource("Controller")
 
@@ -492,27 +513,27 @@ material_override = ExtResource("floor")
 [node name="Plaster" type="MeshInstance3D" parent="Shell/FrontWall"]
 position = Vector3(0, 1.855, 0)
 mesh = SubResource("Box_4_4_1_69_0_1")
-material_override = ExtResource("plaster")
+material_override = ExtResource("OfficePlaster")
 
 [node name="LeftPanel" type="MeshInstance3D" parent="Shell/FrontWall"]
 position = Vector3(-2.08, 0.505, 0)
 mesh = SubResource("Box_0_24_1_01_0_1")
-material_override = ExtResource("enamel")
+material_override = ExtResource("OfficeDado")
 
 [node name="RightPanel" type="MeshInstance3D" parent="Shell/FrontWall"]
 position = Vector3(0.45, 0.505, 0)
 mesh = SubResource("Box_3_5_1_01_0_1")
-material_override = ExtResource("enamel")
+material_override = ExtResource("OfficeDado")
 
 [node name="SillPanel" type="MeshInstance3D" parent="Shell/FrontWall"]
 position = Vector3(-1.63, 0.066, 0)
 mesh = SubResource("Box_0_66_0_132_0_1")
-material_override = ExtResource("enamel")
+material_override = ExtResource("OfficeDado")
 
 [node name="LintelPanel" type="MeshInstance3D" parent="Shell/FrontWall"]
 position = Vector3(-1.63, 0.797, 0)
 mesh = SubResource("Box_0_66_0_426_0_1")
-material_override = ExtResource("enamel")
+material_override = ExtResource("OfficeDado")
 
 [node name="ChairRail" type="MeshInstance3D" parent="Shell/FrontWall"]
 position = Vector3(0, 1.011, 0.061)
@@ -530,34 +551,34 @@ position = Vector3(0, 0, 1.65)
 [node name="Upper" type="MeshInstance3D" parent="Shell/RearWall"]
 position = Vector3(0, 1.855, 0)
 mesh = SubResource("Box_4_4_1_69_0_1")
-material_override = ExtResource("plaster")
+material_override = ExtResource("OfficePlaster")
 
 [node name="Lower" type="MeshInstance3D" parent="Shell/RearWall"]
 position = Vector3(0, 0.505, 0)
 mesh = SubResource("Box_4_4_1_01_0_1")
-material_override = ExtResource("enamel")
+material_override = ExtResource("OfficeDado")
 
 [node name="Ceiling" type="Node3D" parent="Shell"]
 
 [node name="Front" type="MeshInstance3D" parent="Shell/Ceiling"]
 position = Vector3(0, 2.75, -1.555)
 mesh = SubResource("Box_4_4_0_1_0_49")
-material_override = ExtResource("laminate")
+material_override = ExtResource("OfficeCeiling")
 
 [node name="Back" type="MeshInstance3D" parent="Shell/Ceiling"]
 position = Vector3(0, 2.75, 0.555)
 mesh = SubResource("Box_4_4_0_1_2_29")
-material_override = ExtResource("laminate")
+material_override = ExtResource("OfficeCeiling")
 
 [node name="Left" type="MeshInstance3D" parent="Shell/Ceiling"]
 position = Vector3(-1.105, 2.75, -0.95)
 mesh = SubResource("Box_2_19_0_1_0_72")
-material_override = ExtResource("laminate")
+material_override = ExtResource("OfficeCeiling")
 
 [node name="Right" type="MeshInstance3D" parent="Shell/Ceiling"]
 position = Vector3(1.455, 2.75, -0.95)
 mesh = SubResource("Box_1_49_0_1_0_72")
-material_override = ExtResource("laminate")
+material_override = ExtResource("OfficeCeiling")
 
 [node name="FrontBeam" type="MeshInstance3D" parent="Shell/Ceiling"]
 position = Vector3(0, 2.654, -0.36)
@@ -575,12 +596,12 @@ position = Vector3(-2.25, 0, 0)
 [node name="FrontUpper" type="MeshInstance3D" parent="Shell/LeftWall"]
 position = Vector3(0, 1.855, -1.35)
 mesh = SubResource("Box_0_1_1_69_0_8")
-material_override = ExtResource("plaster")
+material_override = ExtResource("OfficePlaster")
 
 [node name="FrontLower" type="MeshInstance3D" parent="Shell/LeftWall"]
 position = Vector3(0, 0.505, -1.35)
 mesh = SubResource("Box_0_1_1_01_0_8")
-material_override = ExtResource("enamel")
+material_override = ExtResource("OfficeDado")
 
 [node name="FrontRail" type="MeshInstance3D" parent="Shell/LeftWall"]
 position = Vector3(0.06, 1.01, -1.35)
@@ -595,12 +616,12 @@ material_override = ExtResource("laminate")
 [node name="BackUpper" type="MeshInstance3D" parent="Shell/LeftWall"]
 position = Vector3(0, 1.855, 0.9)
 mesh = SubResource("Box_0_1_1_69_1_5")
-material_override = ExtResource("plaster")
+material_override = ExtResource("OfficePlaster")
 
 [node name="BackLower" type="MeshInstance3D" parent="Shell/LeftWall"]
 position = Vector3(0, 0.505, 0.9)
 mesh = SubResource("Box_0_1_1_01_1_5")
-material_override = ExtResource("enamel")
+material_override = ExtResource("OfficeDado")
 
 [node name="BackRail" type="MeshInstance3D" parent="Shell/LeftWall"]
 position = Vector3(0.06, 1.01, 0.9)
@@ -615,7 +636,7 @@ material_override = ExtResource("laminate")
 [node name="Header" type="MeshInstance3D" parent="Shell/LeftWall"]
 position = Vector3(0, 2.425, -0.4)
 mesh = SubResource("Box_0_1_0_55_1_1")
-material_override = ExtResource("plaster")
+material_override = ExtResource("OfficePlaster")
 
 [node name="LeftRecess" type="Node3D" parent="Shell"]
 
@@ -687,12 +708,12 @@ position = Vector3(2.25, 0, 0)
 [node name="FrontUpper" type="MeshInstance3D" parent="Shell/RightWall"]
 position = Vector3(0, 1.855, -1.35)
 mesh = SubResource("Box_0_1_1_69_0_8")
-material_override = ExtResource("plaster")
+material_override = ExtResource("OfficePlaster")
 
 [node name="FrontLower" type="MeshInstance3D" parent="Shell/RightWall"]
 position = Vector3(0, 0.505, -1.35)
 mesh = SubResource("Box_0_1_1_01_0_8")
-material_override = ExtResource("enamel")
+material_override = ExtResource("OfficeDado")
 
 [node name="FrontRail" type="MeshInstance3D" parent="Shell/RightWall"]
 position = Vector3(-0.06, 1.01, -1.35)
@@ -707,12 +728,12 @@ material_override = ExtResource("laminate")
 [node name="BackUpper" type="MeshInstance3D" parent="Shell/RightWall"]
 position = Vector3(0, 1.855, 0.9)
 mesh = SubResource("Box_0_1_1_69_1_5")
-material_override = ExtResource("plaster")
+material_override = ExtResource("OfficePlaster")
 
 [node name="BackLower" type="MeshInstance3D" parent="Shell/RightWall"]
 position = Vector3(0, 0.505, 0.9)
 mesh = SubResource("Box_0_1_1_01_1_5")
-material_override = ExtResource("enamel")
+material_override = ExtResource("OfficeDado")
 
 [node name="BackRail" type="MeshInstance3D" parent="Shell/RightWall"]
 position = Vector3(-0.06, 1.01, 0.9)
@@ -727,7 +748,7 @@ material_override = ExtResource("laminate")
 [node name="Header" type="MeshInstance3D" parent="Shell/RightWall"]
 position = Vector3(0, 2.425, -0.4)
 mesh = SubResource("Box_0_1_0_55_1_1")
-material_override = ExtResource("plaster")
+material_override = ExtResource("OfficePlaster")
 
 [node name="RightRecess" type="Node3D" parent="Shell"]
 
@@ -796,26 +817,131 @@ shaded = false
 [node name="Console" parent="." instance=ExtResource("security_console")]
 position = Vector3(0, 0, -1.05)
 
+[node name="PanelJoint1" type="MeshInstance3D" parent="Shell/FrontWall"]
+position = Vector3(0.46, 0.525, 0.053)
+mesh = SubResource("PanelJointFront")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="PanelJoint2" type="MeshInstance3D" parent="Shell/FrontWall"]
+position = Vector3(1.35, 0.525, 0.053)
+mesh = SubResource("PanelJointFront")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="PanelJoint3" type="MeshInstance3D" parent="Shell/FrontWall"]
+position = Vector3(2.073, 0.525, 0.053)
+mesh = SubResource("PanelJointFront")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="PanelJoint4" type="MeshInstance3D" parent="Shell/RearWall"]
+position = Vector3(-1.974, 0.525, -0.053)
+mesh = SubResource("PanelJointFront")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="PanelJoint5" type="MeshInstance3D" parent="Shell/FrontWall"]
+position = Vector3(-0.463, 0.525, 0.053)
+mesh = SubResource("PanelJointFront")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="GuardNear" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0.059, 0.345, -0.985)
+mesh = SubResource("CornerGuard")
+material_override = ExtResource("steel")
+cast_shadow = 0
+
+[node name="GuardFar" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0.059, 0.345, 0.202)
+mesh = SubResource("CornerGuard")
+material_override = ExtResource("steel")
+cast_shadow = 0
+
+[node name="PanelJoint1" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0.053, 0.525, -1.52)
+mesh = SubResource("PanelJointSide")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="PanelJoint2" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0.053, 0.525, 0.62)
+mesh = SubResource("PanelJointSide")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="PanelJoint3" type="MeshInstance3D" parent="Shell/LeftWall"]
+position = Vector3(0.053, 0.525, 1.26)
+mesh = SubResource("PanelJointSide")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="GuardNear" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(-0.059, 0.345, -0.985)
+mesh = SubResource("CornerGuard")
+material_override = ExtResource("steel")
+cast_shadow = 0
+
+[node name="GuardFar" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(-0.059, 0.345, 0.202)
+mesh = SubResource("CornerGuard")
+material_override = ExtResource("steel")
+cast_shadow = 0
+
+[node name="PanelJoint1" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(-0.053, 0.525, -1.52)
+mesh = SubResource("PanelJointSide")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="PanelJoint2" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(-0.053, 0.525, 0.62)
+mesh = SubResource("PanelJointSide")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="PanelJoint3" type="MeshInstance3D" parent="Shell/RightWall"]
+position = Vector3(-0.053, 0.525, 1.26)
+mesh = SubResource("PanelJointSide")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="PaintedCeilingJointL" type="MeshInstance3D" parent="Shell/Ceiling"]
+position = Vector3(-1.28, 2.694, 0.55)
+mesh = SubResource("CeilingJoint")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
+[node name="PaintedCeilingJointR" type="MeshInstance3D" parent="Shell/Ceiling"]
+position = Vector3(1.28, 2.694, 0.55)
+mesh = SubResource("CeilingJoint")
+material_override = SubResource("PanelJoint")
+cast_shadow = 0
+
 [node name="Lighting" type="Node3D" parent="."]
 
 [node name="HouseLamp" type="OmniLight3D" parent="Lighting"]
-position = Vector3(-0.24, 2.42, -1.36)
-light_color = Color(1, 0.86, 0.64, 1)
-light_energy = 0.75
-omni_range = 3.4
-omni_attenuation = 1.5
+position = Vector3(-0.28, 2.29, -1.34)
+light_color = Color(1, 0.86, 0.71, 1)
+light_energy = 0.47
+omni_range = 3.25
+omni_attenuation = 1.72
+light_specular = 0.12
 shadow_enabled = true
 shadow_bias = 0.045
 
 [node name="DeskPool" type="SpotLight3D" parent="Lighting"]
-transform = Transform3D(1, 0, 0, 0, -0.241922, 0.970296, 0, -0.970296, -0.241922, -0.24, 2.44, -1.3)
-light_color = Color(1, 0.87, 0.64, 1)
-light_energy = 2.6
+position = Vector3(-0.24, 2.42, -1.30)
+rotation = Vector3(-1.88, 0, 0)
+light_color = Color(1, 0.87, 0.70, 1)
+light_energy = 2.56
+light_specular = 0.25
 shadow_enabled = true
 shadow_bias = 0.04
-spot_range = 4.6
+spot_range = 3.7
 spot_attenuation = 1.2
-spot_angle = 50.0
+spot_angle = 51.0
 spot_angle_attenuation = 1.3
 
 [node name="StripFixture" type="Node3D" parent="Lighting"]
