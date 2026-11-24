@@ -137,7 +137,7 @@ func _place(id: String) -> void:
 		return
 	(G.run["ev"] as Dictionary)[id] = ""          # незаконченное после загрузки начинается заново
 	var at: Vector3 = (f["home"] as Vector3) + G67DvorFolk._dir(float(f["yaw"])) * 1.2
-	G.world._point("evdv_" + id, String(d["name"]), String(d["hint"]), at)
+	G.world._point("evdv_" + id, "МЕСТНЫЙ", "поговорить", at)          # что за событие — не говорим заранее
 	if id == "arm":                           # магнитофон Саныча: музыка идёт как звук мира
 		G67Sound.loop_at(self, "loop_tape", (f["home"] as Vector3) + Vector3(0.8, 0.9, 0.0), 13.0)
 	if id == "fridge":

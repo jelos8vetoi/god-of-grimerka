@@ -197,6 +197,8 @@ func _place_sounds() -> void:
 		G67Sound.loop_at(self, "loop_fire", to3(float(f_v[0]), float(f_v[1]), 0.8), 14.0)
 	G67Sound.loop_at(self, "loop_market", to3(RAGS.x + 6.0, RAGS.y - 3.0, 1.5), 26.0)
 	G67Sound.loop_at(self, "loop_kiosk", to3(KIOSK.x, KIOSK.y, 1.6), 12.0)
+	if not arch.is_empty():                      # из прохода под аркой тянет гулом Подземки
+		G67Sound.loop_at(self, "loop_vent", link_point() + Vector3(0, 1.4, 0), 24.0)
 
 ## Снег на плоской крыше дома: тонкая шапка по габариту модели, чуть меньше крыши (парапет остаётся виден)
 func _roof_snow(holder: Node3D, m: Dictionary, snow: Material) -> void:
@@ -544,6 +546,29 @@ func _arch_box(x0: float, x1: float, ya: float, yb: float, z0: float, z1: float,
 	var c := arch_xy((x0 + x1) * 0.5, (ya + yb) * 0.5)
 	return solid(c.x, c.y, yb - ya, x1 - x0, z1 - z0, 0.0, z0, layer)
 
+const LINK_Y0 := 6.2             # коридор стыка под аркой: от этой линии до торца дома (координаты арки)
+const LINK_X1 := 9.6             # его дальний конец
+
+## Видимая коробка в координатах арки (стены и пол коридора стыка); solid_too — с преградой для героя и камеры
+func _arch_vis(x0: float, x1: float, ya: float, yb: float, z0: float, z1: float, col: Color, solid_too := true, glow := 0.0) -> void:
+	if solid_too:
+		_arch_box(x0, x1, ya, yb, z0, z1)
+	var c := arch_xy((x0 + x1) * 0.5, (ya + yb) * 0.5)
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(yb - ya, z1 - z0, x1 - x0)
+	mi.mesh = bm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.roughness = 0.75
+	if glow > 0.0:
+		m.emission_enabled = true
+		m.emission = col
+		m.emission_energy_multiplier = glow
+	mi.material_override = m
+	mi.position = to3(c.x, c.y, (z0 + z1) * 0.5)
+	add_child(mi)
+
 func _arch_house(it: Dictionary) -> void:
 	var hd := put("res_arch_81", float(it["x"]), float(it["y"]), 270.0, 1.0, 0.0, 0.0, false)
 	if hd == null:
@@ -571,9 +596,36 @@ func _arch_house(it: Dictionary) -> void:
 	_gate_block = _arch_box(sx0, sx1, gy - 0.12, gy + 0.12, 0.0, az - 0.45)
 	_arch_box(sx1, sx1 + 0.3, gy, sy1 - 0.3, -5.3, 0.0)           # стена шахты под парапетом
 	_arch_box(sx0, ax, sy1, hy, -5.5, -5.0)                       # нижняя площадка и коридор
-	_arch_box(sx0, ax, hy - 0.05, hy + 0.3, -5.0, -2.3)           # торцевая стена
-	_arch_box(sx1, ax, sy1 - 0.3, sy1, -5.0, -2.3)                # стена коридора
-	_arch_box(ax - 0.05, ax + 0.3, sy1, hy, -5.0, -2.3)           # граница сцены — точка стыка с Подземкой
+	_arch_box(sx0, sx1, hy - 0.05, hy + 0.3, -5.0, -2.3)          # торцевая стена площадки
+	# Коридор за дверным проёмом площадки (под проездом арки): настоящие стены, пол и потолок. За его поворотом —
+	# стык с Подземкой (LINK): стена шахты закрывает лестницу, и район меняется незаметно.
+	var c_wall := Color(0.4, 0.43, 0.43)
+	var c_band := Color(0.12, 0.4, 0.3)
+	var c_dark := Color(0.2, 0.21, 0.23)
+	var cy0 := LINK_Y0
+	var cx1 := LINK_X1
+	_arch_vis(sx1, cx1, cy0, hy, -5.5, -5.0, c_dark)                         # пол
+	_arch_vis(sx1, cx1, cy0, hy, -1.6, -1.3, Color(0.42, 0.43, 0.44))         # потолок
+	_arch_vis(sx1 + 0.3, cx1, cy0 - 0.3, cy0, -5.0, -1.6, c_wall)             # северная стена
+	_arch_vis(sx1, cx1, hy, hy + 0.3, -5.0, -1.6, c_wall)                     # южная стена
+	_arch_vis(cx1, cx1 + 0.3, cy0 - 0.3, hy + 0.3, -5.0, -1.6, c_dark)        # дальний торец: темнота
+	_arch_vis(sx1, sx1 + 0.3, cy0 - 0.3, sy1, -5.0, -1.6, c_wall)             # косяк у площадки
+	_arch_vis(sx1, sx1 + 0.3, sy1, hy, -2.9, -1.6, c_wall)                    # перемычка над проёмом
+	_arch_vis(sx1, sx1 + 0.3, sy1 - 0.3, hy + 0.3, -1.6, 0.0, c_wall)           # стена над проёмом до уровня земли: из шахты не видно улицу
+	_arch_vis(sx1 + 0.3, cx1 + 0.3, cy0 - 0.3, hy + 0.3, -1.3, -1.1, c_dark, false)  # перекрытие над коридором
+	for yb in [cy0 + 0.02, hy - 0.06]:                                         # зелёная полоса, как в переходе внизу
+		_arch_vis(sx1 + 0.3, cx1, yb, yb + 0.04, -5.0, -3.9, c_band, false)
+	for k in 2:                                                                # трубы под потолком
+		_arch_vis(sx1 + 0.3, cx1, cy0 + 0.18 + 0.22 * float(k), cy0 + 0.3 + 0.22 * float(k), -2.02, -1.9, Color(0.36, 0.33, 0.3), false)
+	var lamp := OmniLight3D.new()
+	lamp.light_color = Color(0.75, 0.9, 1.0)
+	lamp.light_energy = 0.9
+	lamp.omni_range = 7.0
+	var lp0 := arch_xy(sx1 + 3.2, (cy0 + hy) * 0.5)
+	lamp.position = to3(lp0.x, lp0.y, -2.1)
+	add_child(lamp)
+	_arch_vis(sx1 + 2.9, sx1 + 3.5, (cy0 + hy) * 0.5 - 0.1, (cy0 + hy) * 0.5 + 0.1, -1.66, -1.6, Color(0.9, 0.97, 1.0), false, 2.5)
+	arch["st"]["link"] = [LINK_X1 - 3.0, (cy0 + hy) * 0.5, -5.0]
 	_arch_box(sx0, 1.25, gy + 8.5, hy, -0.5, 0.0)                 # перекрытие над низом марша (пол прохода)
 	# марш: наклонная плита от решётки вниз на 5 м
 	var run: float = float(st["run"])
@@ -612,6 +664,18 @@ func link_point() -> Vector3:
 	var l: Array = arch["st"]["link"]
 	var p := arch_xy(float(l[0]), float(l[1]))
 	return to3(p.x, p.y, float(l[2]))
+
+## Где герой появляется, вернувшись из Подземки (в коридоре за поворотом, у стены шахты), и куда он при этом идёт
+func link_in() -> Vector3:
+	var l: Array = arch["st"]["link"]
+	var p := arch_xy(float(l[0]) - 1.5, float(l[1]))
+	return to3(p.x, p.y, float(l[2]) + 0.05)
+
+func link_dir() -> Vector3:
+	var l: Array = arch["st"]["link"]
+	var a := arch_xy(float(l[0]), float(l[1]))
+	var b := arch_xy(float(l[0]) - 3.0, float(l[1]))
+	return (to3(b.x, b.y, 0.0) - to3(a.x, a.y, 0.0)).normalized()
 
 func set_court_open(open: bool) -> void:
 	if is_instance_valid(court_block):
