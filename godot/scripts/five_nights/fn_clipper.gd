@@ -19,6 +19,7 @@ func tick(st, dt: float) -> void:
 		if light_t >= LIGHT_SEC:
 			light_t = 0.0
 			st.emit("flinch", {"e": id})
+			rest_why = "flinch"
 			_retreat(st)
 			return
 	else:
@@ -53,7 +54,7 @@ func _move(st) -> void:
 
 func go(st, to: String, why := "") -> void:
 	super.go(st, to, why)
-	if to == "door_l":
+	if to == "door_l" and spot == "door_l":
 		st.emit("scrape", {"e": id})
 
 func _retreat(st) -> void:

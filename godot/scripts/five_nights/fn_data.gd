@@ -61,7 +61,7 @@ const ORDER := ["balon", "madk1d", "bot", "clipper", "ghost", "mod"]
 ## Ночи: уровни врагов на 12 AM и прибавка по часам [час, +уровень]. Уровень 0–20, 0 — не ходит.
 ## Необязательный ключ "calm": враг → [до какой секунды ночи он не ходит вообще, до какой не может встать к двери или решётке].
 const NIGHTS := [
-	{"title": "ПЕРВАЯ СМЕНА", "levels": {"balon": 2}, "ramp": {"balon": [[2, 1], [3, 1], [4, 1]]}},
+	{"title": "ПЕРВАЯ СМЕНА", "levels": {"balon": 2}, "ramp": {"balon": [[2, 1], [3, 1], [4, 1]]}, "calm": {"balon": [10.0, 52.0]}},
 	{"title": "ОНИ УЖЕ ЗНАЮТ", "levels": {"balon": 4, "madk1d": 2, "clipper": 0}, "ramp": {"balon": [[2, 1], [4, 1]], "madk1d": [[1, 1], [2, 1], [3, 1], [4, 1]], "clipper": [[3, 2], [4, 1]]}, "calm": {"madk1d": [20.0, 60.0], "balon": [0.0, 52.0]}},
 	{"title": "НЕ СМОТРИ НА НЕГО", "levels": {"balon": 5, "madk1d": 5, "clipper": 3, "ghost": 4, "bot": 2}, "ramp": {"balon": [[3, 1], [5, 1]], "madk1d": [[2, 1], [4, 1]], "clipper": [[2, 1], [4, 2]], "ghost": [[3, 2], [5, 1]], "bot": [[2, 1], [4, 1]]}},
 	{"title": "ПОЛОМКА", "levels": {"balon": 6, "madk1d": 6, "clipper": 5, "ghost": 5, "bot": 5, "mod": 5}, "ramp": {"balon": [[2, 1], [4, 1]], "madk1d": [[3, 1], [5, 1]], "clipper": [[3, 1]], "ghost": [[4, 1]], "bot": [[2, 1], [4, 2]], "mod": [[2, 1], [3, 1], [5, 2]]}},
@@ -134,6 +134,27 @@ const PRESETS := {
 	"ВЕНТИЛЯЦИЯ": {"balon": 0, "madk1d": 20, "bot": 5, "clipper": 0, "ghost": 10, "mod": 0},
 	"ВСЕ НА 20": {"balon": 20, "madk1d": 20, "bot": 20, "clipper": 20, "ghost": 20, "mod": 20},
 }
+
+## Передышка после отбитой угрозы: враг → [секунд при уровне 1, секунд при уровне 20]. Столько он не может снова встать
+## к двери или решётке после того, как его отбили. Множители: REST_NIGHT — по ночи (первая — длиннее), REST_WHY — по причине
+## ухода ("flinch" — согнали светом), REST_CAMP — дверь была закрыта ещё до его прихода (сидеть взаперти не выгодно).
+const REST := {"balon": [24.0, 13.0], "madk1d": [28.0, 14.0], "bot": [22.0, 13.0], "clipper": [22.0, 12.0], "mod": [22.0, 13.0]}
+const REST_NIGHT := [1.5, 1.25, 1.1, 1.0, 1.0, 0.9]
+const REST_WHY := {"flinch": 0.75}
+const REST_CAMP := 0.6
+## Разнесение угроз по ночам: [секунд между двумя приходами к входам, секунд тишины после ухода врага от входа]
+const SPACING := [[14.0, 12.0], [10.0, 8.0], [9.0, 7.0], [8.0, 6.0], [7.0, 5.0], [6.0, 4.0]]
+## MADK1D в шахте: сколько секунд ползёт до решётки (или до перелаза) при уровне 1 и при уровне 20
+const DUCT_SEC := [9.0, 5.0]
+
+static func rest_len(n: int, enemy: String, level: int, why: String, camped: bool) -> float:
+	if not REST.has(enemy):
+		return 0.0
+	var r: Array = REST[enemy]
+	return lerpf(float(r[0]), float(r[1]), clampf(float(level - 1) / 19.0, 0.0, 1.0)) * float(REST_NIGHT[clampi(n, 0, REST_NIGHT.size() - 1)]) * float(REST_WHY.get(why, 1.0)) * (REST_CAMP if camped else 1.0)
+
+static func spacing(n: int) -> Array:
+	return SPACING[clampi(n, 0, SPACING.size() - 1)]
 
 ## спокойное начало ночи n для врага: [до какой секунды не ходит, до какой не встаёт к двери/решётке]; нет ключа — [0, 0]
 static func calm(n: int, enemy: String) -> Array:
