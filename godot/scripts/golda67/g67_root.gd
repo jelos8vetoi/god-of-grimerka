@@ -11,7 +11,7 @@ extends Node
 
 const REACH := 1.4            # с какого расстояния предмет «под рукой»
 const TITLE := "ГОЛДА 67"
-const HUB_CAM_LEN := 3.2      # длина штанги камеры в подъезде (тесно), во дворе — прежние 4,6
+const HUB_CAM_LEN := 4.0      # длина штанги камеры в подъезде (помещение), во дворе — прежние 4,6
 const YARD_CAM_LEN := 4.6
 const PZ_CAM_LEN := 4.6
 var sel_district := "dvor"
@@ -106,9 +106,10 @@ func madk_away() -> bool:
 func madk_home() -> bool:
 	return place == "hub" and not madk_open()
 
-const MADK_SPOT := Vector3(-1.15, 1.5, -4.95)          # табурет у телевизора на площадке
-const MADK_SPOT2 := Vector3(1.9, 1.5, -4.7)
-const MADK_TV := Vector3(-2.58, 1.5, -5.55)
+const MADK_SPOT := G67World.MADK_SPOT          # табурет у телевизора на площадке
+const MADK_SPOT2 := G67World.MADK_SPOT2
+const MADK_TV := G67World.MADK_TV
+const MADK_LANE := G67World.MADK_SPOT.z + 0.75          # по этой линии он ходит между своими местами
 var madk_st := "sit"                  # sit / walk / stand
 var madk_path: Array = []
 var madk_dest := 0
@@ -151,7 +152,7 @@ func madk_life(b, dt: float) -> bool:
 			rig.play("NPhone", 0.3)
 		if madk_stand_t <= 0.0:
 			madk_dest = 0
-			madk_path = [Vector3(MADK_SPOT.x + 0.0, 1.5, -4.2), MADK_SPOT]
+			madk_path = [Vector3(MADK_SPOT2.x, MADK_SPOT.y, MADK_LANE), Vector3(MADK_SPOT.x, MADK_SPOT.y, MADK_LANE), MADK_SPOT]
 			madk_st = "walk"
 			madk_log.append("back")
 		return true
@@ -168,7 +169,7 @@ func madk_life(b, dt: float) -> bool:
 		if madk_swap_t <= 0.0:
 			madk_swap_t = randf_range(60.0, 120.0)
 			madk_dest = 1
-			madk_path = [Vector3(MADK_SPOT.x + 0.0, 1.5, -4.2), Vector3(MADK_SPOT2.x, 1.5, -4.2), MADK_SPOT2]
+			madk_path = [Vector3(MADK_SPOT.x, MADK_SPOT.y, MADK_LANE), Vector3(MADK_SPOT2.x, MADK_SPOT.y, MADK_LANE), MADK_SPOT2]
 			madk_st = "walk"
 			madk_log.append("up")
 			return true
@@ -1994,12 +1995,12 @@ func _hub_life_tick(dt: float) -> void:
 	var hp: Vector3 = game.player.global_position
 	if float(hub_t["tv"]) <= 0.0:
 		hub_t["tv"] = 3.2
-		if Vector2(hp.x - 2.3, hp.z - (-6.0)).length() < 3.5:
-			G67Sound.play(self, "tv_muffled", Vector3(2.3, 2.6, -6.0), 1.0)
+		if Vector2(hp.x - G67World.APT2_X, hp.z - G67World.Z_BACK).length() < 3.5:
+			G67Sound.play(self, "tv_muffled", Vector3(G67World.APT2_X, 2.6, G67World.Z_BACK), 1.0)
 	if float(hub_t["strip"]) <= 0.0:
 		hub_t["strip"] = randf_range(90.0, 180.0)
 		world.hub_strip.visible = true
-		G67Sound.play(self, "door_slam", Vector3(2.3, 2.5, -6.0), 0.5)
+		G67Sound.play(self, "door_slam", Vector3(G67World.APT2_X, 2.5, G67World.Z_BACK), 0.5)
 		get_tree().create_timer(3.0).timeout.connect(func():
 			if is_instance_valid(world.hub_strip):
 				world.hub_strip.visible = false)
@@ -2023,7 +2024,7 @@ func _life_use(id: String) -> void:
 		"hub_btn":
 			var hm := Node3D.new()
 			add_child(hm)
-			hm.global_position = Vector3(2.3, 2.6, -6.0)
+			hm.global_position = Vector3(G67World.APT2_X, 2.6, G67World.Z_BACK)
 			get_tree().create_timer(10.0).timeout.connect(hm.queue_free)
 			var outcome: int = hub_btn_force if hub_btn_force >= 0 else randi() % 3
 			get_tree().create_timer(2.0).timeout.connect(func():

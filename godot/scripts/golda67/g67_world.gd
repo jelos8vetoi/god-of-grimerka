@@ -4,7 +4,7 @@
 ##
 ## ПОДЪЕЗД — настоящая планировка панельного дома, а не комната с вещами (ось Z: +Z — улица, −Z — вглубь дома):
 ##
-##        z = −6 ┌───────────────────────────────┐  площадка первого этажа, y = 1,5 м
+##        z = −8,3┌───────────────────────────────┐  площадка первого этажа, y = 1,5 м
 ##               │ ТВ   кв.1   сервант     кв.2  │  двери квартир, сервант и телевизор у стен
 ##               │ лавка                    кв.3 │  лавка dj flürr — вдоль левой стены
 ##        z = −1,7├───────┐                 стол  │
@@ -14,29 +14,44 @@
 ##               │ ступени  дверь колясочной│пролёт│  y = 0: нижний холл
 ##               │ почтовые              стенд    │
 ##               │ ящики   ХОЛЛ           карта   │  ниша справа от входа
-##        z = 6  └──────┐ тамбур ┌────────────────┘
-##        z = 7,6       └─дверь──┘                    выход во двор
+##        z = 8,5└──────┐ тамбур ┌────────────────┘
+##        z = 10,1      └─дверь──┘                    выход во двор
+## Размеры — только константами ниже (ширина 8,7 м = два стеновых модуля, глубина 16,8 м); места вещей считаются от стен.
 class_name G67World
 extends "res://scripts/world.gd"
 
-const HUB_X := 3.0        # полуширина лестничной клетки
-const Z_BACK := -6.0      # дальняя стена площадки
+const HUB_X := 4.35       # полуширина лестничной клетки (ровно стеновой модуль)
+const Z_BACK := -8.3      # дальняя стена площадки
 const Z_EDGE := 1.0       # край площадки над холлом
-const Z_FRONT := 6.0      # стена с входом
-const Z_DOOR := 7.6       # входная дверь (конец тамбура)
+const Z_FRONT := 8.5      # стена с входом
+const Z_DOOR := 10.1      # входная дверь (конец тамбура)
 const Z_STAIR_TOP := -1.7 # где пролёт выходит на площадку
-const STAIR_X := -1.6     # правый край первого пролёта
-const FLIGHT2_X := 1.6    # левый край второго пролёта
+const STAIR_X := -2.35    # правый край первого пролёта
+const FLIGHT2_X := 2.35   # левый край второго пролёта
+const F2_LEN := 2.7       # длина второго пролёта (от края площадки к входу)
+const Z_NICHE := Z_EDGE + F2_LEN          # стена ниши справа от входа (торец кладки второго пролёта)
+const DOORWAY := 1.2      # полуширина проёма тамбура
+const APT1_X := -2.5      # двери квартир 1 и 2 на дальней стене
+const APT2_X := 3.3
+const APT3_Z := -6.4      # дверь квартиры 3 на правой стене
+const BTN_X := -1.15      # кнопка «НЕ НАЖИМАТЬ» между дверью первой квартиры и сервантом
+const CAB_X := 0.6        # сервант
+const BENCH_Z := -4.6     # лавка dj flürr у левой стены
+const DESK_Z := -4.0      # стол улучшений у правой стены
+const RACK_Z := -1.4      # стойка стилей
+const MADK_SPOT := Vector3(-1.8, LAND_Y, Z_BACK + 1.25)        # табурет madk1d у телевизора
+const MADK_SPOT2 := Vector3(HUB_X - 1.1, LAND_Y, APT3_Z)       # второе место — у двери третьей квартиры
+const MADK_TV := Vector3(-HUB_X + 0.42, LAND_Y, Z_BACK + 0.45) # куда он смотрит сидя
 const LAND_Y := 1.5       # высота площадки первого этажа
 const CEIL_Y := 4.7       # потолок лестничной клетки
 const WALL_H := 3.83      # высота стенового модуля при ширине 4,35 м
 const WALL_W := 4.35
-const HUB_Z := 7.6        # для проверок: дальше этого по Z идти некуда
+const HUB_Z := Z_DOOR        # для проверок: дальше этого по Z идти некуда
 
 var points: Array = []
 var actors := {}         # id → Rig (персонажи хаба)
 var missing: Array = []  # модели, которых не нашлось (для проверки)
-var spawn_pos := Vector3(0.0, 0.05, 5.0)
+var spawn_pos := Vector3(0.0, 0.05, Z_FRONT - 3.9)   # в холле: камера за спиной остаётся в клетке, а не в тамбуре
 var m_green: StandardMaterial3D
 var m_white: StandardMaterial3D
 var m_floor: StandardMaterial3D
@@ -109,6 +124,13 @@ func _wall(pos: Vector3, yaw: float, length: float, mirror := false) -> void:
 		missing.append("g67_podezd_wall")
 		return
 	n.scale = Vector3((length / WALL_W) * (-1.0 if mirror else 1.0), 1.0, 1.0)
+
+## Стена из n одинаковых модулей от a до b (точки — концы стены по её оси, низ); через один модуль зеркалится,
+## чтобы батареи не шли строем. Модули встык: ни щелей, ни наложений.
+func _wall_run(a: Vector3, b: Vector3, yaw: float, n: int) -> void:
+	var seg := (b - a) / float(n)
+	for i in n:
+		_wall(a + seg * (float(i) + 0.5), yaw, seg.length(), i % 2 == 1)
 
 ## Гладкая стена тем же двухцветием (для узких простенков, куда модуль с батареей не лезет): низ — зелёная краска
 ## до 2,1 м, выше — побелка. size.y — полная высота от pos.y.
@@ -227,17 +249,18 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	m_wood = _mat(Color(0.42, 0.29, 0.16), 0.0, 0.7)
 	var X := HUB_X
 	var t := 0.44                       # на сколько модуль стены утоплен за плоскость стены (его толщина / 2)
+	var zc := (Z_BACK + Z_FRONT) * 0.5    # середина клетки по глубине
 
 	# ---------- камерные преграды: потолок клетки, стена над проёмом тамбура, потолок тамбура, верх над вторым пролётом ----------
 	_cam_box(Vector3(0, CEIL_Y + 0.1, (Z_BACK + Z_DOOR) * 0.5), Vector3(2 * X + 2.6, 0.2, Z_DOOR - Z_BACK + 2.6))
 	_cam_box(Vector3(0, 2.2 + (CEIL_Y - 2.2) * 0.5, Z_FRONT + 0.15), Vector3(2.8, CEIL_Y - 2.2, 0.3))
 	_cam_box(Vector3(0, 2.7, (Z_FRONT + Z_DOOR) * 0.5 + 0.15), Vector3(3.0, 0.2, Z_DOOR - Z_FRONT))
-	_cam_box(Vector3((FLIGHT2_X + X) * 0.5, 3.0 + (CEIL_Y - 3.0) * 0.5, 3.85), Vector3(X - FLIGHT2_X, CEIL_Y - 3.0, 0.3))
+	_cam_box(Vector3((FLIGHT2_X + X) * 0.5, 3.0 + (CEIL_Y - 3.0) * 0.5, Z_NICHE + 0.15), Vector3(X - FLIGHT2_X, CEIL_Y - 3.0, 0.3))
 	# ---------- коробка лестничной клетки: потолок и побелка выше модулей ----------
 	_box(Vector3(0, CEIL_Y + 0.1, (Z_BACK + Z_DOOR) * 0.5), Vector3(2 * X + 2.6, 0.2, Z_DOOR - Z_BACK + 2.6), m_white)
 	for sx in [-1.0, 1.0]:
-		_box(Vector3(sx * (X + 1.0), CEIL_Y * 0.5, 0.0), Vector3(0.5, CEIL_Y, Z_FRONT - Z_BACK + 2.0), m_white)      # за модулями, не в одной плоскости с ними
-		_static_box(Vector3(sx * (X + 0.5), CEIL_Y * 0.5, 0.0), Vector3(1.0, CEIL_Y, Z_FRONT - Z_BACK + 1.0))
+		_box(Vector3(sx * (X + 1.0), CEIL_Y * 0.5, zc), Vector3(0.5, CEIL_Y, Z_FRONT - Z_BACK + 2.0), m_white)      # за модулями, не в одной плоскости с ними
+		_static_box(Vector3(sx * (X + 0.5), CEIL_Y * 0.5, zc), Vector3(1.0, CEIL_Y, Z_FRONT - Z_BACK + 1.0))
 	_box(Vector3(0, CEIL_Y * 0.5, Z_BACK - 1.0), Vector3(2 * X + 2.4, CEIL_Y, 0.5), m_white)
 	_static_box(Vector3(0, CEIL_Y * 0.5, Z_BACK - 0.5), Vector3(2 * X + 2.0, CEIL_Y, 1.0))
 
@@ -251,39 +274,42 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	_box(Vector3(STAIR_X - 0.02, LAND_Y * 0.5, (Z_STAIR_TOP + Z_EDGE) * 0.5), Vector3(0.04, LAND_Y, Z_EDGE - Z_STAIR_TOP), m_green)
 
 	# ---------- стены площадки (модули стоят на плите) ----------
-	_wall(Vector3(-1.5, LAND_Y, Z_BACK - t), 0.0, 3.0)
-	_wall(Vector3(1.5, LAND_Y, Z_BACK - t), 0.0, 3.0, true)
-	_wall(Vector3(-X - t, LAND_Y, (Z_BACK + Z_STAIR_TOP) * 0.5), PI * 0.5, Z_STAIR_TOP - Z_BACK)
-	_wall(Vector3(X + t, LAND_Y, -4.25), -PI * 0.5, 3.5)
-	_wall(Vector3(X + t, LAND_Y, -0.75), -PI * 0.5, 3.5, true)
+	_wall_run(Vector3(-X, LAND_Y, Z_BACK - t), Vector3(X, LAND_Y, Z_BACK - t), 0.0, 2)                       # дальняя: два модуля в свой размер
+	_wall_run(Vector3(-X - t, LAND_Y, Z_BACK), Vector3(-X - t, LAND_Y, Z_STAIR_TOP), PI * 0.5, 2)            # левая, над площадкой
+	_wall_run(Vector3(X + t, LAND_Y, Z_BACK), Vector3(X + t, LAND_Y, Z_EDGE), -PI * 0.5, 3)                  # правая, до решётки
 	# ---------- стены холла и пролёта (от земли) ----------
-	_wall(Vector3(-X - t, 0, 0.225), PI * 0.5, 3.85)
-	_wall(Vector3(-X - t, 0, 4.075), PI * 0.5, 3.85, true)
-	_wall(Vector3(X + t, 0, 4.85), -PI * 0.5, 2.3)
-	# простенки у входа и стена ниши (узкие — гладкие, тем же двухцветием)
-	_plain_wall(Vector3(-2.1, 0, Z_FRONT + 0.15), Vector3(1.8, CEIL_Y, 0.3))
-	_plain_wall(Vector3(2.1, 0, Z_FRONT + 0.15), Vector3(1.8, CEIL_Y, 0.3))
-	_static_box(Vector3(-2.1, CEIL_Y * 0.5, Z_FRONT + 0.15), Vector3(1.8, CEIL_Y, 0.3))
-	_static_box(Vector3(2.1, CEIL_Y * 0.5, Z_FRONT + 0.15), Vector3(1.8, CEIL_Y, 0.3))
-	_box(Vector3(0, 2.2 + (CEIL_Y - 2.2) * 0.5, Z_FRONT + 0.15), Vector3(2.4, CEIL_Y - 2.2, 0.3), m_white)       # над проёмом тамбура
+	_wall_run(Vector3(-X - t, 0, Z_STAIR_TOP), Vector3(-X - t, 0, Z_FRONT), PI * 0.5, 3)
+	_wall_run(Vector3(X + t, 0, Z_NICHE), Vector3(X + t, 0, Z_FRONT), -PI * 0.5, 1)
+	# простенки у входа и стена ниши (гладкие, тем же двухцветием)
+	var pw := X - DOORWAY                                # ширина простенка от проёма до боковой стены
+	for sx in [-1.0, 1.0]:
+		_plain_wall(Vector3(sx * (DOORWAY + pw * 0.5), 0, Z_FRONT + 0.15), Vector3(pw, CEIL_Y, 0.3))
+		_static_box(Vector3(sx * (DOORWAY + pw * 0.5), CEIL_Y * 0.5, Z_FRONT + 0.15), Vector3(pw, CEIL_Y, 0.3))
+	_box(Vector3(0, 2.2 + (CEIL_Y - 2.2) * 0.5, Z_FRONT + 0.15), Vector3(2 * DOORWAY, CEIL_Y - 2.2, 0.3), m_white)       # над проёмом тамбура
 
 	# ---------- первый пролёт: из холла на площадку, вдоль левой стены ----------
 	var st := G67Models.spawn("g67_stair_flight", self, Vector3((-X + STAIR_X) * 0.5, 0, (Z_EDGE + Z_STAIR_TOP) * 0.5), 0.0, Vector3(9, 9, Z_EDGE - Z_STAIR_TOP), "d")
 	if String(st.get_meta("from", "")) != "glb":
 		missing.append("g67_stair_flight")
+	else:
+		st.scale.x = (STAIR_X + X) / maxf((st.get_meta("size") as Vector3).x, 0.01)        # ступени — на всю ширину пролёта
 	_ramp(-X, STAIR_X, Z_EDGE, 0.0, Z_STAIR_TOP, LAND_Y)
 	_railing(Vector3(STAIR_X, LAND_Y, Z_STAIR_TOP), Vector3(STAIR_X, LAND_Y, Z_EDGE))          # край площадки над пролётом
 	_railing(Vector3(STAIR_X, LAND_Y, Z_EDGE), Vector3(FLIGHT2_X, LAND_Y, Z_EDGE))             # край площадки над холлом
 
 	# ---------- второй пролёт: на верхние этажи, за решёткой ----------
-	_box(Vector3((FLIGHT2_X + X) * 0.5, LAND_Y * 0.5, 2.35), Vector3(X - FLIGHT2_X, LAND_Y, 2.7), m_green)      # кладка под пролётом
-	_static_box(Vector3((FLIGHT2_X + X) * 0.5, CEIL_Y * 0.5, 2.35), Vector3(X - FLIGHT2_X, CEIL_Y, 2.7))
-	var st2 := G67Models.spawn("g67_stair_flight", self, Vector3((FLIGHT2_X + X) * 0.5, LAND_Y, 2.35), PI, Vector3(9, 9, 2.7), "d")
+	var f2z := Z_EDGE + F2_LEN * 0.5
+	_box(Vector3((FLIGHT2_X + X) * 0.5, LAND_Y * 0.5, f2z), Vector3(X - FLIGHT2_X, LAND_Y, F2_LEN), m_green)      # кладка под пролётом
+	_static_box(Vector3((FLIGHT2_X + X) * 0.5, CEIL_Y * 0.5, f2z), Vector3(X - FLIGHT2_X, CEIL_Y, F2_LEN))
+	var st2 := G67Models.spawn("g67_stair_flight", self, Vector3((FLIGHT2_X + X) * 0.5, LAND_Y, f2z), PI, Vector3(9, 9, F2_LEN), "d")
 	if String(st2.get_meta("from", "")) != "glb":
 		missing.append("g67_stair_flight")
-	_box(Vector3((FLIGHT2_X + X) * 0.5, 3.0 + (CEIL_Y - 3.0) * 0.5, 3.85), Vector3(X - FLIGHT2_X, CEIL_Y - 3.0, 0.3), m_white)   # стена над верхом пролёта
+	else:
+		st2.scale.x = (X - FLIGHT2_X) / maxf((st2.get_meta("size") as Vector3).x, 0.01)
+	_box(Vector3((FLIGHT2_X + X) * 0.5, 3.0 + (CEIL_Y - 3.0) * 0.5, Z_NICHE + 0.15), Vector3(X - FLIGHT2_X, CEIL_Y - 3.0, 0.3), m_white)   # стена над верхом пролёта
 	# решётка у начала пролёта: жильцы верхних этажей закрыли проход
-	for i in 8:
+	var bars := int(round((X - FLIGHT2_X - 0.2) / 0.175)) + 1
+	for i in bars:
 		var bar := MeshInstance3D.new()
 		var bm := BoxMesh.new()
 		bm.size = Vector3(0.03, 2.1, 0.03)
@@ -300,16 +326,17 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	_put("g67_service_door", Vector3(0.0, 0, Z_EDGE + 0.12), 0.0, Vector3(1.0, LAND_Y - 0.08, 0.6), "h", false)
 	_static_box(Vector3(0.0, 0.7, Z_EDGE + 0.1), Vector3(1.1, 1.4, 0.3))
 	# почтовые ящики — на левой стене у входа, на уровне глаз
-	_put("g67_mailboxes", Vector3(-X + 0.12, 1.05, 4.3), PI * 0.5, Vector3(1.5, 0.8, 0.5), "h", false)
-	_point("mail", "ПОЧТОВЫЕ ЯЩИКИ", "листовки турнира", Vector3(-X + 0.9, 0, 4.3))
+	var mail_z := Z_FRONT - 1.1          # между батареей и углом
+	_put("g67_mailboxes", Vector3(-X + 0.12, 1.05, mail_z), PI * 0.5, Vector3(1.5, 0.8, 0.5), "h", false)
+	_point("mail", "ПОЧТОВЫЕ ЯЩИКИ", "листовки турнира", Vector3(-X + 0.9, 0, mail_z))
 	# ниша справа от входа: карта маршрутов на стене, стенд турнира в углу
-	_plain_wall(Vector3((FLIGHT2_X + X) * 0.5, 0, 3.78), Vector3(X - FLIGHT2_X, 3.0, 0.16))
-	_put("g67_route_board", Vector3((FLIGHT2_X + X) * 0.5, 0.95, 3.9), 0.0, Vector3(1.25, 1.0, 0.4), "h", false)
-	_point("routes", "КАРТА МАРШРУТОВ", "ДВОР", Vector3((FLIGHT2_X + X) * 0.5, 0, 4.7))
-	_put("g67_poster_stand", Vector3(X - 0.3, 0, 5.35), -PI * 0.5, Vector3(1.0, 1.9, 0.5))
+	_plain_wall(Vector3((FLIGHT2_X + X) * 0.5, 0, Z_NICHE + 0.08), Vector3(X - FLIGHT2_X, 3.0, 0.16))
+	_put("g67_route_board", Vector3((FLIGHT2_X + X) * 0.5, 0.95, Z_NICHE + 0.2), 0.0, Vector3(1.25, 1.0, 0.4), "h", false)
+	_point("routes", "КАРТА МАРШРУТОВ", "ДВОР", Vector3((FLIGHT2_X + X) * 0.5, 0, Z_NICHE + 1.0))
+	_put("g67_poster_stand", Vector3(X - 0.3, 0, Z_FRONT - 1.4), -PI * 0.5, Vector3(1.0, 1.9, 0.5))
 	# доска объявлений — у стены под вторым пролётом, лицом в холл
-	_put("g67_notice_board", Vector3(FLIGHT2_X - 0.28, 0, 2.3), -PI * 0.5, Vector3(1.4, 1.7, 0.5))
-	_point("notices", "ДОСКА ОБЪЯВЛЕНИЙ", "ТУРНИР 67 — 67 000 ГОЛДЫ", Vector3(FLIGHT2_X - 1.1, 0, 2.3))
+	_put("g67_notice_board", Vector3(FLIGHT2_X - 0.28, 0, f2z), -PI * 0.5, Vector3(1.4, 1.7, 0.5))
+	_point("notices", "ДОСКА ОБЪЯВЛЕНИЙ", "ТУРНИР 67 — 67 000 ГОЛДЫ", Vector3(FLIGHT2_X - 1.1, 0, f2z))
 
 	# ---------- тамбур и входная дверь ----------
 	for sx in [-1.0, 1.0]:
@@ -331,12 +358,12 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	_box(Vector3(0, 2.9, Z_FRONT - 0.1), Vector3(1.7, 0.06, 0.26), m_white)         # подоконник
 
 	# ---------- площадка первого этажа: двери квартир и вещи жильцов вдоль стен ----------
-	_apt_door(Vector3(-1.75, LAND_Y, Z_BACK + 0.03), 0.0, "1", Color(0.26, 0.15, 0.1))
-	_apt_door(Vector3(2.3, LAND_Y, Z_BACK + 0.03), 0.0, "2", Color(0.16, 0.18, 0.22))
-	_apt_door(Vector3(X - 0.03, LAND_Y, -4.7), -PI * 0.5, "3", Color(0.3, 0.2, 0.12))
+	_apt_door(Vector3(APT1_X, LAND_Y, Z_BACK + 0.03), 0.0, "1", Color(0.26, 0.15, 0.1))
+	_apt_door(Vector3(APT2_X, LAND_Y, Z_BACK + 0.03), 0.0, "2", Color(0.16, 0.18, 0.22))
+	_apt_door(Vector3(X - 0.03, LAND_Y, APT3_Z), -PI * 0.5, "3", Color(0.3, 0.2, 0.12))
 	# сервант, вынесенный на площадку, — между дверями первой и второй квартиры
-	_put("g67_artifact_cabinet", Vector3(0.35, LAND_Y, Z_BACK + 0.42), 0.0, Vector3(1.6, 1.9, 0.9))
-	_point("artifacts", "КОЛЛЕКЦИЯ АРТЕФАКТОВ", "пока пусто", Vector3(0.35, LAND_Y, Z_BACK + 1.3))
+	_put("g67_artifact_cabinet", Vector3(CAB_X, LAND_Y, Z_BACK + 0.42), 0.0, Vector3(1.6, 1.9, 0.9))
+	_point("artifacts", "КОЛЛЕКЦИЯ АРТЕФАКТОВ", "пока пусто", Vector3(CAB_X, LAND_Y, Z_BACK + 1.3))
 	# телевизор на тумбочке — в дальнем левом углу
 	_box(Vector3(-X + 0.42, LAND_Y + 0.28, Z_BACK + 0.45), Vector3(0.62, 0.56, 0.5), m_wood)
 	_static_box(Vector3(-X + 0.42, LAND_Y + 0.55, Z_BACK + 0.45), Vector3(0.75, 1.1, 0.7))
@@ -344,20 +371,20 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	_light(Vector3(-X + 0.9, LAND_Y + 1.0, Z_BACK + 0.9), Color(0.55, 0.7, 1.0), 0.8, 3.5)
 	_point("tv", "ТЕЛЕВИЗОР", "ОБЛАКО LIVE · АРХИВ ПИЗДЕЦА", Vector3(-X + 1.1, LAND_Y, Z_BACK + 1.2))
 	# лавка dj flürr — вдоль левой стены, он сидит на ней лицом к площадке
-	_put("res://assets/racing/bench.glb", Vector3(-X + 0.38, LAND_Y, -3.55), 0.0, Vector3(2.4, 0.9, 2.4))
-	var fl := _actor("g67_dj_flurr", G67Models.DIR + "g67_dj_flurr.glb", 1.8, Vector3(-X + 0.42, LAND_Y, -3.55), PI * 0.5)
+	_put("res://assets/racing/bench.glb", Vector3(-X + 0.38, LAND_Y, BENCH_Z), 0.0, Vector3(2.4, 0.9, 2.4))
+	var fl := _actor("g67_dj_flurr", G67Models.DIR + "g67_dj_flurr.glb", 1.8, Vector3(-X + 0.42, LAND_Y, BENCH_Z), PI * 0.5)
 	if fl != null:
 		G67Models.sit(fl, 0.47)
-	_point("flurr", "DJ FLÜRR", "поговорить", Vector3(-X + 1.3, LAND_Y, -3.55))
+	_point("flurr", "DJ FLÜRR", "поговорить", Vector3(-X + 1.3, LAND_Y, BENCH_Z))
 	# стол улучшений и стойка стилей — вдоль правой стены, между дверью третьей квартиры и решёткой
-	_put("res://assets/minigames/ml_desk.glb", Vector3(X - 0.42, LAND_Y, -2.75), -PI * 0.5, Vector3(1.3, 0.85, 0.8))
-	_point("upgrades", "АВТОРИТЕТ РАЙОНА", "улучшения за РЕСПЕКТ", Vector3(X - 1.3, LAND_Y, -2.75))
-	_put("g67_style_rack", Vector3(X - 0.3, LAND_Y, -0.75), -PI * 0.5, Vector3(1.4, 1.9, 0.8))
-	_point("styles", "СТОЙКА СТИЛЕЙ", "Балон VOZDUH", Vector3(X - 1.2, LAND_Y, -0.75))
+	_put("res://assets/minigames/ml_desk.glb", Vector3(X - 0.42, LAND_Y, DESK_Z), -PI * 0.5, Vector3(1.3, 0.85, 0.8))
+	_point("upgrades", "АВТОРИТЕТ РАЙОНА", "улучшения за РЕСПЕКТ", Vector3(X - 1.3, LAND_Y, DESK_Z))
+	_put("g67_style_rack", Vector3(X - 0.3, LAND_Y, RACK_Z), -PI * 0.5, Vector3(1.4, 1.9, 0.8))
+	_point("styles", "СТОЙКА СТИЛЕЙ", "Балон VOZDUH", Vector3(X - 1.2, LAND_Y, RACK_Z))
 
 	# ---------- свет: плафоны на потолке и под площадкой, как в жилом доме ----------
-	_lamp(Vector3(0.0, CEIL_Y - 0.12, -3.6), Color(1.0, 0.86, 0.62), 2.6, 9.0)          # над площадкой
-	_lamp(Vector3(-0.3, CEIL_Y - 0.12, 3.4), Color(1.0, 0.88, 0.68), 2.2, 9.0)          # над холлом
+	_lamp(Vector3(0.0, CEIL_Y - 0.12, (Z_BACK + Z_STAIR_TOP) * 0.5), Color(1.0, 0.86, 0.62), 3.0, 11.5)          # над площадкой
+	_lamp(Vector3(-0.3, CEIL_Y - 0.12, (Z_EDGE + Z_FRONT) * 0.5), Color(1.0, 0.88, 0.68), 2.6, 11.5)             # над холлом
 	_lamp(Vector3(0.0, 2.52, Z_DOOR - 0.8), Color(1.0, 0.82, 0.55), 1.0, 4.0)           # в тамбуре
 	_light(Vector3(0.0, 3.3, Z_FRONT - 0.6), Color(0.45, 0.6, 1.0), 0.9, 6.0)           # от окна
 
@@ -829,7 +856,7 @@ func build_event_props() -> void:
 	_ev_mesh(a, _evb(Vector3(1.0, 2.0, 0.8)), Vector3(0, 1.0, 0), Color(0.42, 0.1, 0.09))
 	_ev_mesh(a, _evb(Vector3(0.62, 0.5, 0.05)), Vector3(0, 1.45, 0.41), Color(0.05, 0.05, 0.06))
 	var win := _ev_label(a, "7 7 7", Vector3(0, 1.45, 0.45), 56, Color(1.0, 0.85, 0.3))
-	_ev_label(a, "БУРМАЛДА", Vector3(0, 2.1, 0.2), 48, Color(1.0, 0.8, 0.25))
+	G67Sign.board(_ev_label(a, "БУРМАЛДА", Vector3(0, 2.2, 0.2), 48, Color(1.0, 0.8, 0.25)), 0.0, 0.0, Color(0.3, 0.06, 0.05))      # шапка автомата — щит на его крыше
 	var tray := _ev_mesh(a, _evb(Vector3(0.5, 0.22, 0.2)), Vector3(0, 0.45, 0.42), Color(0.08, 0.08, 0.09))
 	var lever := Node3D.new()
 	lever.position = Vector3(0.55, 1.2, 0.1)
@@ -957,7 +984,7 @@ func build_event_props() -> void:
 	lid.position = Vector3(0, 1.62, -0.14)
 	b.add_child(lid)
 	_ev_mesh(lid, _evb(Vector3(0.36, 0.03, 0.28)), Vector3(0, 0.04, 0.14), Color(0.7, 0.85, 0.9, 0.5))
-	_ev_label(b, "МОЖНО. А ЗАЧЕМ?", Vector3(0, 1.95, 0.05), 40, Color(1.0, 0.85, 0.8))
+	G67Sign.board(_ev_label(b, "МОЖНО. А ЗАЧЕМ?", Vector3(0, 1.95, 0.05), 40, Color(1.0, 0.85, 0.8)), 0.0, 0.5)      # табличка на своей ножке над кнопкой
 	var bl := OmniLight3D.new()
 	bl.light_color = Color(1.0, 0.2, 0.15)
 	bl.light_energy = 0.6
@@ -1104,7 +1131,7 @@ func add_residents() -> void:
 		_point("talk_" + String(rid), String(names.get(rid, "ЖИТЕЛЬ")), "поговорить", r.position)
 
 func G67Root_madk_spot() -> Vector3:
-	return Vector3(-1.15, 1.5, -4.95)
+	return MADK_SPOT
 
 ## ---- Подъезд (хаб): кнопка «НЕ НАЖИМАТЬ», листки, дверь квартиры на цепочке, силуэт в окне, телевизор за дверью
 var hub_groups := {}
@@ -1143,8 +1170,8 @@ func build_hub_life() -> void:
 	# табурет madk1d у телевизора на площадке и листок-кот на стене холла
 	var ms := G67Root_madk_spot()
 	_box(ms + Vector3(0, 0.22, 0), Vector3(0.4, 0.44, 0.4), m_wood)
-	_hub_note("marker", "окак", Vector3(HUB_X - 0.04, 0.95, 3.0), -PI * 0.5)
-	var bx := -0.85
+	_hub_note("marker", "окак", Vector3(HUB_X - 0.04, 0.95, Z_NICHE + 1.9), -PI * 0.5)
+	var bx := BTN_X
 	var bz := Z_BACK + 0.05
 	var disc := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
@@ -1162,10 +1189,10 @@ func build_hub_life() -> void:
 	add_child(disc)
 	_hub_note("plate", "НЕ НАЖИМАТЬ, Я ПРОШУ", Vector3(bx, LAND_Y + 1.5, bz + 0.01), 0.0)
 	_point("hub_btn", "КНОПКА", "нажать", Vector3(bx, LAND_Y, Z_BACK + 1.0))
-	_hub_note("paper", "Лифта в доме нет. Просьба не вызывать.", Vector3(-HUB_X + 0.04, 1.6, 3.4), PI * 0.5)
-	hub_groups["hub_lift"] = {"pos": Vector3(-2.6, 0.0, 1.6), "title": "ЛИСТОК", "cards": [{"text": "Лифта в доме нет. Просьба не вызывать.", "sub": ""}]}
-	_hub_note("paper", "Сосед! Твоя музыка слышна в 2016-м. Сделай громче.", Vector3(-1.75, LAND_Y + 1.7, Z_BACK + 0.06), 0.0)
-	hub_groups["hub_music"] = {"pos": Vector3(-1.75, LAND_Y, Z_BACK + 1.0), "title": "ЛИСТОК", "cards": [{"text": "Сосед! Твоя музыка слышна в 2016-м. Сделай громче.", "sub": ""}]}
+	_hub_note("paper", "Лифта в доме нет. Просьба не вызывать.", Vector3(-HUB_X + 0.04, 1.6, 2.8), PI * 0.5)
+	hub_groups["hub_lift"] = {"pos": Vector3(-HUB_X + 0.9, 0.0, 2.8), "title": "ЛИСТОК", "cards": [{"text": "Лифта в доме нет. Просьба не вызывать.", "sub": ""}]}
+	_hub_note("paper", "Сосед! Твоя музыка слышна в 2016-м. Сделай громче.", Vector3(APT1_X, LAND_Y + 1.7, Z_BACK + 0.06), 0.0)
+	hub_groups["hub_music"] = {"pos": Vector3(APT1_X, LAND_Y, Z_BACK + 1.0), "title": "ЛИСТОК", "cards": [{"text": "Сосед! Твоя музыка слышна в 2016-м. Сделай громче.", "sub": ""}]}
 	for cl in hub_groups:
 		_point("read_" + String(cl), "ЛИСТОК", "прочитать", hub_groups[cl]["pos"])
 	hub_strip = MeshInstance3D.new()
@@ -1176,7 +1203,7 @@ func build_hub_life() -> void:
 	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	sm.albedo_color = Color(1.0, 0.85, 0.5)
 	hub_strip.material_override = sm
-	hub_strip.position = Vector3(2.3 - 0.45, LAND_Y + 0.95, Z_BACK + 0.07)
+	hub_strip.position = Vector3(APT2_X - 0.45, LAND_Y + 0.95, Z_BACK + 0.07)
 	hub_strip.visible = false
 	add_child(hub_strip)
 	hub_sil = Node3D.new()

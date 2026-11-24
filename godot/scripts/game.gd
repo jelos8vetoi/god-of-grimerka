@@ -4,7 +4,7 @@
 extends Node3D
 
 const ARENA := 15.0
-var cam_len := 4.6          # длина штанги камеры (приквел: в подъезде 3,2)
+var cam_len := 4.6          # длина штанги камеры (приквел: в подъезде 4,0)
 var arena_c := Vector3.ZERO
 var arena_h := Vector2(ARENA, ARENA)
 const SAVE := "user://grimerka_save.json"
