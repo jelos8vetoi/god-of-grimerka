@@ -367,12 +367,71 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 var room: Dictionary = {}
 var gates: Array = []          # варианты следующего этапа: [{option, icon, root, label, stand, auto, pos}]
 var yard: G67Yard
+var dvor: G67Dvor2 = null       # новый ДВОР (редизайн): либо он, либо yard — два района сразу не строятся
 var district: G67District          # мир текущего района (у двора совпадает с yard; у подземки yard = null)
 ## Бой Миши (G67Misha.hook_target): за что цепляется цепь — турники и борта коробки, в координатах мира
 var hook_points: Array = []
 var hook_rect := Rect2(-14, -14, 28, 28)
 var throne := Vector3(0, 0.03, -10.0)
 var statist: Rig = null        # Миша на троне до боя: виден через сетку весь забег
+
+## Новый ДВОР «МИКРОРАЙОН 67»: небо и свет — как у прежнего двора, район — G67Dvor2 из данных
+func build_dvor2() -> void:
+	deco = "g67_dvor"
+	var T := _theme("g67_dvor")
+	var env := Environment.new()
+	var sky := Sky.new()
+	var sm := ProceduralSkyMaterial.new()
+	sm.sky_top_color = T["sky"][0]
+	sm.sky_horizon_color = Color(0.46, 0.22, 0.2)
+	sm.ground_bottom_color = T["sky"][0]
+	sm.ground_horizon_color = Color(0.46, 0.22, 0.2)
+	sm.sky_curve = 0.25
+	sky.sky_material = sm
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.36, 0.4, 0.56)
+	env.ambient_light_energy = 0.75
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 1.05
+	env.glow_enabled = true
+	env.glow_intensity = 0.75
+	env.glow_bloom = 0.1
+	env.glow_hdr_threshold = 0.9
+	env.fog_enabled = true
+	env.fog_light_color = T["fog"]
+	env.fog_density = 0.0035
+	env.fog_aerial_perspective = 0.4
+	var we := WorldEnvironment.new()
+	we.environment = env
+	add_child(we)
+	var key := DirectionalLight3D.new()
+	key.light_color = Color(0.62, 0.72, 1.0)
+	key.light_energy = 0.5
+	key.shadow_enabled = true
+	key.directional_shadow_max_distance = 70.0
+	key.rotation = Vector3(deg_to_rad(-38), deg_to_rad(-140), 0)
+	add_child(key)
+	yard = null
+	dvor = G67Dvor2.new()
+	add_child(dvor)
+	dvor.build()
+	missing.append_array(dvor.missing)
+	var cr: Rect2 = dvor.court
+	hook_points = []
+	hook_rect = Rect2(cr.position.x + 0.3, -cr.end.y + 0.3, cr.size.x - 0.6, cr.size.y - 0.6)
+	throne = G67Dvor2.to3(G67Dvor2.THRONE.x, G67Dvor2.THRONE.y, 0.03)
+	spawn_pos = G67Dvor2.to3(G67Dvor2.START.x, G67Dvor2.START.y, 0.05)
+	_point("home", "ПОДЪЕЗД", "домой: забег сохранится, продолжишь отсюда же", G67Dvor2.to3(G67Dvor2.HOME_DOOR.x, G67Dvor2.HOME_DOOR.y))
+	_point("kiosk", "ШАУРМА 67", "шаурма и «с собой»", G67Dvor2.to3(G67Dvor2.KIOSK.x, G67Dvor2.KIOSK.y))
+	_point("rags_dv", "ТРЯПКИ! ТРЯПКИ!", "подойти к прилавку рынка", G67Dvor2.to3(G67Dvor2.RAGS.x, G67Dvor2.RAGS.y))
+	G67District.spots_dv = {}
+	for ev in Golda67.EV_DV:
+		G67District.spots_dv[ev] = G67Dvor2.to3((Golda67.EV_DV[ev] as Vector2).x, (Golda67.EV_DV[ev] as Vector2).y)
+	build_event_props()
+	_point("rest_dv", "БЕСЕДКА", "передохнуть перед Мишей: раз за забег", G67Dvor2.to3(G67Dvor2.REST.x, G67Dvor2.REST.y))
+	_particles(T)
 
 func build_yard() -> void:
 	deco = "g67_dvor"
@@ -471,8 +530,17 @@ func build_podzemka() -> void:
 	_point("shutter", "РОЛЬСТАВНЯ", "поднять", Vector3(-42.4, 0.0, -122.0))
 	_point("hamster_door", "НЕ ТРОГАТЬ. ТУТ ХОМЯКИ", "открыть дверь", Vector3(42.2, 0.0, -146.0))
 	_point("hamster_game", "ТАПАТЬ ХОМЯКОВ", "играть, 45 с", Vector3(51.5, 0.0, -148.0))
+	# точки роликов второй партии: табло тарифов у первого турникета, экран ларька и телефонный киоск в галерее, монитор охраны у спуска
+	_point("clip_tariff", "ТАБЛО ТАРИФОВ", "посмотреть (8 голды)", Vector3(-8.0, 0.0, -29.5))
+	_point("clip_cl02", "ЭКРАН ЛАРЬКА", "смотреть «ОБЛАКО LIVE»", Vector3(8.9, 0.0, -76.5))
+	_point("clip_seller", "ТЕЛЕФОНЫ. ЧЕХЛЫ. КОРОБКИ", "заглянуть в окошко", Vector3(8.9, 0.0, -83.5))
+	_point("clip_cctv", "МОНИТОР ОХРАНЫ", "посмотреть запись", Vector3(4.6, 0.0, -20.5))
+	_point("pz_change", "АВТОМАТ РАЗМЕНА", "разменять 10 голды", Vector3(10.4, 0.0, -116.0))
+	_point("pz_cert", "СПРАВКА О ТОМ, ЧТО СПРАВКА НЕ НУЖНА", "окошко: 20 голды", Vector3(-10.4, 0.0, -128.0))
 	_point("slot", "DOG CASINO 67", "[E] крутить (удерживай — турбо)", Vector3(-51.4, 0.0, -122.0))
 	_point("home", "НАВЕРХ, ДОМОЙ", "домой: забег сохранится, продолжишь отсюда же", G67Podzemka.STAIRS_TOP + Vector3(0, 0, 1.5))
+	if not Golda67.old_yard:
+		_point("to_dvor", "ВО ДВОР", "подняться к арке дома № 81: бафы и голда остаются при тебе", G67Podzemka.STAIRS_TOP + Vector3(2.4, 0, 0.4))
 
 ## Камера не выходит за борта коробки: сплошные камерные стены по периметру COURT (внутренняя грань — в 0,35 м от борта),
 ## включая проём калитки; сетка над бортом тоже не пропускает
@@ -929,6 +997,8 @@ func build_event_props() -> void:
 	_ev_mesh(b, _evb(Vector3(0.06, 0.5, 0.06)), Vector3(0, 2.1, 0), Color(0.3, 0.3, 0.3))
 	_static_box(sp["button"] + Vector3(0, 0.7, 0), Vector3(0.5, 1.4, 0.4), 0.0)
 	ev_nodes["button"] = {"lid": lid, "root": b, "hatch": hch, "horn": horn}
+	if not sp.has("rags"):                    # новый двор: «ТРЯПКИ» — прилавок рынка, двери бокса нет
+		return
 	# дверь «ТРЯПОК»: гаражный бокс, тёплый свет из щели
 	var d := Node3D.new()
 	d.position = sp["rags"]

@@ -770,7 +770,7 @@ func _clip_check(g, G: Golda67, P) -> void:
 			await get_tree().process_frame
 		var dur := (GameClock.ms() - t0) / 1000.0
 		var needs_voice: bool = (G67Clips.LINES.get(cid, []) as Array).size() > 0
-		var good: bool = G.clip == null and dur > 5.0 and dur < 40.0 and (voiced or not needs_voice) and subs
+		var good: bool = G.clip == null and dur > 5.0 and dur < 40.0 and (voiced or not needs_voice) and (subs or not needs_voice)      # у роликов без реплик (записи камер, реклама казино) нет ни голоса, ни субтитров
 		print("GOLDA67CHECK   ролик %s: %.1f с, голос %s, субтитры %s, кадров %d" % [cid, dur, str(voiced), str(subs), n])
 		if not good:
 			all_ok = false

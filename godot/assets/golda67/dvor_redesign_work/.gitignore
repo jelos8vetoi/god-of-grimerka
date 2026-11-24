@@ -1,0 +1,4 @@
+source_references/
+blender_source/*.blend
+architecture_parts/**/*.glb
+*.blend1
