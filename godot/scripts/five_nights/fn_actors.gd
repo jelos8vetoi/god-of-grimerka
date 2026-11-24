@@ -62,6 +62,17 @@ const DOOR_STANDS := {
 	"ghost": Vector3(3.07, 0.006, -0.28),
 	"mod": Vector3(3.38, 0.008, -0.22),
 }
+# От посадочной метки БАЛОНА. Места не меняют комнату или игровой вариант позы.
+const STAGE_STANDS := {
+	"balon": Vector3.ZERO,
+	"clipper": Vector3(-2.52, 0.145, -0.76),
+	"bot": Vector3(1.37, 0.0, -0.82),
+	"mod": Vector3(2.30, 0.0, 0.61),
+	"madk1d": Vector3(-1.72, 0.0, 0.70),
+	"ghost": Vector3(-1.18, 0.0, -0.91),
+}
+const BOT_TRAVEL := 0.48
+const BOT_TRAVEL_TIME := 1.20
 # Множители альбедо и ИК-подсветки для обычного наблюдения.
 const PATROL_DEFAULT := Vector2(0.82, 0.48)
 const PATROL_MATERIALS := {
@@ -327,7 +338,7 @@ func tick(st: FNNight, dt: float, patrol_look := true) -> void:
 		if place_key.get(id, "") != key:
 			place_key[id] = key
 			stare.erase(id)
-			_place(id, e, r)
+			_place(id, e, r, patrol_look)
 		_live(id, e, r, dt)
 		_door_look(id, e, r)
 		# мерцание глаз; у GHOST — растёт с одержимостью
@@ -343,8 +354,13 @@ func tick(st: FNNight, dt: float, patrol_look := true) -> void:
 func _door_clip(sp: String, base: String) -> String:
 	return base + ("L" if sp == "door_l" else "R")
 
-func _place(id: String, e: FNEnemy, r: Rig) -> void:
+func _place(id: String, e: FNEnemy, r: Rig, spread_stage := true) -> void:
 	var sp: String = e.spot
+	var bot_arrival := false
+	if id == "bot":
+		bot_arrival = r.get_meta("bot_room", "") != sp and not e.prev.is_empty()
+		r.set_meta("bot_room", sp)
+		mode.erase(id)
 	r.rotation = Vector3.ZERO
 	r.visible = true
 	var cam_p := Vector3.ZERO
@@ -381,6 +397,9 @@ func _place(id: String, e: FNEnemy, r: Rig) -> void:
 	if id == "ghost":
 		room = "ghost_" + sp if fac.spots.has("ghost_" + sp) else sp
 	var xf2 := fac.spot(room, e.pose)
+	if sp == "stage" and spread_stage:
+		xf2 = fac.spot("stage", 0)
+		xf2.origin += STAGE_STANDS.get(id, Vector3.ZERO) as Vector3
 	r.global_transform = xf2
 	cam_p = (fac.cams.get(sp, {}) as Dictionary).get("pos", r.position + Vector3(0, 0, 3))
 	if e.look:
@@ -389,22 +408,42 @@ func _place(id: String, e: FNEnemy, r: Rig) -> void:
 		r.play("FNStare", 0.0)
 	elif sp in ["hall_l", "hall_r"]:
 		r.rotation.y = 0.0
+		if id == "bot":
+			if bot_arrival:
+				mode[id] = "retreat" if e.prev == "door_r" else "approach"
+				creep[id] = 0.0
+				r.set_meta("hall_z", r.position.z)
+				r.position.z += BOT_TRAVEL if mode[id] == "retreat" else -BOT_TRAVEL
+				r.play("FNRetreat" if mode[id] == "retreat" else "FNWalk", 0.0)
+			else:
+				r.play("FNStill", 0.0)
+			return
 		# пришёл от двери — пятится, не сводя глаз; идёт к офису — приближается рывками и сам подползает ближе
 		mode[id] = "retreat" if e.prev in ["door_l", "door_r"] else "approach"
 		creep[id] = 0.0
 		r.set_meta("hall_z", r.position.z)
 		r.play("FNRetreat" if mode[id] == "retreat" else ("FNApproach" if id != "clipper" else "FNWalk"), 0.0, 1.0 if id != "clipper" else 0.18)
 	else:
-		r.play("FNStill" if e.pose != 2 else "Idle", 0.0)
+		r.play("FNStill" if id == "bot" or (sp == "stage" and spread_stage) or e.pose != 2 else "Idle", 0.0)
 
 ## живое между переездами: подползает по коридору, у двери подаётся вперёд перед входом, глаза бегают,
 ## поворот к камере (аномалия «stare»)
 func _live(id: String, e: FNEnemy, r: Rig, dt: float) -> void:
 	if not r.visible:
 		return
-	if e.spot in ["hall_l", "hall_r"] and String(mode.get(id, "")) == "approach":
-		creep[id] = minf(1.1, float(creep.get(id, 0.0)) + dt * 0.05)
-		r.position.z = float(r.get_meta("hall_z", r.position.z)) + float(creep[id])
+	if e.spot in ["hall_l", "hall_r"]:
+		var motion: String = mode.get(id, "")
+		if id == "bot" and not motion.is_empty():
+			var traveled := move_toward(float(creep[id]), BOT_TRAVEL, dt * BOT_TRAVEL / BOT_TRAVEL_TIME)
+			creep[id] = traveled
+			var direction := 1.0 if motion == "retreat" else -1.0
+			r.position.z = float(r.get_meta("hall_z")) + direction * (BOT_TRAVEL - traveled)
+			if traveled >= BOT_TRAVEL:
+				mode.erase(id)
+				r.play("FNStill", 0.15)
+		elif motion == "approach":
+			creep[id] = minf(1.1, float(creep.get(id, 0.0)) + dt * 0.05)
+			r.position.z = float(r.get_meta("hall_z", r.position.z)) + float(creep[id])
 	if e.spot in ["door_l", "door_r"] and e.linger > 0.0:
 		var near: bool = e.door_t > e.linger * 0.7
 		if near != bool(lunge_t.get(id, false)):

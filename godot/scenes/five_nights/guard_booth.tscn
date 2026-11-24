@@ -1,4 +1,4 @@
-[gd_scene load_steps=152 format=3]
+[gd_scene load_steps=153 format=3]
 
 [ext_resource type="Texture2D" path="res://assets/minigames/fn_office_photo.png" id="OpeningPhoto"]
 [ext_resource type="Script" path="res://scripts/five_nights/fn_office.gd" id="Controller"]
@@ -544,6 +544,9 @@ height = 0.145
 radial_segments = 12
 rings = 0
 
+[sub_resource type="BoxMesh" id="LeftBlindReturnMesh"]
+size = Vector3(1.93, 2.4, 0.1)
+
 [node name="GuardBooth" type="Node3D"]
 script = ExtResource("Controller")
 
@@ -708,8 +711,8 @@ mesh = SubResource("RecessEndWall")
 material_override = ExtResource("enamel")
 
 [node name="BlindReturn" type="MeshInstance3D" parent="Shell/LeftRecess"]
-position = Vector3(-2.625, 1.2, -1.42)
-mesh = SubResource("Box_0_85_2_4_0_1")
+position = Vector3(-3.165, 1.2, -1.42)
+mesh = SubResource("LeftBlindReturnMesh")
 material_override = ExtResource("plaster")
 
 [node name="Bumper" type="MeshInstance3D" parent="Shell/LeftRecess"]
