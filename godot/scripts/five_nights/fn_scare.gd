@@ -124,7 +124,7 @@ func play(eid: String, at: String, pre: int) -> void:
 	scare_id = "balon" if eid == "dark" else eid
 	aim_id = ""
 	match eid:
-		"balon":
+		"balon", "dark":                    # "dark" — Балон из темноты после отключения питания
 			await _balon(r, at == "dark")
 		"madk1d":
 			await _madk1d(r)

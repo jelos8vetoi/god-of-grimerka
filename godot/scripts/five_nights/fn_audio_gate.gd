@@ -11,6 +11,9 @@ const FILE := "user://fn_audio_gate.json"
 const VERSION := 2
 const APPROVED := {"balon": "b", "cctv": "b", "madk1d": "a", "tablet": "a"}
 const KEYS := ["balon", "cctv", "madk1d", "tablet"]
+## P1.2: записи ждут приёмки на слух. В обычной игре по умолчанию играет прежний звук (""); новый включается в сцене
+## прослушивания («в игре») либо на один запуск ключом `-- --fnaudio=new` (все сразу).
+const TRIAL := {"scream_madk1d": "a", "scream_bot": "a", "scream_clipper": "a", "scream_ghost": "a", "scream_mod": "a", "scream_dark": "a"}
 const VARIANTS := ["", "a", "b"]
 const NAMES := {"": "ORIGINAL", "a": "A", "b": "B"}
 ## события шахты: вид → записи C1 (assets/audio/fn/sfx/madk_*) и прежние записи P0
@@ -27,13 +30,15 @@ static var _cache := {}
 
 static func load_choice() -> void:
 	_loaded = true
-	if not FileAccess.file_exists(FILE):
-		return
-	var d = JSON.parse_string(FileAccess.get_file_as_string(FILE))
-	if d is Dictionary and int(d.get("v", 0)) == VERSION:
-		for k in KEYS:
-			if d.has(k) and String(d[k]) in VARIANTS:
-				pick[k] = String(d[k])
+	if FileAccess.file_exists(FILE):
+		var d = JSON.parse_string(FileAccess.get_file_as_string(FILE))
+		if d is Dictionary and int(d.get("v", 0)) == VERSION:
+			for k in KEYS + TRIAL.keys():
+				if d.has(k) and String(d[k]) in VARIANTS:
+					pick[k] = String(d[k])
+	if "--fnaudio=new" in OS.get_cmdline_user_args():
+		for k in TRIAL:
+			pick[k] = String(TRIAL[k])
 
 static func variant(key: String) -> String:
 	if not _loaded:
@@ -66,8 +71,10 @@ static func _take(prefix: String, n: int, ext: String) -> AudioStream:
 
 ## крик скримера: null — играют прежние записи
 static func scream(kind: String) -> AudioStream:
-	var v := variant("balon")
-	return null if kind != "balon" or v == "" else _stream("balon_%s.wav" % v)
+	if kind == "balon":
+		var v := variant("balon")
+		return null if v == "" else _stream("balon_%s.wav" % v)
+	return _stream("scream_%s.wav" % kind) if variant("scream_" + kind) != "" else null
 
 ## щелчок переключения камеры: null — прежний звук
 static func cam() -> AudioStream:
