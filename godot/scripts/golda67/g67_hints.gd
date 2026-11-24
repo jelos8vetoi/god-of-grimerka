@@ -37,7 +37,7 @@ func _init(g67) -> void:
 	label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.6))
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	label.add_theme_constant_override("outline_size", 6)
-	label.position = Vector2(40, 78)
+	label.position = Vector2(304, 22)          # правее мини-карты: раньше подсказка ложилась прямо на неё
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.modulate.a = 0.0
 	G.game.hud_root.add_child(label)

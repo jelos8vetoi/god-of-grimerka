@@ -10,7 +10,7 @@ extends Control
 
 const SIZE := 232.0              # сторона карты, px при высоте окна 900
 const ZOOMS := [48.0, 85.0, 150.0]      # сколько метров от героя до края карты
-const CELL_DV := 3.0             # клетка сетки маршрута во дворе, м
+const CELL_DV := 1.5             # клетка сетки маршрута во дворе, м (мельче — чтобы обходить диваны, бочки и углы гаражей)
 const CELL_PZ := 1.5             # в Подземке
 const PATH_EVERY := 1.2          # как часто пересчитывается маршрут, с
 const MARK_EVERY := 0.2
@@ -128,11 +128,40 @@ func _rebuild() -> void:
 				vid = "gar"
 			elif cat == "act" and model == "kiosk_90s":
 				vid = "gar"
+			if vid == "" and model != "" and cat != "boss" and not G67Dvor2.NO_BODY.has(model.replace("game:", "")):
+				_solid(r.grow(0.35))             # остановка, машины, лавки, горки: на карте не рисуются, но маршрут их обходит
 			if vid == "":
 				continue
 			rects.append([r, vid])
 			if vid in ["house", "gar"] and model != "res_arch_81":
-				_solid(r)
+				_solid(r.grow(0.35))
+			elif model == "res_arch_81":            # дом с аркой: крылья — стены, проезд посередине (10,5 м) свободен
+				var half: float = float(G.world.dvor.man["res_arch_81"]["size"][0]) * 0.5
+				var ax: float = float(it["x"])
+				var ay: float = float(it["y"])
+				for sg in [-1.0, 1.0]:
+					var y_a: float = ay + sg * 5.25
+					var y_b: float = ay + sg * half
+					_solid(Rect2(ax - 9.3, -maxf(y_a, y_b), 18.6, absf(y_b - y_a)).grow(0.3))
+		# реквизит с преградой (диваны, бочки, машины, ларьки) — тоже препятствие для маршрута: на карте не рисуется
+		var dv0: G67Dvor2 = G.world.dvor
+		for q_v in (dv0.props.get("props", []) as Array):
+			var q: Dictionary = q_v
+			var mid := String(q["m"])
+			if float(q["z"]) != 0.0 or not dv0.man.has(mid) or G67Dvor2.NO_BODY.has(mid) or G67Dvor2.TRUNK.any(func(t): return mid.begins_with(String(t))):
+				continue
+			var k: float = 1.0 if q["k"] == null else float(q["k"])
+			var sz: Array = dv0.man[mid]["size"]
+			if float(sz[2]) * k < 0.25:
+				continue
+			var hw: float = float(sz[0]) * k * 0.5
+			var hd: float = float(sz[1]) * k * 0.5
+			if absf(fmod(float(q["yaw"]), 180.0)) > 1.0 and absf(fmod(float(q["yaw"]), 180.0)) < 179.0:
+				var mx := maxf(hw, hd) if absf(fmod(float(q["yaw"]), 90.0)) > 1.0 else hd
+				var my := maxf(hw, hd) if absf(fmod(float(q["yaw"]), 90.0)) > 1.0 else hw
+				hw = mx
+				hd = my
+			_solid(Rect2(float(q["x"]) - hw, -float(q["y"]) - hd, hw * 2.0, hd * 2.0).grow(0.3))
 		rects.sort_custom(func(a, b): return _order(String(a[1])) < _order(String(b[1])))
 		var dv: G67Dvor2 = G.world.dvor
 		names = [[_xz(G67Dvor2.to3(G67Dvor2.KIOSK.x, G67Dvor2.KIOSK.y)), "ШАУРМА 67"], [_xz(G67Dvor2.to3(G67Dvor2.RAGS.x, G67Dvor2.RAGS.y + 5.0)), "РЫНОК"],
@@ -149,6 +178,12 @@ func _rebuild() -> void:
 			bb = r if first else bb.merge(r)
 			first = false
 		bb = bb.grow(cell * 2.0)
+		var doors: Array = []
+		for dd in G67Podzemka.DOORS:
+			if String(dd[0]) == "x":
+				doors.append(Rect2(float(dd[1]) - 1.6, float(dd[2]) + 0.3, 3.2, float(dd[3]) - float(dd[2]) - 0.6))
+			else:
+				doors.append(Rect2(float(dd[2]) + 0.3, float(dd[1]) - 1.6, float(dd[3]) - float(dd[2]) - 0.6, 3.2))
 		grid.region = Rect2i(int(floor(bb.position.x / cell)), int(floor(bb.position.y / cell)), int(ceil(bb.size.x / cell)), int(ceil(bb.size.y / cell)))
 		grid.cell_size = Vector2(cell, cell)
 		grid.update()
@@ -157,10 +192,15 @@ func _rebuild() -> void:
 			for cx in range(rg.position.x, rg.end.x):
 				var c := Vector2((float(cx) + 0.5) * cell, (float(cy) + 0.5) * cell)
 				var inside := false
-				for rr in rects:
-					if (rr[0] as Rect2).grow(0.2).has_point(c):
+				for rr in rects:                      # помещение без полосы у стен: маршрут не режет углы и не идёт сквозь стену соседнего зала
+					if (rr[0] as Rect2).grow(-0.45).has_point(c):
 						inside = true
 						break
+				if not inside:
+					for dr in doors:                  # проёмы между залами
+						if (dr as Rect2).has_point(c):
+							inside = true
+							break
 				if not inside:
 					grid.set_point_solid(Vector2i(cx, cy), true)
 		names = [[_room_c("cash"), "КАССЫ"], [_room_c("casino"), "CASINO"], [_room_c("arena"), "АРЕНА"], [_room_c("arcade"), "АВТОМАТЫ"], [_room_c("gallery"), "ГАЛЕРЕЯ"]]
@@ -216,11 +256,12 @@ func goal() -> Dictionary:
 			for e in T.encs:
 				if not String(e["state"]) in ["cleared", "gone"] and not bool(e["d"].get("nofoes", false)):
 					return {"text": "Долг за побег: разберись с группой", "pos": e["c"]}
-		if G.world.points.any(func(pt): return String(pt["id"]) == "krot") and not bool(G.run.get("krot_seen", false)) and p.global_position.distance_to(_pt("krot")) < 60.0:
+		var k_id := String(G.krot_k.get("id", "")) if G.krot_k is Dictionary else ""
+		if k_id != "" and not (G.meta().get("seen", []) as Array).has(k_id) and G.world.points.any(func(pt): return String(pt["id"]) == "krot") and p.global_position.distance_to(_pt("krot")) < 60.0:
 			return {"text": "Найди КРОТА", "pos": _pt("krot")}
 		if not bool(G.run.get("rested", false)) and p.hp < p.max_hp * 0.7:
 			return {"text": "Подготовься к встрече с Мишей: беседка или шаурма", "pos": G67Dvor2.to3(G67Dvor2.REST.x, G67Dvor2.REST.y)}
-		return {"text": "Победи Мишу — коробка на севере", "pos": dv.court_center() + Vector3(0, 0, dv.court.size.y * 0.5 + 1.5)}
+		return {"text": "Победи Мишу — коробка на севере", "pos": dv.court_center() + Vector3(0, 0, dv.court.size.y * 0.5 - 3.5)}      # точка внутри коробки, за калиткой: бой начинается, когда герой вошёл
 	if G67District.is_podzemka():
 		if G.room_state == "boss":
 			return {"text": "Победи FORTUNA 812", "pos": null}

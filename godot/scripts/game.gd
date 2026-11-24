@@ -693,8 +693,15 @@ func _update_bolts(dt: float) -> void:
 		if b["homing"]:
 			var want: Vector3 = (pp - n.global_position).normalized() * (b["v"] as Vector3).length()
 			b["v"] = (b["v"] as Vector3).lerp(want, 1.0 - exp(-float(b["turn"]) * dt))
+		var bp0: Vector3 = n.global_position
 		n.global_position += b["v"] * dt
-		if n.global_position.distance_to(pp) < 0.7:
+		if golda != null and world != null:                      # «ГОЛДА 67»: гаражи, дома и стены переходов останавливают снаряд
+			var bq := PhysicsRayQueryParameters3D.create(bp0, n.global_position, 1)
+			var bh: Dictionary = world.get_world_3d().direct_space_state.intersect_ray(bq)
+			if not bh.is_empty() and bh["collider"] is StaticBody3D:
+				n.global_position = bh["position"]
+				b["life"] = 0.0
+		if b["life"] > 0.0 and n.global_position.distance_to(pp) < 0.7:
 			var was_inv: bool = player.inv > 0.0
 			player.take_damage(b["dmg"], n.global_position, b["from"] if is_instance_valid(b["from"]) else null, b.get("telemetry", {}))
 			if float(b["slow"]) > 0.0 and not was_inv:
@@ -1019,6 +1026,17 @@ func _physics_process(_dt: float) -> void:
 	if survival != null and survival.active and mode == "fight" and not over:
 		survival.director.tick(self)
 
+## Геймпад: правый стик вращает камеру (мышь работает как раньше). В диалоге, паузе, вступлении и с открытым iPod — нет.
+func _pad_look(rdt: float) -> void:
+	if mode == "dlg" or get_tree().paused or intro_busy() or (ipod != null and ipod.captures_gameplay_input()):
+		return
+	var v := Vector2(Input.get_joy_axis(0, JOY_AXIS_RIGHT_X), Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y))
+	if v.length() < 0.2 or (lock != null and lock.get("target") != null):
+		return
+	var sens := float(Opts.v("sens"))
+	cam_yaw -= v.x * 2.6 * sens * rdt
+	cam_pitch = clamp(cam_pitch - v.y * 1.6 * sens * rdt * (-1.0 if bool(Opts.v("invert_y")) else 1.0), -1.1, 0.35)
+
 func _process(dt: float) -> void:
 	var rdt: float = dt / max(Engine.time_scale, 0.001)
 	if survival != null and mode == "fight" and not intro_busy() and not over:
@@ -1026,6 +1044,7 @@ func _process(dt: float) -> void:
 		if survival.active:
 			telemetry.tick(rdt, player.hero, player.style.id)
 	clock += rdt
+	_pad_look(rdt)
 	heat_t = max(0.0, heat_t - rdt)
 	Engine.time_scale = 0.05 if clock < stop_until else (0.3 if clock < slow_until else (0.45 if heat_t > 0.0 else 1.0))
 	if director:

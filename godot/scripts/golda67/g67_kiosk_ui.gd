@@ -26,7 +26,7 @@ func _build() -> void:
 	front.title = String({"petrovich": "МАСТЕРСКАЯ", "zhora": "ДЛЯ СВОИХ"}.get(G.shop, "ШАУРМА 67"))
 	front.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(front)
-	lab({"petrovich": "ГСК «ОБЛАКО» · МАСТЕРСКАЯ ПЕТРОВИЧА", "zhora": "ГАРАЖИ У БАШЕН · БАГАЖНИК ЖОРЫ"}.get(G.shop, "ДВОР · ПАРКОВКА · ОКНО ЛАРЬКА"), "caps", 13, Color(0.86, 0.72, 0.52), Vector2(70, 160))
+	lab({"petrovich": "ГСК «ОБЛАКО» · МАСТЕРСКАЯ ПЕТРОВИЧА", "zhora": "ГАРАЖИ У БАШЕН · БАГАЖНИК ЖОРЫ"}.get(G.shop, ("ДВОР · УЛИЦА ОБЛАЧНАЯ · ОКНО ЛАРЬКА" if (G.world != null and G.world.dvor != null) else "ДВОР · ПАРКОВКА · ОКНО ЛАРЬКА")), "caps", 13, Color(0.86, 0.72, 0.52), Vector2(70, 160))
 	var shown: Array = []
 	for k in G.shop_items():
 		if String(k["id"]) == "togo" and G.togo_pool().is_empty():
