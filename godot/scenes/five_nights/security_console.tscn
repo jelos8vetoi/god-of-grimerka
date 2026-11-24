@@ -1,4 +1,4 @@
-[gd_scene load_steps=40 format=3]
+[gd_scene load_steps=39 format=3]
 
 [ext_resource type="PackedScene" path="res://assets/fn_curated/models/metal_office_desk/metal_office_desk.gltf" id="Desk"]
 [ext_resource type="PackedScene" path="res://scenes/five_nights/desk_fan.tscn" id="desk_fan"]
@@ -9,15 +9,14 @@
 [ext_resource type="Texture2D" path="res://scenes/five_nights/materials/surface_grain.tres" id="Dust"]
 [ext_resource type="FontFile" path="res://assets/fonts/RussoOne-Regular.ttf" id="Russo"]
 
-[ext_resource type="PackedScene" path="res://assets/fn_curated/office/retro_pc/crt_monitor.gltf" id="Monitor"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/office/retro_pc/monitor_base.gltf" id="MonitorBase"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/office/retro_pc/keyboard.gltf" id="Keyboard"]
-[ext_resource type="ArrayMesh" path="res://assets/fn_curated/office/retro_pc/crt_glass.res" id="TubeGlass"]
-[ext_resource type="PackedScene" path="res://assets/fn_curated/models/vef_ta68.glb" id="Telephone"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/office/authentic/office_pc.glb" id="OfficePC"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/office/authentic/cctv_monitor.glb" id="CCTVMonitor"]
+[ext_resource type="ArrayMesh" path="res://assets/fn_curated/office/authentic/main_glass.res" id="MainGlass"]
+[ext_resource type="ArrayMesh" path="res://assets/fn_curated/office/authentic/cctv_glass.res" id="CCTVGlass"]
+[ext_resource type="PackedScene" path="res://assets/fn_curated/office/authentic/office_phone.glb" id="Telephone"]
 [ext_resource type="PackedScene" path="res://assets/fn_curated/office/ashtray.glb" id="Ashtray"]
 [ext_resource type="PackedScene" path="res://assets/fn_curated/office/tumbler.glb" id="Tumbler"]
 [ext_resource type="PackedScene" path="res://assets/fn_curated/office/clipboard/clipboard.gltf" id="Clipboard"]
-[ext_resource type="PackedScene" path="res://scenes/five_nights/desk_wiring.tscn" id="Wiring"]
 
 [sub_resource type="StandardMaterial3D" id="ResetCap"]
 albedo_color = Color(0.62, 0.055, 0.035, 1)
@@ -132,28 +131,18 @@ rings = 0
 position = Vector3(0, 0, 0.03)
 scale = Vector3(0.96, 1.072, 0.96)
 
-[node name="ComputerCase" parent="." instance=ExtResource("MonitorBase")]
-position = Vector3(-0.081, 0.8447, -0.115)
-scale = Vector3(1.22, 1.22, 1.22)
+[node name="OfficePC" parent="." instance=ExtResource("OfficePC")]
+position = Vector3(-0.272, 0.8447, -0.092)
+rotation = Vector3(0, 0.105, 0)
 
-[node name="MainMonitor" parent="." instance=ExtResource("Monitor")]
-position = Vector3(-0.081, 1.0374, -0.115)
-scale = Vector3(1.22, 1.22, 1.22)
-
-[node name="AuxMonitor" parent="." instance=ExtResource("Monitor")]
-position = Vector3(0.517, 0.8448, -0.231)
-scale = Vector3(0.82, 0.82, 0.82)
-rotation = Vector3(0, -0.17, 0)
-
-[node name="Keyboard" parent="." instance=ExtResource("Keyboard")]
-position = Vector3(-0.335, 0.8448, 0.278)
-scale = Vector3(0.98, 0.98, 0.98)
-rotation = Vector3(0, 0.035, 0)
+[node name="AuxMonitor" parent="." instance=ExtResource("CCTVMonitor")]
+position = Vector3(0.405, 0.8447, -0.203)
+rotation = Vector3(0, -0.24, 0)
+scale = Vector3(1.04, 1.04, 1.04)
 
 [node name="Telephone" parent="." instance=ExtResource("Telephone")]
-position = Vector3(0.752, 0.845, 0.087)
-scale = Vector3(0.97, 0.97, 0.97)
-rotation = Vector3(0, -0.34, 0)
+position = Vector3(0.770, 0.8447, 0.150)
+rotation = Vector3(0, -0.18, 0)
 
 [node name="Ashtray" parent="." instance=ExtResource("Ashtray")]
 position = Vector3(0.802, 0.845, 0.357)
@@ -171,41 +160,39 @@ position = Vector3(-0.756, 0.848, 0.289)
 scale = Vector3(0.83, 0.83, 0.83)
 rotation = Vector3(0, -0.19, 0)
 
-[node name="DeskWiring" parent="." instance=ExtResource("Wiring")]
-position = Vector3(0, 0, 0)
-
 [node name="DeskFan" parent="." instance=ExtResource("desk_fan")]
 transform = Transform3D(0.9659258, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.9659258, -0.578, 0.8446, -0.123)
 
 [node name="MainScreen" type="MeshInstance3D" parent="."]
-position = Vector3(-0.081, 1.0374, -0.115)
-scale = Vector3(1.22, 1.22, 1.22)
-mesh = ExtResource("TubeGlass")
+position = Vector3(-0.272, 0.8447, -0.092)
+rotation = Vector3(0, 0.105, 0)
+mesh = ExtResource("MainGlass")
 material_override = SubResource("Signal")
 cast_shadow = 0
 
 [node name="AuxScreen" type="MeshInstance3D" parent="."]
-position = Vector3(0.517, 0.8448, -0.231)
-rotation = Vector3(0, -0.17, 0)
-scale = Vector3(0.82, 0.82, 0.82)
-mesh = ExtResource("TubeGlass")
+position = Vector3(0.405, 0.8447, -0.203)
+rotation = Vector3(0, -0.24, 0)
+scale = Vector3(1.04, 1.04, 1.04)
+mesh = ExtResource("CCTVGlass")
 material_override = SubResource("Auxiliary")
 cast_shadow = 0
 
 [node name="ScreenGlow" type="OmniLight3D" parent="."]
-position = Vector3(-0.09, 1.27, 0.20)
-light_color = Color(0.66, 0.81, 0.89, 1)
+position = Vector3(-0.116, 1.145, 0.30)
+light_color = Color(0.66, 0.80, 0.89, 1)
 light_energy = 0.045
-omni_range = 0.88
+omni_range = 0.64
 omni_attenuation = 1.55
 light_specular = 0.04
 
 [node name="PhoneHit" type="Marker3D" parent="."]
-position = Vector3(0.667, 0.856, 0.12)
+position = Vector3(0.773, 0.957, 0.158)
 gizmo_extents = 0.08
 
 [node name="Reflection" type="MeshInstance3D" parent="."]
-position = Vector3(-0.024, 1.294, 0.065)
+position = Vector3(-0.221, 1.243, 0.107)
+rotation = Vector3(0, 0.105, 0)
 mesh = SubResource("Quad_0_105_0_245")
 material_override = SubResource("Silhouette")
 cast_shadow = 0

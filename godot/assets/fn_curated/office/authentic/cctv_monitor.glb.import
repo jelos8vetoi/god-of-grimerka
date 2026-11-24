@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cj8er3mrttrwl"
-path="res://.godot/imported/crt_monitor.gltf-710403d9ae73febb9d57fb1a8b35463c.scn"
+uid="uid://bu5d6r4c2deuh"
+path="res://.godot/imported/cctv_monitor.glb-5631ba94adfe46eeff1cfc7e8da3a661.scn"
 
 [deps]
 
-source_file="res://assets/fn_curated/office/retro_pc/crt_monitor.gltf"
-dest_files=["res://.godot/imported/crt_monitor.gltf-710403d9ae73febb9d57fb1a8b35463c.scn"]
+source_file="res://assets/fn_curated/office/authentic/cctv_monitor.glb"
+dest_files=["res://.godot/imported/cctv_monitor.glb-5631ba94adfe46eeff1cfc7e8da3a661.scn"]
 
 [params]
 
