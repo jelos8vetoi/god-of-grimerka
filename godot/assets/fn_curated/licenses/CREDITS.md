@@ -26,3 +26,7 @@
 | [Metal Toolbox](https://polyhaven.com/a/metal_toolbox) | Mateusz Sadek | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Исходный glTF и карты 1K |
 | [Rejilla Ventilacion](https://sketchfab.com/3d-models/rejilla-ventilacion-f13afbfa6c8748bc84e640bcd18fcc99) | Artistic Games (@ArtisticGames) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Центрирование и масштаб, настройка PBR |
 | [Phone VEF TA 68](https://sketchfab.com/3d-models/phone-vef-ta-68-c848036e1d5f455797476659dfd12b06) | strnroman (@mne1pox) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Центрирование и масштаб |
+| [Retro PC](https://vinish.dev/free-3d-models/retro-tech) | vinish.dev | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Выделены ЭЛТ, основание и клавиатура, нормализованы точки установки, UV стекла и назначение экранного материала |
+| [Clipboard](https://polyhaven.com/a/clipboard) | ProgrammerOnCoffee | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | glTF и карты 1K |
+| [Round glass ashtray](https://www.innerscene.com/tools/library/3d-parts/round-glass-ashtray-with-three-cigarette-rests-d792bb63) | Innerscene | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Исходный GLB |
+| [Tumbler 300 ml](https://www.innerscene.com/tools/library/3d-parts/tumbler-300-ml-618a11b5) | Innerscene | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | Исходный GLB |

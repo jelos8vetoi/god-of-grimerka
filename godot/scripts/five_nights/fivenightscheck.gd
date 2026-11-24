@@ -552,7 +552,8 @@ func _fan_check(R: FiveNightsRoot) -> void:
 	var A: FNAmbience = R.ambience
 	var rotor: Node3D = O.desk_fan.rotor
 	ok(rotor != null and rotor.name == "RotorPivot", "вентилятор: RotorPivot найден")
-	ok(O.desk_tris_after < O.desk_tris_before, "старый вентилятор вырезан из стола: треугольников %d → %d (убрано %d, %.1f мс)" % [O.desk_tris_before, O.desk_tris_after, O.fan_cut_tris, O.fan_cut_ms])
+	var desk := O.get_node("Console/DeskModel")
+	ok(desk.scene_file_path.ends_with("/metal_office_desk.gltf") and O.desk_fan.get_parent() == desk.get_parent(), "стол и рабочий вентилятор загружены отдельными сценами")
 	var fan_pt: Node3D = O.get_node("Console/AudioPoints/Fan")
 	ok(fan_pt.global_position.distance_to(rotor.global_position) <= 0.2, "маркер звука вентилятора у двигателя (%.2f м от ротора)" % fan_pt.global_position.distance_to(rotor.global_position))
 	A.fan_spin = 1.0

@@ -42,12 +42,6 @@ const RollingShutter := preload("res://scripts/five_nights/fn_rolling_shutter.gd
 @onready var hatch_y := hatch.position.y
 @onready var grate_eyes: Node3D = $Ventilation/WallGrate/Eyes
 @onready var desk_fan: FNDeskFan = $Console/DeskFan
-## объём старого вентилятора, сплавленного со столом, в координатах меша fn_security_desk.glb (до масштаба DeskModel)
-const OLD_FAN_AABB := AABB(Vector3(-39.7, 46.15, -15.6), Vector3(16.2, 23.2, 17.7))
-var fan_cut_ms := 0.0
-var fan_cut_tris := 0
-var desk_tris_before := 0
-var desk_tris_after := 0
 @onready var wall_pivot: Node3D = $Ventilation/WallGrate/DamperPivot
 @onready var leaf_l: Node3D = $Ventilation/CeilingHatch/LeafPivotL
 @onready var leaf_r: Node3D = $Ventilation/CeilingHatch/LeafPivotR
@@ -122,7 +116,6 @@ var wall_base_y := 0.0
 func _ready() -> void:
 	_mats()
 	wall_base_y = wall_pivot.position.y
-	_strip_old_fan()
 	_bind_door("l", $LeftDoor, $LeftControls, "A", "Q")
 	_bind_door("r", $RightDoor, $RightControls, "D", "E")
 	_isolate_door_lighting()
@@ -335,37 +328,6 @@ func alarm_pulse(danger: bool, dt: float) -> void:
 	var want := (0.55 + 0.45 * sin(t * 5.0)) * 0.9 if danger and power_on else 0.0
 	alarm_lamp.light_energy = lerpf(alarm_lamp.light_energy, want, 1.0 - exp(-6.0 * dt))
 	alarm_lens.material_override = mats["red_led"] if power_on and alarm_lamp.light_energy > 0.35 else mats["red"]
-
-## старый вентилятор убираем из меша стола: треугольники с центром в OLD_FAN_AABB выбрасываются, остальное и материал — как были
-func _strip_old_fan() -> void:
-	var t0 := Time.get_ticks_usec()
-	var desk_root := $Console/DeskModel
-	for mi in desk_root.find_children("*", "MeshInstance3D", true, false):
-		var m := (mi as MeshInstance3D).mesh as ArrayMesh
-		if m == null:
-			continue
-		var mat := m.surface_get_material(0)
-		var arrays := m.surface_get_arrays(0)
-		var vs: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-		var keep := PackedInt32Array()
-		for ti in range(0, idx.size(), 3):
-			var c := (vs[idx[ti]] + vs[idx[ti + 1]] + vs[idx[ti + 2]]) / 3.0
-			if not OLD_FAN_AABB.has_point(c):
-				keep.append(idx[ti])
-				keep.append(idx[ti + 1])
-				keep.append(idx[ti + 2])
-		@warning_ignore("integer_division")
-		desk_tris_before = idx.size() / 3
-		@warning_ignore("integer_division")
-		desk_tris_after = keep.size() / 3
-		fan_cut_tris = desk_tris_before - desk_tris_after
-		arrays[Mesh.ARRAY_INDEX] = keep
-		var nm := ArrayMesh.new()
-		nm.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-		nm.surface_set_material(0, mat)
-		(mi as MeshInstance3D).mesh = nm
-	fan_cut_ms = float(Time.get_ticks_usec() - t0) / 1000.0
 
 ## вентилятор на столе: скорость берётся у ambience.fan_spin, питания у него своего нет
 func fan_tick(dt: float, spin: float) -> void:
