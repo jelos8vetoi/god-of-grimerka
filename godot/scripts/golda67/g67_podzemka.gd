@@ -708,6 +708,7 @@ func _decorate() -> void:
 		lb2.position = dg[1]
 		lb2.rotation.y = float(dg[2])
 		add_child(lb2)
+		G67Sign.board(lb2)                          # вывеска на щите, а не буквы в воздухе
 		sign_nodes.append(lb2)
 	for sg in SIGNS:
 		var lb := Label3D.new()
@@ -725,6 +726,7 @@ func _decorate() -> void:
 		lb.double_sided = false
 		lb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(lb)
+		G67Sign.board(lb, 0.4 if float(sg[2]) >= 2.6 else 0.0)      # верхние указатели — на подвесах
 		sign_nodes.append(lb)
 
 ## свой световой характер зон, мигающие лампы, капель
@@ -1086,6 +1088,7 @@ func _balloon_kiosk() -> void:
 	sg.rotation.y = PI * 0.5
 	sg.position = base + Vector3(0.72, 2.5, 0)
 	add_child(sg)
+	G67Sign.board(sg)
 	var sh := Label3D.new()
 	sh.text = "ЗАКРЫТО НА УЧЁТ"
 	sh.font_size = 28
@@ -1095,6 +1098,7 @@ func _balloon_kiosk() -> void:
 	sh.rotation.y = PI * 0.5
 	sh.position = base + Vector3(0.72, 1.4, 0)
 	add_child(sh)
+	G67Sign.board(sh, 0.0, 0.0, Color(0.25, 0.05, 0.05))
 	for i in 3:
 		var bl := MeshInstance3D.new()
 		var sm := SphereMesh.new()
