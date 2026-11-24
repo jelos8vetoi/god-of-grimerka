@@ -301,7 +301,7 @@ func _run() -> void:
 	ok(G.styles_open() == ["vozduh", "bottles", "tyaga812"], "после FORTUNA 812 открывается ТЯГА-812")
 	G.data["meta"]["flags"] = {}
 	# ================= подъём по лестнице на площадку =================
-	P.global_position = Vector3(-2.3, 0.05, 1.9)
+	P.global_position = Vector3((G67World.STAIR_X - G67World.HUB_X) * 0.5, 0.05, 1.9)
 	P.velocity = Vector3.ZERO
 	P.face = 0.0
 	g.cam_yaw = 0.0
@@ -373,10 +373,10 @@ func _run() -> void:
 	ok(G.near == "" and not G.prompt.visible, "вдали от предметов подсказки нет")
 	# снимки хаба с разных точек
 	var L := G67World.LAND_Y + 0.05
-	for v in [["06_tambur_in", Vector3(0, 0.05, 6.9), 0.0], ["06b_hall_to_stairs", Vector3(0.3, 0.05, 4.6), 0.0], ["06c_hall_to_exit", Vector3(-0.4, 0.05, 2.2), PI],
-			["06d_hall_left", Vector3(0.6, 0.05, 3.8), PI * 0.5], ["06e_hall_right", Vector3(-1.8, 0.05, 3.8), -PI * 0.5],
-			["07_landing_back", Vector3(-0.2, L, -1.2), 0.0], ["07b_landing_to_hall", Vector3(0.2, L, -4.6), PI],
-			["07c_landing_left", Vector3(1.6, L, -3.4), PI * 0.5], ["07d_landing_right", Vector3(-1.4, L, -2.2), -PI * 0.5], ["07e_flurr", Vector3(-1.2, L, -3.55), PI * 0.5]]:
+	for v in [["06_tambur_in", Vector3(0, 0.05, G67World.Z_FRONT + 0.9), 0.0], ["06b_hall_to_stairs", Vector3(0.3, 0.05, 6.4), 0.0], ["06c_hall_to_exit", Vector3(-0.4, 0.05, 2.2), PI],
+			["06d_hall_left", Vector3(1.2, 0.05, 5.0), PI * 0.5], ["06e_hall_right", Vector3(-2.4, 0.05, 5.6), -PI * 0.5],
+			["07_landing_back", Vector3(-0.2, L, -1.2), 0.0], ["07b_landing_to_hall", Vector3(0.2, L, G67World.Z_BACK + 1.6), PI],
+			["07c_landing_left", Vector3(2.4, L, -4.6), PI * 0.5], ["07d_landing_right", Vector3(-2.0, L, -3.6), -PI * 0.5], ["07e_flurr", Vector3(-G67World.HUB_X + 1.9, L, G67World.BENCH_Z), PI * 0.5]]:
 		P.global_position = v[1]
 		P.face = v[2]
 		g.cam_yaw = v[2]
@@ -2268,9 +2268,9 @@ func _faces_away(g, P) -> bool:
 
 func _cam_check(g, G: Golda67, P) -> void:
 	var total := 0
-	ok(G.place == "hub" and _faces_away(g, P) and absf(g.cam_len - 3.2) < 0.01, "первый кадр подъезда: герой лицом от камеры (face %.2f, cam_yaw %.2f), штанга 3,2" % [P.face, g.cam_yaw])
+	ok(G.place == "hub" and _faces_away(g, P) and absf(g.cam_len - Golda67.HUB_CAM_LEN) < 0.01, "первый кадр подъезда: герой лицом от камеры (face %.2f, cam_yaw %.2f), штанга %.1f" % [P.face, g.cam_yaw, Golda67.HUB_CAM_LEN])
 	var L := G67World.LAND_Y
-	for v in [["вход подъезда", Vector3(0, 0.05, 5.0)], ["холл", Vector3(0, 0.05, 3.0)], ["площадка", Vector3(0, L + 0.05, -3.0)], ["середина лестницы", Vector3(-2.3, 0.8, -0.35)]]:
+	for v in [["вход подъезда", Vector3(0, 0.05, G67World.Z_FRONT - 1.1)], ["место входа", Vector3(0, 0.05, G67World.Z_FRONT - 3.9)], ["холл", Vector3(0, 0.05, 3.0)], ["холл у левой стены", Vector3(-G67World.HUB_X + 0.7, 0.05, 5.0)], ["площадка", Vector3(0, L + 0.05, -3.0)], ["площадка, дальний угол", Vector3(G67World.HUB_X - 0.8, L + 0.05, G67World.Z_BACK + 1.0)], ["середина лестницы", Vector3((G67World.STAIR_X - G67World.HUB_X) * 0.5, 0.8, -0.35)]]:
 		var b: int = await _cam_sweep(g, P, v[1], "hub", String(v[0]))
 		ok(b == 0, "камера в подъезде, точка «%s»: плохих положений %d из 36" % [v[0], b])
 		total += b
@@ -2286,7 +2286,7 @@ func _cam_check(g, G: Golda67, P) -> void:
 		var b2: int = await _cam_sweep(g, P, v[1], "court", String(v[0]))
 		ok(b2 == 0, "камера у борта коробки, точка «%s»: плохих положений %d из 36" % [v[0], b2])
 		total += b2
-	print("GOLDA67CHECK   КАМЕРА всего плохих положений: %d из 288" % total)
+	print("GOLDA67CHECK   КАМЕРА всего плохих положений: %d из 396" % total)
 
 ## Бирки бафов: все надписи целиком внутри своей бирки и экрана; кегль ≥ 15; перенос не обрезает
 func _fit_layout_ok(FU) -> bool:
