@@ -559,6 +559,35 @@ func _run() -> void:
 	ok(G.world.dvor.gate_open, "решётка остаётся открытой в следующих забегах")
 	ok(int(G.run["golda"]) == 0, "голда прошлого забега сгорела")
 	# ================= бафы перед спуском =================
+	# ================= заначки и КРОТ =================
+	var sec: Dictionary = G.run.get("secrets", {})
+	var sec_ids: Array = G.world.points.filter(func(pt): return String(pt["id"]).begins_with("secret_dv_")).map(func(pt): return String(pt["id"]))
+	ok(sec_ids.size() == 3 and (sec.get("spots", []) as Array).size() == 3, "в забеге три заначки (%d)" % sec_ids.size())
+	if not sec_ids.is_empty():
+		var g_s: int = int(G.run["golda"])
+		var n_f := 0
+		for k in (G.run["fits"] as Dictionary):
+			n_f += int(G.run["fits"][k])
+		P.global_position = ev_point(String(sec_ids[0])) + Vector3(0, 0.05, 0)
+		await wait(0.3)
+		await shot("a21_secret")
+		G.use(String(sec_ids[0]))
+		await wait(0.2)
+		var n_f2 := 0
+		for k in (G.run["fits"] as Dictionary):
+			n_f2 += int(G.run["fits"][k])
+		ok(points(String(sec_ids[0])) == 0 and (int(G.run["golda"]) > g_s or n_f2 == n_f + 1), "заначка отдала награду и исчезла")
+		var g_s2: int = int(G.run["golda"])
+		G.take_secret(String(sec_ids[0]))
+		ok(int(G.run["golda"]) == g_s2, "второй раз заначку не взять")
+	var kn: Dictionary = G.krot_next()
+	if not kn.is_empty() and G.KROT_DV.has(String(kn["id"])):
+		ok(points("krot") == 1 and G.world.actors.has("g67_krot"), "КРОТ стоит в новом дворе на встрече «%s»" % String(kn["title"]))
+		P.global_position = ev_point("krot") + Vector3(0, 0.05, 0)
+		await wait(0.6)
+		await shot("a22_krot")
+	else:
+		print("DVOR2CHECK | КРОТ: очередная встреча не во дворе (%s) — в районе его нет" % String(kn.get("id", "нет")))
 	# ================= жители и торговец =================
 	await folk_block()
 	# ================= пять событий =================

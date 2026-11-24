@@ -391,6 +391,8 @@ func _start_dvor2(resumed: bool, from_arch := false) -> void:
 	dvev.name = "DvorEvents"
 	world.add_child(dvev)
 	dvev.setup(self)
+	_secrets_dv()
+	_place_krot_dv()
 	var fl: Dictionary = meta().get("flags", {})
 	if bool(fl.get("boss_misha", false)):
 		world.dvor.open_gate(true)
@@ -673,7 +675,7 @@ func ascend() -> void:
 ## Всё — простые значения (сохраняется в JSON как часть run). Остальное состояние района (встречи, сумки, ларёк, позиция)
 ## откладывается в run["other"][район] и возвращается, когда герой приходит обратно, — ничего не выдаётся дважды.
 const CARRY := ["fits", "arts", "rerolls", "maxhp_buys", "golda", "respect", "kills", "earned", "spent", "rooms"]
-const KEEP_DVOR := ["enc", "pos", "stash", "stash_n", "kiosk", "tpl", "stages", "rags", "rested", "kiosk_full", "free_shawarma", "trader", "trade", "npc_hits", "ev", "ev_done", "discount"]
+const KEEP_DVOR := ["enc", "pos", "stash", "stash_n", "kiosk", "tpl", "stages", "rags", "rested", "kiosk_full", "free_shawarma", "trader", "trade", "npc_hits", "ev", "ev_done", "discount", "secrets"]
 var run_tok := 0
 
 func _dup(v):
@@ -3211,6 +3213,10 @@ func camera() -> Transform3D:
 	if scene_t < SCENE_SIT:
 		pos = Vector3(2.0, 2.8, -31.0)                                        # общий план от калитки: трон, трибуна, ковёр
 		look = Vector3(2.0, 1.6, -47.0)
+		if world.dvor != null:                                                 # новый двор: от калитки на юге коробки к трону на севере
+			var cc: Vector3 = world.dvor.court_center()
+			pos = Vector3(cc.x + 2.0, 2.8, cc.z + world.dvor.court.size.y * 0.5 - 1.8)
+			look = Vector3(world.throne.x, 1.6, world.throne.z)
 		scene_fov = 58.0
 	elif scene_t < SCENE_WALK:
 		pos = world.throne + Vector3(2.8, 1.5, 3.4)
@@ -3345,10 +3351,15 @@ func _place_krot_pz() -> void:
 
 ## Поставить КРОТА, если его очередная встреча назначена на это место и нужная для сцены модель есть.
 ## Встреча не пропадает: пока игрок с ним не поговорил, он стоит тут в каждом забеге.
-func _place_krot(where: String) -> void:
+func _place_krot(where: String, at := Vector3.INF, yaw_o := 0.0) -> void:
 	var k := krot_next()
 	if k.is_empty() or String(k["where"]) != where:
 		return
+	if at != Vector3.INF:                 # новый двор: место встречи своё, остальное — из данных встречи
+		k = k.duplicate(true)
+		k["pos"] = at
+		k["yaw"] = yaw_o
+		k.erase("talk")
 	if String(k.get("needs", "")) != "" and not G67Models.has(String(k["needs"])):
 		return
 	if where == "hub" and String(k["id"]) == "krot2" and int(meta().get("flurr", -1)) < 1:
@@ -3384,6 +3395,67 @@ func _place_krot(where: String) -> void:
 		pg.name = "krot_pigeon%d" % i
 		G67Pigeon.attach(pg, i)
 	events.append(["krot_here", String(k["id"])])
+
+## Новый двор: места встреч 1 и 3 (DVOR_KROT_LOCATIONS_VALIDATION.md). Подсказки DJ FLÜRR остаются верными дословно:
+## «дела с шаурмой» — у окна «ШАУРМЫ 67», «общается с местными… с голубями» — у навеса во дворе дома 67.
+const KROT_DV := {"krot1": [39.0, -16.6, PI], "krot3": [-19.4, -95.4, 1.1]}
+
+func _place_krot_dv() -> void:
+	var k := krot_next()
+	if k.is_empty() or not KROT_DV.has(String(k["id"])):
+		return
+	var sp: Array = KROT_DV[String(k["id"])]
+	_place_krot(String(k["where"]), G67Dvor2.to3(float(sp[0]), float(sp[1])), float(sp[2]))
+
+# ---------------------------------------------------------------- заначки нового двора
+## Восемь укромных мест, в забеге — три (по номеру забега). В заначке голда; первая за забег может оказаться бафом из «тайника».
+const SECRETS_DV := [[-67.0, 9.0], [-46.0, 66.0], [107.4, -43.0], [31.0, -134.5], [-27.6, 61.0], [-70.0, 124.0], [113.0, 14.6], [120.6, 85.0]]
+const SECRETS_N := 3
+const SECRET_FITS := ["own_man", "district_remembers"]
+var secret_nodes := {}
+
+func _secrets_dv() -> void:
+	secret_nodes = {}
+	if not run.has("secrets"):
+		var n0 := int(meta().get("runs", 0))
+		var spots: Array = []
+		for k in SECRETS_N:
+			spots.append((n0 * 3 + k * 3 + 1) % SECRETS_DV.size())
+		run["secrets"] = {"spots": spots, "taken": []}
+	var sc: Dictionary = run["secrets"]
+	for i_v in (sc["spots"] as Array):
+		var i := int(i_v)
+		if (sc["taken"] as Array).any(func(t): return int(t) == i):
+			continue
+		var at := G67Dvor2.to3(float(SECRETS_DV[i][0]), float(SECRETS_DV[i][1]))
+		world._point("secret_dv_%d" % i, "ЗАНАЧКА", "пошарить", at)
+		if G67Models.has("g67_golda_coin"):
+			var coin := G67Models.spawn("g67_golda_coin", world, at + Vector3(0, 0.12, 0), float(i), Vector3(9, 0.28, 9))
+			secret_nodes[i] = coin
+
+func take_secret(pid: String) -> void:
+	var i := int(pid.substr(10))
+	var sc: Dictionary = run.get("secrets", {})
+	if sc.is_empty() or (sc["taken"] as Array).any(func(t): return int(t) == i) or room_state != "open":
+		return
+	(sc["taken"] as Array).append(i)
+	world.points = world.points.filter(func(pt): return String(pt["id"]) != pid)
+	if is_instance_valid(secret_nodes.get(i)):
+		(secret_nodes[i] as Node).queue_free()
+	secret_nodes.erase(i)
+	events.append(["secret", i])
+	game.main.ui("confirm")
+	var first: bool = (sc["taken"] as Array).size() == 1
+	var fid := String(SECRET_FITS[i % SECRET_FITS.size()])
+	if first and (i % 3 == 0) and fit_lv(fid) < int(G67Data.FITS[fid]["lv"]):
+		(run["fits"] as Dictionary)[fid] = fit_lv(fid) + 1
+		apply_fits(fid)
+		events.append(["fit", fid])
+		game.banner("ЗАНАЧКА", "%s · уровень %d" % [String(G67Data.FITS[fid]["name"]), fit_lv(fid)], G67Data.FAMILY_COLOR["dvor"], 2.4)
+	else:
+		var got := add_golda(12 + (i * 5) % 13)
+		game.toast("Заначка: %d голды" % got)
+	_save_run("open")
 
 ## Во дворе КРОТ стоит на своём месте с постройки двора и весь забег (зоны под него не переставляются)
 func _place_krot_yard() -> void:
@@ -4922,6 +4994,8 @@ func use(id: String) -> void:
 		_rags_dv()
 	elif id == "trader_dv":
 		_trader_dv()
+	elif id.begins_with("secret_dv_"):
+		take_secret(id)
 	elif id.begins_with("evdv_") and dvev != null and is_instance_valid(dvev):
 		dvev.use(id)
 	elif id == "kiosk" and turf != null:
