@@ -1,20 +1,26 @@
-## AUDIO QUALITY GATE (P1): выбор варианта трёх звуков «5 НОЧЕЙ» — скример БАЛОНА, переключение камеры, MADK1D в шахте.
-## "" — прежний звук: так по умолчанию и так у игрока, пока он сам не выбрал вариант в сцене прослушивания
-## scenes/five_nights/audio_gate.tscn (выбор лежит в user://fn_audio_gate.json). Правил игры выбор не касается: меняется
-## только то, какая запись играет. Записи — assets/audio/fn/gate (tools/godot-fn-audio-gate.cjs), источники и лицензии —
-## docs/FIVE_NIGHTS_AUDIO_GATE.md.
+## Звуки «5 НОЧЕЙ», прошедшие приёмку на слух (P1): скример БАЛОНА — A2 Physical Impact, переключение камеры —
+## B2 Signal Transition, MADK1D в шахте — C1 Heavy Duct Movement (событиями P0), свои звуки подъёма и опускания планшета.
+## Они играют по умолчанию (APPROVED). "" — прежний звук: его и остальные варианты можно включить для сравнения в сцене
+## scenes/five_nights/audio_gate.tscn (выбор лежит в user://fn_audio_gate.json; файл без пометки VERSION — выбор времён
+## пробы — не читается, чтобы обычная игра не осталась на пробных настройках). Правил игры выбор не касается.
+## Записи — assets/audio/fn/gate и assets/audio/fn/sfx/madk_*, источники и лицензии — docs/FIVE_NIGHTS_AUDIO_GATE.md.
 class_name FNAudioGate
 
 const DIR := "res://assets/audio/fn/gate/"
 const FILE := "user://fn_audio_gate.json"
-const KEYS := ["balon", "cctv", "madk1d"]
+const VERSION := 2
+const APPROVED := {"balon": "b", "cctv": "b", "madk1d": "a", "tablet": "a"}
+const KEYS := ["balon", "cctv", "madk1d", "tablet"]
 const VARIANTS := ["", "a", "b"]
 const NAMES := {"": "ORIGINAL", "a": "A", "b": "B"}
+## события шахты: вид → записи C1 (assets/audio/fn/sfx/madk_*) и прежние записи P0
+const DUCT_NEW := {"far": "madk_far", "hit": "madk_hit", "drag": "madk_drag", "near": "madk_near", "presence": "madk_presence"}
+const DUCT_OLD := {"far": "duct_far", "hit": "duct_move", "drag": "duct_move", "near": "duct_move", "presence": "rustle"}
 const CAM_TAKES := 4
 const CRAWL_TAKES := 3
 const CAM_DB := 7.0                # та же поправка, что у прежнего «cam» (FNSound.TRIM): записи сведены под неё
 
-static var pick := {"balon": "", "cctv": "", "madk1d": ""}
+static var pick := APPROVED.duplicate()
 static var _loaded := false
 static var _last := {}
 static var _cache := {}
@@ -24,10 +30,10 @@ static func load_choice() -> void:
 	if not FileAccess.file_exists(FILE):
 		return
 	var d = JSON.parse_string(FileAccess.get_file_as_string(FILE))
-	if d is Dictionary:
+	if d is Dictionary and int(d.get("v", 0)) == VERSION:
 		for k in KEYS:
-			if String(d.get(k, "")) in VARIANTS:
-				pick[k] = String(d.get(k, ""))
+			if d.has(k) and String(d[k]) in VARIANTS:
+				pick[k] = String(d[k])
 
 static func variant(key: String) -> String:
 	if not _loaded:
@@ -41,7 +47,9 @@ static func choose(key: String, v: String, keep := true) -> void:
 	if keep:
 		var f := FileAccess.open(FILE, FileAccess.WRITE)
 		if f != null:
-			f.store_string(JSON.stringify(pick))
+			var d := pick.duplicate()
+			d["v"] = VERSION
+			f.store_string(JSON.stringify(d))
 
 static func _stream(file: String) -> AudioStream:
 	if not _cache.has(file):
@@ -66,7 +74,16 @@ static func cam() -> AudioStream:
 	var v := variant("cctv")
 	return null if v == "" else _take("cam_" + v, CAM_TAKES, "wav")
 
-## MADK1D в шахте: null — прежний звук; иначе следующий дубль (10–11 с, с паузами)
+## MADK1D в шахте, дубли пробы (10–11 с, с паузами): игра ими не пользуется — шахта звучит событиями (duct_id);
+## нужны сцене прослушивания
 static func crawl() -> AudioStream:
 	var v := variant("madk1d")
 	return null if v == "" else _take("crawl_" + v, CRAWL_TAKES, "ogg")
+
+## планшет поднят (on) или опущен: null — прежний звук (щелчок камеры на другой высоте)
+static func tablet(on: bool) -> AudioStream:
+	return null if variant("tablet") == "" else _stream("tablet_up.wav" if on else "tablet_down.wav")
+
+## id записей для события шахты: far / hit / drag / near / presence
+static func duct_id(kind: String) -> String:
+	return String((DUCT_OLD if variant("madk1d") == "" else DUCT_NEW).get(kind, kind))

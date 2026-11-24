@@ -902,17 +902,18 @@ func _vent_listen(R: FiveNightsRoot) -> void:
 	# полный заход MADK1D по решётке
 	var m: FNEnemy = st.enemies["madk1d"]
 	m.level = 5
-	st.t = 100.0
+	st.t = 70.0                          # весь блок (до 35 с) — внутри одного часа: на границе часа FNNight возвращает уровни ночи
 	m.rest_until = 0.0
 	st.arrive_gate = 0.0
 	R.cue_log.clear()
 	R.far_q.clear()
 	m.go(st, "duct_l")
-	await until(func(): return m.spot == "vent_l", 30.0)
+	await until(func(): return m.spot.begins_with("vent_"), 40.0)
+	var vs := m.spot.substr(5)          # с шансом 0,16 + 0,01·уровень он перелезает в другую шахту — закрываем ту, где он вышел
 	await wait(3.5)
-	st.set_seal("l", true)
+	st.set_seal(vs, true)
 	await until(func(): return R.cue_log.any(func(c): return c[3] == "duct" and c[7] == "bang"), 30.0)
-	await until(func(): return not (m.spot in ["vent_l", "duct_l", "duct_t"]), 40.0)
+	await until(func(): return not (m.spot in ["vent_l", "vent_t", "duct_l", "duct_t"]), 40.0)
 	await wait(2.5)
 	var seq: Array = R.cue_log.filter(func(c): return c[3] == "duct").map(func(c): return String(c[7]))
 	var t_steps := -1.0
@@ -929,7 +930,7 @@ func _vent_listen(R: FiveNightsRoot) -> void:
 	ok(R.cue_log.filter(func(c): return c[3] == "duct").size() == n_before, "после ухода MADK1D 10 с звуков шахты нет")
 	m.level = 0
 	m.spot = "away"
-	st.set_seal("l", false)
+	st.set_seal(vs, false)
 	await wait(0.5)
 	var n_zero: int = R.cue_log.filter(func(c): return c[3] == "duct").size()
 	m.spot = "duct_l"

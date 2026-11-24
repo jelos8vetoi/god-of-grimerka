@@ -48,7 +48,8 @@ static func scream_pick(kind: String) -> Array:
 ## (WAV-вариант и OGG, средний уровень звучащей части; у click — по пику; knock, creak и door_down — с потолком по пику +2 дБ)
 const SFX_DIR := "res://assets/audio/fn/sfx/"
 const FILE_IDS := ["knock", "creak", "click", "power_down", "buzz", "door_down", "door_up"]
-const FILE_TRIM := {"knock": 7.5, "creak": 0.5, "click": 9.5, "power_down": 6.5, "buzz": 3.0, "door_down": 8.0, "door_up": 8.5, "step": 5.0, "step_heavy": 5.0, "clank": 4.0}
+const FILE_TRIM := {"knock": 7.5, "creak": 0.5, "click": 9.5, "power_down": 6.5, "buzz": 3.0, "door_down": 8.0, "door_up": 8.5, "step": 5.0, "step_heavy": 5.0, "clank": 4.0,
+	"madk_far": 0.5, "madk_hit": 3.5, "madk_drag": 4.5, "madk_near": -0.5}        # события шахты C1: низкие удары в будке тише, чем по замеру файла
 static var _file_n := {}
 static var _file_last := {}
 static var _file_streams := {}

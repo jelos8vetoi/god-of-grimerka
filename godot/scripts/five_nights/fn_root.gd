@@ -65,7 +65,8 @@ var intro_t := 0.0                  # заставка ночи: пока идё
 var tension := FNTension.new()      # фаза и уровень напряжения ночи
 var ambience: FNAmbience             # фон будки и случайные звуки здания
 var duct_prev := ""               # где был MADK1D в прошлом кадре (для событий шахты)
-var duct_fired := [false, false]  # какие серии ударов по пути уже были
+var duct_plan: Array = []         # фразы этого захода (FNCues.duct_plan)
+var duct_fired: Array = []  # какие серии ударов по пути уже были
 var duct_grate_t := -1.0          # до следующего шороха за решёткой
 var whisper: AudioStreamPlayer      # GHOST: шёпот растёт с одержимостью
 var air_tune: AudioStreamPlayer3D   # «последний шанс»
@@ -315,7 +316,8 @@ func _presence_tick(dt: float) -> void:
 ## MADK1D в шахте: звуки по состоянию (вход, две серии ударов ближе к решётке, тишина, приход, шорох за решёткой, уход); ожидание в очереди звуков не даёт
 func _duct_reset() -> void:
 	duct_prev = ""
-	duct_fired = [false, false]
+	duct_fired = []
+	duct_plan = []
 	duct_grate_t = -1.0
 
 ## удар шахты: через delay секунд, в точке pos
@@ -339,45 +341,52 @@ func _duct_tick(dt: float) -> void:
 		duct_prev = sp
 		if sp.begins_with("duct_"):
 			var sd := sp.substr(5)
-			duct_fired = [false, false]
+			duct_plan = FNCues.duct_plan()
+			duct_fired.clear()
+			duct_fired.resize(duct_plan.size())
+			duct_fired.fill(false)
+			var far_id := FNAudioGate.duct_id(String(D["enter"]["kind"]))
 			if from.begins_with("duct_"):
 				var old := from.substr(5)
-				_duct_hit("duct_far", FNCues.DUCT_FAR[old], float(D["enter"]["db"]), 0.0, "switch")
-				_duct_hit("duct_far", FNCues.DUCT_FAR[sd], float(D["enter"]["db"]), 0.4, "switch")
+				_duct_hit(far_id, FNCues.DUCT_FAR[old], float(D["enter"]["db"]), 0.0, "switch")
+				_duct_hit(far_id, FNCues.DUCT_FAR[sd], float(D["enter"]["db"]), 0.4, "switch")
 			elif from.begins_with("vent_") or from == "":
-				_duct_hit(D["enter"]["id"], FNCues.DUCT_FAR[sd], float(D["enter"]["db"]), 0.0, "enter")
+				_duct_hit(far_id, FNCues.DUCT_FAR[sd], float(D["enter"]["db"]), 0.0, "enter")
 				if randf() < 0.5:
-					_duct_hit(D["enter"]["id"], FNCues.DUCT_FAR[sd], float(D["enter"]["db"]) - 3.0, 0.45, "enter")
+					_duct_hit(far_id, FNCues.DUCT_FAR[sd], float(D["enter"]["db"]) - 3.0, randf_range(0.4, 0.7), "enter")
 		elif sp.begins_with("vent_"):
 			_duct_hit(D["arrive"]["id"], FNOffice.point(sp), float(D["arrive"]["db"]), 0.0, "arrive")
+			if FNAudioGate.variant("madk1d") != "":
+				_duct_hit(FNAudioGate.duct_id("near"), FNOffice.point(sp), float(D["arrive"]["body_db"]), 0.0, "arrive")
 			duct_grate_t = randf_range(D["at_grate"]["gap"][0], D["at_grate"]["gap"][1])
 		elif from.begins_with("duct_") or from.begins_with("vent_"):
 			var fs := from.substr(5)
-			var lv: Array = D["leave"]["db"]
-			var lg: Array = D["leave"]["gap"]
-			_duct_hit(D["leave"]["id"], FNCues.DUCT_FAR[fs], float(lv[0]), 0.0, "leave")
-			_duct_hit(D["leave"]["id"], FNCues.DUCT_FAR[fs], float(lv[1]), randf_range(lg[0], lg[1]), "leave")
+			var L: Dictionary = D["leave"]
+			var at_t := 0.0
+			for i in L["kinds"].size():
+				var pos_l := (FNCues.DUCT_FAR[fs] as Vector3).lerp(FNOffice.point("vent_" + fs), float(L["at"][i]))
+				_duct_hit(FNAudioGate.duct_id(String(L["kinds"][i])), pos_l, float(L["db"][i]), at_t, "leave")
+				at_t += randf_range(L["gap"][0], L["gap"][1])
 		return
 	if sp.begins_with("duct_") and m is FNMadk1d:
 		var md := m as FNMadk1d
 		var frac: float = md.duct_t / maxf(0.1, md.duct_need)
 		var sd2 := sp.substr(5)
-		if frac < float(D["quiet_from"]):
-			for i in D["steps"].size():
-				var stp: Array = D["steps"][i]
-				if not bool(duct_fired[i]) and frac >= float(stp[0]):
+		var left := (float(D["quiet_from"]) - frac) * md.duct_need        # сколько секунд до затишья
+		if left > 0.0:
+			for i in duct_plan.size():
+				var ph: Array = duct_plan[i]
+				if not bool(duct_fired[i]) and frac >= float(ph[0]):
 					duct_fired[i] = true
-					var pos := (FNCues.DUCT_FAR[sd2] as Vector3).lerp(FNOffice.point("vent_" + sd2), float(stp[3]))
-					var n_hits := randi_range(int(D["burst"][0]), int(D["burst"][1]))
-					var at_t := 0.0
-					for k2 in n_hits:
-						_duct_hit(String(stp[1]), pos, float(stp[2]), at_t, "steps")
-						at_t += randf_range(D["burst_gap"][0], D["burst_gap"][1])
+					var pos := (FNCues.DUCT_FAR[sd2] as Vector3).lerp(FNOffice.point("vent_" + sd2), float(ph[1]))
+					for ev in ph[2]:
+						if float(ev[1]) + (1.2 if String(ev[0]) == "drag" else 0.4) <= left:      # звук кончается до затишья
+							_duct_hit(FNAudioGate.duct_id(String(ev[0])), pos, float(ev[2]), float(ev[1]), "steps")
 	elif sp.begins_with("vent_"):
 		duct_grate_t -= dt
 		if duct_grate_t <= 0.0:
 			duct_grate_t = randf_range(D["at_grate"]["gap"][0], D["at_grate"]["gap"][1])
-			_duct_hit(D["at_grate"]["id"], FNOffice.point(sp), float(D["at_grate"]["db"]), 0.0, "at_grate")
+			_duct_hit(FNAudioGate.duct_id(String(D["at_grate"]["kind"])), FNOffice.point(sp), float(D["at_grate"]["db"]), 0.0, "at_grate")
 
 ## дальний ход врага: звук из комнаты, где он встал; молчит при угрозе рядом, в первые секунды ночи, при скримере и чаще раза в FAR_GAP
 func _far_cue(e: String, to: String, blocked: bool) -> void:
@@ -444,6 +453,8 @@ func clear_transients(keep_scream := false) -> void:
 		scream_p.stop()
 	if gate_cam_p != null:
 		gate_cam_p.stop()
+	if gate_tab_p != null:
+		gate_tab_p.stop()
 	if ui != null:
 		ui.hurt = 0.0
 		ui.neg = false
@@ -512,6 +523,23 @@ func _gate_cam() -> bool:
 	gate_cam_p.stream = s
 	gate_cam_p.volume_db = -12.0 + FNAudioGate.CAM_DB
 	gate_cam_p.play()
+	return true
+
+## планшет поднят или опущен: свой короткий звук корпуса (не щелчок камеры на другой высоте). false — играет прежний.
+var gate_tab_p: AudioStreamPlayer
+func _gate_tablet(on: bool) -> bool:
+	var s := FNAudioGate.tablet(on)
+	if s == null:
+		return false
+	if not _snd_ok():
+		return true
+	if gate_tab_p == null:
+		gate_tab_p = AudioStreamPlayer.new()
+		gate_tab_p.bus = "SFX"
+		add_child(gate_tab_p)
+	gate_tab_p.stream = s
+	gate_tab_p.volume_db = -10.0 + FNAudioGate.CAM_DB
+	gate_tab_p.play()
 	return true
 
 ## тишина перед появлением: окружение уходит почти в ноль
@@ -904,7 +932,8 @@ func _on_event(k: String, d: Dictionary) -> void:
 			office.press("seal_" + String(d["s"]))
 			ui.toast("seal_" + String(d["s"]))
 		"monitor":
-			sfx2("cam", -10.0, 0.8 if d["on"] else 0.6)
+			if not _gate_tablet(bool(d["on"])):
+				sfx2("cam", -10.0, 0.8 if d["on"] else 0.6)
 			if not d["on"]:
 				horror.on_monitor_down(st)
 		"cam":
