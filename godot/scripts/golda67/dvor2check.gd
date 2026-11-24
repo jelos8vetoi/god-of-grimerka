@@ -296,6 +296,24 @@ func more_block() -> void:
 	P.global_position = G67Dvor2.to3(-6.0, -100.0, 0.05)
 	await wait(3.0)
 	ok((pt["c"] as Vector3).distance_to(c0) > 1.5 and (pt["foes"] as Array).size() == 2, "патруль из двоих идёт по проезду: сдвинулся на %.1f м" % (pt["c"] as Vector3).distance_to(c0))
+	# --- свои модели торговцев: оба рядом, в двух позах — привязка не рвёт одежду
+	var pr_n := 0
+	var here: Vector3 = G67Dvor2.to3(-6.0, -100.0, 0.05)
+	for who_p in ["petrovich", "zhora"]:
+		var td_p: Dictionary = (G67DvorFolk.TRADERS[who_p] as Dictionary).duplicate(true)
+		td_p["at"] = [-7.2 + 2.4 * float(pr_n), -97.0]
+		td_p["look"] = [-6.0, -103.0]
+		var fp: Dictionary = G.folk._spawn(td_p, "probe_" + who_p)
+		ok(not fp.is_empty() and String((fp["d"] as Dictionary)["model"]) == "g67_npc_" + who_p, "торговец %s стоит на своей модели" % who_p)
+		pr_n += 1
+	P.global_position = here + Vector3(0, 0, 3.4)
+	P.face = PI
+	g.cam_yaw = 0.0
+	await wait(1.2)
+	await shot("n1_traders")
+	g.cam_yaw = 0.9
+	await wait(2.5)
+	await shot("n2_traders_side")
 	# --- торговцы: термос, обмен, сделка
 	G.run["golda"] = 300
 	G.run["fits"] = {"semki": 1}
