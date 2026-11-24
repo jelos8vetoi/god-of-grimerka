@@ -425,7 +425,7 @@ func build_dvor2() -> void:
 	spawn_pos = G67Dvor2.to3(G67Dvor2.START.x, G67Dvor2.START.y, 0.05)
 	_point("home", "ПОДЪЕЗД", "домой: забег сохранится, продолжишь отсюда же", G67Dvor2.to3(G67Dvor2.HOME_DOOR.x, G67Dvor2.HOME_DOOR.y))
 	_point("kiosk", "ШАУРМА 67", "шаурма и «с собой»", G67Dvor2.to3(G67Dvor2.KIOSK.x, G67Dvor2.KIOSK.y))
-	_point("rags_dv", "ТРЯПКИ! ТРЯПКИ!", "подойти к прилавку рынка", G67Dvor2.to3(G67Dvor2.RAGS.x, G67Dvor2.RAGS.y))
+	_point("rags_dv", "ПРИЛАВОК", "подойти", G67Dvor2.to3(G67Dvor2.RAGS.x, G67Dvor2.RAGS.y))
 	G67District.spots_dv = {}
 	for ev in Golda67.EV_DV:
 		G67District.spots_dv[ev] = G67Dvor2.to3((Golda67.EV_DV[ev] as Vector2).x, (Golda67.EV_DV[ev] as Vector2).y)

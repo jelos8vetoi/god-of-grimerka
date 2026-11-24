@@ -316,7 +316,8 @@ static func pz_option(t: String, pos: int, tpl: int) -> Dictionary:
 const WAVES_P1 := [[["shest", 3]], [["shest", 2], ["semka", 1]], [["shest", 3], ["semka", 1]]]
 const WAVES_BATTLE := [[["shest", 3], ["semka", 1]], [["shest", 3], ["semka", 2]], [["shest", 3], ["semka", 2]]]
 ## Свёрток шаурмы за зачистку боевого этапа: лечение (подобрать; непобранный пропадает при начале следующего этапа)
-const FOE_DMG_K := 0.6       # урон рядовых врагов двора и свиты Миши (сам Миша — нет); кампанию не трогает
+const FOE_HP_K := 1.3        # здоровье рядовых врагов приквела (Шестёрка, Семечник) против их вида в кампании
+const FOE_DMG_K := 0.75      # было 0,6: урон рядовых врагов двора и свиты Миши (сам Миша — нет); кампанию не трогает
 const FOES_ALIVE_MAX := 5   # одновременно живых врагов в бою приквела
 const STAGE_HEAL := {"battle": 25.0, "ambush": 25.0, "elite": 40.0}
 const WAVES_ELITE := [[["smotr", 1], ["shest", 2]], [["shest", 2], ["semka", 2]], [["smotr", 1], ["semka", 2]]]

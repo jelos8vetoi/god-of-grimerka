@@ -632,7 +632,7 @@ func objective() -> String:
 		if not (e["bag"] as Dictionary).is_empty():
 			return "СУМКА: %s" % String(e["d"]["name"])
 	if not bool(g.run.get("rags", false)) and _state_n(["cleared", "gone"]) >= 1:
-		return "ДАЛЬШЕ: ТРЯПКИ! ТРЯПКИ! — рынок на западе" + ("" if need_done() else " · потом смотрящий")
+		return "ДАЛЬШЕ: загляни на рынок на западе" + ("" if need_done() else " · потом смотрящий")
 	if need_done():
 		return "КОРОБКА МИШИ ОТКРЫТА — на север, между башнями"
 	for e in encs:

@@ -25,6 +25,7 @@ const KINDS := {
 	"loop_hub": [6.0, -26.0, "Ambient", true], "loop_dvor": [8.0, -24.0, "Ambient", true],
 	# звуки мест нового двора (петли в мире, G67Sound.loop_at): костёр в бочке, рынок, ларёк, магнитофон Саныча
 	"loop_fire": [4.0, -10.0, "Ambient", true], "loop_market": [6.0, -14.0, "Ambient", true], "loop_kiosk": [5.0, -16.0, "Ambient", true], "loop_tape": [4.0, -12.0, "Ambient", true],
+	"loop_vent": [6.0, -9.0, "Ambient", true],       # гул вентиляции и далёкие турникеты: стык двора и Подземки
 }
 static var _cache := {}
 
@@ -101,6 +102,7 @@ static func stream(kind: String) -> AudioStreamWAV:
 			"loop_fire": x = lp2 * 5.0 * (0.6 + 0.4 * sin(TAU * 0.75 * t)) + (noise * 0.8 if absf(noise) > 0.988 else 0.0) + lp * 0.12
 			"loop_market": x = lp2 * 7.0 * (0.55 + 0.45 * sin(TAU * 1.5 * t) * sin(TAU * 0.5 * t)) + sin(TAU * (190.0 + 40.0 * sin(TAU * 1.0 * t)) * t) * 0.05 * absf(sin(TAU * 2.0 * t))
 			"loop_kiosk": x = sin(TAU * 50.0 * t) * 0.22 + sin(TAU * 100.0 * t) * 0.09 + lp * 0.14 * (0.6 + 0.4 * sin(TAU * 3.0 * t))
+			"loop_vent": x = sin(TAU * 55.0 * t) * 0.3 + sin(TAU * 110.0 * t) * 0.1 + lp2 * 6.0 * (0.8 + 0.2 * sin(TAU * 0.5 * t)) + (sin(TAU * 880.0 * t) * 0.05 * exp(-fmod(t, 1.5) * 9.0))
 			"loop_tape":
 				var st := int(t * 4.0) % 16
 				var tt := fmod(t, 0.25)

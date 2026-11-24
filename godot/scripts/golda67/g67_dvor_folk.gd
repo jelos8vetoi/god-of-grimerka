@@ -159,6 +159,34 @@ func _say(f: Dictionary, key: String, force := false) -> bool:
 	var b := G.barks_get()
 	return b.say(f["rig"], b.pick(String(f["id"]) + key, arr), {"force": force, "fight": key in ["fight", "hit"]})
 
+## Сдача: кто бьёт в ответ и на сколько. «push» (мужики) — сразу, «scold» (бабки, тётки) — со второго удара, сумкой.
+## Остальные характеры (убегают, замирают, снимают, смеются) не дерутся. Урон проходит мимо блока, убить не может.
+const HIT_BACK := {"push": 9.0, "scold": 5.0}
+const HIT_BACK_T := 0.55
+const HIT_BACK_R := 2.4
+
+func _back_tick(dt: float) -> void:
+	for f in _all():
+		if float(f.get("back_t", 0.0)) <= 0.0:
+			continue
+		f["back_t"] = float(f["back_t"]) - dt
+		if float(f["back_t"]) > 0.0:
+			continue
+		var r: Rig = f["rig"]
+		var p = G.game.player
+		var to: Vector3 = p.global_position - r.global_position
+		to.y = 0.0
+		if to.length() > HIT_BACK_R or String(p.state) in ["roll", "airdash"]:
+			log.append(["back_miss", String(f["id"])])
+			continue
+		r.rotation.y = atan2(to.x, to.z)
+		var dmg: float = minf(float(f["back_dmg"]), maxf(0.0, p.hp - 1.0))
+		p.take_damage(dmg, r.global_position, null, {"unblockable": true})
+		G.game.fx.dust(p.global_position + Vector3(0, 1.0, 0), 5, G.game.fx.DUST, 0.5)
+		G.game.popup(p.global_position + Vector3(0, 2.2, 0), "СДАЧА", Color(1.0, 0.6, 0.3))
+		G.events.append(["npc_back", String(f["id"]), dmg])
+		log.append(["back", String(f["id"]), dmg])
+
 ## Что район запомнил за забег: влез без очереди, обидел Гену, заступился за школьника или прошёл мимо. Каждый скажет один раз.
 const NOTES := {"queue_cut": "Это тот, без очереди.", "gena_hurt": "Это тот, что Гену обидел. Гена, между прочим, всему дому дорожку чистит.",
 	"kid_saved": "Это он! Он за Лёху заступился!", "kid_passed": "Видела я, как ты мимо мальчонки прошёл. Глазастый, да не туда."}
@@ -214,6 +242,10 @@ func _hit(f: Dictionary, away: Vector3) -> void:
 	log.append(["hit", String(f["id"])])
 	G.game.fx.dust((f["rig"] as Rig).global_position + Vector3(0, 0.9, 0), 4, G.game.fx.DUST, 0.5)
 	_say(f, "hit", true)
+	var back: float = float(HIT_BACK.get(String(d.get("temper", "")), 0.0))
+	if back > 0.0 and (String(d.get("temper", "")) != "scold" or int(f["hits"]) >= 2):
+		f["back_t"] = HIT_BACK_T                 # замах: ответит, если герой не отошёл
+		f["back_dmg"] = back
 	var life: G67Life = f["life"]
 	if f.has("who"):
 		var tr: Dictionary = G.run.get("trade", {})
@@ -292,6 +324,7 @@ func _step(f: Dictionary, dt: float) -> bool:
 func _physics_process(dt: float) -> void:
 	if G == null or not is_instance_valid(G.game) or G.place != "run":
 		return
+	_back_tick(dt)
 	if _atk_t >= 0.0:
 		_atk_t -= dt
 		if _atk_t < 0.0:

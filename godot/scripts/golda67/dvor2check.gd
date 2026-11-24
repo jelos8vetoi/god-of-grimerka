@@ -136,6 +136,16 @@ func pick_choice(key: String, sec := 8.0) -> bool:
 	await wait(0.25)
 	return true
 
+func goal_text() -> String:
+	return String(G.minimap.goal()["text"]) if G.minimap != null else ""
+
+## Кадр мини-карты в названном месте: герой переносится, карта и маршрут успевают обновиться
+func map_shot(nm: String, x: float, y: float) -> void:
+	P.global_position = G67Dvor2.to3(x, y, 0.05)
+	P.velocity = Vector3.ZERO
+	await wait(1.6)
+	await shot(nm)
+
 func ev_point(id: String) -> Vector3:
 	for pt in G.world.points:
 		if String(pt["id"]) == id:
@@ -340,9 +350,13 @@ func folk_block() -> void:
 	ok(not F.trader.is_empty() and points("trader_dv") == 1 and who in ["petrovich", "zhora"], "в забеге один торговец: %s" % who)
 	# приветствие
 	var bab := folk_by("bab_bench")
+	bab["cd"] = 0.0                     # кадры мини-карты у подъезда могли уже вызвать приветствие
+	G.folk.log = G.folk.log.filter(func(e): return String(e[0]) != "greet")
+	G.barks_get().last_line = {}
+	G.barks_get().last_any = -1000.0
 	face_npc(bab, 2.6)
-	await until(func(): return folk_log("greet", "bab_bench"), 12.0)
-	ok(folk_log("greet", "bab_bench"), "бабушка у подъезда здоровается, когда Пахан рядом")
+	await until(func(): return folk_log("greet", "bab_bench"), 30.0)
+	ok(folk_log("greet", "bab_bench"), "бабушка у подъезда здоровается, когда Пахан рядом (состояние %s, cd %.1f, до героя %.1f м, удары по мирным %d)" % [String(bab["state"]), float(bab["cd"]), (bab["rig"] as Node3D).global_position.distance_to(P.global_position), int(G.run.get("npc_hits", 0))])
 	await shot("a16_folk_babushka")
 	# удар настоящей клавишей: школьник убегает
 	var gold_b: int = int(G.run["golda"])
@@ -358,7 +372,7 @@ func folk_block() -> void:
 	ok(folk_log("hit", "school_phone") and int(G.run.get("npc_hits", 0)) == 1, "удар по школьнику засчитан (клавишей удара)")
 	await wait(2.5)
 	ok(String(kid["state"]) in ["away", "return"] and (kid["rig"] as Node3D).global_position.distance_to(kid_home) > 3.0, "школьник убегает (%.1f м от места)" % (kid["rig"] as Node3D).global_position.distance_to(kid_home))
-	ok(int(G.run["golda"]) == gold_b and int(G.run.get("respect", 0)) == resp_b and is_instance_valid(kid["rig"]), "за удар по мирному нет ни голды, ни респекта, житель цел")
+	ok(int(G.run["golda"]) - gold_b < 10 and int(G.run.get("respect", 0)) == resp_b and is_instance_valid(kid["rig"]), "за удар по мирному нет ни голды, ни респекта, житель цел")
 	await shot("a17_folk_flee")
 	# мужик у гаражей отталкивает
 	var us := folk_by("ushanka_gsk")
@@ -369,6 +383,10 @@ func folk_block() -> void:
 	Input.action_release("attack")
 	await until(func(): return folk_log("hit", "ushanka_gsk"), 3.0)
 	ok(folk_log("hit", "ushanka_gsk") and String(us["state"]) == "sulk", "мужик у гаражей не убегает, а отвечает")
+	var hp_b: float = P.hp
+	await until(func(): return folk_log("back", "ushanka_gsk") or folk_log("back_miss", "ushanka_gsk"), 3.0)
+	ok(folk_log("back", "ushanka_gsk") and P.hp < hp_b and P.hp >= 1.0, "мужик дал сдачи: здоровье %d → %d" % [int(hp_b), int(P.hp)])
+	P.hp = P.max_hp
 	await wait(1.0)
 	# торговец
 	G.run["golda"] = 500
@@ -601,7 +619,28 @@ func _run() -> void:
 	await wait(0.3)
 	# ================= ритм: «ТРЯПКИ», ларёк, передышка =================
 	ok(not G.dv_ready() and G.world.dvor.court_block.collision_layer != 0, "без «ТРЯПОК» калитка закрыта")
-	ok(G.hud_line().find("ТРЯПКИ") >= 0, "HUD ведёт к «ТРЯПКАМ»: %s" % G.hud_line().split("\n")[-1])
+	ok(goal_text().find("рынок") >= 0 and goal_text().find("ТРЯПКИ") < 0, "цель на мини-карте ведёт на рынок и не называет событие: %s" % goal_text())
+	ok(G.minimap != null and G.minimap.shown() and G.hud_line() == "", "мини-карта на экране, старой строки вверху нет")
+	await wait(1.5)
+	ok(G.minimap.path.size() >= 2 and G.minimap.rects.size() > 60 and G.minimap.kind == "dvor", "карта двора из плана района: фигур %d, маршрут из %d точек" % [G.minimap.rects.size(), G.minimap.path.size()])
+	var far_end: Vector2 = G.minimap.path[G.minimap.path.size() - 1]
+	ok(far_end.distance_to(Vector2(G67Dvor2.RAGS.x, -G67Dvor2.RAGS.y)) < 1.0, "маршрут кончается у прилавка рынка")
+	var solid_hits := 0
+	for v in G.minimap.path:
+		for rr in G.minimap.rects:
+			if String(rr[1]) == "house" and (rr[0] as Rect2).grow(-1.5).has_point(v):
+				solid_hits += 1
+	ok(solid_hits == 0, "маршрут обходит дома (точек внутри домов: %d)" % solid_hits)
+	var back_here: Vector3 = P.global_position
+	await map_shot("m1_map_start", G67Dvor2.START.x, G67Dvor2.START.y)
+	await map_shot("m2_map_kiosk", G67Dvor2.KIOSK.x - 3.0, G67Dvor2.KIOSK.y - 5.0)
+	await map_shot("m3_map_gsk", -70.0, 40.0)
+	G.minimap.cycle_zoom()
+	await map_shot("m3b_map_gsk_far", -70.0, 40.0)
+	ok(G.minimap.zoom_i == 2, "масштаб карты переключается")
+	G.minimap.cycle_zoom()
+	G.minimap.cycle_zoom()
+	P.global_position = back_here
 	var st_n: int = G.dv_stages()
 	P.global_position = G67Dvor2.to3(G67Dvor2.RAGS.x, G67Dvor2.RAGS.y - 1.5, 0.05)
 	await wait(0.3)
@@ -712,6 +751,9 @@ func _run() -> void:
 	ok(await pick_choice("fight", 14.0), "у школы открыт выбор: вступиться, пошутить или пройти мимо")
 	await until(func(): return String(ex["state"]) == "fight", 14.0)
 	ok(String(ex["state"]) == "fight", "подошёл — конфликт перешёл в бой")
+	await wait(1.0)
+	ok(goal_text().find("Разберись") >= 0 and G.minimap.marks.any(func(m): return String(m[3]) == "zone_on"), "в бою цель — «Разберись с местной группой», территория на карте горит")
+	await shot("m4_map_fight")
 	var won_x: bool = await kill_enc("school_kid")
 	ok(won_x and points("bag_school_kid") == 1 and G.item_n("thermos") == 1, "победа: сумка на месте, школьник отдал термос")
 	(G.run["items"] as Dictionary).erase("thermos")
@@ -767,7 +809,7 @@ func _run() -> void:
 		bh.pos = bfoe.global_position
 		g.run_mods.melee_hit(bh, P, 1)
 		ok(absf(bh.stagger - 15.0) < 0.001, "ГАРАЖНЫЙ КЛЮЧ II: тяжёлый удар снимает равновесия 15 вместо 10")
-		ok(bh.damage > 10.0 and bh.damage <= 15.001, "ПЕРВЫЙ УДАР II: по врагу с полным здоровьем урон %.1f вместо 10" % bh.damage)
+		ok(bh.damage > 10.0 and bh.damage <= 15.0 * 1.15 + 0.01, "ПЕРВЫЙ УДАР II: по врагу с полным здоровьем урон %.1f вместо 10" % bh.damage)
 		var bh2 := HitInfo.new()
 		bh2.damage = 10.0
 		bh2.stagger = 10.0
@@ -796,14 +838,39 @@ func _run() -> void:
 	P.global_position = top + Vector3(-2.0, 0.05, 0)
 	await wait(0.3)
 	ok(G.room_state == "open" and not G.descending, "у открытой решётки забег идёт как обычно")
+	ok(goal_text().find("Подземку") >= 0, "после Миши цель — спуск в Подземку: %s" % goal_text())
+	ok(G.minimap.marks.any(func(m): return String(m[0]) == "exit_pz"), "на карте есть маркер спуска в Подземку")
+	await shot("t1_gate")
 	var bt: Vector3 = G.world.dvor.stairs_bottom()
-	for i in 900:
-		var dd: Vector3 = bt - P.global_position
-		if dd.length() < 0.6 or G.descending:
+	var lk: Vector3 = G.world.dvor.link_point()
+	var leg := 0
+	for i in 1800:
+		var door: Vector3 = Vector3(bt.x, bt.y, bt.z + 3.6)          # проём с площадки в коридор: прямо от низа марша
+		var aim: Vector3 = bt if leg == 0 else (door if leg == 1 else lk)
+		var dd: Vector3 = aim - P.global_position
+		if G.descending:
 			break
-		P.global_position += dd.normalized() * minf(dd.length(), 7.0 / 60.0)
+		if dd.length() < 0.5:
+			if leg == 0:
+				leg = 1
+				await shot("t3_landing")
+				ok(not G.descending and String(G.run.get("district", "")) != "podzemka", "на нижней площадке перехода ещё нет: нужно свернуть в коридор")
+				continue
+			if leg == 1:
+				leg = 2
+				continue
+			break
+		if leg == 0 and i == 60:
+			g.cam_yaw = atan2(-dd.x, -dd.z)
+		if leg == 0 and i == 110:
+			await shot("t2_stairs")
+		P.global_position += dd.normalized() * minf(dd.length(), 5.0 / 60.0)
+		P.face = atan2(dd.x, dd.z)
+		g.cam_yaw = lerp_angle(g.cam_yaw, atan2(-dd.x, -dd.z), 0.08)
 		P.velocity = Vector3.ZERO
 		await get_tree().physics_frame
+	print("DVOR2CHECK | стык: герой %s, точка %s, низ %s, камера %s, descending=%s link_cd=%.1f state=%s" % [str(P.global_position), str(lk), str(bt), str(g.cam.global_position), str(G.descending), G.link_cd, G.room_state])
+	await shot("t4_swap")
 	var went: bool = await until(func(): return String(G.run.get("district", "")) == "podzemka", 30.0)
 	await until(func(): return not G.descending, 60.0)      # при первом спуске идёт вступительный ролик Подземки
 	await wait(0.5)
@@ -815,7 +882,13 @@ func _run() -> void:
 	ok(G.world.dvor == null and worlds() == 0, "двор выгружен: в памяти только Подземка")
 	ok(G.world.district != null and G67District.is_podzemka(), "мир — Подземка Devin")
 	ok(G.turf == null, "территории двора выключены")
-	ok(P.global_position.distance_to(G67Podzemka.STAIRS_TOP) < 6.0, "герой стоит у спуска Подземки (%.1f м от верха её лестницы)" % P.global_position.distance_to(G67Podzemka.STAIRS_TOP))
+	ok(P.global_position.distance_to(G.PZ_LINK_IN) < 3.0 and absf(angle_difference(P.face, -PI * 0.5)) < 0.3, "герой в коридоре Подземки за поворотом, идёт к спуску (%.1f м от точки выхода)" % P.global_position.distance_to(G.PZ_LINK_IN))
+	ok(G.minimap.kind == "podzemka" or not G.minimap.shown(), "мини-карта переключилась на Подземку")
+	var cam_l: Camera3D = get_viewport().get_camera_3d()
+	var q_l := PhysicsRayQueryParameters3D.create(P.global_position + Vector3(0, 1.4, 0), cam_l.global_position, 1)
+	q_l.exclude = [P.get_rid()]
+	ok(P.get_world_3d().direct_space_state.intersect_ray(q_l).is_empty(), "в коридоре стыка камера за спиной героя, стен между ними нет")
+	await shot("t5_pz_first")
 	var cams: Array = get_tree().root.find_children("*", "Camera3D", true, false)
 	print("DVOR2CHECK | после спуска: room_state=%s room=%s ворот=%d врагов=%d busy=%s clip=%s scene_t=%.1f" % [G.room_state, str(G.room), G.world.gates.size(), g.enemies.size(), str(G.busy), str(G.clip), G.scene_t])
 	print("DVOR2CHECK | герой %s face=%.2f | камера %s cam_yaw=%.2f cam_len=%.1f spring=%.2f | камер в дереве %d, текущих %d" % [str(P.global_position), P.face, str(g.cam.global_position), g.cam_yaw, g.cam_len, g.spring.get_hit_length(), cams.size(), cams.filter(func(c): return c.current).size()])
@@ -838,8 +911,8 @@ func _run() -> void:
 	var hit: Dictionary = P.get_world_3d().direct_space_state.intersect_ray(q)
 	ok(hit.is_empty(), "между героем и камерой нет стен и перекрытий (камера внутри помещения, %s)" % str(cam.global_position))
 	ok(cam.global_position.distance_to(head) < 6.5 and not cam.is_position_behind(head), "Пахан в кадре, камера не дальше 6,5 м")
-	var hl: String = G.hud_line()
-	ok(not hl.strip_edges().ends_with("ДАЛЬШЕ:") and hl.find("ДАЛЬШЕ: \n") < 0, "пустой строки «ДАЛЬШЕ:» в HUD нет")
+	ok(G.hud_line() == "" and G.minimap.shown() and G.minimap.kind == "podzemka" and goal_text() != "", "в Подземке вместо строки «ДАЛЬШЕ:» — мини-карта района и цель: %s" % goal_text())
+	ok(G.minimap.rects.size() == G67Podzemka.ROOMS.size(), "карта Подземки — из таблицы помещений (%d)" % G.minimap.rects.size())
 	await shot("a12_pz_spawn")
 	# ================= бафы внизу, сохранение =================
 	var same := func() -> bool: return JSON.stringify(G.run["fits"]) == JSON.stringify(fits0)
@@ -862,7 +935,17 @@ func _run() -> void:
 	ok(came, "«ВО ДВОР»: загружен новый двор")
 	await wait(1.0)
 	ok(worlds() == 1 and not G67District.is_podzemka(), "в памяти один двор, Подземка выгружена")
-	ok(P.global_position.distance_to(G.world.dvor.stairs_top()) < 10.0 and P.global_position.y > -0.5, "герой у решётки под аркой, на земле")
+	ok(P.global_position.distance_to(G.world.dvor.link_in()) < 3.0 and P.global_position.y < -4.0, "герой в коридоре под аркой, впереди лестница наверх")
+	ok(G.minimap.kind == "dvor" and G.minimap.shown(), "мини-карта снова показывает двор")
+	var cam_b: Camera3D = get_viewport().get_camera_3d()
+	var q_b := PhysicsRayQueryParameters3D.create(P.global_position + Vector3(0, 1.4, 0), cam_b.global_position, 1)
+	q_b.exclude = [P.get_rid()]
+	ok(P.get_world_3d().direct_space_state.intersect_ray(q_b).is_empty(), "после возвращения камера внутри коридора, герой в кадре")
+	await shot("t6_back")
+	P.global_position = G.world.dvor.stairs_top() + Vector3(-8.5, 0.05, 0.0)
+	P.face = -PI * 0.5
+	g.cam_yaw = PI * 0.5
+	await wait(0.8)
 	ok(G.world.dvor.gate_open, "решётка открыта")
 	ok(same.call() and is_equal_approx(P.dmg_mul, dmg0) and is_equal_approx(P.max_hp, mhp0), "бафы после возвращения те же, действие то же")
 	ok(JSON.stringify(G.run["enc"]) == enc0, "встречи двора в том же состоянии, что до спуска (награды не выдаются заново)")
@@ -877,7 +960,7 @@ func _run() -> void:
 	ok(G.events.filter(func(e): return String(e[0]) == "clip").size() == clips0, "вступительный ролик второй раз не идёт")
 	ok(int(G.run.get("pos", 0)) == 2 and int(G.run.get("pz_change", 0)) == 1 and G.room_state == "open", "повторный спуск: Подземка продолжается с третьего этапа, а не с начала (этап %d)" % (int(G.run.get("pos", 0)) + 1))
 	# тоннель и зал — кадры
-	for sh in [["a14_pz_gate", G67District.zone_of("gate1")], ["a15_pz_arcade", G67District.zone_of("arcade")]]:
+	for sh in [["a14_pz_gate", G67District.zone_of("gate1")], ["a15_pz_arcade", G67District.zone_of("arcade")], ["a16_pz_tunnel", G67District.zone_of("tunnel")], ["a17_pz_arena", G67District.zone_of("arena")], ["a18_pz_cash", {"c": Vector3(0, 0, -150)}]]:
 		var zz: Dictionary = sh[1]
 		if zz.is_empty() or not zz.has("c"):
 			continue

@@ -370,10 +370,11 @@ func _start_dvor2(resumed: bool, from_arch := false) -> void:
 	p.velocity = Vector3.ZERO
 	p.face = PI                                 # лицом во двор, на север
 	game.cam_yaw = 0.0
-	if from_arch:                               # вернулся из Подземки: у решётки под аркой дома № 81, лицом к коробке (на запад)
-		p.global_position = world.dvor.stairs_top() + Vector3(-8.5, 0.05, 0.0)      # камера за спиной должна остаться снаружи решётки
-		p.face = -PI * 0.5
-		game.cam_yaw = PI * 0.5
+	if from_arch:                               # вернулся из Подземки: в коридоре под аркой, дальше — вверх по лестнице
+		p.global_position = world.dvor.link_in()
+		var ld: Vector3 = world.dvor.link_dir()
+		p.face = atan2(ld.x, ld.z)
+		game.cam_yaw = atan2(-ld.x, -ld.z)
 	game.fx.prewarm(p.global_position)
 	room = {}
 	room_state = "open"
@@ -649,51 +650,105 @@ func _descent_tick() -> void:
 	if dv == null or descending or busy or not dv.gate_open or room_state != "open" or game.over:
 		return
 	var pp: Vector3 = game.player.global_position
-	var bt: Vector3 = dv.stairs_bottom()
-	if pp.y < -4.2 and Vector2(pp.x - bt.x, pp.z - bt.z).length() < 2.6:
-		descend()
+	if link_cd > 0.0:
+		return
+	var lk: Vector3 = dv.link_point()
+	if pp.y < -4.2 and Vector2(pp.x - lk.x, pp.z - lk.z).length() < LINK_R:      # свернул в коридор — стена шахты уже закрыла лестницу
+		link_swap(true)
+	if pp.y < -0.4 and not gate_said:                # прошёл решётку: металл звякнул за спиной
+		gate_said = true
+		G67Sound.play(self, "chain", dv.stairs_top())
+	elif pp.y > -0.1:
+		gate_said = false
+
+var gate_said := false
+
+func _unused_descent() -> void:
+	pass
 
 func descend() -> void:
-	if descending or busy:
+	await link_swap(true)
+
+## Переход между районами без шторки. Герой сам спускается по лестнице под аркой и сворачивает в бетонный коридор:
+## за поворотом (стена шахты закрывает обзор) двор выгружается и строится Подземка, герой оказывается в таком же
+## коридоре у верха её спуска и идёт дальше с той же скоростью. Обратно — тем же путём. Затемнение LINK_DIM с —
+## только страховка на время постройки района, не эффект перехода.
+const LINK_DIM := 0.16
+const LINK_R := 1.1               # радиус точки стыка во дворе, м
+const LINK_CD := 2.5              # после перехода стык молчит, с
+const PZ_LINK_IN := Vector3(12.4, 5.05, 3.3)      # где герой появляется в коридоре Подземки (идёт на запад, к спуску)
+const PZ_LINK_OUT_X := 13.6       # дальше этой линии в коридоре Подземки — подъём во двор
+var link_cd := 0.0
+var link_dim: ColorRect
+
+func _dim(to: float, sec: float) -> void:
+	if link_dim == null or not is_instance_valid(link_dim):
+		link_dim = ColorRect.new()
+		link_dim.color = Color(0, 0, 0, 0)
+		link_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+		link_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		link_dim.z_index = 50
+		game.hud_root.add_child(link_dim)
+	var tw := link_dim.create_tween()
+	tw.tween_property(link_dim, "color:a", to, sec)
+	if to > 0.0:
+		await tw.finished
+
+func link_swap(down: bool) -> void:
+	if descending or busy or (not down and (place != "run" or room_state != "open")):
 		return
 	descending = true
 	flush_coins()
-	events.append(["descent"])
-	var fx = game.main.intro_fx if game.main != null else null
-	if fx != null and game.main.user_play():
-		await fx.cover("ПОДЗЕМКА", "район 2 · вход платный, выход дороже")
+	events.append(["descent" if down else "ascent"])
+	var p = game.player
+	var speed: float = minf(Vector2(p.velocity.x, p.velocity.z).length(), 6.0)
+	var pitch: float = game.cam_pitch if "cam_pitch" in game else 0.0
+	if game.main != null and game.main.user_play():
+		await _dim(1.0, LINK_DIM)
 	if not is_instance_valid(self):
 		return
 	var c := carry_out()
 	data["run"] = {}
-	start_run("podzemka", c)          # без await: первый бой Подземки ждёт, пока герой спустится к турникету, — шторка не должна ждать вместе с ним
-	for i in 4:
+	link_spawn = true
+	start_run("podzemka" if down else "dvor", c, not down)      # без await: первый бой Подземки ждёт героя у турникета
+	for i in 3:
 		await game.get_tree().process_frame
+	if not is_instance_valid(self):
+		return
+	link_spawn = false
+	var dir := Vector3(-1, 0, 0)
+	if down:
+		p.global_position = PZ_LINK_IN
+	elif world.dvor != null:
+		var dv: G67Dvor2 = world.dvor
+		p.global_position = dv.link_in()
+		dir = dv.link_dir()
+	p.face = atan2(dir.x, dir.z)
+	game.cam_yaw = atan2(-dir.x, -dir.z)
+	if "cam_pitch" in game:
+		game.cam_pitch = pitch
+	if clip == null:
+		p.velocity = dir * speed                 # движение не обрывается: герой выходит из-за поворота тем же шагом
+	link_cd = LINK_CD
 	descending = false
-	if fx != null and game.main.user_play():
-		fx.reveal()
+	_dim(0.0, 0.35)
+
+var link_spawn := false
+
+## Стык районов: во дворе — точка за поворотом под аркой, в Подземке — дальний конец коридора у спуска
+func _link_tick(dt: float) -> void:
+	link_cd = maxf(0.0, link_cd - dt)
+	if link_cd > 0.0 or descending or busy or game.over or place != "run" or room_state != "open" or clip != null:
+		return
+	var pp: Vector3 = game.player.global_position
+	if G67District.is_podzemka():
+		if not old_yard and pp.y > 4.0 and pp.x > PZ_LINK_OUT_X and pp.z > 1.0 and pp.z < 6.0:
+			link_swap(false)
 
 ## Обратно: точка «ВО ДВОР» у верха лестницы Подземки. Та же загрузка, что и вниз; герой выходит у решётки под аркой.
 ## «НАВЕРХ, ДОМОЙ» (пауза забега и подъезд) остаётся как было.
 func ascend() -> void:
-	if descending or busy or place != "run" or room_state != "open":
-		return
-	descending = true
-	flush_coins()
-	events.append(["ascent"])
-	var fx = game.main.intro_fx if game.main != null else null
-	if fx != null and game.main.user_play():
-		await fx.cover("ДВОР", "микрорайон 67 · арка дома № 81")
-	if not is_instance_valid(self):
-		return
-	var c := carry_out()
-	data["run"] = {}
-	start_run("dvor", c, true)
-	for i in 4:
-		await game.get_tree().process_frame
-	descending = false
-	if fx != null and game.main.user_play():
-		fx.reveal()
+	await link_swap(false)
 
 ## Что герой несёт с собой между районами: бафы с уровнями, артефакты, перевыборы, купленное здоровье, голда и счёт забега.
 ## Всё — простые значения (сохраняется в JSON как часть run). Остальное состояние района (встречи, сумки, ларёк, позиция)
@@ -1854,6 +1909,9 @@ func _make_foe(foe: String, pos: Vector3, quiet: bool):
 	if f.has("hp"):
 		e.max_hp = float(f["hp"])
 		e.hp = e.max_hp
+	elif String(f["kind"]) in ["bot", "hater"]:            # рядовые (Шестёрка, Семечник): живучее
+		e.max_hp = round(e.max_hp * G67Data.FOE_HP_K)
+		e.hp = e.max_hp
 	if f.has("dmg"):
 		e.cfg["dmg"] = float(f["dmg"]) * G67Data.FOE_DMG_K
 	if f.has("moves"):
@@ -2087,6 +2145,9 @@ func _g67_audio_tick(dt: float) -> void:
 		amb67.bus = "Ambient" if AudioServer.get_bus_index("Ambient") >= 0 else "Master"
 		amb67.volume_db = float(G67Sound.KINDS[want][1])
 		amb67.play()
+	if place == "run" and world != null and world.dvor != null:      # под аркой двор остаётся наверху: фон глохнет с глубиной лестницы
+		var deep: float = clampf(-game.player.global_position.y / 5.0, 0.0, 1.0)
+		amb67.volume_db = lerpf(float(G67Sound.KINDS[want][1]), -46.0, deep)
 	var quiet: bool = clip != null or game.mode == "dlg" or talk_on or scene_t >= 0.0
 	rnd67_t -= dt
 	if rnd67_t > 0.0:
@@ -4369,7 +4430,11 @@ func use_item(id: String) -> bool:
 	events.append(["item", id])
 	return true
 
+var minimap: G67Minimap
+
 func _items_tick() -> void:
+	if (minimap == null or not is_instance_valid(minimap)) and game.hud_root != null:
+		minimap = G67Minimap.attach(self)
 	if item_lab == null or not is_instance_valid(item_lab):
 		item_lab = Label.new()
 		item_lab.add_theme_font_size_override("font_size", 18)
@@ -5080,6 +5145,8 @@ func result_new_run() -> void:
 func hud_line() -> String:
 	if place == "hub" or run.is_empty():
 		return "ГОЛДА 67 · ПОДЪЕЗД · РЕСПЕКТ %d" % int(meta().get("respect", 0)) + (" · ЗАБЕГ НА ПАУЗЕ" if paused_run() else "")
+	if minimap != null and is_instance_valid(minimap) and minimap.shown():
+		return ""                       # новый двор и Подземка: район, голда и цель — в панели мини-карты (G67Minimap)
 	var d := district()
 	if turf != null:
 		var s2 := "ГОЛДА 67 · %s · голда %d" % [String(d["name"]), int(run["golda"])]
@@ -5254,10 +5321,12 @@ func _physics_process(dt: float) -> void:
 		turf.tick(dt)
 		_coins_tick(dt)
 		_ev_tick()
+		_link_tick(dt)
 		_second_wind()
 		_court_tick()
 		_descent_tick()
 	elif place == "run" and not busy and not game.over and not run.is_empty():
+		_link_tick(dt)
 		if room_state == "fight":
 			_fight_tick(dt)
 		_stash_tick(dt)
@@ -5301,6 +5370,10 @@ func _unhandled_input(e: InputEvent) -> void:
 			it = String({JOY_BUTTON_DPAD_LEFT: "thermos", JOY_BUTTON_DPAD_RIGHT: "stool"}.get(e.button_index, ""))
 		if it != "" and item_n(it) > 0:
 			use_item(it)
+			get_viewport().set_input_as_handled()
+			return
+		if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_M and minimap != null and is_instance_valid(minimap):
+			minimap.cycle_zoom()                 # масштаб мини-карты
 			get_viewport().set_input_as_handled()
 			return
 	if game == null or near == "" or game.panel != null or game.get_tree().paused or busy or hub_ui != null or clip != null:
