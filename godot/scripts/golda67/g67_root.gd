@@ -1742,6 +1742,8 @@ func enter_room(r: Dictionary) -> void:
 			game.boss_e = b
 			if pz and bid == "g67_fortuna":
 				arena_setup(b)
+				if game.main.user_play() and not auto_played("PZ_FORTUNA_PROMO"):
+					await play_auto("PZ_FORTUNA_PROMO")          # реклама на экранах кассового комплекса — при первом входе
 				await fortuna_intro(b)
 			var bd: Dictionary = game.story["BOSS"][bid]
 			game.boss_name.text = "%s — %s" % [bd["n"], bd["sub"]]
@@ -3653,6 +3655,14 @@ func talk_krot() -> void:
 	if k.is_empty() or (place == "run" and (alive() > 0 or not pending.is_empty())):
 		game.toast("Сначала разберись с этими")
 		return
+	var cctv: String = {"krot4": "PZ_KROT04_CCTV", "krot5": "PZ_KROT05_CCTV"}.get(String(k["id"]), "")
+	if cctv != "" and game.main.user_play() and not auto_played(cctv):      # запись камеры наблюдения — перед встречами 4 и 5, потом живой разговор
+		var kf := func():
+			await play_auto(cctv)
+			if is_instance_valid(game) and game.golda == self:
+				talk_krot()
+		kf.call()
+		return
 	events.append(["krot_talk", String(k["id"])])
 	var p = game.player
 	var kr = world.actors.get("g67_krot")
@@ -4642,6 +4652,8 @@ func _boss_down(e) -> void:
 				unlock_clip("NEWS02")
 		var out_task := func():
 			await _fortuna_outro(e)
+			if first and game.main.user_play() and not auto_played("NEWS02"):
+				await play_auto("NEWS02")                    # выпуск новостей о поражении FORTUNA — после первой победы
 			game.banner("FORTUNA 812 ПОВЕРЖЕН", ("открыт стиль: %s" % style_name) if first else "район пройден", Color(0.62, 0.85, 0.25), 3.5)
 			_finish_run(true, 2.0)
 		out_task.call()
@@ -5032,7 +5044,20 @@ func use(id: String) -> void:
 	elif id == "balloon":
 		var bf := func(): await play_clip("PZ_BALLOON01")
 		bf.call()
+	elif id in ["clip_tariff", "clip_cl02", "clip_seller", "clip_cctv"]:
+		var cid: String = {"clip_tariff": "PZ_TARIFF01", "clip_cl02": "CL02", "clip_seller": "PZ_SELLER01", "clip_cctv": "PZ_CCTV_EXIT"}[id]
+		if id == "clip_tariff" and place == "run":
+			var fee := mini(8, int(run.get("golda", 0)))          # «просмотр тарифа — 8»: сколько есть, столько и спишет
+			run["golda"] = int(run["golda"]) - fee
+			run["spent"] = int(run.get("spent", 0)) + fee
+		var cf := func(): await play_clip(cid)
+		cf.call()
 	elif id == "shutter" or id == "hamster_door":
+		var first_cid := "PZ_DOGCASINO01" if id == "shutter" else "PZ_HAMSTER01"
+		if game.main.user_play() and not auto_played(first_cid):      # первый подход — сначала ролик, дверь открывается следующим нажатием
+			var af := func(): await play_auto(first_cid)
+			af.call()
+			return
 		var pzd := world.district as G67Podzemka
 		if pzd != null and pzd.open_door("shutter" if id == "shutter" else "hamster"):
 			game.toast("Рольставня поднимается" if id == "shutter" else "Дверь скрипит")

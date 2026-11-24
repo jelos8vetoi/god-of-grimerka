@@ -1664,7 +1664,7 @@ func _clip_checks() -> void:
 	if G.hub_ui != null:
 		G.hub_ui.close()
 	var report: Array = []
-	for cid in ["AD02", "PZ_STREAM01", "PZ_BALLOON01"]:
+	for cid in ["AD02", "PZ_STREAM01", "PZ_BALLOON01", "CL02", "PZ_DOGCASINO01", "PZ_HAMSTER01", "PZ_KROT04_CCTV", "PZ_KROT05_CCTV", "PZ_FORTUNA_PROMO", "NEWS02", "PZ_TARIFF01", "PZ_SELLER01", "PZ_CCTV_EXIT"]:
 		var rng: Array = G67Clips.INFO[cid]["dur"]
 		var starter := func(): await G.play_clip(cid)
 		starter.call()
