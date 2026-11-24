@@ -428,7 +428,11 @@ func _process(dt: float) -> void:
 			z["tick"] = float(z["tick"]) + dt
 			if float(z["tick"]) >= 0.5:
 				z["tick"] = 0.0
-				if p != null and in_zone(z, p.global_position):
+				if p != null and in_zone(z, p.global_position) and float(G.run.get("cert_t", 0.0)) > 0.0:
+					G.run["cert_t"] = maxf(0.0, float(G.run["cert_t"]) - 0.5)          # «Справка»: первые секунды в зоне бесплатно
+					game.popup(p.global_position + Vector3(0, 2.0, 0), "ПО СПРАВКЕ", COL_YELLOW)
+					G.events.append(["zone_cert"])
+				elif p != null and in_zone(z, p.global_position):
 					var gl := int(G.run.get("golda", 0))
 					if gl > 0:
 						var take := mini(2, gl)

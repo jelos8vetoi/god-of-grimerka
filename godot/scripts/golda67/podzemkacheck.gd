@@ -1663,6 +1663,29 @@ func _clip_checks() -> void:
 	await c.wait(1.5)
 	if G.hub_ui != null:
 		G.hub_ui.close()
+	# короткие события района: «Автомат размена» и «Справка»
+	G.run["golda"] = 100
+	var hp_c: float = P.max_hp * 0.5
+	P.hp = hp_c
+	ok(G._pz_change(0.7) == "heal" and int(G.run["golda"]) == 90 and P.hp > hp_c, "автомат размена: 10 голды → чай, здоровье +20")
+	var g_c: int = int(G.run["golda"])
+	ok(G._pz_change(0.1) == "gold" and int(G.run["golda"]) >= g_c - 10 + 15, "автомат размена: 10 голды → 15–25 голды (стало %d)" % int(G.run["golda"]))
+	G.run["fits"] = {}
+	var tr_out: String = G._pz_change(0.95)
+	var tr_id: String = String(G.run.get("trial", ""))
+	ok(tr_out == "trial" and tr_id != "" and G.fit_lv(tr_id) == 1, "автомат размена: пробник бафа «%s» на следующий бой" % tr_id)
+	G._trial_end()
+	ok(not G.run.has("trial") and G.fit_lv(tr_id) == 0, "пробник снят после боя")
+	ok(G._pz_change(0.1) == "" , "автомат размена: четвёртый раз за забег не работает")
+	G.run["golda"] = 5
+	G._pz_cert()
+	ok(float(G.run.get("cert_t", 0.0)) == 0.0 and int(G.run["golda"]) == 5, "справка без денег: «Тогда справка нужна», ничего не списано")
+	G.run["golda"] = 50
+	G._pz_cert()
+	ok(is_equal_approx(float(G.run.get("cert_t", 0.0)), 3.0) and int(G.run["golda"]) == 30, "справка за 20 голды: 3 с бесплатно в платной зоне босса")
+	ok(G.world.points.filter(func(pt): return String(pt["id"]) in ["pz_change", "pz_cert", "clip_tariff", "clip_cl02", "clip_seller", "clip_cctv"]).size() == 6, "точки событий и роликов района на месте")
+	G.run.erase("cert_t")
+	G.run["golda"] = 0
 	var report: Array = []
 	for cid in ["AD02", "PZ_STREAM01", "PZ_BALLOON01", "CL02", "PZ_DOGCASINO01", "PZ_HAMSTER01", "PZ_KROT04_CCTV", "PZ_KROT05_CCTV", "PZ_FORTUNA_PROMO", "NEWS02", "PZ_TARIFF01", "PZ_SELLER01", "PZ_CCTV_EXIT"]:
 		var rng: Array = G67Clips.INFO[cid]["dur"]

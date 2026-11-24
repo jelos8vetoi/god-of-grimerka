@@ -2135,6 +2135,7 @@ func on_kill(e) -> void:
 			p.hp = minf(p.max_hp, p.hp + heal)
 
 func _room_cleared() -> void:
+	_trial_end()
 	var type := String(room["type"])
 	events.append(["clear", type])
 	var pile := int(G67Data.ROOM_GOLDA[type])
@@ -3914,6 +3915,106 @@ var jacket_t := -9.0             # ДЕДОВСКАЯ КУРТКА: когда �
 var hurt_in_fight := false       # СЕМКИ: получал ли герой урон в текущем бою
 var _was_roll := false
 
+# ---------------------------------------------------------------- короткие события ПОДЗЕМКИ (PODZEMKA_DESIGN.md, раздел 4)
+const PZ_CHANGE_COST := 10
+const PZ_CHANGE_MAX := 3         # раз за забег
+const PZ_CERT_COST := 20
+const PZ_CERT_FREE := 3.0        # сколько секунд в платной зоне босса бесплатно
+
+## «Автомат размена»: 10 голды → случайное. roll задаёт проверка; в игре — случай.
+func _pz_change(roll := -1.0) -> String:
+	if place != "run" or room_state in ["fight", "boss"]:      # до первого боя района состояние ещё пустое — событие доступно
+		game.toast("Сначала разберись с этими")
+		return ""
+	if int(run.get("pz_change", 0)) >= PZ_CHANGE_MAX:
+		game.toast("Автомат: «РАЗМЕН ОКОНЧЕН. СПАСИБО ЗА ДЕНЬГИ»")
+		return ""
+	if int(run.get("golda", 0)) < PZ_CHANGE_COST:
+		game.toast("Автомат: «ВНЕСИТЕ 10»")
+		return ""
+	run["golda"] = int(run["golda"]) - PZ_CHANGE_COST
+	run["spent"] = int(run.get("spent", 0)) + PZ_CHANGE_COST
+	run["pz_change"] = int(run.get("pz_change", 0)) + 1
+	G67Sound.play(self, "lever")
+	var r := roll if roll >= 0.0 else randf()
+	var p = game.player
+	var out := ""
+	if r < 0.35:
+		var got := 15 + randi() % 11
+		run["golda"] = int(run["golda"]) + got
+		run["earned"] = int(run.get("earned", 0)) + got
+		out = "gold"
+		game.banner("АВТОМАТ РАЗМЕНА", "выдал %d голды" % got, Color(0.62, 0.85, 0.25), 2.2)
+		G67Sound.play(self, "coin")
+	elif r < 0.6:
+		out = "receipt"
+		game.banner("АВТОМАТ РАЗМЕНА", "чек длиной четыре метра. Голды — ноль", Color(0.9, 0.9, 0.85), 2.4)
+		var mi := MeshInstance3D.new()             # чек печатается и ложится на пол
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.18, 0.006, 4.0)
+		mi.mesh = bm
+		var mm := StandardMaterial3D.new()
+		mm.albedo_color = Color(0.96, 0.95, 0.9)
+		mi.material_override = mm
+		world.add_child(mi)
+		mi.global_position = p.global_position + Vector3(0.6, 0.02, 1.6)
+		mi.rotation.y = randf_range(-0.3, 0.3)
+		G67Sound.play(self, "counter_click")
+	elif r < 0.8:
+		out = "heal"
+		p.hp = minf(p.max_hp, p.hp + 20.0)
+		game.banner("АВТОМАТ РАЗМЕНА", "стакан чая: +20 здоровья", Color(0.5, 0.95, 0.6), 2.2)
+	else:
+		out = "trial"
+		var pool: Array = []
+		for fid in G67Data.FITS:
+			if fit_lv(fid) == 0 and fit_avail(fid) and not bool(G67Data.FITS[fid]["rare"]):
+				pool.append(fid)
+		if pool.is_empty() or run.has("trial"):
+			p.hp = minf(p.max_hp, p.hp + 20.0)
+			out = "heal"
+			game.banner("АВТОМАТ РАЗМЕНА", "стакан чая: +20 здоровья", Color(0.5, 0.95, 0.6), 2.2)
+		else:
+			var tf := String(pool[randi() % pool.size()])
+			(run["fits"] as Dictionary)[tf] = 1
+			run["trial"] = tf
+			apply_fits(tf)
+			game.banner("АВТОМАТ РАЗМЕНА", "пробник: %s — до конца следующего боя" % String(G67Data.FITS[tf]["name"]), G67Data.FAMILY_COLOR[String(G67Data.FITS[tf]["family"])], 2.8)
+	events.append(["pz_change", out])
+	_save_run("open")
+	return out
+
+## Пробник из автомата действует один бой
+func _trial_end() -> void:
+	if not run.has("trial"):
+		return
+	var tf := String(run["trial"])
+	run.erase("trial")
+	if fit_lv(tf) == 1:
+		(run["fits"] as Dictionary).erase(tf)
+		apply_fits()
+		game.toast("Пробник кончился: %s" % String(G67Data.FITS[tf]["name"]))
+
+## «Справка»: 20 голды — первые секунды в платной зоне босса бесплатно; без денег — «Тогда справка нужна»
+func _pz_cert() -> void:
+	if place != "run" or room_state in ["fight", "boss"]:
+		game.toast("Сначала разберись с этими")
+		return
+	if float(run.get("cert_t", 0.0)) > 0.0:
+		game.toast("Кассирша: «Справка у вас уже есть. Вторая не нужна. Но купить можно»")
+		return
+	if int(run.get("golda", 0)) < PZ_CERT_COST:
+		game.toast("Кассирша: «Тогда справка нужна»")
+		events.append(["pz_cert", "no"])
+		return
+	run["golda"] = int(run["golda"]) - PZ_CERT_COST
+	run["spent"] = int(run.get("spent", 0)) + PZ_CERT_COST
+	run["cert_t"] = PZ_CERT_FREE
+	G67Sound.play(self, "counter_click")
+	game.banner("СПРАВКА", "о том, что справка не нужна: 3 с в платной зоне FORTUNA — бесплатно", Color(0.9, 0.9, 0.85), 3.0)
+	events.append(["pz_cert", "yes"])
+	_save_run("open")
+
 ## Сколько событий пройдено в этом забеге (РАЙОН ПОМНИТ)
 func events_done() -> int:
 	var n := 0
@@ -5044,6 +5145,10 @@ func use(id: String) -> void:
 	elif id == "balloon":
 		var bf := func(): await play_clip("PZ_BALLOON01")
 		bf.call()
+	elif id == "pz_change":
+		_pz_change()
+	elif id == "pz_cert":
+		_pz_cert()
 	elif id in ["clip_tariff", "clip_cl02", "clip_seller", "clip_cctv"]:
 		var cid: String = {"clip_tariff": "PZ_TARIFF01", "clip_cl02": "CL02", "clip_seller": "PZ_SELLER01", "clip_cctv": "PZ_CCTV_EXIT"}[id]
 		if id == "clip_tariff" and place == "run":
