@@ -625,6 +625,15 @@ func _arch_house(it: Dictionary) -> void:
 	lamp.position = to3(lp0.x, lp0.y, -2.1)
 	add_child(lamp)
 	_arch_vis(sx1 + 2.9, sx1 + 3.5, (cy0 + hy) * 0.5 - 0.1, (cy0 + hy) * 0.5 + 0.1, -1.66, -1.6, Color(0.9, 0.97, 1.0), false, 2.5)
+	_arch_box(sx0, sx1, sy1 - 0.3, hy, -2.3, -2.0)                              # потолок площадки (в модели): держит камеру под ним
+	_arch_box(sx0, sx1, sy1 - 0.32, sy1 - 0.07, -2.3, -0.3)                      # лоб перекрытия над входом на площадку
+	var lamp2 := OmniLight3D.new()                                               # холодная лампа над площадкой: виден проём в коридор
+	lamp2.light_color = Color(0.75, 0.9, 1.0)
+	lamp2.light_energy = 1.1
+	lamp2.omni_range = 6.5
+	var lp2 := arch_xy((sx0 + sx1) * 0.5, sy1 + 0.5)
+	lamp2.position = to3(lp2.x, lp2.y, -1.4)
+	add_child(lamp2)
 	arch["st"]["link"] = [LINK_X1 - 3.0, (cy0 + hy) * 0.5, -5.0]
 	_arch_box(sx0, 1.25, gy + 8.5, hy, -0.5, 0.0)                 # перекрытие над низом марша (пол прохода)
 	# марш: наклонная плита от решётки вниз на 5 м
