@@ -14,6 +14,16 @@ const ROWS := [
 	{"key": "cctv", "title": "SOUND B — ПЕРЕКЛЮЧЕНИЕ КАМЕРЫ", "a": "B1 · Analog Relay", "b": "B2 · Signal Transition"},
 	{"key": "madk1d", "title": "SOUND C — MADK1D В ШАХТЕ (дубли пробы; в игре — событиями, ниже)", "a": "C1 · Heavy Duct Movement", "b": "C2 · Unnatural Crawling"},
 ]
+## скримеры P1.2: [вид, название, из чего собран]
+const SCREAMS := [
+	["madk1d", "MADK1D", "люк срывается; кошачий рёв и вой из жестяной шахты"],
+	["bot", "BOT", "без голоса: удар железа, дуга сварки, гайковёрт, дрель, остановка лебёдки"],
+	["clipper", "CLIPPER", "клинок по клинку, ножницы, нож по бруску, мотор машинки; короткий"],
+	["ghost", "GHOST", "не крик, а провал пространства: низ грома, замедленный детский крик задом наперёд"],
+	["mod", "MOD", "аппаратура сходит с ума: автомат, модем на линии, треск эфира, перемотка кассеты"],
+	["dark", "ТЕМНОТА", "после отключения питания: вплотную, сухо — низкий рык, хрип, глухой удар"],
+]
+const SCARE_KINDS := ["balon", "madk1d", "bot", "clipper", "ghost", "mod", "dark"]
 const SCREAM_DB := -1.0            # FiveNightsRoot.SCREAM_DB
 const CAM_DB := -12.0              # громкость вызова в игре (событие «cam»)
 const CRAWL_DB := -4.0             # MADK1D у решётки (в шахте — −12)
@@ -35,6 +45,7 @@ var capture := ""
 var guard := false                # запись ночи: закрывать дверь, пока у неё враг (клавишами A и D)
 var guard_busy := false
 var caption := ""
+var scare_k := 0                  # какой скример вызывает F8 в ночи (SCARE_KINDS)
 
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
@@ -75,12 +86,13 @@ func _build() -> void:
 	bg.color = Color(0.03, 0.035, 0.04)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
-	panel = CenterContainer.new()
+	panel = TabContainer.new()
 	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(panel)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 10)
-	panel.add_child(box)
+	var box := _tab("P1 — УТВЕРЖДЕНО")
+	_build_screams(_tab("СКРИМЕРЫ (P1.2)"))
+	if capture == "" and FNAudioGate.TRIAL.keys().any(func(k): return FNAudioGate.variant(k) != ""):
+		(panel as TabContainer).current_tab = 1
 	var head := Label.new()
 	head.text = "5 НОЧЕЙ С ПАХАНОМ — AUDIO QUALITY GATE (P1)"
 	head.add_theme_font_size_override("font_size", 26)
@@ -150,6 +162,63 @@ func _build() -> void:
 	info.add_theme_constant_override("outline_size", 6)
 	info.visible = false
 	layer.add_child(info)
+
+func _tab(title: String) -> VBoxContainer:
+	var c := CenterContainer.new()
+	c.name = title
+	panel.add_child(c)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	c.add_child(box)
+	return box
+
+func _title(box: Control, text: String, size := 19) -> void:
+	var t := Label.new()
+	t.text = text
+	t.add_theme_font_size_override("font_size", size)
+	box.add_child(t)
+
+## P1.2, скримеры: у каждого своя запись; ORIGINAL — один из трёх прежних дублей
+func _build_screams(box: VBoxContainer) -> void:
+	_title(box, "СКРИМЕРЫ — P1.2, ждут приёмки (БАЛОН A2 утверждён, вкладка P1)", 24)
+	for it in SCREAMS:
+		var kind := String(it[0])
+		_title(box, "%s — %s" % [it[1], it[2]], 16)
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 8)
+		box.add_child(h)
+		h.add_child(_btn("ORIGINAL", _scream_one.bind(kind, "")))
+		h.add_child(_btn("NEW", _scream_one.bind(kind, "a")))
+		h.add_child(_btn("в будке ▶", _booth_scare.bind(kind)))
+		var lab := Label.new()
+		lab.text = "   в игре:"
+		h.add_child(lab)
+		h.add_child(_option("scream_" + kind, ["", "a"], {"": "ORIGINAL", "a": "NEW"}))
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	box.add_child(hb)
+	hb.add_child(_btn("СТОП", _stop_all))
+	hb.add_child(_btn("в игре: ВСЕ NEW", _all_trial.bind(true)))
+	hb.add_child(_btn("в игре: ВСЕ ORIGINAL", _all_trial.bind(false)))
+	_title(box, "«в будке ▶» — настоящая ночь без врагов и этот скример через 4 с (ТЕМНОТА — питание гаснет, нападение приходит по правилам игры).
+В ночи: F10 — какой скример, F12 — ORIGINAL / NEW, F8 — вызвать. Выбор «в игре» действует и на обычную игру.", 13)
+
+func _scream_one(kind: String, v: String) -> void:
+	scream_p.stop()
+	scream_p.stream = FNSound.scream_pick(kind)[0] if v == "" else load(FNAudioGate.DIR + "scream_%s.wav" % kind)
+	scream_p.volume_db = SCREAM_DB
+	scream_p.play()
+
+func _all_trial(on: bool) -> void:
+	for k in FNAudioGate.TRIAL:
+		FNAudioGate.choose(k, String(FNAudioGate.TRIAL[k]) if on else "")
+	get_tree().reload_current_scene()
+
+func _booth_scare(kind: String) -> void:
+	scare_k = SCARE_KINDS.find(kind)
+	await _game()
+	await get_tree().create_timer(4.0).timeout
+	_scare()
 
 func _option(key: String, variants: Array, names: Dictionary) -> OptionButton:
 	var ob := OptionButton.new()
@@ -271,8 +340,10 @@ func _process(_dt: float) -> void:
 		crawl_p.volume_db = CRAWL_DB
 		crawl_p.play()
 	if info.visible and capture == "":
-		info.text = "ЗВУК P1   F5 БАЛОН: %s   F6 КАМЕРЫ: %s   F7 ШАХТА: %s   |   F8 — скример БАЛОНА   F9 — MADK1D идёт по левой шахте (Z — заслонка)" % [
-			FNAudioGate.NAMES[FNAudioGate.variant("balon")], FNAudioGate.NAMES[FNAudioGate.variant("cctv")], "C1" if FNAudioGate.variant("madk1d") != "" else "записи P0"]
+		var sk := String(SCARE_KINDS[scare_k])
+		info.text = "F5 БАЛОН: %s   F6 КАМЕРЫ: %s   F7 ШАХТА: %s   |   F10 скример: %s   F12: %s   F8 — вызвать   |   F9 — MADK1D по левой шахте (Z — заслонка)" % [
+			FNAudioGate.NAMES[FNAudioGate.variant("balon")], FNAudioGate.NAMES[FNAudioGate.variant("cctv")], "C1" if FNAudioGate.variant("madk1d") != "" else "записи P0",
+			sk.to_upper(), FNAudioGate.NAMES[FNAudioGate.variant("balon")] if sk == "balon" else ("NEW" if FNAudioGate.variant("scream_" + sk) != "" else "ORIGINAL")]
 
 # ---------------- настоящая игра ----------------
 func _game() -> void:
@@ -316,15 +387,25 @@ func _input(e: InputEvent) -> void:
 			_scare()
 		KEY_F9:
 			_madk()
+		KEY_F10:
+			scare_k = (scare_k + 1) % SCARE_KINDS.size()
+		KEY_F12:
+			var sk := String(SCARE_KINDS[scare_k])
+			_cycle("balon" if sk == "balon" else "scream_" + sk)
 
 func _cycle(key: String) -> void:
-	var vs: Array = ["", "a"] if key == "madk1d" else FNAudioGate.VARIANTS
+	var vs: Array = ["", "a"] if key == "madk1d" or key.begins_with("scream_") else FNAudioGate.VARIANTS
 	FNAudioGate.choose(key, String(vs[(vs.find(FNAudioGate.variant(key)) + 1) % vs.size()]))
 
-## скример БАЛОНА тем же путём, что в игре (FNScare.play → экран гибели), но без записи в статистику
+## выбранный скример (scare_k) тем же путём, что в игре (FNScare.play → экран гибели), но без записи в статистику
 func _scare() -> void:
 	if fn.state != "night":
 		return
+	var eid := String(SCARE_KINDS[scare_k])
+	if eid == "dark":                     # питание гаснет; нападение из темноты приходит по правилам игры
+		fn.st.power = 0.0
+		return
+	var at := "vent_l" if eid == "madk1d" else "door_l"
 	fn.state = "scare"
 	fn.call_voice.stop()
 	fn.air_tune.stop()
@@ -332,9 +413,9 @@ func _scare() -> void:
 	fn.ui.show_dark(false)
 	fn.ui.hints("")
 	fn.ui.sub("")
-	await fn.scare.play("balon", "door_l", 0)
+	await fn.scare.play(eid, at, 0)
 	fn.ui.hurt = 0.0
-	fn._dead("balon", "door_l")
+	fn._dead(eid, at)
 
 ## MADK1D идёт по левой шахте; дальше всё решают правила игры (у решётки стоит, ломится в закрытую заслонку, уходит)
 func _madk() -> void:
