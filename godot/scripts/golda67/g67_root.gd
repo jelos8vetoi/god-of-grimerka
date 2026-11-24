@@ -380,6 +380,17 @@ func _start_dvor2(resumed: bool, from_arch := false) -> void:
 	court_said = false
 	turf = G67Turf.new()
 	turf.setup(self)
+	if not run.has("trader"):
+		run["trader"] = String(G67Data.TRADE_ORDER[int(meta().get("runs", 0)) % G67Data.TRADE_ORDER.size()])
+		run["trade"] = {"pick": {}, "closed": false}
+	folk = G67DvorFolk.new()
+	folk.name = "Folk"
+	world.add_child(folk)
+	folk.setup(self)
+	dvev = G67DvorEvents.new()
+	dvev.name = "DvorEvents"
+	world.add_child(dvev)
+	dvev.setup(self)
 	var fl: Dictionary = meta().get("flags", {})
 	if bool(fl.get("boss_misha", false)):
 		world.dvor.open_gate(true)
@@ -390,6 +401,136 @@ func _start_dvor2(resumed: bool, from_arch := false) -> void:
 	_save_run("open")
 
 var court_said := false
+
+# ---------------------------------------------------------------- торговцы нового двора
+var folk: G67DvorFolk
+var dvev: G67DvorEvents
+var shop := "kiosk"              # что сейчас показывает экран ларька: kiosk | petrovich | zhora
+var shop_next := "kiosk"
+
+## Товары текущей лавки: у ларька — G67Data.KIOSK, у торговца — его полка с подставленными названиями
+func shop_items() -> Array:
+	if shop == "kiosk":
+		return G67Data.KIOSK
+	var out: Array = []
+	for k_v in G67Data.TRADE[shop]:
+		var k: Dictionary = (k_v as Dictionary).duplicate(true)
+		var id := String(k["id"])
+		var sub := _trade_pick(id)
+		if id == "pt_up":
+			if sub == "":
+				continue
+			k["name"] = "ПОДТЯНУТЬ: " + String(G67Data.FITS[sub]["name"])
+			k["desc"] = "Уровень %d → %d. %s" % [fit_lv(sub), fit_lv(sub) + 1, String(G67Data.FITS[sub]["desc"])]
+		elif id == "zh_art":
+			if sub == "":
+				continue
+			var a := art_info(sub)
+			k["name"] = String(a["name"]).to_upper()
+			k["desc"] = "Артефакт. " + String(a["desc"])
+		elif sub != "":
+			k["name"] = String(G67Data.FITS[sub]["name"])
+			k["desc"] = ("Редкий баф. " if bool(G67Data.FITS[sub]["rare"]) else "Баф. ") + String(G67Data.FITS[sub]["desc"])
+		out.append(k)
+	return out
+
+## Что лежит под товаром торговца: выбирается один раз за забег и запоминается (run["trade"]["pick"])
+func _trade_pick(id: String) -> String:
+	var tr: Dictionary = run.get("trade", {})
+	var picks: Dictionary = tr.get("pick", {})
+	if id == "pt_up":                        # улучшаем баф с наибольшим уровнем из тех, что ещё растут
+		var best := ""
+		for fid in (run.get("fits", {}) as Dictionary):
+			if fit_lv(fid) >= 1 and fit_lv(fid) < int(G67Data.FITS[fid]["lv"]) and (best == "" or fit_lv(fid) > fit_lv(best)):
+				best = String(fid)
+		return best
+	if picks.has(id):
+		return String(picks[id])
+	var got := ""
+	if id == "zh_art":
+		var pool := storage_pool()
+		got = String(pool[randi() % pool.size()]) if not pool.is_empty() else ""
+	else:
+		var it := kiosk_item(id)
+		var opts: Array = (it.get("pick", []) as Array).filter(func(f): return fit_lv(f) < int(G67Data.FITS[f]["lv"]))
+		got = String(opts[randi() % opts.size()]) if not opts.is_empty() else ""
+	picks[id] = got
+	tr["pick"] = picks
+	run["trade"] = tr
+	return got
+
+func _trade_why(id: String) -> String:
+	var sub := _trade_pick(id)
+	if kiosk_left(id) <= 0:
+		return "продано"
+	if id != "zh_bag" and sub == "":
+		return "больше нечего"
+	if id in ["pt_atk", "pt_def", "zh_rare"] and fit_lv(sub) >= int(G67Data.FITS[sub]["lv"]):
+		return "у тебя уже максимум"
+	if id == "zh_art" and (has_art(sub) or arts().filter(func(x): return not G67Data.ART_EVENT.has(String(x))).size() >= slots()):
+		return "нет места под артефакт"
+	if int(run.get("golda", 0)) < kiosk_price(id):
+		return "не хватает голды"
+	return ""
+
+func _trade_buy(id: String) -> String:
+	var sub := _trade_pick(id)
+	var got := ""
+	match id:
+		"pt_atk", "pt_def", "zh_rare", "pt_up":
+			var fits: Dictionary = run["fits"]
+			fits[sub] = fit_lv(sub) + 1
+			apply_fits(sub)
+			events.append(["fit", sub])
+			got = "%s · ур. %d" % [String(G67Data.FITS[sub]["name"]), fit_lv(sub)]
+		"zh_art":
+			(run["arts"] as Array).append(sub)
+			apply_fits()
+			events.append(["art", sub])
+			got = String(art_info(sub)["name"])
+		"zh_bag":
+			var roll := randf()
+			var pool := togo_pool()
+			if roll < 0.4 and not pool.is_empty():
+				var fid := String(pool[randi() % pool.size()])
+				var fits2: Dictionary = run["fits"]
+				fits2[fid] = fit_lv(fid) + 1
+				apply_fits(fid)
+				events.append(["fit", fid])
+				got = "%s · ур. %d" % [String(G67Data.FITS[fid]["name"]), fit_lv(fid)]
+			elif roll < 0.75:
+				game.player.hp = minf(game.player.max_hp, game.player.hp + G67Data.TRADE_BAG_HEAL)
+				got = "термос с чаем: +%d здоровья" % int(G67Data.TRADE_BAG_HEAL)
+			else:
+				got = "пустые банки. Мешок-то хороший"
+	if float(run.get("discount", 0.0)) > 0.0:
+		run["discount"] = 0.0          # «от Виталика» — на одну покупку
+		events.append(["discount_used"])
+	if folk != null and not folk.trader.is_empty():
+		folk._say(folk.trader, "buy", true)
+	return got
+
+## Подойти к торговцу. Жора молчит, пока смотрящий на месте; ударенный торговец закрыт до конца забега.
+func _trader_dv() -> void:
+	if folk == null or folk.trader.is_empty():
+		return
+	if room_state != "open":
+		game.toast("Сначала разберись с этими")
+		return
+	var who := String(run.get("trader", ""))
+	var td: Dictionary = G67DvorFolk.TRADERS[who]
+	if folk.trader_closed():
+		game.toast(String(td["closed"]))
+		return
+	if who == "zhora":
+		var es := String(((run.get("enc", {}) as Dictionary).get("elite_sofa", {}) as Dictionary).get("s", "post"))
+		if not es in ["cleared", "gone"]:
+			game.toast("Жора смотрит мимо. Пока смотрящий на диване — он не торгует")
+			return
+	folk._say(folk.trader, "show", true)
+	events.append(["trader", who])
+	shop_next = who
+	open_screen("kiosk")
 
 # ---------------------------------------------------------------- ритм забега в новом дворе
 ## Шесть позиций без ворот: встречи на территориях (обязательны первая у гаражей и элита), обязательное событие
@@ -532,7 +673,7 @@ func ascend() -> void:
 ## Всё — простые значения (сохраняется в JSON как часть run). Остальное состояние района (встречи, сумки, ларёк, позиция)
 ## откладывается в run["other"][район] и возвращается, когда герой приходит обратно, — ничего не выдаётся дважды.
 const CARRY := ["fits", "arts", "rerolls", "maxhp_buys", "golda", "respect", "kills", "earned", "spent", "rooms"]
-const KEEP_DVOR := ["enc", "pos", "stash", "stash_n", "kiosk", "tpl", "stages", "rags", "rested", "kiosk_full", "free_shawarma"]
+const KEEP_DVOR := ["enc", "pos", "stash", "stash_n", "kiosk", "tpl", "stages", "rags", "rested", "kiosk_full", "free_shawarma", "trader", "trade", "npc_hits", "ev", "ev_done", "discount"]
 var run_tok := 0
 
 func _dup(v):
@@ -3715,7 +3856,7 @@ func _art_tick(dt: float) -> void:
 		cd = maxf(minf(cd, G67Data.CD_FLOOR), cd * (1.0 - float(G67Data.CAN_CD[can - 1])))      # с БАНКОЙ — не ниже 60 % исходной
 	p.combat.cd_k = cd
 	p.combat.ammo_k = 1.0 - 0.08 * res
-	p.speed_k = 1.08 if has_art("market_sneakers") else 1.0
+	p.speed_k = (1.08 if has_art("market_sneakers") else 1.0) * (dvev.slow if (dvev != null and is_instance_valid(dvev)) else 1.0)
 	game.hype.gain_k = 1.3 if has_art("energy") else 1.0
 	if not in_run:
 		_last_hp = -1.0
@@ -3764,7 +3905,8 @@ func _on_swapped(_from: String, _to: String, perfect: bool) -> void:
 # ---------------------------------------------------------------- ларёк «ШАУРМА 67» (APPROVALS.md, 2.2)
 ## Сколько этого товара осталось на забег
 func kiosk_left(id: String) -> int:
-	for k in G67Data.KIOSK:
+	var all: Array = G67Data.KIOSK + G67Data.TRADE["petrovich"] + G67Data.TRADE["zhora"]
+	for k in all:
 		if String(k["id"]) == id:
 			if int(k["per_visit"]) <= 0:
 				return 99               # без лимита: растёт цена
@@ -3778,6 +3920,12 @@ func kiosk_price(id: String) -> int:
 		return 0
 	if id == "shawarma" and bool(run.get("free_shawarma", false)) and int((run.get("kiosk", {}) as Dictionary).get("shawarma", 0)) == 0:
 		return 0                          # ларёк — этап: первая шаурма бесплатно
+	var vit: float = 1.0 - float(run.get("discount", 0.0)) if (id.begins_with("pt_") or id.begins_with("zh_")) else 1.0
+	if id == "pt_up":
+		var sub := _trade_pick(id)
+		return int(round(float(trade_price(int(G67Data.TRADE_UP[clampi(fit_lv(sub) - 1, 0, 1)]))) * vit)) if sub != "" else 0
+	if vit < 1.0:
+		return int(round(float(trade_price(int(k["price"]))) * vit))
 	return trade_price(int(k["price"]) + int(k.get("step", 0)) * int((run.get("kiosk", {}) as Dictionary).get(id, 0)))
 
 ## Можно ли купить и почему нет («» — можно)
@@ -3785,6 +3933,8 @@ func kiosk_why(id: String) -> String:
 	var k := kiosk_item(id)
 	if k.is_empty():
 		return "нет такого"
+	if id.begins_with("pt_") or id.begins_with("zh_"):
+		return _trade_why(id)
 	if id in ["double", "togo"] and not bool(run.get("kiosk_full", false)):
 		return "только когда ларёк — твой этап"
 	if kiosk_left(id) <= 0:
@@ -3799,13 +3949,17 @@ static func kiosk_item(id: String) -> Dictionary:
 	for k in G67Data.KIOSK:
 		if String(k["id"]) == id:
 			return k
+	for who in G67Data.TRADE:
+		for k in G67Data.TRADE[who]:
+			if String(k["id"]) == id:
+				return k
 	return {}
 
 ## «С СОБОЙ»: баффы, которые ещё можно взять или улучшить; редкие — с шансом KIOSK_RARE
 func togo_pool() -> Array:
 	var out: Array = []
 	for id in G67Data.FITS:
-		if fit_lv(id) < int(G67Data.FITS[id]["lv"]):
+		if fit_lv(id) < int(G67Data.FITS[id]["lv"]) and fit_avail(id):      # бафы другого района в «С СОБОЙ» не попадают
 			out.append(id)
 	return out
 
@@ -3826,6 +3980,8 @@ func kiosk_buy(id: String) -> String:
 	bought[id] = int(bought.get(id, 0)) + 1
 	var p = game.player
 	var got := ""
+	if id.begins_with("pt_") or id.begins_with("zh_"):
+		got = _trade_buy(id)
 	match id:
 		"shawarma":
 			p.hp = minf(p.max_hp, p.hp + G67Data.KIOSK_HEAL)
@@ -4764,6 +4920,10 @@ func use(id: String) -> void:
 		_rest_dv()
 	elif id == "rags_dv":
 		_rags_dv()
+	elif id == "trader_dv":
+		_trader_dv()
+	elif id.begins_with("evdv_") and dvev != null and is_instance_valid(dvev):
+		dvev.use(id)
 	elif id == "kiosk" and turf != null:
 		_kiosk_dv()
 	elif id == "tv":
@@ -4982,7 +5142,10 @@ func open_screen(what: String) -> void:
 		"artifacts": hub_ui = G67ArtifactsUI.open(self)
 		"routes": hub_ui = G67RoutesUI.open(self)
 		"storage": hub_ui = G67StorageUI.open(self)
-		"kiosk": hub_ui = G67KioskUI.open(self)
+		"kiosk":
+			shop = shop_next
+			shop_next = "kiosk"
+			hub_ui = G67KioskUI.open(self)
 		"fit": hub_ui = FitUIScript.open(self, fit_offer, fit_rare)
 		"result":
 			hub_ui = ResultUIScript.open(self)

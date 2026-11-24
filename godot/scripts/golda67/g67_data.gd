@@ -149,7 +149,9 @@ const BOSSES := {
 }
 ## Фраза Миши на выходе с трона (её же озвучивает G67Voice)
 const BOSS_INTRO := "На этом районе уважают только сильнейших."
-const SPEAKERS := {"G1": {"n": "МИША МИНАСЯН", "c": "#d9a23a"}, "KR": {"n": "КРОТ", "c": "#c9a36b"}, "DJ": {"n": "DJ FLÜRR", "c": "#3fc7c9"}}
+const SPEAKERS := {"G1": {"n": "МИША МИНАСЯН", "c": "#d9a23a"}, "KR": {"n": "КРОТ", "c": "#c9a36b"}, "DJ": {"n": "DJ FLÜRR", "c": "#3fc7c9"},
+	"TL": {"n": "ДЯДЯ ТОЛЯ", "c": "#e6c79a"}, "SN": {"n": "САНЫЧ", "c": "#9ec3ff"}, "VT": {"n": "ВИТАЛИК", "c": "#ffd27a"}, "BZ": {"n": "БАБА ЗИНА", "c": "#f2bfd0"},
+	"QD": {"n": "ДЕД", "c": "#d8d8e0"}, "QT": {"n": "ТЁТКА С СУМКОЙ", "c": "#ffd9c2"}, "QS": {"n": "СТУДЕНТ", "c": "#bcd0ff"}, "QP": {"n": "ПРОДАВЩИЦА", "c": "#ffe9a8"}}      # события двора (DVOR_FIVE_NEW_EVENTS.md)
 
 ## madk1d в приквеле закрыт до первой сюжетной концовки (победа над Полковником Бустеренко): до неё игрок управляет
 ## только Паханом — нет смены героя (Tab), дуэта (T), Team Hype и Overdrive (G), ад-либа madk1d (Q). madk1d может быть
@@ -258,6 +260,22 @@ const KIOSK := [
 	{"id": "togo", "name": "С СОБОЙ", "price": 70, "per_visit": 2, "desc": "Случайный баф из тех, что ещё можно взять или улучшить (15 % — редкий)."},
 ]
 const KIOSK_HEAL := 40.0
+## Торговцы нового двора (DVOR_BUFF_CATALOG.md, раздел 5): в забеге один из двух. Что именно лежит под «pick» — решается в начале забега.
+const TRADE := {
+	"petrovich": [
+		{"id": "pt_atk", "name": "НА РУКУ", "price": 80, "per_visit": 1, "pick": ["heavy_hand", "garage_key"], "desc": ""},
+		{"id": "pt_def", "name": "НА СПИНУ", "price": 80, "per_visit": 1, "pick": ["authority", "ded_jacket", "warm_entry"], "desc": ""},
+		{"id": "pt_up", "name": "ПОДТЯНУТЬ", "price": 60, "per_visit": 1, "desc": "Петрович улучшает один из твоих бафов на уровень."},
+	],
+	"zhora": [
+		{"id": "zh_rare", "name": "ДЛЯ СВОИХ", "price": 150, "per_visit": 1, "pick": ["first_hit", "second_wind", "district_remembers"], "desc": ""},
+		{"id": "zh_art", "name": "ИЗ БАГАЖНИКА", "price": 90, "per_visit": 1, "desc": ""},
+		{"id": "zh_bag", "name": "КОТ В МЕШКЕ", "price": 45, "per_visit": 1, "desc": "Что внутри — Жора не смотрел: баф, +30 здоровья или пустые банки."},
+	],
+}
+const TRADE_UP := [60, 110]          # улучшение I→II и II→III
+const TRADE_BAG_HEAL := 30.0
+const TRADE_ORDER := ["petrovich", "zhora", "petrovich"]      # Петрович — в двух забегах из трёх, Жора — в одном; вместе никогда
 const KIOSK_MAXHP := 15.0
 const KIOSK_RARE := 0.15
 

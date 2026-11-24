@@ -97,6 +97,217 @@ func pick_fit() -> void:
 		G.take_fit(id)
 		await wait(0.4)
 
+## Встать перед жителем лицом к нему (на расстоянии dist)
+func face_npc(f: Dictionary, dist: float) -> void:
+	var r: Node3D = f["rig"]
+	var off := Vector3(sin(r.rotation.y), 0.0, cos(r.rotation.y)) * dist
+	P.global_position = r.global_position + off + Vector3(0, 0.05, 0)
+	P.velocity = Vector3.ZERO
+	P.face = atan2(-off.x, -off.z)
+	g.cam_yaw = atan2(off.x, off.z)
+
+func folk_by(id: String) -> Dictionary:
+	for f in G.folk.folk:
+		if String(f["id"]) == id:
+			return f
+	return {}
+
+func folk_log(kind: String, id: String) -> bool:
+	return G.folk.log.any(func(e): return String(e[0]) == kind and String(e[1]) == id)
+
+## Пройти разговор события до конца, как игрок, — клавишей подтверждения
+func skip_dialog() -> void:
+	for i in 80:
+		if g.mode != "dlg":
+			return
+		g._dlg_advance()
+		await wait(0.12)
+
+func ev_point(id: String) -> Vector3:
+	for pt in G.world.points:
+		if String(pt["id"]) == id:
+			return pt["pos"]
+	return Vector3.INF
+
+## Пять событий двора: разговор, дело, исход, награда один раз
+func events_block() -> void:
+	var E: G67DvorEvents = G.dvev
+	ok(E != null and E.npcs.size() == 5, "в проверке поставлены все пять событий (%d)" % (E.npcs.size() if E != null else -1))
+	# --- АРМРЕСТЛИНГ: два попадания в «ДАВАЙ»
+	G.run["golda"] = 100
+	var hh: int = G.fit_lv("heavy_hand")
+	P.global_position = ev_point("evdv_arm") + Vector3(0, 0.05, 0)
+	await wait(0.3)
+	G.use("evdv_arm")
+	await skip_dialog()
+	ok(E.state("arm") == "task", "АРМРЕСТЛИНГ: после разговора можно сесть")
+	G.use("evdv_arm")
+	ok(int(G.run["golda"]) == 100 - G67DvorEvents.ARM_STAKE, "ставка 20 снята")
+	for r in 4:
+		if E.state("arm") != "task":
+			break
+		await until(func(): return E.beat_open() or E.state("arm") != "task", 8.0)
+		G.use("evdv_arm")
+		await until(func(): return not E.beat_open(), 4.0)
+	await wait(0.3)
+	ok(E.state("arm") == "done" and int(G.run["golda"]) >= 100 and (G.fit_lv("heavy_hand") == hh + 1 or hh >= 3), "победа: ставка вернулась, ТЯЖЁЛАЯ РУКА %d → %d" % [hh, G.fit_lv("heavy_hand")])
+	ok(points("evdv_arm") == 0, "событие закрыто, точки нет")
+	# --- МАШИНА В СУГРОБЕ: три промаха (жмём рано)
+	P.global_position = ev_point("evdv_stuck") + Vector3(0, 0.05, 0)
+	await wait(0.3)
+	G.use("evdv_stuck")
+	await skip_dialog()
+	G.use("evdv_stuck")
+	for r in 3:
+		await wait(0.25)
+		G.use("evdv_stuck")              # раньше «ДАВАЙ»
+		await until(func(): return float(E.st.get("t", 0.0)) < 0.0 or E.state("stuck") != "task", 6.0)
+		await until(func(): return float(E.st.get("t", 0.0)) >= 0.0 or E.state("stuck") != "task", 4.0)
+	await wait(0.3)
+	ok(E.state("stuck") == "fail" and float(G.run.get("discount", 0.0)) == 0.0, "три промаха — машина села, скидки нет")
+	# --- ХОЛОДИЛЬНИК: несём шагом
+	var gold_f: int = int(G.run["golda"])
+	P.global_position = ev_point("evdv_fridge") + Vector3(0, 0.05, 0)
+	await wait(0.3)
+	G.use("evdv_fridge")
+	await skip_dialog()
+	G.use("evdv_fridge")
+	await wait(0.3)
+	ok(is_equal_approx(E.slow, G67DvorEvents.FRIDGE_SLOW) and P.speed_k < 0.7, "с холодильником герой идёт медленно (скорость ×%.2f)" % P.speed_k)
+	await shot("a19_fridge")
+	for i in 900:
+		if E.state("fridge") != "task":
+			break
+		P.global_position += Vector3(-0.35, 0, -1).normalized() * (2.0 / 60.0)      # от дома во двор: вдоль фасада мешают крыльцо и лавки
+		P.velocity = Vector3.ZERO
+		await get_tree().physics_frame
+	ok(E.state("fridge") == "done" and int(G.run["golda"]) > gold_f and is_equal_approx(E.slow, 1.0), "донёс: +%d голды, скорость вернулась" % (int(G.run["golda"]) - gold_f))
+	# --- КЛЮЧИ: варежка, фольга, ворона, обратно
+	var lv_sum := 0
+	for k in (G.run["fits"] as Dictionary):
+		lv_sum += int(G.run["fits"][k])
+	P.global_position = ev_point("evdv_keys") + Vector3(0, 0.05, 0)
+	await wait(0.3)
+	G.use("evdv_keys")
+	await skip_dialog()
+	for i in 2:
+		P.global_position = ev_point("evdv_keys_%d" % i) + Vector3(0, 0.05, 0)
+		await wait(0.3)
+		G.use("evdv_keys_%d" % i)
+		await wait(0.3)
+	P.global_position = ev_point("evdv_keys_2") + Vector3(1.5, 0.05, 0)
+	P.velocity = Vector3.ZERO
+	await until(func(): return points("evdv_keys_3") == 1, 12.0)
+	ok(points("evdv_keys_3") == 1, "постоял у вороны — она бросила ключи")
+	P.global_position = ev_point("evdv_keys_3") + Vector3(0, 0.05, 0)
+	await wait(0.3)
+	G.use("evdv_keys_3")
+	await wait(0.3)
+	var lv_sum2 := 0
+	for k in (G.run["fits"] as Dictionary):
+		lv_sum2 += int(G.run["fits"][k])
+	ok(E.state("keys") == "done" and lv_sum2 == lv_sum + 1, "ключи вернул: жетон улучшения дал +1 уровень бафу")
+	# --- ОЧЕРЕДЬ
+	P.global_position = ev_point("evdv_queue") + Vector3(0, 0.05, 0)
+	await wait(0.3)
+	G.use("evdv_queue")
+	await skip_dialog()
+	P.global_position = (E.st["spot"] as Vector3) + Vector3(0, 0.05, 0)
+	P.velocity = Vector3.ZERO
+	await shot("a20_queue")
+	await until(func(): return E.state("queue") != "task", 30.0)
+	ok(E.state("queue") == "done", "ОЧЕРЕДЬ: отстоял 20 с, ничего не дали")
+	ok(int(G.run.get("ev_done", 0)) == 4, "пройдено событий: %d (армрестлинг, холодильник, ключи, очередь)" % int(G.run.get("ev_done", 0)))
+	ok(E.act == "" and G.room_state == "open" and not G.busy, "после событий забег идёт дальше")
+	G.run.erase("ev_done")
+
+## Жители и торговец нового двора: приветствие, удар настоящей клавишей, реакции, лавка
+func folk_block() -> void:
+	var F: G67DvorFolk = G.folk
+	ok(F != null and F.folk.filter(func(x): return not String(x["id"]).begins_with("ev_")).size() == 14, "в районе 14 жителей (%d)" % (F.folk.size() if F != null else -1))
+	var who := String(G.run.get("trader", ""))
+	ok(not F.trader.is_empty() and points("trader_dv") == 1 and who in ["petrovich", "zhora"], "в забеге один торговец: %s" % who)
+	# приветствие
+	var bab := folk_by("bab_bench")
+	face_npc(bab, 2.6)
+	await until(func(): return folk_log("greet", "bab_bench"), 12.0)
+	ok(folk_log("greet", "bab_bench"), "бабушка у подъезда здоровается, когда Пахан рядом")
+	await shot("a16_folk_babushka")
+	# удар настоящей клавишей: школьник убегает
+	var gold_b: int = int(G.run["golda"])
+	var resp_b: int = int(G.run.get("respect", 0))
+	var kid := folk_by("school_phone")
+	var kid_home: Vector3 = (kid["rig"] as Node3D).global_position
+	face_npc(kid, 1.1)
+	await wait(0.4)
+	Input.action_press("attack")
+	await wait(0.12)
+	Input.action_release("attack")
+	await until(func(): return folk_log("hit", "school_phone"), 3.0)
+	ok(folk_log("hit", "school_phone") and int(G.run.get("npc_hits", 0)) == 1, "удар по школьнику засчитан (клавишей удара)")
+	await wait(2.5)
+	ok(String(kid["state"]) in ["away", "return"] and (kid["rig"] as Node3D).global_position.distance_to(kid_home) > 3.0, "школьник убегает (%.1f м от места)" % (kid["rig"] as Node3D).global_position.distance_to(kid_home))
+	ok(int(G.run["golda"]) == gold_b and int(G.run.get("respect", 0)) == resp_b and is_instance_valid(kid["rig"]), "за удар по мирному нет ни голды, ни респекта, житель цел")
+	await shot("a17_folk_flee")
+	# мужик у гаражей отталкивает
+	var us := folk_by("ushanka_gsk")
+	face_npc(us, 1.1)
+	await wait(0.4)
+	Input.action_press("attack")
+	await wait(0.12)
+	Input.action_release("attack")
+	await until(func(): return folk_log("hit", "ushanka_gsk"), 3.0)
+	ok(folk_log("hit", "ushanka_gsk") and String(us["state"]) == "sulk", "мужик у гаражей не убегает, а отвечает")
+	await wait(1.0)
+	# торговец
+	G.run["golda"] = 500
+	var elite_was := ""
+	var tr: Dictionary = F.trader
+	face_npc(tr, 1.6)
+	await wait(0.6)
+	if who == "zhora":
+		G.use("trader_dv")
+		await wait(0.3)
+		ok(G.hub_ui == null, "Жора не торгует, пока смотрящий на месте")
+		for e in G.turf.encs:
+			if String(e["id"]) == "elite_sofa":
+				elite_was = String(e["state"])
+				e["state"] = "cleared"          # только на время проверки лавки, ниже возвращается
+				G.turf._keep(e)
+	G.use("trader_dv")
+	await wait(0.6)
+	ok(G.hub_ui != null and String(G.hub_ui.kind) == "kiosk" and G.shop == who, "лавка торговца открылась: %s" % G.shop)
+	var its: Array = G.shop_items()
+	ok(its.size() >= 2, "на полке товаров: %d (%s)" % [its.size(), ", ".join(its.map(func(k): return String(k["name"])))])
+	await shot("a18_trader_shop")
+	var it0: Dictionary = its[0]
+	var pr: int = G.kiosk_price(String(it0["id"]))
+	var got_s: String = G.kiosk_buy(String(it0["id"]))
+	ok(got_s != "" and int(G.run["golda"]) == 500 - pr, "покупка «%s» за %d: %s" % [String(it0["name"]), pr, got_s])
+	ok(G.kiosk_buy(String(it0["id"])) == "", "второй раз тот же товар не продаётся")
+	if G.hub_ui != null:
+		G.hub_ui.close()
+	await wait(0.5)
+	if elite_was != "":
+		for e in G.turf.encs:
+			if String(e["id"]) == "elite_sofa":
+				e["state"] = elite_was
+				G.turf._keep(e)
+	ok(G.shop_next == "kiosk", "после лавки окно «ШАУРМЫ 67» снова показывает своё меню")
+	# ударить торговца — лавка закрыта до конца забега
+	face_npc(tr, 1.1)
+	await wait(0.4)
+	Input.action_press("attack")
+	await wait(0.12)
+	Input.action_release("attack")
+	await until(func(): return F.trader_closed(), 3.0)
+	G.use("trader_dv")
+	await wait(0.4)
+	ok(F.trader_closed() and G.hub_ui == null, "ударенный торговец закрыл лавку")
+	ok(F.cold(), "после трёх ударов по мирным район здоровается холодно (ударов %d)" % int(G.run.get("npc_hits", 0)))
+	G.run["golda"] = gold_b
+	G.run["npc_hits"] = 0
+
 func worlds() -> int:
 	return get_tree().root.find_children("*", "G67Dvor2", true, false).size()
 
@@ -348,6 +559,10 @@ func _run() -> void:
 	ok(G.world.dvor.gate_open, "решётка остаётся открытой в следующих забегах")
 	ok(int(G.run["golda"]) == 0, "голда прошлого забега сгорела")
 	# ================= бафы перед спуском =================
+	# ================= жители и торговец =================
+	await folk_block()
+	# ================= пять событий =================
+	await events_block()
 	# ================= девять бафов двора: действие каждого =================
 	ok(picked.size() >= 1, "сумка обычной встречи предложила баф, взят: %s" % str(picked))
 	var b_ids: Array = ["ded_jacket", "kiosk_can", "slick_soles", "garage_key", "first_hit", "semki", "own_man", "district_remembers", "warm_entry"]
