@@ -6,6 +6,8 @@
 class_name FNActors
 extends Node3D
 
+enum Appearance { ORIGINAL, PATROL, DOOR }
+
 var LOOK := {
 	"balon": {"model": "bot", "h": 2.3, "tint": Color(0.88, 0.85, 0.78), "eye": "eye", "sep": 0.22},
 	"madk1d": {"model": "madk1d", "h": 1.75, "tint": Color(0.7, 0.7, 0.72), "eye": "eye_red", "sep": 0.18},
@@ -18,8 +20,8 @@ var LOOK := {
 var office: FNOffice
 var fac: FNFacility
 var rigs := {}                     # id → Rig
-var door_visuals := {}
-var door_lit := {}
+var visual_bindings := {}
+var appearance_by_id := {}
 var face := {}                     # id → {eyes, maw}
 var place_key := {}                # id → где поставлен (чтобы не переставлять каждый кадр)
 var t := 0.0
@@ -59,6 +61,12 @@ const DOOR_STANDS := {
 	"clipper": Vector3(3.34, 0.254, -0.13),
 	"ghost": Vector3(3.07, 0.006, -0.28),
 	"mod": Vector3(3.38, 0.008, -0.22),
+}
+# Множители альбедо и ИК-подсветки для обычного наблюдения.
+const PATROL_DEFAULT := Vector2(0.82, 0.48)
+const PATROL_MATERIALS := {
+	"mod": Vector2(0.58, 0.20),
+	"madk1d": Vector2(0.66, 0.28),
 }
 const IR_SHADER := preload("res://scenes/five_nights/materials/fn_ir_pass.gdshader")
 var eye_mats := {}                 # id → материал глаз (в скримере сила растёт, потом возвращается)
@@ -270,17 +278,23 @@ func _balon_costume(r: Rig) -> void:
 	lab.transform = rest_g.affine_inverse() * Transform3D(Basis(), chest)
 
 # ---------------- каждый кадр: где стоит и что делает ----------------
-func tick(st: FNNight, dt: float) -> void:
+func tick(st: FNNight, dt: float, patrol_look := true) -> void:
 	t += dt
 	if rigs.has("pahan"):
 		(rigs["pahan"] as Rig).visible = false
 	for id in FNData.ORDER:
 		var e: FNEnemy = st.enemies[id]
 		var r: Rig = rigs[id]
-		_door_appearance(id, r, e.spot in ["door_l", "door_r"] and not e.entered)
 		if e.level <= 0 and id != "balon":
+			_set_appearance(id, r, Appearance.ORIGINAL)
 			r.visible = false
 			continue
+		var appearance := Appearance.ORIGINAL
+		if e.spot in ["door_l", "door_r"] and not e.entered:
+			appearance = Appearance.DOOR
+		elif patrol_look and (fac.cams.has(e.spot) or e.spot == "corner"):
+			appearance = Appearance.PATROL
+		_set_appearance(id, r, appearance)
 		var key := "%s|%d|%s" % [e.spot, e.pose, str(e.look)]
 		if id == "ghost":
 			key += "|" + str((e as FNGhost).flicker)
@@ -459,35 +473,35 @@ func hide_all() -> void:
 	for id in rigs:
 		var rig: Rig = rigs[id]
 		rig.visible = false
-		_door_appearance(String(id), rig, false)
+		_set_appearance(String(id), rig, Appearance.ORIGINAL)
 		scare_pose(String(id), false)
 	place_key.clear()
 
-## Переключаем локальные копии материалов только на пороге. Исходные материалы
-## рига и его IR-проход возвращаются в комнатах и перед скримером.
-func _door_appearance(id: String, rig: Rig, at_door: bool) -> void:
-	if bool(door_lit.get(id, false)) == at_door:
+## Материалы хранятся отдельно для наблюдения, порога и исходного вида рига.
+## Слой ниши, предупреждение у вентиляционной решётки и скримеры используют свои прежние настройки.
+func _set_appearance(id: String, rig: Rig, appearance: Appearance) -> void:
+	if appearance_by_id.get(id, Appearance.ORIGINAL) == appearance:
 		return
-	if not door_visuals.has(id):
-		door_visuals[id] = _door_bindings(rig)
-	door_lit[id] = at_door
-	var bound: Array = door_visuals[id]
-	for entry in bound:
-		var node: VisualInstance3D = entry[0]
-		node.layers = FNOffice.DOOR_LAYER if at_door else int(entry[1])
-		if node is Label3D:
-			(node as Label3D).shaded = at_door or bool(entry[2])
-		elif node is MeshInstance3D:
-			var mesh := node as MeshInstance3D
+	if not visual_bindings.has(id):
+		var patrol: Vector2 = PATROL_MATERIALS.get(id, PATROL_DEFAULT)
+		visual_bindings[id] = _bind_visuals(rig, patrol)
+	appearance_by_id[id] = appearance
+	for entry in visual_bindings[id]:
+		var visual: VisualInstance3D = entry[0]
+		visual.layers = FNOffice.DOOR_LAYER if appearance == Appearance.DOOR else int(entry[1])
+		if visual is Label3D:
+			(visual as Label3D).shaded = appearance != Appearance.ORIGINAL or bool(entry[2])
+		elif visual is MeshInstance3D:
+			var mesh := visual as MeshInstance3D
 			for binding: Array in entry[2]:
 				var surface: int = binding[0]
-				var material: Material = binding[2] if at_door else binding[1]
+				var material: Material = binding[1][appearance]
 				if surface < 0:
 					mesh.material_override = material
 				else:
 					mesh.set_surface_override_material(surface, material)
 
-func _door_bindings(rig: Rig) -> Array:
+func _bind_visuals(rig: Rig, patrol: Vector2) -> Array:
 	var bindings: Array = []
 	var copies := {}
 	for node in rig.find_children("*", "VisualInstance3D", true, false):
@@ -501,18 +515,38 @@ func _door_bindings(rig: Rig) -> Array:
 		var surfaces: Array = []
 		if mesh.material_override != null:
 			var original := mesh.material_override
-			surfaces.append([-1, original, _door_material(original, copies)])
+			surfaces.append([-1, _material_profiles(original, original, copies, patrol)])
 		else:
 			for i in mesh.mesh.get_surface_count():
 				var source := mesh.get_active_material(i)
 				if source != null:
-					surfaces.append([i, mesh.get_surface_override_material(i), _door_material(source, copies)])
+					surfaces.append([i, _material_profiles(source, mesh.get_surface_override_material(i), copies, patrol)])
 		bindings.append([mesh, mesh.layers, surfaces])
 	return bindings
 
-func _door_material(source: Material, copies: Dictionary) -> BaseMaterial3D:
-	if copies.has(source):
-		return copies[source]
+func _material_profiles(source: Material, original: Material, copies: Dictionary, patrol: Vector2) -> Array:
+	if not copies.has(source):
+		copies[source] = [_patrol_material(source, patrol), _door_material(source)]
+	return [original, copies[source][0], copies[source][1]]
+
+func _patrol_material(source: Material, patrol: Vector2) -> Material:
+	if not (source is BaseMaterial3D):
+		return source
+	var local := source.duplicate() as BaseMaterial3D
+	var eyes := source.has_meta("base_energy")
+	local.albedo_color *= Color(patrol.x, patrol.x, patrol.x, 1.0)
+	local.roughness = maxf(local.roughness, 0.68)
+	local.metallic = minf(local.metallic, 0.56)
+	local.metallic_specular = minf(local.metallic_specular, 0.22)
+	local.emission_enabled = eyes
+	if eyes:
+		local.emission_energy_multiplier = float(source.get_meta("base_energy")) * 0.13
+	var ir := source.next_pass as ShaderMaterial
+	if ir != null and ir.shader == IR_SHADER:
+		local.next_pass = ir_pass(local.albedo_texture, 0.27 if eyes else patrol.y)
+	return local
+
+func _door_material(source: Material) -> BaseMaterial3D:
 	var local := source.duplicate() as BaseMaterial3D if source is BaseMaterial3D else StandardMaterial3D.new()
 	local.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
 	local.disable_ambient_light = true
@@ -520,7 +554,6 @@ func _door_material(source: Material, copies: Dictionary) -> BaseMaterial3D:
 	local.metallic_specular = minf(local.metallic_specular, 0.16)
 	local.roughness = maxf(local.roughness, 0.44)
 	local.disable_receive_shadows = false
-	copies[source] = local
 	return local
 
 ## после скримера: модель возвращается на своё место в риге
