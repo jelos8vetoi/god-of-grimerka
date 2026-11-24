@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dk06rvwcobm6p"
-path="res://.godot/imported/box_cardboard_cardboard_box_01_nor_gl_1k.jpg-0ce7e63352b9dd07a61e9c7d094dd7c2.ctex"
+path.s3tc="res://.godot/imported/box_cardboard_cardboard_box_01_nor_gl_1k.jpg-0ce7e63352b9dd07a61e9c7d094dd7c2.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "5b45e1e96cf15e7d45c1fa2337876de7"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/dvor2/box_cardboard_cardboard_box_01_nor_gl_1k.jpg"
-dest_files=["res://.godot/imported/box_cardboard_cardboard_box_01_nor_gl_1k.jpg-0ce7e63352b9dd07a61e9c7d094dd7c2.ctex"]
+dest_files=["res://.godot/imported/box_cardboard_cardboard_box_01_nor_gl_1k.jpg-0ce7e63352b9dd07a61e9c7d094dd7c2.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

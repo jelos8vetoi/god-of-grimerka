@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ccv5jea7pjbl5"
-path="res://.godot/imported/g67_pz_tunnel_g67_pz_tunnel_n.jpg-89036d4e20d687db713c2e309a7d7e27.ctex"
+path.s3tc="res://.godot/imported/g67_pz_tunnel_g67_pz_tunnel_n.jpg-89036d4e20d687db713c2e309a7d7e27.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "3b721bdfad9bf960b6047664ce5bec01"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/podzemka/g67_pz_tunnel_g67_pz_tunnel_n.jpg"
-dest_files=["res://.godot/imported/g67_pz_tunnel_g67_pz_tunnel_n.jpg-89036d4e20d687db713c2e309a7d7e27.ctex"]
+dest_files=["res://.godot/imported/g67_pz_tunnel_g67_pz_tunnel_n.jpg-89036d4e20d687db713c2e309a7d7e27.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

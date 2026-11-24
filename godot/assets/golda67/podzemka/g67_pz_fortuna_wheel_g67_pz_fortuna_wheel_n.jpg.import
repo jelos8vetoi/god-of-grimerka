@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://t7i8phuojr58"
-path="res://.godot/imported/g67_pz_fortuna_wheel_g67_pz_fortuna_wheel_n.jpg-7bf35dee5db62816f8cb0afee4fb67da.ctex"
+path.s3tc="res://.godot/imported/g67_pz_fortuna_wheel_g67_pz_fortuna_wheel_n.jpg-7bf35dee5db62816f8cb0afee4fb67da.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "9e14ad2c8d6979182cc418e2953213dd"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/podzemka/g67_pz_fortuna_wheel_g67_pz_fortuna_wheel_n.jpg"
-dest_files=["res://.godot/imported/g67_pz_fortuna_wheel_g67_pz_fortuna_wheel_n.jpg-7bf35dee5db62816f8cb0afee4fb67da.ctex"]
+dest_files=["res://.godot/imported/g67_pz_fortuna_wheel_g67_pz_fortuna_wheel_n.jpg-7bf35dee5db62816f8cb0afee4fb67da.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

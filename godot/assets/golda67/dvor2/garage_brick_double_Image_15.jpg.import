@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dpbr275c08hyv"
-path="res://.godot/imported/garage_brick_double_Image_15.jpg-31f3fece0a7a5dfbf03c0d938df1aafb.ctex"
+path.s3tc="res://.godot/imported/garage_brick_double_Image_15.jpg-31f3fece0a7a5dfbf03c0d938df1aafb.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "b93e97c016cf5569ab2930b13e2e7e69"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/dvor2/garage_brick_double_Image_15.jpg"
-dest_files=["res://.godot/imported/garage_brick_double_Image_15.jpg-31f3fece0a7a5dfbf03c0d938df1aafb.ctex"]
+dest_files=["res://.godot/imported/garage_brick_double_Image_15.jpg-31f3fece0a7a5dfbf03c0d938df1aafb.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

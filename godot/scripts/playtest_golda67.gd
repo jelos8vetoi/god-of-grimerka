@@ -48,6 +48,28 @@ var goal_t := 0.0
 var clips_seen: Array = []
 var hub_tries := 0
 var dead_now := false
+var choice_n := 0
+var skip_dvor := false
+var immortal := false
+var in_dlg := false
+var dlg_n := 0
+var dlg_t := 0.0
+var hub_list: Array = []
+var hub_i := 0
+var hub_t := 0.0
+var hub_used := false
+var hub_res := {}
+var side_q: Array = []           # побочные цели забега: {id, kind, pos, node}
+var side_cur := {}
+var side_time := 0.0
+var side_path := PackedVector2Array()
+var side_path_t := 0.0
+var side_built := -1
+var side_res: Array = []
+var hit_t := 0.0
+var w_sig := ""
+var w_t := 0.0
+var ev_log := {}
 var last_dist := ""
 var kills0 := 0
 
@@ -63,6 +85,10 @@ func _ready() -> void:
 			minutes = float(a.substr(9))
 		if a == "--pt-pad":
 			pad = true
+		if a == "--pt-immortal":                 # поддержка здоровья: бой не оценивается, зато бот доходит до всех событий, роликов и боссов
+			immortal = true
+		if a == "--pt-pz":                       # побочные цели двора не обходим: сразу к спуску (для подготовленного профиля)
+			skip_dvor = true
 	AudioServer.set_bus_mute(0, true)          # звук на колонки не идёт; шины и музыка работают как обычно
 	DirAccess.make_dir_recursive_absolute(out)
 	_start()
@@ -217,6 +243,27 @@ func _start() -> void:
 	await tap(KEY_ENTER)
 	await wait(0.8)
 	await shot("02_golda_panel")
+	if OS.get_cmdline_user_args().has("--pt-new"):                 # «НОВАЯ ИГРА»: вниз на пункт, подтверждение — вверх с «НАЗАД» на «НАЧАТЬ С НУЛЯ»
+		var had := G67Save.exists()
+		var m0: Dictionary = G67Save.load_all()["meta"] if had else {}
+		await tap(KEY_S)
+		await wait(0.3)
+		await tap(KEY_ENTER)
+		await wait(0.8)
+		await shot("02b_new_confirm")
+		await tap(KEY_W)
+		await wait(0.3)
+		await tap(KEY_ENTER)
+		var ok_new: bool = await until(func(): return G() != null, 40.0)
+		var m1: Dictionary = G67Save.load_all()["meta"] if G67Save.exists() else {}
+		var olds := Array(DirAccess.get_files_at(OS.get_user_data_dir())).filter(func(f): return String(f).begins_with("golda67_save_old_"))
+		note("НОВАЯ ИГРА", "было сохранение %s (РЕСПЕКТ %d, забегов %d, флаги %s) → игра запущена %s, теперь РЕСПЕКТ %d, забегов %d, флаги %s, ролики %s, копий старого %d" % [str(had),
+			int(m0.get("respect", 0)), int(m0.get("runs", 0)), str(m0.get("flags", {})), str(ok_new), int(m1.get("respect", 0)), int(m1.get("runs", 0)), str(m1.get("flags", {})), str(m1.get("clips_seen", [])), olds.size()])
+		if not ok_new:
+			_finish()
+			return
+		set_process(true)
+		return
 	await tap(KEY_ENTER)
 	var ok: bool = await until(func(): return G() != null, 40.0)
 	note("МЕНЮ", "игра ГОЛДА 67 запущена из меню: %s" % str(ok))
@@ -237,10 +284,19 @@ func _ui_tick(gg, g) -> bool:
 		return true
 	if g.mode == "dlg":
 		stop()
+		if not in_dlg:
+			in_dlg = true
+			dlg_n += 1
+			dlg_t = 0.0
+		dlg_t += get_process_delta_time()
+		if dlg_t > 90.0 and not seen.has("dlg_long%d" % dlg_n):
+			seen["dlg_long%d" % dlg_n] = true
+			note("ЗАВИС", "диалог не кончается 90 с: зона %s" % zone_name())
 		if ui_cd <= 0.0:
 			ui_cd = 0.5
 			tap(KEY_ENTER)
 		return true
+	in_dlg = false
 	if gg.hub_ui != null:
 		stop()
 		var kind := String(gg.hub_ui.kind)
@@ -253,11 +309,21 @@ func _ui_tick(gg, g) -> bool:
 			ui_cd = 0.8                      # экран только что открылся: первые доли секунды он нажатий не принимает
 		if ui_cd <= 0.0:
 			ui_cd = 1.4
-			if kind in ["fit", "choice", "result"]:
+			if kind == "choice":
+				var n_opt: int = gg.hub_ui.items.size()
+				var idx: int = (runs + choice_n) % maxi(1, n_opt)
+				choice_n += 1
+				for k in n_opt:                      # закрытый вариант не выбрать — берём следующий открытый
+					if bool(gg.hub_ui.items[idx]["node"].enabled):
+						break
+					idx = (idx + 1) % n_opt
+				note("ВЫБОР", "вариант %d из %d: «%s» (%s)" % [idx + 1, n_opt, String(gg.hub_ui.items[idx]["key"]), zone_name()])
+				_pick(idx)
+			elif kind in ["fit", "result"]:
 				tap(KEY_ENTER)
 			elif kind == "kiosk":
-				if not seen.has("kiosk_bought" + str(runs)):
-					seen["kiosk_bought" + str(runs)] = true
+				if not seen.has("kiosk_bought" + String(gg.shop) + str(runs)):
+					seen["kiosk_bought" + String(gg.shop) + str(runs)] = true
 					var hp_b: float = g.player.hp
 					var gold_b: int = int(gg.run.get("golda", 0))
 					tap(KEY_ENTER)
@@ -348,6 +414,9 @@ func _process(dt: float) -> void:
 	if g.intro_busy() and gg.clip == null and gg.hub_ui == null and g.mode != "dlg":
 		stop()
 		return
+	_watch(gg, g, p, dt)
+	if immortal and is_instance_valid(p) and p.hp > 0.0 and p.hp < p.max_hp:
+		p.hp = p.max_hp
 	if _ui_tick(gg, g):
 		return
 	# --- что делать
@@ -363,10 +432,25 @@ func _hub(gg, g, p, dt: float) -> void:
 		seen["hub%d" % runs] = true
 		note("ПОДЪЕЗД", "вход №%d: герой %s, точек %d" % [runs + 1, str(p.global_position), gg.world.points.size()])
 		_later_shot("hub", 1.0)
+		use_cd = 4.0                              # не выходим в ту же секунду: ролик возвращения запускается через 1,2 с
+		if runs > 0:                              # повторный вход: снова к тем, у кого бывает новое — DJ FLÜRR, телевизор, КРОТ, почта, доска
+			hub_list = []
+			for hid in ["flurr", "krot", "tv", "mail", "notices", "upgrades"]:
+				if not gg.point(hid).is_empty():
+					hub_list.append(hid)
+			hub_i = 0
+			hub_t = 0.0
+			hub_res = {}
+			seen.erase("hub_toured")
+			note("ПОДЪЕЗД", "повторный обход: %s" % ", ".join(hub_list))
+	if _hub_tour(gg, g, p, dt):
+		return
 	var pt: Dictionary = gg.point("exit")
 	if pt.is_empty():
 		return
 	var to: Vector3 = pt["pos"]
+	if p.global_position.y > 1.0:                    # с площадки — сначала вниз по пролёту
+		to = _hub_stairs(p, false)
 	if String(gg.near) == "exit":
 		stop()
 		if use_cd <= 0.0:
@@ -461,9 +545,13 @@ func _run_tick(gg, g, p, dt: float) -> void:
 				attack(n_atk % 3 == 2)
 			hits_log(gg, p)
 		return
+	if _event_tick(gg, g, p, dt):
+		return
+	if _side(gg, g, p, dt):
+		return
 	# точка под рукой: сумка, прилавок, ларёк, передышка, ворота, события
 	var near := String(gg.near)
-	if near != "" and use_cd <= 0.0 and (near.begins_with("bag_") or near in ["rags_dv", "rest_dv"] or (near == "krot" and not seen.has("krot" + str(runs))) or near.begins_with("gate") or (near == "kiosk" and not seen.has("kiosk" + str(runs)))
+	if near != "" and use_cd <= 0.0 and (near.begins_with("bag_") or near in ["rags_dv", "rest_dv", "elite_fit"] or (near == "krot" and not seen.has("krot" + str(runs))) or near.begins_with("gate") or (near == "kiosk" and not seen.has("kiosk" + str(runs)))
 			or (near.begins_with("evdv_") and not seen.has(near + str(runs))) or (near == "trader_dv" and not seen.has("trader" + str(runs))) or (near.begins_with("secret") and true)
 			or (near in ["ev_button", "ev_burmalda"] and not seen.has(near + str(runs)))):
 		use_cd = 2.0
@@ -614,3 +702,306 @@ func _finish() -> void:
 	await shot("zz_end")
 	print("G67PT конец")
 	get_tree().quit()
+
+
+# ================================================================== обход и события
+func _pick(idx: int) -> void:
+	for i in idx:
+		await tap(KEY_S)
+		await wait(0.08)
+	await tap(KEY_ENTER)
+
+## Сторож: ничего не меняется две с половиной минуты вне боя — запись «ЗАВИС»
+func _watch(gg, g, p, dt: float) -> void:
+	var sig := "%s|%s|%s|%d|%d|%s|%s" % [gg.place, gg.room_state, last_goal, int(p.global_position.x / 2.0), int(p.global_position.z / 2.0), g.mode, str(gg.hub_ui != null) + str(gg.clip != null)]
+	if sig != w_sig or gg.room_state in ["fight", "boss"]:
+		w_sig = sig
+		w_t = 0.0
+		return
+	w_t += dt
+	if w_t > 150.0 and not seen.has("stall_" + sig):
+		seen["stall_" + sig] = true
+		note("ЗАВИС", "150 с без изменений: место %s, состояние %s/%s, цель «%s», герой %s, экран %s, ролик %s, событие «%s»" % [gg.place, gg.room_state, g.mode, last_goal, str(p.global_position.snapped(Vector3(0.1, 0.1, 0.1))),
+			String(gg.hub_ui.kind) if gg.hub_ui != null else "нет", str(gg.clip != null), String(gg.dvev.act) if gg.get("dvev") != null and is_instance_valid(gg.dvev) else ""])
+		_later_shot("stall", 0.05)
+
+func _hub_stairs(p, up: bool) -> Vector3:
+	var fx: float = (-G67World.HUB_X + G67World.STAIR_X) * 0.5
+	var low := Vector3(fx, 0.0, G67World.Z_EDGE + 1.6)
+	var high := Vector3(fx, G67World.LAND_Y, G67World.Z_STAIR_TOP - 1.0)
+	var pp: Vector3 = p.global_position
+	if up:
+		return low if (pp.y < 0.3 and Vector2(pp.x - low.x, pp.z - low.z).length() > 1.0 and not (absf(pp.x - fx) < 0.9 and pp.z < low.z + 0.3)) else high
+	return high if (pp.y > 1.2 and Vector2(pp.x - high.x, pp.z - high.z).length() > 1.0 and not (absf(pp.x - fx) < 0.9 and pp.z > high.z - 0.3)) else low
+
+## Подъезд: подойти к каждому предмету и нажать [E] — один раз за запуск
+func _hub_tour(gg, g, p, dt: float) -> bool:
+	if seen.has("hub_toured"):
+		return false
+	if hub_list.is_empty() and runs == 0:
+		for pt in gg.world.points:
+			if String(pt["id"]) != "exit":
+				hub_list.append(String(pt["id"]))
+		note("ПОДЪЕЗД", "обход предметов (%d): %s" % [hub_list.size(), ", ".join(hub_list)])
+	if hub_i >= hub_list.size():
+		seen["hub_toured"] = true
+		var bad: Array = []
+		for id in hub_list:
+			if String(hub_res.get(id, "")) != "ok":
+				bad.append("%s — %s" % [id, String(hub_res.get(id, "?"))])
+		note("ПОДЪЕЗД", "обход закончен: открыто %d из %d%s" % [hub_list.size() - bad.size(), hub_list.size(), ("; не вышло: " + "; ".join(bad)) if not bad.is_empty() else ""])
+		return false
+	var id := String(hub_list[hub_i])
+	var pt: Dictionary = gg.point(id)
+	hub_t += dt
+	if hub_used:
+		if use_cd <= 0.0:
+			hub_used = false
+			hub_i += 1
+			hub_t = 0.0
+		return true
+	if pt.is_empty() or hub_t > 40.0:
+		hub_res[id] = "нет точки" if pt.is_empty() else "не дошёл за 40 с (герой %s, точка %s)" % [str(p.global_position.snapped(Vector3(0.1, 0.1, 0.1))), str(pt["pos"])]
+		note("ПОДЪЕЗД", "%s: %s" % [id, String(hub_res[id])])
+		hub_i += 1
+		hub_t = 0.0
+		return true
+	if String(gg.near) == id:
+		stop()
+		if use_cd <= 0.0:
+			use_cd = 2.6
+			hub_used = true
+			hub_res[id] = "ok"
+			note("ПОДЪЕЗД", "[E] %s" % id)
+			tap(KEY_E)
+			_later_shot("hub_" + id, 1.2)
+		return true
+	var to: Vector3 = pt["pos"]
+	if to.y > 1.0 and p.global_position.y < 1.0:
+		to = _hub_stairs(p, true)
+	elif to.y < 1.0 and p.global_position.y > 1.0:
+		to = _hub_stairs(p, false)
+	go(to)
+	return true
+
+## Что обойти в этом забеге, кроме главной цели: события, торговец, кнопка, автомат, точки и ролики Подземки, двое жителей для удара
+func _side_build(gg) -> void:
+	side_q = []
+	side_cur = {}
+	for pt in gg.world.points:
+		var id := String(pt["id"])
+		if id.begins_with("evdv_") or id in ["ev_button", "ev_burmalda", "trader_dv", "clip_tariff", "clip_cl02", "clip_seller", "clip_cctv", "pz_change", "pz_cert", "balloon", "slot", "shutter", "hamster_door", "krot", "flurr", "reserve_table"] or id.begins_with("bottle"):
+			side_q.append({"id": id, "kind": "point", "pos": pt["pos"]})
+	if gg.get("folk") != null and gg.folk != null and is_instance_valid(gg.folk) and gg.world.dvor != null:
+		var took := {}
+		for f in gg.folk.folk:
+			var tm := String((f["d"] as Dictionary).get("temper", ""))
+			if not took.has(tm) and tm in ["push", "scold", "flee"] and not String(f["id"]).begins_with("ev_") and not String(f["id"]).begins_with("cf_"):
+				took[tm] = true
+				side_q.append({"id": "hit_" + String(f["id"]), "kind": "hit", "pos": (f["rig"] as Node3D).global_position, "node": f["rig"], "temper": tm})
+	note("ОБХОД", "побочных целей %d: %s" % [side_q.size(), ", ".join(side_q.map(func(q): return String(q["id"])))])
+
+func _side_path(gg, from: Vector3, to: Vector3) -> Vector3:
+	var M = gg.minimap
+	if M == null or M.grid == null:
+		return to
+	side_path_t -= get_process_delta_time()
+	if side_path_t <= 0.0 or side_path.size() < 2:
+		side_path_t = 1.0
+		side_path = PackedVector2Array()
+		var a: Vector2i = M._free_near(M._cell_of(Vector2(from.x, from.z)))
+		var b: Vector2i = M._free_near(M._cell_of(Vector2(to.x, to.z)))
+		if a.x != 999999 and b.x != 999999:
+			var pts: PackedVector2Array = M.grid.get_point_path(a, b)
+			for q in pts:
+				side_path.append(q + Vector2(M.cell, M.cell) * 0.5)
+		if side_path.size() < 2:
+			if a == b:
+				return to
+			say("  путь: нет — от %s (клетка %s) до %s (клетка %s), точек %d" % [str(from.snapped(Vector3(0.1, 0.1, 0.1))), str(a), str(to.snapped(Vector3(0.1, 0.1, 0.1))), str(b), side_path.size()])
+			return Vector3.INF
+	var here := Vector2(from.x, from.z)
+	var k := 0
+	var look: float = 1.7 if G67District.is_podzemka() else 3.0
+	while k < side_path.size() - 1 and side_path[k].distance_to(here) < look:
+		k += 1
+	if k >= side_path.size() - 1:
+		return to
+	return Vector3(side_path[k].x, from.y, side_path[k].y)
+
+func _side(gg, g, p, dt: float) -> bool:
+	if not (gg.room_state in ["open", "reward"]) or gg.minimap == null or (skip_dvor and not G67District.is_podzemka()):
+		return false
+	if side_built != runs * 10 + (1 if G67District.is_podzemka() else 0):
+		side_built = runs * 10 + (1 if G67District.is_podzemka() else 0)
+		_side_build(gg)
+	if p.hp < p.max_hp * 0.45:
+		return false                              # сначала лечиться и главная цель
+	if gg.turf != null:
+		for e in gg.turf.encs:
+			if not (e["bag"] as Dictionary).is_empty():
+				return false                      # сумка важнее
+	if side_cur.is_empty():
+		var best := -1
+		var bd := 85.0 if G67District.is_podzemka() else 120.0
+		for i in side_q.size():
+			var q: Dictionary = side_q[i]
+			var pos: Vector3 = (q["node"] as Node3D).global_position if q.has("node") and is_instance_valid(q["node"]) else q["pos"]
+			if absf(pos.y - p.global_position.y) > 3.5:
+				continue
+			if String(q["id"]) == "reserve_table" and (gg.run.get("bottles", []) as Array).size() < 5:
+				continue                          # стол за закрытой дверью: откроется после пятой бутылки
+			var d: float = pos.distance_to(p.global_position)
+			if d < bd:
+				bd = d
+				best = i
+		if best < 0:
+			return false
+		side_cur = side_q[best]
+		side_q.remove_at(best)
+		side_time = 0.0
+		side_path = PackedVector2Array()
+		hit_t = 0.0
+	var id := String(side_cur["id"])
+	var kind := String(side_cur["kind"])
+	var pos2: Vector3 = (side_cur["node"] as Node3D).global_position if side_cur.has("node") and is_instance_valid(side_cur["node"]) else side_cur["pos"]
+	side_time += dt
+	if kind == "point" and gg.point(id).is_empty():
+		side_res.append([id, "точка исчезла"])
+		side_cur = {}
+		return true
+	if kind == "point":
+		pos2 = gg.point(id)["pos"]
+	if side_time > 90.0:
+		side_res.append([id, "не дошёл за 90 с"])
+		note("ОБХОД", "%s: не дошёл за 90 с (герой %s, цель %s)" % [id, str(p.global_position.snapped(Vector3(0.1, 0.1, 0.1))), str(pos2.snapped(Vector3(0.1, 0.1, 0.1)))])
+		_later_shot("side_fail_" + id, 0.05)
+		side_cur = {}
+		return true
+	if kind == "point":
+		if String(gg.near) == id:
+			stop()
+			if use_cd <= 0.0:
+				use_cd = 2.5
+				seen[id + str(runs)] = true
+				if id == "kiosk":
+					seen["kiosk" + str(runs)] = true
+				note("ОБХОД", "[E] %s (зона %s, голда %d)" % [id, zone_name(), int(gg.run.get("golda", 0))])
+				if pad:
+					pad_btn(JOY_BUTTON_RIGHT_SHOULDER)
+				else:
+					tap(KEY_E)
+				_later_shot("side_" + id, 1.4)
+				side_res.append([id, "ok"])
+				if id in ["shutter", "hamster_door"] and not seen.has("again_" + id + str(runs)):      # первое нажатие — ролик, дверь открывает второе
+					seen["again_" + id + str(runs)] = true
+					side_q.push_front({"id": id, "kind": "point", "pos": side_cur["pos"]})
+					if id == "hamster_door":
+						side_q.push_front({"id": "hamster_game", "kind": "point", "pos": side_cur["pos"]})
+				side_cur = {}
+			return true
+	else:
+		var d2: float = pos2.distance_to(p.global_position)
+		if d2 < 1.45 or (d2 < 2.2 and hit_t > 0.0):
+			hit_t += dt
+			go(pos2)                              # лицом к жителю: удар идёт туда, куда смотрит герой
+			if hit_t >= 0.5:
+				if use_cd <= 0.0 and not seen.has("did_" + id + str(runs)):
+					seen["did_" + id + str(runs)] = true
+					use_cd = 2.5
+					var hp0: float = p.hp
+					var n0: int = gg.folk.log.size()
+					attack(false)
+					_hit_report(gg, p, id, String(side_cur.get("temper", "")), hp0, n0)
+				elif use_cd <= 0.0:
+					side_res.append([id, "ok"])
+					side_cur = {}
+			return true
+	var to: Vector3 = _side_path(gg, p.global_position, pos2)
+	if to == Vector3.INF:
+		side_res.append([id, "нет пути по сетке"])
+		note("ОБХОД", "%s: нет пути по сетке" % id)
+		side_cur = {}
+		return true
+	go(to)
+	return true
+
+func _hit_report(gg, p, id: String, temper: String, hp0: float, n0: int) -> void:
+	await wait(2.0)
+	var got: Array = []
+	for i in range(n0, gg.folk.log.size()):
+		got.append(String(gg.folk.log[i][0]))
+	note("УДАР ПО МИРНОМУ", "%s (характер %s): реакции %s, здоровье героя %d → %d, ударов по мирным за забег %d" % [id, temper, str(got), int(hp0), int(p.hp), int(gg.run.get("npc_hits", 0))])
+
+## Мини-игры событий двора: читаем состояние события, жмём только клавиши
+func _event_tick(gg, g, p, dt: float) -> bool:
+	if gg.get("dvev") == null or gg.dvev == null or not is_instance_valid(gg.dvev) or gg.room_state != "open":
+		return false
+	var E = gg.dvev
+	var act := String(E.act)
+	if act == "" or E.state(act) != "task":
+		for id in (gg.run.get("ev", {}) as Dictionary):
+			var stv := String(gg.run["ev"][id])
+			if stv in ["done", "fail", "left"] and String(ev_log.get(id + str(runs), "")) != stv:
+				ev_log[id + str(runs)] = stv
+				note("СОБЫТИЕ", "%s: исход «%s», голда %d, предметы %s, пройдено событий %d" % [String(id), stv, int(gg.run.get("golda", 0)), str(gg.run.get("items", {})), int(gg.run.get("ev_done", 0))])
+		return false
+	var st: Dictionary = E.st
+	match act:
+		"arm", "stuck":
+			stop()
+			if String(st.get("phase", "")) == "wait":
+				_ev_wait(gg, p, act)
+			elif E.beat_open() and use_cd <= 0.0:
+				use_cd = 0.6
+				tap(KEY_E)
+		"fridge":
+			if String(st.get("phase", "")) == "carry":
+				go(p.global_position + Vector3(-4.0, 0, 0.6))
+			elif String(st.get("phase", "")) == "wait":
+				_ev_wait(gg, p, act)
+			else:
+				stop()
+		"keys":
+			var step := int(st.get("step", 0))
+			var kp: Dictionary = gg.point("evdv_keys_%d" % step)
+			if kp.is_empty():
+				stop()
+			elif String(st.get("phase", "")) == "crow" and step == 2:
+				if p.global_position.distance_to(kp["pos"]) > 3.5:
+					go(_side_path(gg, p.global_position, kp["pos"]))
+				else:
+					stop()                        # постоять у вороны
+			elif String(gg.near) == "evdv_keys_%d" % step:
+				stop()
+				if use_cd <= 0.0:
+					use_cd = 1.2
+					tap(KEY_E)
+			else:
+				var tk: Vector3 = _side_path(gg, p.global_position, kp["pos"])
+				go(kp["pos"] if tk == Vector3.INF else tk)
+		"queue":
+			var spot: Vector3 = st.get("spot", p.global_position)
+			if p.global_position.distance_to(spot) > 1.0:
+				go(spot)
+			else:
+				stop()
+		_:
+			return false
+	return true
+
+
+## Дело началось, но ждёт первого [E] у своей точки
+func _ev_wait(gg, p, act: String) -> void:
+	var pid := "evdv_" + act
+	if String(gg.near).begins_with(pid):
+		stop()
+		if use_cd <= 0.0:
+			use_cd = 1.2
+			tap(KEY_E)
+		return
+	for pt in gg.world.points:
+		if String(pt["id"]).begins_with(pid):
+			go(pt["pos"])
+			return
+	stop()

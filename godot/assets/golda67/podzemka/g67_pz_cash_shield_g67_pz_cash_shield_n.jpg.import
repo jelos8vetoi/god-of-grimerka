@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bhsng5qiuuq8m"
-path="res://.godot/imported/g67_pz_cash_shield_g67_pz_cash_shield_n.jpg-1fa5d921a867b2b787de17c04b00d45d.ctex"
+path.s3tc="res://.godot/imported/g67_pz_cash_shield_g67_pz_cash_shield_n.jpg-1fa5d921a867b2b787de17c04b00d45d.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "cb2d4472dcc967510c709d5b934fb5f2"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/podzemka/g67_pz_cash_shield_g67_pz_cash_shield_n.jpg"
-dest_files=["res://.godot/imported/g67_pz_cash_shield_g67_pz_cash_shield_n.jpg-1fa5d921a867b2b787de17c04b00d45d.ctex"]
+dest_files=["res://.godot/imported/g67_pz_cash_shield_g67_pz_cash_shield_n.jpg-1fa5d921a867b2b787de17c04b00d45d.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

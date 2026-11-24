@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c71jvtbct55p"
-path="res://.godot/imported/g67_pz_queue_stand_g67_pz_queue_stand_bc.jpg-71cf78fd2fb67435c804c60f1a5a6d36.ctex"
+path.s3tc="res://.godot/imported/g67_pz_queue_stand_g67_pz_queue_stand_bc.jpg-71cf78fd2fb67435c804c60f1a5a6d36.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "c3c9cf82a47d5c36e0460f7ffab8e97e"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/podzemka/g67_pz_queue_stand_g67_pz_queue_stand_bc.jpg"
-dest_files=["res://.godot/imported/g67_pz_queue_stand_g67_pz_queue_stand_bc.jpg-71cf78fd2fb67435c804c60f1a5a6d36.ctex"]
+dest_files=["res://.godot/imported/g67_pz_queue_stand_g67_pz_queue_stand_bc.jpg-71cf78fd2fb67435c804c60f1a5a6d36.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

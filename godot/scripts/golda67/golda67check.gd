@@ -3495,8 +3495,19 @@ func _clip_log(G: Golda67, cid: String) -> void:
 	await wait(0.3)
 	var t_last := 0.0
 	var nxt := 0.0
+	var vram0: float = Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)
+	var mem0: float = Performance.get_monitor(Performance.MEMORY_STATIC)
+	var vram_max := vram0
+	var mem_max := mem0
+	var worst := 0.0
+	var t0c := Time.get_ticks_usec()
 	while G.clip != null and is_instance_valid(G.clip):
 		t_last = G.clip.t
+		vram_max = maxf(vram_max, Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED))
+		mem_max = maxf(mem_max, Performance.get_monitor(Performance.MEMORY_STATIC))
+		var tn := Time.get_ticks_usec()
+		worst = maxf(worst, float(tn - t0c) / 1000.0)
+		t0c = tn
 		if G67Clips.snap_req != "":
 			var nm: String = G67Clips.snap_req
 			G67Clips.snap_req = ""
@@ -3512,6 +3523,7 @@ func _clip_log(G: Golda67, cid: String) -> void:
 			note = "  ← ОБРЕЗАНА" if gap < -0.05 else ("  ← ПАУЗА > 0,8 с" if gap > 0.8 else "")
 		print("GOLDA67CHECK   LOG %s %5.1f  %s  голос %.2f с  пауза %.2f%s%s" % [cid, float(lg[i][0]), String(lg[i][1]).left(48), float(lg[i][2]), gap, note, "" if bool(lg[i][3]) else "  (НЕТ ГОЛОСА)"])
 	print("GOLDA67CHECK   LOG %s длина %.1f с" % [cid, t_last])
+	print("GOLDA67CHECK   MEM %s видеопамять %.0f → %.0f МБ (пик), память %.0f → %.0f МБ, худший кадр %.0f мс" % [cid, vram0 / 1048576.0, vram_max / 1048576.0, mem0 / 1048576.0, mem_max / 1048576.0, worst])
 
 ## Контраст метки атаки: кольцо против земли вокруг, в тени (дальше всего от фонарей) и на свету (у фонаря), по зонам
 func _luma(c: Color) -> float:

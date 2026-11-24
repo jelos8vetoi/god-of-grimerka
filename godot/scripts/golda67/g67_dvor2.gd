@@ -23,6 +23,7 @@ const LIGHT := {"street": [5.0, 17.0, Color(1.0, 0.66, 0.34)], "yard": [4.2, 13.
 	"fire": [1.6, 5.0, Color(1.0, 0.36, 0.08)], "arch": [1.5, 8.0, Color(1.0, 0.8, 0.5)]}
 
 var layout: Dictionary = {}
+var walls: Array = []            # заборы: [x, y, длина, толщина, поворот°] — для маршрута мини-карты
 var props: Dictionary = {}
 var man: Dictionary = {}
 var missing: Array = []
@@ -522,6 +523,7 @@ func _fence(ax: float, ay: float, bx: float, by: float) -> void:
 		var t := (float(i) + 0.5) / float(n)
 		put("fence_rhombus", ax + (bx - ax) * t, ay + (by - ay) * t, yw)
 	solid((ax + bx) * 0.5, (ay + by) * 0.5, ln, 0.4, 3.0, yw - 90.0)
+	walls.append([(ax + bx) * 0.5, (ay + by) * 0.5, ln, 0.4, yw - 90.0])          # забор обходит и маршрут мини-карты
 
 func _skyline(x0: float, x1: float, y0: float, y1: float) -> void:
 	for s in [["tower_16_wide", -40.0, y1 + 80.0, 0], ["tower_9_wide", 60.0, y1 + 70.0, 0], ["tower_16_slab", x0 - 80.0, 60.0, 0], ["tower_9_slab", x0 - 70.0, -40.0, 0],

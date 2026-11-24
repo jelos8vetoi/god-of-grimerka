@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bjcu1m4k2ltht"
-path="res://.godot/imported/g67_box_nothing_g67_box_nothing_bc.png-3a77996b9be185c0e6570cf4ed1a1de0.ctex"
+path.s3tc="res://.godot/imported/g67_box_nothing_g67_box_nothing_bc.png-3a77996b9be185c0e6570cf4ed1a1de0.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "bb11c30b046e2a5c17505836daa92b7e"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/g67_box_nothing_g67_box_nothing_bc.png"
-dest_files=["res://.godot/imported/g67_box_nothing_g67_box_nothing_bc.png-3a77996b9be185c0e6570cf4ed1a1de0.ctex"]
+dest_files=["res://.godot/imported/g67_box_nothing_g67_box_nothing_bc.png-3a77996b9be185c0e6570cf4ed1a1de0.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

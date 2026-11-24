@@ -162,6 +162,14 @@ func _rebuild() -> void:
 				hw = mx
 				hd = my
 			_solid(Rect2(float(q["x"]) - hw, -float(q["y"]) - hd, hw * 2.0, hd * 2.0).grow(0.3))
+		for wl in dv0.walls:                          # заборы, насыпь, стенки — всё, во что герой упрётся: маршрут не ведёт сквозь них
+			var yw: float = absf(fmod(float(wl[4]), 180.0))
+			var along: bool = yw < 1.0 or yw > 179.0
+			if not along and absf(yw - 90.0) > 1.0:
+				continue
+			var ww: float = float(wl[2]) if along else float(wl[3])
+			var wd: float = float(wl[3]) if along else float(wl[2])
+			_solid(Rect2(float(wl[0]) - ww * 0.5, -float(wl[1]) - wd * 0.5, ww, wd).grow(0.15))
 		rects.sort_custom(func(a, b): return _order(String(a[1])) < _order(String(b[1])))
 		var dv: G67Dvor2 = G.world.dvor
 		names = [[_xz(G67Dvor2.to3(G67Dvor2.KIOSK.x, G67Dvor2.KIOSK.y)), "ШАУРМА 67"], [_xz(G67Dvor2.to3(G67Dvor2.RAGS.x, G67Dvor2.RAGS.y + 5.0)), "РЫНОК"],
@@ -280,7 +288,11 @@ func goal() -> Dictionary:
 		if best != null:
 			return {"text": ("Дальше — %s" % what) if G.world.gates.size() == 1 else "Выбери, куда дальше: ближайшее — %s" % what, "pos": best}
 		if G.room_state in ["reward"]:
-			return {"text": "Забери награду", "pos": null}
+			var rw = null                             # награда смотрящего висит на вешалке — ведём к ней
+			for pt in G.world.points:
+				if String(pt["id"]) == "elite_fit":
+					rw = pt["pos"]
+			return {"text": "Забери награду", "pos": rw}
 		return {"text": "Спускайся к первому турникету", "pos": G67District.zone_of("gate1").get("c", null)}
 	return {"text": "", "pos": null}
 

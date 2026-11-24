@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dpnyf1e6kk4la"
-path="res://.godot/imported/g67_pz_door_tech_g67_pz_door_tech_n.jpg-35a55d89df99b618f1f832f9e369a826.ctex"
+path.s3tc="res://.godot/imported/g67_pz_door_tech_g67_pz_door_tech_n.jpg-35a55d89df99b618f1f832f9e369a826.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "ea8be88dc65dc02a4b9e0f5794b50e15"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/podzemka/g67_pz_door_tech_g67_pz_door_tech_n.jpg"
-dest_files=["res://.godot/imported/g67_pz_door_tech_g67_pz_door_tech_n.jpg-35a55d89df99b618f1f832f9e369a826.ctex"]
+dest_files=["res://.godot/imported/g67_pz_door_tech_g67_pz_door_tech_n.jpg-35a55d89df99b618f1f832f9e369a826.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

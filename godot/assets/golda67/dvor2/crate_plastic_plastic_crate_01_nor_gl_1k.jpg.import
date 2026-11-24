@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://nf8a3bus72p3"
-path="res://.godot/imported/crate_plastic_plastic_crate_01_nor_gl_1k.jpg-f9d0f5f3795698c82f7b7881d6e16090.ctex"
+path.s3tc="res://.godot/imported/crate_plastic_plastic_crate_01_nor_gl_1k.jpg-f9d0f5f3795698c82f7b7881d6e16090.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "453865fa39e8db1679a211698fe13beb"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/dvor2/crate_plastic_plastic_crate_01_nor_gl_1k.jpg"
-dest_files=["res://.godot/imported/crate_plastic_plastic_crate_01_nor_gl_1k.jpg-f9d0f5f3795698c82f7b7881d6e16090.ctex"]
+dest_files=["res://.godot/imported/crate_plastic_plastic_crate_01_nor_gl_1k.jpg-f9d0f5f3795698c82f7b7881d6e16090.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

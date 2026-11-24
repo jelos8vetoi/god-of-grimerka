@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cmas4hmrbtkyo"
-path="res://.godot/imported/g67_fx_door_g67_fx_door_n.png-e98791a6f4a592281bbe57dffb83c22d.ctex"
+path.s3tc="res://.godot/imported/g67_fx_door_g67_fx_door_n.png-e98791a6f4a592281bbe57dffb83c22d.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "913f13fd0fd650fb94600bee17c6f19c"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/g67_fx_door_g67_fx_door_n.png"
-dest_files=["res://.godot/imported/g67_fx_door_g67_fx_door_n.png-e98791a6f4a592281bbe57dffb83c22d.ctex"]
+dest_files=["res://.godot/imported/g67_fx_door_g67_fx_door_n.png-e98791a6f4a592281bbe57dffb83c22d.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

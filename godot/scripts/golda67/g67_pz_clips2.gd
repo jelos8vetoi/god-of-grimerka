@@ -28,7 +28,7 @@ static func _cctv(c: G67ClipPlayer, cam: String, note := "", soft := false) -> C
 		_l(s, cam, 30, CCTV, Vector2(26, 20))
 		var tm := _l(s, "03:12:07", 30, CCTV, Vector2(fs.x - 190, 20))
 		var rec := _l(s, "● REC", 26, RED, Vector2(26, fs.y - 56))
-		var tw: Tween = c.create_tween().set_loops()
+		var tw: Tween = c.create_tween().bind_node(rec).set_loops()
 		tw.tween_property(rec, "modulate:a", 0.2, 0.5)
 		tw.tween_property(rec, "modulate:a", 1.0, 0.5)
 		if note != "":
