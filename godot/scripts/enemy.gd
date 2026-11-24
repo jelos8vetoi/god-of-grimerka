@@ -433,6 +433,10 @@ func _physics_process(dt: float) -> void:
 					mv = hm.normalized() if hm.length() > 0.4 else Vector3.ZERO
 				elif hm.length() > train_leash:
 					mv = hm.normalized()
+			if game.golda != null and boss_id == "" and not train_still:      # «ГОЛДА 67»: за гаражами и домами враг не стоит и не упирается — обходит
+				var nv: Vector3 = game.golda.nav_dir(self, p.global_position, dt)
+				if nv != Vector3.ZERO:
+					mv = nv
 			if p.state == "dead":
 				mv = Vector3.ZERO
 			var wet: float = (slow_k if slow_t > 0.0 else 1.0) * (1.25 if buff_t > 0.0 else 1.0)       # облит водой — медленнее, усилен — быстрее

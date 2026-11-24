@@ -106,6 +106,21 @@ func _ready() -> void:
 	var js := InputEventJoypadButton.new()
 	js.button_index = JOY_BUTTON_RIGHT_STICK            # геймпад: нажатие правого стика — захват
 	InputMap.action_add_event("lock", js)
+	# геймпад в игре: левый стик — движение, правый — камера (game._pad_look), A прыжок, B уклонение, X удар, Y тяжёлый,
+	# LB блок, RB взаимодействие и приём стиля, LT бросок, RT ПЕРЕГРУЗ, L3 бег, Back смена героя, Start пауза.
+	# События клавиатуры в действиях остаются первыми: подсказки клавиш и переназначение не меняются.
+	for ax in [["left", JOY_AXIS_LEFT_X, -1.0], ["right", JOY_AXIS_LEFT_X, 1.0], ["up", JOY_AXIS_LEFT_Y, -1.0], ["down", JOY_AXIS_LEFT_Y, 1.0],
+			["throw", JOY_AXIS_TRIGGER_LEFT, 1.0], ["rage", JOY_AXIS_TRIGGER_RIGHT, 1.0]]:
+		var jm := InputEventJoypadMotion.new()
+		jm.axis = ax[1]
+		jm.axis_value = ax[2]
+		InputMap.action_add_event(ax[0], jm)
+		InputMap.action_set_deadzone(ax[0], 0.3)
+	for bt in [["jump", JOY_BUTTON_A], ["roll", JOY_BUTTON_B], ["attack", JOY_BUTTON_X], ["heavy", JOY_BUTTON_Y], ["block", JOY_BUTTON_LEFT_SHOULDER],
+			["heat", JOY_BUTTON_RIGHT_SHOULDER], ["sprint", JOY_BUTTON_LEFT_STICK], ["tag", JOY_BUTTON_BACK], ["pause", JOY_BUTTON_START]]:
+		var jb2 := InputEventJoypadButton.new()
+		jb2.button_index = bt[1]
+		InputMap.action_add_event(bt[0], jb2)
 	RaceSave.setup_actions()           # гоночные действия race_* — свои, кампанию не трогают
 	font = load("res://assets/fonts/RussoOne-Regular.ttf")
 	Opts.apply(get_window())
@@ -471,7 +486,7 @@ func testing() -> String:
 ## Боевое обучение: в обычной игре и в его проверке; в остальных проверках и прогонах карточки бой не прерывают
 ## Играет человек, а не проверка: только тогда игра пишет его настройки iPod и прочее «на выходе»
 func user_play() -> bool:
-	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and golda67check == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and playtest == "" and trailermodes == "" and not voicecheck
+	return testing() == "" and ipodcheck == "" and transcheck == "" and deathcheck == "" and uiqa == "" and trainingcheck == "" and golda67check == "" and soundcheck == "" and modecheck == "" and racecheck == "" and racenet == "" and weathercheck == "" and microloanscheck == "" and fivenightscheck == "" and uicheck == "" and trailermini == "" and (playtest == "" or playtest == "golda67") and trailermodes == "" and not voicecheck
 
 func tutorial_on() -> bool:
 	if tutorialcheck != "":
@@ -544,7 +559,7 @@ func start_golda67() -> void:
 	var uargs: Array = Array(OS.get_cmdline_user_args())
 	G67Turf.no_extras = uargs.any(func(a): return String(a).begins_with("--dvor2check"))
 	G67DvorEvents.all_for_check = uargs.any(func(a): return String(a).begins_with("--dvor2check"))      # проверка ставит все пять событий двора
-	Golda67.old_yard = not uargs.is_empty() and not uargs.any(func(a): return String(a).begins_with("--dvor2check") or String(a).begins_with("--launcher"))
+	Golda67.old_yard = not uargs.is_empty() and not uargs.any(func(a): return String(a).begins_with("--dvor2check") or String(a).begins_with("--launcher") or String(a).begins_with("--playtest-golda67") or String(a).begins_with("--pt-"))
 	var g67 := Golda67.new()
 	game.golda = g67
 	game.add_child(g67)

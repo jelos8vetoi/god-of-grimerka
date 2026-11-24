@@ -26,7 +26,7 @@ func _build() -> void:
 	wall.size = STAGE
 	wall.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(wall)
-	lab("ДВОР · ДЕТСКАЯ ПЛОЩАДКА · ВЕШАЛКА", "caps", 13, Color(0.72, 0.68, 0.6), Vector2(70, 70))
+	lab("ДВОР · СУМКА С ДОБЫЧЕЙ" if (G.world != null and G.world.dvor != null) else ("ПОДЗЕМКА · НАГРАДА" if G67District.is_podzemka() else "ДВОР · ДЕТСКАЯ ПЛОЩАДКА · ВЕШАЛКА"), "caps", 13, Color(0.72, 0.68, 0.6), Vector2(70, 70))
 	lab("ВЫБЕРИ БАФ", "display", 46, Color(0.94, 0.88, 0.74), Vector2(66, 88))
 	lab("Действует до конца забега", "ui", 18, Color(0.78, 0.72, 0.62), Vector2(70, 152))
 	for k in opts.size():

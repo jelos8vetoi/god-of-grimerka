@@ -10,7 +10,7 @@ extends Control
 
 const SIZE := 232.0              # сторона карты, px при высоте окна 900
 const ZOOMS := [48.0, 85.0, 150.0]      # сколько метров от героя до края карты
-const CELL_DV := 3.0             # клетка сетки маршрута во дворе, м
+const CELL_DV := 1.5             # клетка сетки маршрута во дворе, м (мельче — чтобы обходить диваны, бочки и углы гаражей)
 const CELL_PZ := 1.5             # в Подземке
 const PATH_EVERY := 1.2          # как часто пересчитывается маршрут, с
 const MARK_EVERY := 0.2
@@ -128,11 +128,32 @@ func _rebuild() -> void:
 				vid = "gar"
 			elif cat == "act" and model == "kiosk_90s":
 				vid = "gar"
+			if vid == "" and model != "" and cat != "boss" and not G67Dvor2.NO_BODY.has(model.replace("game:", "")):
+				_solid(r.grow(0.35))             # остановка, машины, лавки, горки: на карте не рисуются, но маршрут их обходит
 			if vid == "":
 				continue
 			rects.append([r, vid])
 			if vid in ["house", "gar"] and model != "res_arch_81":
-				_solid(r)
+				_solid(r.grow(0.35))
+		# реквизит с преградой (диваны, бочки, машины, ларьки) — тоже препятствие для маршрута: на карте не рисуется
+		var dv0: G67Dvor2 = G.world.dvor
+		for q_v in (dv0.props.get("props", []) as Array):
+			var q: Dictionary = q_v
+			var mid := String(q["m"])
+			if float(q["z"]) != 0.0 or not dv0.man.has(mid) or G67Dvor2.NO_BODY.has(mid) or G67Dvor2.TRUNK.any(func(t): return mid.begins_with(String(t))):
+				continue
+			var k: float = 1.0 if q["k"] == null else float(q["k"])
+			var sz: Array = dv0.man[mid]["size"]
+			if float(sz[2]) * k < 0.25:
+				continue
+			var hw: float = float(sz[0]) * k * 0.5
+			var hd: float = float(sz[1]) * k * 0.5
+			if absf(fmod(float(q["yaw"]), 180.0)) > 1.0 and absf(fmod(float(q["yaw"]), 180.0)) < 179.0:
+				var mx := maxf(hw, hd) if absf(fmod(float(q["yaw"]), 90.0)) > 1.0 else hd
+				var my := maxf(hw, hd) if absf(fmod(float(q["yaw"]), 90.0)) > 1.0 else hw
+				hw = mx
+				hd = my
+			_solid(Rect2(float(q["x"]) - hw, -float(q["y"]) - hd, hw * 2.0, hd * 2.0).grow(0.3))
 		rects.sort_custom(func(a, b): return _order(String(a[1])) < _order(String(b[1])))
 		var dv: G67Dvor2 = G.world.dvor
 		names = [[_xz(G67Dvor2.to3(G67Dvor2.KIOSK.x, G67Dvor2.KIOSK.y)), "ШАУРМА 67"], [_xz(G67Dvor2.to3(G67Dvor2.RAGS.x, G67Dvor2.RAGS.y + 5.0)), "РЫНОК"],
@@ -216,7 +237,8 @@ func goal() -> Dictionary:
 			for e in T.encs:
 				if not String(e["state"]) in ["cleared", "gone"] and not bool(e["d"].get("nofoes", false)):
 					return {"text": "Долг за побег: разберись с группой", "pos": e["c"]}
-		if G.world.points.any(func(pt): return String(pt["id"]) == "krot") and not bool(G.run.get("krot_seen", false)) and p.global_position.distance_to(_pt("krot")) < 60.0:
+		var k_id := String(G.krot_k.get("id", "")) if G.krot_k is Dictionary else ""
+		if k_id != "" and not (G.meta().get("seen", []) as Array).has(k_id) and G.world.points.any(func(pt): return String(pt["id"]) == "krot") and p.global_position.distance_to(_pt("krot")) < 60.0:
 			return {"text": "Найди КРОТА", "pos": _pt("krot")}
 		if not bool(G.run.get("rested", false)) and p.hp < p.max_hp * 0.7:
 			return {"text": "Подготовься к встрече с Мишей: беседка или шаурма", "pos": G67Dvor2.to3(G67Dvor2.REST.x, G67Dvor2.REST.y)}

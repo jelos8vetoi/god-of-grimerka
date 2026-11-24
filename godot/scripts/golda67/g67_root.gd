@@ -3493,6 +3493,19 @@ func _place_krot(where: String, at := Vector3.INF, yaw_o := 0.0) -> void:
 	world._static_box(pos + Vector3(0, 0.9, 0), Vector3(0.7, 1.8, 0.7))
 	var talk: Vector3 = k.get("talk", Vector3(sin(float(k["yaw"])), 0, cos(float(k["yaw"]))) * 1.1)
 	world._point("krot", "КРОТ", "поговорить", pos + talk)
+	if world.dvor != null:                      # новый двор: сквозь КРОТА не пройти (раньше герой вставал прямо в него)
+		var kb := StaticBody3D.new()
+		kb.collision_layer = 1
+		kb.collision_mask = 0
+		var kcs := CollisionShape3D.new()
+		var kcap := CapsuleShape3D.new()
+		kcap.radius = 0.36
+		kcap.height = 1.7
+		kcs.shape = kcap
+		kcs.position.y = 0.85
+		kb.add_child(kcs)
+		kb.position = pos
+		world.add_child(kb)
 	if String(k.get("carry", "")) != "":
 		# держит вещь перед собой обеими руками (люстру): вещь закреплена на груди скелета — идёт вместе с ним
 		var fw := Vector3(sin(float(k["yaw"])), 0, cos(float(k["yaw"])))
@@ -4433,6 +4446,38 @@ func use_item(id: String) -> bool:
 
 var minimap: G67Minimap
 
+## Куда идти врагу, если между ним и героем стена: направление на следующую точку пути по сетке района (та же, что у
+## маршрута мини-карты). Vector3.ZERO — видимость есть или сетки нет: враг ведёт себя как обычно. Проверка видимости и
+## путь пересчитываются раз в NAV_EVERY секунд на врага.
+const NAV_EVERY := 0.4
+
+func nav_dir(e, to: Vector3, dt: float) -> Vector3:
+	if minimap == null or not is_instance_valid(minimap) or minimap.grid == null or world == null or minimap.world_id != world.get_instance_id():
+		return Vector3.ZERO
+	var t: float = float(e.get_meta("nav_t", 0.0)) - dt
+	if t > 0.0:
+		e.set_meta("nav_t", t)
+		return e.get_meta("nav_v", Vector3.ZERO)
+	e.set_meta("nav_t", NAV_EVERY + randf() * 0.15)
+	var from: Vector3 = e.global_position
+	var out := Vector3.ZERO
+	var q := PhysicsRayQueryParameters3D.create(from + Vector3(0, 0.9, 0), to + Vector3(0, 0.9, 0), 1)
+	q.exclude = [e.get_rid(), game.player.get_rid()]
+	var hit: Dictionary = world.get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and hit["collider"] is StaticBody3D:
+		var a: Vector2i = minimap._free_near(minimap._cell_of(Vector2(from.x, from.z)))
+		var b: Vector2i = minimap._free_near(minimap._cell_of(Vector2(to.x, to.z)))
+		if a.x != 999999 and b.x != 999999:
+			var pts: PackedVector2Array = minimap.grid.get_point_path(a, b)
+			if pts.size() >= 2:
+				var k := mini(2, pts.size() - 1)
+				var w: Vector2 = pts[k] + Vector2(minimap.cell, minimap.cell) * 0.5
+				var d := Vector3(w.x - from.x, 0.0, w.y - from.z)
+				if d.length() > 0.2:
+					out = d.normalized()
+	e.set_meta("nav_v", out)
+	return out
+
 func _items_tick() -> void:
 	if (minimap == null or not is_instance_valid(minimap)) and game.hud_root != null:
 		minimap = G67Minimap.attach(self)
@@ -5188,6 +5233,8 @@ func refresh_hints() -> void:
 		var sv: Dictionary = data["run"]
 		var rr: Dictionary = sv["run"]
 		door = "продолжить забег · этап %d из 6 · здоровье %d из %d" % [int(rr.get("pos", 0)) + 1, int(float(sv.get("hp", game.player.max_hp))), int(game.player.max_hp)]
+		if not old_yard and String(rr.get("district", "dvor")) != "podzemka":
+			door = "продолжить забег · здоровье %d из %d" % [int(float(sv.get("hp", game.player.max_hp))), int(game.player.max_hp)]
 		tpl = int(rr.get("tpl", 0))
 	for pt in world.points:
 		match String(pt["id"]):
@@ -5379,7 +5426,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			return
 	if game == null or near == "" or game.panel != null or game.get_tree().paused or busy or hub_ui != null or clip != null:
 		return
-	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_E:
+	if (e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_E) or (e is InputEventJoypadButton and e.pressed and e.button_index == JOY_BUTTON_RIGHT_SHOULDER):
 		var pl = game.player
 		if place == "run" and pl.execution.can_start() and not pl.execution.pick().is_empty():
 			return                     # добивание на [E] важнее предмета рядом
