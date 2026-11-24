@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ckf40gcgk2i0l"
-path="res://.godot/imported/g67_pz_floor_hatch_g67_pz_floor_hatch_bc.jpg-78f1bad8f432445b99d4f26136b3b1f0.ctex"
+path.s3tc="res://.godot/imported/g67_pz_floor_hatch_g67_pz_floor_hatch_bc.jpg-78f1bad8f432445b99d4f26136b3b1f0.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "159dabb9a14c3898d1eb6c70e25d4f80"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/podzemka/g67_pz_floor_hatch_g67_pz_floor_hatch_bc.jpg"
-dest_files=["res://.godot/imported/g67_pz_floor_hatch_g67_pz_floor_hatch_bc.jpg-78f1bad8f432445b99d4f26136b3b1f0.ctex"]
+dest_files=["res://.godot/imported/g67_pz_floor_hatch_g67_pz_floor_hatch_bc.jpg-78f1bad8f432445b99d4f26136b3b1f0.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

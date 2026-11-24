@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bvn4ijvccojw6"
-path="res://.godot/imported/vef_ta68_1.png-1218e3272da7fc5c95facf1ea20b4174.ctex"
+path.s3tc="res://.godot/imported/vef_ta68_1.png-1218e3272da7fc5c95facf1ea20b4174.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "ff6cf9d80b07ba7618962af4a50267ee"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/fn_curated/models/vef_ta68_1.png"
-dest_files=["res://.godot/imported/vef_ta68_1.png-1218e3272da7fc5c95facf1ea20b4174.ctex"]
+dest_files=["res://.godot/imported/vef_ta68_1.png-1218e3272da7fc5c95facf1ea20b4174.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

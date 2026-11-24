@@ -219,7 +219,7 @@ static func stream01(c: G67ClipPlayer) -> void:
 	var chat_lines: Array = []
 	var ui := c.screen(func(s: Control, fs: Vector2):
 		var rec := _lbl(s, "● REC", 34, RED, Vector2(24, 24))
-		var rt: Tween = c.create_tween().set_loops()
+		var rt: Tween = c.create_tween().bind_node(rec).set_loops()          # уйдёт вместе с надписью, а не крутится вхолостую
 		rt.tween_property(rec, "modulate:a", 0.15, 0.5)
 		rt.tween_property(rec, "modulate:a", 1.0, 0.5)
 		_lbl(s, "👁 67", 34, Color.WHITE, Vector2(fs.x - 190, 24))
@@ -396,7 +396,7 @@ static func balloon01(c: G67ClipPlayer) -> void:
 	var dust := c.screen(func(s: Control, fs: Vector2):
 		for i in 14:
 			var d := _rect(s, Color(0.7, 0.65, 0.55, 0.0), Vector2(randf() * fs.x, fs.y * 0.85 + randf() * 40.0), Vector2(26, 8))
-			var tw: Tween = c.create_tween().set_loops()
+			var tw: Tween = c.create_tween().bind_node(d).set_loops()
 			tw.tween_interval(randf() * 0.5)
 			tw.tween_property(d, "modulate:a", 0.8, 0.2)
 			tw.tween_property(d, "position:x", d.position.x + 160.0, 1.2)

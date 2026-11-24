@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://i2vrr2e8fyjt"
-path="res://.godot/imported/g67_pz_shawarma_spit_doner_kebab_3d_model_rm.jpg-b8286cc2fb6c12f14b391b93e5c6b4a9.ctex"
+path.s3tc="res://.godot/imported/g67_pz_shawarma_spit_doner_kebab_3d_model_rm.jpg-b8286cc2fb6c12f14b391b93e5c6b4a9.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "8accbae10147e49f2c850c5820c39c16"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/podzemka/g67_pz_shawarma_spit_doner_kebab_3d_model_rm.jpg"
-dest_files=["res://.godot/imported/g67_pz_shawarma_spit_doner_kebab_3d_model_rm.jpg-b8286cc2fb6c12f14b391b93e5c6b4a9.ctex"]
+dest_files=["res://.godot/imported/g67_pz_shawarma_spit_doner_kebab_3d_model_rm.jpg-b8286cc2fb6c12f14b391b93e5c6b4a9.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

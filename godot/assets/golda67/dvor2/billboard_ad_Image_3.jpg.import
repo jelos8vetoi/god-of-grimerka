@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dv3vir15lqb4l"
-path="res://.godot/imported/billboard_ad_Image_3.jpg-2f2bfdf77a07fc66d7169f50662c3772.ctex"
+path.s3tc="res://.godot/imported/billboard_ad_Image_3.jpg-2f2bfdf77a07fc66d7169f50662c3772.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "f39ed9416f8a9b538f2eacab138aabc1"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/dvor2/billboard_ad_Image_3.jpg"
-dest_files=["res://.godot/imported/billboard_ad_Image_3.jpg-2f2bfdf77a07fc66d7169f50662c3772.ctex"]
+dest_files=["res://.godot/imported/billboard_ad_Image_3.jpg-2f2bfdf77a07fc66d7169f50662c3772.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

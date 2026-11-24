@@ -28,7 +28,17 @@ if (!fs.existsSync(logPath)) fail('нет godot/CHANGELOG.md');
 const log = fs.readFileSync(logPath, 'utf8').replace(/\r\n/g, '\n');
 const first = log.match(/^## (.+)$/m);
 if (!first) fail('в godot/CHANGELOG.md нет ни одного раздела «## дата · что сделано»');
-const body = log.slice(log.indexOf('\n## ') + 1);
+// GitHub принимает описание релиза не длиннее 125 000 символов: берём свежие разделы целиком, пока влезают,
+// остальное — ссылкой на полный журнал (иначе последний шаг сборки падал, и в описании оставался старый коммит)
+const BODY_MAX = 100000;
+let body = '';
+for (const part of log.slice(log.indexOf('\n## ') + 1).split(/\n(?=## )/)) {
+  if (body.length + part.length + 1 > BODY_MAX) {
+    body += '\n…\n\nПолный журнал изменений — `godot/CHANGELOG.md` в репозитории.\n';
+    break;
+  }
+  body += (body ? '\n' : '') + part;
+}
 
 // состояние репозитория
 const sha = run('git', ['rev-parse', '--short', 'HEAD']).trim();

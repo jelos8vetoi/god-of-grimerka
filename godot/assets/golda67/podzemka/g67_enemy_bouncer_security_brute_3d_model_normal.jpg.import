@@ -3,22 +3,23 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ceuhoubqn7wk3"
-path="res://.godot/imported/g67_enemy_bouncer_security_brute_3d_model_normal.jpg-79ead327efb56a3e99823e5898bafd39.ctex"
+path.s3tc="res://.godot/imported/g67_enemy_bouncer_security_brute_3d_model_normal.jpg-79ead327efb56a3e99823e5898bafd39.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
-"md5": "48394e9ad03fd2aee41997e59ac763ef"
+"md5": "9d24da4e02916a02700a3796e7583e3a"
 }
 
 [deps]
 
 source_file="res://assets/golda67/podzemka/g67_enemy_bouncer_security_brute_3d_model_normal.jpg"
-dest_files=["res://.godot/imported/g67_enemy_bouncer_security_brute_3d_model_normal.jpg-79ead327efb56a3e99823e5898bafd39.ctex"]
+dest_files=["res://.godot/imported/g67_enemy_bouncer_security_brute_3d_model_normal.jpg-79ead327efb56a3e99823e5898bafd39.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

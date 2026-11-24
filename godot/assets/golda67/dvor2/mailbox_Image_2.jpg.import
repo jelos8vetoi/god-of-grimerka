@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cwmqpn20btfho"
-path="res://.godot/imported/mailbox_Image_2.jpg-fb836220d79098f7ea68eadf036880c4.ctex"
+path.s3tc="res://.godot/imported/mailbox_Image_2.jpg-fb836220d79098f7ea68eadf036880c4.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "094d4ba73fa08c90d42af1d3e60613f8"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/dvor2/mailbox_Image_2.jpg"
-dest_files=["res://.godot/imported/mailbox_Image_2.jpg-fb836220d79098f7ea68eadf036880c4.ctex"]
+dest_files=["res://.godot/imported/mailbox_Image_2.jpg-fb836220d79098f7ea68eadf036880c4.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

@@ -738,6 +738,27 @@ func link_swap(down: bool) -> void:
 var link_spawn := false
 
 ## Стык районов: во дворе — точка за поворотом под аркой, в Подземке — дальний конец коридора у спуска
+## Страховка: герой провалился под мир — возвращаем на последнее место, где он стоял на полу
+var safe_pos := Vector3.INF
+var safe_t := 0.0
+
+func _fall_guard(dt: float) -> void:
+	var p = game.player
+	if p == null or not is_instance_valid(p):
+		return
+	var floor_y: float = -1.5 if (G67District.is_podzemka() or world.dvor == null) else -8.0
+	if p.global_position.y < floor_y - 6.0:
+		if safe_pos != Vector3.INF:
+			p.global_position = safe_pos + Vector3(0, 0.3, 0)
+			p.velocity = Vector3.ZERO
+			events.append(["fall_rescue", safe_pos])
+		return
+	safe_t -= dt
+	if safe_t <= 0.0 and p.is_on_floor() and not bottle_busy and String(p.state) in ["idle", "move", "run", "walk"]:
+		safe_t = 0.5
+		if not G67District.is_podzemka() or G67Podzemka.room_at(p.global_position + Vector3(0, 0.5, 0)) != "":
+			safe_pos = p.global_position
+
 func _link_tick(dt: float) -> void:
 	link_cd = maxf(0.0, link_cd - dt)
 	if link_cd > 0.0 or descending or busy or game.over or place != "run" or room_state != "open" or clip != null:
@@ -1228,6 +1249,7 @@ func _bottle_walk(p, to: Vector3, sec: float) -> void:
 	if p.rig != null:
 		p.rig.play("Idle", 0.2)
 
+const BOTTLE_CLEAR := 0.95          # толщина стены 0,4 + тело героя + запас
 ## Точки сцены подбора: укрытие — у ближайшей стены комнаты, камера — в 4,5 м от бутылки к центру комнаты
 func bottle_scene_points(n: int) -> Dictionary:
 	var pos: Vector3 = G67Podzemka.fit(G67Data.PZ_BOTTLES[n - 1]["pos"] as Vector3) + Vector3(0.6, 0.0, 0.0)
@@ -1241,7 +1263,13 @@ func bottle_scene_points(n: int) -> Dictionary:
 		if dist < bd:
 			bd = dist
 			best = dv
-	var cover := pos + best * clampf(bd - 0.5, 0.8, 2.6)
+	if bd < BOTTLE_CLEAR * 2.0:              # бутылка у самой стены: герой выходит на шаг от неё, а не внутрь стены (раньше его выталкивало наружу, под мир)
+		pos -= best * (BOTTLE_CLEAR * 2.0 - bd)
+		bd = BOTTLE_CLEAR * 2.0
+	if rid != "":                            # и не ближе к остальным стенам комнаты
+		pos.x = clampf(pos.x, float(r[0]) + BOTTLE_CLEAR, float(r[1]) - BOTTLE_CLEAR)
+		pos.z = clampf(pos.z, float(r[2]) + BOTTLE_CLEAR, float(r[3]) - BOTTLE_CLEAR)
+	var cover := pos + best * clampf(bd - BOTTLE_CLEAR, 0.8, 2.6)
 	var to_c := cen - pos
 	to_c.y = 0.0
 	var cam := pos + (to_c.normalized() if to_c.length() > 0.1 else Vector3(0, 0, 1)) * 4.5
@@ -5371,11 +5399,13 @@ func _physics_process(dt: float) -> void:
 		turf.tick(dt)
 		_coins_tick(dt)
 		_ev_tick()
+		_fall_guard(dt)
 		_link_tick(dt)
 		_second_wind()
 		_court_tick()
 		_descent_tick()
 	elif place == "run" and not busy and not game.over and not run.is_empty():
+		_fall_guard(dt)
 		_link_tick(dt)
 		if room_state == "fight":
 			_fight_tick(dt)
