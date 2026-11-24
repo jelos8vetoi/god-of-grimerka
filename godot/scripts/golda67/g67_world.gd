@@ -252,7 +252,7 @@ func _deco_g67_hub(_T: Dictionary) -> void:
 	var zc := (Z_BACK + Z_FRONT) * 0.5    # середина клетки по глубине
 
 	# ---------- камерные преграды: потолок клетки, стена над проёмом тамбура, потолок тамбура, верх над вторым пролётом ----------
-	_cam_box(Vector3(0, CEIL_Y + 0.1, (Z_BACK + Z_DOOR) * 0.5), Vector3(2 * X + 2.6, 0.2, Z_DOOR - Z_BACK + 2.6))
+	_cam_box(Vector3(0, CEIL_Y + 0.1, (Z_BACK + Z_DOOR) * 0.5), Vector3(2 * X + 2.6, 0.9, Z_DOOR - Z_BACK + 2.6))      # низ — на 0,35 м ниже потолка: камера не касается побелки
 	_cam_box(Vector3(0, 2.2 + (CEIL_Y - 2.2) * 0.5, Z_FRONT + 0.15), Vector3(2.8, CEIL_Y - 2.2, 0.3))
 	_cam_box(Vector3(0, 2.7, (Z_FRONT + Z_DOOR) * 0.5 + 0.15), Vector3(3.0, 0.2, Z_DOOR - Z_FRONT))
 	_cam_box(Vector3((FLIGHT2_X + X) * 0.5, 3.0 + (CEIL_Y - 3.0) * 0.5, Z_NICHE + 0.15), Vector3(X - FLIGHT2_X, CEIL_Y - 3.0, 0.3))
