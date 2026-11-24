@@ -30,6 +30,10 @@ var creep := {}                    # id → на сколько подполз �
 var stare := {}                    # id → точка, к которой медленно поворачивается (аномалия «stare»)
 var dart := {}                     # id → [время до следующего движения глаз, сколько ещё смотрят вбок]
 var lunge_t := {}                  # id → у двери играет FNLunge (вот-вот войдёт)
+var slot := {}                     # id → комната камеры, где он сейчас стоит: двое на одно место не встают (_free_spot)
+var foot := {}                     # id → силуэт в плане, м: Vector2(полуширина, полуглубина) — по вершинам модели в стойке FNStill (_measure)
+const FOOT_DEFAULT := Vector2(0.45, 0.35)
+const SLOT_GAP := 0.1              # зазор между силуэтами соседей в одной комнате, м
 const HORROR_DIR := "res://assets/minigames/fn_horror_%s.glb"   # модель владельца с костями Mixamo — встанет вместо обычной
 ## Модели владельца (скелет им ставит tools/rig-horror.py): рост в метрах и лицо. Точки лица — в единицах модели
 ## (1 = рост, начало — центр основания, +Z — лицо): eye — середина между глазами, sep — расстояние между ними,
@@ -107,6 +111,97 @@ func build(o: FNOffice, f: FNFacility) -> void:
 	fac = f
 	for id in FNData.ORDER:
 		_make(id)
+		_measure(id)
+
+## Силуэт врага в плане: полуширина и полуглубина модели от оси рига в стойке FNStill (кости учтены, как в Rig._skinned_aabb).
+## По нему враги в одной комнате расходятся по местам, не пересекаясь моделями.
+func _measure(id: String) -> void:
+	var r: Rig = rigs[id]
+	r.play("FNStill", 0.0)
+	r.player.advance(0.0)
+	var skel := r.skel
+	var to_rig := r.model.transform * r.skel_xf
+	var far := Vector2.ZERO
+	for mi in r.model.find_children("*", "MeshInstance3D", true, false):
+		var inst := mi as MeshInstance3D
+		if inst.skin == null or inst.mesh == null:
+			continue
+		var mats := []
+		for b in inst.skin.get_bind_count():
+			var bi := inst.skin.get_bind_bone(b)
+			if bi < 0:
+				bi = skel.find_bone(inst.skin.get_bind_name(b))
+			mats.append(skel.get_bone_global_pose(bi) * inst.skin.get_bind_pose(b) if bi >= 0 else Transform3D())
+		for s in inst.mesh.get_surface_count():
+			var arr := inst.mesh.surface_get_arrays(s)
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var bones = arr[Mesh.ARRAY_BONES]
+			var ws = arr[Mesh.ARRAY_WEIGHTS]
+			if bones == null or ws == null or vs.size() == 0:
+				continue
+			var per: int = bones.size() / vs.size()
+			@warning_ignore("integer_division")
+			var stride: int = max(1, vs.size() / 4000)
+			for v in range(0, vs.size(), stride):
+				var p := Vector3.ZERO
+				var wsum := 0.0
+				for j in per:
+					var w: float = ws[v * per + j]
+					if w > 0.0:
+						p += ((mats[bones[v * per + j]] as Transform3D) * vs[v]) * w
+						wsum += w
+				if wsum > 0.0:
+					p = to_rig * (p / wsum)
+					far = far.max(Vector2(absf(p.x), absf(p.z)))
+	foot[id] = far if far.x > 0.0 else FOOT_DEFAULT
+
+## соседи по комнате: кто уже стоит там же и виден
+func _neighbors(id: String, sp: String) -> Array:
+	var near: Array = []
+	for o in slot:
+		if o != id and slot[o] == sp and (rigs[o] as Rig).visible:
+			near.append(o)
+	return near
+
+## докуда силуэт f, повёрнутый как b, достаёт в сторону dir (силуэт — эллипс по ширине и глубине модели)
+func _reach(f: Vector2, b: Basis, dir: Vector3) -> float:
+	return Vector2(f.x * dir.dot(b.x.normalized()), f.y * dir.dot(b.z.normalized())).length()
+
+## запас между силуэтом id, поставленным как xf, и соседями, м (меньше нуля — модели пересекаются)
+func _gap(id: String, xf: Transform3D, near: Array) -> float:
+	var gap := INF
+	for o in near:
+		var other := rigs[o] as Rig
+		var d: Vector3 = (xf.origin - other.global_position) * Vector3(1, 0, 1)
+		var dir := d.normalized() if d.length() > 0.001 else Vector3.RIGHT
+		gap = minf(gap, d.length() - _reach(foot.get(id, FOOT_DEFAULT), xf.basis, dir) - _reach(foot.get(o, FOOT_DEFAULT), other.global_basis, dir))
+	return gap
+
+## Место в комнате камеры. Обычно — вариант позы врага; если там уже стоит другой, берётся следующее свободное место
+## комнаты, а когда заняты все — точка между местами. Комната, поза и правила игры не меняются: это только расстановка.
+func _free_spot(id: String, sp: String, room: String, pose: int) -> Transform3D:
+	var want := fac.spot(room, pose)
+	var near := _neighbors(id, sp)
+	var arr: Array = fac.spots.get(room, [])
+	if near.is_empty() or arr.is_empty():
+		return want
+	var cands: Array = []
+	for k in arr.size():
+		cands.append(arr[(pose + k) % arr.size()])
+	for i in arr.size():
+		for j in range(i + 1, arr.size()):
+			var a: Transform3D = arr[i]
+			cands.append(Transform3D(a.basis, a.origin.lerp((arr[j] as Transform3D).origin, 0.5)))
+	var best := want
+	var best_gap := -INF
+	for c in cands:
+		var gap := _gap(id, c, near)
+		if gap >= SLOT_GAP:
+			return c
+		if gap > best_gap:
+			best_gap = gap
+			best = c
+	return best
 
 ## Пахан-копия: строится один раз, когда понадобится (секретный двойник, конец шестой ночи)
 func pahan_copy() -> Rig:
@@ -319,12 +414,16 @@ func tick(st: FNNight, dt: float, patrol_look := true) -> void:
 	t += dt
 	if rigs.has("pahan"):
 		(rigs["pahan"] as Rig).visible = false
+	for id in FNData.ORDER:                 # кто в этом кадре переезжает, прежнее место уже не держит
+		if place_key.get(id, "") != _place_id(id, st.enemies[id]):
+			slot.erase(id)
 	for id in FNData.ORDER:
 		var e: FNEnemy = st.enemies[id]
 		var r: Rig = rigs[id]
 		if e.level <= 0 and id != "balon":
 			_set_appearance(id, r, Appearance.ORIGINAL)
 			r.visible = false
+			slot.erase(id)
 			continue
 		var appearance := Appearance.ORIGINAL
 		if e.spot in ["door_l", "door_r"] and not e.entered:
@@ -332,9 +431,7 @@ func tick(st: FNNight, dt: float, patrol_look := true) -> void:
 		elif patrol_look and (fac.cams.has(e.spot) or e.spot == "corner"):
 			appearance = Appearance.PATROL
 		_set_appearance(id, r, appearance)
-		var key := "%s|%d|%s" % [e.spot, e.pose, str(e.look)]
-		if id == "ghost":
-			key += "|" + str((e as FNGhost).flicker)
+		var key := _place_id(id, e)
 		if place_key.get(id, "") != key:
 			place_key[id] = key
 			stare.erase(id)
@@ -350,12 +447,20 @@ func tick(st: FNNight, dt: float, patrol_look := true) -> void:
 			if (st.enemies[id] as FNEnemy).spot in ["door_l", "door_r"]:
 				(rigs[id] as Rig).visible = false
 
+## по чему видно, что врага пора переставить: комната, поза, взгляд в камеру (у GHOST — ещё мерцание)
+func _place_id(id: String, e: FNEnemy) -> String:
+	var key := "%s|%d|%s" % [e.spot, e.pose, str(e.look)]
+	if id == "ghost":
+		key += "|" + str((e as FNGhost).flicker)
+	return key
+
 ## клип у двери своей стороны: левая нишa — FNPeekL / FNLungeL, правая — зеркальные R
 func _door_clip(sp: String, base: String) -> String:
 	return base + ("L" if sp == "door_l" else "R")
 
 func _place(id: String, e: FNEnemy, r: Rig, spread_stage := true) -> void:
 	var sp: String = e.spot
+	slot.erase(id)
 	var bot_arrival := false
 	if id == "bot":
 		bot_arrival = r.get_meta("bot_room", "") != sp and not e.prev.is_empty()
@@ -400,6 +505,9 @@ func _place(id: String, e: FNEnemy, r: Rig, spread_stage := true) -> void:
 	if sp == "stage" and spread_stage:
 		xf2 = fac.spot("stage", 0)
 		xf2.origin += STAGE_STANDS.get(id, Vector3.ZERO) as Vector3
+	else:
+		xf2 = _free_spot(id, sp, room, e.pose)
+	slot[id] = sp
 	r.global_transform = xf2
 	cam_p = (fac.cams.get(sp, {}) as Dictionary).get("pos", r.position + Vector3(0, 0, 3))
 	if e.look:
@@ -442,8 +550,14 @@ func _live(id: String, e: FNEnemy, r: Rig, dt: float) -> void:
 				mode.erase(id)
 				r.play("FNStill", 0.15)
 		elif motion == "approach":
-			creep[id] = minf(1.1, float(creep.get(id, 0.0)) + dt * 0.05)
-			r.position.z = float(r.get_meta("hall_z", r.position.z)) + float(creep[id])
+			# подползает, пока не упрётся в соседа по коридору
+			var step := minf(1.1, float(creep.get(id, 0.0)) + dt * 0.05)
+			var to_p := Vector3(r.position.x, r.position.y, float(r.get_meta("hall_z", r.position.z)) + step)
+			var near := _neighbors(id, e.spot)
+			var to_xf := Transform3D(r.global_basis, to_p)
+			if near.is_empty() or _gap(id, to_xf, near) >= SLOT_GAP or _gap(id, to_xf, near) >= _gap(id, r.global_transform, near):
+				creep[id] = step
+				r.position.z = to_p.z
 	if e.spot in ["door_l", "door_r"] and e.linger > 0.0:
 		var near: bool = e.door_t > e.linger * 0.7
 		if near != bool(lunge_t.get(id, false)):
