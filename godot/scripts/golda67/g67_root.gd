@@ -391,6 +391,7 @@ func _start_dvor2(resumed: bool, from_arch := false) -> void:
 	dvev.name = "DvorEvents"
 	world.add_child(dvev)
 	dvev.setup(self)
+	_ev_short_dv()
 	_secrets_dv()
 	_place_krot_dv()
 	var fl: Dictionary = meta().get("flags", {})
@@ -430,6 +431,11 @@ func shop_items() -> Array:
 			var a := art_info(sub)
 			k["name"] = String(a["name"]).to_upper()
 			k["desc"] = "Артефакт. " + String(a["desc"])
+		elif id == "zh_risk":
+			if sub == "":
+				continue
+			k["name"] = "СДЕЛКА: " + String(G67Data.FITS[sub]["name"])
+			k["desc"] = "ПЛЮС: редкий баф бесплатно. %s МИНУС: максимум здоровья −%d до конца забега. Назад не принимаю." % [String(G67Data.FITS[sub]["desc"]), int(G67Data.FLAW_HP)]
 		elif sub != "":
 			k["name"] = String(G67Data.FITS[sub]["name"])
 			k["desc"] = ("Редкий баф. " if bool(G67Data.FITS[sub]["rare"]) else "Баф. ") + String(G67Data.FITS[sub]["desc"])
@@ -465,9 +471,17 @@ func _trade_why(id: String) -> String:
 	var sub := _trade_pick(id)
 	if kiosk_left(id) <= 0:
 		return "продано"
-	if id != "zh_bag" and sub == "":
+	if id == "pt_thermos":
+		if item_n("thermos") >= ITEM_MAX:
+			return "больше не унести"
+	elif id == "pt_swap":
+		if (run.get("fits", {}) as Dictionary).is_empty():
+			return "нечего менять"
+		if swap_pool().is_empty():
+			return "больше нечего"
+	elif id != "zh_bag" and sub == "":
 		return "больше нечего"
-	if id in ["pt_atk", "pt_def", "zh_rare"] and fit_lv(sub) >= int(G67Data.FITS[sub]["lv"]):
+	if id in ["pt_atk", "pt_def", "zh_rare", "zh_risk"] and fit_lv(sub) >= int(G67Data.FITS[sub]["lv"]):
 		return "у тебя уже максимум"
 	if id == "zh_art" and (has_art(sub) or arts().filter(func(x): return not G67Data.ART_EVENT.has(String(x))).size() >= slots()):
 		return "нет места под артефакт"
@@ -479,12 +493,22 @@ func _trade_buy(id: String) -> String:
 	var sub := _trade_pick(id)
 	var got := ""
 	match id:
-		"pt_atk", "pt_def", "zh_rare", "pt_up":
+		"pt_thermos":
+			give_item("thermos")
+			got = "термос с чаем — в карман"
+		"pt_swap":
+			call_deferred("_swap_begin")
+			got = "выбирай, что отдаёшь"
+		"pt_atk", "pt_def", "zh_rare", "pt_up", "zh_risk":
 			var fits: Dictionary = run["fits"]
 			fits[sub] = fit_lv(sub) + 1
+			if id == "zh_risk":
+				run["flaw"] = "thin"             # недостаток сделки: меньше здоровья до конца забега
 			apply_fits(sub)
 			events.append(["fit", sub])
 			got = "%s · ур. %d" % [String(G67Data.FITS[sub]["name"]), fit_lv(sub)]
+			if id == "zh_risk":
+				got += " · максимум здоровья −%d" % int(G67Data.FLAW_HP)
 		"zh_art":
 			(run["arts"] as Array).append(sub)
 			apply_fits()
@@ -501,8 +525,8 @@ func _trade_buy(id: String) -> String:
 				events.append(["fit", fid])
 				got = "%s · ур. %d" % [String(G67Data.FITS[fid]["name"]), fit_lv(fid)]
 			elif roll < 0.75:
-				game.player.hp = minf(game.player.max_hp, game.player.hp + G67Data.TRADE_BAG_HEAL)
-				got = "термос с чаем: +%d здоровья" % int(G67Data.TRADE_BAG_HEAL)
+				give_item("thermos")
+				got = "термос с чаем — в карман"
 			else:
 				got = "пустые банки. Мешок-то хороший"
 	if float(run.get("discount", 0.0)) > 0.0:
@@ -674,8 +698,8 @@ func ascend() -> void:
 ## Что герой несёт с собой между районами: бафы с уровнями, артефакты, перевыборы, купленное здоровье, голда и счёт забега.
 ## Всё — простые значения (сохраняется в JSON как часть run). Остальное состояние района (встречи, сумки, ларёк, позиция)
 ## откладывается в run["other"][район] и возвращается, когда герой приходит обратно, — ничего не выдаётся дважды.
-const CARRY := ["fits", "arts", "rerolls", "maxhp_buys", "golda", "respect", "kills", "earned", "spent", "rooms"]
-const KEEP_DVOR := ["enc", "pos", "stash", "stash_n", "kiosk", "tpl", "stages", "rags", "rested", "kiosk_full", "free_shawarma", "trader", "trade", "npc_hits", "ev", "ev_done", "discount", "secrets"]
+const CARRY := ["fits", "arts", "rerolls", "maxhp_buys", "golda", "respect", "kills", "earned", "spent", "rooms", "items", "flaw", "trial"]
+const KEEP_DVOR := ["enc", "pos", "stash", "stash_n", "kiosk", "tpl", "stages", "rags", "rested", "kiosk_full", "free_shawarma", "trader", "trade", "npc_hits", "ev", "ev_done", "discount", "secrets", "ev_short", "queue_cut", "gena_hurt", "gena", "kid_saved", "kid_passed"]
 var run_tok := 0
 
 func _dup(v):
@@ -707,6 +731,10 @@ func _carry_in(c: Dictionary, district_id: String) -> void:
 	if district_id != "podzemka":
 		for k in KEEP_DVOR:
 			if mine.has(k):
+				run[k] = _dup(mine[k])
+	else:                                      # повторный спуск: Подземка продолжается с того этапа, где её оставили
+		for k in mine:
+			if not String(k) in CARRY and not String(k) in ["district", "other"]:
 				run[k] = _dup(mine[k])
 
 func _enter_boss_dvor2() -> void:
@@ -806,6 +834,7 @@ func start_run(district_id := "dvor", carry := {}, from_arch := false) -> void:
 	if game.player.hero == "pahan" and String(game.player.style.id) != ss:
 		game.player.set_style(ss)
 	G67District.use("podzemka" if district_id == "podzemka" else "yard")
+	G67District.spots_dv = {}
 	_seed_yard()
 	run["stash"] = _stash_plan() if district_id != "podzemka" else {"spots": [], "taken": []}
 	game.buddy.visible = false
@@ -821,6 +850,14 @@ func start_run(district_id := "dvor", carry := {}, from_arch := false) -> void:
 		return
 	_build_yard_world()
 	_stand_at_home()
+	if district_id == "podzemka" and int(run.get("pos", 0)) > 0:      # возвращение в Подземку: пройденные этапы остаются пройденными
+		await game.get_tree().process_frame
+		if not is_instance_valid(game) or game.golda != self:
+			return
+		_open_gates()
+		game.banner("%s · %d / %d" % [String(district()["name"]), int(run["pos"]) + 1, route().size()], "ЗАБЕГ ПРОДОЛЖАЕТСЯ", Color(1.0, 0.8, 0.2), 2.4)
+		_save_run("open")
+		return
 	await enter_room({"type": "battle", "place": "gate1" if district_id == "podzemka" else "podezd"})
 
 ## Домой посреди забега: дверь подъезда во дворе (между этапами, вне боя). Забег — в сохранение (data["run"]:
@@ -877,6 +914,7 @@ func resume_run() -> void:
 	_migrate_run()
 	place = "run"
 	G67District.use("podzemka" if String(run.get("district", "dvor")) == "podzemka" else "yard")
+	G67District.spots_dv = {}
 	_seed_yard()
 	game.buddy.visible = false
 	game.buddy.global_position = Vector3(0, -50, 0)
@@ -2480,6 +2518,16 @@ func _ev_finish() -> void:
 		arch.append("ev_" + ev)
 		meta()["archive"] = arch
 		save()
+	if world.dvor != null:                     # новый двор: маршрута из ворот нет — событие просто отыграно
+		var es: Dictionary = run.get("ev_short", {})
+		es[ev] = true
+		run["ev_short"] = es
+		_add_respect("calm", int(G67Data.RESPECT["calm"]))
+		events.append(["stage_done", "event"])
+		room = {}
+		room_state = "open"
+		_save_run("open")
+		return
 	_stage_end()
 
 var ev_busy := false
@@ -2792,11 +2840,12 @@ func _button_scene(id: String) -> void:
 		"alarms":
 			_button_outcome(id)
 			_ev_shot(pp + Vector3(-3.0, 2.4, 3.2), sp + Vector3(0, 1.6, 0), 60.0)
-			for lf in world.yard.lifes:
-				if is_instance_valid(lf):
-					(lf as G67Life).react("RWow")
-			world.yard.crowd_react("phase")
-			world.yard.siren_look(sp)
+			if world.yard != null:
+				for lf in world.yard.lifes:
+					if is_instance_valid(lf):
+						(lf as G67Life).react("RWow")
+				world.yard.crowd_react("phase")
+				world.yard.siren_look(sp)
 			var rl := OmniLight3D.new()
 			rl.light_color = Color(1.0, 0.1, 0.08)
 			rl.omni_range = 30.0
@@ -2970,7 +3019,7 @@ func _button_outcome(id: String) -> void:
 				_drop_coin(p.global_position + Vector3(randf_range(-1.0, 1.0), 0, randf_range(-1.0, 1.0)), 5, true)
 		"alarms":
 			game.banner("СИГНАЛИЗАЦИИ", "машины на парковке орут", Color(1.0, 0.5, 0.3), 2.4)
-			var par: Vector3 = (G67District.zone_of("parking")["c"] as Vector3)
+			var par: Vector3 = (G67District.zone_of("parking")["c"] as Vector3) if world.dvor == null else p.global_position + Vector3(8.0, 0.0, 6.0)
 			for k in 3:
 				var lt := OmniLight3D.new()
 				lt.light_color = Color(1.0, 0.6, 0.1) if k % 2 == 0 else Color(1.0, 0.15, 0.1)
@@ -4109,7 +4158,10 @@ func kiosk_price(id: String) -> int:
 		return int(round(float(trade_price(int(G67Data.TRADE_UP[clampi(fit_lv(sub) - 1, 0, 1)]))) * vit)) if sub != "" else 0
 	if vit < 1.0:
 		return int(round(float(trade_price(int(k["price"]))) * vit))
-	return trade_price(int(k["price"]) + int(k.get("step", 0)) * int((run.get("kiosk", {}) as Dictionary).get(id, 0)))
+	var full := trade_price(int(k["price"]) + int(k.get("step", 0)) * int((run.get("kiosk", {}) as Dictionary).get(id, 0)))
+	if id in ["shawarma", "double", "togo"] and float(run.get("gena", 0.0)) > 0.0:
+		return int(round(float(full) * (1.0 - float(run["gena"]))))          # «от Гены»: скидка на одну покупку в «ШАУРМЕ 67»
+	return full
 
 ## Можно ли купить и почему нет («» — можно)
 func kiosk_why(id: String) -> String:
@@ -4185,6 +4237,9 @@ func kiosk_buy(id: String) -> String:
 			apply_fits(fid)
 			got = "%s · ур. %d" % [String(G67Data.FITS[fid]["name"]), fit_lv(fid)]
 			events.append(["fit", fid])
+	if id in ["shawarma", "double", "togo"] and float(run.get("gena", 0.0)) > 0.0 and paid > 0:
+		run["gena"] = 0.0
+		events.append(["gena_used"])
 	events.append(["kiosk", id])
 	return got
 
@@ -4224,6 +4279,185 @@ func fit_options(rare: bool) -> Array:
 	return ids.slice(0, 3)
 
 const FitUIScript := preload("res://scripts/golda67/g67_fit_ui.gd")
+const ChoiceUIScript := preload("res://scripts/golda67/g67_choice_ui.gd")
+
+## Окно выбора (G67ChoiceUI): варианты — [ключ, текст, пометка, доступен]; cb получает ключ; leave — что выбирает Esc («» — выбор обязателен)
+func choose(title: String, text: String, options: Array, cb: Callable, leave := "") -> void:
+	if hub_ui != null or clip != null:
+		return
+	game.player.velocity = Vector3.ZERO
+	if prompt != null:
+		prompt.visible = false
+	var u = ChoiceUIScript.open(self, title, text, options, cb, leave)
+	hub_ui = u
+	u.closed.connect(func():
+		if hub_ui == u:
+			hub_ui = null
+		refresh_hints())
+
+# ---------------------------------------------------------------- расходники: «Термос» и «Табуретка»
+## Носятся с собой (run["items"]), переходят между районами. Z / крестовина влево — термос, X / крестовина вправо — табуретка.
+const ITEMS := {"thermos": {"name": "ТЕРМОС", "key": "Z"}, "stool": {"name": "ТАБУРЕТКА", "key": "X"}}
+const ITEM_MAX := 3
+const THERMOS_HEAL := 25.0
+const STOOL_STUN := 2.0
+const STOOL_R := 9.0
+var item_lab: Label
+
+func item_n(id: String) -> int:
+	return int((run.get("items", {}) as Dictionary).get(id, 0))
+
+func give_item(id: String, n := 1) -> void:
+	var it: Dictionary = run.get("items", {})
+	for k in n:
+		if int(it.get(id, 0)) >= ITEM_MAX:           # больше не унести: термос выпивается на месте, табуретка остаётся стоять
+			if id == "thermos":
+				game.player.hp = minf(game.player.max_hp, game.player.hp + THERMOS_HEAL)
+			continue
+		it[id] = int(it.get(id, 0)) + 1
+	run["items"] = it
+	events.append(["item_got", id])
+
+func use_item(id: String) -> bool:
+	if place != "run" or item_n(id) <= 0 or hub_ui != null or clip != null or game.mode == "dlg" or game.over:
+		return false
+	var p = game.player
+	if id == "thermos":
+		if p.hp >= p.max_hp - 0.5:
+			game.toast("Здоровье полное — термос подождёт")
+			return false
+		p.hp = minf(p.max_hp, p.hp + THERMOS_HEAL)
+		game.popup(p.global_position + Vector3(0, 2.2, 0), "ТЕРМОС +%d" % int(THERMOS_HEAL), Color(0.5, 1.0, 0.6))
+		G67Sound.play(self, "tray")
+	else:
+		var best = null
+		var bd := STOOL_R
+		var fw := Vector3(sin(float(p.face)), 0.0, cos(float(p.face)))
+		for e in game.enemies:
+			if not is_instance_valid(e) or not e.alive() or String(e.boss_id) != "":
+				continue
+			var to: Vector3 = e.global_position - p.global_position
+			to.y = 0.0
+			if to.length() < bd and (to.length() < 1.5 or to.normalized().dot(fw) > 0.2):
+				bd = to.length()
+				best = e
+		if best == null:
+			game.toast("Табуретку кидать не в кого")
+			return false
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.34, 0.44, 0.34)
+		mi.mesh = bm
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.5, 0.36, 0.22)
+		mi.material_override = m
+		world.add_child(mi)
+		mi.global_position = p.global_position + Vector3(0, 1.3, 0)
+		var hit_at: Vector3 = best.global_position + Vector3(0, 1.2, 0)
+		var tw := mi.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(mi, "global_position", hit_at, 0.22)
+		tw.tween_property(mi, "rotation", Vector3(7.0, 3.0, 5.0), 0.22)
+		tw.chain().tween_callback(mi.queue_free)
+		best.stun(STOOL_STUN)
+		game.popup(hit_at + Vector3(0, 0.8, 0), "ТАБУРЕТКОЙ", Color(1.0, 0.85, 0.3))
+		game.fx.dust(hit_at, 6, game.fx.DUST, 0.6)
+		game.shake(0.35)
+		G67Sound.play(self, "door", hit_at)
+	var it: Dictionary = run["items"]
+	it[id] = int(it[id]) - 1
+	events.append(["item", id])
+	return true
+
+func _items_tick() -> void:
+	if item_lab == null or not is_instance_valid(item_lab):
+		item_lab = Label.new()
+		item_lab.add_theme_font_size_override("font_size", 18)
+		item_lab.add_theme_color_override("font_color", Color(0.96, 0.9, 0.76))
+		item_lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		item_lab.add_theme_constant_override("outline_size", 5)
+		item_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		item_lab.anchor_left = 0.5
+		item_lab.anchor_right = 1.0
+		item_lab.anchor_top = 1.0
+		item_lab.anchor_bottom = 1.0
+		item_lab.offset_right = -28.0
+		item_lab.offset_top = -64.0
+		item_lab.offset_bottom = -34.0
+		item_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		game.hud_root.add_child(item_lab)
+	var parts: Array = []
+	if place == "run":
+		for id in ITEMS:
+			if item_n(id) > 0:
+				parts.append("%s ×%d [%s]" % [String(ITEMS[id]["name"]), item_n(id), String(ITEMS[id]["key"])])
+	item_lab.visible = not parts.is_empty() and hub_ui == null and clip == null
+	item_lab.text = "    ".join(parts)
+
+# ---------------------------------------------------------------- «Бурмалда» и кнопка «Можно. А зачем?» в новом дворе
+## Автомат и кнопка стоят на улице Облачной весь забег (по разу). Сцены и исходы — прежние; этапом маршрута событие не считается.
+const EV_DV := {"burmalda": Vector2(-10.0, -15.0), "button": Vector2(-20.0, -15.0)}
+
+func _ev_short_dv() -> void:
+	for ev in EV_DV:
+		if bool((run.get("ev_short", {}) as Dictionary).get(ev, false)):
+			continue
+		var sp: Vector3 = G67District.event_spots()[ev]
+		world._point("ev_" + String(ev), String(G67Data.EVENT_NAMES[ev]), "дёрнуть рычаг" if ev == "burmalda" else "нажать кнопку", sp + (Vector3(0, 0, 1.4) if ev == "burmalda" else Vector3(0, 0, 1.0)))
+
+## Начать событие в новом дворе: этап-«событие» открывается на время сцены
+func _ev_dv(ev: String) -> bool:
+	if room_state == "reward" and String(room.get("ev", "")) == ev:
+		return true
+	if room_state != "open" or busy:
+		game.toast("Сначала разберись с этими")
+		return false
+	room = {"type": "event", "ev": ev, "place": "street"}
+	room_state = "reward"
+	if ev == "burmalda":
+		run["ev_pulls"] = 0
+		ev_idle = 0.0
+	return true
+
+# ---------------------------------------------------------------- обмен у Петровича
+func _swap_begin() -> void:
+	if hub_ui != null:
+		hub_ui.close()
+	var mine: Array = (run["fits"] as Dictionary).keys().filter(func(f): return String(f) != String(run.get("trial", "")))
+	mine.sort_custom(func(a, b): return fit_lv(a) < fit_lv(b))
+	var opts: Array = []
+	for fid in mine.slice(0, 4):
+		opts.append([String(fid), "%s · ур. %d" % [String(G67Data.FITS[fid]["name"]), fit_lv(fid)], "", true])
+	if opts.is_empty():
+		return
+	choose("ОБМЕН", "Петрович: «Меняю. Но что дам — сам не знаю, тут в ящике темно». Что отдаёшь?", opts, func(k): _swap_give(k))
+
+func swap_pool(skip := "") -> Array:
+	var pool: Array = []
+	for fid in G67Data.FITS:
+		if fit_lv(fid) == 0 and String(fid) != skip and fit_avail(fid) and not bool(G67Data.FITS[fid]["rare"]):
+			pool.append(String(fid))
+	return pool
+
+func _swap_give(fid: String) -> void:
+	(run["fits"] as Dictionary).erase(fid)
+	events.append(["swap_out", fid])
+	var pool := swap_pool(fid)
+	pool.shuffle()
+	if pool.is_empty():
+		add_golda(25)
+		apply_fits()
+		return
+	var opts: Array = []
+	for nf in pool.slice(0, 2):
+		opts.append([String(nf), String(G67Data.FITS[nf]["name"]), "", true])
+	apply_fits()
+	choose("ОБМЕН", "Из ящика — одно из двух. Отдано: %s" % String(G67Data.FITS[fid]["name"]), opts, func(k):
+		(run["fits"] as Dictionary)[k] = 1
+		apply_fits(k)
+		events.append(["fit", k])
+		game.banner(String(G67Data.FITS[k]["name"]), "обмен у Петровича", G67Data.FAMILY_COLOR[String(G67Data.FITS[k]["family"])], 2.4)
+		_save_run("open"))
 var fit_offer: Array = []
 var fit_rare := false
 
@@ -4272,7 +4506,7 @@ func apply_fits(just := "") -> void:
 	if just == "tariff":
 		p.combat.ammo["bottles"] = float(p.combat.ammo_of("bottles")) + 1.0
 	p.dmg_mul = dmg_now()
-	var want := hp_max() + 20.0 * float(fit_lv("authority")) + (20.0 if has_art("beanie") else 0.0) + G67Data.KIOSK_MAXHP * float(run.get("maxhp_buys", 0))
+	var want := hp_max() + 20.0 * float(fit_lv("authority")) + (20.0 if has_art("beanie") else 0.0) + G67Data.KIOSK_MAXHP * float(run.get("maxhp_buys", 0)) - (G67Data.FLAW_HP if run.has("flaw") else 0.0)
 	if want != p.max_hp:
 		p.max_hp = want
 		if just in ["authority", "beanie", "double"]:
@@ -5019,6 +5253,7 @@ func _physics_process(dt: float) -> void:
 	if place == "run" and not busy and not game.over and not run.is_empty() and turf != null:
 		turf.tick(dt)
 		_coins_tick(dt)
+		_ev_tick()
 		_second_wind()
 		_court_tick()
 		_descent_tick()
@@ -5031,6 +5266,7 @@ func _physics_process(dt: float) -> void:
 		_ambush_tick()
 		_second_wind()
 	_art_tick(dt)
+	_items_tick()
 	if not game.over:
 		_g67_audio_tick(dt)
 	if hints == null:
@@ -5057,6 +5293,16 @@ func _physics_process(dt: float) -> void:
 			prompt.text = "[E]  %s\n%s" % [String(pt2["title"]), String(pt2["hint"])]
 
 func _unhandled_input(e: InputEvent) -> void:
+	if game != null and place == "run" and game.panel == null and not game.get_tree().paused and hub_ui == null and clip == null:
+		var it := ""
+		if e is InputEventKey and e.pressed and not e.echo:
+			it = String({KEY_Z: "thermos", KEY_X: "stool"}.get(e.physical_keycode, ""))
+		elif e is InputEventJoypadButton and e.pressed:
+			it = String({JOY_BUTTON_DPAD_LEFT: "thermos", JOY_BUTTON_DPAD_RIGHT: "stool"}.get(e.button_index, ""))
+		if it != "" and item_n(it) > 0:
+			use_item(it)
+			get_viewport().set_input_as_handled()
+			return
 	if game == null or near == "" or game.panel != null or game.get_tree().paused or busy or hub_ui != null or clip != null:
 		return
 	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_E:
@@ -5131,9 +5377,11 @@ func use(id: String) -> void:
 		if rr != null:
 			rr.use()
 	elif id == "ev_burmalda":
-		_burmalda_pull()
+		if world.dvor == null or _ev_dv("burmalda"):
+			_burmalda_pull()
 	elif id == "ev_button":
-		_button_press()
+		if world.dvor == null or _ev_dv("button"):
+			_button_press()
 	elif id == "slot":
 		_slot_use()
 	elif id.begins_with("bottle") and id.length() == 7:

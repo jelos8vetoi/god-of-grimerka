@@ -20,11 +20,11 @@ static func _say(c: G67ClipPlayer, id: String, i: int, pad := 0.3) -> void:
 	await c.wait(d + pad)
 
 ## Кадр камеры наблюдения: зелёный моно-кадр, рамка, номер камеры, бегущее время
-static func _cctv(c: G67ClipPlayer, cam: String, note := "") -> Control:
+static func _cctv(c: G67ClipPlayer, cam: String, note := "", soft := false) -> Control:
 	c.mono(1.0)
-	c.filters(0.7, 0.5)
+	c.filters(0.35 if soft else 0.7, 0.18 if soft else 0.5)          # soft — мелкий реквизит в кадре: шум и зелень слабее
 	return c.screen(func(s: Control, fs: Vector2):
-		_r(s, Color(0.1, 0.6, 0.2, 0.14), Vector2.ZERO, fs)
+		_r(s, Color(0.1, 0.6, 0.2, 0.06 if soft else 0.14), Vector2.ZERO, fs)
 		_l(s, cam, 30, CCTV, Vector2(26, 20))
 		var tm := _l(s, "03:12:07", 30, CCTV, Vector2(fs.x - 190, 20))
 		var rec := _l(s, "● REC", 26, RED, Vector2(26, fs.y - 56))
@@ -183,14 +183,15 @@ static func krot04(c: G67ClipPlayer) -> void:
 # ------------------------------------------------------------------ PZ_KROT05_CCTV «АБСОЛЮТНО ТРЕЗВЫЙ»
 static func krot05(c: G67ClipPlayer) -> void:
 	_tunnel(c)
-	var ov := _cctv(c, "CAM 09 · ЗАЛ АВТОМАТОВ")
+	var ov := _cctv(c, "CAM 09 · ЗАЛ АВТОМАТОВ", "", true)
+	c.light(Vector3(-1.5, 2.6, 2.2), Color(1, 1, 1), 2.2, 7.0, true)             # боковой свет с тенью: фигуры и микроволновка отделяются от стола
 	c.prop(PZ + "g67_pz_chess.glb", Vector3(0.0, 0.0, 0.0), 0.0, Vector3(9, 0.85, 9))
 	var mw := c.prop(PZ + "g67_pz_microwave.glb", Vector3(0.75, 0.85, 0.0), -1.57, Vector3(9, 0.34, 9))
 	c.actor("krot", "krot", Vector3(-0.85, 0.0, 0.0), 1.57)
 	c.anim("krot", "K5", 0.0)
-	c.cam_at(Vector3(-0.4, 2.8, 3.6), Vector3(0, 0.9, 0), 50.0)
+	c.cam_at(Vector3(-0.3, 2.2, 2.9), Vector3(0, 0.9, 0), 44.0)
 	await c.wait(2.6)
-	c.cam_to(Vector3(0.2, 1.7, 2.3), Vector3(0.75, 1.0, 0.0), 1.6, 26.0)        # зум на микроволновку
+	c.cam_to(Vector3(0.3, 1.6, 2.0), Vector3(0.75, 1.0, 0.0), 1.6, 26.0)        # зум на микроволновку
 	await c.wait(1.9)
 	c.plate("ПОБЕДИТЕЛЬ ШАХМАТНОГО ТУРНИРА", "lower", 2.6)
 	await c.wait(1.5)

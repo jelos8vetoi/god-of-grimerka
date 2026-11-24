@@ -178,6 +178,7 @@ var music_hamster: Marker3D = null
 var door_nodes := {}
 var door_open_flags := {}
 var dog_node: Node3D = null
+var hamsters: Array = []          # [узел, высота, поворот, фаза]: хомяки принюхиваются, вертятся и подпрыгивают
 var spit_node: Node3D = null
 var dog_yaw := 0.0
 var dog_base := Vector3.ZERO
@@ -647,6 +648,8 @@ func _decorate() -> void:
 			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		prop_count += 1
 		inst.name = String(pr[0])
+		if String(pr[0]).begins_with("hamster_") and not String(pr[0]) in ["hamster_wall", "hamster_props"]:
+			hamsters.append([inst, inst.position.y, inst.rotation.y, _hash(float(pr[1]), float(pr[2]), 9.0) * 6.28])
 		if pr.size() > 8 and pr[8] != null:
 			var gl := OmniLight3D.new()
 			gl.light_color = pr[8] as Color
@@ -790,6 +793,13 @@ func _process(_dt: float) -> void:
 		var ph := float(f[2])
 		var k := 1.0 if fmod(t + ph, 3.7) > 0.5 else (0.2 if int(t * 18.0 + ph * 5.0) % 3 == 0 else 1.0)
 		l.light_energy = float(f[1]) * k
+	for h in hamsters:
+		var hn: Node3D = h[0]
+		if not is_instance_valid(hn):
+			continue
+		var hp := float(h[3])
+		hn.position.y = float(h[1]) + absf(sin(t * 5.0 + hp)) * 0.012 + pow(maxf(0.0, sin(t * 1.1 + hp)), 10.0) * 0.14
+		hn.rotation.y = float(h[2]) + sin(t * 0.6 + hp) * 0.7 + sin(t * 2.3 + hp * 2.0) * 0.08
 
 ## Экран слота: SubViewport с 2D-сценой на плоскости перед окном корпуса; физические барабаны убраны
 func _slot_screen() -> void:
@@ -995,6 +1005,18 @@ func _all_props() -> Array:
 	out.append(["chess", -40.2, -110.6, 0.0, 0.9, 1.0, false, true, null])
 	_crate(Vector3(-39.6, 0.45, -110.6), Vector3(1.9, 0.9, 0.9))
 	out.append(["extinguisher", 2.0, -44.6, 0.0, 0.0, 1.0, false, true, null])
+	# реквизит залов, которые стояли пустыми: перекрёсток, кассы, комната персонала, тоннель, техпомещение.
+	# Всё — вдоль стен: середина залов, точки выхода врагов и проходы остаются свободными.
+	for q in [
+		["bench", -13.2, -114.0, PI * 0.5, true], ["bench", 13.2, -130.0, -PI * 0.5, true], ["vend_snacks", 13.1, -113.0, -PI * 0.5, true], ["vend_change", 13.0, -116.0, -PI * 0.5, true],
+		["bin", -13.0, -131.5, 0.0, true], ["bin", 13.0, -127.2, 0.0, true], ["queue_stand", -9.0, -129.6, 0.0, true], ["queue_stand", -9.0, -126.4, 0.0, true],
+		["extinguisher", -13.6, -112.0, 0.0, false], ["trash", 12.8, -132.8, 0.0, false], ["boxes", -12.7, -116.6, 0.4, false],
+		["bench", -15.6, -158.0, PI * 0.5, true], ["bench", -15.6, -154.0, PI * 0.5, true], ["bin", -15.6, -161.0, 0.0, true], ["vend_drinks", 15.4, -139.0, -PI * 0.5, true],
+		["vend_snacks", 15.4, -141.6, -PI * 0.5, true], ["trash", 15.2, -163.6, 0.0, false], ["queue_stand", 9.0, -146.0, 0.0, true], ["queue_stand", 9.0, -154.0, 0.0, true], ["extinguisher", -16.0, -137.0, 0.0, false],
+		["storage", -22.5, -149.5, 0.0, true], ["bench", -22.0, -140.8, PI, true], ["vend_broken", -17.3, -143.5, -PI * 0.5, true], ["bin", -27.6, -148.8, 0.0, true],
+		["trash", 36.8, -140.0, 0.0, false], ["extinguisher", 43.6, -136.0, 0.0, false], ["boxes", 37.0, -126.6, 0.2, false], ["pallet", 37.2, -144.0, 1.2, false],
+		["storage", 34.5, -163.5, 0.0, true], ["pallet", 32.0, -162.6, 0.2, false], ["trash", 37.8, -157.2, 0.0, false]]:
+		out.append([q[0], q[1], q[2], q[3], 0.0, 1.0, q[4], true, null])
 	_string_bulbs(bulbs)
 	return out
 

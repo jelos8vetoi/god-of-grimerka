@@ -164,6 +164,40 @@ func slab(x: float, y: float, w: float, h: float, z0: float, z1: float, mat: Mat
 	add_child(mi)
 	return mi
 
+## Свет в окнах: второй проход поверх фасада (assets/shaders/g67_windows.gdshader) — тёмные стёкла текстуры светятся в части окон
+const WINDOWS_SHADER := preload("res://assets/shaders/g67_windows.gdshader")
+
+func _lit_windows(holder: Node3D, seed_v: float) -> void:
+	var todo: Array = [holder]
+	var n := 0
+	while not todo.is_empty():
+		var nd: Node = todo.pop_back()
+		for ch in nd.get_children():
+			todo.append(ch)
+		var mi := nd as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		for s in mi.mesh.get_surface_count():
+			var m0 := mi.get_active_material(s) as BaseMaterial3D
+			if m0 == null or m0.albedo_texture == null:
+				continue
+			var m := m0.duplicate() as BaseMaterial3D
+			var sm := ShaderMaterial.new()
+			sm.shader = WINDOWS_SHADER
+			sm.set_shader_parameter("tex", m0.albedo_texture)
+			sm.set_shader_parameter("seed", seed_v)
+			m.next_pass = sm
+			mi.set_surface_override_material(s, m)
+			n += 1
+	count["windows"] = int(count.get("windows", 0)) + n
+
+## Звуки мест: костры в бочках, рынок, ларёк (петли в мире, слышны рядом)
+func _place_sounds() -> void:
+	for f_v in props.get("fires", []):
+		G67Sound.loop_at(self, "loop_fire", to3(float(f_v[0]), float(f_v[1]), 0.8), 14.0)
+	G67Sound.loop_at(self, "loop_market", to3(RAGS.x + 6.0, RAGS.y - 3.0, 1.5), 26.0)
+	G67Sound.loop_at(self, "loop_kiosk", to3(KIOSK.x, KIOSK.y, 1.6), 12.0)
+
 ## Снег на плоской крыше дома: тонкая шапка по габариту модели, чуть меньше крыши (парапет остаётся виден)
 func _roof_snow(holder: Node3D, m: Dictionary, snow: Material) -> void:
 	var sz: Array = m["size"]
@@ -302,6 +336,8 @@ func build() -> void:
 			continue
 		if cat == "res" and man.has(id):
 			_roof_snow(hd, man[id], snow)
+		if cat == "res":
+			_lit_windows(hd, float(hash(String(it["id"])) % 97))
 		if not mark:
 			solid(x, y, w, h, float(it.get("hgt", 3.0)))
 		else:
@@ -321,6 +357,7 @@ func build() -> void:
 		if hq != null and float(q["z"]) == 0.0:
 			_body_for(String(q["m"]), float(q["x"]), float(q["y"]), float(q["yaw"]), k)
 	_streets_furniture(x0, x1, y0, y1)
+	_place_sounds()
 	_skyline(x0, x1, y0, y1)
 	for e_v in props.get("entr", []):
 		lamps.append([float(e_v[0]), float(e_v[1]), 2.6, "door"])
@@ -511,6 +548,7 @@ func _arch_house(it: Dictionary) -> void:
 	var hd := put("res_arch_81", float(it["x"]), float(it["y"]), 270.0, 1.0, 0.0, 0.0, false)
 	if hd == null:
 		return
+	_lit_windows(hd, 81.0)
 	_gate_l = hd.find_child("gate_L", true, false) as Node3D
 	_gate_r = hd.find_child("gate_R", true, false) as Node3D
 	_gate_chain = hd.find_child("gate_chain", true, false) as Node3D

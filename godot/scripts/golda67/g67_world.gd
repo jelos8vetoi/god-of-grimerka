@@ -426,6 +426,10 @@ func build_dvor2() -> void:
 	_point("home", "ПОДЪЕЗД", "домой: забег сохранится, продолжишь отсюда же", G67Dvor2.to3(G67Dvor2.HOME_DOOR.x, G67Dvor2.HOME_DOOR.y))
 	_point("kiosk", "ШАУРМА 67", "шаурма и «с собой»", G67Dvor2.to3(G67Dvor2.KIOSK.x, G67Dvor2.KIOSK.y))
 	_point("rags_dv", "ТРЯПКИ! ТРЯПКИ!", "подойти к прилавку рынка", G67Dvor2.to3(G67Dvor2.RAGS.x, G67Dvor2.RAGS.y))
+	G67District.spots_dv = {}
+	for ev in Golda67.EV_DV:
+		G67District.spots_dv[ev] = G67Dvor2.to3((Golda67.EV_DV[ev] as Vector2).x, (Golda67.EV_DV[ev] as Vector2).y)
+	build_event_props()
 	_point("rest_dv", "БЕСЕДКА", "передохнуть перед Мишей: раз за забег", G67Dvor2.to3(G67Dvor2.REST.x, G67Dvor2.REST.y))
 	_particles(T)
 
@@ -993,6 +997,8 @@ func build_event_props() -> void:
 	_ev_mesh(b, _evb(Vector3(0.06, 0.5, 0.06)), Vector3(0, 2.1, 0), Color(0.3, 0.3, 0.3))
 	_static_box(sp["button"] + Vector3(0, 0.7, 0), Vector3(0.5, 1.4, 0.4), 0.0)
 	ev_nodes["button"] = {"lid": lid, "root": b, "hatch": hch, "horn": horn}
+	if not sp.has("rags"):                    # новый двор: «ТРЯПКИ» — прилавок рынка, двери бокса нет
+		return
 	# дверь «ТРЯПОК»: гаражный бокс, тёплый свет из щели
 	var d := Node3D.new()
 	d.position = sp["rags"]

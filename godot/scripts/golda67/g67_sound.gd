@@ -23,6 +23,8 @@ const KINDS := {
 	"cough": [0.6, -9.0, "SFX", false], "tv_muffled": [3.0, -16.0, "SFX", false], "flush": [2.4, -9.0, "SFX", false], "door_slam": [0.6, -4.0, "SFX", false], "vacuum": [2.0, -9.0, "SFX", false],
 	"mic_move": [0.5, -8.0, "SFX", false], "tap": [0.1, -9.0, "SFX", false], "loop_studio": [5.0, -30.0, "Ambient", true],
 	"loop_hub": [6.0, -26.0, "Ambient", true], "loop_dvor": [8.0, -24.0, "Ambient", true],
+	# звуки мест нового двора (петли в мире, G67Sound.loop_at): костёр в бочке, рынок, ларёк, магнитофон Саныча
+	"loop_fire": [4.0, -10.0, "Ambient", true], "loop_market": [6.0, -14.0, "Ambient", true], "loop_kiosk": [5.0, -16.0, "Ambient", true], "loop_tape": [4.0, -12.0, "Ambient", true],
 }
 static var _cache := {}
 
@@ -96,6 +98,14 @@ static func stream(kind: String) -> AudioStreamWAV:
 			"jingle": x = (sin(TAU * [523.0, 659.0, 784.0, 1047.0][int(t * 8.0) % 4] * t) * 0.5 + sin(TAU * 262.0 * t) * 0.25 * (1.0 if int(t * 4.0) % 2 == 0 else 0.2)) * 0.6
 			"loop_hub": x = (sin(TAU * 50.0 * t) * 0.5 + sin(TAU * 100.0 * t) * 0.2 + lp2 * 3.0) * 0.5
 			"loop_dvor": x = lp2 * 10.0 * (0.7 + 0.3 * sin(TAU * 0.25 * t)) + sin(TAU * 38.0 * t) * 0.1
+			"loop_fire": x = lp2 * 5.0 * (0.6 + 0.4 * sin(TAU * 0.75 * t)) + (noise * 0.8 if absf(noise) > 0.988 else 0.0) + lp * 0.12
+			"loop_market": x = lp2 * 7.0 * (0.55 + 0.45 * sin(TAU * 1.5 * t) * sin(TAU * 0.5 * t)) + sin(TAU * (190.0 + 40.0 * sin(TAU * 1.0 * t)) * t) * 0.05 * absf(sin(TAU * 2.0 * t))
+			"loop_kiosk": x = sin(TAU * 50.0 * t) * 0.22 + sin(TAU * 100.0 * t) * 0.09 + lp * 0.14 * (0.6 + 0.4 * sin(TAU * 3.0 * t))
+			"loop_tape":
+				var st := int(t * 4.0) % 16
+				var tt := fmod(t, 0.25)
+				var nf: float = [220.0, 0.0, 262.0, 330.0, 262.0, 0.0, 196.0, 262.0, 294.0, 0.0, 262.0, 330.0, 392.0, 330.0, 262.0, 196.0][st]
+				x = (signf(sin(TAU * nf * t)) * 0.16 * exp(-tt * 7.0) if nf > 0.0 else 0.0) + sin(TAU * 62.0 * fmod(t, 0.5)) * exp(-fmod(t, 0.5) * 20.0) * 0.5 + lp * 0.04
 		if bool(spec[3]):
 			x *= minf(1.0, minf(t, float(spec[0]) - t) / 0.4 + 0.0)          # края петли сходятся в тишину
 		var v := int(clampf(x, -1.0, 1.0) * 30000.0)
@@ -116,6 +126,23 @@ static func peak(kind: String) -> float:
 	for i in range(0, w.data.size() - 1, 2):
 		p = maxf(p, absf(float(w.data.decode_s16(i)) / 32768.0))
 	return p
+
+## Петля в мире: слышна рядом с точкой (до max_d метров), живёт вместе с владельцем
+static func loop_at(owner: Node, kind: String, at: Vector3, max_d := 16.0) -> AudioStreamPlayer3D:
+	if not KINDS.has(kind) or owner == null:
+		return null
+	var spec: Array = KINDS[kind]
+	var p3 := AudioStreamPlayer3D.new()
+	p3.stream = stream(kind)
+	p3.bus = String(spec[2]) if AudioServer.get_bus_index(String(spec[2])) >= 0 else "Master"
+	p3.volume_db = float(spec[1])
+	p3.unit_size = 3.0
+	p3.max_distance = max_d
+	p3.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+	p3.position = at
+	p3.autoplay = true
+	owner.add_child(p3)
+	return p3
 
 ## Один звук: без позиции — плоский плеер, с позицией — трёхмерный; удаляется сам
 static func play(owner: Node, kind: String, at := Vector3.INF, pitch := 1.0) -> void:

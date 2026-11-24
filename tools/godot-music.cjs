@@ -173,10 +173,12 @@ const LOCS = {
   fn: { bpm: 52, root: N.Cs - 12, scale: 'phryg', prog: [0, 1, 0, 5], seed: 151, pad: 'choir', lead: 'bell', dens: .12, rev: .6, size: 1.9, dly: .35, lo: 1, bars: 8 }, // «5 ночей», терминал: холодный хор и редкие колокольчики
   g67_hub: { bpm: 78, root: N.A - 12, scale: 'dorian', prog: [0, 3, 0, 4], seed: 301, pad: 'dark', lead: 'keys', dens: .3, rev: .3, size: 1.2, lo: 0, tape: 2600, bars: 16 },          // приквел, подъезд: лоу-фай из динамика телевизора
   g67_dvor: { bpm: 92, root: N.D - 12, scale: 'minor', prog: [0, 0, 5, 4], seed: 311, pad: 'dark', padv: .6, lead: 'reed', drums: 'boombap', bass: '808', dist: 3.5, sw: .25, dens: .4, rev: .25, lo: 1, bars: 16 }, // приквел, двор: бит, бас, гармошка
+  g67_podzemka: { bpm: 104, root: N.Fs - 12, scale: 'phryg', prog: [0, 1, 0, 5], seed: 331, pad: 'dark', padv: .5, lead: 'pluck', drums: 'ticks', bass: 'sub', arp: 1, dens: .35, rev: .5, size: 1.7, dly: .3, lo: 1, bars: 16 }, // приквел, Подземка: гулкий переход, тиканье турникетов
   race: { bpm: 168, root: N.A - 12, scale: 'minor', prog: [0, 5, 3, 4], seed: 131, pad: 'saw', lead: 'pluck', drums: 'hyper', bass: '808', arp: 2, dens: .6, rev: .25, dly: .2, lo: 1 }, // гонки на пылесосах: быстрый драйв, тот же лад, что в Томске
 };
 const BOSSES = {
   g67_misha: { bpm: 96, root: N.E - 12, scale: 'phryg', prog: [0, 0, 5, 4], seed: 321, pad: 'organ', padv: 1.2, lead: 'brass', drums: 'trap', bass: '808', dist: 3, dens: .4, rev: .35, size: 1.4, lo: 0, bars: 16 }, // Миша Минасян: тяжёлый медленный трэп, медь
+  g67_fortuna: { bpm: 128, root: N.G - 12, scale: 'harm', prog: [0, 5, 3, 4], seed: 341, pad: 'organ', lead: 'bell', drums: 'drill', bass: '808', arp: 2, dens: .55, rev: .3, lo: 1, bars: 16 }, // FORTUNA 812: казино-дрилл, колокольчики автоматов
   courier: { bpm: 142, root: N.A - 12, scale: 'harm', prog: [0, 0, 5, 4], seed: 201, pad: 'dark', lead: 'bell', drums: 'drill', bass: '808', dens: .5, rev: .3, lo: 1 },                 // Лил Дрей: сухой дрилл
   golem: { bpm: 92, root: N.E, scale: 'minor', prog: [0, 5, 3, 4], seed: 212, pad: 'organ', lead: 'keys', drums: 'boombap', bass: 'sub', sw: .3, dens: .55, rev: .3 },                  // Первый Король: тяжёлый бум-бэп
   hype: { bpm: 172, root: N.Fs - 12, scale: 'minor', prog: [0, 5, 6, 4], seed: 223, pad: 'saw', lead: 'saw', drums: 'hyper', bass: 'off', arp: 1, dens: .7, rev: .25, lo: 1 },          // Леди Хайп: ускоренный гиперпоп
@@ -195,6 +197,7 @@ function ambient(kind) {
   const blips = (cnt, f0, f1, v, d) => { for (let k = 0; k < cnt; k++) note(b, R() * 11, f0 + R() * (f1 - f0), d, { w: 'sin', v, glide: .8 + R() * .6, dec: 14, cut: 9000 }); };
   switch (kind) {
     case 'hall': hum(50, .05); hum(100, .018); wind(500, .3, .5); break;
+    case 'g67_podzemka': hum(50, .05); hum(100, .02); wind(240, .25, 1.4, .06); for (let i = 0; i < n; i++) if (R() < .0002) b[i] += white() * .1; break;   // Подземка: гул ламп, сквозняк перехода, редкая капель
     case 'snow': wind(600, .7, 2.2, .1); wind(1800, .5, .5, .23); break;
     case 'basement': hum(60, .04); wind(180, .2, 1.6, .07); break;
     case 'neon': hum(120, .02); wind(2600, .3, .35, .5); wind(900, .5, .5, .9); break;

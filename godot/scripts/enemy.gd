@@ -157,6 +157,7 @@ var train_guard := false      # учебная цель обучения: не �
 var train_attack := false     # учебная цель для упражнений защиты: замахивается чаще
 var train_home := Vector3.ZERO      # тренировочная арена: место цели
 var train_immortal := false   # цель арены: урон и добивания настоящие, но вместо смерти встаёт с полным здоровьем
+var post_to := Vector3.INF    # «ГОЛДА 67»: патруль — куда идти, пока на посту (G67Turf._patrol)
 var post := false            # «ГОЛДА 67», новый ДВОР: стоит на своей территории и не нападает, пока встреча не началась (G67Turf)
 var train_still := false     # цель арены стоит на своём месте (бить может, ходить — нет)
 var train_leash := 0.0       # босс арены не уходит от своей зоны дальше этого
@@ -380,6 +381,13 @@ func _physics_process(dt: float) -> void:
 		velocity = Vector3.ZERO
 		rig.play("Idle", 0.3)
 		if post:
+			if post_to != Vector3.INF and state == "chase":
+				var post_dv := post_to - global_position
+				post_dv.y = 0.0
+				if post_dv.length() > 0.5:
+					velocity = post_dv.normalized() * 1.1
+					face = lerp_angle(face, atan2(post_dv.x, post_dv.z), 0.12)
+					rig.play("Run", 0.3, 0.42)
 			body.rotation.y = face
 			if state == "spawn" and t > 1.0:
 				state = "chase"          # на посту тоже «появился»: иначе стоящего нельзя ударить первым

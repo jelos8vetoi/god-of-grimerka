@@ -1,16 +1,17 @@
 class_name G67DvorEvents
 extends Node3D
 ## Пять событий нового двора (DVOR_FIVE_NEW_EVENTS.md): ХОЛОДИЛЬНИК, АРМРЕСТЛИНГ, МАШИНА В СУГРОБЕ, КЛЮЧИ, ОЧЕРЕДЬ.
-## В забеге — два из пяти (PER_RUN). Реплики — из утверждённого документа. Выбора в окне диалога в игре нет, поэтому выбор
-## сделан действием: согласие — взяться за дело ([E] у участника после разговора), отказ — уйти.
-## Состояние события — run["ev"][id]: "" (не начато) / talk / task / done / fail; пройденное считается в run["ev_done"] (баф «РАЙОН ПОМНИТ»).
+## В забеге — два из пяти (PER_RUN). Реплики — из утверждённого документа. После разговора — окно выбора (G67ChoiceUI, CHOICES):
+## взяться, спросить «а что мне с этого» или уйти; в очереди — встать, влезть или уйти.
+## Состояние события — run["ev"][id]: "" (не начато) / talk / task / done / fail / left (отказался); пройденное считается в run["ev_done"] (баф «РАЙОН ПОМНИТ»).
 ## Боя здесь нет. Числа — константы ниже.
 
 const PER_RUN := 2
 const FRIDGE_PATH := 14.0        # сколько нести, м
 const FRIDGE_SLOW := 0.55        # скорость с грузом
 const FRIDGE_GOLD := [30, 30, 30, 10]      # по числу «качнул»: 0, 1, 2, 3 и больше
-const FRIDGE_HEAL := 25.0        # «термос»: расходников в игре нет — чай выпивается сразу
+const ARM_REMATCH := 40          # реванш у Саныча
+const KEYS_PIT := Vector2(-101.6, -62.6)      # куда падают ключи, если ворону спугнуть
 const ARM_STAKE := 20
 const ARM_ROUNDS := 3
 const ARM_NEED := 2
@@ -29,8 +30,7 @@ const EVENTS := {
 			"greet": ["TL|Ну и стой. Стой, раз такой умный.", "TL|Сто кило. Сто кило, и ни одной ручки. Кто так делает?", "TL|Грузчики. Одно название."],
 			"hit": ["TL|Ты чего! Я тебя как человека попросил!"], "cold": ["TL|Спортсмены нынче не те."], "fight": ["TL|Я за холодильником, если что."]},
 		"talk": ["TL|О. Молодой человек. Ты же спортсмен?", "V|Нет.", "TL|А выглядишь как спортсмен. Тут делов на минуту. Четвёртый этаж.", "V|Четвёртый?",
-			"TL|Ну до двери подъезда хотя бы. Дальше я сам. У меня сын придёт. В пятницу.", "V|А сегодня какой день?", "TL|Суббота.",
-			"TL|Тридцать рублей дам. Золотых. Или термос. Термос хороший, китайский, держит."]},
+			"TL|Ну до двери подъезда хотя бы. Дальше я сам. У меня сын придёт. В пятницу.", "V|А сегодня какой день?", "TL|Суббота."]},
 	"arm": {"name": "АРМРЕСТЛИНГ", "hint": "сесть за стол: ставка 20",
 		"npc": {"code": "SN", "model": "g67_npc_taxi_driver", "h": 1.8, "tint": Color(0.7, 0.8, 1.0), "at": [-16.0, -91.4], "look": [-16.0, -86.0], "base": "NCross", "alts": ["NHips", "NSmoke"], "temper": "push",
 			"greet": ["SN|Следующий.", "SN|С девяносто восьмого никому. Ни-ко-му."], "hit": ["SN|Руками машешь, а за стол сесть — кишка тонка?"], "cold": ["SN|С такими не сажусь."], "fight": ["SN|Магнитофон под стол уберу."]},
@@ -40,7 +40,7 @@ const EVENTS := {
 		"npc": {"code": "VT", "model": "g67_npc_taxi_driver", "h": 1.72, "tint": Color(1.0, 0.85, 0.7), "at": [105.5, -83.0], "look": [108.0, -86.0], "base": "NCarLean", "alts": ["NHips", "NTaxiPhone"], "temper": "film",
 			"greet": ["VT|Ну давай. Давай, родная. Давай, я сказал!", "VT|Вот же ж... сосед. Узнаю — закопаю его самого."], "hit": ["VT|Братан, ты чего?! Я ж по-хорошему!"], "cold": ["VT|Ну и ладно. Сам. Я всю жизнь сам."], "fight": ["VT|Я в машине посижу."]},
 		"talk": ["VT|Братан! Братан, толкни, а? На раз-два. Я газую — ты толкаешь.", "V|А сам чего встрял?", "VT|Это не я встрял. Это меня встряли. Сосед, джелос, место ему жалко.", "V|Место его?",
-			"VT|Место общее. Он его просто почистил. Это разные вещи.", "VT|Денег нет, честно. Но я с гаражными на короткой. Скажешь, что от Виталика — скинут."]},
+			"VT|Место общее. Он его просто почистил. Это разные вещи."]},
 	"keys": {"name": "КЛЮЧИ", "hint": "спросить, что случилось",
 		"npc": {"code": "BZ", "model": "g67_npc_babushka", "h": 1.5, "tint": Color(0.9, 0.84, 1.0), "at": [-104.0, -60.4], "look": [-104.0, -66.0], "base": "NBagRest", "alts": ["NScarf"], "temper": "scold", "turn": 1.0,
 			"greet": ["BZ|Глазастых нынче мало."], "hit": ["BZ|Меня-то за что, ирод! Я ключи потеряла, а не совесть!"], "cold": ["BZ|Иди, иди."], "fight": ["BZ|Господи, и тут дерутся."]},
@@ -59,6 +59,32 @@ const EVENTS := {
 		"chat": ["QS|Говорят, с капустой.", "QT|Кто говорит?", "QS|Я говорю. Я надеюсь.", "QD|В восьмом году тут шапки давали. Я тоже стоял.", "QD|Шапка есть. Не моего размера, но есть.",
 			"QT|Очередь — это не про двигаться. Очередь — это про стоять."]},
 }
+
+## Выбор после разговора: opts — [ключ, текст]; ask — ответ на «а что мне с этого» (потом выбор без этого варианта); bye — вслед уходящему.
+const CHOICES := {
+	"fridge": {"q": "Дядя Толя ждёт ответа. Холодильник тоже.", "opts": [["go", "«Ладно. Берись с той стороны»"], ["ask", "«А что мне с этого?»"], ["leave", "«Не, батя, сам»"]],
+		"ask": ["TL|Тридцать рублей дам. Золотых. Или термос. Термос хороший, китайский, держит.", "V|Он же китайский.", "TL|Вот потому и держит."], "bye": "TL|Понял. Спортсмены нынче не те."},
+	"arm": {"q": "Саныч упёр локоть в доску. Ставка двадцать.", "opts": [["go", "«Давай»"], ["ask", "«А без денег?»"], ["leave", "«В другой раз»"]],
+		"ask": ["SN|Без денег — это физкультура. Физкультура у нас в школе, вон там."], "bye": "SN|Следующий."},
+	"stuck": {"q": "«Жигули» ревут и качаются на месте.", "opts": [["go", "«Газуй»"], ["ask", "«А мне с этого что?»"], ["leave", "Пройти мимо"]],
+		"ask": ["VT|Денег нет, честно. Но я с гаражными на короткой. Скажешь, что от Виталика — скинут."], "bye": "VT|Ну и ладно. Сам. Я всю жизнь сам."},
+	"keys": {"q": "Баба Зина сидит на лавке в одной варежке.", "opts": [["go", "«Сиди. Сейчас гляну»"], ["ask", "«А в домофон позвонить?»"], ["leave", "Уйти"]],
+		"ask": ["BZ|Я одна живу. Кому я позвоню — себе?", "V|Соседям.", "BZ|Соседи у меня — Серёга с третьего. Серёга РПлюс. Он, зараза, заебал бухать, он трубку с осени не берёт."], "bye": "BZ|Глазастых нынче мало."},
+	"queue": {"q": "Трое стоят в затылок у закрытого окошка.", "opts": [["go", "Встать в очередь"], ["cut", "Пройти к окошку без очереди"], ["leave", "Уйти"]], "bye": "QD|Не выстоял. Молодёжь."},
+}
+const QUEUE_CUT := ["QT|Куда?! Куда он?!", "QD|Мужчина! Тут люди с вечера!", "QS|Да пусть идёт, там всё равно закрыто!", "QP|Чего?", "V|Что дают?", "QP|Тебе — ничего. Учёт.", "QT|Вот! Вот из-за таких и учёт!"]
+## Реплики, которые события говорят из кода (их же забирает озвучка)
+const SAID := ["TL|Левее. Левее! Это твоё лево или моё?", "TL|Не тряси, там полка стеклянная. Была.", "TL|Вот. Вот это человек. Держи, заработал. И термос держи, чего уж.",
+	"TL|Дребезжит что-то. Ну ладно. Оно и до тебя дребезжало.", "TL|Ну, зато теперь видно, что внутри. На, за старание.",
+	"SN|Приходи, когда будет на что садиться.", "SN|Раз, два — поехали.", "SN|Ишь ты. Ишь ты!", "SN|Не напрягайся так, лицо порвёшь.",
+	"SN|...Так. Это стол кривой. Ладно. Слово дал: бьёшь не рукой, бьёшь плечом.", "SN|Ну вот. А говорил — чего бояться.", "SN|Ещё раз — сорок.",
+	"SN|Всё, иди. Я с должников больше не беру, мне потом неудобно.",
+	"VT|Красавец! Всё, я должен. В гаражи зайдёшь — скажи: от Виталика. Они поймут.", "VT|Ну всё. Ну всё, приехали. Сейчас весь район сбежится.",
+	"VT|Да не сейчас! На «давай»! Я же говорю — «давай»!", "VT|Я нормально считаю, ты ненормально толкаешь!", "V|Ты можешь нормально считать?",
+	"BZ|От лавки следы. Мои. Наверное.", "BZ|Ну и ладно. Посижу. Серёга когда-нибудь проспится.",
+	"BZ|Опять она. Я ж её кормлю, заразу. Ну спасибо, сынок. В подвале у деда верстак остался — забери, мне железки ни к чему.",
+	"BZ|И варежку нашёл! Ну всё, я тебя в завещание впишу. Шучу. Нечего вписывать.",
+	"V|Варежка есть. Ключей нет.", "V|Не то.", "V|Да ладно.", "QP|Учёт.", "V|Я на это время потратил."]
 
 var G: Golda67
 var act := ""                    # событие, которое сейчас идёт (одно)
@@ -90,7 +116,7 @@ func _mark(id: String, s: String) -> void:
 	if s == "done":
 		G.run["ev_done"] = int(G.run.get("ev_done", 0)) + 1
 		G._add_respect("calm", int(G67Data.RESPECT["calm"]))
-	if s in ["done", "fail"]:
+	if s in ["done", "fail", "left"]:
 		G.world.points = G.world.points.filter(func(pt): return not String(pt["id"]).begins_with("evdv_" + id))
 		act = ""
 		slow = 1.0
@@ -107,11 +133,13 @@ func _place(id: String) -> void:
 		var f2: Dictionary = G.folk._spawn(x, "ev_%s_%s" % [id, String((x as Dictionary)["code"])])
 		if not f2.is_empty():
 			G.folk.folk.append(f2)
-	if state(id) in ["done", "fail"]:
+	if state(id) in ["done", "fail", "left"]:
 		return
 	(G.run["ev"] as Dictionary)[id] = ""          # незаконченное после загрузки начинается заново
 	var at: Vector3 = (f["home"] as Vector3) + G67DvorFolk._dir(float(f["yaw"])) * 1.2
 	G.world._point("evdv_" + id, String(d["name"]), String(d["hint"]), at)
+	if id == "arm":                           # магнитофон Саныча: музыка идёт как звук мира
+		G67Sound.loop_at(self, "loop_tape", (f["home"] as Vector3) + Vector3(0.8, 0.9, 0.0), 13.0)
 	if id == "fridge":
 		props[id] = _box((f["home"] as Vector3) + Vector3(1.5, 0.0, -0.8), Vector3(0.7, 1.7, 0.66), Color(0.93, 0.94, 0.95))
 
@@ -153,7 +181,56 @@ func _talk(id: String) -> void:
 	var d: Dictionary = EVENTS[id]
 	if npcs.has(id):
 		G.game.dlg_partner = (npcs[id] as Dictionary)["rig"]
-	G.game.start_dialog(d["talk"], func(): _begin(id))
+	G.game.start_dialog(d["talk"], func(): _ask(id))
+
+## Окно выбора после разговора
+func _ask(id: String, asked := false) -> void:
+	if not is_instance_valid(G) or state(id) != "talk":
+		return
+	var c: Dictionary = CHOICES[id]
+	var opts: Array = []
+	for o in (c["opts"] as Array):
+		var key := String(o[0])
+		if key == "ask" and asked:
+			continue
+		var en := true
+		var note := ""
+		if id == "arm" and key == "go" and int(G.run.get("golda", 0)) < ARM_STAKE:
+			en = false
+			note = "нужно %d голды" % ARM_STAKE
+		opts.append([key, String(o[1]), note, en])
+	G.choose(String(EVENTS[id]["name"]), String(c["q"]), opts, func(k): _picked(id, k), "leave")
+
+func _picked(id: String, k: String) -> void:
+	log.append([id, "pick_" + k])
+	match k:
+		"ask":
+			if npcs.has(id):
+				G.game.dlg_partner = (npcs[id] as Dictionary)["rig"]
+			G.game.start_dialog(CHOICES[id]["ask"], func(): _ask(id, true))
+		"leave":
+			_npc_say(id, String(CHOICES[id]["bye"]))
+			_mark(id, "left")
+		"cut":
+			if npcs.has(id):
+				G.game.dlg_partner = (npcs[id] as Dictionary)["rig"]
+			G.game.start_dialog(QUEUE_CUT, func():
+				if not is_instance_valid(G) or state("queue") != "talk":
+					return
+				G.run["queue_cut"] = true
+				_archive("ev_queue_cut")
+				G.game.banner("ОЧЕРЕДЬ", "влез. Ничего не дали. Рынок запомнил", Color(0.8, 0.8, 0.8), 2.6)
+				_mark("queue", "done"))
+		_:
+			_begin(id)
+			if id in ["fridge", "arm", "stuck"]:
+				_press(id, id)           # согласился — сразу берётся за дело
+
+func _archive(key: String) -> void:
+	var arch: Array = G.meta().get("archive", [])
+	if not arch.has(key):
+		arch.append(key)
+		G.meta()["archive"] = arch
 
 func _retitle(id: String, title: String, hint: String) -> void:
 	for pt in G.world.points:
@@ -233,8 +310,17 @@ func _press(id: String, rest: String) -> void:
 				st["phase"] = "crow"
 				st["t"] = 0.0
 				st["last"] = G.game.player.global_position
+			elif i == 4:
+				G.game.toast("Связка с ёжиком. Отнеси бабе Зине")
+				_keys_found()
 			elif i == 3:
 				_keys_end()
+
+func _keys_found() -> void:
+	st["phase"] = "back"
+	G.world.points = G.world.points.filter(func(pt): return not String(pt["id"]) in ["evdv_keys_2", "evdv_keys_4"])
+	G.world._point("evdv_keys_3", "БАБА ЗИНА", "отдать ключи", (npcs["keys"]["home"] as Vector3) + G67DvorFolk._dir(float(npcs["keys"]["yaw"])) * 1.2)
+	st["step"] = 3
 
 ## Нажатие в игре «раз — два — ДАВАЙ»: попал в окно — удача, раньше или позже — промах
 func _beat_press(id: String) -> void:
@@ -283,15 +369,58 @@ func _beat_tick(id: String, dt: float) -> void:
 			_mark(id, "done")
 		elif int(st["n"]) >= STUCK_TRIES:
 			_npc_say(id, who + "|Ну всё. Ну всё, приехали. Сейчас весь район сбежится.")
-			G.game.banner("МАШИНА В СУГРОБЕ", "села на брюхо", Color(0.8, 0.5, 0.4), 2.2)
+			G.game.banner("МАШИНА В СУГРОБЕ", "села на брюхо. Орёт сигнализация", Color(0.8, 0.5, 0.4), 2.6)
+			G67Sound.play(G, "alarm", G.game.player.global_position)
+			var tok: int = G.run_tok
+			var g0 := G
+			get_tree().create_timer(6.0).timeout.connect(func():          # на сигнализацию выходят двое шестёрок: бой по желанию
+				if is_instance_valid(g0) and g0.run_tok == tok and g0.place == "run" and g0.turf != null and g0.room_state == "open":
+					g0.turf.add_extra("alarm"))
 			_mark(id, "fail")
+		elif int(st["n"]) == 2:
+			G.barks_get().say(G.game.player, "V|Ты можешь нормально считать?", {"force": true})
+			_npc_say(id, who + "|Я нормально считаю, ты ненормально толкаешь!")
 		else:
 			_npc_say(id, who + "|Да не сейчас! На «давай»! Я же говорю — «давай»!")
 
+func _fridge_pay(k: String) -> void:
+	if state("fridge") != "task":
+		return
+	if k == "thermos":
+		G.give_item("thermos")
+		G.game.banner("ХОЛОДИЛЬНИК", "термос с чаем — в карман", Color(0.6, 0.9, 1.0), 2.4)
+	else:
+		var got: int = G.add_golda(int(FRIDGE_GOLD[1]))
+		G.game.banner("ХОЛОДИЛЬНИК", "+%d голды" % got, Color(0.6, 0.9, 1.0), 2.4)
+	_mark("fridge", "done")
+
+func _arm_again(k: String) -> void:
+	if state("arm") != "task":
+		return
+	if k != "again" or int(G.run.get("golda", 0)) < ARM_REMATCH:
+		G.game.banner("АРМРЕСТЛИНГ", "ставка ушла Санычу", Color(0.8, 0.5, 0.4), 2.2)
+		_mark("arm", "fail")
+		return
+	G.run["golda"] = int(G.run["golda"]) - ARM_REMATCH
+	st = {"t": 0.0, "n": 0, "ok": 0, "phase": "count", "wobble": 0, "step": 0, "rematch": true, "stake": ARM_REMATCH}
+	_npc_say("arm", "SN|Раз, два — поехали.")
+
 func _arm_end(won: bool) -> void:
+	if not won and not bool(st.get("rematch", false)):          # один реванш за сорок
+		_npc_say("arm", "SN|Ещё раз — сорок.")
+		st["phase"] = "ask"
+		var can: bool = int(G.run.get("golda", 0)) >= ARM_REMATCH
+		G.choose("АРМРЕСТЛИНГ", "Саныч: «Ну вот. А говорил — чего бояться». Двадцатка ушла.",
+			[["again", "«Ещё раз» — ставка %d" % ARM_REMATCH, "" if can else "нужно %d голды" % ARM_REMATCH, can], ["stop", "Хватит"]], func(k): _arm_again(k), "stop")
+		return
+	if not won:
+		_npc_say("arm", "SN|Всё, иди. Я с должников больше не беру, мне потом неудобно.")
+		G.game.banner("АРМРЕСТЛИНГ", "и реванш ушёл Санычу", Color(0.8, 0.5, 0.4), 2.2)
+		_mark("arm", "fail")
+		return
 	if won:
 		_npc_say("arm", "SN|...Так. Это стол кривой. Ладно. Слово дал: бьёшь не рукой, бьёшь плечом.")
-		G.run["golda"] = int(G.run["golda"]) + ARM_STAKE
+		G.run["golda"] = int(G.run["golda"]) + int(st.get("stake", ARM_STAKE))
 		if G.fit_lv("heavy_hand") < int(G67Data.FITS["heavy_hand"]["lv"]):
 			(G.run["fits"] as Dictionary)["heavy_hand"] = G.fit_lv("heavy_hand") + 1
 			G.apply_fits("heavy_hand")
@@ -322,7 +451,8 @@ func _keys_end() -> void:
 		G.add_golda(25)
 		G.game.banner("КЛЮЧИ", "+25 голды", Color(0.6, 0.9, 1.0), 2.4)
 	if bool(st.get("mitten", false)):
-		G.game.player.hp = minf(G.game.player.max_hp, G.game.player.hp + FRIDGE_HEAL)
+		G.give_item("thermos")           # варежку тоже принёс — чай с собой
+		G.game.toast("Баба Зина: «И варежку нашёл!» — термос с чаем в кармане")
 	_mark("keys", "done")
 
 func _physics_process(dt: float) -> void:
@@ -348,9 +478,12 @@ func _physics_process(dt: float) -> void:
 			var gone: float = pp.distance_to(st["from"])
 			if int(st["wobble"]) >= 3 or gone >= FRIDGE_PATH:
 				var w := mini(int(st["wobble"]), 3)
-				var got: int = G.add_golda(int(FRIDGE_GOLD[w]))
+				var got := 0
 				if w == 0:
-					p.hp = minf(p.max_hp, p.hp + FRIDGE_HEAL)
+					got = G.add_golda(int(FRIDGE_GOLD[0]))
+					G.give_item("thermos")
+				elif w >= 3:
+					got = G.add_golda(int(FRIDGE_GOLD[3]))
 				if is_instance_valid(box):
 					box.global_position = pp + G67DvorFolk._dir(float(p.face)) * 1.1 + Vector3(0, 0.85, 0)
 					if w >= 3:
@@ -358,9 +491,15 @@ func _physics_process(dt: float) -> void:
 						box.global_position.y = 0.35
 				_npc_say("fridge", ["TL|Вот. Вот это человек. Держи, заработал. И термос держи, чего уж.", "TL|Дребезжит что-то. Ну ладно. Оно и до тебя дребезжало.",
 					"TL|Дребезжит что-то. Ну ладно. Оно и до тебя дребезжало.", "TL|Ну, зато теперь видно, что внутри. На, за старание."][w])
-				G.game.banner("ХОЛОДИЛЬНИК", "+%d голды%s" % [got, " · чай из термоса: +%d здоровья" % int(FRIDGE_HEAL) if w == 0 else ""], Color(0.6, 0.9, 1.0), 2.6)
 				st["w"] = w
-				_mark("fridge", "done" if w < 3 else "fail")
+				if w in [1, 2]:                  # качнул раз-другой: голда или термос — на выбор
+					st["phase"] = "pay"
+					slow = 1.0
+					G.choose("ХОЛОДИЛЬНИК", "Донёс, но дребезжит. Дядя Толя: «Выбирай. Или деньги, или термос».",
+						[["gold", "30 голды", "", true], ["thermos", "Термос: +25 здоровья, носится с собой", "", true]], func(k): _fridge_pay(k), "gold")
+				else:
+					G.game.banner("ХОЛОДИЛЬНИК", "+%d голды%s" % [got, " и термос с чаем" if w == 0 else ""], Color(0.6, 0.9, 1.0), 2.6)
+					_mark("fridge", "done" if w < 3 else "fail")
 		"arm", "stuck":
 			if String(st["phase"]) == "count":
 				_beat_tick(act, dt)
@@ -378,16 +517,20 @@ func _physics_process(dt: float) -> void:
 				_npc_say("keys", "BZ|Ну и ладно. Посижу. Серёга когда-нибудь проспится.")
 				_mark("keys", "fail")
 				return
+			if pp.distance_to(crow) < 2.2 and Vector2(p.velocity.x, p.velocity.z).length() > 3.5:      # подошёл резко: ворона на козырёк, ключи в сугроб
+				st["phase"] = "pit"
+				G.game.toast("Ворона взлетела на козырёк. Ключи упали в сугроб у двери дома 75 — ищи ямку в снегу")
+				G.world.points = G.world.points.filter(func(pt): return String(pt["id"]) != "evdv_keys_2")
+				G.world._point("evdv_keys_4", "ЯМКА В СНЕГУ", "пошарить", G67Dvor2.to3(KEYS_PIT.x, KEYS_PIT.y))
+				st["step"] = 4
+				return
 			if pp.distance_to(st["last"]) > 0.25:
 				st["t"] = 0.0
 				st["last"] = pp
 			st["t"] = float(st["t"]) + dt
 			if float(st["t"]) >= CROW_STILL:
-				st["phase"] = "back"
 				G.game.toast("Ворона бросила связку с ёжиком. Отнеси бабе Зине")
-				G.world.points = G.world.points.filter(func(pt): return String(pt["id"]) != "evdv_keys_2")
-				G.world._point("evdv_keys_3", "БАБА ЗИНА", "отдать ключи", (npcs["keys"]["home"] as Vector3) + G67DvorFolk._dir(float(npcs["keys"]["yaw"])) * 1.2)
-				st["step"] = 3
+				_keys_found()
 		"queue":
 			if String(st["phase"]) != "stand":
 				return
@@ -407,8 +550,5 @@ func _physics_process(dt: float) -> void:
 				_npc_say("queue", "QP|Учёт.")
 				G.barks_get().say(p, "V|Я на это время потратил.", {"force": true})
 				G.game.banner("ОЧЕРЕДЬ", "постоял. Ничего не дали", Color(0.8, 0.8, 0.8), 2.6)
-				var arch: Array = G.meta().get("archive", [])
-				if not arch.has("ev_queue"):
-					arch.append("ev_queue")
-					G.meta()["archive"] = arch
+				_archive("ev_queue")
 				_mark("queue", "done")

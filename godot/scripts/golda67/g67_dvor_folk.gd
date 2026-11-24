@@ -159,6 +159,22 @@ func _say(f: Dictionary, key: String, force := false) -> bool:
 	var b := G.barks_get()
 	return b.say(f["rig"], b.pick(String(f["id"]) + key, arr), {"force": force, "fight": key in ["fight", "hit"]})
 
+## Что район запомнил за забег: влез без очереди, обидел Гену, заступился за школьника или прошёл мимо. Каждый скажет один раз.
+const NOTES := {"queue_cut": "Это тот, без очереди.", "gena_hurt": "Это тот, что Гену обидел. Гена, между прочим, всему дому дорожку чистит.",
+	"kid_saved": "Это он! Он за Лёху заступился!", "kid_passed": "Видела я, как ты мимо мальчонки прошёл. Глазастый, да не туда."}
+const NOTE_WHO := {"queue_cut": ["BB", "ZW", "Z1"], "gena_hurt": ["BB"], "kid_saved": ["SC"], "kid_passed": ["BB", "BZ"]}
+
+func _note(f: Dictionary) -> bool:
+	var code := String((f["d"] as Dictionary).get("code", ""))
+	for k in NOTES:
+		if not bool(G.run.get(k, false)) or not (NOTE_WHO[k] as Array).has(code) or bool(f.get("note_" + String(k), false)):
+			continue
+		if k == "queue_cut" and (f["home"] as Vector3).distance_to(G67Dvor2.to3(-30.0, -13.0)) > 60.0:
+			continue
+		f["note_" + String(k)] = true
+		return G.barks_get().say(f["rig"], code + "|" + String(NOTES[k]), {"force": true})
+	return false
+
 func cold() -> bool:
 	return int(G.run.get("npc_hits", 0)) >= COLD_AT
 
@@ -312,7 +328,7 @@ func _physics_process(dt: float) -> void:
 						_go(f, G67Dvor2.to3(float(w[0]), float(w[1])), WALK, "walk", 0.0)
 						continue
 				if float(f["cd"]) <= 0.0 and r.global_position.distance_to(pp) < GREET_R:
-					if _say(f, "cold" if (cold() and not is_tr) else ("hello" if is_tr else "greet")):
+					if _note(f) or _say(f, "cold" if (cold() and not is_tr) else ("hello" if is_tr else "greet")):
 						f["cd"] = randf_range(22.0, 40.0)
 						log.append(["greet", String(f["id"])])
 					else:

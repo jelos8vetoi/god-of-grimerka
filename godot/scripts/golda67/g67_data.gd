@@ -151,7 +151,8 @@ const BOSSES := {
 const BOSS_INTRO := "На этом районе уважают только сильнейших."
 const SPEAKERS := {"G1": {"n": "МИША МИНАСЯН", "c": "#d9a23a"}, "KR": {"n": "КРОТ", "c": "#c9a36b"}, "DJ": {"n": "DJ FLÜRR", "c": "#3fc7c9"},
 	"TL": {"n": "ДЯДЯ ТОЛЯ", "c": "#e6c79a"}, "SN": {"n": "САНЫЧ", "c": "#9ec3ff"}, "VT": {"n": "ВИТАЛИК", "c": "#ffd27a"}, "BZ": {"n": "БАБА ЗИНА", "c": "#f2bfd0"},
-	"QD": {"n": "ДЕД", "c": "#d8d8e0"}, "QT": {"n": "ТЁТКА С СУМКОЙ", "c": "#ffd9c2"}, "QS": {"n": "СТУДЕНТ", "c": "#bcd0ff"}, "QP": {"n": "ПРОДАВЩИЦА", "c": "#ffe9a8"}}      # события двора (DVOR_FIVE_NEW_EVENTS.md)
+	"QD": {"n": "ДЕД", "c": "#d8d8e0"}, "QT": {"n": "ТЁТКА С СУМКОЙ", "c": "#ffd9c2"}, "QS": {"n": "СТУДЕНТ", "c": "#bcd0ff"}, "QP": {"n": "ПРОДАВЩИЦА", "c": "#ffe9a8"},
+	"GN": {"n": "ГЕНА", "c": "#bfe6bf"}, "AR": {"n": "АРТУР", "c": "#ffc9c9"}}      # события двора (DVOR_FIVE_NEW_EVENTS.md)
 
 ## madk1d в приквеле закрыт до первой сюжетной концовки (победа над Полковником Бустеренко): до неё игрок управляет
 ## только Паханом — нет смены героя (Tab), дуэта (T), Team Hype и Overdrive (G), ад-либа madk1d (Q). madk1d может быть
@@ -266,15 +267,19 @@ const TRADE := {
 		{"id": "pt_atk", "name": "НА РУКУ", "price": 80, "per_visit": 1, "pick": ["heavy_hand", "garage_key"], "desc": ""},
 		{"id": "pt_def", "name": "НА СПИНУ", "price": 80, "per_visit": 1, "pick": ["authority", "ded_jacket", "warm_entry"], "desc": ""},
 		{"id": "pt_up", "name": "ПОДТЯНУТЬ", "price": 60, "per_visit": 1, "desc": "Петрович улучшает один из твоих бафов на уровень."},
+		{"id": "pt_thermos", "name": "ТЕРМОС", "price": 25, "per_visit": 2, "desc": "Чай с собой: +25 здоровья, когда понадобится. Клавиша Z."},
+		{"id": "pt_swap", "name": "ОБМЕН", "price": 20, "per_visit": 1, "desc": "Отдаёшь ненужный баф — берёшь один из двух случайных. Раз за забег."},
 	],
 	"zhora": [
 		{"id": "zh_rare", "name": "ДЛЯ СВОИХ", "price": 150, "per_visit": 1, "pick": ["first_hit", "second_wind", "district_remembers"], "desc": ""},
 		{"id": "zh_art", "name": "ИЗ БАГАЖНИКА", "price": 90, "per_visit": 1, "desc": ""},
-		{"id": "zh_bag", "name": "КОТ В МЕШКЕ", "price": 45, "per_visit": 1, "desc": "Что внутри — Жора не смотрел: баф, +30 здоровья или пустые банки."},
+		{"id": "zh_bag", "name": "КОТ В МЕШКЕ", "price": 45, "per_visit": 1, "desc": "Что внутри — Жора не смотрел: баф, термос с чаем или пустые банки."},
+		{"id": "zh_risk", "name": "СДЕЛКА", "price": 0, "per_visit": 1, "pick": ["second_wind", "first_hit", "district_remembers"], "desc": ""},
 	],
 }
 const TRADE_UP := [60, 110]          # улучшение I→II и II→III
 const TRADE_BAG_HEAL := 30.0
+const FLAW_HP := 20.0             # рискованная сделка Жоры: на столько меньше максимум здоровья до конца забега
 const TRADE_ORDER := ["petrovich", "zhora", "petrovich"]      # Петрович — в двух забегах из трёх, Жора — в одном; вместе никогда
 const KIOSK_MAXHP := 15.0
 const KIOSK_RARE := 0.15

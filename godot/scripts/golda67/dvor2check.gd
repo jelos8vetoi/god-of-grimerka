@@ -127,6 +127,15 @@ func skip_dialog() -> void:
 		g._dlg_advance()
 		await wait(0.12)
 
+## Дождаться окна выбора и выбрать вариант
+func pick_choice(key: String, sec := 8.0) -> bool:
+	await until(func(): return G.hub_ui != null and String(G.hub_ui.kind) == "choice", sec)
+	if G.hub_ui == null or String(G.hub_ui.kind) != "choice":
+		return false
+	G.hub_ui.pick(key)
+	await wait(0.25)
+	return true
+
 func ev_point(id: String) -> Vector3:
 	for pt in G.world.points:
 		if String(pt["id"]) == id:
@@ -144,8 +153,13 @@ func events_block() -> void:
 	await wait(0.3)
 	G.use("evdv_arm")
 	await skip_dialog()
-	ok(E.state("arm") == "task", "АРМРЕСТЛИНГ: после разговора можно сесть")
-	G.use("evdv_arm")
+	await until(func(): return G.hub_ui != null, 3.0)
+	ok(G.hub_ui != null and String(G.hub_ui.kind) == "choice", "АРМРЕСТЛИНГ: после разговора открыт выбор")
+	await wait(0.4)
+	await shot("a23_choice")
+	ok(await pick_choice("ask"), "выбор: «А без денег?»")
+	await skip_dialog()
+	ok(await pick_choice("go") and E.state("arm") == "task", "после ответа Саныча выбор открыт снова; «Давай» — сел за стол")
 	ok(int(G.run["golda"]) == 100 - G67DvorEvents.ARM_STAKE, "ставка 20 снята")
 	for r in 4:
 		if E.state("arm") != "task":
@@ -161,7 +175,7 @@ func events_block() -> void:
 	await wait(0.3)
 	G.use("evdv_stuck")
 	await skip_dialog()
-	G.use("evdv_stuck")
+	await pick_choice("go")
 	for r in 3:
 		await wait(0.25)
 		G.use("evdv_stuck")              # раньше «ДАВАЙ»
@@ -175,7 +189,7 @@ func events_block() -> void:
 	await wait(0.3)
 	G.use("evdv_fridge")
 	await skip_dialog()
-	G.use("evdv_fridge")
+	await pick_choice("go")
 	await wait(0.3)
 	ok(is_equal_approx(E.slow, G67DvorEvents.FRIDGE_SLOW) and P.speed_k < 0.7, "с холодильником герой идёт медленно (скорость ×%.2f)" % P.speed_k)
 	await shot("a19_fridge")
@@ -186,6 +200,12 @@ func events_block() -> void:
 		P.velocity = Vector3.ZERO
 		await get_tree().physics_frame
 	ok(E.state("fridge") == "done" and int(G.run["golda"]) > gold_f and is_equal_approx(E.slow, 1.0), "донёс: +%d голды, скорость вернулась" % (int(G.run["golda"]) - gold_f))
+	ok(G.item_n("thermos") == 1, "донёс не качнув: термос — в кармане (расходник)")
+	P.hp = P.max_hp * 0.5
+	var hp_t: float = P.hp
+	ok(G.use_item("thermos") and P.hp > hp_t + 20.0 and G.item_n("thermos") == 0, "термос выпит: +%d здоровья, расходник потрачен" % int(P.hp - hp_t))
+	P.hp = P.max_hp
+	ok(not G.use_item("thermos"), "без термоса кнопка ничего не делает")
 	# --- КЛЮЧИ: варежка, фольга, ворона, обратно
 	var lv_sum := 0
 	for k in (G.run["fits"] as Dictionary):
@@ -194,6 +214,7 @@ func events_block() -> void:
 	await wait(0.3)
 	G.use("evdv_keys")
 	await skip_dialog()
+	await pick_choice("go")
 	for i in 2:
 		P.global_position = ev_point("evdv_keys_%d" % i) + Vector3(0, 0.05, 0)
 		await wait(0.3)
@@ -216,6 +237,7 @@ func events_block() -> void:
 	await wait(0.3)
 	G.use("evdv_queue")
 	await skip_dialog()
+	await pick_choice("go")
 	P.global_position = (E.st["spot"] as Vector3) + Vector3(0, 0.05, 0)
 	P.velocity = Vector3.ZERO
 	await shot("a20_queue")
@@ -224,6 +246,91 @@ func events_block() -> void:
 	ok(int(G.run.get("ev_done", 0)) == 4, "пройдено событий: %d (армрестлинг, холодильник, ключи, очередь)" % int(G.run.get("ev_done", 0)))
 	ok(E.act == "" and G.room_state == "open" and not G.busy, "после событий забег идёт дальше")
 	G.run.erase("ev_done")
+	await more_block()
+
+## Выбор стороны в конфликтах, расходники, сделки торговцев, «Бурмалда» и кнопка, патруль
+func more_block() -> void:
+	# --- парковка: забрать табуретку
+	var pk: Dictionary = G.turf.add_extra("parking")
+	ok(not pk.is_empty() and (pk["foes"] as Array).is_empty(), "парковка: спор жителей, врагов нет")
+	P.global_position = G67Dvor2.to3(21.0, -106.0, 0.05)
+	P.velocity = Vector3.ZERO
+	var asked: bool = await until(func(): return G.hub_ui != null and String(G.hub_ui.kind) == "choice", 10.0)
+	ok(asked, "подошёл к спорщикам — открыт выбор стороны")
+	await wait(0.4)
+	await shot("a24_parking")
+	await pick_choice("stool")
+	ok(String(pk["state"]) == "gone" and G.item_n("stool") == 1, "забрал табуретку: спор окончен, табуретка — расходник")
+	# табуретка оглушает врага
+	var foe = G._make_foe(String(G67Data.FOES.keys()[0]), P.global_position + Vector3(0, 0, 3.0), true)
+	P.face = 0.0
+	await wait(1.3)
+	ok(G.use_item("stool") and foe.stun_t > 1.0 and G.item_n("stool") == 0, "табуретка брошена: враг оглушён на %.1f с" % foe.stun_t)
+	g.enemies.erase(foe)
+	foe.queue_free()
+	await wait(0.3)
+	# --- гараж деда: «подеритесь, я посмотрю»
+	var gs: Dictionary = G.turf.add_extra("garage_split")
+	P.global_position = G67Dvor2.to3(-110.0, 50.0, 0.05)
+	P.velocity = Vector3.ZERO
+	ok(await until(func(): return G.hub_ui != null and String(G.hub_ui.kind) == "choice", 10.0), "гараж деда: «рассуди» — открыт выбор")
+	await pick_choice("wait")
+	ok(String(gs["state"]) == "cleared" and points("bag_garage_split") == 1, "подождал: подрались сами, сумка лежит")
+	var g_w: int = int(G.run["golda"])
+	G.use("bag_garage_split")
+	await wait(0.3)
+	ok(int(G.run["golda"]) - g_w >= 12 and G.hub_ui == null, "в сумке 12 голды, бафа нет")
+	# --- патруль ходит
+	var pt: Dictionary = G.turf.add_extra("patrol")
+	var c0: Vector3 = pt["c"]
+	P.global_position = G67Dvor2.to3(-6.0, -100.0, 0.05)
+	await wait(3.0)
+	ok((pt["c"] as Vector3).distance_to(c0) > 1.5 and (pt["foes"] as Array).size() == 2, "патруль из двоих идёт по проезду: сдвинулся на %.1f м" % (pt["c"] as Vector3).distance_to(c0))
+	# --- торговцы: термос, обмен, сделка
+	G.run["golda"] = 300
+	G.run["fits"] = {"semki": 1}
+	G.apply_fits()
+	var sh0: String = G.shop
+	G.shop = "petrovich"
+	var th0: int = G.item_n("thermos")
+	ok(G._trade_buy("pt_thermos") != "" and G.item_n("thermos") == th0 + 1, "Петрович: термос куплен — лежит в кармане (%d)" % G.item_n("thermos"))
+	ok(G._trade_why("pt_swap") == "", "Петрович: обмен доступен, когда есть баф")
+	G._swap_begin()
+	await pick_choice("semki")
+	ok(G.hub_ui != null and String(G.hub_ui.kind) == "choice" and G.fit_lv("semki") == 0, "обмен: баф отдан, на выбор — два других")
+	var two: Array = G.hub_ui.items.map(func(it): return String(it["key"])) if G.hub_ui != null else []
+	if two.size() > 0:
+		await pick_choice(String(two[0]))
+	ok(two.size() == 2 and G.fit_lv(String(two[0])) == 1 and (G.run["fits"] as Dictionary).size() == 1, "обмен: взят один из двух, бафов столько же")
+	G.shop = "zhora"
+	var mhp: float = P.max_hp
+	var risk: String = G._trade_pick("zh_risk")
+	ok(risk != "" and G._trade_why("zh_risk") == "" and G.kiosk_price("zh_risk") == 0, "Жора: сделка бесплатная, под ней редкий баф «%s»" % risk)
+	G._trade_buy("zh_risk")
+	ok(G.fit_lv(risk) == 1 and is_equal_approx(P.max_hp, mhp - G67Data.FLAW_HP), "сделка: баф получен, максимум здоровья %d → %d" % [int(mhp), int(P.max_hp)])
+	G.shop = sh0
+	G.run.erase("flaw")
+	G.run["fits"] = {}
+	G.apply_fits()
+	# --- кнопка и «Бурмалда» на улице
+	ok(points("ev_button") == 1 and points("ev_burmalda") == 1, "на улице стоят автомат «Бурмалда» и кнопка")
+	P.global_position = ev_point("ev_button") + Vector3(0, 0.05, 0)
+	await wait(0.6)
+	await shot("a25_button")
+	G.use("ev_button")
+	var btn: bool = await until(func(): return G.room_state == "open" and not G.ev_busy and bool((G.run.get("ev_short", {}) as Dictionary).get("button", false)), 40.0)
+	ok(btn and points("ev_button") == 0, "кнопка нажата: сцена отыграла, забег идёт дальше")
+	P.hp = P.max_hp
+	P.global_position = ev_point("ev_burmalda") + Vector3(0, 0.05, 0)
+	await wait(0.6)
+	await shot("a26_burmalda")
+	G.use("ev_burmalda")
+	await until(func(): return not G.ev_busy and int(G.run.get("ev_pulls", 0)) >= 1, 40.0)
+	ok(int(G.run.get("ev_pulls", 0)) == 1 and G.room_state == "reward", "«Бурмалда»: первый рывок отыгран")
+	P.global_position += Vector3(0, 0, 6.0)
+	var brm: bool = await until(func(): return G.room_state == "open" and bool((G.run.get("ev_short", {}) as Dictionary).get("burmalda", false)), 12.0)
+	ok(brm, "отошёл — автомат замолчал, событие закрыто")
+	ok(int(G.world.dvor.count.get("windows", 0)) > 0, "свет в окнах: проходов поверх фасадов %d" % int(G.world.dvor.count.get("windows", 0)))
 
 ## Жители и торговец нового двора: приветствие, удар настоящей клавишей, реакции, лавка
 func folk_block() -> void:
@@ -601,11 +708,13 @@ func _run() -> void:
 	P.hp = P.max_hp * 0.5
 	var hp_x: float = P.hp
 	P.global_position = G67Dvor2.to3(-86.0, 90.0, 0.05)
-	await lead(-86.0, 103.0, func(): return String(ex["state"]) == "fight")
+	await lead(-86.0, 103.0, func(): return String(ex["state"]) == "fight" or G.hub_ui != null)
+	ok(await pick_choice("fight", 14.0), "у школы открыт выбор: вступиться, пошутить или пройти мимо")
 	await until(func(): return String(ex["state"]) == "fight", 14.0)
 	ok(String(ex["state"]) == "fight", "подошёл — конфликт перешёл в бой")
 	var won_x: bool = await kill_enc("school_kid")
-	ok(won_x and points("bag_school_kid") == 1 and P.hp > hp_x, "победа: сумка на месте, школьник отдал чай (+здоровье)")
+	ok(won_x and points("bag_school_kid") == 1 and G.item_n("thermos") == 1, "победа: сумка на месте, школьник отдал термос")
+	(G.run["items"] as Dictionary).erase("thermos")
 	G.use("bag_school_kid")
 	await pick_fit()
 	ok(int(G.run["golda"]) - g_x >= 30, "в сумке 20 и 10 от школьника: +%d" % (int(G.run["golda"]) - g_x))
@@ -746,6 +855,8 @@ func _run() -> void:
 		eq = eq and int(svf.get(k, 0)) == int(fits0[k])      # JSON читает числа дробными — сравниваем значения, а не текст
 	ok(eq, "бафы есть в записи забега и читаются из JSON: %s" % str(svf))
 	# ================= обратно во двор =================
+	G.run["pos"] = 2                      # будто два этапа Подземки уже пройдены
+	G.run["pz_change"] = 1
 	G.use("to_dvor")
 	var came: bool = await until(func(): return String(G.run.get("district", "")) == "dvor" and G.world.dvor != null and not G.descending, 30.0)
 	ok(came, "«ВО ДВОР»: загружен новый двор")
@@ -764,6 +875,7 @@ func _run() -> void:
 	await wait(1.0)
 	ok(again and same.call() and is_equal_approx(P.dmg_mul, dmg0), "второй спуск: бафы не удвоились и не пропали")
 	ok(G.events.filter(func(e): return String(e[0]) == "clip").size() == clips0, "вступительный ролик второй раз не идёт")
+	ok(int(G.run.get("pos", 0)) == 2 and int(G.run.get("pz_change", 0)) == 1 and G.room_state == "open", "повторный спуск: Подземка продолжается с третьего этапа, а не с начала (этап %d)" % (int(G.run.get("pos", 0)) + 1))
 	# тоннель и зал — кадры
 	for sh in [["a14_pz_gate", G67District.zone_of("gate1")], ["a15_pz_arcade", G67District.zone_of("arcade")]]:
 		var zz: Dictionary = sh[1]
