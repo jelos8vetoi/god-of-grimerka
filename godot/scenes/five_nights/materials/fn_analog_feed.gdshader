@@ -43,7 +43,7 @@ void fragment() {
 	float desync = max(interference, max(lost, recovery));
 
 	// Luma bandwidth is lower horizontally. Line timing varies independently of pixel grain.
-	uv.x += fx * ((line_noise - 0.5) * 0.0015 * wobble
+	uv.x += fx * ((line_noise - 0.5) * (0.0015 + 0.008 * step(0.955, tear)) * wobble
 		+ sync_bar * sin(t * 1.2) * 0.002
 		+ tear_shift * (0.37 * desync + 0.36 * switch_k * switch_bar)
 		+ sin(uv.y * 52.0 + t * 17.0) * 0.022 * bot_band * jam
@@ -55,7 +55,7 @@ void fragment() {
 		+ texture(feed, uv + vec2(px.x * 0.92, 0.0)).rgb) * 0.22;
 	float light = pow(max(luma(sample_rgb), 0.0), 0.88) * gain;
 	light *= 1.0 + wobble * fx * (0.026 * sin(t * 1.39) + 0.012 * sin(t * 4.2));
-	vec3 picture = (vec3(light) + (sample_rgb - luma(sample_rgb)) * 0.21) * tint;
+	vec3 picture = (vec3(light) + (sample_rgb - luma(sample_rgb)) * 0.19) * mix(vec3(1.0), tint, 0.76);
 
 	// GHOST carries a red image echo. MOD still supplies the original frozen frame, with a quiet sync seam.
 	if (haunt > 0.0) {
@@ -71,8 +71,13 @@ void fragment() {
 	float grain = mix(hash(grain_key), hash(grain_key + vec2(1.0, 0.0)), fract(grain_at.x)) - 0.5;
 	float scan = cos(UV.y * 6.283185 / px.y);
 	float visible_lines = 1.0 - smoothstep(0.29, 0.67, fwidth(UV.y / px.y));
-	picture += grain * noise_k * fx;
-	picture *= 1.0 - fx * (0.037 * visible_lines * (0.5 - scan * 0.5) + 0.026 * sync_bar);
+	// A second, horizontally correlated luma component belongs to the same field.
+	float streak_at = UV.x * 186.0 + line_noise * 24.0;
+	vec2 line_key = vec2(floor(streak_at), row) + field * vec2(7.0, 11.0);
+	float track = mix(hash(line_key), hash(line_key + vec2(1.0, 0.0)), fract(streak_at)) - 0.5;
+	float line_strength = 0.018 + 0.105 * smoothstep(0.42, 0.98, line_noise);
+	picture += (grain * noise_k * 0.77 + track * line_strength) * fx;
+	picture *= 1.0 - fx * (0.044 * visible_lines * (0.5 - scan * 0.5) + 0.029 * sync_bar);
 	vec2 edge = UV - 0.5;
 	picture *= 1.0 - 0.53 * dot(edge, edge);
 
