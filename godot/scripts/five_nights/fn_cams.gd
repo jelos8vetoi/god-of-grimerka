@@ -1,68 +1,48 @@
-## Видеонаблюдение «5 НОЧЕЙ С ПАХАНОМ»: одна камера в маленьком SubViewport (480×270) переезжает между
-## точками камер — рисуется только выбранная и только пока поднят монитор (8 камер одновременно не рендерятся).
-## Картинка идёт через шейдер старого видеонаблюдения: зерно, строки, бегущие полосы помех, грязно-зелёный
-## монохром, виньетка, редкие потери сигнала. Помехи BOT, «одержимость» GHOST и подмена картинки MOD —
-## параметры того же шейдера. Подменённая картинка — снимок камеры, сделанный, пока в комнате было пусто.
+## Один 480×270 SubViewport: камера переезжает между точками, а старый канал
+## держится до срыва синхронизации. MOD получает исходный снимок пустой комнаты.
 class_name FNCams
 extends Node
 
+enum SignalState { NORMAL, SWITCHING, INTERFERENCE, LOST, RECOVERY }
+
 const SIZE := Vector2i(480, 270)
-const SHADER := """
-shader_type canvas_item;
-uniform sampler2D feed : filter_linear;
-uniform float t = 0.0;
-uniform float noise_k = 0.18;
-uniform float jam = 0.0;          // помехи BOT: 0..1
-uniform float haunt = 0.0;        // GHOST: картинка плывёт, краснеет
-uniform float switch_k = 0.0;     // вспышка помех при переключении
-uniform float lost = 0.0;         // потеря сигнала
-uniform float gain = 1.0;         // яркость камеры
-uniform vec3 tint = vec3(0.62, 0.78, 0.62);
-uniform float wobble = 0.0;       // медленное «дыхание» экспозиции / сетевой гул
-uniform float fx = 1.0;           // интенсивность эффектов (настройка)
-float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-void fragment() {
-	vec2 uv = UV;
-	float roll = fract(t * 0.07);
-	float band = smoothstep(0.0, 0.03, abs(uv.y - roll)) ;
-	uv.x += (1.0 - band) * 0.012 * fx;
-	uv.x += sin(uv.y * 40.0 + t * 9.0) * 0.004 * (jam + haunt * 1.5) * fx;
-	uv.y += (h(vec2(floor(t * 24.0), 0.0)) - 0.5) * 0.02 * jam * fx;
-	vec3 c = texture(feed, uv).rgb;
-	if (haunt > 0.0) {
-		vec3 c2 = texture(feed, uv + vec2(0.012, 0.0) * haunt).rgb;
-		c = mix(c, vec3(c2.r, c.g * 0.5, c.b * 0.5), haunt * 0.6);
-	}
-	float l = dot(c, vec3(0.3, 0.55, 0.15));
-	l = pow(l, 0.85) * 1.35;
-	l *= gain * (1.0 + 0.06 * wobble * sin(t * 1.26));
-	vec3 col = vec3(l) * tint;
-	col = mix(col, vec3(l * 1.3, l * 0.2, l * 0.15), haunt * 0.55);
-	float n = h(UV * 900.0 + t * 37.0);
-	col += (n - 0.5) * (noise_k + jam * 0.8 + switch_k * 1.5) * fx;
-	col *= 0.86 + 0.14 * sin(UV.y * 540.0);
-	col *= 1.0 - (1.0 - band) * 0.25;
-	vec2 d = UV - 0.5;
-	col *= 1.0 - dot(d, d) * 1.3;
-	col = mix(col, vec3(n * 0.8), clamp(jam * 0.85 + switch_k + lost, 0.0, 1.0));
-	COLOR = vec4(col, 1.0);
+const FEED_SHADER := preload("res://scenes/five_nights/materials/fn_analog_feed.gdshader")
+const SWITCH_TIME := 0.22
+const TUNE_TIME := 0.075
+const RECOVERY_TIME := 0.42
+const IR := 0.85
+
+## Яркость, оттенок люминофора, шум и нестабильность усиления отдельных линий.
+const LOOKS := {
+	"stage": [1.32, Vector3(1.02, 1.0, 0.88), 0.052, 0.64],
+	"arcade": [1.28, Vector3(0.82, 0.99, 0.91), 0.071, 0.91],
+	"storage": [1.23, Vector3(1.04, 0.99, 0.79), 0.066, 0.68],
+	"hall_l": [1.27, Vector3(1.0, 0.97, 0.92), 0.045, 0.57],
+	"hall_r": [1.34, Vector3(0.90, 0.97, 0.92), 0.061, 0.83],
+	"server": [1.26, Vector3(0.78, 0.95, 1.04), 0.042, 0.46],
+	"vent": [1.24, Vector3(0.88, 0.95, 0.84), 0.086, 1.05],
+	"power": [1.28, Vector3(1.02, 0.96, 0.81), 0.057, 1.12],
+	"room9": [1.19, Vector3(1.03, 0.84, 0.80), 0.074, 0.97],
 }
-"""
 
 var fac: FNFacility
 var vp: SubViewport
 var cam: Camera3D
-var view: TextureRect             # картинка на мониторе (ставит FNUI)
 var mat: ShaderMaterial
 var cur := ""
+var pending := ""
 var switch_t := 0.0
 var lost_t := 0.0
-var lost_next := randf_range(40.0, 90.0)   # через сколько секунд следующая редкая потеря сигнала
-var frozen := {}                  # id камеры → ImageTexture (подмена MOD)
+var lost_next := randf_range(40.0, 90.0)
+var signal_state := SignalState.NORMAL
+var recovery_t := 0.0
+var was_lost := false
+var capturing := false
+var frozen := {}
 var t := 0.0
 var fx_k := 1.0
-var base_basis := Basis()          # куда смотрит камера без поворота
-var sway := 0.0                    # размах медленного поворота поворотной камеры, рад
+var base_basis := Basis()
+var sway := 0.0
 var turn_t := 0.0
 
 func build(f: FNFacility, world: World3D) -> void:
@@ -78,33 +58,16 @@ func build(f: FNFacility, world: World3D) -> void:
 	cam.environment = preload("res://scenes/five_nights/materials/cctv_environment.tres")
 	vp.add_child(cam)
 	mat = ShaderMaterial.new()
-	var sh := Shader.new()
-	sh.code = SHADER
-	mat.shader = sh
+	mat.shader = FEED_SHADER
 	mat.set_shader_parameter("feed", vp.get_texture())
-
-## характер каждой камеры: шум, яркость, оттенок, дыхание экспозиции
-const LOOKS := {
-	"stage": {"noise": 0.12, "gain": 1.08, "tint": Color(0.64, 0.8, 0.64), "wobble": 0.0},
-	"arcade": {"noise": 0.24, "gain": 1.0, "tint": Color(0.58, 0.76, 0.7), "wobble": 0.0},
-	"storage": {"noise": 0.2, "gain": 0.9, "tint": Color(0.72, 0.76, 0.58), "wobble": 0.0},
-	"hall_l": {"noise": 0.18, "gain": 1.0, "tint": Color(0.62, 0.78, 0.62), "wobble": 0.15},
-	"hall_r": {"noise": 0.18, "gain": 1.0, "tint": Color(0.62, 0.78, 0.62), "wobble": 0.15},
-	"server": {"noise": 0.1, "gain": 1.0, "tint": Color(0.55, 0.72, 0.8), "wobble": 0.0},
-	"vent": {"noise": 0.3, "gain": 0.85, "tint": Color(0.62, 0.78, 0.62), "wobble": 0.0},
-	"power": {"noise": 0.2, "gain": 1.0, "tint": Color(0.62, 0.78, 0.62), "wobble": 0.3},
-	"room9": {"noise": 0.2, "gain": 1.0, "tint": Color(0.78, 0.62, 0.58), "wobble": 0.0},
-}
-
-## сила инфракрасной подсветки врагов на камерах (fn_ir.w, см. materials/fn_ir_pass.gdshader)
-const IR := 0.85
 
 func _ir() -> void:
 	RenderingServer.global_shader_parameter_set("fn_ir", Vector4(cam.global_position.x, cam.global_position.y, cam.global_position.z, IR))
 
-func set_cam(id: String) -> void:
-	if not fac.cams.has(id):
-		return
+func _place_cam(id: String) -> void:
+	if id != cur:
+		was_lost = false
+		recovery_t = 0.0
 	cur = id
 	var c: Dictionary = fac.cams[id]
 	cam.global_position = c["pos"]
@@ -112,16 +75,25 @@ func set_cam(id: String) -> void:
 	cam.fov = float(c["fov"])
 	base_basis = cam.global_basis
 	_ir()
-	var lk: Dictionary = LOOKS.get(id, {"noise": 0.18, "gain": 1.0, "tint": Color(0.62, 0.78, 0.62), "wobble": 0.0})
-	mat.set_shader_parameter("noise_k", float(lk["noise"]))
-	mat.set_shader_parameter("gain", float(lk["gain"]))
-	mat.set_shader_parameter("tint", Vector3((lk["tint"] as Color).r, (lk["tint"] as Color).g, (lk["tint"] as Color).b))
-	mat.set_shader_parameter("wobble", float(lk["wobble"]))
+	var look: Array = LOOKS[id]
+	mat.set_shader_parameter("gain", look[0])
+	mat.set_shader_parameter("tint", look[1])
+	mat.set_shader_parameter("noise_k", look[2])
+	mat.set_shader_parameter("wobble", look[3])
 	sway = deg_to_rad(float(c.get("sway", 0.0)))
-	switch_t = 0.22
 
-## аномалия «self»: на миг камера показывает будку со спины охранника
+## Menu, snapshots and anomalies position the camera immediately. Player channel selection uses _tune().
+func set_cam(id: String) -> void:
+	if not fac.cams.has(id):
+		return
+	pending = ""
+	_place_cam(id)
+	switch_t = SWITCH_TIME
+
+## Аномалия «self»: на миг камера показывает будку со спины охранника.
 func peek_office() -> void:
+	if pending != "":
+		set_cam(pending)
 	cam.global_position = Vector3(1.7, 2.45, 1.45)
 	cam.look_at(Vector3(-0.2, 1.0, -0.7), Vector3.UP)
 	cam.fov = 76.0
@@ -130,8 +102,9 @@ func peek_office() -> void:
 	sway = 0.0
 	switch_t = 0.12
 
-## снимки всех камер в начале ночи — их подсовывает MOD («старая картинка»: на ней всё как было в полночь)
+## Снимки в начале ночи. Пока идёт захват, tick не меняет точку или режим рендера.
 func capture_all() -> void:
+	capturing = true
 	frozen.clear()
 	var keep := cur
 	for c in FNData.CAMS + [FNData.CAM9]:
@@ -145,37 +118,87 @@ func capture_all() -> void:
 	if keep != "":
 		set_cam(keep)
 	switch_t = 0.0
+	lost_t = -1.0
+	was_lost = false
+	recovery_t = 0.0
+	signal_state = SignalState.NORMAL
+	capturing = false
 
-## кадр срывается на sec секунд (враг вошёл в кадр или вышел из него)
+## Кадр срывается на sec секунд, когда враг вошёл в кадр или вышел из него.
 func blip(sec: float) -> void:
 	lost_t = maxf(lost_t, sec)
 
-func tick(st: FNNight, dt: float) -> void:
-	t += dt
+func _tune(st: FNNight, dt: float) -> void:
+	if st.cam == cur:
+		pending = ""
+	elif fac.cams.has(st.cam):
+		if not st.monitor or cur == "":
+			set_cam(st.cam)
+			switch_t = 0.0
+		else:
+			if pending == "":
+				switch_t = SWITCH_TIME
+			pending = st.cam
 	switch_t = maxf(0.0, switch_t - dt)
+	if pending != "" and switch_t <= SWITCH_TIME - TUNE_TIME:
+		_place_cam(pending)
+		pending = ""
+
+func tick(st: FNNight, dt: float) -> void:
+	if capturing:
+		return
+	t += dt
 	lost_t = maxf(lost_t - dt, -1.0)
 	lost_next -= dt
 	if lost_next <= 0.0:
-		lost_t = randf_range(0.08, 0.25)            # редкая потеря сигнала
+		lost_t = randf_range(0.08, 0.25)
 		lost_next = randf_range(40.0, 90.0)
-	var on := st.monitor and not st.cams_dead() and not st.cam_broken(cur)
-	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if on and not st.cam_lies(cur) else SubViewport.UPDATE_DISABLED
-	if st.cam != cur:
-		set_cam(st.cam)
-	# поворотная камера: медленно ходит туда-обратно и замирает у краёв (как настоящий привод)
+	_tune(st, dt)
+
+	var no_signal := st.cams_dead() or st.cam_broken(cur)
+	var lying := st.cam_lies(cur) and frozen.has(cur)
+	var on := st.monitor and not no_signal and not st.cam_lies(cur)
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if on else SubViewport.UPDATE_DISABLED
 	turn_t += dt
 	if sway > 0.0:
 		var k := sin(turn_t * 0.22)
 		k = signf(k) * pow(absf(k), 0.6)
 		cam.global_basis = base_basis.rotated(Vector3.UP, k * sway)
-	if view == null:
-		return
-	var lying := st.cam_lies(cur) and frozen.has(cur)
+
+	var jammed := st.jammed(cur)
+	var g: FNGhost = st.enemies["ghost"]
+	var haunt := clampf(g.haunt, 0.0, 1.0)
+	_update_signal(no_signal, jammed or haunt > 0.2, dt)
+	var switch_phase := 1.0 - switch_t / SWITCH_TIME
+	var tear := smoothstep(0.0, 0.28, switch_phase) * (1.0 - smoothstep(0.34, 1.0, switch_phase))
 	mat.set_shader_parameter("feed", frozen[cur] if lying else vp.get_texture())
 	mat.set_shader_parameter("t", t)
-	mat.set_shader_parameter("jam", 0.92 if st.jammed(cur) else 0.0)
-	var g: FNGhost = st.enemies["ghost"]
-	mat.set_shader_parameter("haunt", clampf(g.haunt, 0.0, 1.0))
-	mat.set_shader_parameter("switch_k", switch_t / 0.22)
-	mat.set_shader_parameter("lost", 1.0 if (lost_t > 0.0 or st.cams_dead() or st.cam_broken(cur)) else 0.0)
+	mat.set_shader_parameter("jam", 0.92 if jammed else 0.0)
+	mat.set_shader_parameter("haunt", haunt)
+	mat.set_shader_parameter("spoof", 1.0 if lying else 0.0)
+	mat.set_shader_parameter("switch_phase", switch_phase)
+	mat.set_shader_parameter("switch_k", tear)
+	mat.set_shader_parameter("lost", 1.0 if no_signal else 0.0)
+	mat.set_shader_parameter("interference", 1.0 if lost_t > 0.0 else 0.0)
+	mat.set_shader_parameter("recovery", smoothstep(0.0, 1.0, recovery_t / RECOVERY_TIME))
 	mat.set_shader_parameter("fx", fx_k)
+
+func _update_signal(no_signal: bool, noise: bool, dt: float) -> void:
+	if no_signal:
+		recovery_t = 0.0
+	elif was_lost:
+		recovery_t = RECOVERY_TIME
+	else:
+		recovery_t = maxf(0.0, recovery_t - dt)
+	was_lost = no_signal
+
+	if no_signal:
+		signal_state = SignalState.LOST
+	elif switch_t > 0.0:
+		signal_state = SignalState.SWITCHING
+	elif recovery_t > 0.0:
+		signal_state = SignalState.RECOVERY
+	elif noise or lost_t > 0.0:
+		signal_state = SignalState.INTERFERENCE
+	else:
+		signal_state = SignalState.NORMAL
