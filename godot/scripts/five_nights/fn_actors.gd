@@ -361,7 +361,7 @@ func _place(id: String, e: FNEnemy, r: Rig) -> void:
 			return
 		"vent_l":
 			# лицо за решёткой: лежит в шахте головой к решётке
-			r.position = Vector3(-1.62, 0.05, -2.75)
+			r.position = Vector3(-1.62, 0.05, -3.19)
 			r.rotation = Vector3(deg_to_rad(80.0), 0, 0)
 			r.play("FNCrawl", 0.0, 0.0)
 			return

@@ -899,7 +899,7 @@ func _vent_listen(R: FiveNightsRoot) -> void:
 	var lf := O.get_node("Ventilation/CeilingHatch/LeafPivotL/LeafL") as MeshInstance3D
 	var lr := O.get_node("Ventilation/CeilingHatch/LeafPivotR/LeafR") as MeshInstance3D
 	var paint := dm.material_override as StandardMaterial3D
-	ok(paint != null and lf.material_override == paint and lr.material_override == paint and paint.albedo_color.is_equal_approx(Color(0.72, 0.45, 0.2)), "клапан решётки и обе створки люка — одна предупредительная окраска")
+	ok(paint != null and lf.material_override == paint and lr.material_override == paint and paint.metallic >= 0.4, "на заслонке и створках общая матовая металлическая отделка")
 	# полный заход MADK1D по решётке
 	var m: FNEnemy = st.enemies["madk1d"]
 	m.level = 5

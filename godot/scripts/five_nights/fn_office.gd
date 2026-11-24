@@ -43,6 +43,7 @@ const RollingShutter := preload("res://scripts/five_nights/fn_rolling_shutter.gd
 @onready var grate_eyes: Node3D = $Ventilation/WallGrate/Eyes
 @onready var desk_fan: FNDeskFan = $Console/DeskFan
 @onready var wall_pivot: Node3D = $Ventilation/WallGrate/DamperPivot
+@onready var vent_latch: Node3D = $Ventilation/WallGrate/Drive/LockCam
 @onready var leaf_l: Node3D = $Ventilation/CeilingHatch/LeafPivotL
 @onready var leaf_r: Node3D = $Ventilation/CeilingHatch/LeafPivotR
 signal seal_stop(s: String, closed: bool)
@@ -397,6 +398,7 @@ func _vents(st: FNNight, dt: float, snap := false) -> void:
 		var ang := SEAL_OPEN_ANGLE * f + extra
 		if s == "l":
 			wall_pivot.rotation.x = 0.0
+			vent_latch.rotation.z = lerpf(0.82, -0.29, smoothstep(0.72, 1.0, k))
 			wall_pivot.position.y = wall_base_y + SEAL_PARK * f + clampf(extra * 0.17, -0.015, 0.015)
 			var at_l: bool = mad.spot == "vent_l" and mad.level > 0 and not st.seal["l"]
 			grate.position.x = grate_x + jolt + (sin(t * 37.0) * 0.004 if at_l else 0.0)
