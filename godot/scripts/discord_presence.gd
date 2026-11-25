@@ -208,8 +208,8 @@ func describe(scene: Node) -> Dictionary:
 			return _game(scene.game)
 		var menu := scene.menu as Menu
 		if menu != null and menu.modes != null and menu.modes.visible:
-			return _activity("mode_select", GAME_NAME, "Выбирает режим игры")
-	return _activity("logo", GAME_NAME, "Главное меню")
+			return _activity("mode_select_v2", GAME_NAME, "Выбирает режим игры")
+	return _activity("logo_v2", GAME_NAME, "Главное меню")
 
 
 func _game(game: Node) -> Dictionary:
@@ -218,16 +218,16 @@ func _game(game: Node) -> Dictionary:
 	if game.is_survival():
 		return _survival(game)
 	if is_instance_valid(game.training):
-		return _activity("training", "TRAINING ARENA", "Тренировочная арена")
+		return _activity("training_v2", "TRAINING ARENA", "Тренировочная арена")
 	if game.run_type != &"campaign" or (game.story as Dictionary).is_empty():
-		return _activity("logo", GAME_NAME, "В игре")
+		return _activity("logo_v2", GAME_NAME, "В игре")
 	var chapters: Array = game.story["CH"]
 	if game.ch >= chapters.size():
-		return _activity("story", "Сюжет", "Сюжетный режим", "Глава завершена")
+		return _activity("story_v2", "Сюжет", "Сюжетный режим", "Глава завершена")
 	var place := "Подъезд · Томск" if game.in_hall else str(game.chapter()["place"])
 	if game.mode == "boss":
 		place += " · Бой с боссом"
-	return _activity("story", "Сюжет", "Глава %d" % (game.ch + 1), place)
+	return _activity("story_v2", "Сюжет", "Глава %d" % (game.ch + 1), place)
 
 
 func _golda(golda: Golda67) -> Dictionary:
@@ -237,13 +237,13 @@ func _golda(golda: Golda67) -> Dictionary:
 		var zone_id := str(golda.room.get("place", ""))
 		if G67District.has_zone(zone_id):
 			place += " · " + str(G67District.zone_of(zone_id)["name"])
-	return _activity("golda67", "ГОЛДА 67", "ГОЛДА 67", place)
+	return _activity("golda67_v2", "ГОЛДА 67", "ГОЛДА 67", place)
 
 
 func _five_nights(five: FiveNightsRoot) -> Dictionary:
 	const TITLE := "5 НОЧЕЙ С ПАХАНОМ"
 	if five.state == "menu" or five.st == null:
-		return _activity("five_nights", TITLE, TITLE, "Меню охраны")
+		return _activity("five_nights_v2", TITLE, TITLE, "Меню охраны")
 	var night := "Своя ночь" if five.st.night >= FNData.NIGHTS.size() else "Ночь %d" % (five.st.night + 1)
 	var state := five.st.clock()
 	match five.state:
@@ -252,14 +252,14 @@ func _five_nights(five: FiveNightsRoot) -> Dictionary:
 		_:
 			if five.paused:
 				state += " · Пауза"
-	return _activity("five_nights", TITLE, night, state)
+	return _activity("five_nights_v2", TITLE, night, state)
 
 
 func _survival(game: Node) -> Dictionary:
 	const TITLE := "ENDLESS SURVIVAL"
 	var session: RefCounted = game.survival
 	if session == null:
-		return _activity("survival", TITLE, TITLE)
+		return _activity("survival_v2", TITLE, TITLE)
 	var seconds := floori(session.elapsed)
 	if not session.finished:
 		# Update the run clock at the same cadence as the RPC budget.
@@ -269,7 +269,7 @@ func _survival(game: Node) -> Dictionary:
 	var state := "%s · Побеждено: %d" % [time, game.kills]
 	if session.finished:
 		state += " · Забег завершён"
-	return _activity("survival", TITLE, TITLE, state)
+	return _activity("survival_v2", TITLE, TITLE, state)
 
 
 func _race(race: Race) -> Dictionary:
@@ -279,11 +279,11 @@ func _race(race: Race) -> Dictionary:
 		track += " · Пауза"
 	elif race.state in ["done", "results"]:
 		track += " · Финиш"
-	return _activity("logo", TITLE, TITLE, track)
+	return _activity("logo_v2", TITLE, TITLE, track)
 
 
 func _microloans(microloans: MicroloansRoot) -> Dictionary:
 	const TITLE := "ПАХАН НАБРАЛ МИКРОЗАЙМОВ"
 	var phase := {"morning": "Утро", "day": "День", "evening": "Вечер", "night": "Ночь"}
 	var state := "Неделя завершена" if microloans.econ.ending != "" else str(phase.get(microloans.econ.phase, ""))
-	return _activity("logo", TITLE, TITLE, "День %d · %s" % [microloans.econ.day, state])
+	return _activity("logo_v2", TITLE, TITLE, "День %d · %s" % [microloans.econ.day, state])
