@@ -2650,8 +2650,10 @@ func _ev_end() -> void:
 		return
 	ev_cam = false
 	_talk_hud(false)
-	game.cam.transform = Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
-	game.cam.fov = float(Opts.v("fov"))
+	talk_pos = ev_pos              # из последнего плана сцены — плавно за спину героя, тем же отъездом, что после разговора
+	talk_look = ev_look
+	talk_fov = ev_fov
+	talk_out_t = TALK_OUT
 
 func _ev_shot(pos: Vector3, look: Vector3, fov := 50.0) -> void:
 	ev_pos = pos
@@ -3220,7 +3222,7 @@ func scene_busy() -> bool:
 	return scene_t >= 0.0 or clip != null or hub_ui != null or ev_cam
 
 func owns_camera() -> bool:
-	return talk_on or ev_cam or (scene_t >= 0.0 and scene_boss != null and is_instance_valid(scene_boss))
+	return talk_on or talk_out_t > 0.0 or ev_cam or (scene_t >= 0.0 and scene_boss != null and is_instance_valid(scene_boss))
 
 # ---------------------------------------------------------------- камера разговоров (talk_shots)
 ## План: {pos, look, fov} в мировых координатах; номер плана на реплику — talk_map. Планы строятся от положений героя и
@@ -3262,7 +3264,7 @@ func talk_begin(partner, kind: String, lines: Array) -> void:
 	A = A.normalized() if A.length() > 0.05 else Vector3.FORWARD
 	var S := A.cross(Vector3.UP)
 	var sd: float = game.dlg_side
-	var qy := 0.95 if kind == "flurr" else 1.45          # DJ FLÜRR сидит на лавке: лицо ниже
+	var qy := 0.95 if kind == "flurr" else (1.2 if kind == "npc" else 1.45)          # DJ FLÜRR сидит на лавке: лицо ниже; жители двора ниже КРОТА
 	var M := (H + Q) * 0.5 + Vector3(0, 1.3 if kind == "flurr" else 1.4, 0)
 	var Hh := H + Vector3(0, 1.45, 0)
 	var Qh := Q + Vector3(0, qy, 0)
@@ -3272,6 +3274,8 @@ func talk_begin(partner, kind: String, lines: Array) -> void:
 		_plan(M, Qh + S * sd * 1.5 - A * 0.9 + Vector3(0, 0.1, 0), Qh, 38.0, Qh - S * sd * 1.5 - A * 0.9 + Vector3(0, 0.1, 0)),                          # 1 собеседник в три четверти
 		_plan(M, Qh + A * 0.9 + S * sd * 0.55 + Vector3(0, 0.25, 0), Hh, 44.0, Qh + A * 0.9 - S * sd * 0.55 + Vector3(0, 0.25, 0))]                          # 2 через плечо собеседника на Пахана
 	var extra_idx := -1
+	if kind == "npc":              # жители двора: средний план собеседника дальше, без лица на весь кадр
+		talk_shots[1] = _plan(M, Qh + S * sd * 2.3 - A * 1.4 + Vector3(0, 0.2, 0), Qh, 40.0, Qh - S * sd * 2.3 - A * 1.4 + Vector3(0, 0.2, 0))
 	match kind:
 		"kiosk":
 			talk_shots.append(_plan(M, M + S * sd * (5.0 + sep * 0.6) + Vector3(0, 1.0, 0), Vector3(39.9, 1.5, 7.0), 56.0))   # 3 окно ларька и очередь
@@ -3304,6 +3308,7 @@ func talk_begin(partner, kind: String, lines: Array) -> void:
 	talk_fov = float(sh0["fov"])
 	talk_t = 1.0
 	talk_on = true
+	talk_wait_ui = false
 	_talk_hud(true)
 
 func talk_end() -> void:
@@ -3311,9 +3316,46 @@ func talk_end() -> void:
 		return
 	talk_on = false
 	_talk_hud(false)
-	# камера возвращается на пружину: иначе поворот плана разговора остаётся на ней, и она смотрит в стену
-	game.cam.transform = Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
-	game.cam.fov = float(Opts.v("fov"))
+	talk_out_t = TALK_OUT          # из последнего плана — плавно за спину героя (camera() / _talk_out_tick)
+
+const TALK_OUT := 0.55
+var talk_out_t := 0.0
+var talk_wait_ui := false
+
+func _talk_out_tick(dt: float) -> void:
+	if talk_out_t <= 0.0:
+		return
+	talk_out_t -= dt
+	if talk_out_t <= 0.0 or talk_on:
+		talk_out_t = 0.0
+		# камера возвращается на пружину: иначе поворот плана разговора остаётся на ней, и она смотрит в стену
+		game.cam.transform = Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
+		game.cam.fov = float(Opts.v("fov"))
+
+func _talk_out_w() -> float:
+	var w := clampf(talk_out_t / TALK_OUT, 0.0, 1.0)
+	return w * w * (3.0 - 2.0 * w)
+
+func talk_cam_fov() -> float:
+	return talk_fov if talk_on else lerpf(float(Opts.v("fov")), talk_fov, _talk_out_w())
+
+## Разговор с жителем двора (события): герой поворачивается к нему, камера — планами разговора, как у КРОТА
+func talk_npc(partner, lines: Array, after: Callable) -> void:
+	var p = game.player
+	if partner != null and is_instance_valid(partner):
+		var to: Vector3 = (partner as Node3D).global_position - p.global_position
+		to.y = 0.0
+		if to.length() > 0.05:
+			p.face = atan2(to.x, to.z)
+	game.start_dialog(lines, func():
+		after.call()
+		if hub_ui != null and is_instance_valid(hub_ui):
+			talk_wait_ui = true            # после реплик сразу выбор: общий план разговора держится, пока выбор открыт
+		else:
+			talk_end())
+	_talk_camera(partner)
+	if partner != null and is_instance_valid(partner):
+		talk_begin(partner, "npc", lines)
 
 ## Боевой HUD, верхняя строка и значки над точками на время разговора спрятаны
 func _talk_hud(hide: bool) -> void:
@@ -3332,7 +3374,11 @@ func _talk_hud(hide: bool) -> void:
 		talk_hidden = {}
 
 func _talk_step(dt: float) -> void:
-	var want := int(talk_map.get(clampi(game.dlg_i, 0, 99), talk_cur))
+	if talk_wait_ui and game.mode != "dlg" and (hub_ui == null or not is_instance_valid(hub_ui)):
+		talk_wait_ui = false
+		talk_end()
+		return
+	var want := 0 if talk_wait_ui else int(talk_map.get(clampi(game.dlg_i, 0, 99), talk_cur))
 	if want != talk_cur and want < talk_shots.size():
 		talk_cur = want
 		talk_t = 0.0
@@ -3349,6 +3395,11 @@ func camera() -> Transform3D:
 		return Transform3D(Basis.looking_at(ev_look - ev_pos, Vector3.UP), ev_pos)
 	if talk_on:
 		return Transform3D(Basis.looking_at(talk_look - talk_pos, Vector3.UP), talk_pos)
+	if talk_out_t > 0.0 and (scene_t < 0.0 or scene_boss == null or not is_instance_valid(scene_boss)):
+		var back: Transform3D = game.spring.global_transform * Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
+		var shot := Transform3D(Basis.looking_at(talk_look - talk_pos, Vector3.UP), talk_pos)
+		var w := _talk_out_w()
+		return Transform3D(Basis(back.basis.get_rotation_quaternion().slerp(shot.basis.get_rotation_quaternion(), w)), back.origin.lerp(shot.origin, w))
 	var home: Transform3D = game.spring.global_transform * Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
 	var bp: Vector3 = scene_boss.global_position
 	var pos: Vector3
@@ -5378,6 +5429,7 @@ func _physics_process(dt: float) -> void:
 	bark_hold = maxf(0.0, bark_hold - dt)
 	if talk_on:
 		_talk_step(dt)
+	_talk_out_tick(dt)
 	if ev_cam:
 		var heldv := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE)
 		ev_hold = ev_hold + dt if heldv else maxf(0.0, ev_hold - dt * 3.0)
