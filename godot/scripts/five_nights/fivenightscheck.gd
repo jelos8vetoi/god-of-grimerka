@@ -308,8 +308,9 @@ func _ui_part() -> void:
 	var tip_b := UI.dev_tip(st, "door_l")
 	ok(st.door["l"] and st_closed == "ЗАКРЫТА" and tip_a.begins_with("ЛЕВАЯ ДВЕРЬ — ЗАКРЫТЬ") and tip_b.begins_with("ЛЕВАЯ ДВЕРЬ — ОТКРЫТЬ"), "плашка мышью закрывает дверь; подсказка «%s» → «%s»" % [tip_a.get_slice("\n", 0), tip_b.get_slice("\n", 0)])
 	UI.tip_id = "door_l"
-	await wait(0.3)
-	ok(UI.tip_box.visible and UI.tip_l.text.contains("тратит энергию"), "наведение на плашку показывает, что делает устройство и чего стоит")
+	# Уведомление о переключении кратковременно занимает место подсказки.
+	var tooltip := await until(func(): return UI.tip_box.visible and UI.tip_l.text.contains("тратит энергию"), FNUI.TOAST_LEN + 0.8)
+	ok(tooltip, "наведение на плашку показывает, что делает устройство и чего стоит")
 	await shot("f05b_deck_tip")
 	UI.tip_id = ""
 	R.deck_press("door_l", true)
