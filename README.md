@@ -24,7 +24,7 @@
 
 Без установки: **[лаунчер](https://github.com/jelos8vetoi/god-of-grimerka/releases/download/godot-build/GOD-OF-GRIMERKA-Launcher.exe)** — один раз. Он сам ставит игру в `%LOCALAPPDATA%GOD OF GRIMERKA Godot`, при каждом запуске проверяет обновления на GitHub и докачивает новую сборку.
 
-Без лаунчера: [страница сборки](https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build) · [игра .exe напрямую](https://github.com/jelos8vetoi/god-of-grimerka/releases/download/godot-build/GOD-OF-GRIMERKA-Godot.exe)
+Без лаунчера: [страница сборки](https://github.com/jelos8vetoi/god-of-grimerka/releases/tag/godot-build) · [архив Windows x64](https://github.com/jelos8vetoi/god-of-grimerka/releases/download/godot-build/GOD-OF-GRIMERKA-Windows-x64.zip). Распакуй все файлы в одну папку и запусти GOD OF GRIMERKA.exe.
 
 Сборка обновляется сама после каждого изменения игры. Если в меню появилась кнопка «Вышло обновление» — она перезапустит игру через лаунчер. Что менялось — в [`godot/CHANGELOG.md`](godot/CHANGELOG.md), как работать вдвоём — в [`COLLABORATION.md`](COLLABORATION.md).
 

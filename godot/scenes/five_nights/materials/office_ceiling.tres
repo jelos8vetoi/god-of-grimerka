@@ -1,0 +1,19 @@
+[gd_resource type="StandardMaterial3D" format=3]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/phase2/textures/ceiling_interior/Diffuse.jpg" id="Diffuse"]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/phase2/textures/ceiling_interior/nor_gl.jpg" id="nor_gl"]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/phase2/textures/ceiling_interior/Rough.jpg" id="Rough"]
+[ext_resource type="Texture2D" path="res://assets/fn_curated/phase2/textures/ceiling_interior/AO.jpg" id="AO"]
+[resource]
+albedo_texture = ExtResource("Diffuse")
+normal_texture = ExtResource("nor_gl")
+normal_enabled = true
+roughness_texture = ExtResource("Rough")
+ao_texture = ExtResource("AO")
+ao_enabled = true
+albedo_color = Color(0.49, 0.48, 0.42, 1)
+normal_scale = 0.6
+roughness = 0.96
+metallic_specular = 0.13
+uv1_triplanar = true
+uv1_world_triplanar = true
+uv1_scale = Vector3(0.58, 0.58, 0.58)

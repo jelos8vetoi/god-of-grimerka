@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/five_nights/fn_corridor.gd" id="1_aaewp"]
 [ext_resource type="Material" path="res://scenes/five_nights/materials/floor.tres" id="2_hj1rp"]
-[ext_resource type="Material" path="res://scenes/five_nights/materials/plaster.tres" id="3_msqq0"]
+[ext_resource type="Material" path="res://assets/fn_curated/phase3/finishes/lime.tres" id="3_msqq0"]
 [ext_resource type="Material" path="res://scenes/five_nights/materials/enamel.tres" id="4_10cag"]
 [ext_resource type="Material" path="res://scenes/five_nights/materials/laminate.tres" id="5_u1cw2"]
 [ext_resource type="Material" path="res://scenes/five_nights/materials/steel.tres" id="6_6mqvs"]
@@ -422,6 +422,7 @@ rings = 8
 
 [node name="Cam4Corridor" type="Node3D" unique_id=810834673]
 script = ExtResource("1_aaewp")
+sway = 2.0
 
 [node name="Shell" type="Node3D" parent="." unique_id=1000996444]
 
@@ -881,7 +882,9 @@ mesh = SubResource("CylinderMesh_uv31p")
 [node name="Light" type="OmniLight3D" parent="Lamps/LampFar" unique_id=1681040053]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.14, 0)
 light_color = Color(0.78, 0.88, 0.92, 1)
-light_energy = 0.55
+light_energy = 0.27
+light_specular = 0.05
+omni_attenuation = 1.45
 omni_range = 3.2
 
 [node name="LampMid" type="Node3D" parent="Lamps" unique_id=264985028]
@@ -903,10 +906,11 @@ mesh = SubResource("CylinderMesh_uv31p")
 [node name="Light" type="SpotLight3D" parent="Lamps/LampMid" unique_id=1383010796]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, -0.17, 0)
 light_color = Color(0.78, 0.88, 0.92, 1)
-light_energy = 1.6
+light_energy = 0.94
+light_specular = 0.06
 shadow_enabled = true
 spot_range = 4.6
-spot_angle = 62.0
+spot_angle = 54.0
 spot_angle_attenuation = 0.8
 
 [node name="PostSign" type="Node3D" parent="Lamps" unique_id=86329702]
@@ -972,7 +976,7 @@ mesh = SubResource("BoxMesh_ek0m5")
 [node name="Light" type="OmniLight3D" parent="Lamps/Emergency" unique_id=878404025]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.14, 0, 0)
 light_color = Color(1, 0.12, 0.08, 1)
-light_energy = 0.6
+light_energy = 0.36
 omni_range = 2.2
 
 [node name="Props" type="Node3D" parent="." unique_id=2043585527]
@@ -1504,7 +1508,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3.55)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.20000005, 0, -5.3500004)
 
 [node name="Spot3" type="Marker3D" parent="EnemySpots" unique_id=1518871547]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.95)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -2.96)
 
 [node name="AnomalyFigure" type="Node3D" parent="." unique_id=520344577]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -0.8699999, 0, -5.25)
@@ -1536,5 +1540,5 @@ mesh = SubResource("SphereMesh_ua7os")
 
 [node name="Cctv" type="Camera3D" parent="." unique_id=1761708774]
 transform = Transform3D(-0.9993778, -0.005927744, 0.03477048, 0, 0.98577726, 0.16805734, -0.03527215, 0.16795278, -0.9851638, 0.29999995, 2.35, -8.45)
-fov = 62.0
+fov = 58.0
 far = 60.0

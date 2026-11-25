@@ -329,6 +329,9 @@ func _vol_text(x: float) -> String:
 func open_settings() -> void:
 	var a = root.main.audio if root.main != null else null
 	var list: Array = []
+	list.append({"text": func(): return "Расширенные подсказки управления  ·  " + ("ВКЛ" if FNUI.extended_hints_enabled() else "ВЫКЛ"),
+		"step": func(_d: int): root.ui.toggle_deck_pin(),
+		"info": "Показывает пульт с клавишами и состоянием устройств. Во время смены переключается клавишей F1."})
 	list.append({"text": func(): return "ОБЩАЯ ГРОМКОСТЬ: " + _vol_text(float(Opts.v("master"))), "step": func(d: int): Opts.put("master", clampf(snappedf(float(Opts.v("master")) + 0.05 * d, 0.05), 0.0, 1.0))})
 	if a != null:
 		for b in [["Music", "МУЗЫКА"], ["Ambient", "ОКРУЖЕНИЕ"], ["SFX", "ЭФФЕКТЫ"], ["Voice", "ГОЛОСА"]]:

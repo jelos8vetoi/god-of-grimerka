@@ -6,6 +6,8 @@
 class_name FNActors
 extends Node3D
 
+enum Appearance { ORIGINAL, PATROL, DOOR }
+
 var LOOK := {
 	"balon": {"model": "bot", "h": 2.3, "tint": Color(0.88, 0.85, 0.78), "eye": "eye", "sep": 0.22},
 	"madk1d": {"model": "madk1d", "h": 1.75, "tint": Color(0.7, 0.7, 0.72), "eye": "eye_red", "sep": 0.18},
@@ -18,6 +20,8 @@ var LOOK := {
 var office: FNOffice
 var fac: FNFacility
 var rigs := {}                     # id → Rig
+var visual_bindings := {}
+var appearance_by_id := {}
 var face := {}                     # id → {eyes, maw}
 var place_key := {}                # id → где поставлен (чтобы не переставлять каждый кадр)
 var t := 0.0
@@ -26,6 +30,10 @@ var creep := {}                    # id → на сколько подполз �
 var stare := {}                    # id → точка, к которой медленно поворачивается (аномалия «stare»)
 var dart := {}                     # id → [время до следующего движения глаз, сколько ещё смотрят вбок]
 var lunge_t := {}                  # id → у двери играет FNLunge (вот-вот войдёт)
+var slot := {}                     # id → комната камеры, где он сейчас стоит: двое на одно место не встают (_free_spot)
+var foot := {}                     # id → силуэт в плане, м: Vector2(полуширина, полуглубина) — по вершинам модели в стойке FNStill (_measure)
+const FOOT_DEFAULT := Vector2(0.45, 0.35)
+const SLOT_GAP := 0.1              # зазор между силуэтами соседей в одной комнате, м
 const HORROR_DIR := "res://assets/minigames/fn_horror_%s.glb"   # модель владельца с костями Mixamo — встанет вместо обычной
 ## Модели владельца (скелет им ставит tools/rig-horror.py): рост в метрах и лицо. Точки лица — в единицах модели
 ## (1 = рост, начало — центр основания, +Z — лицо): eye — середина между глазами, sep — расстояние между ними,
@@ -46,6 +54,34 @@ var model_home := {}               # id → обычное место модел
 const EYE := {
 	"balon": [Color(1.0, 0.9, 0.78), 0.35], "madk1d": [Color(1.0, 0.12, 0.08), 0.8], "bot": [Color(1.0, 0.1, 0.06), 1.2],
 	"clipper": [Color(0.75, 0.9, 1.0), 0.5], "ghost": [Color(0.8, 0.85, 1.0), 0.25], "mod": [Color(1.0, 0.15, 0.1), 0.8],
+}
+# Внешние точки рига в нише (глубина по X, высота, мировой Z).
+# Запас до полотна и стен измерен по мешам FNStill, FNPeekL/R и FNLungeL/R.
+# FNOffice.point остаётся точкой игровых звуков и событий.
+const DOOR_STANDS := {
+	"balon": Vector3(3.04, 0.006, -0.23),
+	"madk1d": Vector3(3.09, 0.006, -0.29),
+	"bot": Vector3(2.98, 0.006, -0.29),
+	"clipper": Vector3(3.34, 0.254, -0.13),
+	"ghost": Vector3(3.07, 0.006, -0.28),
+	"mod": Vector3(3.38, 0.008, -0.22),
+}
+# От посадочной метки БАЛОНА. Места не меняют комнату или игровой вариант позы.
+const STAGE_STANDS := {
+	"balon": Vector3.ZERO,
+	"clipper": Vector3(-2.52, 0.145, -0.76),
+	"bot": Vector3(1.37, 0.0, -0.82),
+	"mod": Vector3(2.30, 0.0, 0.61),
+	"madk1d": Vector3(-1.72, 0.0, 0.70),
+	"ghost": Vector3(-1.18, 0.0, -0.91),
+}
+const BOT_TRAVEL := 0.48
+const BOT_TRAVEL_TIME := 1.20
+# Множители альбедо и ИК-подсветки для обычного наблюдения.
+const PATROL_DEFAULT := Vector2(0.82, 0.48)
+const PATROL_MATERIALS := {
+	"mod": Vector2(0.58, 0.20),
+	"madk1d": Vector2(0.66, 0.28),
 }
 const IR_SHADER := preload("res://scenes/five_nights/materials/fn_ir_pass.gdshader")
 const DOOR_LAYER := 2               # слой рендера врага, пока он стоит у двери: лампы будки его не освещают, только фонарь
@@ -75,6 +111,97 @@ func build(o: FNOffice, f: FNFacility) -> void:
 	fac = f
 	for id in FNData.ORDER:
 		_make(id)
+		_measure(id)
+
+## Силуэт врага в плане: полуширина и полуглубина модели от оси рига в стойке FNStill (кости учтены, как в Rig._skinned_aabb).
+## По нему враги в одной комнате расходятся по местам, не пересекаясь моделями.
+func _measure(id: String) -> void:
+	var r: Rig = rigs[id]
+	r.play("FNStill", 0.0)
+	r.player.advance(0.0)
+	var skel := r.skel
+	var to_rig := r.model.transform * r.skel_xf
+	var far := Vector2.ZERO
+	for mi in r.model.find_children("*", "MeshInstance3D", true, false):
+		var inst := mi as MeshInstance3D
+		if inst.skin == null or inst.mesh == null:
+			continue
+		var mats := []
+		for b in inst.skin.get_bind_count():
+			var bi := inst.skin.get_bind_bone(b)
+			if bi < 0:
+				bi = skel.find_bone(inst.skin.get_bind_name(b))
+			mats.append(skel.get_bone_global_pose(bi) * inst.skin.get_bind_pose(b) if bi >= 0 else Transform3D())
+		for s in inst.mesh.get_surface_count():
+			var arr := inst.mesh.surface_get_arrays(s)
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var bones = arr[Mesh.ARRAY_BONES]
+			var ws = arr[Mesh.ARRAY_WEIGHTS]
+			if bones == null or ws == null or vs.size() == 0:
+				continue
+			var per: int = bones.size() / vs.size()
+			@warning_ignore("integer_division")
+			var stride: int = max(1, vs.size() / 4000)
+			for v in range(0, vs.size(), stride):
+				var p := Vector3.ZERO
+				var wsum := 0.0
+				for j in per:
+					var w: float = ws[v * per + j]
+					if w > 0.0:
+						p += ((mats[bones[v * per + j]] as Transform3D) * vs[v]) * w
+						wsum += w
+				if wsum > 0.0:
+					p = to_rig * (p / wsum)
+					far = far.max(Vector2(absf(p.x), absf(p.z)))
+	foot[id] = far if far.x > 0.0 else FOOT_DEFAULT
+
+## соседи по комнате: кто уже стоит там же и виден
+func _neighbors(id: String, sp: String) -> Array:
+	var near: Array = []
+	for o in slot:
+		if o != id and slot[o] == sp and (rigs[o] as Rig).visible:
+			near.append(o)
+	return near
+
+## докуда силуэт f, повёрнутый как b, достаёт в сторону dir (силуэт — эллипс по ширине и глубине модели)
+func _reach(f: Vector2, b: Basis, dir: Vector3) -> float:
+	return Vector2(f.x * dir.dot(b.x.normalized()), f.y * dir.dot(b.z.normalized())).length()
+
+## запас между силуэтом id, поставленным как xf, и соседями, м (меньше нуля — модели пересекаются)
+func _gap(id: String, xf: Transform3D, near: Array) -> float:
+	var gap := INF
+	for o in near:
+		var other := rigs[o] as Rig
+		var d: Vector3 = (xf.origin - other.global_position) * Vector3(1, 0, 1)
+		var dir := d.normalized() if d.length() > 0.001 else Vector3.RIGHT
+		gap = minf(gap, d.length() - _reach(foot.get(id, FOOT_DEFAULT), xf.basis, dir) - _reach(foot.get(o, FOOT_DEFAULT), other.global_basis, dir))
+	return gap
+
+## Место в комнате камеры. Обычно — вариант позы врага; если там уже стоит другой, берётся следующее свободное место
+## комнаты, а когда заняты все — точка между местами. Комната, поза и правила игры не меняются: это только расстановка.
+func _free_spot(id: String, sp: String, room: String, pose: int) -> Transform3D:
+	var want := fac.spot(room, pose)
+	var near := _neighbors(id, sp)
+	var arr: Array = fac.spots.get(room, [])
+	if near.is_empty() or arr.is_empty():
+		return want
+	var cands: Array = []
+	for k in arr.size():
+		cands.append(arr[(pose + k) % arr.size()])
+	for i in arr.size():
+		for j in range(i + 1, arr.size()):
+			var a: Transform3D = arr[i]
+			cands.append(Transform3D(a.basis, a.origin.lerp((arr[j] as Transform3D).origin, 0.5)))
+	var best := want
+	var best_gap := -INF
+	for c in cands:
+		var gap := _gap(id, c, near)
+		if gap >= SLOT_GAP:
+			return c
+		if gap > best_gap:
+			best_gap = gap
+			best = c
+	return best
 
 ## Пахан-копия: строится один раз, когда понадобится (секретный двойник, конец шестой ночи)
 func pahan_copy() -> Rig:
@@ -283,23 +410,32 @@ func _balon_costume(r: Rig) -> void:
 	lab.transform = rest_g.affine_inverse() * Transform3D(Basis(), chest)
 
 # ---------------- каждый кадр: где стоит и что делает ----------------
-func tick(st: FNNight, dt: float) -> void:
+func tick(st: FNNight, dt: float, patrol_look := true) -> void:
 	t += dt
 	if rigs.has("pahan"):
 		(rigs["pahan"] as Rig).visible = false
+	for id in FNData.ORDER:                 # кто в этом кадре переезжает, прежнее место уже не держит
+		if place_key.get(id, "") != _place_id(id, st.enemies[id]):
+			slot.erase(id)
 	for id in FNData.ORDER:
 		var e: FNEnemy = st.enemies[id]
 		var r: Rig = rigs[id]
 		if e.level <= 0 and id != "balon":
+			_set_appearance(id, r, Appearance.ORIGINAL)
 			r.visible = false
+			slot.erase(id)
 			continue
-		var key := "%s|%d|%s" % [e.spot, e.pose, str(e.look)]
-		if id == "ghost":
-			key += "|" + str((e as FNGhost).flicker)
+		var appearance := Appearance.ORIGINAL
+		if e.spot in ["door_l", "door_r"] and not e.entered:
+			appearance = Appearance.DOOR
+		elif patrol_look and (fac.cams.has(e.spot) or e.spot == "corner"):
+			appearance = Appearance.PATROL
+		_set_appearance(id, r, appearance)
+		var key := _place_id(id, e)
 		if place_key.get(id, "") != key:
 			place_key[id] = key
 			stare.erase(id)
-			_place(id, e, r)
+			_place(id, e, r, patrol_look)
 		_live(id, e, r, dt)
 		_door_look(id, e, r)
 		# мерцание глаз; у GHOST — растёт с одержимостью
@@ -311,12 +447,25 @@ func tick(st: FNNight, dt: float) -> void:
 			if (st.enemies[id] as FNEnemy).spot in ["door_l", "door_r"]:
 				(rigs[id] as Rig).visible = false
 
+## по чему видно, что врага пора переставить: комната, поза, взгляд в камеру (у GHOST — ещё мерцание)
+func _place_id(id: String, e: FNEnemy) -> String:
+	var key := "%s|%d|%s" % [e.spot, e.pose, str(e.look)]
+	if id == "ghost":
+		key += "|" + str((e as FNGhost).flicker)
+	return key
+
 ## клип у двери своей стороны: левая нишa — FNPeekL / FNLungeL, правая — зеркальные R
 func _door_clip(sp: String, base: String) -> String:
 	return base + ("L" if sp == "door_l" else "R")
 
-func _place(id: String, e: FNEnemy, r: Rig) -> void:
+func _place(id: String, e: FNEnemy, r: Rig, spread_stage := true) -> void:
 	var sp: String = e.spot
+	slot.erase(id)
+	var bot_arrival := false
+	if id == "bot":
+		bot_arrival = r.get_meta("bot_room", "") != sp and not e.prev.is_empty()
+		r.set_meta("bot_room", sp)
+		mode.erase(id)
 	r.rotation = Vector3.ZERO
 	r.visible = true
 	var cam_p := Vector3.ZERO
@@ -325,16 +474,15 @@ func _place(id: String, e: FNEnemy, r: Rig) -> void:
 			r.visible = false
 			return
 		"door_l", "door_r":
-			# стоит у проёма в нише, прижавшись к южной стене: косяк закрывает часть тела; лицом к охраннику
-			r.position = FNOffice.point(sp) + Vector3(0, 0, 0.18)
-			var to_guard := office.cam.global_position - r.position
-			r.basis = Basis(Vector3.RIGHT, -deg_to_rad(6.0)) * Basis(Vector3.UP, atan2(to_guard.x, to_guard.z))      # всё тело наклонено на 6° к −Z, в проём, от ступней
+			var side := -1.0 if sp == "door_l" else 1.0
+			r.position = (DOOR_STANDS[id] as Vector3) * Vector3(side, 1, 1)
+			r.rotation.y = -side * PI * 0.5
 			lunge_t[id] = false
 			r.play(_door_clip(sp, "FNPeek") if e.pose != 1 else "FNStill", 0.0)
 			return
 		"vent_l":
 			# лицо за решёткой: лежит в шахте головой к решётке
-			r.position = Vector3(-1.62, 0.05, -2.75)
+			r.position = Vector3(-1.62, 0.05, -3.19)
 			r.rotation = Vector3(deg_to_rad(80.0), 0, 0)
 			r.play("FNCrawl", 0.0, 0.0)
 			return
@@ -354,6 +502,12 @@ func _place(id: String, e: FNEnemy, r: Rig) -> void:
 	if id == "ghost":
 		room = "ghost_" + sp if fac.spots.has("ghost_" + sp) else sp
 	var xf2 := fac.spot(room, e.pose)
+	if sp == "stage" and spread_stage:
+		xf2 = fac.spot("stage", 0)
+		xf2.origin += STAGE_STANDS.get(id, Vector3.ZERO) as Vector3
+	else:
+		xf2 = _free_spot(id, sp, room, e.pose)
+	slot[id] = sp
 	r.global_transform = xf2
 	cam_p = (fac.cams.get(sp, {}) as Dictionary).get("pos", r.position + Vector3(0, 0, 3))
 	if e.look:
@@ -362,22 +516,48 @@ func _place(id: String, e: FNEnemy, r: Rig) -> void:
 		r.play("FNStare", 0.0)
 	elif sp in ["hall_l", "hall_r"]:
 		r.rotation.y = 0.0
+		if id == "bot":
+			if bot_arrival:
+				mode[id] = "retreat" if e.prev == "door_r" else "approach"
+				creep[id] = 0.0
+				r.set_meta("hall_z", r.position.z)
+				r.position.z += BOT_TRAVEL if mode[id] == "retreat" else -BOT_TRAVEL
+				r.play("FNRetreat" if mode[id] == "retreat" else "FNWalk", 0.0)
+			else:
+				r.play("FNStill", 0.0)
+			return
 		# пришёл от двери — пятится, не сводя глаз; идёт к офису — приближается рывками и сам подползает ближе
 		mode[id] = "retreat" if e.prev in ["door_l", "door_r"] else "approach"
 		creep[id] = 0.0
 		r.set_meta("hall_z", r.position.z)
 		r.play("FNRetreat" if mode[id] == "retreat" else ("FNApproach" if id != "clipper" else "FNWalk"), 0.0, 1.0 if id != "clipper" else 0.18)
 	else:
-		r.play("FNStill" if e.pose != 2 else "Idle", 0.0)
+		r.play("FNStill" if id == "bot" or (sp == "stage" and spread_stage) or e.pose != 2 else "Idle", 0.0)
 
 ## живое между переездами: подползает по коридору, у двери подаётся вперёд перед входом, глаза бегают,
 ## поворот к камере (аномалия «stare»)
 func _live(id: String, e: FNEnemy, r: Rig, dt: float) -> void:
 	if not r.visible:
 		return
-	if e.spot in ["hall_l", "hall_r"] and String(mode.get(id, "")) == "approach":
-		creep[id] = minf(1.1, float(creep.get(id, 0.0)) + dt * 0.05)
-		r.position.z = float(r.get_meta("hall_z", r.position.z)) + float(creep[id])
+	if e.spot in ["hall_l", "hall_r"]:
+		var motion: String = mode.get(id, "")
+		if id == "bot" and not motion.is_empty():
+			var traveled := move_toward(float(creep[id]), BOT_TRAVEL, dt * BOT_TRAVEL / BOT_TRAVEL_TIME)
+			creep[id] = traveled
+			var direction := 1.0 if motion == "retreat" else -1.0
+			r.position.z = float(r.get_meta("hall_z")) + direction * (BOT_TRAVEL - traveled)
+			if traveled >= BOT_TRAVEL:
+				mode.erase(id)
+				r.play("FNStill", 0.15)
+		elif motion == "approach":
+			# подползает, пока не упрётся в соседа по коридору
+			var step := minf(1.1, float(creep.get(id, 0.0)) + dt * 0.05)
+			var to_p := Vector3(r.position.x, r.position.y, float(r.get_meta("hall_z", r.position.z)) + step)
+			var near := _neighbors(id, e.spot)
+			var to_xf := Transform3D(r.global_basis, to_p)
+			if near.is_empty() or _gap(id, to_xf, near) >= SLOT_GAP or _gap(id, to_xf, near) >= _gap(id, r.global_transform, near):
+				creep[id] = step
+				r.position.z = to_p.z
 	if e.spot in ["door_l", "door_r"] and e.linger > 0.0:
 		var near: bool = e.door_t > e.linger * 0.7
 		if near != bool(lunge_t.get(id, false)):
@@ -471,9 +651,90 @@ func maw(id: String, k: float) -> void:
 
 func hide_all() -> void:
 	for id in rigs:
-		(rigs[id] as Rig).visible = false
+		var rig: Rig = rigs[id]
+		rig.visible = false
+		_set_appearance(String(id), rig, Appearance.ORIGINAL)
 		scare_pose(String(id), false)
 	place_key.clear()
+
+## Материалы хранятся отдельно для наблюдения, порога и исходного вида рига.
+## Слой ниши, предупреждение у вентиляционной решётки и скримеры используют свои прежние настройки.
+func _set_appearance(id: String, rig: Rig, appearance: Appearance) -> void:
+	if appearance_by_id.get(id, Appearance.ORIGINAL) == appearance:
+		return
+	if not visual_bindings.has(id):
+		var patrol: Vector2 = PATROL_MATERIALS.get(id, PATROL_DEFAULT)
+		visual_bindings[id] = _bind_visuals(rig, patrol)
+	appearance_by_id[id] = appearance
+	for entry in visual_bindings[id]:
+		var visual: VisualInstance3D = entry[0]
+		visual.layers = FNOffice.DOOR_LAYER if appearance == Appearance.DOOR else int(entry[1])
+		if visual is Label3D:
+			(visual as Label3D).shaded = appearance != Appearance.ORIGINAL or bool(entry[2])
+		elif visual is MeshInstance3D:
+			var mesh := visual as MeshInstance3D
+			for binding: Array in entry[2]:
+				var surface: int = binding[0]
+				var material: Material = binding[1][appearance]
+				if surface < 0:
+					mesh.material_override = material
+				else:
+					mesh.set_surface_override_material(surface, material)
+
+func _bind_visuals(rig: Rig, patrol: Vector2) -> Array:
+	var bindings: Array = []
+	var copies := {}
+	for node in rig.find_children("*", "VisualInstance3D", true, false):
+		var visual := node as VisualInstance3D
+		if visual is Label3D:
+			bindings.append([visual, visual.layers, (visual as Label3D).shaded])
+			continue
+		var mesh := visual as MeshInstance3D
+		if mesh == null or mesh.mesh == null:
+			continue
+		var surfaces: Array = []
+		if mesh.material_override != null:
+			var original := mesh.material_override
+			surfaces.append([-1, _material_profiles(original, original, copies, patrol)])
+		else:
+			for i in mesh.mesh.get_surface_count():
+				var source := mesh.get_active_material(i)
+				if source != null:
+					surfaces.append([i, _material_profiles(source, mesh.get_surface_override_material(i), copies, patrol)])
+		bindings.append([mesh, mesh.layers, surfaces])
+	return bindings
+
+func _material_profiles(source: Material, original: Material, copies: Dictionary, patrol: Vector2) -> Array:
+	if not copies.has(source):
+		copies[source] = [_patrol_material(source, patrol), _door_material(source)]
+	return [original, copies[source][0], copies[source][1]]
+
+func _patrol_material(source: Material, patrol: Vector2) -> Material:
+	if not (source is BaseMaterial3D):
+		return source
+	var local := source.duplicate() as BaseMaterial3D
+	var eyes := source.has_meta("base_energy")
+	local.albedo_color *= Color(patrol.x, patrol.x, patrol.x, 1.0)
+	local.roughness = maxf(local.roughness, 0.68)
+	local.metallic = minf(local.metallic, 0.56)
+	local.metallic_specular = minf(local.metallic_specular, 0.22)
+	local.emission_enabled = eyes
+	if eyes:
+		local.emission_energy_multiplier = float(source.get_meta("base_energy")) * 0.13
+	var ir := source.next_pass as ShaderMaterial
+	if ir != null and ir.shader == IR_SHADER:
+		local.next_pass = ir_pass(local.albedo_texture, 0.27 if eyes else patrol.y)
+	return local
+
+func _door_material(source: Material) -> BaseMaterial3D:
+	var local := source.duplicate() as BaseMaterial3D if source is BaseMaterial3D else StandardMaterial3D.new()
+	local.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	local.disable_ambient_light = true
+	local.emission_enabled = false
+	local.metallic_specular = minf(local.metallic_specular, 0.16)
+	local.roughness = maxf(local.roughness, 0.44)
+	local.disable_receive_shadows = false
+	return local
 
 ## после скримера: модель возвращается на своё место в риге
 func scare_pose(id: String, _on: bool) -> void:

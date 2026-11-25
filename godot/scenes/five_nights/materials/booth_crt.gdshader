@@ -3,6 +3,7 @@ render_mode unshaded;
 
 // The large tube shows the station signal. The auxiliary tube carries static.
 uniform bool static_channel = false;
+uniform bool shaped_glass = false;
 uniform float brightness : hint_range(0.0, 1.5) = 0.65;
 uniform vec4 phosphor : source_color = vec4(0.50, 0.78, 0.65, 1.0);
 uniform sampler2D dust : repeat_enable, filter_linear_mipmap;
@@ -10,7 +11,7 @@ uniform sampler2D dust : repeat_enable, filter_linear_mipmap;
 void fragment() {
 	vec2 p = UV * 2.0 - 1.0;
 	vec2 corner = max(abs(p) - vec2(0.88, 0.84), vec2(0.0));
-	if (length(corner) > 0.16) {
+	if (!shaped_glass && length(corner) > 0.16) {
 		discard;
 	}
 	vec2 uv = 0.5 + 0.5 * p * (1.0 + 0.065 * dot(p, p));
@@ -27,4 +28,9 @@ void fragment() {
 	float vig = 1.0 - 0.28 * smoothstep(0.55, 1.15, length(p));
 	float speck = smoothstep(0.93, 0.99, texture(dust, UV * 7.0).r) * 0.05;
 	ALBEDO = vec3(0.005, 0.008, 0.007) + phosphor.rgb * (signal * scan * falloff * vig + speck) * brightness;
+	if (shaped_glass) {
+		float rim = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.6);
+		float tube_reflection = exp(-pow((UV.y - 0.16 - p.x * 0.08) * 11.0, 2.0));
+		ALBEDO += vec3(0.37, 0.42, 0.44) * (rim * 0.032 + tube_reflection * 0.013);
+	}
 }

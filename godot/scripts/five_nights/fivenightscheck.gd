@@ -271,12 +271,10 @@ func _ui_part() -> void:
 	ok(not st.door["l"] and not st.door["r"] and R.office.door_y["l"] > 0.9, "двери открылись")
 	# ---- ПУЛЬТ: у каждого устройства видно клавишу, название и состояние ----
 	var UI: FNUI = R.ui
-	var learn_on: bool = UI.deck_learn_left > 0.0
-	ok(learn_on and UI.deck.visible, "первая ночь нового сохранения: пульт виден из-за учёбы (осталось %.0f с)" % UI.deck_learn_left)
+	ok(not UI.deck.visible, "первая ночь нового сохранения начинается с компактным HUD")
 	var pin_was := UI.deck_pin
-	if not learn_on:
-		UI.deck_pin = true
-		await wait(0.2)
+	UI.deck_pin = true
+	await wait(0.2)
 	var deck_names_ok := true
 	var deck_txt: Array = []
 	var deck_screen := Rect2(Vector2.ZERO, UI._vs())
@@ -310,8 +308,9 @@ func _ui_part() -> void:
 	var tip_b := UI.dev_tip(st, "door_l")
 	ok(st.door["l"] and st_closed == "ЗАКРЫТА" and tip_a.begins_with("ЛЕВАЯ ДВЕРЬ — ЗАКРЫТЬ") and tip_b.begins_with("ЛЕВАЯ ДВЕРЬ — ОТКРЫТЬ"), "плашка мышью закрывает дверь; подсказка «%s» → «%s»" % [tip_a.get_slice("\n", 0), tip_b.get_slice("\n", 0)])
 	UI.tip_id = "door_l"
-	await wait(0.3)
-	ok(UI.tip_box.visible and UI.tip_l.text.contains("тратит энергию"), "наведение на плашку показывает, что делает устройство и чего стоит")
+	# Уведомление о переключении кратковременно занимает место подсказки.
+	var tooltip := await until(func(): return UI.tip_box.visible and UI.tip_l.text.contains("тратит энергию"), FNUI.TOAST_LEN + 0.8)
+	ok(tooltip, "наведение на плашку показывает, что делает устройство и чего стоит")
 	await shot("f05b_deck_tip")
 	UI.tip_id = ""
 	R.deck_press("door_l", true)
@@ -552,7 +551,8 @@ func _fan_check(R: FiveNightsRoot) -> void:
 	var A: FNAmbience = R.ambience
 	var rotor: Node3D = O.desk_fan.rotor
 	ok(rotor != null and rotor.name == "RotorPivot", "вентилятор: RotorPivot найден")
-	ok(O.desk_tris_after < O.desk_tris_before, "старый вентилятор вырезан из стола: треугольников %d → %d (убрано %d, %.1f мс)" % [O.desk_tris_before, O.desk_tris_after, O.fan_cut_tris, O.fan_cut_ms])
+	var desk := O.get_node("Console/DeskModel")
+	ok(desk.scene_file_path.ends_with("/metal_office_desk.gltf") and O.desk_fan.get_parent() == desk.get_parent(), "стол и рабочий вентилятор загружены отдельными сценами")
 	var fan_pt: Node3D = O.get_node("Console/AudioPoints/Fan")
 	ok(fan_pt.global_position.distance_to(rotor.global_position) <= 0.2, "маркер звука вентилятора у двигателя (%.2f м от ротора)" % fan_pt.global_position.distance_to(rotor.global_position))
 	A.fan_spin = 1.0
@@ -898,7 +898,7 @@ func _vent_listen(R: FiveNightsRoot) -> void:
 	var lf := O.get_node("Ventilation/CeilingHatch/LeafPivotL/LeafL") as MeshInstance3D
 	var lr := O.get_node("Ventilation/CeilingHatch/LeafPivotR/LeafR") as MeshInstance3D
 	var paint := dm.material_override as StandardMaterial3D
-	ok(paint != null and lf.material_override == paint and lr.material_override == paint and paint.albedo_color.is_equal_approx(Color(0.72, 0.45, 0.2)), "клапан решётки и обе створки люка — одна предупредительная окраска")
+	ok(paint != null and lf.material_override == paint and lr.material_override == paint and paint.metallic >= 0.4, "на заслонке и створках общая матовая металлическая отделка")
 	# полный заход MADK1D по решётке
 	var m: FNEnemy = st.enemies["madk1d"]
 	m.level = 5
@@ -1382,14 +1382,13 @@ func _scare_case(R: FiveNightsRoot, eid: String) -> void:
 ## чистая логика ночи: энергия, двери, маршруты, условия атаки
 ## левый коридор CAM 4 — сцена: одна, звук совпадает с местом врага, свет не достаёт до двери ниши, враг виден в коридоре
 ## и не виден из-за угла ниши (сырая картинка камеры без шейдера); снимки c4_*
-## пульт скрыт (учёба кончилась): энергия и часы на месте, F1 возвращает пульт и запоминает выбор, действия подписывает toast
+## Компактный HUD, переключатель F1 и подтверждения учебных действий.
 func _deck_hidden(R: FiveNightsRoot, _st: FNNight) -> void:
 	var UI: FNUI = R.ui
 	var pin_was := UI.deck_pin
-	var learn_was := UI.deck_learn_left
+	var hint_was := R.hint_t
 	var cfg: Dictionary = FNSave.v("settings")
 	var cfg_was = cfg.get("deck", null)
-	UI.deck_learn_left = 0.0
 	UI.deck_pin = false
 	await wait(0.3)
 	ok(not UI.deck.visible and UI.power_box.visible and UI.clock_box.visible, "учёба кончилась — пульта нет, энергия и часы на месте")
@@ -1399,13 +1398,21 @@ func _deck_hidden(R: FiveNightsRoot, _st: FNNight) -> void:
 	await key(KEY_F1)
 	await wait(0.3)
 	ok(pinned_on and not UI.deck.visible and not bool(cfg.get("deck", false)), "F1 показывает пульт и запоминает это в настройках, второй F1 убирает")
+	R.hint_t = 0.0
+	UI.hints("")
+	await key(KEY_A)
+	await wait(0.25)
+	ok(not UI.toast_l.visible, "вне обучения состояние двери читается по индикатору в будке")
+	await key(KEY_A)
+	await wait(0.25)
+	UI.hints("office")
 	await key(KEY_A)
 	await wait(0.25)
 	var toast_txt: String = UI.toast_l.text
 	var toast_vis: bool = UI.toast_l.visible
 	await key(KEY_A)
 	await wait(0.4)
-	ok(toast_vis and toast_txt == "ЛЕВАЯ ДВЕРЬ — ЗАКРЫТА", "пульта нет — дверь по клавише A подписана на экране: «%s»" % toast_txt)
+	ok(toast_vis and toast_txt == "ЛЕВАЯ ДВЕРЬ — ЗАКРЫТА", "учебное подтверждение после нажатия A: «%s»" % toast_txt)
 	UI.deck_pin = true
 	UI.toast_t = 0.0
 	await wait(0.3)
@@ -1416,7 +1423,8 @@ func _deck_hidden(R: FiveNightsRoot, _st: FNNight) -> void:
 	await wait(0.4)
 	ok(no_toast, "пока пульт на экране, подпись действия не нужна")
 	UI.deck_pin = pin_was
-	UI.deck_learn_left = learn_was
+	R.hint_t = hint_was
+	UI.hints("office" if hint_was > 0.0 else "")
 	if cfg_was == null:
 		cfg.erase("deck")
 	else:
@@ -1570,7 +1578,9 @@ func _tension(R: FiveNightsRoot, st_in: FNNight) -> void:
 			continue
 		if R.fac.cams.has(id):
 			R.cams.set_cam(id)
-			if absf(float(R.cams.mat.get_shader_parameter("gain")) - float((FNCams.LOOKS[id] as Array)[0])) > 0.001:
+			var look = FNCams.LOOKS[id]          # у камер P2 характер — массив [яркость, оттенок, зерно, …], раньше был словарь
+			var look_gain: float = float(look[0]) if look is Array else float(look["gain"])
+			if absf(float(R.cams.mat.get_shader_parameter("gain")) - look_gain) > 0.001:
 				applied = false
 	ok(all_looks and applied, "у всех камер свой характер (%d записей), set_cam применяет яркость" % ids.size())
 	for id in saved:

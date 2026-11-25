@@ -64,7 +64,7 @@ class SetupForm : Form
 	const string Api = "https://api.github.com/repos/jelos8vetoi/god-of-grimerka/releases/tags/godot-build";
 	const string GameAsset = "GOD-OF-GRIMERKA-Godot.exe";
 	const string LauncherAsset = "GOD-OF-GRIMERKA-Launcher.exe";
-	const string GameFile = "GOD OF GRIMERKA.exe";
+	const string GameFile = GamePackage.Exe;
 	const string LauncherFile = "GOD OF GRIMERKA Launcher.exe";
 	const string UninstFile = "Uninstall.exe";
 	const string Marker = "grimerka-install.txt";
@@ -980,9 +980,10 @@ class SetupForm : Form
 	{
 		Match m = Regex.Match(Get(rel, "body"), "коммит `([0-9a-f]{7,})`");
 		if (m.Success) build = m.Groups[1].Value;
-		Dictionary<string, object> ga = Asset(rel, GameAsset), la = Asset(rel, LauncherAsset);
+		Dictionary<string, object> archive = Asset(rel, GamePackage.Asset), ga = Asset(rel, GameAsset), la = Asset(rel, LauncherAsset);
 		long n = 0;
 		if (ga != null) n += Convert.ToInt64(ga["size"]);
+		if (archive != null) n += Convert.ToInt64(archive["size"]) + 16L * 1048576L;
 		if (la != null) n += Convert.ToInt64(la["size"]);
 		if (n > 0) needBytes = n + 12L * 1048576L;     // запас: файл качается рядом и потом подменяет старый
 	}
@@ -1053,20 +1054,29 @@ class SetupForm : Form
 			if (!Environment.Is64BitOperatingSystem) throw new Exception("Нужна 64-битная Windows.");
 			Dictionary<string, object> rel = Release();
 			ReadBuild(rel);
-			Dictionary<string, object> ga = Asset(rel, GameAsset), la = Asset(rel, LauncherAsset);
+			Dictionary<string, object> archive = Asset(rel, GamePackage.Asset);
+			Dictionary<string, object> ga = archive ?? Asset(rel, GameAsset), la = Asset(rel, LauncherAsset);
 			if (ga == null || la == null) throw new Exception("В релизе сейчас нет файлов игры — похоже, сборка обновляется. Попробуй через пару минут.");
 			string why;
 			if (!DirOk(out why)) throw new Exception(why);
 			Directory.CreateDirectory(installDir);
 			string game = Path.Combine(installDir, GameFile), launcher = Path.Combine(installDir, LauncherFile);
 			string gStamp = Stamp(ga);
-			bool sameGame = optPrev && File.Exists(game) && File.Exists(Path.Combine(installDir, "installed.txt")) && File.ReadAllText(Path.Combine(installDir, "installed.txt")).Trim() == gStamp;
+			bool sameGame = optPrev && (archive == null ? File.Exists(game) : GamePackage.Installed(installDir)) && File.Exists(Path.Combine(installDir, "installed.txt")) && File.ReadAllText(Path.Combine(installDir, "installed.txt")).Trim() == gStamp;
 			total = (sameGame ? 0 : Convert.ToInt64(ga["size"])) + Convert.ToInt64(la["size"]);
 			if (sameGame) { filesDone++; resultNote = "Игра уже последней версии — заново не качалась. "; }
 			else
 			{
 				phase = (File.Exists(game) ? "UPDATING GRIMERKA… качаю новую версию" : "EXTRACTING THE GOODS… качаю игру");
-				Download(ga, game);
+				if (archive == null) Download(ga, game);
+				else
+				{
+					try
+					{
+						GamePackage.Update(installDir, delegate (string file) { Download(ga, file); phase = "EXTRACTING THE GOODS… распаковываю игру"; }, delegate { return cancel; });
+					}
+					catch (OperationCanceledException) { throw new Cancelled(); }
+				}
 				File.WriteAllText(Path.Combine(installDir, "installed.txt"), gStamp);
 				filesDone++;
 			}
@@ -1168,7 +1178,8 @@ class SetupForm : Form
 	void DoUninstall()
 	{
 		List<string> left = new List<string>();
-		foreach (string f in new string[] { GameFile, LauncherFile, "installed.txt", Marker, GameFile + ".part", LauncherFile + ".part", LauncherFile + ".new" })
+		var files = new List<string>(GamePackage.Files) { LauncherFile, "installed.txt", Marker, GameFile + ".part", LauncherFile + ".part", LauncherFile + ".new" };
+		foreach (string f in files)
 		{
 			string p = Path.Combine(installDir, f);
 			try { if (File.Exists(p)) File.Delete(p); } catch { left.Add(f); }

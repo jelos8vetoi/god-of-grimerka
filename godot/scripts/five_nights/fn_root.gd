@@ -571,7 +571,7 @@ func _menu_tick(dt: float) -> void:
 	if randf() < dt * 0.15:
 		var e: FNEnemy = menu_st.enemies[["balon", "bot", "madk1d"][randi() % 3]]
 		e.look = not e.look
-	actors.tick(menu_st, dt)
+	actors.tick(menu_st, dt, false)
 	fac.tick(dt)
 	cams.tick(menu_st, dt)
 

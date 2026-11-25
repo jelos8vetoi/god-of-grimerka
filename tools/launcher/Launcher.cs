@@ -46,7 +46,7 @@ class LauncherForm : Form
 	readonly string self = Application.ExecutablePath;
 	readonly bool noSelfUpdate;
 	readonly bool checkOnly;
-	string GameExe { get { return Path.Combine(dir, "GOD OF GRIMERKA.exe"); } }
+	string GameExe { get { return Path.Combine(dir, GamePackage.Exe); } }
 	string StampFile { get { return Path.Combine(dir, "installed.txt"); } }
 
 	readonly Label status = new Label();
@@ -159,7 +159,8 @@ class LauncherForm : Form
 			Dictionary<string, object> launcher = FindAsset(rel, LauncherAsset);
 			if (!noSelfUpdate && launcher != null && SelfUpdate(launcher))
 				return;
-			Dictionary<string, object> game = FindAsset(rel, GameAsset);
+			Dictionary<string, object> package = FindAsset(rel, GamePackage.Asset);
+			Dictionary<string, object> game = package ?? FindAsset(rel, GameAsset);
 			if (game == null)
 			{
 				Offline("В релизе нет файла игры", "Похоже, сборка обновляется прямо сейчас — попробуй через пару минут.");
@@ -167,17 +168,18 @@ class LauncherForm : Form
 			}
 			string want = Stamp(game);
 			string have = File.Exists(StampFile) ? File.ReadAllText(StampFile).Trim() : "";
-			if (!File.Exists(GameExe) || have != want)
+			bool needsUpdate = !File.Exists(GameExe) || have != want || (package != null && !GamePackage.Installed(dir));
+			if (needsUpdate)
 			{
 				if (IsGameRunning())
 				{
 					Fail("Игра запущена", "Закрой игру, чтобы лаунчер её обновил.");
 					return;
 				}
-				Download(game);
+				Download(game, package != null);
 				File.WriteAllText(StampFile, want);
 			}
-			Launch(File.Exists(GameExe) && have == want ? "Последняя версия, запускаю…" : "Игра обновлена, запускаю…");
+			Launch(needsUpdate ? "Игра обновлена, запускаю…" : "Последняя версия, запускаю…");
 		}
 		catch (Exception e)
 		{
@@ -287,10 +289,13 @@ class LauncherForm : Form
 		return (int)(sec / 60) + " мин " + ((int)sec % 60) + " с";
 	}
 
-	void Download(Dictionary<string, object> game)
+	void Download(Dictionary<string, object> game, bool packaged)
 	{
 		Say(File.Exists(GameExe) ? "Скачиваю обновление…" : "Скачиваю игру…", "");
-		DownloadTo(game, GameExe, "игра");
+		if (packaged)
+			GamePackage.Update(dir, delegate (string archive) { DownloadTo(game, archive, "игра"); Say("Распаковываю игру…", ""); }, null);
+		else
+			DownloadTo(game, GameExe, "игра");
 	}
 
 	// Новый лаунчер: скачать рядом, дождаться выхода этого и подменить файл маленьким сценарием.
@@ -301,7 +306,7 @@ class LauncherForm : Form
 		Say("Обновляю лаунчер…", "");
 		string fresh = self + ".new";
 		DownloadTo(asset, fresh, "лаунчер");
-		string cmd = Path.Combine(Path.GetTempPath(), "grimerka-launcher-update.cmd");
+		string cmd = Path.Combine(Path.GetTempPath(), "grimerka-launcher-update-" + Process.GetCurrentProcess().Id + ".cmd");
 		File.WriteAllText(cmd, string.Join("\r\n", new string[] {
 			"@echo off",
 			"chcp 65001 >nul",

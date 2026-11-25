@@ -14,6 +14,9 @@ const YAW_MAX := deg_to_rad(64.0)
 const LOOK_RATE := 8.0
 const W := 2.2
 const DOOR_Z := -0.4
+# Слой для ниши и стоящих в ней ригов; тот же бит, что в P0.
+const DOOR_LAYER := 2
+const RollingShutter := preload("res://scripts/five_nights/fn_rolling_shutter.gd")
 
 @onready var cam: Camera3D = $PlayerCamera
 @onready var rest_view := cam.transform
@@ -39,13 +42,8 @@ const DOOR_Z := -0.4
 @onready var hatch_y := hatch.position.y
 @onready var grate_eyes: Node3D = $Ventilation/WallGrate/Eyes
 @onready var desk_fan: FNDeskFan = $Console/DeskFan
-## объём старого вентилятора, сплавленного со столом, в координатах меша fn_security_desk.glb (до масштаба DeskModel)
-const OLD_FAN_AABB := AABB(Vector3(-39.7, 46.15, -15.6), Vector3(16.2, 23.2, 17.7))
-var fan_cut_ms := 0.0
-var fan_cut_tris := 0
-var desk_tris_before := 0
-var desk_tris_after := 0
 @onready var wall_pivot: Node3D = $Ventilation/WallGrate/DamperPivot
+@onready var vent_latch: Node3D = $Ventilation/WallGrate/Drive/LockCam
 @onready var leaf_l: Node3D = $Ventilation/CeilingHatch/LeafPivotL
 @onready var leaf_r: Node3D = $Ventilation/CeilingHatch/LeafPivotR
 signal seal_stop(s: String, closed: bool)
@@ -81,12 +79,12 @@ var slat_open: Array = []
 @onready var dark_eyes: Node3D = $NightEffects/BlackoutEyes
 
 var photo_tex := {
-	"normal": preload("res://assets/minigames/fn_office_photo.png"),
-	"wrong": preload("res://assets/minigames/fn_office_photo_wrong.png"),
+	"normal": preload("res://assets/fn_curated/oblako/opening_photo.jpg"),
+	"wrong": preload("res://assets/fn_curated/oblako/opening_photo_wrong.jpg"),
 }
 var yaw := 0.0                     # −1 налево .. +1 направо (как в FNNight)
 var yaw_v := 0.0
-const PITCH_UP := deg_to_rad(36.0)   # взгляд вверх (на люк над столом): pitch_k 0…1
+const PITCH_UP := deg_to_rad(44.0)   # взгляд вверх (на люк над столом): pitch_k 0…1
 var pitch_k := 0.0
 var pitch_v := 0.0
 var pitch_target := 0.0            # 0 — прямо, 1 — вверх; ставит ввод (FiveNightsRoot)
@@ -112,19 +110,16 @@ var event_gain := 1.0
 var supply := 1.0
 var power_on := true
 
-const DOOR_H := 2.15                 # ход створки
-const DOOR_HIDE := 2.145              # деталь створки, чей низ поднялся выше, прячется в кожухе (низ кожуха 2,158)
-var door_parts := {}
+var door_parts := {}               # ламели створки [узел, низ] — их читает проверка; двигает и прячет их сама створка (fn_rolling_shutter.gd)
 
 var wall_base_y := 0.0
 
 func _ready() -> void:
 	_mats()
 	wall_base_y = wall_pivot.position.y
-	_strip_old_fan()
 	_bind_door("l", $LeftDoor, $LeftControls, "A", "Q")
 	_bind_door("r", $RightDoor, $RightControls, "D", "E")
-	_cull_lights()
+	_isolate_door_lighting()
 	_bind_button("phone", $Console/PhoneHit, 0.1)
 	var panel := $Console/Switchboard
 	_bind_button("seal_l", panel.get_node("LeftSeal"), 0.06)
@@ -148,13 +143,23 @@ func _bind_door(side: String, doorway: Node3D, controls: Node3D, door_key: Strin
 	(controls.get_node("DoorLabel") as Label3D).text = "ДВЕРЬ  ·  " + door_key
 	(controls.get_node("LightLabel") as Label3D).text = "СВЕТ  ·  " + light_key
 
-## лампы будки не освещают врага у двери (слой FNActors.DOOR_LAYER): ему светят только фонари и свет скримера
-func _cull_lights() -> void:
-	for l in find_children("*", "Light3D", true, false):
-		var li := l as Light3D
-		if li == scare_light or li == lights["l"] or li == lights["r"]:
-			continue
-		li.light_cull_mask = li.light_cull_mask & ~FNActors.DOOR_LAYER
+func _isolate_door_lighting() -> void:
+	for node in find_children("*", "Light3D", true, false):
+		var light := node as Light3D
+		if light != lights["l"] and light != lights["r"] and light != scare_light:
+			light.light_cull_mask &= ~DOOR_LAYER
+	for recess in [$Shell/LeftRecess, $Shell/RightRecess]:
+		for child in recess.get_children():
+			var surface := child as MeshInstance3D
+			if surface == null:
+				continue
+			var source := surface.material_override as BaseMaterial3D
+			if source == null:
+				continue
+			var local := source.duplicate() as BaseMaterial3D
+			local.disable_ambient_light = true
+			surface.material_override = local
+			surface.layers = DOOR_LAYER
 
 func _bind_button(id: String, node: Node3D, radius: float) -> void:
 	buttons[id] = {"node": node, "r": radius, "rest": node.position}
@@ -303,6 +308,7 @@ func dress(n: int) -> void:
 		alarm_lamp.light_color = Color(1.0, 0.1, 0.06)
 		alarm_lamp.light_energy = 0.0
 		alarm_lamp.omni_range = 3.2
+		alarm_lamp.light_cull_mask &= ~DOOR_LAYER
 		alarm_lamp.position = Vector3(W - 0.25, 2.3, 0.0)
 		dress_root.add_child(alarm_lamp)
 	if k >= 4:
@@ -316,44 +322,13 @@ func dress(n: int) -> void:
 	lamp_base = lamp_rated * float([0.9, 0.9, 0.85, 0.78, 0.7, 0.6, 0.75][k]) / 0.9
 	instab = [0.0, 0.15, 0.3, 0.5, 0.7, 1.0, 0.6][k]
 
-## аварийная лампа над правой дверью: медленно пульсирует, когда кто-то стоит у любой двери или шахты
+## Аварийная лампа над правой дверью.
 func alarm_pulse(danger: bool, dt: float) -> void:
 	if alarm_lamp == null or not is_instance_valid(alarm_lamp):
 		return
 	var want := (0.55 + 0.45 * sin(t * 5.0)) * 0.9 if danger and power_on else 0.0
 	alarm_lamp.light_energy = lerpf(alarm_lamp.light_energy, want, 1.0 - exp(-6.0 * dt))
 	alarm_lens.material_override = mats["red_led"] if power_on and alarm_lamp.light_energy > 0.35 else mats["red"]
-
-## старый вентилятор убираем из меша стола: треугольники с центром в OLD_FAN_AABB выбрасываются, остальное и материал — как были
-func _strip_old_fan() -> void:
-	var t0 := Time.get_ticks_usec()
-	var desk_root := $Console/DeskModel
-	for mi in desk_root.find_children("*", "MeshInstance3D", true, false):
-		var m := (mi as MeshInstance3D).mesh as ArrayMesh
-		if m == null:
-			continue
-		var mat := m.surface_get_material(0)
-		var arrays := m.surface_get_arrays(0)
-		var vs: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-		var keep := PackedInt32Array()
-		for ti in range(0, idx.size(), 3):
-			var c := (vs[idx[ti]] + vs[idx[ti + 1]] + vs[idx[ti + 2]]) / 3.0
-			if not OLD_FAN_AABB.has_point(c):
-				keep.append(idx[ti])
-				keep.append(idx[ti + 1])
-				keep.append(idx[ti + 2])
-		@warning_ignore("integer_division")
-		desk_tris_before = idx.size() / 3
-		@warning_ignore("integer_division")
-		desk_tris_after = keep.size() / 3
-		fan_cut_tris = desk_tris_before - desk_tris_after
-		arrays[Mesh.ARRAY_INDEX] = keep
-		var nm := ArrayMesh.new()
-		nm.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-		nm.surface_set_material(0, mat)
-		(mi as MeshInstance3D).mesh = nm
-	fan_cut_ms = float(Time.get_ticks_usec() - t0) / 1000.0
 
 ## вентилятор на столе: скорость берётся у ambience.fan_spin, питания у него своего нет
 func fan_tick(dt: float, spin: float) -> void:
@@ -423,6 +398,7 @@ func _vents(st: FNNight, dt: float, snap := false) -> void:
 		var ang := SEAL_OPEN_ANGLE * f + extra
 		if s == "l":
 			wall_pivot.rotation.x = 0.0
+			vent_latch.rotation.z = lerpf(0.82, -0.29, smoothstep(0.72, 1.0, k))
 			wall_pivot.position.y = wall_base_y + SEAL_PARK * f + clampf(extra * 0.17, -0.015, 0.015)
 			var at_l: bool = mad.spot == "vent_l" and mad.level > 0 and not st.seal["l"]
 			grate.position.x = grate_x + jolt + (sin(t * 37.0) * 0.004 if at_l else 0.0)
@@ -480,19 +456,19 @@ func tick(st: FNNight, dt: float, look_in: float) -> void:
 	if not beams_aimed:
 		beams_aimed = true
 		for s in ["l", "r"]:
-			(lights[s] as SpotLight3D).look_at(FNOffice.point("door_" + s) + Vector3(0, 1.25, 0.2), Vector3.UP)      # конус по центру того места, где стоят враги
+			var beam: SpotLight3D = lights[s]
+			var side := -1.0 if s == "l" else 1.0
+			beam.look_at(Vector3(side * 3.09, 1.09, -0.25), Vector3.UP)
+			beam.spot_angle = 40.0
 	power_on = not st.power_out
-	alarm_pulse(false, dt)          # лампа не выдаёт врага у двери: слушай, а не смотри на лампу
+	alarm_pulse(false, dt) # Индикатор не выдаёт присутствие за дверью.
 	_look(st, dt, look_in)
 	for s in ["l", "r"]:
 		var want := 0.0 if st.door[s] else 1.0
 		var speed := 5.5 if want < door_y[s] else 3.2
 		door_y[s] = move_toward(door_y[s], want, dt * speed)
-		var door: MeshInstance3D = doors[s]
-		door.position.y = DOOR_H * ease(door_y[s], 0.6)
-		var base_y: float = door.get_parent().position.y + door.position.y
-		for pr in door_parts[s]:
-			(pr[0] as Node3D).visible = base_y + float(pr[1]) < DOOR_HIDE
+		var door: RollingShutter = doors[s]
+		door.set_opening(ease(door_y[s], 0.6))
 		var beam: SpotLight3D = lights[s]
 		var on: bool = st.light[s] and power_on
 		var bt: float = float(beam_t.get(s, 0.0))
@@ -557,9 +533,9 @@ func _lighting(st: FNNight, dt: float) -> void:
 		crt_next = randf_range(5.0, 14.0) if instab_eff() >= 0.7 else randf_range(9.0, 25.0)
 	crt_dip = maxf(0.0, crt_dip - dt)
 	var crt_k := (1.0 + 0.035 * sin(t * 2.3) + 0.02 * sin(t * 7.1)) * (0.75 if crt_dip > 0.0 else 1.0)
-	glow.light_energy = (0.46 if st.monitor else 0.30) * supply * crt_k
-	screen_mat.set_shader_parameter("brightness", (0.95 if st.monitor else 0.62) * supply * crt_k)
-	aux_mat.set_shader_parameter("brightness", 0.46 * supply * crt_k)
+	glow.light_energy = (0.062 if st.monitor else 0.045) * supply * crt_k
+	screen_mat.set_shader_parameter("brightness", (0.68 if st.monitor else 0.49) * supply * crt_k)
+	aux_mat.set_shader_parameter("brightness", 0.34 * supply * crt_k)
 	record_light.visible = power_on and fposmod(t, 1.6) < 1.1
 
 ## Скример и события ночи меняют и сам источник, и стекло светильника.
