@@ -22,11 +22,12 @@ void fragment() {
 	float edge = open * 1.25 - 0.1;
 	col *= smoothstep(d - 0.04, d, edge);
 	col += vec3(0.85) * (1.0 - smoothstep(0.0, 0.012, abs(d - edge))) * step(0.02, open) * step(open, 0.98);
-	col += (h(uv * 900.0 + floor(TIME * 24.0)) - 0.5) * 0.08 * max(mono, 1.0 - open);
+	col += (h(uv * 900.0 + floor(TIME * 24.0)) - 0.5) * 0.08 * max(mono, 1.0 - open) * smoothstep(0.0, 0.06, open);
 	COLOR = vec4(col, 1.0);
 }
 """
 const STAGE := Vector2(1600, 900)
+const LOADING_RUN := preload("res://scenes/loading/pashok_loading_run.tscn")
 const T_COVER := 0.55
 const T_HOLD := 0.45
 const T_OPEN := 1.0
@@ -37,6 +38,7 @@ var mat: ShaderMaterial
 var holder: Control
 var title: Label
 var sub: Label
+var loading_run: Control
 var lines: Array = []
 var busy := false
 var open_v := 1.0:
@@ -98,6 +100,8 @@ func _ready() -> void:
 	sub.position = Vector2(0, 492)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	holder.add_child(sub)
+	loading_run = LOADING_RUN.instantiate()
+	add_child(loading_run)
 	get_viewport().size_changed.connect(_fit)
 	_fit()
 	_idle()
@@ -116,6 +120,7 @@ func _idle() -> void:
 	mono_v = 0.0
 	rect.visible = false
 	holder.visible = false
+	loading_run.set_running(false)
 
 func _texts(a: float) -> void:
 	title.modulate.a = a
@@ -137,6 +142,7 @@ func cover(head: String, line: String) -> void:
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(self, "mono_v", 1.0, T_COVER * 0.6)
 	tw.tween_property(self, "open_v", 0.0, T_COVER).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tw.tween_callback(func(): loading_run.set_running(true)).set_delay(T_COVER)
 	tw.tween_method(_texts, 0.0, 1.0, 0.35).set_delay(T_COVER * 0.6)
 	title.position.x = -30.0
 	tw.tween_property(title, "position:x", 0.0, 0.6).set_delay(T_COVER * 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -144,6 +150,7 @@ func cover(head: String, line: String) -> void:
 
 ## Открыть мир: надпись гаснет, шторка уходит, кадр из чёрно-белого становится цветным.
 func reveal() -> void:
+	loading_run.set_running(false)
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE     # шторка уходит: мир уже виден, мышь не держим
 	var tw := create_tween().set_parallel(true)
 	tw.tween_method(_texts, 1.0, 0.0, 0.3)
@@ -153,6 +160,7 @@ func reveal() -> void:
 
 ## Ошибка загрузки: сообщение на чёрном, через пару секунд — назад в меню.
 func fail(text: String, back: Callable) -> void:
+	loading_run.set_running(false)
 	title.text = "НЕ ВЫШЛО"
 	sub.text = text
 	_texts(1.0)
