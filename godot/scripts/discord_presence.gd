@@ -159,8 +159,6 @@ func _make_activity(wanted: Dictionary) -> Object:
 	var art: Object = ClassDB.instantiate("DiscordActivityAssets")
 	art.set_large_image(wanted["image"])
 	art.set_large_text(wanted["title"])
-	art.set_small_image("logo")
-	art.set_small_text(GAME_NAME)
 	activity.set_assets(art)
 	var timestamps: Object = ClassDB.instantiate("DiscordActivityTimestamps")
 	timestamps.set_start(_started_at_ms)
@@ -210,7 +208,7 @@ func describe(scene: Node) -> Dictionary:
 			return _game(scene.game)
 		var menu := scene.menu as Menu
 		if menu != null and menu.modes != null and menu.modes.visible:
-			return _activity("logo", GAME_NAME, "Выбирает режим игры")
+			return _activity("mode_select", GAME_NAME, "Выбирает режим игры")
 	return _activity("logo", GAME_NAME, "Главное меню")
 
 
@@ -220,7 +218,7 @@ func _game(game: Node) -> Dictionary:
 	if game.is_survival():
 		return _survival(game)
 	if is_instance_valid(game.training):
-		return _activity("logo", "TRAINING ARENA", "Тренировочная арена")
+		return _activity("training", "TRAINING ARENA", "Тренировочная арена")
 	if game.run_type != &"campaign" or (game.story as Dictionary).is_empty():
 		return _activity("logo", GAME_NAME, "В игре")
 	var chapters: Array = game.story["CH"]
