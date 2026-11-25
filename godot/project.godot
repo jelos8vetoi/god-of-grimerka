@@ -12,6 +12,14 @@ run/max_fps=0
 boot_splash/bg_color=Color(0.02, 0.02, 0.05, 1)
 boot_splash/show_image=false
 
+[autoload]
+
+DiscordPresence="*res://scripts/discord_presence.gd"
+
+[discord_presence]
+
+application_id=""
+
 [display]
 
 window/size/viewport_width=1600

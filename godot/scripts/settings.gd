@@ -5,7 +5,7 @@
 class_name Opts
 
 const PATH := "user://grimerka_display.json"
-const DEFAULT := {"fullscreen": false, "vsync": true, "fps": 0, "window": 0, "fov": 62.0, "sens": 1.0, "invert_y": false, "master": 1.0, "shake": 1.0, "less_flash": false, "practice": true, "show_fps": false}
+const DEFAULT := {"fullscreen": false, "vsync": true, "fps": 0, "window": 0, "fov": 62.0, "sens": 1.0, "invert_y": false, "master": 1.0, "shake": 1.0, "less_flash": false, "practice": true, "show_fps": false, "discord_presence": false}
 const FPS := [0, 30, 60, 120, 144]
 const WINDOWS := [[1280, 720], [1600, 900], [1920, 1080], [2560, 1440]]
 static var data := {}
@@ -67,6 +67,13 @@ static func _pct(x: float) -> String:
 static func _vol_pct(x: float) -> String:
 	return "ВЫКЛ" if roundi(x * 100.0) <= 0 else _pct(x)
 
+static func _toggle_discord_presence(w: Window) -> void:
+	var enabled := not bool(v("discord_presence"))
+	put("discord_presence", enabled)
+	var presence := w.get_node_or_null("/root/DiscordPresence")
+	if presence != null:
+		presence.set_enabled(enabled)
+
 ## Строки настроек для обоих меню. Элемент — ["#ЗАГОЛОВОК"] или [функция текста, функция изменения(направление −1/+1)].
 ## audio — менеджер звука (main.audio), ipod — плеер игры или null (в главном меню его нет).
 static func rows(w: Window, audio, ipod) -> Array:
@@ -87,6 +94,8 @@ static func rows(w: Window, audio, ipod) -> Array:
 	r.append([func(): return "МЕНЬШЕ ВСПЫШЕК: " + ("ВКЛ" if bool(v("less_flash")) else "ВЫКЛ"), func(_d: int): put("less_flash", not bool(v("less_flash")))])
 	r.append(["#ОБУЧЕНИЕ"])
 	r.append([func(): return "ПРАКТИКА В ОБУЧЕНИИ: " + ("ВКЛ" if bool(v("practice")) else "ВЫКЛ"), func(_d: int): put("practice", not bool(v("practice")))])
+	r.append(["#DISCORD"])
+	r.append([func(): return "DISCORD RICH PRESENCE: " + ("ВКЛ" if bool(v("discord_presence")) else "ВЫКЛ"), func(_d: int): _toggle_discord_presence(w)])
 	r.append(["#ЗВУК"])
 	r.append([func(): return "ОБЩАЯ ГРОМКОСТЬ: " + _vol_pct(float(v("master"))), func(d: int): put("master", clampf(snappedf(float(v("master")) + 0.05 * d, 0.05), 0.0, 1.0), w)])
 	for b in [["Music", "МУЗЫКА ИГРЫ"], ["SFX", "ЭФФЕКТЫ"], ["Ambient", "ОКРУЖЕНИЕ"], ["Voice", "ГОЛОСА"]]:

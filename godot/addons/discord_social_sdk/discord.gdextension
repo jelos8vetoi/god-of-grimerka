@@ -1,0 +1,12 @@
+[configuration]
+
+entry_symbol = "initialize_extension"
+compatibility_minimum = "4.4"
+
+[libraries]
+
+windows.single.x86_64 = "bin/discord_social_sdk.windows.template_release.x86_64.dll"
+
+[dependencies]
+
+windows.single.x86_64 = { "bin/discord_partner_sdk.dll": "" }
