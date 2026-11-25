@@ -49,6 +49,11 @@ var clips_seen: Array = []
 var hub_tries := 0
 var dead_now := false
 var choice_n := 0
+var cam_prev := Vector3.INF
+var cam_was_dlg := false
+var cam_after := -1.0
+var cam_dlg_n := 0
+var cam_jumps := 0
 var skip_dvor := false
 var immortal := false
 var in_dlg := false
@@ -357,6 +362,7 @@ func _process(dt: float) -> void:
 	var g = main.game
 	var p = g.player
 	t_all += dt
+	_cam_hook()
 	ui_cd -= dt
 	atk_cd -= dt
 	roll_cd -= dt
@@ -1005,3 +1011,66 @@ func _ev_wait(gg, p, act: String) -> void:
 			go(pt["pos"])
 			return
 	stop()
+
+## Камера вокруг разговоров: рывок за кадр (> 1,2 м или > 35°) вне ролика и перехода — запись; снимки до, во время и после разговора
+var cam_prev_b := Basis()
+var cam_hooked := false
+## Замер — перед самой отрисовкой кадра (после всех _process и физики), то есть ровно то, что видит игрок
+func _cam_hook() -> void:
+	if cam_hooked:
+		return
+	cam_hooked = true
+	RenderingServer.frame_pre_draw.connect(func():
+		var gg = G()
+		if gg != null and main.game != null and is_instance_valid(main.game):
+			_cam_watch(gg, main.game, main.game.player, get_process_delta_time()))
+
+func _cam_watch(gg, g, p, dt: float) -> void:
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var cp: Vector3 = cam.global_position
+	var cb: Basis = cam.global_basis
+	var dlg: bool = g.mode == "dlg"
+	if dlg and not cam_was_dlg:
+		cam_dlg_n += 1
+		note("РАЗГОВОР", "№%d начался: зона %s, собеседник %s, камера разговора %s" % [cam_dlg_n, zone_name(), str(g.dlg_partner.name) if g.dlg_partner != null and is_instance_valid(g.dlg_partner) else "нет", str(gg.talk_on)])
+		_later_shot("dlg%02d_in" % cam_dlg_n, 0.8)
+	if not dlg and cam_was_dlg:
+		cam_after = 0.0
+		_later_shot("dlg%02d_out0" % cam_dlg_n, 0.05)
+		_later_shot("dlg%02d_out1" % cam_dlg_n, 0.9)
+	var busy: bool = gg.clip != null or gg.get("link_busy") == true or gg.hub_ui != null or g.intro_busy()
+	if cam_prev != Vector3.INF and not busy and dt < 0.1:
+		var jump: float = cp.distance_to(cam_prev)
+		var turn: float = rad_to_deg(cam_prev_b.get_rotation_quaternion().angle_to(cb.get_rotation_quaternion()))
+		if (jump > 1.2 or turn > 35.0) and is_instance_valid(p):
+			cam_jumps += 1
+			if cam_jumps <= 30 and not g.mode == "dlg":
+				var piv: Vector3 = g.pivot.global_position
+				var q3 := PhysicsRayQueryParameters3D.create(piv, piv + (g.spring.global_basis.z).normalized() * 4.5, 8)
+				var hh: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(q3)
+				var who := "ничего"
+				if not hh.is_empty():
+					var co: Node = hh["collider"]
+					who = "%s (родитель %s, %s) в %s" % [co.name, co.get_parent().name if co.get_parent() else "-", co.get_class(), str((hh["position"] as Vector3).snapped(Vector3(0.1, 0.1, 0.1)))]
+				var pts := PhysicsPointQueryParameters3D.new()
+				pts.position = piv
+				pts.collision_mask = 8
+				var inside: Array = p.get_world_3d().direct_space_state.intersect_point(pts, 4)
+				note("КАМЕРА ПРЕГРАДА", "луч пружины: %s; внутри опоры камеры: %s" % [who, str(inside.map(func(r): return String((r["collider"] as Node).name) + "/" + String((r["collider"] as Node).get_parent().name)))])
+			if cam_jumps <= 30:
+				note("КАМЕРА РЫВОК", "%.1f м, %.0f° за кадр: режим %s, разговор %s, после разговора %.2f с, зона %s, герой %s, камера %s" % [jump, turn, String(g.mode), str(gg.talk_on), cam_after, zone_name(), str(p.global_position.snapped(Vector3(0.1, 0.1, 0.1))), str(cp.snapped(Vector3(0.1, 0.1, 0.1)))])
+	if cam_after >= 0.0:
+		cam_after += dt
+		if cam_after > 1.0:
+			var to_h: Vector3 = p.global_position + Vector3(0, 1.2, 0) - cp
+			var q := PhysicsRayQueryParameters3D.create(cp, p.global_position + Vector3(0, 1.2, 0), 1)
+			q.exclude = [p.get_rid()]
+			var hit: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(q)
+			note("РАЗГОВОР", "№%d, через 1 с после конца: камера в %.1f м от героя, высота %.1f, герой в кадре %s, между ними %s" % [cam_dlg_n, to_h.length(), cp.y - p.global_position.y,
+				str((-cb.z).normalized().dot(to_h.normalized()) > 0.8), "стена" if not hit.is_empty() else "свободно"])
+			cam_after = -1.0
+	cam_was_dlg = dlg
+	cam_prev = cp
+	cam_prev_b = cb

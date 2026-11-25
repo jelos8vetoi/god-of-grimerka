@@ -179,9 +179,7 @@ func _talk(id: String) -> void:
 	act = id
 	_mark(id, "talk")
 	var d: Dictionary = EVENTS[id]
-	if npcs.has(id):
-		G.game.dlg_partner = (npcs[id] as Dictionary)["rig"]
-	G.game.start_dialog(d["talk"], func(): _ask(id))
+	G.talk_npc((npcs[id] as Dictionary)["rig"] if npcs.has(id) else null, d["talk"], func(): _ask(id))
 
 ## Окно выбора после разговора
 func _ask(id: String, asked := false) -> void:
@@ -205,16 +203,12 @@ func _picked(id: String, k: String) -> void:
 	log.append([id, "pick_" + k])
 	match k:
 		"ask":
-			if npcs.has(id):
-				G.game.dlg_partner = (npcs[id] as Dictionary)["rig"]
-			G.game.start_dialog(CHOICES[id]["ask"], func(): _ask(id, true))
+			G.talk_npc((npcs[id] as Dictionary)["rig"] if npcs.has(id) else null, CHOICES[id]["ask"], func(): _ask(id, true))
 		"leave":
 			_npc_say(id, String(CHOICES[id]["bye"]))
 			_mark(id, "left")
 		"cut":
-			if npcs.has(id):
-				G.game.dlg_partner = (npcs[id] as Dictionary)["rig"]
-			G.game.start_dialog(QUEUE_CUT, func():
+			G.talk_npc((npcs[id] as Dictionary)["rig"] if npcs.has(id) else null, QUEUE_CUT, func():
 				if not is_instance_valid(G) or state("queue") != "talk":
 					return
 				G.run["queue_cut"] = true
