@@ -109,6 +109,10 @@ func charge_time(race: Race) -> float:
 func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	RaceSave.loaded = false
+	# checks.cjs подкладывает копию данных игрока: замеры и ситуации — на первой трассе, какую бы ни выбрал игрок
+	RaceSave.v("track")
+	RaceSave.persist = false
+	RaceSave.data["track"] = "tomsk_dust"
 	await wait(2.0)
 	# ================= меню =================
 	var mm = main.menu
