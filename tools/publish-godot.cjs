@@ -103,7 +103,10 @@ for (const name of runtime) {
   if (!fs.existsSync(file) || !fs.statSync(file).size) fail('в экспорте отсутствует ' + name);
 }
 console.log('упаковываю Windows x64…');
-try { run('tar.exe', ['-a', '-cf', archive, '-C', exportDir, ...runtime]); }
+const windowsTar = path.join(process.env.SystemRoot || 'C:/Windows', 'System32', 'tar.exe');
+try {
+  run(windowsTar, ['-a', '-cf', path.relative(root, archive), '-C', path.relative(root, exportDir), ...runtime]);
+}
 catch (e) { fail('не удалось собрать архив: ' + String(e.stderr || e.message)); }
 if (fs.statSync(archive).size >= 2 ** 31 || fs.statSync(exe).size >= 2 ** 31)
   fail('файл превышает лимит GitHub Release (2 ГиБ)');
