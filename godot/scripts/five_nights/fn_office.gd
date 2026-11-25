@@ -84,7 +84,7 @@ var photo_tex := {
 }
 var yaw := 0.0                     # −1 налево .. +1 направо (как в FNNight)
 var yaw_v := 0.0
-const PITCH_UP := deg_to_rad(36.0)   # взгляд вверх (на люк над столом): pitch_k 0…1
+const PITCH_UP := deg_to_rad(44.0)   # взгляд вверх (на люк над столом): pitch_k 0…1
 var pitch_k := 0.0
 var pitch_v := 0.0
 var pitch_target := 0.0            # 0 — прямо, 1 — вверх; ставит ввод (FiveNightsRoot)
