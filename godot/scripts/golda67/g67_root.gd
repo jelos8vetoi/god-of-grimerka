@@ -11,13 +11,13 @@ extends Node
 
 const REACH := 1.4            # с какого расстояния предмет «под рукой»
 const TITLE := "ГОЛДА 67"
-const HUB_CAM_LEN := 3.2      # длина штанги камеры в подъезде (тесно), во дворе — прежние 4,6
+const HUB_CAM_LEN := 4.0      # длина штанги камеры в подъезде (помещение), во дворе — прежние 4,6
 const YARD_CAM_LEN := 4.6
 const PZ_CAM_LEN := 4.6
 var sel_district := "dvor"
-const FADE_FAR := 1.3         # камера ближе этого к плечам героя — он начинает таять
-const FADE_NEAR := 0.6        # на этом расстоянии прозрачность 0,75
-const FADE_MAX := 0.75
+const FADE_FAR := 2.1         # камера ближе этого к плечам героя — он начинает таять
+const FADE_NEAR := 1.0        # на этом расстоянии прозрачность 0,75
+const FADE_MAX := 0.82
 
 var game
 var world: G67World
@@ -106,9 +106,10 @@ func madk_away() -> bool:
 func madk_home() -> bool:
 	return place == "hub" and not madk_open()
 
-const MADK_SPOT := Vector3(-1.15, 1.5, -4.95)          # табурет у телевизора на площадке
-const MADK_SPOT2 := Vector3(1.9, 1.5, -4.7)
-const MADK_TV := Vector3(-2.58, 1.5, -5.55)
+const MADK_SPOT := G67World.MADK_SPOT          # табурет у телевизора на площадке
+const MADK_SPOT2 := G67World.MADK_SPOT2
+const MADK_TV := G67World.MADK_TV
+const MADK_LANE := G67World.MADK_SPOT.z + 0.75          # по этой линии он ходит между своими местами
 var madk_st := "sit"                  # sit / walk / stand
 var madk_path: Array = []
 var madk_dest := 0
@@ -151,7 +152,7 @@ func madk_life(b, dt: float) -> bool:
 			rig.play("NPhone", 0.3)
 		if madk_stand_t <= 0.0:
 			madk_dest = 0
-			madk_path = [Vector3(MADK_SPOT.x + 0.0, 1.5, -4.2), MADK_SPOT]
+			madk_path = [Vector3(MADK_SPOT2.x, MADK_SPOT.y, MADK_LANE), Vector3(MADK_SPOT.x, MADK_SPOT.y, MADK_LANE), MADK_SPOT]
 			madk_st = "walk"
 			madk_log.append("back")
 		return true
@@ -168,7 +169,7 @@ func madk_life(b, dt: float) -> bool:
 		if madk_swap_t <= 0.0:
 			madk_swap_t = randf_range(60.0, 120.0)
 			madk_dest = 1
-			madk_path = [Vector3(MADK_SPOT.x + 0.0, 1.5, -4.2), Vector3(MADK_SPOT2.x, 1.5, -4.2), MADK_SPOT2]
+			madk_path = [Vector3(MADK_SPOT.x, MADK_SPOT.y, MADK_LANE), Vector3(MADK_SPOT2.x, MADK_SPOT.y, MADK_LANE), MADK_SPOT2]
 			madk_st = "walk"
 			madk_log.append("up")
 			return true
@@ -212,6 +213,11 @@ func _first_clips() -> void:
 		return
 	await play_auto("STORY01")               # регистрация — до первого забега (STORY05 — при первом возвращении после забега)
 
+## Новый ДВОР (редизайн) — в обычной игре. old_yard — прежний двор с воротами и зонами: его держат старые проверки
+## (golda67check и другие писались под него); main включает его для любого ключа запуска, кроме --dvor2check.
+static var old_yard := false
+var turf: G67Turf = null         # территории врагов нового ДВОРА; null — прежний двор
+
 func _swap_world(build: Callable) -> void:
 	game._clear_fight()
 	game.boss_e = null
@@ -223,6 +229,7 @@ func _swap_world(build: Callable) -> void:
 	game.in_hall = false
 	build.call(world)
 	near = ""
+	turf = null
 
 func enter_hub() -> void:
 	hub_back_t = 8.0 if place == "run" else 0.0
@@ -349,6 +356,506 @@ func _build_yard_world() -> void:
 	world.add_descent()
 
 ## Герой — у двери дома лицом во двор, камера за спиной
+# ---------------------------------------------------------------- новый ДВОР: забег без ворот и зон (этап A редизайна)
+## Начать или продолжить забег в новом районе. Мир строится один раз на забег; враги стоят на своих территориях (G67Turf).
+func _start_dvor2(resumed: bool, from_arch := false) -> void:
+	_swap_world(func(w: G67World): w.build_dvor2())
+	krot_k = {}
+	var p = game.player
+	game.cam_len = YARD_CAM_LEN
+	var sv: Dictionary = data.get("run", {})
+	var at: Vector3 = world.spawn_pos
+	if resumed and sv.has("pos3") and (sv["pos3"] as Array).size() == 3:
+		at = world.spawn_pos                    # продолжение — с двери подъезда, как и раньше
+	p.global_position = at
+	p.velocity = Vector3.ZERO
+	p.face = PI                                 # лицом во двор, на север
+	game.cam_yaw = 0.0
+	if from_arch:                               # вернулся из Подземки: в коридоре под аркой, дальше — вверх по лестнице
+		p.global_position = world.dvor.link_in()
+		var ld: Vector3 = world.dvor.link_dir()
+		p.face = atan2(ld.x, ld.z)
+		game.cam_yaw = atan2(-ld.x, -ld.z)
+	game.fx.prewarm(p.global_position)
+	room = {}
+	room_state = "open"
+	court_said = false
+	turf = G67Turf.new()
+	turf.setup(self)
+	if not run.has("trader"):
+		run["trader"] = String(G67Data.TRADE_ORDER[int(meta().get("runs", 0)) % G67Data.TRADE_ORDER.size()])
+		run["trade"] = {"pick": {}, "closed": false}
+	folk = G67DvorFolk.new()
+	folk.name = "Folk"
+	world.add_child(folk)
+	folk.setup(self)
+	dvev = G67DvorEvents.new()
+	dvev.name = "DvorEvents"
+	world.add_child(dvev)
+	dvev.setup(self)
+	_ev_short_dv()
+	_secrets_dv()
+	_place_krot_dv()
+	var fl: Dictionary = meta().get("flags", {})
+	if bool(fl.get("boss_misha", false)):
+		world.dvor.open_gate(true)
+	world.dvor.set_court_open(dv_ready())
+	if bool(run.get("rags", false)):
+		world.points = world.points.filter(func(pt): return String(pt["id"]) != "rags_dv")
+	game.banner("ДВОР", "ЗАБЕГ ПРОДОЛЖАЕТСЯ" if resumed else ("вернулся из Подземки" if from_arch else "микрорайон 67"), Color(1.0, 0.8, 0.2), 2.4)
+	_save_run("open")
+
+var court_said := false
+
+# ---------------------------------------------------------------- торговцы нового двора
+var folk: G67DvorFolk
+var dvev: G67DvorEvents
+var shop := "kiosk"              # что сейчас показывает экран ларька: kiosk | petrovich | zhora
+var shop_next := "kiosk"
+
+## Товары текущей лавки: у ларька — G67Data.KIOSK, у торговца — его полка с подставленными названиями
+func shop_items() -> Array:
+	if shop == "kiosk":
+		return G67Data.KIOSK
+	var out: Array = []
+	for k_v in G67Data.TRADE[shop]:
+		var k: Dictionary = (k_v as Dictionary).duplicate(true)
+		var id := String(k["id"])
+		var sub := _trade_pick(id)
+		if id == "pt_up":
+			if sub == "":
+				continue
+			k["name"] = "ПОДТЯНУТЬ: " + String(G67Data.FITS[sub]["name"])
+			k["desc"] = "Уровень %d → %d. %s" % [fit_lv(sub), fit_lv(sub) + 1, String(G67Data.FITS[sub]["desc"])]
+		elif id == "zh_art":
+			if sub == "":
+				continue
+			var a := art_info(sub)
+			k["name"] = String(a["name"]).to_upper()
+			k["desc"] = "Артефакт. " + String(a["desc"])
+		elif id == "zh_risk":
+			if sub == "":
+				continue
+			k["name"] = "СДЕЛКА: " + String(G67Data.FITS[sub]["name"])
+			k["desc"] = "ПЛЮС: редкий баф бесплатно. %s МИНУС: максимум здоровья −%d до конца забега. Назад не принимаю." % [String(G67Data.FITS[sub]["desc"]), int(G67Data.FLAW_HP)]
+		elif sub != "":
+			k["name"] = String(G67Data.FITS[sub]["name"])
+			k["desc"] = ("Редкий баф. " if bool(G67Data.FITS[sub]["rare"]) else "Баф. ") + String(G67Data.FITS[sub]["desc"])
+		out.append(k)
+	return out
+
+## Что лежит под товаром торговца: выбирается один раз за забег и запоминается (run["trade"]["pick"])
+func _trade_pick(id: String) -> String:
+	var tr: Dictionary = run.get("trade", {})
+	var picks: Dictionary = tr.get("pick", {})
+	if id == "pt_up":                        # улучшаем баф с наибольшим уровнем из тех, что ещё растут
+		var best := ""
+		for fid in (run.get("fits", {}) as Dictionary):
+			if fit_lv(fid) >= 1 and fit_lv(fid) < int(G67Data.FITS[fid]["lv"]) and (best == "" or fit_lv(fid) > fit_lv(best)):
+				best = String(fid)
+		return best
+	if picks.has(id):
+		return String(picks[id])
+	var got := ""
+	if id == "zh_art":
+		var pool := storage_pool()
+		got = String(pool[randi() % pool.size()]) if not pool.is_empty() else ""
+	else:
+		var it := kiosk_item(id)
+		var opts: Array = (it.get("pick", []) as Array).filter(func(f): return fit_lv(f) < int(G67Data.FITS[f]["lv"]))
+		got = String(opts[randi() % opts.size()]) if not opts.is_empty() else ""
+	picks[id] = got
+	tr["pick"] = picks
+	run["trade"] = tr
+	return got
+
+func _trade_why(id: String) -> String:
+	var sub := _trade_pick(id)
+	if kiosk_left(id) <= 0:
+		return "продано"
+	if id == "pt_thermos":
+		if item_n("thermos") >= ITEM_MAX:
+			return "больше не унести"
+	elif id == "pt_swap":
+		if (run.get("fits", {}) as Dictionary).is_empty():
+			return "нечего менять"
+		if swap_pool().is_empty():
+			return "больше нечего"
+	elif id != "zh_bag" and sub == "":
+		return "больше нечего"
+	if id in ["pt_atk", "pt_def", "zh_rare", "zh_risk"] and fit_lv(sub) >= int(G67Data.FITS[sub]["lv"]):
+		return "у тебя уже максимум"
+	if id == "zh_art" and (has_art(sub) or arts().filter(func(x): return not G67Data.ART_EVENT.has(String(x))).size() >= slots()):
+		return "нет места под артефакт"
+	if int(run.get("golda", 0)) < kiosk_price(id):
+		return "не хватает голды"
+	return ""
+
+func _trade_buy(id: String) -> String:
+	var sub := _trade_pick(id)
+	var got := ""
+	match id:
+		"pt_thermos":
+			give_item("thermos")
+			got = "термос с чаем — в карман"
+		"pt_swap":
+			call_deferred("_swap_begin")
+			got = "выбирай, что отдаёшь"
+		"pt_atk", "pt_def", "zh_rare", "pt_up", "zh_risk":
+			var fits: Dictionary = run["fits"]
+			fits[sub] = fit_lv(sub) + 1
+			if id == "zh_risk":
+				run["flaw"] = "thin"             # недостаток сделки: меньше здоровья до конца забега
+			apply_fits(sub)
+			events.append(["fit", sub])
+			got = "%s · ур. %d" % [String(G67Data.FITS[sub]["name"]), fit_lv(sub)]
+			if id == "zh_risk":
+				got += " · максимум здоровья −%d" % int(G67Data.FLAW_HP)
+		"zh_art":
+			(run["arts"] as Array).append(sub)
+			apply_fits()
+			events.append(["art", sub])
+			got = String(art_info(sub)["name"])
+		"zh_bag":
+			var roll := randf()
+			var pool := togo_pool()
+			if roll < 0.4 and not pool.is_empty():
+				var fid := String(pool[randi() % pool.size()])
+				var fits2: Dictionary = run["fits"]
+				fits2[fid] = fit_lv(fid) + 1
+				apply_fits(fid)
+				events.append(["fit", fid])
+				got = "%s · ур. %d" % [String(G67Data.FITS[fid]["name"]), fit_lv(fid)]
+			elif roll < 0.75:
+				give_item("thermos")
+				got = "термос с чаем — в карман"
+			else:
+				got = "пустые банки. Мешок-то хороший"
+	if float(run.get("discount", 0.0)) > 0.0:
+		run["discount"] = 0.0          # «от Виталика» — на одну покупку
+		events.append(["discount_used"])
+	if folk != null and not folk.trader.is_empty():
+		folk._say(folk.trader, "buy", true)
+	return got
+
+## Подойти к торговцу. Жора молчит, пока смотрящий на месте; ударенный торговец закрыт до конца забега.
+func _trader_dv() -> void:
+	if folk == null or folk.trader.is_empty():
+		return
+	if room_state != "open":
+		game.toast("Сначала разберись с этими")
+		return
+	var who := String(run.get("trader", ""))
+	var td: Dictionary = G67DvorFolk.TRADERS[who]
+	if folk.trader_closed():
+		game.toast(String(td["closed"]))
+		return
+	if who == "zhora":
+		var es := String(((run.get("enc", {}) as Dictionary).get("elite_sofa", {}) as Dictionary).get("s", "post"))
+		if not es in ["cleared", "gone"]:
+			game.toast("Жора смотрит мимо. Пока смотрящий на диване — он не торгует")
+			return
+	folk._say(folk.trader, "show", true)
+	events.append(["trader", who])
+	shop_next = who
+	open_screen("kiosk")
+
+# ---------------------------------------------------------------- ритм забега в новом дворе
+## Шесть позиций без ворот: встречи на территориях (обязательны первая у гаражей и элита), обязательное событие
+## «ТРЯПКИ! ТРЯПКИ!» у рынка, после трёх пройденных этапов — полное меню «ШАУРМЫ 67» и передышка в беседке, затем Миша.
+const DV_OPEN_AT := 3          # сколько этапов надо пройти до полного меню ларька и передышки
+
+func dv_stages() -> int:
+	return (run.get("stages", []) as Array).size()
+
+func dv_ready() -> bool:
+	return turf != null and turf.need_done() and bool(run.get("rags", false))
+
+## «ТРЯПКИ! ТРЯПКИ!» у прилавка рынка. Ролик EV02 — при первом знакомстве (как в прежнем дворе), дальше событие проходит коротко.
+func _rags_dv() -> void:
+	if place != "run" or room_state != "open" or busy:
+		game.toast("Сначала разберись с этими")
+		return
+	if bool(run.get("rags", false)):
+		return
+	busy = true
+	run["rags"] = true
+	world.points = world.points.filter(func(pt): return String(pt["id"]) != "rags_dv")
+	events.append(["event", "rags"])
+	var tok := run_tok
+	if not clip_seen("EV02"):
+		await play_clip("EV02")
+		if not is_instance_valid(game) or game.golda != self or tok != run_tok:
+			return
+	else:
+		game.banner("ТРЯПКИ! ТРЯПКИ!", "«Бери, пока дают. Завтра не будет ни тряпок, ни меня»", Color(0.95, 0.75, 0.35), 2.6)
+	var m: Dictionary = meta().get("must", {})
+	m["ev_rags"] = true
+	meta()["must"] = m
+	for key in ["seen", "archive"]:
+		var arr: Array = meta().get(key, [])
+		if not arr.has("ev_rags"):
+			arr.append("ev_rags")
+			meta()[key] = arr
+	_add_respect("calm", int(G67Data.RESPECT["calm"]))
+	run["rooms"] = int(run["rooms"]) + 1
+	run["pos"] = int(run.get("pos", 0)) + 1
+	(run["stages"] as Array).append(["event", "market", "rags"])
+	events.append(["stage_done", "event"])
+	busy = false
+	save()
+	_save_run("open")
+
+## Окно «ШАУРМЫ 67»: до первого пройденного этапа закрыто; после трёх — «твой этап»: все ценники и первая шаурма бесплатно.
+func _kiosk_dv() -> void:
+	if room_state != "open":
+		game.toast("Сначала разберись с этими")
+		return
+	if dv_stages() < 1:
+		game.toast("Окно закрыто: откроется, когда покажешь себя на районе")
+		return
+	if dv_stages() >= DV_OPEN_AT and not bool(run.get("kiosk_full", false)):
+		run["kiosk_full"] = true
+		run["free_shawarma"] = true
+		game.toast("Свой заказ: всё меню, первая шаурма — за счёт заведения")
+	open_screen("kiosk")
+var rest_used_key := "rest_dv"
+
+## Калитка коробки: закрыта, пока не пройдены обязательные встречи (G67Turf.need_done); герой вошёл в коробку — бой с Мишей
+func _court_tick() -> void:
+	var dv: G67Dvor2 = world.dvor
+	if dv == null or room_state != "open":
+		return
+	var ready: bool = dv_ready()
+	dv.set_court_open(ready)
+	var pp: Vector3 = game.player.global_position
+	if ready and not court_said:
+		court_said = true
+		game.banner("КОРОБКА ОТКРЫТА", "Миша ждёт на севере, за башнями", Color(0.85, 0.63, 0.23), 2.6)
+	if ready and dv.in_court(pp):
+		_enter_boss_dvor2()
+	elif not ready and pp.distance_to(G67Dvor2.to3(dv.court.get_center().x, dv.court.position.y)) < 3.2 and GameClock.ms() - court_toast_ms > 6000:
+		court_toast_ms = GameClock.ms()
+		game.toast("Свита у калитки: «Рано. Миша сказал — сначала пусть по району походит».")
+
+var court_toast_ms := -100000
+
+# ---------------------------------------------------------------- переход ДВОР → ПОДЗЕМКА
+## Спуск по лестнице под аркой дома № 81. Решётка открыта после первой победы над Мишей (флаг boss_misha).
+## Переход — загрузкой: шторка, новый мир Подземки, при первом спуске — её вступительный ролик AD02 (его показывает enter_room).
+## Сам переход повторяет точку «descent» прежнего двора: забег двора заканчивается, начинается забег района ПОДЗЕМКА.
+var descending := false
+
+func _descent_tick() -> void:
+	var dv: G67Dvor2 = world.dvor
+	if dv == null or descending or busy or not dv.gate_open or room_state != "open" or game.over:
+		return
+	var pp: Vector3 = game.player.global_position
+	if link_cd > 0.0:
+		return
+	var lk: Vector3 = dv.link_point()
+	if pp.y < -4.2 and Vector2(pp.x - lk.x, pp.z - lk.z).length() < LINK_R:      # свернул в коридор — стена шахты уже закрыла лестницу
+		link_swap(true)
+	if pp.y < -0.4 and not gate_said:                # прошёл решётку: металл звякнул за спиной
+		gate_said = true
+		G67Sound.play(self, "chain", dv.stairs_top())
+	elif pp.y > -0.1:
+		gate_said = false
+
+var gate_said := false
+
+func _unused_descent() -> void:
+	pass
+
+func descend() -> void:
+	await link_swap(true)
+
+## Переход между районами без шторки. Герой сам спускается по лестнице под аркой и сворачивает в бетонный коридор:
+## за поворотом (стена шахты закрывает обзор) двор выгружается и строится Подземка, герой оказывается в таком же
+## коридоре у верха её спуска и идёт дальше с той же скоростью. Обратно — тем же путём. Затемнение LINK_DIM с —
+## только страховка на время постройки района, не эффект перехода.
+const LINK_DIM := 0.16
+const LINK_R := 1.1               # радиус точки стыка во дворе, м
+const LINK_CD := 2.5              # после перехода стык молчит, с
+const PZ_LINK_IN := Vector3(12.4, 5.05, 3.3)      # где герой появляется в коридоре Подземки (идёт на запад, к спуску)
+const PZ_LINK_OUT_X := 13.6       # дальше этой линии в коридоре Подземки — подъём во двор
+var link_cd := 0.0
+var link_dim: ColorRect
+
+func _dim(to: float, sec: float) -> void:
+	if link_dim == null or not is_instance_valid(link_dim):
+		link_dim = ColorRect.new()
+		link_dim.color = Color(0, 0, 0, 0)
+		link_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+		link_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		link_dim.z_index = 50
+		game.hud_root.add_child(link_dim)
+	var tw := link_dim.create_tween()
+	tw.tween_property(link_dim, "color:a", to, sec)
+	if to > 0.0:
+		await tw.finished
+
+func link_swap(down: bool) -> void:
+	if descending or busy or (not down and (place != "run" or room_state != "open")):
+		return
+	descending = true
+	flush_coins()
+	events.append(["descent" if down else "ascent"])
+	var p = game.player
+	var speed: float = minf(Vector2(p.velocity.x, p.velocity.z).length(), 6.0)
+	var pitch: float = game.cam_pitch if "cam_pitch" in game else 0.0
+	if game.main != null and game.main.user_play():
+		await _dim(1.0, LINK_DIM)
+	if not is_instance_valid(self):
+		return
+	var c := carry_out()
+	data["run"] = {}
+	link_spawn = true
+	start_run("podzemka" if down else "dvor", c, not down)      # без await: первый бой Подземки ждёт героя у турникета
+	for i in 3:
+		await game.get_tree().process_frame
+	if not is_instance_valid(self):
+		return
+	link_spawn = false
+	var dir := Vector3(-1, 0, 0)
+	if down:
+		p.global_position = PZ_LINK_IN
+	elif world.dvor != null:
+		var dv: G67Dvor2 = world.dvor
+		p.global_position = dv.link_in()
+		dir = dv.link_dir()
+	p.face = atan2(dir.x, dir.z)
+	game.cam_yaw = atan2(-dir.x, -dir.z)
+	game.pivot.global_position = Vector3.ZERO          # камера встаёт за героя сразу, а не подлетает из прежнего района сквозь стены
+	if "cam_pitch" in game:
+		game.cam_pitch = pitch
+	if clip == null:
+		p.velocity = dir * speed                 # движение не обрывается: герой выходит из-за поворота тем же шагом
+	link_cd = LINK_CD
+	descending = false
+	_dim(0.0, 0.35)
+
+var link_spawn := false
+
+## Стык районов: во дворе — точка за поворотом под аркой, в Подземке — дальний конец коридора у спуска
+## Страховка: герой провалился под мир — возвращаем на последнее место, где он стоял на полу
+var safe_pos := Vector3.INF
+var safe_t := 0.0
+
+func _fall_guard(dt: float) -> void:
+	var p = game.player
+	if p == null or not is_instance_valid(p):
+		return
+	var floor_y: float = -1.5 if (G67District.is_podzemka() or world.dvor == null) else -8.0
+	if p.global_position.y < floor_y - 6.0:
+		if safe_pos != Vector3.INF:
+			p.global_position = safe_pos + Vector3(0, 0.3, 0)
+			p.velocity = Vector3.ZERO
+			events.append(["fall_rescue", safe_pos])
+		return
+	safe_t -= dt
+	if safe_t <= 0.0 and p.is_on_floor() and not bottle_busy and String(p.state) in ["idle", "move", "run", "walk"]:
+		safe_t = 0.5
+		if not G67District.is_podzemka() or G67Podzemka.room_at(p.global_position + Vector3(0, 0.5, 0)) != "":
+			safe_pos = p.global_position
+
+func _link_tick(dt: float) -> void:
+	link_cd = maxf(0.0, link_cd - dt)
+	if link_cd > 0.0 or descending or busy or game.over or place != "run" or room_state != "open" or clip != null:
+		return
+	var pp: Vector3 = game.player.global_position
+	if G67District.is_podzemka():
+		if not old_yard and pp.y > 4.0 and pp.x > PZ_LINK_OUT_X and pp.z > 1.0 and pp.z < 6.0:
+			link_swap(false)
+
+## Обратно: точка «ВО ДВОР» у верха лестницы Подземки. Та же загрузка, что и вниз; герой выходит у решётки под аркой.
+## «НАВЕРХ, ДОМОЙ» (пауза забега и подъезд) остаётся как было.
+func ascend() -> void:
+	await link_swap(false)
+
+## Что герой несёт с собой между районами: бафы с уровнями, артефакты, перевыборы, купленное здоровье, голда и счёт забега.
+## Всё — простые значения (сохраняется в JSON как часть run). Остальное состояние района (встречи, сумки, ларёк, позиция)
+## откладывается в run["other"][район] и возвращается, когда герой приходит обратно, — ничего не выдаётся дважды.
+const CARRY := ["fits", "arts", "rerolls", "maxhp_buys", "golda", "respect", "kills", "earned", "spent", "rooms", "items", "flaw", "trial"]
+const KEEP_DVOR := ["enc", "pos", "stash", "stash_n", "kiosk", "tpl", "stages", "rags", "rested", "kiosk_full", "free_shawarma", "trader", "trade", "npc_hits", "ev", "ev_done", "discount", "secrets", "ev_short", "queue_cut", "gena_hurt", "gena", "kid_saved", "kid_passed"]
+var run_tok := 0
+
+func _dup(v):
+	return v.duplicate(true) if (v is Dictionary or v is Array) else v
+
+func carry_out() -> Dictionary:
+	var c := {}
+	var snap := {}
+	for k in run:
+		if k == "other":
+			continue
+		if String(k) in CARRY:
+			c[k] = _dup(run[k])
+		else:
+			snap[k] = _dup(run[k])
+	var other: Dictionary = (run.get("other", {}) as Dictionary).duplicate(true)
+	other[String(run.get("district", "dvor"))] = snap
+	c["other"] = other
+	return c
+
+func _carry_in(c: Dictionary, district_id: String) -> void:
+	for k in CARRY:
+		if c.has(k):
+			run[k] = _dup(c[k])
+	var other: Dictionary = (c.get("other", {}) as Dictionary).duplicate(true)
+	var mine: Dictionary = other.get(district_id, {})
+	other.erase(district_id)
+	run["other"] = other
+	if district_id != "podzemka":
+		for k in KEEP_DVOR:
+			if mine.has(k):
+				run[k] = _dup(mine[k])
+	else:                                      # повторный спуск: Подземка продолжается с того этапа, где её оставили
+		for k in mine:
+			if not String(k) in CARRY and not String(k) in ["district", "other"]:
+				run[k] = _dup(mine[k])
+
+func _enter_boss_dvor2() -> void:
+	busy = true
+	var dv: G67Dvor2 = world.dvor
+	room = {"type": "boss", "place": "sport"}
+	room_state = "boss"
+	wind_used = false
+	fin_room = 0.0
+	var cr: Rect2 = dv.court
+	game.set_arena(dv.court_center(), Vector2(cr.size.x * 0.5 - 0.4, cr.size.y * 0.5 - 0.4))
+	dv.set_court_open(false)                    # калитка закрылась за спиной — это дверь, а не стена
+	events.append(["room", "boss"])
+	var d := district()
+	var bid := String(d["boss"])
+	var b = game._make_enemy("", bid, G67Dvor2.to3(G67Dvor2.BOSS_SPOT.x, G67Dvor2.BOSS_SPOT.y, 0.05))
+	game.boss_e = b
+	var bd: Dictionary = game.story["BOSS"][bid]
+	game.boss_name.text = "%s — %s" % [bd["n"], bd["sub"]]
+	_boss_intro(b)
+	_save_run("fight")
+	busy = false
+
+## Передышка в беседке у башен: раз за забег, +45 % здоровья (то же число, что у прежнего этапа «передышка»)
+func _rest_dv() -> void:
+	if place != "run" or room_state != "open":
+		game.toast("Сначала разберись с этими")
+		return
+	if bool(run.get("rested", false)):
+		game.toast("Уже передохнул в этом забеге")
+		return
+	if dv_stages() < DV_OPEN_AT:
+		game.toast("Рано отдыхать: пройди ещё %d" % (DV_OPEN_AT - dv_stages()))
+		return
+	run["rested"] = true
+	var p = game.player
+	var add: float = p.max_hp * (G67Data.WARM_HEAL if fit_lv("warm_entry") > 0 else G67Data.BREAK_HEAL)
+	p.hp = minf(p.max_hp, p.hp + add)
+	events.append(["rest"])
+	_add_respect("calm", int(G67Data.RESPECT["calm"]))
+	game.banner("ПЕРЕДЫШКА", "здоровье +%d" % int(add), Color(0.5, 0.95, 0.6), 2.0)
+	_save_run("open")
+
 func _stand_at_home() -> void:
 	game.cam_len = YARD_CAM_LEN
 	var p = game.player
@@ -391,9 +898,10 @@ func hero_fade() -> void:
 			(gi as GeometryInstance3D).transparency = k
 
 ## Начать забег: район ДВОР, первый этап. До первой концовки madk1d остаётся в подъезде (SPEC, раздел 3).
-func start_run(district_id := "dvor") -> void:
+func start_run(district_id := "dvor", carry := {}, from_arch := false) -> void:
 	if busy:
 		return
+	run_tok += 1
 	place = "run"
 	var gold0 := 30 * up("gold")
 	run = {"district": district_id, "tpl": int(meta().get("runs", 0)) % 3, "pos": 0, "golda": gold0, "fits": {}, "respect": 0, "rooms": 0,
@@ -404,16 +912,30 @@ func start_run(district_id := "dvor") -> void:
 	if game.player.hero == "pahan" and String(game.player.style.id) != ss:
 		game.player.set_style(ss)
 	G67District.use("podzemka" if district_id == "podzemka" else "yard")
+	G67District.spots_dv = {}
 	_seed_yard()
 	run["stash"] = _stash_plan() if district_id != "podzemka" else {"spots": [], "taken": []}
 	game.buddy.visible = false
 	game.buddy.global_position = Vector3(0, -50, 0)
+	if not carry.is_empty():
+		_carry_in(carry, district_id)
 	events.append(["run", district_id])
 	unlock_clip("CL01")                      # «КАК ЗАЙТИ ВО ДВОР» — в архив после входа во ДВОР
 	apply_fits()
 	wind_used = false
+	if not old_yard and district_id != "podzemka":
+		_start_dvor2(false, from_arch)
+		return
 	_build_yard_world()
 	_stand_at_home()
+	if district_id == "podzemka" and int(run.get("pos", 0)) > 0:      # возвращение в Подземку: пройденные этапы остаются пройденными
+		await game.get_tree().process_frame
+		if not is_instance_valid(game) or game.golda != self:
+			return
+		_open_gates()
+		game.banner("%s · %d / %d" % [String(district()["name"]), int(run["pos"]) + 1, route().size()], "ЗАБЕГ ПРОДОЛЖАЕТСЯ", Color(1.0, 0.8, 0.2), 2.4)
+		_save_run("open")
+		return
 	await enter_room({"type": "battle", "place": "gate1" if district_id == "podzemka" else "podezd"})
 
 ## Домой посреди забега: дверь подъезда во дворе (между этапами, вне боя). Забег — в сохранение (data["run"]:
@@ -470,10 +992,18 @@ func resume_run() -> void:
 	_migrate_run()
 	place = "run"
 	G67District.use("podzemka" if String(run.get("district", "dvor")) == "podzemka" else "yard")
+	G67District.spots_dv = {}
 	_seed_yard()
 	game.buddy.visible = false
 	game.buddy.global_position = Vector3(0, -50, 0)
 	wind_used = false
+	if not old_yard and String(run.get("district", "dvor")) != "podzemka":
+		apply_fits()
+		game.player.hp = clampf(float(sv.get("hp", game.player.max_hp)), 1.0, game.player.max_hp)
+		_start_dvor2(true)
+		events.append(["resume", int(run.get("pos", 0))])
+		busy = false
+		return
 	_build_yard_world()
 	apply_fits()
 	var p = game.player
@@ -719,6 +1249,7 @@ func _bottle_walk(p, to: Vector3, sec: float) -> void:
 	if p.rig != null:
 		p.rig.play("Idle", 0.2)
 
+const BOTTLE_CLEAR := 0.95          # толщина стены 0,4 + тело героя + запас
 ## Точки сцены подбора: укрытие — у ближайшей стены комнаты, камера — в 4,5 м от бутылки к центру комнаты
 func bottle_scene_points(n: int) -> Dictionary:
 	var pos: Vector3 = G67Podzemka.fit(G67Data.PZ_BOTTLES[n - 1]["pos"] as Vector3) + Vector3(0.6, 0.0, 0.0)
@@ -732,7 +1263,13 @@ func bottle_scene_points(n: int) -> Dictionary:
 		if dist < bd:
 			bd = dist
 			best = dv
-	var cover := pos + best * clampf(bd - 0.5, 0.8, 2.6)
+	if bd < BOTTLE_CLEAR * 2.0:              # бутылка у самой стены: герой выходит на шаг от неё, а не внутрь стены (раньше его выталкивало наружу, под мир)
+		pos -= best * (BOTTLE_CLEAR * 2.0 - bd)
+		bd = BOTTLE_CLEAR * 2.0
+	if rid != "":                            # и не ближе к остальным стенам комнаты
+		pos.x = clampf(pos.x, float(r[0]) + BOTTLE_CLEAR, float(r[1]) - BOTTLE_CLEAR)
+		pos.z = clampf(pos.z, float(r[2]) + BOTTLE_CLEAR, float(r[3]) - BOTTLE_CLEAR)
+	var cover := pos + best * clampf(bd - BOTTLE_CLEAR, 0.8, 2.6)
 	var to_c := cen - pos
 	to_c.y = 0.0
 	var cam := pos + (to_c.normalized() if to_c.length() > 0.1 else Vector3(0, 0, 1)) * 4.5
@@ -1249,7 +1786,10 @@ func district() -> Dictionary:
 func enter_room(r: Dictionary) -> void:
 	call_deferred("_place_krot_pz")
 	if G67District.is_podzemka() and int(run.get("pos", 1)) == 0 and not clip_seen("AD02") and game.main.user_play():
+		var tok0 := run_tok
 		await play_clip("AD02")          # реклама подземки — при первом спуске, до первого боя
+		if tok0 != run_tok or place != "run" or not G67District.is_podzemka():
+			return          # пока шёл ролик, забег сменился — эта комната уже ничья
 	flush_coins()
 	game.player.collision_mask |= 32          # слой 6: стенка проёма ограждения держит героя, враги проходят
 	_kiosk_hint()
@@ -1280,8 +1820,11 @@ func enter_room(r: Dictionary) -> void:
 			busy = false          # первый бой района — когда герой спустился и вошёл в зону
 			var zc: Vector3 = zone["c"]
 			var zh: Vector2 = zone["h"]
+			var tok := run_tok
 			while absf(game.player.global_position.x - zc.x) > zh.x - 1.5 or absf(game.player.global_position.z - zc.z) > zh.y - 1.5:
 				await game.get_tree().process_frame
+				if tok != run_tok or place != "run" or not G67District.is_podzemka():
+					return          # герой ушёл домой или во двор, не дойдя до турникета: это ожидание больше ничьё
 			busy = true
 		world.bound_zone(zid, true)
 		_keep_inside(zone)
@@ -1322,6 +1865,8 @@ func enter_room(r: Dictionary) -> void:
 			game.boss_e = b
 			if pz and bid == "g67_fortuna":
 				arena_setup(b)
+				if game.main.user_play() and not auto_played("PZ_FORTUNA_PROMO"):
+					await play_auto("PZ_FORTUNA_PROMO")          # реклама на экранах кассового комплекса — при первом входе
 				await fortuna_intro(b)
 			var bd: Dictionary = game.story["BOSS"][bid]
 			game.boss_name.text = "%s — %s" % [bd["n"], bd["sub"]]
@@ -1343,7 +1888,6 @@ func _keep_inside(zone: Dictionary) -> void:
 		p.velocity = Vector3.ZERO
 
 func _spawn(foe: String) -> void:
-	var f: Dictionary = G67Data.FOES[foe]
 	var pp: Vector3 = game.player.global_position
 	var c: Vector3 = game.arena_c
 	var h: Vector2 = game.arena_h - Vector2(1.5, 1.5)
@@ -1373,6 +1917,12 @@ func _spawn(foe: String) -> void:
 				break
 	if fallback != Vector3.INF:
 		pos = fallback
+	_make_foe(foe, pos, false)
+
+## Поставить врага приквела в точку мира. quiet — без звука и пыли выхода (враги, которые стоят в районе с начала забега).
+func _make_foe(foe: String, pos: Vector3, quiet: bool):
+	var f: Dictionary = G67Data.FOES[foe]
+	var pp: Vector3 = game.player.global_position
 	pos.y = 0.05
 	var e = preload("res://scripts/enemy.gd").new()
 	e.kind = String(f["kind"])
@@ -1383,10 +1933,14 @@ func _spawn(foe: String) -> void:
 	e.set_meta("no_portal", true)
 	e.set_meta("spawn_ms", GameClock.ms())
 	game.add_child(e)
-	G67Sound.play(self, "entry", pos)
+	if not quiet:
+		G67Sound.play(self, "entry", pos)
 	e.cfg["dmg"] = float(e.cfg["dmg"]) * G67Data.FOE_DMG_K
 	if f.has("hp"):
 		e.max_hp = float(f["hp"])
+		e.hp = e.max_hp
+	elif String(f["kind"]) in ["bot", "hater"]:            # рядовые (Шестёрка, Семечник): живучее
+		e.max_hp = round(e.max_hp * G67Data.FOE_HP_K)
 		e.hp = e.max_hp
 	if f.has("dmg"):
 		e.cfg["dmg"] = float(f["dmg"]) * G67Data.FOE_DMG_K
@@ -1402,10 +1956,12 @@ func _spawn(foe: String) -> void:
 			game.get_tree().create_timer(1.3, false).timeout.connect(func(): if is_instance_valid(e): e.stun(2.0))
 		else:
 			run["snow_stun"] = false
-	game.fx.dust(pos + Vector3(0, 0.15, 0), 6, game.fx.DUST, 0.8)
+	if not quiet:
+		game.fx.dust(pos + Vector3(0, 0.15, 0), 6, game.fx.DUST, 0.8)
 	e.global_position = pos
 	e.face = atan2(pp.x - pos.x, pp.z - pos.z)
 	game.enemies.append(e)
+	return e
 
 func alive() -> int:
 	var n := 0
@@ -1468,12 +2024,12 @@ func _hub_life_tick(dt: float) -> void:
 	var hp: Vector3 = game.player.global_position
 	if float(hub_t["tv"]) <= 0.0:
 		hub_t["tv"] = 3.2
-		if Vector2(hp.x - 2.3, hp.z - (-6.0)).length() < 3.5:
-			G67Sound.play(self, "tv_muffled", Vector3(2.3, 2.6, -6.0), 1.0)
+		if Vector2(hp.x - G67World.APT2_X, hp.z - G67World.Z_BACK).length() < 3.5:
+			G67Sound.play(self, "tv_muffled", Vector3(G67World.APT2_X, 2.6, G67World.Z_BACK), 1.0)
 	if float(hub_t["strip"]) <= 0.0:
 		hub_t["strip"] = randf_range(90.0, 180.0)
 		world.hub_strip.visible = true
-		G67Sound.play(self, "door_slam", Vector3(2.3, 2.5, -6.0), 0.5)
+		G67Sound.play(self, "door_slam", Vector3(G67World.APT2_X, 2.5, G67World.Z_BACK), 0.5)
 		get_tree().create_timer(3.0).timeout.connect(func():
 			if is_instance_valid(world.hub_strip):
 				world.hub_strip.visible = false)
@@ -1497,7 +2053,7 @@ func _life_use(id: String) -> void:
 		"hub_btn":
 			var hm := Node3D.new()
 			add_child(hm)
-			hm.global_position = Vector3(2.3, 2.6, -6.0)
+			hm.global_position = Vector3(G67World.APT2_X, 2.6, G67World.Z_BACK)
 			get_tree().create_timer(10.0).timeout.connect(hm.queue_free)
 			var outcome: int = hub_btn_force if hub_btn_force >= 0 else randi() % 3
 			get_tree().create_timer(2.0).timeout.connect(func():
@@ -1619,6 +2175,9 @@ func _g67_audio_tick(dt: float) -> void:
 		amb67.bus = "Ambient" if AudioServer.get_bus_index("Ambient") >= 0 else "Master"
 		amb67.volume_db = float(G67Sound.KINDS[want][1])
 		amb67.play()
+	if place == "run" and world != null and world.dvor != null:      # под аркой двор остаётся наверху: фон глохнет с глубиной лестницы
+		var deep: float = clampf(-game.player.global_position.y / 5.0, 0.0, 1.0)
+		amb67.volume_db = lerpf(float(G67Sound.KINDS[want][1]), -46.0, deep)
 	var quiet: bool = clip != null or game.mode == "dlg" or talk_on or scene_t >= 0.0
 	rnd67_t -= dt
 	if rnd67_t > 0.0:
@@ -1705,6 +2264,7 @@ func on_kill(e) -> void:
 			p.hp = minf(p.max_hp, p.hp + heal)
 
 func _room_cleared() -> void:
+	_trial_end()
 	var type := String(room["type"])
 	events.append(["clear", type])
 	var pile := int(G67Data.ROOM_GOLDA[type])
@@ -2049,6 +2609,16 @@ func _ev_finish() -> void:
 		arch.append("ev_" + ev)
 		meta()["archive"] = arch
 		save()
+	if world.dvor != null:                     # новый двор: маршрута из ворот нет — событие просто отыграно
+		var es: Dictionary = run.get("ev_short", {})
+		es[ev] = true
+		run["ev_short"] = es
+		_add_respect("calm", int(G67Data.RESPECT["calm"]))
+		events.append(["stage_done", "event"])
+		room = {}
+		room_state = "open"
+		_save_run("open")
+		return
 	_stage_end()
 
 var ev_busy := false
@@ -2080,8 +2650,10 @@ func _ev_end() -> void:
 		return
 	ev_cam = false
 	_talk_hud(false)
-	game.cam.transform = Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
-	game.cam.fov = float(Opts.v("fov"))
+	talk_pos = ev_pos              # из последнего плана сцены — плавно за спину героя, тем же отъездом, что после разговора
+	talk_look = ev_look
+	talk_fov = ev_fov
+	talk_out_t = TALK_OUT
 
 func _ev_shot(pos: Vector3, look: Vector3, fov := 50.0) -> void:
 	ev_pos = pos
@@ -2361,11 +2933,12 @@ func _button_scene(id: String) -> void:
 		"alarms":
 			_button_outcome(id)
 			_ev_shot(pp + Vector3(-3.0, 2.4, 3.2), sp + Vector3(0, 1.6, 0), 60.0)
-			for lf in world.yard.lifes:
-				if is_instance_valid(lf):
-					(lf as G67Life).react("RWow")
-			world.yard.crowd_react("phase")
-			world.yard.siren_look(sp)
+			if world.yard != null:
+				for lf in world.yard.lifes:
+					if is_instance_valid(lf):
+						(lf as G67Life).react("RWow")
+				world.yard.crowd_react("phase")
+				world.yard.siren_look(sp)
 			var rl := OmniLight3D.new()
 			rl.light_color = Color(1.0, 0.1, 0.08)
 			rl.omni_range = 30.0
@@ -2539,7 +3112,7 @@ func _button_outcome(id: String) -> void:
 				_drop_coin(p.global_position + Vector3(randf_range(-1.0, 1.0), 0, randf_range(-1.0, 1.0)), 5, true)
 		"alarms":
 			game.banner("СИГНАЛИЗАЦИИ", "машины на парковке орут", Color(1.0, 0.5, 0.3), 2.4)
-			var par: Vector3 = (G67District.zone_of("parking")["c"] as Vector3)
+			var par: Vector3 = (G67District.zone_of("parking")["c"] as Vector3) if world.dvor == null else p.global_position + Vector3(8.0, 0.0, 6.0)
 			for k in 3:
 				var lt := OmniLight3D.new()
 				lt.light_color = Color(1.0, 0.6, 0.1) if k % 2 == 0 else Color(1.0, 0.15, 0.1)
@@ -2649,7 +3222,7 @@ func scene_busy() -> bool:
 	return scene_t >= 0.0 or clip != null or hub_ui != null or ev_cam
 
 func owns_camera() -> bool:
-	return talk_on or ev_cam or (scene_t >= 0.0 and scene_boss != null and is_instance_valid(scene_boss))
+	return talk_on or talk_out_t > 0.0 or ev_cam or (scene_t >= 0.0 and scene_boss != null and is_instance_valid(scene_boss))
 
 # ---------------------------------------------------------------- камера разговоров (talk_shots)
 ## План: {pos, look, fov} в мировых координатах; номер плана на реплику — talk_map. Планы строятся от положений героя и
@@ -2691,7 +3264,7 @@ func talk_begin(partner, kind: String, lines: Array) -> void:
 	A = A.normalized() if A.length() > 0.05 else Vector3.FORWARD
 	var S := A.cross(Vector3.UP)
 	var sd: float = game.dlg_side
-	var qy := 0.95 if kind == "flurr" else 1.45          # DJ FLÜRR сидит на лавке: лицо ниже
+	var qy := 0.95 if kind == "flurr" else (1.2 if kind == "npc" else 1.45)          # DJ FLÜRR сидит на лавке: лицо ниже; жители двора ниже КРОТА
 	var M := (H + Q) * 0.5 + Vector3(0, 1.3 if kind == "flurr" else 1.4, 0)
 	var Hh := H + Vector3(0, 1.45, 0)
 	var Qh := Q + Vector3(0, qy, 0)
@@ -2701,6 +3274,8 @@ func talk_begin(partner, kind: String, lines: Array) -> void:
 		_plan(M, Qh + S * sd * 1.5 - A * 0.9 + Vector3(0, 0.1, 0), Qh, 38.0, Qh - S * sd * 1.5 - A * 0.9 + Vector3(0, 0.1, 0)),                          # 1 собеседник в три четверти
 		_plan(M, Qh + A * 0.9 + S * sd * 0.55 + Vector3(0, 0.25, 0), Hh, 44.0, Qh + A * 0.9 - S * sd * 0.55 + Vector3(0, 0.25, 0))]                          # 2 через плечо собеседника на Пахана
 	var extra_idx := -1
+	if kind == "npc":              # жители двора: средний план собеседника дальше, без лица на весь кадр
+		talk_shots[1] = _plan(M, Qh + S * sd * 2.3 - A * 1.4 + Vector3(0, 0.2, 0), Qh, 40.0, Qh - S * sd * 2.3 - A * 1.4 + Vector3(0, 0.2, 0))
 	match kind:
 		"kiosk":
 			talk_shots.append(_plan(M, M + S * sd * (5.0 + sep * 0.6) + Vector3(0, 1.0, 0), Vector3(39.9, 1.5, 7.0), 56.0))   # 3 окно ларька и очередь
@@ -2733,6 +3308,7 @@ func talk_begin(partner, kind: String, lines: Array) -> void:
 	talk_fov = float(sh0["fov"])
 	talk_t = 1.0
 	talk_on = true
+	talk_wait_ui = false
 	_talk_hud(true)
 
 func talk_end() -> void:
@@ -2740,9 +3316,46 @@ func talk_end() -> void:
 		return
 	talk_on = false
 	_talk_hud(false)
-	# камера возвращается на пружину: иначе поворот плана разговора остаётся на ней, и она смотрит в стену
-	game.cam.transform = Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
-	game.cam.fov = float(Opts.v("fov"))
+	talk_out_t = TALK_OUT          # из последнего плана — плавно за спину героя (camera() / _talk_out_tick)
+
+const TALK_OUT := 0.55
+var talk_out_t := 0.0
+var talk_wait_ui := false
+
+func _talk_out_tick(dt: float) -> void:
+	if talk_out_t <= 0.0:
+		return
+	talk_out_t -= dt
+	if talk_out_t <= 0.0 or talk_on:
+		talk_out_t = 0.0
+		# камера возвращается на пружину: иначе поворот плана разговора остаётся на ней, и она смотрит в стену
+		game.cam.transform = Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
+		game.cam.fov = float(Opts.v("fov"))
+
+func _talk_out_w() -> float:
+	var w := clampf(talk_out_t / TALK_OUT, 0.0, 1.0)
+	return w * w * (3.0 - 2.0 * w)
+
+func talk_cam_fov() -> float:
+	return talk_fov if talk_on else lerpf(float(Opts.v("fov")), talk_fov, _talk_out_w())
+
+## Разговор с жителем двора (события): герой поворачивается к нему, камера — планами разговора, как у КРОТА
+func talk_npc(partner, lines: Array, after: Callable) -> void:
+	var p = game.player
+	if partner != null and is_instance_valid(partner):
+		var to: Vector3 = (partner as Node3D).global_position - p.global_position
+		to.y = 0.0
+		if to.length() > 0.05:
+			p.face = atan2(to.x, to.z)
+	game.start_dialog(lines, func():
+		after.call()
+		if hub_ui != null and is_instance_valid(hub_ui):
+			talk_wait_ui = true            # после реплик сразу выбор: общий план разговора держится, пока выбор открыт
+		else:
+			talk_end())
+	_talk_camera(partner)
+	if partner != null and is_instance_valid(partner):
+		talk_begin(partner, "npc", lines)
 
 ## Боевой HUD, верхняя строка и значки над точками на время разговора спрятаны
 func _talk_hud(hide: bool) -> void:
@@ -2761,7 +3374,11 @@ func _talk_hud(hide: bool) -> void:
 		talk_hidden = {}
 
 func _talk_step(dt: float) -> void:
-	var want := int(talk_map.get(clampi(game.dlg_i, 0, 99), talk_cur))
+	if talk_wait_ui and game.mode != "dlg" and (hub_ui == null or not is_instance_valid(hub_ui)):
+		talk_wait_ui = false
+		talk_end()
+		return
+	var want := 0 if talk_wait_ui else int(talk_map.get(clampi(game.dlg_i, 0, 99), talk_cur))
 	if want != talk_cur and want < talk_shots.size():
 		talk_cur = want
 		talk_t = 0.0
@@ -2778,6 +3395,11 @@ func camera() -> Transform3D:
 		return Transform3D(Basis.looking_at(ev_look - ev_pos, Vector3.UP), ev_pos)
 	if talk_on:
 		return Transform3D(Basis.looking_at(talk_look - talk_pos, Vector3.UP), talk_pos)
+	if talk_out_t > 0.0 and (scene_t < 0.0 or scene_boss == null or not is_instance_valid(scene_boss)):
+		var back: Transform3D = game.spring.global_transform * Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
+		var shot := Transform3D(Basis.looking_at(talk_look - talk_pos, Vector3.UP), talk_pos)
+		var w := _talk_out_w()
+		return Transform3D(Basis(back.basis.get_rotation_quaternion().slerp(shot.basis.get_rotation_quaternion(), w)), back.origin.lerp(shot.origin, w))
 	var home: Transform3D = game.spring.global_transform * Transform3D(Basis(), Vector3(0, 0, game.spring.get_hit_length()))
 	var bp: Vector3 = scene_boss.global_position
 	var pos: Vector3
@@ -2785,6 +3407,10 @@ func camera() -> Transform3D:
 	if scene_t < SCENE_SIT:
 		pos = Vector3(2.0, 2.8, -31.0)                                        # общий план от калитки: трон, трибуна, ковёр
 		look = Vector3(2.0, 1.6, -47.0)
+		if world.dvor != null:                                                 # новый двор: от калитки на юге коробки к трону на севере
+			var cc: Vector3 = world.dvor.court_center()
+			pos = Vector3(cc.x + 2.0, 2.8, cc.z + world.dvor.court.size.y * 0.5 - 1.8)
+			look = Vector3(world.throne.x, 1.6, world.throne.z)
 		scene_fov = 58.0
 	elif scene_t < SCENE_WALK:
 		pos = world.throne + Vector3(2.8, 1.5, 3.4)
@@ -2862,7 +3488,8 @@ func _scene_tick(dt: float) -> void:
 				if yard != null and is_instance_valid(yard):
 					yard.flood_on(i)
 					G67Sound.play(self, "relay", Vector3.INF, 0.9 + 0.08 * i))
-		yard.court_k(0.8)
+		if yard != null:
+			yard.court_k(0.8)
 		_crowd("start")
 	if scene_t >= SCENE_LEN:
 		_scene_end()
@@ -2918,10 +3545,15 @@ func _place_krot_pz() -> void:
 
 ## Поставить КРОТА, если его очередная встреча назначена на это место и нужная для сцены модель есть.
 ## Встреча не пропадает: пока игрок с ним не поговорил, он стоит тут в каждом забеге.
-func _place_krot(where: String) -> void:
+func _place_krot(where: String, at := Vector3.INF, yaw_o := 0.0) -> void:
 	var k := krot_next()
 	if k.is_empty() or String(k["where"]) != where:
 		return
+	if at != Vector3.INF:                 # новый двор: место встречи своё, остальное — из данных встречи
+		k = k.duplicate(true)
+		k["pos"] = at
+		k["yaw"] = yaw_o
+		k.erase("talk")
 	if String(k.get("needs", "")) != "" and not G67Models.has(String(k["needs"])):
 		return
 	if where == "hub" and String(k["id"]) == "krot2" and int(meta().get("flurr", -1)) < 1:
@@ -2941,6 +3573,19 @@ func _place_krot(where: String) -> void:
 	world._static_box(pos + Vector3(0, 0.9, 0), Vector3(0.7, 1.8, 0.7))
 	var talk: Vector3 = k.get("talk", Vector3(sin(float(k["yaw"])), 0, cos(float(k["yaw"]))) * 1.1)
 	world._point("krot", "КРОТ", "поговорить", pos + talk)
+	if world.dvor != null:                      # новый двор: сквозь КРОТА не пройти (раньше герой вставал прямо в него)
+		var kb := StaticBody3D.new()
+		kb.collision_layer = 1
+		kb.collision_mask = 0
+		var kcs := CollisionShape3D.new()
+		var kcap := CapsuleShape3D.new()
+		kcap.radius = 0.36
+		kcap.height = 1.7
+		kcs.shape = kcap
+		kcs.position.y = 0.85
+		kb.add_child(kcs)
+		kb.position = pos
+		world.add_child(kb)
 	if String(k.get("carry", "")) != "":
 		# держит вещь перед собой обеими руками (люстру): вещь закреплена на груди скелета — идёт вместе с ним
 		var fw := Vector3(sin(float(k["yaw"])), 0, cos(float(k["yaw"])))
@@ -2957,6 +3602,67 @@ func _place_krot(where: String) -> void:
 		pg.name = "krot_pigeon%d" % i
 		G67Pigeon.attach(pg, i)
 	events.append(["krot_here", String(k["id"])])
+
+## Новый двор: места встреч 1 и 3 (DVOR_KROT_LOCATIONS_VALIDATION.md). Подсказки DJ FLÜRR остаются верными дословно:
+## «дела с шаурмой» — у окна «ШАУРМЫ 67», «общается с местными… с голубями» — у навеса во дворе дома 67.
+const KROT_DV := {"krot1": [39.0, -16.6, PI], "krot3": [-19.4, -95.4, 1.1]}
+
+func _place_krot_dv() -> void:
+	var k := krot_next()
+	if k.is_empty() or not KROT_DV.has(String(k["id"])):
+		return
+	var sp: Array = KROT_DV[String(k["id"])]
+	_place_krot(String(k["where"]), G67Dvor2.to3(float(sp[0]), float(sp[1])), float(sp[2]))
+
+# ---------------------------------------------------------------- заначки нового двора
+## Восемь укромных мест, в забеге — три (по номеру забега). В заначке голда; первая за забег может оказаться бафом из «тайника».
+const SECRETS_DV := [[-67.0, 9.0], [-46.0, 66.0], [107.4, -43.0], [31.0, -134.5], [-27.6, 61.0], [-70.0, 124.0], [113.0, 14.6], [120.6, 85.0]]
+const SECRETS_N := 3
+const SECRET_FITS := ["own_man", "district_remembers"]
+var secret_nodes := {}
+
+func _secrets_dv() -> void:
+	secret_nodes = {}
+	if not run.has("secrets"):
+		var n0 := int(meta().get("runs", 0))
+		var spots: Array = []
+		for k in SECRETS_N:
+			spots.append((n0 * 3 + k * 3 + 1) % SECRETS_DV.size())
+		run["secrets"] = {"spots": spots, "taken": []}
+	var sc: Dictionary = run["secrets"]
+	for i_v in (sc["spots"] as Array):
+		var i := int(i_v)
+		if (sc["taken"] as Array).any(func(t): return int(t) == i):
+			continue
+		var at := G67Dvor2.to3(float(SECRETS_DV[i][0]), float(SECRETS_DV[i][1]))
+		world._point("secret_dv_%d" % i, "ЗАНАЧКА", "пошарить", at)
+		if G67Models.has("g67_golda_coin"):
+			var coin := G67Models.spawn("g67_golda_coin", world, at + Vector3(0, 0.12, 0), float(i), Vector3(9, 0.28, 9))
+			secret_nodes[i] = coin
+
+func take_secret(pid: String) -> void:
+	var i := int(pid.substr(10))
+	var sc: Dictionary = run.get("secrets", {})
+	if sc.is_empty() or (sc["taken"] as Array).any(func(t): return int(t) == i) or room_state != "open":
+		return
+	(sc["taken"] as Array).append(i)
+	world.points = world.points.filter(func(pt): return String(pt["id"]) != pid)
+	if is_instance_valid(secret_nodes.get(i)):
+		(secret_nodes[i] as Node).queue_free()
+	secret_nodes.erase(i)
+	events.append(["secret", i])
+	game.main.ui("confirm")
+	var first: bool = (sc["taken"] as Array).size() == 1
+	var fid := String(SECRET_FITS[i % SECRET_FITS.size()])
+	if first and (i % 3 == 0) and fit_lv(fid) < int(G67Data.FITS[fid]["lv"]):
+		(run["fits"] as Dictionary)[fid] = fit_lv(fid) + 1
+		apply_fits(fid)
+		events.append(["fit", fid])
+		game.banner("ЗАНАЧКА", "%s · уровень %d" % [String(G67Data.FITS[fid]["name"]), fit_lv(fid)], G67Data.FAMILY_COLOR["dvor"], 2.4)
+	else:
+		var got := add_golda(12 + (i * 5) % 13)
+		game.toast("Заначка: %d голды" % got)
+	_save_run("open")
 
 ## Во дворе КРОТ стоит на своём месте с постройки двора и весь забег (зоны под него не переставляются)
 func _place_krot_yard() -> void:
@@ -3151,8 +3857,17 @@ func _krot_after(kr: Rig) -> void:
 
 func talk_krot() -> void:
 	var k := krot_next()
-	if k.is_empty() or (place == "run" and (alive() > 0 or not pending.is_empty())):
+	var fighting: bool = (room_state != "open") if turf != null else (alive() > 0 or not pending.is_empty())      # в новом дворе враги стоят на постах весь забег — мешает только идущий бой
+	if k.is_empty() or (place == "run" and fighting):
 		game.toast("Сначала разберись с этими")
+		return
+	var cctv: String = {"krot4": "PZ_KROT04_CCTV", "krot5": "PZ_KROT05_CCTV"}.get(String(k["id"]), "")
+	if cctv != "" and game.main.user_play() and not auto_played(cctv):      # запись камеры наблюдения — перед встречами 4 и 5, потом живой разговор
+		var kf := func():
+			await play_auto(cctv)
+			if is_instance_valid(game) and game.golda == self:
+				talk_krot()
+		kf.call()
 		return
 	events.append(["krot_talk", String(k["id"])])
 	var p = game.player
@@ -3392,7 +4107,131 @@ func dmg_now() -> float:
 	var rc := fit_lv("receipt")
 	if rc > 0:
 		k *= 1.0 + minf(0.30, float(int(run.get("golda", 0)) / 25) * [0.03, 0.05][rc - 1])
+	var sl := fit_lv("slick_soles")
+	if sl > 0 and game.clock < soles_until:
+		k *= 1.0 + float(G67Data.SOLES_K[sl - 1])
+	if fit_lv("district_remembers") > 0:
+		k *= 1.0 + minf(G67Data.REMEMBER_CAP, G67Data.REMEMBER_STEP * float(events_done()))
 	return minf(G67Data.DMG_CAP_ALL, k)
+
+# ---- бафы двора: состояние по ходу боя
+var soles_until := -9.0          # СКОЛЬЗКИЕ ПОДОШВЫ: до какого времени действует усиление
+var jacket_t := -9.0             # ДЕДОВСКАЯ КУРТКА: когда героя ударили последний раз
+var hurt_in_fight := false       # СЕМКИ: получал ли герой урон в текущем бою
+var _was_roll := false
+
+# ---------------------------------------------------------------- короткие события ПОДЗЕМКИ (PODZEMKA_DESIGN.md, раздел 4)
+const PZ_CHANGE_COST := 10
+const PZ_CHANGE_MAX := 3         # раз за забег
+const PZ_CERT_COST := 20
+const PZ_CERT_FREE := 3.0        # сколько секунд в платной зоне босса бесплатно
+
+## «Автомат размена»: 10 голды → случайное. roll задаёт проверка; в игре — случай.
+func _pz_change(roll := -1.0) -> String:
+	if place != "run" or room_state in ["fight", "boss"]:      # до первого боя района состояние ещё пустое — событие доступно
+		game.toast("Сначала разберись с этими")
+		return ""
+	if int(run.get("pz_change", 0)) >= PZ_CHANGE_MAX:
+		game.toast("Автомат: «РАЗМЕН ОКОНЧЕН. СПАСИБО ЗА ДЕНЬГИ»")
+		return ""
+	if int(run.get("golda", 0)) < PZ_CHANGE_COST:
+		game.toast("Автомат: «ВНЕСИТЕ 10»")
+		return ""
+	run["golda"] = int(run["golda"]) - PZ_CHANGE_COST
+	run["spent"] = int(run.get("spent", 0)) + PZ_CHANGE_COST
+	run["pz_change"] = int(run.get("pz_change", 0)) + 1
+	G67Sound.play(self, "lever")
+	var r := roll if roll >= 0.0 else randf()
+	var p = game.player
+	var out := ""
+	if r < 0.35:
+		var got := 15 + randi() % 11
+		run["golda"] = int(run["golda"]) + got
+		run["earned"] = int(run.get("earned", 0)) + got
+		out = "gold"
+		game.banner("АВТОМАТ РАЗМЕНА", "выдал %d голды" % got, Color(0.62, 0.85, 0.25), 2.2)
+		G67Sound.play(self, "coin")
+	elif r < 0.6:
+		out = "receipt"
+		game.banner("АВТОМАТ РАЗМЕНА", "чек длиной четыре метра. Голды — ноль", Color(0.9, 0.9, 0.85), 2.4)
+		var mi := MeshInstance3D.new()             # чек печатается и ложится на пол
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.18, 0.006, 4.0)
+		mi.mesh = bm
+		var mm := StandardMaterial3D.new()
+		mm.albedo_color = Color(0.96, 0.95, 0.9)
+		mi.material_override = mm
+		world.add_child(mi)
+		mi.global_position = p.global_position + Vector3(0.6, 0.02, 1.6)
+		mi.rotation.y = randf_range(-0.3, 0.3)
+		G67Sound.play(self, "counter_click")
+	elif r < 0.8:
+		out = "heal"
+		p.hp = minf(p.max_hp, p.hp + 20.0)
+		game.banner("АВТОМАТ РАЗМЕНА", "стакан чая: +20 здоровья", Color(0.5, 0.95, 0.6), 2.2)
+	else:
+		out = "trial"
+		var pool: Array = []
+		for fid in G67Data.FITS:
+			if fit_lv(fid) == 0 and fit_avail(fid) and not bool(G67Data.FITS[fid]["rare"]):
+				pool.append(fid)
+		if pool.is_empty() or run.has("trial"):
+			p.hp = minf(p.max_hp, p.hp + 20.0)
+			out = "heal"
+			game.banner("АВТОМАТ РАЗМЕНА", "стакан чая: +20 здоровья", Color(0.5, 0.95, 0.6), 2.2)
+		else:
+			var tf := String(pool[randi() % pool.size()])
+			(run["fits"] as Dictionary)[tf] = 1
+			run["trial"] = tf
+			apply_fits(tf)
+			game.banner("АВТОМАТ РАЗМЕНА", "пробник: %s — до конца следующего боя" % String(G67Data.FITS[tf]["name"]), G67Data.FAMILY_COLOR[String(G67Data.FITS[tf]["family"])], 2.8)
+	events.append(["pz_change", out])
+	_save_run("open")
+	return out
+
+## Пробник из автомата действует один бой
+func _trial_end() -> void:
+	if not run.has("trial"):
+		return
+	var tf := String(run["trial"])
+	run.erase("trial")
+	if fit_lv(tf) == 1:
+		(run["fits"] as Dictionary).erase(tf)
+		apply_fits()
+		game.toast("Пробник кончился: %s" % String(G67Data.FITS[tf]["name"]))
+
+## «Справка»: 20 голды — первые секунды в платной зоне босса бесплатно; без денег — «Тогда справка нужна»
+func _pz_cert() -> void:
+	if place != "run" or room_state in ["fight", "boss"]:
+		game.toast("Сначала разберись с этими")
+		return
+	if float(run.get("cert_t", 0.0)) > 0.0:
+		game.toast("Кассирша: «Справка у вас уже есть. Вторая не нужна. Но купить можно»")
+		return
+	if int(run.get("golda", 0)) < PZ_CERT_COST:
+		game.toast("Кассирша: «Тогда справка нужна»")
+		events.append(["pz_cert", "no"])
+		return
+	run["golda"] = int(run["golda"]) - PZ_CERT_COST
+	run["spent"] = int(run.get("spent", 0)) + PZ_CERT_COST
+	run["cert_t"] = PZ_CERT_FREE
+	G67Sound.play(self, "counter_click")
+	game.banner("СПРАВКА", "о том, что справка не нужна: 3 с в платной зоне FORTUNA — бесплатно", Color(0.9, 0.9, 0.85), 3.0)
+	events.append(["pz_cert", "yes"])
+	_save_run("open")
+
+## Сколько событий пройдено в этом забеге (РАЙОН ПОМНИТ)
+func events_done() -> int:
+	var n := 0
+	for st in (run.get("stages", []) as Array):
+		if String((st as Array)[0]) == "event":
+			n += 1
+	return n + int(run.get("ev_done", 0))
+
+## Цена у торговца с учётом «СВОЕГО ЧЕЛОВЕКА»
+func trade_price(base: int) -> int:
+	var lv := fit_lv("own_man")
+	return int(round(float(base) * (1.0 - (float(G67Data.OWN_K[lv - 1]) if lv > 0 else 0.0)))) if base > 0 else 0
 
 ## Постоянные эффекты артефактов и ВОССТАНОВЛЕНИЕ АВТОРИТЕТА — каждый кадр; в подъезде всё возвращается к 1
 func _art_tick(dt: float) -> void:
@@ -3400,9 +4239,12 @@ func _art_tick(dt: float) -> void:
 	var in_run := place == "run" and not run.is_empty()
 	var res := float(up("res")) if in_run else 0.0
 	var cd := (0.85 if has_art("sim") else 1.0) * (1.0 - 0.08 * res)
+	var can := fit_lv("kiosk_can") if in_run else 0
+	if can > 0:
+		cd = maxf(minf(cd, G67Data.CD_FLOOR), cd * (1.0 - float(G67Data.CAN_CD[can - 1])))      # с БАНКОЙ — не ниже 60 % исходной
 	p.combat.cd_k = cd
 	p.combat.ammo_k = 1.0 - 0.08 * res
-	p.speed_k = 1.08 if has_art("market_sneakers") else 1.0
+	p.speed_k = (1.08 if has_art("market_sneakers") else 1.0) * (dvev.slow if (dvev != null and is_instance_valid(dvev)) else 1.0)
 	game.hype.gain_k = 1.3 if has_art("energy") else 1.0
 	if not in_run:
 		_last_hp = -1.0
@@ -3414,6 +4256,14 @@ func _art_tick(dt: float) -> void:
 	if has_art("second_sim") and game.tag.assist_cd > 0.0:
 		game.tag.assist_cd = maxf(0.0, game.tag.assist_cd - dt / 3.0)
 	# «Кассета 2016»: после полученного урона
+	if _last_hp >= 0.0 and p.hp < _last_hp - 0.01:
+		jacket_t = game.clock
+		hurt_in_fight = true
+	var rolling: bool = String(p.state) == "roll"
+	if _was_roll and not rolling and fit_lv("slick_soles") > 0:
+		soles_until = game.clock + G67Data.SOLES_T
+		events.append(["soles"])
+	_was_roll = rolling
 	if _last_hp >= 0.0 and p.hp < _last_hp - 0.01 and has_art("cassette_2016") and game.clock >= cass_next:
 		cass_until = game.clock + 4.0
 		cass_next = game.clock + 8.0
@@ -3443,7 +4293,8 @@ func _on_swapped(_from: String, _to: String, perfect: bool) -> void:
 # ---------------------------------------------------------------- ларёк «ШАУРМА 67» (APPROVALS.md, 2.2)
 ## Сколько этого товара осталось на забег
 func kiosk_left(id: String) -> int:
-	for k in G67Data.KIOSK:
+	var all: Array = G67Data.KIOSK + G67Data.TRADE["petrovich"] + G67Data.TRADE["zhora"]
+	for k in all:
 		if String(k["id"]) == id:
 			if int(k["per_visit"]) <= 0:
 				return 99               # без лимита: растёт цена
@@ -3457,13 +4308,24 @@ func kiosk_price(id: String) -> int:
 		return 0
 	if id == "shawarma" and bool(run.get("free_shawarma", false)) and int((run.get("kiosk", {}) as Dictionary).get("shawarma", 0)) == 0:
 		return 0                          # ларёк — этап: первая шаурма бесплатно
-	return int(k["price"]) + int(k.get("step", 0)) * int((run.get("kiosk", {}) as Dictionary).get(id, 0))
+	var vit: float = 1.0 - float(run.get("discount", 0.0)) if (id.begins_with("pt_") or id.begins_with("zh_")) else 1.0
+	if id == "pt_up":
+		var sub := _trade_pick(id)
+		return int(round(float(trade_price(int(G67Data.TRADE_UP[clampi(fit_lv(sub) - 1, 0, 1)]))) * vit)) if sub != "" else 0
+	if vit < 1.0:
+		return int(round(float(trade_price(int(k["price"]))) * vit))
+	var full := trade_price(int(k["price"]) + int(k.get("step", 0)) * int((run.get("kiosk", {}) as Dictionary).get(id, 0)))
+	if id in ["shawarma", "double", "togo"] and float(run.get("gena", 0.0)) > 0.0:
+		return int(round(float(full) * (1.0 - float(run["gena"]))))          # «от Гены»: скидка на одну покупку в «ШАУРМЕ 67»
+	return full
 
 ## Можно ли купить и почему нет («» — можно)
 func kiosk_why(id: String) -> String:
 	var k := kiosk_item(id)
 	if k.is_empty():
 		return "нет такого"
+	if id.begins_with("pt_") or id.begins_with("zh_"):
+		return _trade_why(id)
 	if id in ["double", "togo"] and not bool(run.get("kiosk_full", false)):
 		return "только когда ларёк — твой этап"
 	if kiosk_left(id) <= 0:
@@ -3478,13 +4340,17 @@ static func kiosk_item(id: String) -> Dictionary:
 	for k in G67Data.KIOSK:
 		if String(k["id"]) == id:
 			return k
+	for who in G67Data.TRADE:
+		for k in G67Data.TRADE[who]:
+			if String(k["id"]) == id:
+				return k
 	return {}
 
 ## «С СОБОЙ»: баффы, которые ещё можно взять или улучшить; редкие — с шансом KIOSK_RARE
 func togo_pool() -> Array:
 	var out: Array = []
 	for id in G67Data.FITS:
-		if fit_lv(id) < int(G67Data.FITS[id]["lv"]):
+		if fit_lv(id) < int(G67Data.FITS[id]["lv"]) and fit_avail(id):      # бафы другого района в «С СОБОЙ» не попадают
 			out.append(id)
 	return out
 
@@ -3505,6 +4371,8 @@ func kiosk_buy(id: String) -> String:
 	bought[id] = int(bought.get(id, 0)) + 1
 	var p = game.player
 	var got := ""
+	if id.begins_with("pt_") or id.begins_with("zh_"):
+		got = _trade_buy(id)
 	match id:
 		"shawarma":
 			p.hp = minf(p.max_hp, p.hp + G67Data.KIOSK_HEAL)
@@ -3525,13 +4393,22 @@ func kiosk_buy(id: String) -> String:
 			apply_fits(fid)
 			got = "%s · ур. %d" % [String(G67Data.FITS[fid]["name"]), fit_lv(fid)]
 			events.append(["fit", fid])
+	if id in ["shawarma", "double", "togo"] and float(run.get("gena", 0.0)) > 0.0 and paid > 0:
+		run["gena"] = 0.0
+		events.append(["gena_used"])
 	events.append(["kiosk", id])
 	return got
 
 # ---------------------------------------------------------------- фитсы
 ## Бафы семейства FORTUNA предлагаются в районе 2 и в общем пуле после победы над ней
 func fit_avail(id: String) -> bool:
-	if String(G67Data.FITS[id]["family"]) != "fortuna":
+	var fam := String(G67Data.FITS[id]["family"])
+	if fam == "dvor":
+		# бафы двора выдаёт только новый двор; ТЁПЛЫЙ ПОДЪЕЗД после передышки бесполезен
+		if old_yard or String(run.get("district", "")) == "podzemka":
+			return false
+		return not (id == "warm_entry" and bool(run.get("rested", false)))
+	if fam != "fortuna":
 		return true
 	return String(run.get("district", "")) == "podzemka" or bool((meta().get("flags", {}) as Dictionary).get("boss_fortuna", false))
 
@@ -3558,6 +4435,221 @@ func fit_options(rare: bool) -> Array:
 	return ids.slice(0, 3)
 
 const FitUIScript := preload("res://scripts/golda67/g67_fit_ui.gd")
+const ChoiceUIScript := preload("res://scripts/golda67/g67_choice_ui.gd")
+
+## Окно выбора (G67ChoiceUI): варианты — [ключ, текст, пометка, доступен]; cb получает ключ; leave — что выбирает Esc («» — выбор обязателен)
+func choose(title: String, text: String, options: Array, cb: Callable, leave := "") -> void:
+	if hub_ui != null or clip != null:
+		return
+	game.player.velocity = Vector3.ZERO
+	if prompt != null:
+		prompt.visible = false
+	var u = ChoiceUIScript.open(self, title, text, options, cb, leave)
+	hub_ui = u
+	u.closed.connect(func():
+		if hub_ui == u:
+			hub_ui = null
+		refresh_hints())
+
+# ---------------------------------------------------------------- расходники: «Термос» и «Табуретка»
+## Носятся с собой (run["items"]), переходят между районами. Z / крестовина влево — термос, X / крестовина вправо — табуретка.
+const ITEMS := {"thermos": {"name": "ТЕРМОС", "key": "Z"}, "stool": {"name": "ТАБУРЕТКА", "key": "X"}}
+const ITEM_MAX := 3
+const THERMOS_HEAL := 25.0
+const STOOL_STUN := 2.0
+const STOOL_R := 9.0
+var item_lab: Label
+
+func item_n(id: String) -> int:
+	return int((run.get("items", {}) as Dictionary).get(id, 0))
+
+func give_item(id: String, n := 1) -> void:
+	var it: Dictionary = run.get("items", {})
+	for k in n:
+		if int(it.get(id, 0)) >= ITEM_MAX:           # больше не унести: термос выпивается на месте, табуретка остаётся стоять
+			if id == "thermos":
+				game.player.hp = minf(game.player.max_hp, game.player.hp + THERMOS_HEAL)
+			continue
+		it[id] = int(it.get(id, 0)) + 1
+	run["items"] = it
+	events.append(["item_got", id])
+
+func use_item(id: String) -> bool:
+	if place != "run" or item_n(id) <= 0 or hub_ui != null or clip != null or game.mode == "dlg" or game.over:
+		return false
+	var p = game.player
+	if id == "thermos":
+		if p.hp >= p.max_hp - 0.5:
+			game.toast("Здоровье полное — термос подождёт")
+			return false
+		p.hp = minf(p.max_hp, p.hp + THERMOS_HEAL)
+		game.popup(p.global_position + Vector3(0, 2.2, 0), "ТЕРМОС +%d" % int(THERMOS_HEAL), Color(0.5, 1.0, 0.6))
+		G67Sound.play(self, "tray")
+	else:
+		var best = null
+		var bd := STOOL_R
+		var fw := Vector3(sin(float(p.face)), 0.0, cos(float(p.face)))
+		for e in game.enemies:
+			if not is_instance_valid(e) or not e.alive() or String(e.boss_id) != "":
+				continue
+			var to: Vector3 = e.global_position - p.global_position
+			to.y = 0.0
+			if to.length() < bd and (to.length() < 1.5 or to.normalized().dot(fw) > 0.2):
+				bd = to.length()
+				best = e
+		if best == null:
+			game.toast("Табуретку кидать не в кого")
+			return false
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.34, 0.44, 0.34)
+		mi.mesh = bm
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.5, 0.36, 0.22)
+		mi.material_override = m
+		world.add_child(mi)
+		mi.global_position = p.global_position + Vector3(0, 1.3, 0)
+		var hit_at: Vector3 = best.global_position + Vector3(0, 1.2, 0)
+		var tw := mi.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(mi, "global_position", hit_at, 0.22)
+		tw.tween_property(mi, "rotation", Vector3(7.0, 3.0, 5.0), 0.22)
+		tw.chain().tween_callback(mi.queue_free)
+		best.stun(STOOL_STUN)
+		game.popup(hit_at + Vector3(0, 0.8, 0), "ТАБУРЕТКОЙ", Color(1.0, 0.85, 0.3))
+		game.fx.dust(hit_at, 6, game.fx.DUST, 0.6)
+		game.shake(0.35)
+		G67Sound.play(self, "door", hit_at)
+	var it: Dictionary = run["items"]
+	it[id] = int(it[id]) - 1
+	events.append(["item", id])
+	return true
+
+var minimap: G67Minimap
+
+## Куда идти врагу, если между ним и героем стена: направление на следующую точку пути по сетке района (та же, что у
+## маршрута мини-карты). Vector3.ZERO — видимость есть или сетки нет: враг ведёт себя как обычно. Проверка видимости и
+## путь пересчитываются раз в NAV_EVERY секунд на врага.
+const NAV_EVERY := 0.4
+
+func nav_dir(e, to: Vector3, dt: float) -> Vector3:
+	if minimap == null or not is_instance_valid(minimap) or minimap.grid == null or world == null or minimap.world_id != world.get_instance_id():
+		return Vector3.ZERO
+	var t: float = float(e.get_meta("nav_t", 0.0)) - dt
+	if t > 0.0:
+		e.set_meta("nav_t", t)
+		return e.get_meta("nav_v", Vector3.ZERO)
+	e.set_meta("nav_t", NAV_EVERY + randf() * 0.15)
+	var from: Vector3 = e.global_position
+	var out := Vector3.ZERO
+	var q := PhysicsRayQueryParameters3D.create(from + Vector3(0, 0.9, 0), to + Vector3(0, 0.9, 0), 1)
+	q.exclude = [e.get_rid(), game.player.get_rid()]
+	var hit: Dictionary = world.get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and hit["collider"] is StaticBody3D:
+		var a: Vector2i = minimap._free_near(minimap._cell_of(Vector2(from.x, from.z)))
+		var b: Vector2i = minimap._free_near(minimap._cell_of(Vector2(to.x, to.z)))
+		if a.x != 999999 and b.x != 999999:
+			var pts: PackedVector2Array = minimap.grid.get_point_path(a, b)
+			if pts.size() >= 2:
+				var k := mini(2, pts.size() - 1)
+				var w: Vector2 = pts[k] + Vector2(minimap.cell, minimap.cell) * 0.5
+				var d := Vector3(w.x - from.x, 0.0, w.y - from.z)
+				if d.length() > 0.2:
+					out = d.normalized()
+	e.set_meta("nav_v", out)
+	return out
+
+func _items_tick() -> void:
+	if (minimap == null or not is_instance_valid(minimap)) and game.hud_root != null:
+		minimap = G67Minimap.attach(self)
+	if item_lab == null or not is_instance_valid(item_lab):
+		item_lab = Label.new()
+		item_lab.add_theme_font_size_override("font_size", 18)
+		item_lab.add_theme_color_override("font_color", Color(0.96, 0.9, 0.76))
+		item_lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		item_lab.add_theme_constant_override("outline_size", 5)
+		item_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		item_lab.anchor_left = 0.5
+		item_lab.anchor_right = 1.0
+		item_lab.anchor_top = 1.0
+		item_lab.anchor_bottom = 1.0
+		item_lab.offset_right = -28.0
+		item_lab.offset_top = -64.0
+		item_lab.offset_bottom = -34.0
+		item_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		game.hud_root.add_child(item_lab)
+	var parts: Array = []
+	if place == "run":
+		for id in ITEMS:
+			if item_n(id) > 0:
+				parts.append("%s ×%d [%s]" % [String(ITEMS[id]["name"]), item_n(id), String(ITEMS[id]["key"])])
+	item_lab.visible = not parts.is_empty() and hub_ui == null and clip == null
+	item_lab.text = "    ".join(parts)
+
+# ---------------------------------------------------------------- «Бурмалда» и кнопка «Можно. А зачем?» в новом дворе
+## Автомат и кнопка стоят на улице Облачной весь забег (по разу). Сцены и исходы — прежние; этапом маршрута событие не считается.
+const EV_DV := {"burmalda": Vector2(-10.0, -15.0), "button": Vector2(-20.0, -15.0)}
+
+func _ev_short_dv() -> void:
+	for ev in EV_DV:
+		if bool((run.get("ev_short", {}) as Dictionary).get(ev, false)):
+			continue
+		var sp: Vector3 = G67District.event_spots()[ev]
+		world._point("ev_" + String(ev), String(G67Data.EVENT_NAMES[ev]), "дёрнуть рычаг" if ev == "burmalda" else "нажать кнопку", sp + (Vector3(0, 0, 1.4) if ev == "burmalda" else Vector3(0, 0, 1.0)))
+
+## Начать событие в новом дворе: этап-«событие» открывается на время сцены
+func _ev_dv(ev: String) -> bool:
+	if room_state == "reward" and String(room.get("ev", "")) == ev:
+		return true
+	if room_state != "open" or busy:
+		game.toast("Сначала разберись с этими")
+		return false
+	room = {"type": "event", "ev": ev, "place": "street"}
+	room_state = "reward"
+	if ev == "burmalda":
+		run["ev_pulls"] = 0
+		ev_idle = 0.0
+	return true
+
+# ---------------------------------------------------------------- обмен у Петровича
+func _swap_begin() -> void:
+	if hub_ui != null:
+		hub_ui.close()
+	var mine: Array = (run["fits"] as Dictionary).keys().filter(func(f): return String(f) != String(run.get("trial", "")))
+	mine.sort_custom(func(a, b): return fit_lv(a) < fit_lv(b))
+	var opts: Array = []
+	for fid in mine.slice(0, 4):
+		opts.append([String(fid), "%s · ур. %d" % [String(G67Data.FITS[fid]["name"]), fit_lv(fid)], "", true])
+	if opts.is_empty():
+		return
+	choose("ОБМЕН", "Петрович: «Меняю. Но что дам — сам не знаю, тут в ящике темно». Что отдаёшь?", opts, func(k): _swap_give(k))
+
+func swap_pool(skip := "") -> Array:
+	var pool: Array = []
+	for fid in G67Data.FITS:
+		if fit_lv(fid) == 0 and String(fid) != skip and fit_avail(fid) and not bool(G67Data.FITS[fid]["rare"]):
+			pool.append(String(fid))
+	return pool
+
+func _swap_give(fid: String) -> void:
+	(run["fits"] as Dictionary).erase(fid)
+	events.append(["swap_out", fid])
+	var pool := swap_pool(fid)
+	pool.shuffle()
+	if pool.is_empty():
+		add_golda(25)
+		apply_fits()
+		return
+	var opts: Array = []
+	for nf in pool.slice(0, 2):
+		opts.append([String(nf), String(G67Data.FITS[nf]["name"]), "", true])
+	apply_fits()
+	choose("ОБМЕН", "Из ящика — одно из двух. Отдано: %s" % String(G67Data.FITS[fid]["name"]), opts, func(k):
+		(run["fits"] as Dictionary)[k] = 1
+		apply_fits(k)
+		events.append(["fit", k])
+		game.banner(String(G67Data.FITS[k]["name"]), "обмен у Петровича", G67Data.FAMILY_COLOR[String(G67Data.FITS[k]["family"])], 2.4)
+		_save_run("open"))
 var fit_offer: Array = []
 var fit_rare := false
 
@@ -3593,7 +4685,7 @@ func take_fit(id: String) -> void:
 	if hub_ui != null and hub_ui.kind == "fit":
 		hub_ui.close()
 	apply_fits(id)
-	game.banner(String(G67Data.FITS[id]["name"]), "баф · уровень %d" % fit_lv(id), G67Data.FAMILY_COLOR["misha"], 2.2)
+	game.banner(String(G67Data.FITS[id]["name"]), "баф · уровень %d" % fit_lv(id), G67Data.FAMILY_COLOR[String(G67Data.FITS[id]["family"])], 2.2)
 	game.main.ui("confirm")
 	if room_state == "reward":
 		_stage_end()
@@ -3606,7 +4698,7 @@ func apply_fits(just := "") -> void:
 	if just == "tariff":
 		p.combat.ammo["bottles"] = float(p.combat.ammo_of("bottles")) + 1.0
 	p.dmg_mul = dmg_now()
-	var want := hp_max() + 20.0 * float(fit_lv("authority")) + (20.0 if has_art("beanie") else 0.0) + G67Data.KIOSK_MAXHP * float(run.get("maxhp_buys", 0))
+	var want := hp_max() + 20.0 * float(fit_lv("authority")) + (20.0 if has_art("beanie") else 0.0) + G67Data.KIOSK_MAXHP * float(run.get("maxhp_buys", 0)) - (G67Data.FLAW_HP if run.has("flaw") else 0.0)
 	if want != p.max_hp:
 		p.max_hp = want
 		if just in ["authority", "beanie", "double"]:
@@ -3630,7 +4722,7 @@ func rest() -> void:
 	if room_state != "reward" or String(room.get("type", "")) != "break":
 		return
 	var p = game.player
-	var add: float = p.max_hp * G67Data.BREAK_HEAL
+	var add: float = p.max_hp * (G67Data.WARM_HEAL if fit_lv("warm_entry") > 0 else G67Data.BREAK_HEAL)
 	p.hp = minf(p.max_hp, p.hp + add)
 	events.append(["rest"])
 	game.banner("ПЕРЕДЫШКА", "здоровье +%d" % int(add), Color(0.5, 0.95, 0.6), 2.0)
@@ -4075,6 +5167,9 @@ func _boss_down(e) -> void:
 		for t in ["Стиль «Водяра» — стойка стилей в подъезде", "Новый листок на доске объявлений", "Письмо в почтовом ящике кв. 42", "Запись «РАЙОННЫЙ ВЕСТНИК 67» — телевизор в подъезде", "Граффити «ПАХАН + MADK1D БЫЛИ ТУТ» — у двери подъезда"]:
 			_note_new(t)
 	events.append(["boss_down", String(d["boss"])])
+	if world.dvor != null:
+		world.dvor.set_court_open(true)
+		world.dvor.open_gate()                 # решётка под аркой дома № 81: открыта с первой победы над Мишей и навсегда (флаг boss_misha)
 	var style_name := String(Styles.by_id(String(d["unlock"])).title).to_upper()
 	if String(d["boss"]) == "g67_fortuna":
 		if first:
@@ -4084,6 +5179,8 @@ func _boss_down(e) -> void:
 				unlock_clip("NEWS02")
 		var out_task := func():
 			await _fortuna_outro(e)
+			if first and game.main.user_play() and not auto_played("NEWS02"):
+				await play_auto("NEWS02")                    # выпуск новостей о поражении FORTUNA — после первой победы
 			game.banner("FORTUNA 812 ПОВЕРЖЕН", ("открыт стиль: %s" % style_name) if first else "район пройден", Color(0.62, 0.85, 0.25), 3.5)
 			_finish_run(true, 2.0)
 		out_task.call()
@@ -4175,13 +5272,20 @@ func result_new_run() -> void:
 func hud_line() -> String:
 	if place == "hub" or run.is_empty():
 		return "ГОЛДА 67 · ПОДЪЕЗД · РЕСПЕКТ %d" % int(meta().get("respect", 0)) + (" · ЗАБЕГ НА ПАУЗЕ" if paused_run() else "")
+	if minimap != null and is_instance_valid(minimap) and minimap.shown():
+		return ""                       # новый двор и Подземка: район, голда и цель — в панели мини-карты (G67Minimap)
 	var d := district()
+	if turf != null:
+		var s2 := "ГОЛДА 67 · %s · голда %d" % [String(d["name"]), int(run["golda"])]
+		if not arts().is_empty():
+			s2 += " · артефактов %d/%d" % [arts().size(), slots()]
+		return s2 + "\n" + ("МИША МИНАСЯН" if room_state == "boss" else turf.objective())
 	var s := "ГОЛДА 67 · %s %d/%d · голда %d" % [String(d["name"]), int(run["pos"]) + 1, route().size(), int(run["golda"])]
 	if room_state == "fight":
 		s += " · врагов: %d" % (alive() + pending.size())
 	if not arts().is_empty():
 		s += " · артефактов %d/%d" % [arts().size(), slots()]
-	if room_state == "open" and world != null:
+	if room_state == "open" and world != null and next_line() != "":
 		s += "\n" + next_line()
 	return s
 
@@ -4195,6 +5299,8 @@ func next_line() -> String:
 			parts.append("КОРОБКА — %s" % String(G67Data.ROOM_HINT["boss"]))
 		else:
 			parts.append("%s — %s" % [String(G67District.zone_of(String(o.get("place", "")))["name"]).to_upper(), String(G67Data.ROOM_NAMES[type])])
+	if parts.is_empty():
+		return ""                  # вариантов нет (например, сразу после спуска) — пустую строку «ДАЛЬШЕ:» не показываем
 	return "ДАЛЬШЕ: " + " · ".join(parts)
 
 ## Подсказки предметов подъезда по состоянию: сервант, дверь, стойка стилей, карта
@@ -4208,6 +5314,8 @@ func refresh_hints() -> void:
 		var sv: Dictionary = data["run"]
 		var rr: Dictionary = sv["run"]
 		door = "продолжить забег · этап %d из 6 · здоровье %d из %d" % [int(rr.get("pos", 0)) + 1, int(float(sv.get("hp", game.player.max_hp))), int(game.player.max_hp)]
+		if not old_yard and String(rr.get("district", "dvor")) != "podzemka":
+			door = "продолжить забег · здоровье %d из %d" % [int(float(sv.get("hp", game.player.max_hp))), int(game.player.max_hp)]
 		tpl = int(rr.get("tpl", 0))
 	for pt in world.points:
 		match String(pt["id"]):
@@ -4321,6 +5429,7 @@ func _physics_process(dt: float) -> void:
 	bark_hold = maxf(0.0, bark_hold - dt)
 	if talk_on:
 		_talk_step(dt)
+	_talk_out_tick(dt)
 	if ev_cam:
 		var heldv := Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_SPACE)
 		ev_hold = ev_hold + dt if heldv else maxf(0.0, ev_hold - dt * 3.0)
@@ -4338,7 +5447,18 @@ func _physics_process(dt: float) -> void:
 	_krot_tick(dt)
 	_pz_music_tick(dt)
 	_crowd_tick()
-	if place == "run" and not busy and not game.over and not run.is_empty():
+	if place == "run" and not busy and not game.over and not run.is_empty() and turf != null:
+		turf.tick(dt)
+		_coins_tick(dt)
+		_ev_tick()
+		_fall_guard(dt)
+		_link_tick(dt)
+		_second_wind()
+		_court_tick()
+		_descent_tick()
+	elif place == "run" and not busy and not game.over and not run.is_empty():
+		_fall_guard(dt)
+		_link_tick(dt)
 		if room_state == "fight":
 			_fight_tick(dt)
 		_stash_tick(dt)
@@ -4347,6 +5467,7 @@ func _physics_process(dt: float) -> void:
 		_ambush_tick()
 		_second_wind()
 	_art_tick(dt)
+	_items_tick()
 	if not game.over:
 		_g67_audio_tick(dt)
 	if hints == null:
@@ -4373,9 +5494,23 @@ func _physics_process(dt: float) -> void:
 			prompt.text = "[E]  %s\n%s" % [String(pt2["title"]), String(pt2["hint"])]
 
 func _unhandled_input(e: InputEvent) -> void:
+	if game != null and place == "run" and game.panel == null and not game.get_tree().paused and hub_ui == null and clip == null:
+		var it := ""
+		if e is InputEventKey and e.pressed and not e.echo:
+			it = String({KEY_Z: "thermos", KEY_X: "stool"}.get(e.physical_keycode, ""))
+		elif e is InputEventJoypadButton and e.pressed:
+			it = String({JOY_BUTTON_DPAD_LEFT: "thermos", JOY_BUTTON_DPAD_RIGHT: "stool"}.get(e.button_index, ""))
+		if it != "" and item_n(it) > 0:
+			use_item(it)
+			get_viewport().set_input_as_handled()
+			return
+		if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_M and minimap != null and is_instance_valid(minimap):
+			minimap.cycle_zoom()                 # масштаб мини-карты
+			get_viewport().set_input_as_handled()
+			return
 	if game == null or near == "" or game.panel != null or game.get_tree().paused or busy or hub_ui != null or clip != null:
 		return
-	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_E:
+	if (e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_E) or (e is InputEventJoypadButton and e.pressed and e.button_index == JOY_BUTTON_RIGHT_SHOULDER):
 		var pl = game.player
 		if place == "run" and pl.execution.can_start() and not pl.execution.pick().is_empty():
 			return                     # добивание на [E] важнее предмета рядом
@@ -4405,11 +5540,30 @@ func use(id: String) -> void:
 				game.toast("Сначала закончи этап")
 		else:
 			game.toast("Закрыто. Миша не разрешал")
+	elif id == "to_dvor":
+		if room_state == "open":
+			ascend()
+		else:
+			game.toast("Сначала разберись с этими")
 	elif id == "home":
 		if room_state == "open":
 			go_home()
 		else:
 			game.toast("Сначала разберись с этими")
+	elif id.begins_with("bag_") and turf != null:
+		turf.take_bag(id)
+	elif id == "rest_dv":
+		_rest_dv()
+	elif id == "rags_dv":
+		_rags_dv()
+	elif id == "trader_dv":
+		_trader_dv()
+	elif id.begins_with("secret_dv_"):
+		take_secret(id)
+	elif id.begins_with("evdv_") and dvev != null and is_instance_valid(dvev):
+		dvev.use(id)
+	elif id == "kiosk" and turf != null:
+		_kiosk_dv()
 	elif id == "tv":
 		tv()
 	elif id == "kiosk" and _kiosk_gate() >= 0:
@@ -4428,9 +5582,11 @@ func use(id: String) -> void:
 		if rr != null:
 			rr.use()
 	elif id == "ev_burmalda":
-		_burmalda_pull()
+		if world.dvor == null or _ev_dv("burmalda"):
+			_burmalda_pull()
 	elif id == "ev_button":
-		_button_press()
+		if world.dvor == null or _ev_dv("button"):
+			_button_press()
 	elif id == "slot":
 		_slot_use()
 	elif id.begins_with("bottle") and id.length() == 7:
@@ -4442,7 +5598,24 @@ func use(id: String) -> void:
 	elif id == "balloon":
 		var bf := func(): await play_clip("PZ_BALLOON01")
 		bf.call()
+	elif id == "pz_change":
+		_pz_change()
+	elif id == "pz_cert":
+		_pz_cert()
+	elif id in ["clip_tariff", "clip_cl02", "clip_seller", "clip_cctv"]:
+		var cid: String = {"clip_tariff": "PZ_TARIFF01", "clip_cl02": "CL02", "clip_seller": "PZ_SELLER01", "clip_cctv": "PZ_CCTV_EXIT"}[id]
+		if id == "clip_tariff" and place == "run":
+			var fee := mini(8, int(run.get("golda", 0)))          # «просмотр тарифа — 8»: сколько есть, столько и спишет
+			run["golda"] = int(run["golda"]) - fee
+			run["spent"] = int(run.get("spent", 0)) + fee
+		var cf := func(): await play_clip(cid)
+		cf.call()
 	elif id == "shutter" or id == "hamster_door":
+		var first_cid := "PZ_DOGCASINO01" if id == "shutter" else "PZ_HAMSTER01"
+		if game.main.user_play() and not auto_played(first_cid):      # первый подход — сначала ролик, дверь открывается следующим нажатием
+			var af := func(): await play_auto(first_cid)
+			af.call()
+			return
 		var pzd := world.district as G67Podzemka
 		if pzd != null and pzd.open_door("shutter" if id == "shutter" else "hamster"):
 			game.toast("Рольставня поднимается" if id == "shutter" else "Дверь скрипит")
@@ -4626,7 +5799,10 @@ func open_screen(what: String) -> void:
 		"artifacts": hub_ui = G67ArtifactsUI.open(self)
 		"routes": hub_ui = G67RoutesUI.open(self)
 		"storage": hub_ui = G67StorageUI.open(self)
-		"kiosk": hub_ui = G67KioskUI.open(self)
+		"kiosk":
+			shop = shop_next
+			shop_next = "kiosk"
+			hub_ui = G67KioskUI.open(self)
 		"fit": hub_ui = FitUIScript.open(self, fit_offer, fit_rare)
 		"result":
 			hub_ui = ResultUIScript.open(self)

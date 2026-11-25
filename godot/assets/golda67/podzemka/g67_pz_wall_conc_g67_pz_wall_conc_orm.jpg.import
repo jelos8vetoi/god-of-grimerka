@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cdwvriaokmb3n"
-path="res://.godot/imported/g67_pz_wall_conc_g67_pz_wall_conc_orm.jpg-784e233df82e2075b5e8803d56e4bb40.ctex"
+path.s3tc="res://.godot/imported/g67_pz_wall_conc_g67_pz_wall_conc_orm.jpg-784e233df82e2075b5e8803d56e4bb40.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "b8418c529f864fecc457e75d6dfac6d6"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/podzemka/g67_pz_wall_conc_g67_pz_wall_conc_orm.jpg"
-dest_files=["res://.godot/imported/g67_pz_wall_conc_g67_pz_wall_conc_orm.jpg-784e233df82e2075b5e8803d56e4bb40.ctex"]
+dest_files=["res://.godot/imported/g67_pz_wall_conc_g67_pz_wall_conc_orm.jpg-784e233df82e2075b5e8803d56e4bb40.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

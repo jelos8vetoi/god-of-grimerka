@@ -23,11 +23,12 @@ static func open(g67: Golda67) -> G67KioskUI:
 func _build() -> void:
 	var front := Front.new()
 	front.size = STAGE
+	front.title = String({"petrovich": "МАСТЕРСКАЯ", "zhora": "ДЛЯ СВОИХ"}.get(G.shop, "ШАУРМА 67"))
 	front.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(front)
-	lab("ДВОР · ПАРКОВКА · ОКНО ЛАРЬКА", "caps", 13, Color(0.86, 0.72, 0.52), Vector2(70, 160))
+	lab({"petrovich": "ГСК «ОБЛАКО» · МАСТЕРСКАЯ ПЕТРОВИЧА", "zhora": "ГАРАЖИ У БАШЕН · БАГАЖНИК ЖОРЫ"}.get(G.shop, ("ДВОР · УЛИЦА ОБЛАЧНАЯ · ОКНО ЛАРЬКА" if (G.world != null and G.world.dvor != null) else "ДВОР · ПАРКОВКА · ОКНО ЛАРЬКА")), "caps", 13, Color(0.86, 0.72, 0.52), Vector2(70, 160))
 	var shown: Array = []
-	for k in G67Data.KIOSK:
+	for k in G.shop_items():
 		if String(k["id"]) == "togo" and G.togo_pool().is_empty():
 			continue                         # брать нечего — ценник не висит
 		shown.append(k)
@@ -38,6 +39,9 @@ func _build() -> void:
 		c.ui = self
 		c.item = k
 		c.tex = G67Icons.tex("icon_kiosk_" + String(k["id"]))
+		if G.shop != "kiosk":
+			var sub: String = G._trade_pick(String(k["id"]))
+			c.tex = G67Icons.fit(sub) if G67Data.FITS.has(sub) else G67Icons.tex("icon_art_" + sub)
 		c.position = Vector2(x0 + i * (CARD.x + 30.0), 300)
 		c.size = CARD
 		c.pivot_offset = Vector2(CARD.x * 0.5, 0)
@@ -75,7 +79,7 @@ func _build() -> void:
 
 func _fit_one(l: Label, sz: int, w: float) -> void:
 	var f := MGUI.font("display")
-	while sz > 16 and f.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x > w:
+	while sz > 12 and f.get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, sz).x > w:
 		sz -= 2
 	l.add_theme_font_size_override("font_size", sz)
 
@@ -128,6 +132,7 @@ func _activate(i: int) -> void:
 # ---------------------------------------------------------------- рисунки
 ## Фасад ларька: крашеные панели, световой короб «ШАУРМА 67», окно с вертелом, прилавок
 class Front extends Control:
+	var title := "ШАУРМА 67"
 	func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.08, 0.08, 0.1))                   # ночь
 		draw_rect(Rect2(Vector2(40, 40), Vector2(size.x - 80, size.y - 40)), Color(0.55, 0.3, 0.16))     # фасад
@@ -139,7 +144,7 @@ class Front extends Control:
 		draw_rect(box, Color(0.98, 0.84, 0.32))
 		draw_rect(box, Color(0.5, 0.36, 0.1), false, 3.0)
 		var f := MGUI.font("display")
-		var t := "ШАУРМА 67"
+		var t := title
 		var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 64).x
 		draw_string(f, Vector2(800 - w * 0.5, 124), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 64, Color(0.5, 0.07, 0.05))
 		# окно: тёплая глубина, вертел слева, полосатый навес
@@ -218,6 +223,12 @@ class Price extends Control:
 	## шаурма в фольге / двойная / пакет «с собой» — простые рисунки, пока нет картинок владельца
 	func _food(id: String) -> void:
 		var c := Vector2(size.x * 0.4, 62)
+		if id.begins_with("pt_") or id.begins_with("zh_"):      # товар торговца без картинки: ящик с биркой
+			draw_rect(Rect2(c + Vector2(-44, -34), Vector2(88, 72)), Color(0.5, 0.36, 0.22))
+			draw_rect(Rect2(c + Vector2(-44, -34), Vector2(88, 72)), Color(0.3, 0.2, 0.12), false, 3.0)
+			draw_line(c + Vector2(-44, 2), c + Vector2(44, 2), Color(0.3, 0.2, 0.12), 3.0)
+			draw_string(MGUI.font("display"), c + Vector2(-9, -4), "?", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(0.98, 0.86, 0.36))
+			return
 		match id:
 			"togo":
 				draw_colored_polygon(PackedVector2Array([c + Vector2(-38, -30), c + Vector2(38, -30), c + Vector2(46, 46), c + Vector2(-46, 46)]), Color(0.72, 0.56, 0.36))
@@ -241,7 +252,7 @@ class Receipt extends Control:
 		var r := Rect2(Vector2.ZERO, size)
 		draw_rect(Rect2(r.position + Vector2(4, 6), r.size), Color(0, 0, 0, 0.4))
 		draw_colored_polygon(G67Diorama.paper_poly(r, 9, 1.2), Color(0.95, 0.94, 0.9))
-		draw_string(MGUI.font("caps"), Vector2(24, 28), "ЧЕК · ШАУРМА 67", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.4, 0.36, 0.3))
+		draw_string(MGUI.font("caps"), Vector2(24, 28), "ЧЕК", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.4, 0.36, 0.3))
 		for x in range(10, int(size.x) - 10, 14):
 			draw_line(Vector2(x, size.y - 6), Vector2(x + 7, size.y), Color(0.7, 0.68, 0.62), 1.0)
 

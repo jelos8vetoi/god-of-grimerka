@@ -36,7 +36,7 @@ func _build() -> void:
 		y += 76.0
 	var col := Color(0.88, 0.85, 0.78)
 	var dim := Color(0.7, 0.66, 0.58)
-	_t("ЭТАПЫ: %d из 6" % int(R.get("stage_n", 0)), "display", 28, col, Vector2(70, y))
+	_t(("ЭТАПЫ: %d из 6" % int(R.get("stage_n", 0))) if (pz or Golda67.old_yard) else ("ЭТАПОВ ПРОЙДЕНО: %d" % int(R.get("stage_n", 0))), "display", 28, col, Vector2(70, y))
 	var stages: Array = R.get("stages", [])
 	for i in stages.size():
 		var ic := G67Icons.rect(String(G67Icons.ROOM.get(String(stages[i][0]), "icon_room_battle")), 40)
@@ -96,13 +96,15 @@ func _build() -> void:
 
 func _next_text(R: Dictionary) -> String:
 	if bool(R.get("first", false)):
+		if not Golda67.old_yard and String(R.get("district", "dvor")) != "podzemka":
+			return "ДВОР пройден. Решётка под аркой дома № 81 открыта: в следующем забеге можно спуститься в ПОДЗЕМКУ. РЕСПЕКТ идёт в «АВТОРИТЕТ РАЙОНА»."
 		return "ДВОР пройден. Следующий район турнира — ПОДЗЕМКА — в следующей главе. Двор можно проходить снова: маршрут каждый раз другой, РЕСПЕКТ идёт в «АВТОРИТЕТ РАЙОНА»."
 	for u in G67Data.UPGRADES:
 		if bool(u["live"]) and G.up(String(u["id"])) < int(u["max"]) and G.up_cost(String(u["id"])) <= int(R.get("total", 0)):
 			return "Хватает на улучшение в «АВТОРИТЕТЕ РАЙОНА»."
 	if bool(R.get("boss_death", false)):
 		return "Миша открыт после промаха ЗАХВАТА и когда цепь зацепилась."
-	return "Маршрут следующего забега другой — карта у входа."
+	return "Маршрут следующего забега другой — карта у входа." if Golda67.old_yard else "Район каждый забег немного другой: торговец, события и заначки меняются."
 
 func _on_select(i: int, prev: int) -> void:
 	if prev >= 0:

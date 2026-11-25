@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ditfjb8kq16b6"
-path="res://.godot/imported/g67_enemy_promoter_street_promoter_3d_model_normal.jpg-fd2e376edb09c190cc709126a65cdeda.ctex"
+path.s3tc="res://.godot/imported/g67_enemy_promoter_street_promoter_3d_model_normal.jpg-fd2e376edb09c190cc709126a65cdeda.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "07272980707e926b641f48e039c2e619"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/podzemka/g67_enemy_promoter_street_promoter_3d_model_normal.jpg"
-dest_files=["res://.godot/imported/g67_enemy_promoter_street_promoter_3d_model_normal.jpg-fd2e376edb09c190cc709126a65cdeda.ctex"]
+dest_files=["res://.godot/imported/g67_enemy_promoter_street_promoter_3d_model_normal.jpg-fd2e376edb09c190cc709126a65cdeda.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

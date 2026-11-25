@@ -25,7 +25,7 @@ static func room(type: String) -> Texture2D:
 	return tex(String(ROOM.get(type, "")))
 
 static func fit(id: String) -> Texture2D:
-	return tex(String(FIT.get(id, "")))
+	return tex(String(FIT.get(id, "icon_fit_" + id)))      # бафы двора: файл icon_fit_<код>.png; пока его нет — карточка без значка
 
 ## Значок в интерфейсе: квадрат size×size, не ловит мышь
 static func rect(id: String, size: float) -> TextureRect:

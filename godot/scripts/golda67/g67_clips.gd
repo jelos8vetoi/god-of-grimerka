@@ -11,7 +11,8 @@ extends RefCounted
 ## музыка на время ролика: mode — silence (по умолчанию) / duck / keep, cue — набор jingle_g67_* (играет, только если файл есть)
 const MUSIC := {}
 
-const ORDER := ["STORY01", "STORY05", "V00", "AD01", "CL01", "NEWS01", "EXTRA01", "AD02", "PZ_STREAM01", "PZ_BALLOON01"]
+const ORDER := ["STORY01", "STORY05", "V00", "AD01", "CL01", "NEWS01", "EXTRA01", "AD02", "PZ_STREAM01", "PZ_BALLOON01",
+	"CL02", "PZ_DOGCASINO01", "PZ_HAMSTER01", "PZ_KROT04_CCTV", "PZ_KROT05_CCTV", "PZ_FORTUNA_PROMO", "NEWS02", "PZ_TARIFF01", "PZ_SELLER01", "PZ_CCTV_EXIT"]
 const INFO := {
 	"V00": {"title": "ТУРНИР 67 — трейлер", "tall": false},
 	"AD01": {"title": "СТАНЬ АВТОРИТЕТОМ", "tall": false},
@@ -24,6 +25,17 @@ const INFO := {
 	"AD02": {"title": "ПЕРВЫЙ ПРОХОД ПОЧТИ БЕСПЛАТНЫЙ", "tall": false, "cat": "РЕКЛАМА", "dur": [18.0, 20.0]},
 	"PZ_STREAM01": {"title": "НЕ ГРЫЗИ НОГТИ", "tall": true, "cat": "ОБЛАКО LIVE", "dur": [22.0, 26.0]},
 	"PZ_BALLOON01": {"title": "ПОДЗЕМНЫЙ БАС", "tall": false, "cat": "ОБЛАКО LIVE", "dur": [18.0, 22.0]},
+	# вторая партия роликов Подземки (G67PzClips2)
+	"CL02": {"title": "БЕСПЛАТНЫЙ ПРОХОД", "tall": true, "cat": "ОБЛАКО LIVE", "dur": [9.0, 13.0]},
+	"PZ_DOGCASINO01": {"title": "DOG CASINO 67", "tall": false, "cat": "РЕКЛАМА", "dur": [10.0, 13.0]},
+	"PZ_HAMSTER01": {"title": "ЗАСЕКРЕЧЕННЫЙ ОБЪЕКТ", "tall": false, "cat": "СЮЖЕТ", "dur": [14.0, 17.0]},
+	"PZ_KROT04_CCTV": {"title": "NPC", "tall": false, "cat": "СЮЖЕТ", "dur": [9.0, 11.5]},
+	"PZ_KROT05_CCTV": {"title": "АБСОЛЮТНО ТРЕЗВЫЙ", "tall": false, "cat": "СЮЖЕТ", "dur": [8.0, 10.5]},
+	"PZ_FORTUNA_PROMO": {"title": "FORTUNA 812", "tall": false, "cat": "РЕКЛАМА", "dur": [18.0, 21.0]},
+	"NEWS02": {"title": "РАЙОННЫЙ ВЕСТНИК 67 · выпуск 2", "tall": false, "cat": "НОВОСТИ", "dur": [22.0, 29.0]},      # три реплики ведущего сами занимают 25 с — в 20–24 с по ТЗ не укладывается
+	"PZ_TARIFF01": {"title": "ПРАВО ПОСМОТРЕТЬ НА ТАРИФ", "tall": false, "cat": "РЕКЛАМА", "dur": [7.0, 10.0]},
+	"PZ_SELLER01": {"title": "КОРОБКА", "tall": true, "cat": "ОБЛАКО LIVE", "dur": [8.0, 11.5]},
+	"PZ_CCTV_EXIT": {"title": "ВЫХОД ЧЕРЕЗ ВХОД", "tall": false, "cat": "СЮЖЕТ", "dur": [7.0, 9.5]},
 }
 const NAMES := {"V": "ПАХАН", "M": "MADK1D", "G1": "МИША МИНАСЯН", "KR": "КРОТ", "AN": "ВЕДУЩИЙ", "PH": "ВЕДУЩИЙ ПОДКАСТА",
 	"WH": "WHYOUSOLONELY", "LS": "ГРОМКОГОВОРИТЕЛЬ", "DP": "ДИСПЕТЧЕР", "FT": "FORTUNA 812", "KX": "КОРОЛЕВСКИЙ XVII", "BS": "ПОЛКОВНИК БУСТЕРЕНКО", "DK": "ДИКТОР РЕКЛАМЫ", "VB": "ПАХАН (ПОДЗЕМНЫЙ БАС)"}
@@ -45,6 +57,14 @@ const LINES := {
 	"AD02": ["DK|Подземка! Место, где вам всегда рады!", "DK|Первый проход — почти бесплатный!", "DK|Выход, вдох, выдох и ожидание оплачиваются отдельно.", "FT|FORTUNA 812. Мы за ваши деньги."],
 	"PZ_STREAM01": ["V|Так, чат, мы под землёй. Тут всё платное. Вон, даже…", "FT|НЕ ГРЫЗИ НОГТИ.", "V|ОСУЖДАЮ! ОСУЖДАЮ!", "FT|Данная услуга оплачивается отдельно."],
 	"PZ_BALLOON01": ["VB|Я… БЛЯТЬ… ПОДЗЕМНЫЙ БАС.", "VB|ВОСЕМЬ. В ЭТОЙ. БЛЯТЬ. ЭКОНОМИКЕ.", "VB|Я НЕ ПАХАН. Я ГОЛОС ИЗ ТОННЕЛЯ.", "V|Чё за хуйня?"],
+	"CL02": ["FT|Бесплатный проход! Забирай.", "V|В чём подвох?", "FT|Никакого. Проход бесплатный. Платный — талон."],
+	"PZ_HAMSTER01": ["DP|Объект находится под постоянным наблюдением. Причины содержания хомяков не установлены."],
+	"PZ_FORTUNA_PROMO": ["FT|Меня спрашивают: FORTUNA, это законно?", "FT|Отвечаю: вопрос — шестьдесят семь рублей.", "FT|Здесь платят за вход. За выход. За то, что постояли.", "FT|Это не жадность. Это сервис."],
+	"NEWS02": ["AN|Происшествие в кассовом комплексе подземного перехода. Неизвестный в белой футболке прошёл через три линии турникетов, не заплатив ни разу.",
+		"AN|Владелец комплекса, известный как FORTUNA восемь-один-два, не смог покинуть зал: его собственный турникет сообщил о недостатке средств.",
+		"AN|Владелец комплекса пока не прокомментировал ситуацию. По предварительным данным, выход действительно оказался платным."],
+	"PZ_TARIFF01": ["LS|Спасибо за просмотр."],
+	"PZ_SELLER01": ["Z2|Бери. Пустая. Зато коробка.", "V|Нахуя?", "Z2|Вот и я говорю — берут."],
 	"EXTRA01": ["PH|Крот, расскажи, в чём твоя главная профессиональная компетенция?", "KR|Я хорошо чувствую понедельники. Мы с ними на ты.",
 		"PH|А конкретно?", "KR|Если понедельник наступает, я сразу понимаю, что воскресенье закончилось."],
 }
@@ -78,6 +98,20 @@ static func run(c: G67ClipPlayer, id: String) -> void:
 		"AD02": await G67PzClips.ad02(c)
 		"PZ_STREAM01": await G67PzClips.stream01(c)
 		"PZ_BALLOON01": await G67PzClips.balloon01(c)
+		"CL02": await G67PzClips2.cl02(c)
+		"PZ_DOGCASINO01": await G67PzClips2.dogcasino(c)
+		"PZ_HAMSTER01": await G67PzClips2.hamster(c)
+		"PZ_KROT04_CCTV": await G67PzClips2.krot04(c)
+		"PZ_KROT05_CCTV": await G67PzClips2.krot05(c)
+		"PZ_FORTUNA_PROMO": await G67PzClips2.promo(c)
+		"NEWS02": await G67PzClips2.news02(c)
+		"PZ_TARIFF01": await G67PzClips2.tariff(c)
+		"PZ_SELLER01": await G67PzClips2.seller(c)
+		"PZ_CCTV_EXIT": await G67PzClips2.cctv_exit(c)
+	# длина реплик от запуска к запуску немного гуляет — ролик не кончается раньше нижней границы своей длительности
+	var lo: float = float((INFO.get(id, {}).get("dur", [0.0]) as Array)[0])
+	if lo > 0.0 and c.alive() and c.t < lo + 0.2:
+		await c.wait(lo + 0.2 - c.t)
 	await c.wait(0.3)
 
 # ---------------------------------------------------------------- клипы персонажей для роликов
@@ -655,7 +689,7 @@ static func _sparkles(c: G67ClipPlayer, sec: float) -> void:
 		d.rotation = PI * 0.25
 		d.position = Vector2(fs.x * (0.08 + 0.84 * float(i % 2)) + randf_range(-fs.x * 0.05, fs.x * 0.05), fs.y * (0.1 + 0.8 * randf()))
 		h.add_child(d)
-		var tw := c.create_tween().set_loops()
+		var tw := d.create_tween().set_loops()          # привязан к искре: уйдёт вместе с ней, а не крутится вхолостую
 		tw.tween_interval(randf_range(0.0, 0.4))
 		tw.tween_property(d, "color:a", 1.0, 0.07)
 		tw.parallel().tween_property(d, "scale", Vector2(1.8, 1.8), 0.07)
@@ -715,10 +749,10 @@ static func _price_card(c: G67ClipPlayer, sec: float) -> Control:
 	tw2.parallel().tween_property(tag, "modulate:a", 1.0, 0.05)
 	tw2.tween_interval(0.25)
 	tw2.tween_callback(func(): snap_req = "price")
-	var blink := c.create_tween().set_loops()
+	var blink := card.create_tween().set_loops()
 	blink.tween_property(card, "color", Color(1, 1, 1, 0.96), 0.12)
 	blink.tween_property(card, "color", Color(0.95, 0.78, 0.2, 0.96), 0.12)
-	var shake := c.create_tween().set_loops()
+	var shake := card.create_tween().set_loops()
 	shake.tween_property(card, "rotation", -0.03, 0.08)
 	shake.tween_property(card, "rotation", -0.09, 0.08)
 	var out := c.create_tween()
@@ -1008,7 +1042,7 @@ static func _rec_frame(c: G67ClipPlayer, sec: float) -> void:
 		h.add_child(b)
 	var l := c._label(h, "● REC", int(fs.y * 0.045), Color(1, 0.2, 0.2))
 	l.position = Vector2(fs.x * 0.04, fs.y * 0.05)
-	var bl := c.create_tween().set_loops()
+	var bl := c.create_tween().bind_node(l).set_loops()
 	bl.tween_property(l, "modulate:a", 0.2, 0.4)
 	bl.tween_property(l, "modulate:a", 1.0, 0.4)
 	var kill := c.create_tween()
@@ -1518,7 +1552,7 @@ static func ev02(c: G67ClipPlayer) -> void:
 				bucket.rotation = Vector3(0, mk.rotation.y, 0)
 				bucket.rotate_object_local(Vector3.RIGHT, float(st["tilt"])))
 	carry_tw.tween_interval(0.016)
-	var breath := c.create_tween().set_loops()
+	var breath := c.create_tween().bind_node(pa).set_loops()
 	breath.tween_property(pa, "scale", Vector3(1.0, 1.0, 1.07), 1.5)
 	breath.tween_property(pa, "scale", Vector3.ONE, 1.5)
 	# ---- план 1 (0–6 с): сверху на спящего, медленный наезд
@@ -1542,15 +1576,15 @@ static func ev02(c: G67ClipPlayer) -> void:
 	c.anim("wh", "Idle", 0.2)
 	mk.rotation.y = PI
 	# ---- планы 3–4 (9–13 с): сирена, красные вспышки, лицо спящего, WHYOUSOLONELY оглядывается
-	var sir := c.create_tween().set_loops()
+	var sir := c.create_tween().bind_node(sl).set_loops()
 	sir.tween_property(sl, "light_energy", 7.0, 0.25)
 	sir.tween_property(sl, "light_energy", 0.2, 0.25)
-	var sir2 := c.create_tween().set_loops()
+	var sir2 := c.create_tween().bind_node(sl2).set_loops()
 	sir2.tween_property(sl2, "light_energy", 4.0, 0.25).set_delay(0.12)
 	sir2.tween_property(sl2, "light_energy", 0.0, 0.25)
-	var spin := c.create_tween().set_loops()
+	var spin := c.create_tween().bind_node(siren).set_loops()
 	spin.tween_property(siren, "rotation:y", TAU, 1.2).as_relative()
-	var lamp_tw := c.create_tween().set_loops()
+	var lamp_tw := c.create_tween().bind_node(lamp).set_loops()
 	lamp_tw.tween_property(lamp, "light_energy", 0.1, 0.3)
 	lamp_tw.tween_property(lamp, "light_energy", 1.2, 0.2)
 	c.cam_at(Vector3(-0.1, 1.6, -0.3), Vector3(-0.5, 0.65, -1.0), 34.0)
@@ -1871,7 +1905,7 @@ static func _glitch(c: G67ClipPlayer, sec: float) -> void:
 		bar.size = Vector2(fs.x, fs.y * randf_range(0.01, 0.035))
 		bar.position = Vector2(0, fs.y * randf())
 		h.add_child(bar)
-		var tw := c.create_tween().set_loops()
+		var tw := bar.create_tween().set_loops()
 		tw.tween_property(bar, "position:y", fs.y * randf(), 0.05)
 		tw.tween_interval(0.03)
 	c.vhs(1.0, sec)

@@ -134,7 +134,8 @@ const DISTRICTS := {
 ## Приёмы фаз — существующие приёмы боссов; свой особый приём — enemy._special («РАЗМАХ ЦЕПЬЮ»).
 const BOSSES := {
 	"g67_fortuna": {      # этап 5а: настоящий бой (golda67/g67_fortuna.gd, арена — g67_fortuna_arena.gd); здоровье 3000 на старт замера
-		"n": "FORTUNA 812", "sub": "владелец турникетов", "sp": "FT", "hp": 3600, "r": 30, "spd": 104, "c": "#3fa34d", "dmg": 7, "gap": 1.8, "xp": 0, "armor": 0.35, "antract": false,
+		"n": "FORTUNA 812", "sub": "владелец турникетов", "sp": "FT", "hp": 2400, "r": 30, "spd": 104, "c": "#3fa34d", "dmg": 6, "gap": 1.8, "xp": 0, "armor": 0.45,      # ослаблен 2026-11-24 по решению владельца: было 3600 / 7 / 0,35 — бот-клавишник не выигрывал
+		 "antract": false,
 		"poise": 320, "gate": true,
 		"phases": [["f_gates", "f_zone", "f_check", "f_change", "f_consult"], ["f_gates", "f_zone", "f_check", "f_change", "f_consult"], ["f_gates", "f_zone", "f_check", "f_change", "f_consult"]],
 		"barks": ["Оплата на месте.", "Вводим повышенный тариф.", "Что с турникетами?! Они же на гарантии!"],
@@ -148,7 +149,10 @@ const BOSSES := {
 }
 ## Фраза Миши на выходе с трона (её же озвучивает G67Voice)
 const BOSS_INTRO := "На этом районе уважают только сильнейших."
-const SPEAKERS := {"G1": {"n": "МИША МИНАСЯН", "c": "#d9a23a"}, "KR": {"n": "КРОТ", "c": "#c9a36b"}, "DJ": {"n": "DJ FLÜRR", "c": "#3fc7c9"}}
+const SPEAKERS := {"G1": {"n": "МИША МИНАСЯН", "c": "#d9a23a"}, "KR": {"n": "КРОТ", "c": "#c9a36b"}, "DJ": {"n": "DJ FLÜRR", "c": "#3fc7c9"},
+	"TL": {"n": "ДЯДЯ ТОЛЯ", "c": "#e6c79a"}, "SN": {"n": "САНЫЧ", "c": "#9ec3ff"}, "VT": {"n": "ВИТАЛИК", "c": "#ffd27a"}, "BZ": {"n": "БАБА ЗИНА", "c": "#f2bfd0"},
+	"QD": {"n": "ДЕД", "c": "#d8d8e0"}, "QT": {"n": "ТЁТКА С СУМКОЙ", "c": "#ffd9c2"}, "QS": {"n": "СТУДЕНТ", "c": "#bcd0ff"}, "QP": {"n": "ПРОДАВЩИЦА", "c": "#ffe9a8"},
+	"GN": {"n": "ГЕНА", "c": "#bfe6bf"}, "AR": {"n": "АРТУР", "c": "#ffc9c9"}}      # события двора (DVOR_FIVE_NEW_EVENTS.md)
 
 ## madk1d в приквеле закрыт до первой сюжетной концовки (победа над Полковником Бустеренко): до неё игрок управляет
 ## только Паханом — нет смены героя (Tab), дуэта (T), Team Hype и Overdrive (G), ад-либа madk1d (Q). madk1d может быть
@@ -207,10 +211,33 @@ const FITS := {
 	"refill": {"family": "fortuna", "name": "ДОЛИВ", "desc": "Попадание бутылкой с шансом 15 / 25 / 35 % возвращает бутылку в запас.", "lv": 3, "rare": false},
 	"tariff": {"family": "fortuna", "name": "ТАРИФ «ВСЁ ВКЛЮЧЕНО»", "desc": "+1 бутылка к запасу за уровень; до открытия Водяры — +6 % урона за уровень.", "lv": 3, "rare": false},
 	"receipt": {"family": "fortuna", "name": "ДЛИННЫЙ ЧЕК", "desc": "За каждые 25 голды при себе +3 % / +5 % урона, не больше +30 %.", "lv": 2, "rare": true},
+	"ded_jacket": {"family": "dvor", "name": "ДЕДОВСКАЯ КУРТКА", "desc": "После полученного удара следующий в течение 1,5 с слабее на 25 / 40 / 55 %.", "lv": 3, "rare": false},
+	"kiosk_can": {"family": "dvor", "name": "БАНКА ИЗ ЛАРЬКА", "desc": "Приёмы стиля перезаряжаются на 10 / 20 % быстрее.", "lv": 2, "rare": false},
+	"slick_soles": {"family": "dvor", "name": "СКОЛЬЗКИЕ ПОДОШВЫ", "desc": "После уклонения +15 / +25 % урона на 2 с.", "lv": 2, "rare": false},
+	"garage_key": {"family": "dvor", "name": "ГАРАЖНЫЙ КЛЮЧ", "desc": "Тяжёлые удары сбивают равновесие на 25 / 50 % сильнее (по боссу — вдвое слабее).", "lv": 2, "rare": false},
+	"first_hit": {"family": "dvor", "name": "ПЕРВЫЙ УДАР", "desc": "Удар по врагу с полным здоровьем +30 / +50 %; по боссу — один раз.", "lv": 2, "rare": true},
+	"semki": {"family": "dvor", "name": "СЕМКИ", "desc": "Бой без полученного урона: +15 голды.", "lv": 1, "rare": false},
+	"own_man": {"family": "dvor", "name": "СВОЙ ЧЕЛОВЕК", "desc": "Цены у торговцев ниже на 15 / 25 %.", "lv": 2, "rare": false},
+	"district_remembers": {"family": "dvor", "name": "РАЙОН ПОМНИТ", "desc": "Каждое пройденное событие забега: +5 % урона, не больше +15 %.", "lv": 1, "rare": true},
+	"warm_entry": {"family": "dvor", "name": "ТЁПЛЫЙ ПОДЪЕЗД", "desc": "Передышка лечит 65 % здоровья вместо 45 %.", "lv": 1, "rare": false},
 	"second_wind": {"family": "misha", "name": "ВТОРОЕ ДЫХАНИЕ", "desc": "Раз за комнату (и в комнате босса): удар оставил меньше 30 % здоровья — лечит на 25 / 40. От смертельного не спасает.", "lv": 2, "rare": true},
 }
-const FAMILY_NAMES := {"misha": "МИША МИНАСЯН", "fortuna": "FORTUNA 812"}
-const FAMILY_COLOR := {"misha": Color(0.85, 0.63, 0.23), "fortuna": Color(0.62, 0.85, 0.25)}
+const FAMILY_NAMES := {"misha": "МИША МИНАСЯН", "fortuna": "FORTUNA 812", "dvor": "ДВОР"}
+const FAMILY_COLOR := {"misha": Color(0.85, 0.63, 0.23), "fortuna": Color(0.62, 0.85, 0.25), "dvor": Color(0.55, 0.78, 0.95)}
+## Девять бафов двора (DVOR_BUFF_CATALOG.md, утверждены владельцем). Числа по уровням — здесь, эффекты — G67RunMods и Golda67.
+const JACKET_T := 1.5                       # ДЕДОВСКАЯ КУРТКА: окно после полученного удара, с
+const JACKET_K := [0.25, 0.40, 0.55]        # на сколько слабее следующий удар
+const CAN_CD := [0.10, 0.20]                # БАНКА ИЗ ЛАРЬКА: перезарядки приёмов быстрее
+const CD_FLOOR := 0.6                       # перезарядки не ниже 60 % исходных вместе со всеми эффектами
+const SOLES_T := 2.0                        # СКОЛЬЗКИЕ ПОДОШВЫ: сколько держится усиление после уклонения, с
+const SOLES_K := [0.15, 0.25]
+const KEY_K := [0.25, 0.50]                 # ГАРАЖНЫЙ КЛЮЧ: тяжёлые сильнее сбивают равновесие (по боссу — вдвое слабее)
+const FIRST_K := [0.30, 0.50]               # ПЕРВЫЙ УДАР: по врагу с полным здоровьем
+const SEMKI_GOLD := 15                      # СЕМКИ: бой без полученного урона
+const OWN_K := [0.15, 0.25]                 # СВОЙ ЧЕЛОВЕК: скидка у торговцев
+const REMEMBER_STEP := 0.05                 # РАЙОН ПОМНИТ: за событие
+const REMEMBER_CAP := 0.15
+const WARM_HEAL := 0.65                     # ТЁПЛЫЙ ПОДЪЕЗД: передышка лечит столько вместо BREAK_HEAL
 const DMG_CAP := 2.0          # потолок множителя урона от фитсов
 
 ## РЕСПЕКТ (постоянная валюта, SPEC, раздел 12): за что и сколько
@@ -234,6 +261,26 @@ const KIOSK := [
 	{"id": "togo", "name": "С СОБОЙ", "price": 70, "per_visit": 2, "desc": "Случайный баф из тех, что ещё можно взять или улучшить (15 % — редкий)."},
 ]
 const KIOSK_HEAL := 40.0
+## Торговцы нового двора (DVOR_BUFF_CATALOG.md, раздел 5): в забеге один из двух. Что именно лежит под «pick» — решается в начале забега.
+const TRADE := {
+	"petrovich": [
+		{"id": "pt_atk", "name": "НА РУКУ", "price": 80, "per_visit": 1, "pick": ["heavy_hand", "garage_key"], "desc": ""},
+		{"id": "pt_def", "name": "НА СПИНУ", "price": 80, "per_visit": 1, "pick": ["authority", "ded_jacket", "warm_entry"], "desc": ""},
+		{"id": "pt_up", "name": "ПОДТЯНУТЬ", "price": 60, "per_visit": 1, "desc": "Петрович улучшает один из твоих бафов на уровень."},
+		{"id": "pt_thermos", "name": "ТЕРМОС", "price": 25, "per_visit": 2, "desc": "Чай с собой: +25 здоровья, когда понадобится. Клавиша Z."},
+		{"id": "pt_swap", "name": "ОБМЕН", "price": 20, "per_visit": 1, "desc": "Отдаёшь ненужный баф — берёшь один из двух случайных. Раз за забег."},
+	],
+	"zhora": [
+		{"id": "zh_rare", "name": "ДЛЯ СВОИХ", "price": 150, "per_visit": 1, "pick": ["first_hit", "second_wind", "district_remembers"], "desc": ""},
+		{"id": "zh_art", "name": "ИЗ БАГАЖНИКА", "price": 90, "per_visit": 1, "desc": ""},
+		{"id": "zh_bag", "name": "КОТ В МЕШКЕ", "price": 45, "per_visit": 1, "desc": "Что внутри — Жора не смотрел: баф, термос с чаем или пустые банки."},
+		{"id": "zh_risk", "name": "СДЕЛКА", "price": 0, "per_visit": 1, "pick": ["second_wind", "first_hit", "district_remembers"], "desc": ""},
+	],
+}
+const TRADE_UP := [60, 110]          # улучшение I→II и II→III
+const TRADE_BAG_HEAL := 30.0
+const FLAW_HP := 20.0             # рискованная сделка Жоры: на столько меньше максимум здоровья до конца забега
+const TRADE_ORDER := ["petrovich", "zhora", "petrovich"]      # Петрович — в двух забегах из трёх, Жора — в одном; вместе никогда
 const KIOSK_MAXHP := 15.0
 const KIOSK_RARE := 0.15
 
@@ -269,7 +316,8 @@ static func pz_option(t: String, pos: int, tpl: int) -> Dictionary:
 const WAVES_P1 := [[["shest", 3]], [["shest", 2], ["semka", 1]], [["shest", 3], ["semka", 1]]]
 const WAVES_BATTLE := [[["shest", 3], ["semka", 1]], [["shest", 3], ["semka", 2]], [["shest", 3], ["semka", 2]]]
 ## Свёрток шаурмы за зачистку боевого этапа: лечение (подобрать; непобранный пропадает при начале следующего этапа)
-const FOE_DMG_K := 0.6       # урон рядовых врагов двора и свиты Миши (сам Миша — нет); кампанию не трогает
+const FOE_HP_K := 1.3        # здоровье рядовых врагов приквела (Шестёрка, Семечник) против их вида в кампании
+const FOE_DMG_K := 0.75      # было 0,6: урон рядовых врагов двора и свиты Миши (сам Миша — нет); кампанию не трогает
 const FOES_ALIVE_MAX := 5   # одновременно живых врагов в бою приквела
 const STAGE_HEAL := {"battle": 25.0, "ambush": 25.0, "elite": 40.0}
 const WAVES_ELITE := [[["smotr", 1], ["shest", 2]], [["shest", 2], ["semka", 2]], [["smotr", 1], ["semka", 2]]]

@@ -210,14 +210,16 @@ static func stream01(c: G67ClipPlayer) -> void:
 		var kx := -3.5 + float(k) * 3.5
 		c.box(Vector3(2.0, 2.2, 1.4), Vector3(kx, 1.1, -1.0), Color(0.45, 0.5, 0.52))
 		c.box(Vector3(1.6, 0.5, 0.05), Vector3(kx, 2.0, -0.28), GOLD, 0.8)
-	c.light(Vector3(0, 3.0, 2.0), Color(1.0, 0.95, 0.85), 3.0, 12.0)
+	c.light(Vector3(0, 3.0, 2.0), Color(1.0, 0.95, 0.85), 4.5, 14.0)
+	c.light(Vector3(0.4, 1.9, 5.0), Color(1.0, 0.9, 0.78), 3.5, 9.0)          # свет «от телефона»: лицо и переход читаются
+	c.light(Vector3(-2.5, 2.4, 0.5), Color(0.8, 0.9, 1.0), 2.5, 9.0)
 	var p := c.actor("pahan", "pahan", Vector3(0.0, 0.0, 2.2), 0.0)
 	c.anim("pahan", "Walk", 0.1)
 	var cb := {}
 	var chat_lines: Array = []
 	var ui := c.screen(func(s: Control, fs: Vector2):
 		var rec := _lbl(s, "● REC", 34, RED, Vector2(24, 24))
-		var rt: Tween = c.create_tween().set_loops()
+		var rt: Tween = c.create_tween().bind_node(rec).set_loops()          # уйдёт вместе с надписью, а не крутится вхолостую
 		rt.tween_property(rec, "modulate:a", 0.15, 0.5)
 		rt.tween_property(rec, "modulate:a", 1.0, 0.5)
 		_lbl(s, "👁 67", 34, Color.WHITE, Vector2(fs.x - 190, 24))
@@ -245,8 +247,8 @@ static func stream01(c: G67ClipPlayer) -> void:
 	hand.tween_interval(0.14)
 	# 1 — селфи с рук на ходу по галерее
 	var d1 := c.say_async(G67Clips.L("PZ_STREAM01", 0))
-	c.cam_at(Vector3(0.1, 1.55, 3.6), Vector3(0.0, 1.5, 2.2), 62.0)
-	c.cam_to(Vector3(0.0, 1.55, 5.0), Vector3(0.0, 1.5, 2.2), d1 + 1.8, 56.0)
+	c.cam_at(Vector3(0.1, 1.5, 4.4), Vector3(0.0, 1.35, 2.2), 62.0)
+	c.cam_to(Vector3(0.0, 1.5, 5.6), Vector3(0.0, 1.35, 2.2), d1 + 1.8, 56.0)
 	c.move("pahan", Vector3(0.0, 0.0, 3.8), d1 + 1.8)
 	var chat_t: Tween = c.create_tween()
 	var seeds := [["Джелос", "Вау"], ["кент_67", "привет"], ["sasha_hamster", "а почему тут платно"], ["Джелос", "Джелос: 8 ₽ — в этой"], ["madk_fan", "брат стримит из метро"]]
@@ -384,8 +386,8 @@ static func balloon01(c: G67ClipPlayer) -> void:
 	var bt: Tween = c.create_tween()
 	bt.tween_property(bal, "position", Vector3(0.6, 1.62, 1.55), 0.5)
 	bt.parallel().tween_property(bal, "scale", Vector2(0.6, 0.6).x * Vector3.ONE, 1.4)
-	c.cam_at(Vector3(2.4, 1.6, 0.8), Vector3(0.6, 1.55, 0.8), 38.0)
-	c.cam_to(Vector3(1.9, 1.6, 0.9), Vector3(0.6, 1.55, 0.8), 1.8, 32.0)
+	c.cam_at(Vector3(3.5, 1.6, 0.8), Vector3(0.6, 1.5, 0.8), 38.0)
+	c.cam_to(Vector3(3.0, 1.6, 0.9), Vector3(0.6, 1.5, 0.8), 1.8, 34.0)
 	await c.wait(1.6)
 	_flash(c, Color(1, 1, 1), 0.2)
 	c.plate("PZ UNDERGROUND VOICE TEST", "caption", 1.6)
@@ -394,7 +396,7 @@ static func balloon01(c: G67ClipPlayer) -> void:
 	var dust := c.screen(func(s: Control, fs: Vector2):
 		for i in 14:
 			var d := _rect(s, Color(0.7, 0.65, 0.55, 0.0), Vector2(randf() * fs.x, fs.y * 0.85 + randf() * 40.0), Vector2(26, 8))
-			var tw: Tween = c.create_tween().set_loops()
+			var tw: Tween = c.create_tween().bind_node(d).set_loops()
 			tw.tween_interval(randf() * 0.5)
 			tw.tween_property(d, "modulate:a", 0.8, 0.2)
 			tw.tween_property(d, "position:x", d.position.x + 160.0, 1.2)
@@ -409,15 +411,15 @@ static func balloon01(c: G67ClipPlayer) -> void:
 		c.shake(0.55)
 		match k:
 			0:
-				c.cam_at(hh + Vector3(0.1, 0.0, 1.5), hh, 30.0)
-				c.cam_to(hh + Vector3(0.05, 0.0, 1.1), hh, d + 0.3, 24.0)
+				c.cam_at(hh + Vector3(0.1, 0.0, 2.7), hh, 30.0)
+				c.cam_to(hh + Vector3(0.05, 0.0, 2.3), hh, d + 0.3, 26.0)
 			1:
-				c.cam_at(hh + Vector3(0.3, -1.1, 1.0), hh + Vector3(0, 0.1, 0), 40.0)
-				c.cam_to(hh + Vector3(0.15, -0.9, 0.8), hh + Vector3(0, 0.1, 0), d + 0.3, 34.0)
+				c.cam_at(hh + Vector3(0.5, -1.0, 2.1), hh + Vector3(0, 0.1, 0), 40.0)
+				c.cam_to(hh + Vector3(0.35, -0.8, 1.8), hh + Vector3(0, 0.1, 0), d + 0.3, 36.0)
 			2:
 				c.light(hh + Vector3(0, 0.3, -1.5), Color(1, 0.9, 0.7), 8.0, 6.0)
-				c.cam_at(hh + Vector3(-1.2, 0.0, 2.0), hh, 36.0)
-				c.cam_to(hh + Vector3(-0.9, 0.0, 1.6), hh, d + 0.3, 30.0)
+				c.cam_at(hh + Vector3(-1.7, 0.0, 2.9), hh, 36.0)
+				c.cam_to(hh + Vector3(-1.4, 0.0, 2.5), hh, d + 0.3, 32.0)
 		await c.wait(d + 0.3)
 	dust.queue_free()
 	# 5 — шарик пищит и улетает, сдуваясь; обычный голос, взгляд в камеру; резкий обрыв
@@ -432,7 +434,7 @@ static func balloon01(c: G67ClipPlayer) -> void:
 	c.cam_to(hh + Vector3(0.4, 0.2, 2.6), Vector3(2.2, 3.4, -0.6), 1.2, 44.0)
 	await c.wait(1.3)
 	var d4 := c.say_async(G67Clips.L("PZ_BALLOON01", 3))
-	c.cam_at(hh + Vector3(0.0, 0.0, 1.7), hh, 34.0)
+	c.cam_at(hh + Vector3(0.0, 0.0, 2.7), hh, 34.0)
 	await c.wait(d4 + 0.5)
 	c.screen(func(s: Control, fs: Vector2):
 		_rect(s, Color.BLACK, Vector2.ZERO, fs))

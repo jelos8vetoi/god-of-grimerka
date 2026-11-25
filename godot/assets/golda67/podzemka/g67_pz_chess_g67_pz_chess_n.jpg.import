@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://craqx5uxs688q"
-path="res://.godot/imported/g67_pz_chess_g67_pz_chess_n.jpg-a12233f0a2bc0200e3239ae4a909c77d.ctex"
+path.s3tc="res://.godot/imported/g67_pz_chess_g67_pz_chess_n.jpg-a12233f0a2bc0200e3239ae4a909c77d.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "9abac5e77cb4a64209d2b9cab902c88b"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/podzemka/g67_pz_chess_g67_pz_chess_n.jpg"
-dest_files=["res://.godot/imported/g67_pz_chess_g67_pz_chess_n.jpg-a12233f0a2bc0200e3239ae4a909c77d.ctex"]
+dest_files=["res://.godot/imported/g67_pz_chess_g67_pz_chess_n.jpg-a12233f0a2bc0200e3239ae4a909c77d.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

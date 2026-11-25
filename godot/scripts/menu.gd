@@ -714,11 +714,33 @@ func _open_golda67() -> void:
 		lines.append("ДВОР: Миша Минасян побеждён" if bool((m.get("flags", {}) as Dictionary).get("boss_misha", false)) else "ДВОР: Миша Минасян ждёт в коробке")
 		var rn: Dictionary = d.get("run", {})
 		if not rn.is_empty() and rn.has("room") and not String(rn.get("state", "open")) in ["fight", "boss"]:
-			lines.append("Забег на паузе: этап %d из 6" % (int((rn["run"] as Dictionary).get("pos", 0)) + 1))
+			lines.append("Забег на паузе: продолжишь с двери подъезда")
 	else:
 		lines.append("Турнир 67: приз — 67 000 голды. madk1d записал Пахана и заплатил взнос. Отменить регистрацию нельзя.")
-		lines.append("Подъезд — база между забегами; из него идёшь во двор: шесть этапов и босс.")
-	_open("ГОЛДА 67", lines, [["ВОЙТИ В ПОДЪЕЗД", func(): launch_golda67()], ["НАЗАД", _close]])
+		lines.append("Подъезд — база между забегами; из него идёшь во двор: территории района, смотрящий и Миша.")
+	var acts: Array = [["ВОЙТИ В ПОДЪЕЗД", func(): launch_golda67()]]
+	if G67Save.exists():
+		acts.append(["НОВАЯ ИГРА", _ask_golda67_new])
+	acts.append(["НАЗАД", _close])
+	_open("ГОЛДА 67", lines, acts)
+
+## Новая игра «ГОЛДЫ 67»: всё с нуля — РЕСПЕКТ, улучшения, флаги, ролики, разговоры, подсказки, забег.
+## Кампания и другие режимы не трогаются. Старое сохранение не пропадает: кладётся рядом копией с датой.
+func _ask_golda67_new() -> void:
+	_open("НОВАЯ ИГРА?", ["Весь прогресс «ГОЛДЫ 67» начнётся с нуля: РЕСПЕКТ, улучшения, побеждённые боссы, ролики, разговоры с КРОТОМ и DJ FLÜRR, подсказки и забег на паузе.",
+		"Кампания и остальные режимы не меняются. Старое сохранение останется копией в папке игры."],
+		[["НАЧАТЬ С НУЛЯ", func(): new_golda67()], ["НАЗАД", _open_golda67]], 1)
+	panel_back = _open_golda67
+
+func new_golda67() -> void:
+	if launching:
+		return
+	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
+	if FileAccess.file_exists(G67Save.main_path()):
+		DirAccess.copy_absolute(G67Save.main_path(), G67Save.main_path().get_basename() + "_old_" + stamp + ".json")
+	G67Save.wipe()
+	G67Save.recovered = ""
+	launch_golda67()
 
 func launch_golda67() -> void:
 	if launching:

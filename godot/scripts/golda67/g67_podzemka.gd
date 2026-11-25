@@ -10,6 +10,7 @@ const T_WALL := 0.4
 ## Размеры после правки владельца (выше и шире); ROOMS_BASE — прежняя раскладка, от неё пересчитываются привязанные координаты (fit)
 const ROOMS := {
 	"stairs_top": [-6.0, 6.0, 0.0, 6.0, 5.0, 9.2, "concrete", Color(0.9, 1.0, 0.9), "верх спуска"],
+	"link": [6.0, 16.0, 2.0, 4.6, 5.0, 7.7, "concrete", Color(0.8, 0.9, 1.0), "проход к арке дома № 81"],      # стык с двором: сюда герой выходит из-за поворота
 	"stairs_shaft": [-3.0, 3.0, -16.0, 0.0, 0.0, 9.2, "concrete", Color(0.7, 1.0, 0.75), "спуск"],
 	"stairs": [-6.0, 6.0, -26.0, -16.0, 0.0, 4.4, "tile", Color(0.7, 1.0, 0.75), "спуск"],
 	"gate1": [-10.5, 10.5, -44.0, -26.0, 0.0, 4.8, "tile", Color(0.9, 1.0, 0.95), "первый турникет"],
@@ -68,7 +69,7 @@ const ROOMS_BASE := {
 
 ## проёмы: ось стены ("x" — стена x = коорд, проём по z; "z" — стена z = коорд, проём по x), коорд, от, до
 const DOORS := [
-	["z", 0.0, -3.0, 3.0], ["z", -16.0, -3.0, 3.0], ["z", -26.0, -4.0, 4.0],
+	["x", 6.0, 2.0, 4.6], ["z", 0.0, -3.0, 3.0], ["z", -16.0, -3.0, 3.0], ["z", -26.0, -4.0, 4.0],
 	["z", -44.0, -3.75, 3.75], ["z", -70.0, -3.75, 3.75], ["z", -88.0, -3.75, 3.75], ["z", -110.0, -3.75, 3.75],
 	["x", -6.25, -50.0, -46.0], ["x", -6.25, -106.0, -102.0], ["x", -11.0, -50.0, -46.0], ["x", -11.0, -106.0, -102.0],
 	["x", -14.0, -126.0, -118.0], ["x", -16.0, -126.0, -118.0], ["z", -132.0, -43.0, -39.0],
@@ -178,6 +179,7 @@ var music_hamster: Marker3D = null
 var door_nodes := {}
 var door_open_flags := {}
 var dog_node: Node3D = null
+var hamsters: Array = []          # [узел, высота, поворот, фаза]: хомяки принюхиваются, вертятся и подпрыгивают
 var spit_node: Node3D = null
 var dog_yaw := 0.0
 var dog_base := Vector3.ZERO
@@ -235,6 +237,7 @@ func _box(pos: Vector3, size: Vector3, mat: Material, solid := true) -> void:
 	add_child(mi)
 	if solid:
 		var sb := StaticBody3D.new()
+		sb.collision_layer = 1 | 8      # 8 — слой камеры (SpringArm3D в game.gd): без него камера проходила сквозь стены и потолки
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = size
@@ -302,6 +305,7 @@ func _room(id: String, r: Array) -> void:
 
 func _collider(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
 	var sb := StaticBody3D.new()
+	sb.collision_layer = 1 | 8          # 8 — слой камеры: стены и потолки держат камеру внутри помещения
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
 	bs.size = size
@@ -645,6 +649,8 @@ func _decorate() -> void:
 			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		prop_count += 1
 		inst.name = String(pr[0])
+		if String(pr[0]).begins_with("hamster_") and not String(pr[0]) in ["hamster_wall", "hamster_props"]:
+			hamsters.append([inst, inst.position.y, inst.rotation.y, _hash(float(pr[1]), float(pr[2]), 9.0) * 6.28])
 		if pr.size() > 8 and pr[8] != null:
 			var gl := OmniLight3D.new()
 			gl.light_color = pr[8] as Color
@@ -702,6 +708,7 @@ func _decorate() -> void:
 		lb2.position = dg[1]
 		lb2.rotation.y = float(dg[2])
 		add_child(lb2)
+		G67Sign.board(lb2)                          # вывеска на щите, а не буквы в воздухе
 		sign_nodes.append(lb2)
 	for sg in SIGNS:
 		var lb := Label3D.new()
@@ -719,6 +726,7 @@ func _decorate() -> void:
 		lb.double_sided = false
 		lb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(lb)
+		G67Sign.board(lb, 0.4 if float(sg[2]) >= 2.6 else 0.0)      # верхние указатели — на подвесах
 		sign_nodes.append(lb)
 
 ## свой световой характер зон, мигающие лампы, капель
@@ -788,6 +796,13 @@ func _process(_dt: float) -> void:
 		var ph := float(f[2])
 		var k := 1.0 if fmod(t + ph, 3.7) > 0.5 else (0.2 if int(t * 18.0 + ph * 5.0) % 3 == 0 else 1.0)
 		l.light_energy = float(f[1]) * k
+	for h in hamsters:
+		var hn: Node3D = h[0]
+		if not is_instance_valid(hn):
+			continue
+		var hp := float(h[3])
+		hn.position.y = float(h[1]) + absf(sin(t * 5.0 + hp)) * 0.012 + pow(maxf(0.0, sin(t * 1.1 + hp)), 10.0) * 0.14
+		hn.rotation.y = float(h[2]) + sin(t * 0.6 + hp) * 0.7 + sin(t * 2.3 + hp * 2.0) * 0.08
 
 ## Экран слота: SubViewport с 2D-сценой на плоскости перед окном корпуса; физические барабаны убраны
 func _slot_screen() -> void:
@@ -993,6 +1008,19 @@ func _all_props() -> Array:
 	out.append(["chess", -40.2, -110.6, 0.0, 0.9, 1.0, false, true, null])
 	_crate(Vector3(-39.6, 0.45, -110.6), Vector3(1.9, 0.9, 0.9))
 	out.append(["extinguisher", 2.0, -44.6, 0.0, 0.0, 1.0, false, true, null])
+	G67Sound.loop_at(self, "loop_vent", Vector3(11.0, 6.4, 3.3), 22.0)
+	# реквизит залов, которые стояли пустыми: перекрёсток, кассы, комната персонала, тоннель, техпомещение.
+	# Всё — вдоль стен: середина залов, точки выхода врагов и проходы остаются свободными.
+	for q in [
+		["bench", -13.2, -114.0, PI * 0.5, true], ["bench", 13.2, -130.0, -PI * 0.5, true], ["vend_snacks", 13.1, -113.0, -PI * 0.5, true], ["vend_change", 13.0, -116.0, -PI * 0.5, true],
+		["bin", -13.0, -131.5, 0.0, true], ["bin", 13.0, -127.2, 0.0, true], ["queue_stand", -9.0, -129.6, 0.0, true], ["queue_stand", -9.0, -126.4, 0.0, true],
+		["extinguisher", -13.6, -112.0, 0.0, false], ["trash", 12.8, -132.8, 0.0, false], ["boxes", -12.7, -116.6, 0.4, false],
+		["bench", -15.6, -158.0, PI * 0.5, true], ["bench", -15.6, -154.0, PI * 0.5, true], ["bin", -15.6, -161.0, 0.0, true], ["vend_drinks", 15.4, -139.0, -PI * 0.5, true],
+		["vend_snacks", 15.4, -141.6, -PI * 0.5, true], ["trash", 15.2, -163.6, 0.0, false], ["queue_stand", 9.0, -146.0, 0.0, true], ["queue_stand", 9.0, -154.0, 0.0, true], ["extinguisher", -16.0, -137.0, 0.0, false],
+		["storage", -22.5, -149.5, 0.0, true], ["bench", -22.0, -140.8, PI, true], ["vend_broken", -17.3, -143.5, -PI * 0.5, true], ["bin", -27.6, -148.8, 0.0, true],
+		["trash", 36.8, -140.0, 0.0, false], ["extinguisher", 43.6, -136.0, 0.0, false], ["boxes", 37.0, -126.6, 0.2, false], ["pallet", 37.2, -144.0, 1.2, false],
+		["storage", 34.5, -163.5, 0.0, true], ["pallet", 32.0, -162.6, 0.2, false], ["trash", 37.8, -157.2, 0.0, false]]:
+		out.append([q[0], q[1], q[2], q[3], 0.0, 1.0, q[4], true, null])
 	_string_bulbs(bulbs)
 	return out
 
@@ -1060,6 +1088,7 @@ func _balloon_kiosk() -> void:
 	sg.rotation.y = PI * 0.5
 	sg.position = base + Vector3(0.72, 2.5, 0)
 	add_child(sg)
+	G67Sign.board(sg)
 	var sh := Label3D.new()
 	sh.text = "ЗАКРЫТО НА УЧЁТ"
 	sh.font_size = 28
@@ -1069,6 +1098,7 @@ func _balloon_kiosk() -> void:
 	sh.rotation.y = PI * 0.5
 	sh.position = base + Vector3(0.72, 1.4, 0)
 	add_child(sh)
+	G67Sign.board(sh, 0.0, 0.0, Color(0.25, 0.05, 0.05))
 	for i in 3:
 		var bl := MeshInstance3D.new()
 		var sm := SphereMesh.new()

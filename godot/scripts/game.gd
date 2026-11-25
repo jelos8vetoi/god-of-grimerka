@@ -4,7 +4,7 @@
 extends Node3D
 
 const ARENA := 15.0
-var cam_len := 4.6          # длина штанги камеры (приквел: в подъезде 3,2)
+var cam_len := 4.6          # длина штанги камеры (приквел: в подъезде 4,0)
 var arena_c := Vector3.ZERO
 var arena_h := Vector2(ARENA, ARENA)
 const SAVE := "user://grimerka_save.json"
@@ -135,6 +135,10 @@ var dmg_log = null           # --damagecheck: [атака, цель, урон, �
 var lock: LockOn            # захват цели (lockon.gd)
 var training: Training = null     # тренировочная арена (training.gd); null — обычная игра
 var golda = null                  # «ГОЛДА 67» (golda67/g67_root.gd, Golda67); null — не приквел
+var cam_zero_n := 0
+var cam_out := -1.0               # сглаженное расстояние камеры на пружине (см. _process)
+const DLG_OUT := 0.5              # после диалога камера плавно возвращается за спину героя, а не прыгает
+var dlg_out := 0.0
 var dlg_partner = null            # с кем говорит герой (Node3D): камера диалога берёт в кадр его, а не напарника
 var dlg_side := -1.0              # с какой стороны от пары встаёт камера (−1 / +1): выбирает тот, кто начал разговор
 var show_dmg := true          # цифры урона над врагами (в арене — переключатель панели)
@@ -693,8 +697,15 @@ func _update_bolts(dt: float) -> void:
 		if b["homing"]:
 			var want: Vector3 = (pp - n.global_position).normalized() * (b["v"] as Vector3).length()
 			b["v"] = (b["v"] as Vector3).lerp(want, 1.0 - exp(-float(b["turn"]) * dt))
+		var bp0: Vector3 = n.global_position
 		n.global_position += b["v"] * dt
-		if n.global_position.distance_to(pp) < 0.7:
+		if golda != null and world != null:                      # «ГОЛДА 67»: гаражи, дома и стены переходов останавливают снаряд
+			var bq := PhysicsRayQueryParameters3D.create(bp0, n.global_position, 1)
+			var bh: Dictionary = world.get_world_3d().direct_space_state.intersect_ray(bq)
+			if not bh.is_empty() and bh["collider"] is StaticBody3D:
+				n.global_position = bh["position"]
+				b["life"] = 0.0
+		if b["life"] > 0.0 and n.global_position.distance_to(pp) < 0.7:
 			var was_inv: bool = player.inv > 0.0
 			player.take_damage(b["dmg"], n.global_position, b["from"] if is_instance_valid(b["from"]) else null, b.get("telemetry", {}))
 			if float(b["slow"]) > 0.0 and not was_inv:
@@ -1019,6 +1030,17 @@ func _physics_process(_dt: float) -> void:
 	if survival != null and survival.active and mode == "fight" and not over:
 		survival.director.tick(self)
 
+## Геймпад: правый стик вращает камеру (мышь работает как раньше). В диалоге, паузе, вступлении и с открытым iPod — нет.
+func _pad_look(rdt: float) -> void:
+	if mode == "dlg" or get_tree().paused or intro_busy() or (ipod != null and ipod.captures_gameplay_input()):
+		return
+	var v := Vector2(Input.get_joy_axis(0, JOY_AXIS_RIGHT_X), Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y))
+	if v.length() < 0.2 or (lock != null and lock.get("target") != null):
+		return
+	var sens := float(Opts.v("sens"))
+	cam_yaw -= v.x * 2.6 * sens * rdt
+	cam_pitch = clamp(cam_pitch - v.y * 1.6 * sens * rdt * (-1.0 if bool(Opts.v("invert_y")) else 1.0), -1.1, 0.35)
+
 func _process(dt: float) -> void:
 	var rdt: float = dt / max(Engine.time_scale, 0.001)
 	if survival != null and mode == "fight" and not intro_busy() and not over:
@@ -1026,6 +1048,7 @@ func _process(dt: float) -> void:
 		if survival.active:
 			telemetry.tick(rdt, player.hero, player.style.id)
 	clock += rdt
+	_pad_look(rdt)
 	heat_t = max(0.0, heat_t - rdt)
 	Engine.time_scale = 0.05 if clock < stop_until else (0.3 if clock < slow_until else (0.45 if heat_t > 0.0 else 1.0))
 	if director:
@@ -1071,8 +1094,10 @@ func _process(dt: float) -> void:
 	want_len *= 1.0 - 0.13 * ipod_focus
 	if not director or not director.owns_camera():
 		pivot.global_position = pivot.global_position.lerp(target, 1.0 - exp(-14.0 * rdt)) if pivot.global_position != Vector3.ZERO else target
-		pivot.rotation.y = lerp_angle(pivot.rotation.y, yaw, 1.0 - exp(-9.0 * rdt)) if mode == "dlg" else yaw
-		pivot.rotation.x = lerp(pivot.rotation.x, pitch, 1.0 - exp(-9.0 * rdt)) if mode == "dlg" else pitch
+		var ease_in: bool = mode == "dlg" or dlg_out > 0.0
+		pivot.rotation.y = lerp_angle(pivot.rotation.y, yaw, 1.0 - exp(-9.0 * rdt)) if ease_in else yaw
+		pivot.rotation.x = lerp(pivot.rotation.x, pitch, 1.0 - exp(-9.0 * rdt)) if ease_in else pitch
+		dlg_out = maxf(0.0, dlg_out - rdt) if mode != "dlg" else 0.0
 		var spring_rate := lerpf(8.0, 7.0, ipod_focus)
 		spring.spring_length = lerp(spring.spring_length, want_len, 1.0 - exp(-spring_rate * rdt))
 		# A restrained lateral/upward offset keeps Pahan readable beside the lower-right UI.
@@ -1094,6 +1119,20 @@ func _process(dt: float) -> void:
 	fov_kick = lerpf(fov_kick, 0.0, 1.0 - exp(-9.0 * rdt))
 	zoom_s = lerpf(zoom_s, charge_zoom, 1.0 - exp(-6.0 * rdt))
 	cam.fov = float(Opts.v("fov")) + fov_kick - 9.0 * zoom_s
+	# пружина камеры: к герою — сразу (сквозь стену не смотрим), обратно — плавно, без прыжка у столбов и деревьев
+	var hit_len: float = spring.get_hit_length()
+	# разовый ложный удар пружины «в ноль» (луч на кадр начинается в чужой коллизии) — пропускаем; держится дольше кадра — верим
+	if hit_len < 0.35 and cam_out > 1.5 and cam_zero_n < 1:
+		cam_zero_n += 1
+		hit_len = cam_out
+	elif hit_len >= 0.35:
+		cam_zero_n = 0
+	if cam_out < 0.0 or hit_len < cam_out:
+		cam_out = hit_len
+	else:
+		cam_out = lerpf(cam_out, hit_len, 1.0 - exp(-5.0 * rdt))
+	if not director:
+		cam.position = Vector3(0, 0, cam_out)
 	if intro_t >= 0.0:
 		_intro_camera(rdt)
 	if death != null and is_instance_valid(death) and death.owns_camera():
@@ -1106,8 +1145,8 @@ func _process(dt: float) -> void:
 			cam.fov = golda.ev_fov
 		elif golda.scene_t >= 0.0 and not golda.talk_on:
 			cam.fov = golda.scene_fov
-		if golda.talk_on:
-			cam.fov = golda.talk_fov
+		if golda.talk_on or golda.talk_out_t > 0.0:
+			cam.fov = golda.talk_cam_fov()
 			cam.h_offset = 0.0
 			cam.v_offset = 0.0
 	cam_attributes.dof_blur_far_enabled = ipod_focus > 0.002
@@ -1329,10 +1368,10 @@ func start_dialog(lines: Array, after: Callable) -> void:
 		golda.dlg_hint_used = true
 	dlg_box.visible = true
 	player.velocity = Vector3.ZERO
-	# кент встаёт рядом
+	# кент встаёт рядом (в приквеле до первой концовки madk1d не напарник: в забеге его нет, в подъезде он сидит на своём месте)
 	var side := Vector3(cos(player.face), 0, -sin(player.face))
 	var bp: Vector3 = player.global_position + side * 1.3
-	if in_arena(bp, 0.6):
+	if in_arena(bp, 0.6) and not madk_away() and not madk_home():
 		buddy.global_position = bp
 	buddy.face = player.face
 	dlg_face = player.face
@@ -1368,6 +1407,7 @@ func _dlg_finish() -> void:
 	voice.stop()
 	dlg_box.visible = false
 	mode = "idle"
+	dlg_out = DLG_OUT
 	dlg_partner = null
 	dlg_after.call()
 

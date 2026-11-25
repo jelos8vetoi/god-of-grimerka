@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cxesmelmwobvu"
-path="res://.godot/imported/sf_boxes_Image_1.jpg-51e391fbe1375b2e6b10118a061fbd1f.ctex"
+path.s3tc="res://.godot/imported/sf_boxes_Image_1.jpg-51e391fbe1375b2e6b10118a061fbd1f.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "a91f4b13c853e8b9d9c06e0eb1534cdf"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/golda67/podzemka/sf_boxes_Image_1.jpg"
-dest_files=["res://.godot/imported/sf_boxes_Image_1.jpg-51e391fbe1375b2e6b10118a061fbd1f.ctex"]
+dest_files=["res://.godot/imported/sf_boxes_Image_1.jpg-51e391fbe1375b2e6b10118a061fbd1f.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -39,5 +40,5 @@ process/premult_alpha=false
 process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
-process/size_limit=0
+process/size_limit=1024
 detect_3d/compress_to=1

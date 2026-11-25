@@ -1,0 +1,644 @@
+## «ГОЛДА 67», новый ДВОР: территории врагов и встречи (этап A редизайна).
+## Враги стоят в районе с начала забега («на посту»), а не выходят волной из воздуха. Встреча — конечный автомат:
+##   post → noticed (ступень 1: заметили) → warned (ступень 2: один идёт навстречу) → fight (ступень 3: бой)
+##   fight → cleared (победа: сумка с добычей) | post (первый побег: награды нет, группа осталась) | gone (второй побег: группа ушла)
+## Отступление — только ногами: дальше FLEE метров от центра территории. Победа после побега даёт половину сумки и без бафа.
+## Состояние каждой встречи живёт в run["enc"][id] и уходит в сохранение забега вместе с run — отдельного сохранения нет.
+## Сама драка — прежняя: враги, жетоны атаки, приёмы — enemy.gd и EnemyAI; зона game.set_arena держит врагов у их территории.
+## Новые встречи — строкой в TURFS. Координаты — план района (X — восток, Y — север).
+class_name G67Turf
+extends RefCounted
+
+const R_NOTICE := 13.0        # ступень 1: заметили
+const R_WARN := 8.0           # ступень 2: предупредили
+const R_FIGHT := 4.0          # ступень 3: бой
+const CALM := 19.0            # отошёл до боя — успокоились
+const WARN_T := 2.6           # сколько длится предупреждение
+const LEASH := 18.0           # полуразмер зоны, дальше которой враги не идут
+const FLEE := 30.0            # дальше — бой брошен
+const ENTRY_MIN := 13.0       # подкрепление выходит не ближе этого к герою
+
+## type: battle | elite | ambush (награда и волны — по типу, G67Data); wave — номер позиции для G67Data.waves_for;
+## must — обязательная для выхода к Мише; posts — где стоят; from — откуда приходит подкрепление; say — реплики ступеней 1 и 2.
+const TURFS := [
+	{"id": "garages_home", "name": "ГАРАЖИ У ДОМА", "type": "battle", "wave": 0, "must": true, "c": [-46.5, -93.0],
+		"posts": [[-46.6, -96.0], [-45.4, -93.4], [-47.6, -90.8]], "from": [[-45.5, -72.0], [-58.0, -74.6]],
+		"say": ["Шестёрка: «О. Гляди, кто вылез».", "Шестёрка: «Слышь, с шестьдесят седьмого. Тут проезд платный»."]},
+	{"id": "gsk_stove", "name": "ГСК, ВТОРОЙ ПРОЕЗД", "type": "battle", "wave": 1, "must": false, "c": [-106.0, 33.5],
+		"posts": [[-104.0, 33.0], [-106.2, 35.2], [-108.0, 32.4], [-105.6, 31.4]], "from": [[-132.0, 33.5], [-80.0, 33.5]],
+		"say": ["Шестёрка: «Тихо. Идёт кто-то».", "Шестёрка: «Э, друг. Ты гаражом не ошибся?»"]},
+	{"id": "ambush_towers", "name": "ПРОХОД МЕЖДУ БАШНЯМИ", "type": "ambush", "wave": 5, "must": false, "skip_warn": true, "c": [6.0, 78.0],
+		"posts": [[4.4, 77.0], [7.8, 77.6], [13.0, 74.2], [14.6, 75.6]], "from": [[-20.0, 88.0], [34.0, 88.0]],
+		"say": ["Шестёрка: «Братан, закурить не будет?»", ""]},
+	{"id": "elite_sofa", "name": "ГАРАЖНЫЙ ДВОР У БАШЕН", "type": "elite", "wave": 2, "must": true, "skip_warn": true, "c": [112.0, 28.0],
+		"posts": [[114.0, 27.6], [110.6, 29.4], [117.2, 29.4]], "from": [[100.0, 34.0], [128.0, 33.0]],
+		"say": ["Смотрящий: «Подойди».", ""]},
+]
+
+## Необязательные конфликты (DVOR_RANDOM_CONFLICTS.md): каждый — раз в три забега (opt — в каком из трёх). Тот же автомат встречи,
+## что у территорий: заметили — предупредили — бой, уйти можно. bonus — надбавка к сумке, heal — «Термос» от спасённого (расходник).
+## ask — окно выбора при подходе (G67ChoiceUI): вступиться, выбрать сторону, уйти; ответ разбирает _answer.
+## opt < 0 — по расписанию не ставится (сигнализация: её зовёт событие «МАШИНА В СУГРОБЕ»); max — сколько врагов на посту;
+## one_wave — без подкрепления; nofoes — врагов нет, пока игрок не выбрал сторону; route — патруль ходит туда-обратно; item_p — шанс «Термоса».
+const EXTRAS := [
+	{"id": "school_kid", "name": "У ШКОЛЫ: ПРИЖАЛИ ШКОЛЬНИКА", "type": "battle", "wave": 0, "must": false, "opt": 0, "c": [-86.0, 104.0], "bonus": 10, "heal": 25.0,
+		"ask": {"q": "Трое прижали к забору школьника с рюкзаком. «Он мамин!» — «Тем более».",
+			"opts": [["fight", "«Отошли от малого»"], ["joke", "«Малой, сколько у тебя с собой?»"], ["leave", "Пройти мимо"]]},
+		"posts": [[-86.0, 105.2], [-84.4, 103.4], [-87.8, 103.2]], "from": [[-70.0, 98.0], [-96.0, 112.0]],
+		"say": ["Шестёрка: «Малой, не жадничай. Телефон покажи и иди».", "Шестёрка: «Ты иди, дядя. Тут воспитательная работа»."], "won": "Школьник: «Спасибо, дядь! Вот, мама чай дала — держите»."},
+	{"id": "unloading", "name": "ЗАДВОРКИ «ПРОДУКТОВ 24»", "type": "battle", "wave": 0, "must": false, "opt": 1, "c": [97.0, -37.0], "bonus": 15,
+		"ask": {"q": "Коробки носят не в магазин, а из магазина. «Ты ничего не видел, а мы тебе коробку».",
+			"opts": [["fight", "«Коробки на место»"], ["box", "Взять коробку и уйти"], ["leave", "Уйти сразу"]]},
+		"posts": [[95.0, -36.6], [98.6, -36.0], [100.4, -37.6]], "from": [[110.0, -32.0], [84.0, -30.0]],
+		"say": ["Семечник: «Идёт. Не наш».", "Шестёрка: «Мужик, магазин закрыт. Учёт»."], "won": "В подсобке за «ПРОДУКТАМИ 24» нашлась заначка"},
+	{"id": "patrol", "name": "ПАТРУЛЬ НА ЗАДНЕМ ПРОЕЗДЕ", "type": "battle", "wave": 0, "must": false, "opt": 2, "c": [40.0, 88.0], "bonus": -5, "item_p": 0.5, "max": 2,
+		"route": [[22.0, 88.0], [58.0, 88.0]],
+		"posts": [[39.0, 88.0], [41.2, 88.6], [40.2, 86.6]], "from": [[60.0, 92.0], [20.0, 88.0]],
+		"say": ["Шестёрка: «Вон ещё один. Этот считается?»", "Шестёрка: «Этот — да. Слышь! Ты откуда и куда?»"]},
+	{"id": "garage_split", "name": "ГСК: ДЕДОВ ГАРАЖ № 31", "type": "battle", "wave": 1, "must": false, "opt": 0, "c": [-110.0, 56.0],
+		"ask": {"q": "Две пары у открытого гаража. Одни — в красных шапках, другие — без. «С шестьдесят седьмого. Рассуди».",
+			"opts": [["red", "За красных: «Дед чей — того и гараж»"], ["bare", "За тех, что без шапок: «Карточный долг — долг»"], ["wait", "«Подеритесь, я посмотрю»"], ["leave", "Уйти"]]},
+		"posts": [[-112.0, 56.0], [-111.0, 57.6], [-108.0, 56.0], [-108.6, 57.8]], "from": [[-132.0, 56.0], [-90.0, 56.0]],
+		"say": ["Шестёрка: «Гараж дедов. Дед мой. Значит, и мот мой».", "Шестёрка: «Э. С шестьдесят седьмого. Рассуди»."]},
+	{"id": "parking", "name": "ПАРКОВКА: ЧЬЁ МЕСТО", "type": "battle", "wave": 0, "must": false, "opt": 1, "c": [21.0, -112.0], "bonus": 5, "nofoes": true, "one_wave": true, "max": 2,
+		"posts": [[23.0, -109.6], [24.6, -110.6]], "from": [[30.0, -103.0], [6.0, -100.0]],
+		"say": ["Гена: «Я это место два часа копал! С шести утра!» — Артур: «Место общее. На нём не написано».", "Гена: «Вот человек идёт. Молодой человек! Скажите ему!»"],
+		"won": "Гена: «Вот это по-соседски. У меня на рынке свой человек — скажешь, от Гены».",
+		"ask": {"q": "В расчищенном кармане стоит табуретка. Гена — с лопатой, Артур — с ключами от машины.",
+			"opts": [["gena", "За Гену: «Он копал — он и стоит»"], ["artur", "За Артура: «Двор общий. Убирай табуретку»"], ["stool", "Забрать табуретку и уйти"], ["leave", "«Разбирайтесь сами»"]]},
+		"npcs": [{"code": "GN", "model": "g67_npc_ushanka", "h": 1.74, "tint": Color(0.82, 0.92, 0.82), "at": [19.6, -112.0], "look": [22.4, -112.0], "base": "NHips", "alts": ["NCross"], "temper": "push",
+				"greet": ["GN|Я это место два часа копал. Два! С шести утра!", "GN|На нём табуретка стоит!"], "hit": ["GN|Ты чего?! Я же по-соседски!"], "cold": ["GN|Ну спасибо. Помог."], "fight": ["GN|Я за машиной постою."]},
+			{"code": "AR", "model": "g67_npc_taxi_driver", "h": 1.78, "tint": Color(1.0, 0.82, 0.82), "at": [22.4, -112.0], "look": [19.6, -112.0], "base": "NCross", "alts": ["NHips"], "temper": "film",
+				"greet": ["AR|Место общее. На нём не написано.", "AR|Табуретка — это не документ."], "hit": ["AR|Э! Я сейчас позвоню кое-кому!"], "cold": ["AR|Двор — общий."], "fight": ["AR|Я в машине посижу."]}]},
+	{"id": "alarm", "name": "СИГНАЛИЗАЦИЯ У «ЖИГУЛЕЙ»", "type": "battle", "wave": 0, "must": false, "opt": -1, "c": [103.0, -80.0], "one_wave": true, "max": 2,
+		"posts": [[101.0, -77.6], [103.8, -76.8]], "from": [[90.0, -70.0], [118.0, -70.0]],
+		"say": ["Шестёрка: «Чё орёт? Чья тачка?»", "Шестёрка: «А это кто у нас тут тачки трогает?»"], "won": "Виталик: «Я им, если что, сразу сказал, что ты не со мной»."},
+]
+const PATROL_V := 1.1            # скорость патруля, м/с
+const SIDE_GOLD := {"artur": 15, "wait": 12}
+const GENA_DISCOUNT := 0.2       # «от Гены»: скидка на одну покупку в «ШАУРМЕ 67»
+static var no_extras := false           # проверка двора ставит необязательные конфликты сама
+
+var g                       # Golda67
+var game
+var world                   # G67World
+var encs: Array = []
+var active: Dictionary = {}
+var log: Array = []         # события для проверок: [вид, id, …]
+
+static func v3(a: Array) -> Vector3:
+	return G67Dvor2.to3(float(a[0]), float(a[1]), 0.05)
+
+func setup(gg) -> void:
+	g = gg
+	game = gg.game
+	world = gg.world
+	if not g.run.has("enc"):
+		g.run["enc"] = {}
+	encs = []
+	active = {}
+	for d_v in TURFS:
+		var d: Dictionary = d_v
+		var sv: Dictionary = (g.run["enc"] as Dictionary).get(String(d["id"]), {})
+		var e := {"d": d, "id": String(d["id"]), "c": v3(d["c"]), "state": String(sv.get("s", "post")), "flees": int(sv.get("f", 0)), "foes": [], "wave_i": 0, "pending": [],
+			"t": 0.0, "cd": 0.0, "wait": 0.0, "lead": null, "said": 0, "bag": {}}
+		encs.append(e)
+		if String(e["state"]) == "post":
+			_post(e)
+		elif String(e["state"]) == "cleared" and int(sv.get("bag", 0)) > 0:
+			_drop_bag(e, int(sv["bag"]), bool(sv.get("fit", false)))
+	var n0 := int(g.meta().get("runs", 0))
+	for d_v in EXTRAS:
+		var d: Dictionary = d_v
+		if (g.run["enc"] as Dictionary).has(String(d["id"])) or (not no_extras and int(d["opt"]) >= 0 and (n0 + int(d["opt"])) % 3 == 0):
+			add_extra(String(d["id"]))
+
+## Поставить необязательный конфликт (в начале забега — по расписанию; после загрузки — если он был в записи)
+func add_extra(id: String) -> Dictionary:
+	if not enc(id).is_empty():
+		return enc(id)
+	for d_v in EXTRAS:
+		var d: Dictionary = d_v
+		if String(d["id"]) != id:
+			continue
+		var sv: Dictionary = (g.run["enc"] as Dictionary).get(id, {})
+		var e := {"d": d, "id": id, "c": v3(d["c"]), "state": String(sv.get("s", "post")), "flees": int(sv.get("f", 0)), "foes": [], "wave_i": 0, "pending": [],
+			"t": 0.0, "cd": 0.0, "wait": 0.0, "lead": null, "said": 0, "bag": {}}
+		encs.append(e)
+		if String(e["state"]) == "post":
+			if not bool(d.get("nofoes", false)):
+				_post(e)
+			_keep(e)
+		elif String(e["state"]) == "cleared" and int(sv.get("bag", 0)) > 0:
+			_drop_bag(e, int(sv["bag"]), bool(sv.get("fit", false)))
+		return e
+	return {}
+
+func enc(id: String) -> Dictionary:
+	for e in encs:
+		if String(e["id"]) == id:
+			return e
+	return {}
+
+func _keep(e: Dictionary) -> void:
+	var sv: Dictionary = (g.run["enc"] as Dictionary).get(String(e["id"]), {})
+	var st := String(e["state"])
+	sv["s"] = st if st in ["cleared", "gone"] else "post"         # бой и ступени в сохранение не идут: после загрузки группа снова на посту
+	sv["f"] = int(e["flees"])
+	var b: Dictionary = e["bag"]
+	sv["bag"] = int(b.get("gold", 0)) if not b.is_empty() else 0
+	sv["fit"] = bool(b.get("fit", false)) if not b.is_empty() else false
+	(g.run["enc"] as Dictionary)[String(e["id"])] = sv
+
+func waves(e: Dictionary) -> Array:
+	var d: Dictionary = e["d"]
+	return G67Data.waves_for(g.district(), "elite" if String(d["type"]) == "elite" else "battle", int(d["wave"]))
+
+func _alive(e: Dictionary) -> int:
+	var n := 0
+	for f in e["foes"]:
+		if is_instance_valid(f) and f.state != "dead":
+			n += 1
+	return n
+
+func left() -> int:
+	if active.is_empty():
+		return 0
+	return _alive(active) + (active["pending"] as Array).size()
+
+## Первая волна встаёт на посты: стоят, не нападают, смотрят друг на друга
+func _post(e: Dictionary) -> void:
+	_free_foes(e)
+	var d: Dictionary = e["d"]
+	var posts: Array = d["posts"]
+	var w: Array = waves(e)
+	var i := 0
+	for grp in w[0]:
+		for k in int(grp[1]):
+			if d.has("max") and i >= int(d["max"]):
+				break
+			var pos := v3(posts[i % posts.size()]) + (Vector3(0.9, 0, 0.6) * float(i / posts.size()))
+			var f = g._make_foe(String(grp[0]), pos, true)
+			f.post = true
+			var c: Vector3 = e["c"]
+			f.face = atan2(c.x - pos.x, c.z - pos.z) + (0.5 if i % 2 == 0 else -0.5)
+			(e["foes"] as Array).append(f)
+			i += 1
+	e["wave_i"] = 0
+	e["pending"] = []
+	e["lead"] = null
+	e["state"] = "post"
+	e["t"] = 0.0
+
+func _free_foes(e: Dictionary) -> void:
+	for f in e["foes"]:
+		if is_instance_valid(f):
+			game.enemies.erase(f)
+			f.queue_free()
+	e["foes"] = []
+
+func _hurt(e: Dictionary) -> bool:
+	for f in e["foes"]:
+		if not is_instance_valid(f) or f.state == "dead" or f.hp < f.max_hp - 0.01:
+			return true
+	return false
+
+func _say(e: Dictionary, i: int) -> void:
+	var lines: Array = e["d"]["say"]
+	if i < lines.size() and String(lines[i]) != "" and int(e["said"]) <= i:
+		e["said"] = i + 1
+		game.toast(String(lines[i]))
+
+func _face_all(e: Dictionary, pp: Vector3) -> void:
+	for f in e["foes"]:
+		if is_instance_valid(f) and f.post and f.state != "dead":
+			f.face = lerp_angle(f.face, atan2(pp.x - f.global_position.x, pp.z - f.global_position.z), 0.12)
+
+func tick(dt: float) -> void:
+	if g.busy or game.over or g.room_state in ["boss", "over"] or g.hub_ui != null:
+		return
+	var pp: Vector3 = game.player.global_position
+	for e in encs:
+		var st := String(e["state"])
+		if st in ["cleared", "gone"]:
+			continue
+		if e["d"].has("npcs") and not e.has("npc_done") and g.folk != null:
+			_npcs(e)
+		if e["d"].has("route"):
+			_patrol(e, dt, st == "post" and active.is_empty())
+		if float(e.get("hold", 0.0)) > 0.0:            # прошёл мимо: какое-то время на героя не смотрят
+			e["hold"] = float(e["hold"]) - dt
+			if not _hurt(e):
+				continue
+		var c: Vector3 = e["c"]
+		var d := Vector2(pp.x - c.x, pp.z - c.z).length()
+		e["t"] = float(e["t"]) + dt
+		match st:
+			"post":
+				if not active.is_empty():
+					continue
+				if _hurt(e):
+					_fight(e)
+				elif d < R_NOTICE:
+					e["state"] = "noticed"
+					e["t"] = 0.0
+					e["said"] = 0
+					_say(e, 0)
+					G67Sound.play(g, "entry", c)
+					log.append(["noticed", String(e["id"])])
+			"noticed":
+				_face_all(e, pp)
+				if _hurt(e):
+					_fight(e)
+				elif e["d"].has("ask") and not bool(e.get("asked", false)):
+					if d > CALM:
+						e["state"] = "post"
+					elif d < R_WARN:
+						_ask(e)
+				elif d > CALM:
+					e["state"] = "post"
+					log.append(["calm", String(e["id"])])
+				elif bool(e["d"].get("skip_warn", false)):
+					if float(e["t"]) > 0.9 or d < R_WARN:
+						_fight(e)
+				elif d < R_WARN or float(e["t"]) > 4.0:
+					_warn(e)
+			"warned":
+				_face_all(e, pp)
+				var lead = e["lead"]
+				var close: bool = is_instance_valid(lead) and lead.global_position.distance_to(pp) < 3.2
+				if _hurt(e) or close or d < R_FIGHT or float(e["t"]) > WARN_T:
+					_fight(e)
+				elif d > CALM:
+					if is_instance_valid(lead):
+						lead.post = true
+					e["lead"] = null
+					e["state"] = "post"
+					log.append(["calm", String(e["id"])])
+			"fight":
+				_fight_tick(e, dt, d)
+
+# ------------------------------------------------------------------ конфликты с выбором
+func _npcs(e: Dictionary) -> void:
+	e["npc_done"] = true
+	if String(e["state"]) != "post":
+		return
+	var list: Array = []
+	for x in (e["d"]["npcs"] as Array):
+		var f: Dictionary = g.folk._spawn(x, "cf_%s_%s" % [String(e["id"]), String((x as Dictionary)["code"])])
+		if not f.is_empty():
+			g.folk.folk.append(f)
+			list.append(f)
+	e["npcs"] = list
+	if String(e["id"]) == "parking":                 # табуретка в расчищенном кармане
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.34, 0.44, 0.34)
+		mi.mesh = bm
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.5, 0.36, 0.22)
+		mi.material_override = m
+		world.add_child(mi)
+		mi.global_position = (e["c"] as Vector3) + Vector3(0.0, 0.22, 1.4)
+		e["stool"] = mi
+
+## Патруль ходит по проезду туда-обратно, пока его не заметили
+func _patrol(e: Dictionary, dt: float, walking: bool) -> void:
+	var rt: Array = e["d"]["route"]
+	var i := 0
+	for f in e["foes"]:
+		if not is_instance_valid(f) or f.state == "dead":
+			continue
+		f.post_to = Vector3.INF
+		if walking:
+			f.post_to = (e["c"] as Vector3) + Vector3(-0.9 + 1.8 * float(i % 2), 0.0, 0.7 * float(i / 2))
+		i += 1
+	if not walking:
+		return
+	var to := v3(rt[int(e.get("route_i", 0)) % rt.size()])
+	var c: Vector3 = e["c"]
+	var dv := Vector3(to.x - c.x, 0.0, to.z - c.z)
+	if dv.length() < 0.6:
+		e["route_i"] = (int(e.get("route_i", 0)) + 1) % rt.size()
+	else:
+		e["c"] = c + dv.normalized() * PATROL_V * dt
+
+func _ask(e: Dictionary) -> void:
+	e["asked"] = true
+	_say(e, 1)
+	var a: Dictionary = e["d"]["ask"]
+	var opts: Array = []
+	for o in (a["opts"] as Array):
+		opts.append([String(o[0]), String(o[1]), "", true])
+	log.append(["ask", String(e["id"])])
+	g.choose(String(e["d"]["name"]), String(a["q"]), opts, func(k): _answer(e, k), "leave")
+
+func _end_quiet(e: Dictionary, st: String) -> void:
+	_free_foes(e)
+	e["state"] = st
+	if is_instance_valid(e.get("stool")):
+		(e["stool"] as Node).queue_free()
+	_keep(e)
+	g._save_run("open")
+
+func _answer(e: Dictionary, k: String) -> void:
+	var id := String(e["id"])
+	log.append(["answer", id, k])
+	g.events.append(["conflict", id, k])
+	var foes: Array = e["foes"]
+	match k:
+		"fight":
+			if id == "school_kid":
+				game.toast("Шестёрка: «О, защитник. Малой, ты ему платишь?»")
+			elif id == "unloading":
+				game.toast("Шестёрка: «Ну ты сам захотел».")
+			_fight(e)
+		"joke":
+			game.toast("Школьник: «Вы чего?!» — Шестёрка: «О, наш человек». — Пахан: «Шучу. Отошли».")
+			_fight(e)
+			for f in foes:                       # растерялись: первый удар проходит без ответа
+				if is_instance_valid(f) and f.state != "dead":
+					f.stun(2.0)
+		"box":
+			game.toast("В коробке — пустые банки. Вслед: «Приятного аппетита!»")
+			g.barks_get().say(game.player, "V|Суки.", {"force": true})
+			_end_quiet(e, "gone")
+		"red", "bare":
+			game.toast("«Вот! Человек понимает!» — «Да он вообще не местный!»")
+			var mine: Array = foes.slice(0, 2) if k == "red" else foes.slice(2)      # «свои» отходят в сторону, драться — с остальными
+			for f in mine:
+				if is_instance_valid(f):
+					game.enemies.erase(f)
+					f.queue_free()
+			e["foes"] = foes.filter(func(f): return not mine.has(f))
+			e["one_wave"] = true
+			e["won"] = "«По-честному. Мот не отдадим, а вот это забирай — в гараже валялось»."
+			_fight(e)
+		"wait":
+			game.toast("Подрались сами. Красный, уходя: «В субботу продолжим».")
+			g.barks_get().say(game.player, "V|Нормально посидели.", {"force": true})
+			_free_foes(e)
+			e["state"] = "cleared"
+			_drop_bag(e, int(SIDE_GOLD["wait"]), false)
+			_keep(e)
+			g._save_run("open")
+		"gena":
+			game.toast("Артур: «Ах вот как. Ну ладно. Я сейчас позвоню кое-кому, и посмотрим, чьё место».")
+			_post(e)
+			var fr: Array = e["d"]["from"]
+			var k2 := 0
+			for f in e["foes"]:                  # двое выходят из-за дома
+				if is_instance_valid(f):
+					f.global_position = v3(fr[0]) + Vector3(1.2 * float(k2), 0.0, 0.0)
+					k2 += 1
+			game.toast("Шестёрка: «Артурчик, кто обижает?»")
+			_fight(e)
+		"artur":
+			game.toast("Гена швырнул лопату в сугроб и ушёл. Артур: «Держи, брат, за принципиальность».")
+			g.add_golda(int(SIDE_GOLD["artur"]))
+			g.run["gena_hurt"] = true
+			_end_quiet(e, "gone")
+		"stool":
+			game.toast("Гена: «...Это была моя табуретка». — Артур: «Теперь место точно общее».")
+			g.give_item("stool")
+			_end_quiet(e, "gone")
+		_:
+			if id == "school_kid":
+				game.toast("Школьник вслед: «Дядь! Ну дядь!»")
+				g.run["kid_passed"] = true
+				e["plain"] = true                  # обычная территория: без «спасибо» и чая
+				e["state"] = "post"
+				e["hold"] = 10.0
+			elif id == "parking":
+				game.toast("Гена и Артур хором: «Вот так всегда!»")
+				_end_quiet(e, "gone")
+			else:
+				e["plain"] = true
+				e["state"] = "post"
+				e["hold"] = 10.0
+
+## Ступень 2: один из группы идёт навстречу — понятно, что сейчас начнётся
+func _warn(e: Dictionary) -> void:
+	e["state"] = "warned"
+	e["t"] = 0.0
+	_say(e, 1)
+	for f in e["foes"]:
+		if is_instance_valid(f) and f.state != "dead":
+			f.post = false
+			f.cool = maxf(f.cool, 1.6)          # идёт, но не бьёт с ходу
+			e["lead"] = f
+			break
+	log.append(["warned", String(e["id"])])
+
+## Ступень 3: бой. Вход защищён от повтора — из любого состояния сюда попадают один раз за попытку.
+func _fight(e: Dictionary) -> void:
+	if String(e["state"]) == "fight" or not active.is_empty():
+		return
+	e["state"] = "fight"
+	e["t"] = 0.0
+	e["cd"] = 0.0
+	e["wait"] = 1.2
+	active = e
+	g.hurt_in_fight = false
+	for f in e["foes"]:
+		if is_instance_valid(f):
+			f.post = false
+	var d: Dictionary = e["d"]
+	game.set_arena(e["c"], Vector2(LEASH, LEASH))
+	g.room = {"type": String(d["type"]), "place": String(e["id"])}
+	g.room_state = "fight"
+	g.wind_used = false
+	g.fin_room = 0.0
+	game.banner(String(d["name"]), String(G67Data.ROOM_NAMES[String(d["type"])]) + (" · вторая попытка: награда вдвое меньше" if int(e["flees"]) > 0 else ""),
+		G67Data.ROOM_COLOR[String(d["type"])], 2.2)
+	game.main.sfx("sfx_wave", -8.0)
+	g.events.append(["room", String(d["type"])])
+	g._save_run("fight")
+	log.append(["fight", String(e["id"])])
+
+func _fight_tick(e: Dictionary, dt: float, d: float) -> void:
+	if d > FLEE:
+		_flee(e)
+		return
+	e["cd"] = maxf(0.0, float(e["cd"]) - dt)
+	var pend: Array = e["pending"]
+	if not pend.is_empty():
+		if _alive(e) < G67Data.FOES_ALIVE_MAX and float(e["cd"]) <= 0.0:
+			var f = g._make_foe(String(pend.pop_front()), _entry(e), false)
+			(e["foes"] as Array).append(f)
+			e["cd"] = randf_range(0.8, 1.4)
+		return
+	if _alive(e) > 0:
+		return
+	e["wait"] = float(e["wait"]) - dt
+	if float(e["wait"]) > 0.0:
+		return
+	e["wave_i"] = int(e["wave_i"]) + 1
+	var w: Array = waves(e)
+	if int(e["wave_i"]) >= w.size() or bool(e.get("one_wave", e["d"].get("one_wave", false))):
+		_cleared(e)
+		return
+	for grp in w[int(e["wave_i"])]:
+		for k in int(grp[1]):
+			pend.append(String(grp[0]))
+	pend.shuffle()
+	e["wait"] = 1.2
+	game.toast("Подкрепление: %d / %d" % [int(e["wave_i"]) + 1, w.size()])
+	game.main.sfx("sfx_wave", -8.0)
+
+## Откуда приходит подкрепление: названная точка территории, самая дальняя от героя (не ближе ENTRY_MIN, если такая есть)
+func _entry(e: Dictionary) -> Vector3:
+	var pp: Vector3 = game.player.global_position
+	var best := Vector3.INF
+	var bd := -1.0
+	for q in e["d"]["from"]:
+		var p := v3(q)
+		var dd := p.distance_to(pp)
+		if dd > bd:
+			bd = dd
+			best = p
+	return best
+
+func _cleared(e: Dictionary) -> void:
+	var d: Dictionary = e["d"]
+	var type := String(d["type"])
+	e["state"] = "cleared"
+	active = {}
+	game.reset_arena()
+	g.room_state = "open"
+	var spooked: bool = int(e["flees"]) > 0
+	var base: float = float(G67Data.ROOM_GOLDA["elite" if type == "elite" else "battle"]) * (1.5 if type == "ambush" else 1.0)
+	var plain: bool = bool(e.get("plain", false))          # прошёл мимо, а потом всё же подрался: ни «спасибо», ни надбавки
+	var gold := int(round((base + (0.0 if plain else float(d.get("bonus", 0)))) * (0.5 if spooked else 1.0)))
+	var won := String(e.get("won", d.get("won", "")))
+	if won != "" and not spooked and not plain:
+		game.toast(won)
+		if d.has("heal"):
+			g.give_item("thermos")               # «Термос» от спасённого — с собой
+		if String(e["id"]) == "school_kid":
+			g.run["kid_saved"] = true
+		if String(e["id"]) == "parking":
+			g.run["gena"] = GENA_DISCOUNT
+	if d.has("item_p") and not spooked and randf() < float(d["item_p"]):
+		g.give_item("thermos")
+		game.toast("В пакете патруля — термос")
+	_drop_bag(e, gold, not spooked)          # в сумке — выбор бафа (у элиты редкий); после побега — только половина голды
+	if g.fit_lv("semki") > 0 and not g.hurt_in_fight and not spooked:      # СЕМКИ: бой без полученного урона
+		var got: int = g.add_golda(G67Data.SEMKI_GOLD)
+		game.popup(game.player.global_position + Vector3(0, 2.2, 0), "СЕМКИ +%d" % got, G67Data.FAMILY_COLOR["dvor"])
+		g.events.append(["semki", got])
+	var c: Vector3 = e["c"]
+	if G67Data.STAGE_HEAL.has(type) and not spooked:
+		g._drop_wrap(float(G67Data.STAGE_HEAL[type]), c + Vector3(1.6, 0.0, 1.2), 0.0)
+	g._add_respect("elite" if type == "elite" else "battle", int(G67Data.RESPECT["elite" if type == "elite" else "room"]))
+	g.run["rooms"] = int(g.run["rooms"]) + 1
+	g.run["pos"] = int(g.run.get("pos", 0)) + 1
+	(g.run["stages"] as Array).append([type, String(e["id"]), ""])
+	g.events.append(["clear", type])
+	game.banner("ЧИСТО", "обыщи сумку" + (" · половина награды" if spooked else ""), Color(1, 0.85, 0.3), 2.0)
+	_keep(e)
+	g._save_run("open")
+	log.append(["cleared", String(e["id"]), gold])
+
+## Бой брошен: награды нет. Первый раз группа возвращается на посты, второй — уходит совсем.
+func _flee(e: Dictionary) -> void:
+	e["flees"] = int(e["flees"]) + 1
+	active = {}
+	game.reset_arena()
+	g.room_state = "open"
+	g.room = {}
+	_free_foes(e)
+	e["pending"] = []
+	if int(e["flees"]) >= 2:
+		e["state"] = "gone"
+		game.toast("Группа ушла с района. Награды не будет.")
+	else:
+		_post(e)
+		game.toast("Ушёл от драки — награды нет. Они ещё там: вторая попытка даст половину.")
+	g.events.append(["flee", String(e["id"]), int(e["flees"])])
+	_keep(e)
+	g._save_run("open")
+	log.append(["flee", String(e["id"]), int(e["flees"])])
+
+# ------------------------------------------------------------------ сумка с добычей
+func _drop_bag(e: Dictionary, gold: int, fit: bool) -> void:
+	if not (e["bag"] as Dictionary).is_empty():
+		return
+	var c: Vector3 = e["c"]
+	var node: Node3D = null
+	if world.dvor != null:
+		node = world.dvor.put("loot_bag" if world.dvor.man.has("loot_bag") else "trashbag", c.x, -c.z, float(int(c.x * 7.0) % 360), 1.0 if world.dvor.man.has("loot_bag") else 1.5)
+	var pid := "bag_" + String(e["id"])
+	world._point(pid, "СУМКА", "обыскать", c)
+	e["bag"] = {"node": node, "gold": gold, "fit": fit, "pid": pid}
+	_keep(e)
+
+## Обыскать сумку: награда выдаётся один раз — сумка и точка исчезают раньше, чем начисляется голда
+func take_bag(pid: String) -> int:
+	for e in encs:
+		var b: Dictionary = e["bag"]
+		if b.is_empty() or String(b.get("pid", "")) != pid:
+			continue
+		var gold := int(b["gold"])
+		var fit: bool = bool(b["fit"])
+		if is_instance_valid(b.get("node")):
+			(b["node"] as Node).queue_free()
+		world.points = world.points.filter(func(pt): return String(pt["id"]) != pid)
+		e["bag"] = {}
+		_keep(e)
+		var got: int = g.add_golda(gold)
+		game.toast("В сумке: %d голды" % got)
+		game.main.ui("confirm")
+		g.events.append(["bag", String(e["id"]), got])
+		log.append(["bag", String(e["id"]), got])
+		g._save_run("open")
+		if fit:
+			g._offer_fit(String(e["d"]["type"]) == "elite")
+		return got
+	return 0
+
+# ------------------------------------------------------------------ ритм забега
+func _state_n(states: Array, must_only := false) -> int:
+	var n := 0
+	for e in encs:
+		if String(e["state"]) in states and (not must_only or bool(e["d"]["must"])):
+			n += 1
+	return n
+
+## Можно ли к Мише: каждая обязательная встреча пройдена; ушедшую обязательную заменяет любая другая пройденная.
+## Если заменить нечем (все остальные тоже пройдены или ушли) — путь всё равно открыт: побегом забег не блокируется.
+func need_done() -> bool:
+	var owed := 0
+	var spare := 0
+	var open := 0
+	for e in encs:
+		var st := String(e["state"])
+		var must: bool = bool(e["d"]["must"])
+		if st == "gone" and must:
+			owed += 1
+		elif st == "cleared" and not must:
+			spare += 1
+		elif not st in ["cleared", "gone"]:
+			if must:
+				return false
+			open += 1
+	return owed <= spare or open == 0
+
+## Куда идти: строка для HUD (значков и лучей в мире нет)
+func objective() -> String:
+	if not active.is_empty():
+		return "врагов: %d · уйти можно ногами, но без награды" % left()
+	for e in encs:
+		if not (e["bag"] as Dictionary).is_empty():
+			return "СУМКА: %s" % String(e["d"]["name"])
+	if not bool(g.run.get("rags", false)) and _state_n(["cleared", "gone"]) >= 1:
+		return "ДАЛЬШЕ: загляни на рынок на западе" + ("" if need_done() else " · потом смотрящий")
+	if need_done():
+		return "КОРОБКА МИШИ ОТКРЫТА — на север, между башнями"
+	for e in encs:
+		if bool(e["d"]["must"]) and not String(e["state"]) in ["cleared", "gone"]:
+			return "ДАЛЬШЕ: %s%s" % [String(e["d"]["name"]), " (вторая попытка)" if int(e["flees"]) > 0 else ""]
+	for e in encs:
+		if not String(e["state"]) in ["cleared", "gone"]:
+			return "ДОЛГ ЗА ПОБЕГ: %s" % String(e["d"]["name"])
+	return ""

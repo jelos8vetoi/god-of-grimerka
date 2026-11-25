@@ -301,7 +301,7 @@ func _run() -> void:
 	ok(G.styles_open() == ["vozduh", "bottles", "tyaga812"], "после FORTUNA 812 открывается ТЯГА-812")
 	G.data["meta"]["flags"] = {}
 	# ================= подъём по лестнице на площадку =================
-	P.global_position = Vector3(-2.3, 0.05, 1.9)
+	P.global_position = Vector3((G67World.STAIR_X - G67World.HUB_X) * 0.5, 0.05, 1.9)
 	P.velocity = Vector3.ZERO
 	P.face = 0.0
 	g.cam_yaw = 0.0
@@ -373,10 +373,10 @@ func _run() -> void:
 	ok(G.near == "" and not G.prompt.visible, "вдали от предметов подсказки нет")
 	# снимки хаба с разных точек
 	var L := G67World.LAND_Y + 0.05
-	for v in [["06_tambur_in", Vector3(0, 0.05, 6.9), 0.0], ["06b_hall_to_stairs", Vector3(0.3, 0.05, 4.6), 0.0], ["06c_hall_to_exit", Vector3(-0.4, 0.05, 2.2), PI],
-			["06d_hall_left", Vector3(0.6, 0.05, 3.8), PI * 0.5], ["06e_hall_right", Vector3(-1.8, 0.05, 3.8), -PI * 0.5],
-			["07_landing_back", Vector3(-0.2, L, -1.2), 0.0], ["07b_landing_to_hall", Vector3(0.2, L, -4.6), PI],
-			["07c_landing_left", Vector3(1.6, L, -3.4), PI * 0.5], ["07d_landing_right", Vector3(-1.4, L, -2.2), -PI * 0.5], ["07e_flurr", Vector3(-1.2, L, -3.55), PI * 0.5]]:
+	for v in [["06_tambur_in", Vector3(0, 0.05, G67World.Z_FRONT + 0.9), 0.0], ["06b_hall_to_stairs", Vector3(0.3, 0.05, 6.4), 0.0], ["06c_hall_to_exit", Vector3(-0.4, 0.05, 2.2), PI],
+			["06d_hall_left", Vector3(1.2, 0.05, 5.0), PI * 0.5], ["06e_hall_right", Vector3(-2.4, 0.05, 5.6), -PI * 0.5],
+			["07_landing_back", Vector3(-0.2, L, -1.2), 0.0], ["07b_landing_to_hall", Vector3(0.2, L, G67World.Z_BACK + 1.6), PI],
+			["07c_landing_left", Vector3(2.4, L, -4.6), PI * 0.5], ["07d_landing_right", Vector3(-2.0, L, -3.6), -PI * 0.5], ["07e_flurr", Vector3(-G67World.HUB_X + 1.9, L, G67World.BENCH_Z), PI * 0.5]]:
 		P.global_position = v[1]
 		P.face = v[2]
 		g.cam_yaw = v[2]
@@ -770,7 +770,7 @@ func _clip_check(g, G: Golda67, P) -> void:
 			await get_tree().process_frame
 		var dur := (GameClock.ms() - t0) / 1000.0
 		var needs_voice: bool = (G67Clips.LINES.get(cid, []) as Array).size() > 0
-		var good: bool = G.clip == null and dur > 5.0 and dur < 40.0 and (voiced or not needs_voice) and subs
+		var good: bool = G.clip == null and dur > 5.0 and dur < 40.0 and (voiced or not needs_voice) and (subs or not needs_voice)      # у роликов без реплик (записи камер, реклама казино) нет ни голоса, ни субтитров
 		print("GOLDA67CHECK   ролик %s: %.1f с, голос %s, субтитры %s, кадров %d" % [cid, dur, str(voiced), str(subs), n])
 		if not good:
 			all_ok = false
@@ -2268,9 +2268,9 @@ func _faces_away(g, P) -> bool:
 
 func _cam_check(g, G: Golda67, P) -> void:
 	var total := 0
-	ok(G.place == "hub" and _faces_away(g, P) and absf(g.cam_len - 3.2) < 0.01, "первый кадр подъезда: герой лицом от камеры (face %.2f, cam_yaw %.2f), штанга 3,2" % [P.face, g.cam_yaw])
+	ok(G.place == "hub" and _faces_away(g, P) and absf(g.cam_len - Golda67.HUB_CAM_LEN) < 0.01, "первый кадр подъезда: герой лицом от камеры (face %.2f, cam_yaw %.2f), штанга %.1f" % [P.face, g.cam_yaw, Golda67.HUB_CAM_LEN])
 	var L := G67World.LAND_Y
-	for v in [["вход подъезда", Vector3(0, 0.05, 5.0)], ["холл", Vector3(0, 0.05, 3.0)], ["площадка", Vector3(0, L + 0.05, -3.0)], ["середина лестницы", Vector3(-2.3, 0.8, -0.35)]]:
+	for v in [["вход подъезда", Vector3(0, 0.05, G67World.Z_FRONT - 1.1)], ["место входа", Vector3(0, 0.05, G67World.Z_FRONT - 3.9)], ["холл", Vector3(0, 0.05, 3.0)], ["холл у левой стены", Vector3(-G67World.HUB_X + 0.7, 0.05, 5.0)], ["площадка", Vector3(0, L + 0.05, -3.0)], ["площадка, дальний угол", Vector3(G67World.HUB_X - 0.8, L + 0.05, G67World.Z_BACK + 1.0)], ["середина лестницы", Vector3((G67World.STAIR_X - G67World.HUB_X) * 0.5, 0.8, -0.35)]]:
 		var b: int = await _cam_sweep(g, P, v[1], "hub", String(v[0]))
 		ok(b == 0, "камера в подъезде, точка «%s»: плохих положений %d из 36" % [v[0], b])
 		total += b
@@ -2286,7 +2286,7 @@ func _cam_check(g, G: Golda67, P) -> void:
 		var b2: int = await _cam_sweep(g, P, v[1], "court", String(v[0]))
 		ok(b2 == 0, "камера у борта коробки, точка «%s»: плохих положений %d из 36" % [v[0], b2])
 		total += b2
-	print("GOLDA67CHECK   КАМЕРА всего плохих положений: %d из 288" % total)
+	print("GOLDA67CHECK   КАМЕРА всего плохих положений: %d из 396" % total)
 
 ## Бирки бафов: все надписи целиком внутри своей бирки и экрана; кегль ≥ 15; перенос не обрезает
 func _fit_layout_ok(FU) -> bool:
@@ -3495,8 +3495,19 @@ func _clip_log(G: Golda67, cid: String) -> void:
 	await wait(0.3)
 	var t_last := 0.0
 	var nxt := 0.0
+	var vram0: float = Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED)
+	var mem0: float = Performance.get_monitor(Performance.MEMORY_STATIC)
+	var vram_max := vram0
+	var mem_max := mem0
+	var worst := 0.0
+	var t0c := Time.get_ticks_usec()
 	while G.clip != null and is_instance_valid(G.clip):
 		t_last = G.clip.t
+		vram_max = maxf(vram_max, Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED))
+		mem_max = maxf(mem_max, Performance.get_monitor(Performance.MEMORY_STATIC))
+		var tn := Time.get_ticks_usec()
+		worst = maxf(worst, float(tn - t0c) / 1000.0)
+		t0c = tn
 		if G67Clips.snap_req != "":
 			var nm: String = G67Clips.snap_req
 			G67Clips.snap_req = ""
@@ -3512,6 +3523,7 @@ func _clip_log(G: Golda67, cid: String) -> void:
 			note = "  ← ОБРЕЗАНА" if gap < -0.05 else ("  ← ПАУЗА > 0,8 с" if gap > 0.8 else "")
 		print("GOLDA67CHECK   LOG %s %5.1f  %s  голос %.2f с  пауза %.2f%s%s" % [cid, float(lg[i][0]), String(lg[i][1]).left(48), float(lg[i][2]), gap, note, "" if bool(lg[i][3]) else "  (НЕТ ГОЛОСА)"])
 	print("GOLDA67CHECK   LOG %s длина %.1f с" % [cid, t_last])
+	print("GOLDA67CHECK   MEM %s видеопамять %.0f → %.0f МБ (пик), память %.0f → %.0f МБ, худший кадр %.0f мс" % [cid, vram0 / 1048576.0, vram_max / 1048576.0, mem0 / 1048576.0, mem_max / 1048576.0, worst])
 
 ## Контраст метки атаки: кольцо против земли вокруг, в тени (дальше всего от фонарей) и на свету (у фонаря), по зонам
 func _luma(c: Color) -> float:
@@ -4079,7 +4091,7 @@ func _run_dvor(g, G: Golda67, P) -> void:
 			snd_bad.append("%s %.2f %.2f" % [k, w.get_length(), pk])
 	ok(snd_bad.is_empty(), "G67Sound: %d видов, у каждого длина > 0,05 с, пик в (0,02…1,0] (плохие: %s)" % [G67Sound.kinds().size(), str(snd_bad)])
 	ok(G67Yard.surface_at(Vector3(2, 0, -38)) == "ice" and G67Yard.surface_at(G67Yard.KIOSK_POS) == "asphalt" and G67Yard.surface_at(Vector3(0, 0, 21)) == "snow", "поверхность под ногами: лёд в коробке, асфальт на парковке, снег у подъезда")
-	ok(is_equal_approx(G67Data.FOE_DMG_K, 0.6), "множитель урона врагов двора 0,6")
+	ok(is_equal_approx(G67Data.FOE_DMG_K, 0.75) and is_equal_approx(G67Data.FOE_HP_K, 1.3), "рядовые враги двора: урон ×0,75, здоровье ×1,3")
 	# музыка приквела: наборы есть, в подъезде играет подъездный
 	var mus_ok := true
 	for nm in ["loc_g67_hub_base", "loc_g67_dvor_base", "loc_g67_dvor_drive", "boss_g67_misha_p1", "boss_g67_misha_p2", "boss_g67_misha_p3", "boss_g67_misha_intro", "boss_g67_misha_win"]:

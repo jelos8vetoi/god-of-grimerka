@@ -77,10 +77,19 @@ static var _map := {}
 static var _loaded := false
 
 ## Путь к голосу строки «КОД|текст» или "" — если в манифесте её нет, она не готова или файла нет
+## Жители, торговцы и участники событий нового двора говорят уже существующими голосами (новых моделей не создаём).
+## Пол соблюдён: женские роли — на женских голосах, мужские — на мужских, школьники — на голосе школьника.
+const VOICE_AS := {"DV": "US", "VW": "BB", "PT": "Z1", "ZH": "Z2", "TL": "US", "SN": "Z1", "VT": "TX", "BZ": "BB", "QD": "Z1", "QT": "ZW", "QS": "SC", "QP": "ZW", "GN": "US", "AR": "TX"}
+
+static func voiced(line: String) -> String:
+	var p := line.find("|")
+	var code := line.substr(0, p)
+	return (String(VOICE_AS[code]) + line.substr(p)) if VOICE_AS.has(code) else line
+
 static func path(line: String) -> String:
 	if not _loaded:
 		_load()
-	var e: Dictionary = _map.get(line, {})
+	var e: Dictionary = _map.get(voiced(line), {})
 	if e.is_empty():
 		return ""
 	if not (String(e.get("status", "")) in ["generated", "validated"]):
@@ -194,6 +203,45 @@ static func chapter1_lines() -> Array:
 		out.append(_mk("life_kiosk", i, String(G67LifeData.KIOSK_SHOUTS[i]), "шаурмист кричит из окна", "громко, зазывно", 1.05))
 	for i in G67LifeData.WINDOW_SHOUTS.size():
 		out.append(_mk("life_window", i, String(G67LifeData.WINDOW_SHOUTS[i]), "крик из окна дома", "громко, раздражённо", 1.0))
+	# --- новый двор: жители, торговцы, участники событий (G67DvorFolk, G67DvorEvents) — существующими голосами (VOICE_AS)
+	var seen_dv := {}
+	var add_dv := func(scene: String, arr: Array, when: String):
+		for i in arr.size():
+			var ln := voiced(String(arr[i]))
+			if seen_dv.has(ln):
+				continue
+			seen_dv[ln] = true
+			out.append(_mk(scene, i, ln, when, "по-житейски", 1.0))
+	for f_v in G67DvorFolk.FOLK:
+		var fd: Dictionary = f_v
+		for kind in ["greet", "hit", "cold", "fight"]:
+			add_dv.call("life_dv_%s_%s" % [String(fd["id"]), kind], fd.get(kind, []), "житель нового двора (%s), повод «%s»" % [String(fd["id"]), kind])
+	for who in G67DvorFolk.TRADERS:
+		var td: Dictionary = G67DvorFolk.TRADERS[who]
+		for kind in ["hello", "show", "buy", "poor", "fight", "bye", "hit"]:
+			add_dv.call("life_dv_%s_%s" % [String(who), kind], td.get(kind, []), "торговец %s, повод «%s»" % [String(td["title"]), kind])
+	for ev in G67DvorEvents.EVENTS:
+		var ed: Dictionary = G67DvorEvents.EVENTS[ev]
+		var nm := String(ed["name"])
+		add_dv.call("life_dvev_%s_talk" % String(ev), ed.get("talk", []), "событие двора «%s», разговор" % nm)
+		add_dv.call("life_dvev_%s_chat" % String(ev), ed.get("chat", []), "событие двора «%s», разговор очереди" % nm)
+		add_dv.call("life_dvev_%s_ask" % String(ev), (G67DvorEvents.CHOICES[ev] as Dictionary).get("ask", []), "событие двора «%s», ответ на вопрос «а что мне с этого»" % nm)
+		add_dv.call("life_dvev_%s_bye" % String(ev), [String(G67DvorEvents.CHOICES[ev]["bye"])], "событие двора «%s», вслед уходящему" % nm)
+		var roles: Array = [ed["npc"]] + (ed.get("extra", []) as Array)
+		for r_v in roles:
+			var rd: Dictionary = r_v
+			for kind in ["greet", "hit", "cold", "fight"]:
+				add_dv.call("life_dvev_%s_%s_%s" % [String(ev), String(rd["code"]), kind], rd.get(kind, []), "событие двора «%s», участник %s, повод «%s»" % [nm, String(rd["code"]), kind])
+	add_dv.call("life_dvev_queue_cut", G67DvorEvents.QUEUE_CUT, "событие двора «ОЧЕРЕДЬ»: без очереди")
+	add_dv.call("life_dvev_said", G67DvorEvents.SAID, "события двора: реплики по ходу дела")
+	for ex_v in G67Turf.EXTRAS:
+		for nd_v in ((ex_v as Dictionary).get("npcs", []) as Array):
+			var nd: Dictionary = nd_v
+			for kind in ["greet", "hit", "cold", "fight"]:
+				add_dv.call("life_dvcf_%s_%s" % [String(nd["code"]), kind], nd.get(kind, []), "конфликт двора, участник %s, повод «%s»" % [String(nd["code"]), kind])
+	for nk in G67DvorFolk.NOTES:
+		var who_n: Array = G67DvorFolk.NOTE_WHO[nk]
+		add_dv.call("life_dv_note_%s" % String(nk), who_n.map(func(c): return String(c) + "|" + String(G67DvorFolk.NOTES[nk])), "житель двора: район запомнил (%s)" % String(nk))
 	# --- боевые выкрики Пахана в приквеле
 	var bj = JSON.parse_string(FileAccess.get_file_as_string("res://data/barks.json"))
 	if bj is Dictionary:

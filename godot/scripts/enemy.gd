@@ -157,6 +157,8 @@ var train_guard := false      # учебная цель обучения: не �
 var train_attack := false     # учебная цель для упражнений защиты: замахивается чаще
 var train_home := Vector3.ZERO      # тренировочная арена: место цели
 var train_immortal := false   # цель арены: урон и добивания настоящие, но вместо смерти встаёт с полным здоровьем
+var post_to := Vector3.INF    # «ГОЛДА 67»: патруль — куда идти, пока на посту (G67Turf._patrol)
+var post := false            # «ГОЛДА 67», новый ДВОР: стоит на своей территории и не нападает, пока встреча не началась (G67Turf)
 var train_still := false     # цель арены стоит на своём месте (бить может, ходить — нет)
 var train_leash := 0.0       # босс арены не уходит от своей зоны дальше этого
 var hit_id := ""             # атака, которая сейчас бьёт (take_hit_info) — для записи урона в проверке
@@ -375,9 +377,21 @@ func _physics_process(dt: float) -> void:
 		kb = kb.move_toward(Vector3.ZERO, (9.0 if state == "hurt" and react == "knockback" else 22.0) * dt)
 	if trail:
 		trail.enabled = state == "wind" or (state == "recover" and t < 0.3)
-	if game.paused_story() and state != "dead":
+	if (game.paused_story() or (post and state in ["spawn", "chase"])) and state != "dead":
 		velocity = Vector3.ZERO
 		rig.play("Idle", 0.3)
+		if post:
+			if post_to != Vector3.INF and state == "chase":
+				var post_dv := post_to - global_position
+				post_dv.y = 0.0
+				if post_dv.length() > 0.5:
+					velocity = post_dv.normalized() * 1.1
+					face = lerp_angle(face, atan2(post_dv.x, post_dv.z), 0.12)
+					rig.play("Run", 0.3, 0.42)
+			body.rotation.y = face
+			if state == "spawn" and t > 1.0:
+				state = "chase"          # на посту тоже «появился»: иначе стоящего нельзя ударить первым
+				t = 0.0
 		move_and_slide()
 		return
 	match state:
@@ -419,6 +433,16 @@ func _physics_process(dt: float) -> void:
 					mv = hm.normalized() if hm.length() > 0.4 else Vector3.ZERO
 				elif hm.length() > train_leash:
 					mv = hm.normalized()
+			if game.golda != null and boss_id == "" and not train_still:      # «ГОЛДА 67»: за гаражами и домами враг не стоит и не упирается — обходит
+				var nv: Vector3 = game.golda.nav_dir(self, p.global_position, dt)
+				if nv != Vector3.ZERO:
+					mv = nv
+				if game.golda.turf != null and not game.golda.turf.active.is_empty():      # новый двор: за край своей территории враг не уходит
+					var oc: Vector3 = global_position - game.arena_c
+					if absf(oc.x) > game.arena_h.x - 1.0 or absf(oc.z) > game.arena_h.y - 1.0:
+						var back := Vector3(-oc.x, 0.0, -oc.z).normalized()
+						if mv.dot(back) < 0.2:
+							mv = back                # стрелок, пятясь, упирается в границу и дальше не отходит
 			if p.state == "dead":
 				mv = Vector3.ZERO
 			var wet: float = (slow_k if slow_t > 0.0 else 1.0) * (1.25 if buff_t > 0.0 else 1.0)       # облит водой — медленнее, усилен — быстрее
