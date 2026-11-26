@@ -572,6 +572,21 @@ func in_arena(p: Vector3, margin: float) -> bool:
 		return p.x > -2.2 + margin * 0.5 and p.x < 3.7 - margin * 0.5 and abs(p.z) < 4.7 - margin * 0.5
 	return abs(p.x - arena_c.x) < arena_h.x - margin and abs(p.z - arena_c.z) < arena_h.y - margin
 
+## Сдвиг камеры вбок «из-за плеча» без проверки стен: герой у стены (уже сдвига) — начало пружины оказывалось за стеной,
+## и камера целиком уходила в пустоту между комнатами (Подземка, переход у зала автоматов, 2026-11-25). Сдвиг — до стены.
+func _side_clear(side: Vector3) -> Vector3:
+	var ln := side.length()
+	if ln < 0.01 or not is_instance_valid(pivot) or not pivot.is_inside_tree():
+		return side
+	var from: Vector3 = pivot.global_position
+	var to: Vector3 = pivot.global_transform * (side * ((ln + 0.3) / ln))
+	var q := PhysicsRayQueryParameters3D.create(from, to, 8)
+	var hit: Dictionary = pivot.get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return side
+	var free: float = maxf(0.0, from.distance_to(hit["position"]) - 0.3)
+	return side * minf(1.0, free / ln)
+
 ## Бой привязан к зоне: центр и полуразмеры прямоугольника (по умолчанию — квадрат ±ARENA вокруг нуля)
 func set_arena(c: Vector3, h: Vector2) -> void:
 	arena_c = c
@@ -1101,7 +1116,7 @@ func _process(dt: float) -> void:
 		var spring_rate := lerpf(8.0, 7.0, ipod_focus)
 		spring.spring_length = lerp(spring.spring_length, want_len, 1.0 - exp(-spring_rate * rdt))
 		# A restrained lateral/upward offset keeps Pahan readable beside the lower-right UI.
-		spring.position = Vector3(0.55 + 0.12 * ipod_focus, 0.04 * ipod_focus, 0)
+		spring.position = _side_clear(Vector3(0.55 + 0.12 * ipod_focus, 0.04 * ipod_focus, 0))
 	# тряска: сумма синусов разной частоты (плавно, без дребезга), сила — квадрат накопленного; гаснет в реальном времени
 	trauma = max(0.0, trauma - rdt * 1.5)
 	shake_t += rdt * 34.0

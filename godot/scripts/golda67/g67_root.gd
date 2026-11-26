@@ -1524,6 +1524,15 @@ func _hamster_play() -> void:
 	save()
 	events.append(["hamster_game", int(res["score"])])
 var pz_dieg := ""
+# песня комнаты хомяков: на −3 дБ с затуханием до камеры и срезом верхов её почти не было слышно даже внутри
+# («ваще не слышно, даже внутри супер тихо», 2026-11-25) — громче, потолок источника поднят, верхи не режутся
+const HAMSTER_DB := 6.0
+const HAMSTER_DB_CLOSED := -10.0
+const HAMSTER_DB_GAME := 4.0
+const CASINO_DB := 4.0
+# радиус слышимости секретных комнат (было 12 и 25 м — «сделай радиус больше», 2026-11-25)
+const HAMSTER_R := 22.0
+const CASINO_R := 35.0
 var casino_mix := 0.0
 
 ## Позиционная музыка секретных комнат через MusicDirector: хомяки (слышно с 12 м, у закрытой двери глухо), казино (до 25 м, два слоя по числу спинов)
@@ -1540,9 +1549,9 @@ func _pz_music_tick(dt: float) -> void:
 	var dh := hp.distance_to(pzm.music_hamster.global_position)
 	var dc := hp.distance_to(pzm.music_casino.global_position)
 	var want := ""
-	if dh < 12.0:
+	if dh < HAMSTER_R:
 		want = "hamster"
-	elif dc < 25.0:
+	elif dc < CASINO_R:
 		want = "casino"
 	var fresh := false
 	if G67District.is_podzemka() and not run.is_empty() and int(run.get("pos", 0)) >= 2 and clip == null and not clip_seen("PZ_STREAM01") and game.main.user_play() and G67Podzemka.room_at(hp) in ["gallery", "gal_a", "gal_b"]:
@@ -1553,13 +1562,15 @@ func _pz_music_tick(dt: float) -> void:
 		fresh = true
 		if want == "hamster":
 			var closed: bool = not bool(pzm.door_open_flags.get("hamster", false))
-			dir.set_diegetic(load("res://assets/music/ev_g67_hamster.ogg"), pzm.music_hamster, -14.0 if closed else -3.0, 14.0)
+			dir.set_diegetic(load("res://assets/music/ev_g67_hamster.ogg"), pzm.music_hamster, HAMSTER_DB_CLOSED if closed else HAMSTER_DB, HAMSTER_R + 6.0)
+			dir.dieg_open(true)
 		elif want == "casino":
-			dir.set_diegetic(load("res://assets/music/ev_g67_casino_a.ogg"), pzm.music_casino, -4.0, 26.0)
+			dir.set_diegetic(load("res://assets/music/ev_g67_casino_a.ogg"), pzm.music_casino, CASINO_DB, CASINO_R + 6.0)
+			dir.dieg_open(true)            # как у хомяков: через шину со срезом 220 Гц–3,8 кГц на −4 дБ музыку казино было не слышно
 		else:
 			dir.stop_diegetic()
 	if want == "hamster":
-		dir._dieg_db = -14.0 if not bool(pzm.door_open_flags.get("hamster", false)) else -3.0
+		dir._dieg_db = HAMSTER_DB_CLOSED if not bool(pzm.door_open_flags.get("hamster", false)) else (HAMSTER_DB_GAME if hamster_busy else HAMSTER_DB)
 	if want == "casino":
 		_casino_music(dir, pzm, dt, fresh)
 	else:
@@ -1590,7 +1601,7 @@ func _casino_music(dir, pzm: G67Podzemka, dt: float, fresh: bool) -> void:
 	casino_perc = move_toward(casino_perc, 1.0 if (n >= 50 and n <= 59) else 0.0, dt / 1.5)
 	pzm.lamp_rate = 7.5 if (n >= 50 and n <= 67) else 3.0
 	casino_duck_t = maxf(0.0, casino_duck_t - dt)
-	dir._dieg_db = -4.0 - (40.0 if casino_duck_t > 0.0 else 0.0)
+	dir._dieg_db = CASINO_DB - (40.0 if casino_duck_t > 0.0 else 0.0)
 	dir.set_diegetic2(load("res://assets/music/ev_g67_casino_b.ogg"), casino_mix)
 	dir.set_diegetic3(load("res://assets/music/ev_g67_casino_perc.ogg"), casino_perc)
 
@@ -1900,6 +1911,16 @@ func _spawn(foe: String) -> void:
 		pts.append(sp[0])
 	if pts.is_empty():
 		pts = G67District.entry_pts(zid)
+	# точки зоны вне нынешней арены не годятся: в новом дворе коробка Миши в другом месте, чем в старом G67Yard.ZONES,
+	# и свита антракта появлялась за 60 м за забором — «вызов свиты никого не вызывает»
+	var yard_d := not G67District.is_podzemka()          # в Подземке арена в этот миг ещё прежняя — там точки зоны как есть
+	if yard_d:
+		pts = pts.filter(func(q): return game.in_arena(q as Vector3, -4.0))           # до 4 м за краем — двери и проходы зоны
+	if pts.is_empty() and yard_d:
+		for v in [Vector3(-h.x, 0, 0), Vector3(h.x, 0, 0), Vector3(0, 0, -h.y), Vector3(0, 0, h.y), Vector3(-h.x, 0, -h.y), Vector3(h.x, 0, h.y)]:
+			var q: Vector3 = c + v
+			if not world.blocked(q):
+				pts.append(q)
 	pts.shuffle()
 	for q in pts:
 		if (q as Vector3).distance_to(pp) >= 7.0:
@@ -3247,12 +3268,47 @@ func _free_k(mid: Vector3, pos: Vector3) -> float:
 
 ## План из двух вариантов (с одной и с другой стороны): берём тот, где меньше стен; стена на пути — камера ближе
 func _plan(mid: Vector3, pos: Vector3, look: Vector3, fov: float, alt := Vector3.INF) -> Dictionary:
-	if alt != Vector3.INF and _free_k(mid, alt) > _free_k(mid, pos):
+	if alt != Vector3.INF and _free_k(mid, alt) * _crowd_k(alt, look) > _free_k(mid, pos) * _crowd_k(pos, look):
 		pos = alt
 	var k := _free_k(mid, pos)
 	if k < 1.0:
 		pos = mid.lerp(pos, maxf(0.25, k * 0.9))
+	if _crowd_k(pos, look) < 1.0:
+		pos += Vector3(0, 0.9, 0)         # между камерой и собеседником стоит человек (очередь у окошка): смотрим поверх голов
 	return {"pos": pos, "look": look, "fov": fov}
+
+var talk_people: Array = []      # где стоят посторонние люди на время разговора (talk_begin): план не ставится им в затылок
+
+## 1 — между камерой и тем, на кого она смотрит, никого; 0.4 — кто-то из посторонних заслоняет кадр
+func _crowd_k(pos: Vector3, look: Vector3) -> float:
+	var a := Vector2(pos.x, pos.z)
+	var b := Vector2(look.x, look.z)
+	var ab := b - a
+	var ln := ab.length()
+	if ln < 0.1:
+		return 1.0
+	for pp in talk_people:
+		var c := Vector2((pp as Vector3).x, (pp as Vector3).z)
+		var t := clampf((c - a).dot(ab) / (ln * ln), 0.0, 1.0)
+		if t * ln > 0.3 and (1.0 - t) * ln > 0.6 and c.distance_to(a + ab * t) < 0.55:
+			return 0.4
+	return 1.0
+
+func _talk_people(partner, mid: Vector3) -> void:
+	talk_people = []
+	if world == null:
+		return
+	for r in world.find_children("*", "Skeleton3D", true, false):     # люди — по скелетам (имя класса скрипта Rig find_children не находит)
+		var n := r as Node3D
+		if n == null or not n.is_visible_in_tree():
+			continue
+		if partner != null and is_instance_valid(partner) and (partner as Node).is_ancestor_of(n):
+			continue
+		if game.player.is_ancestor_of(n) or (game.buddy != null and is_instance_valid(game.buddy) and game.buddy.is_ancestor_of(n)):
+			continue
+		var gp := n.global_position
+		if gp.distance_to(mid) < 12.0:
+			talk_people.append(gp)
 
 ## Составить планы разговора: kind — flurr / kiosk / chandelier / pigeons / krot; lines — реплики (код|текст)
 func talk_begin(partner, kind: String, lines: Array) -> void:
@@ -3269,6 +3325,7 @@ func talk_begin(partner, kind: String, lines: Array) -> void:
 	var Hh := H + Vector3(0, 1.45, 0)
 	var Qh := Q + Vector3(0, qy, 0)
 	var sep := H.distance_to(Q)
+	_talk_people(partner, M)
 	talk_shots = [
 		_plan(M, M + S * sd * (3.2 + sep * 0.6) + A * 0.8 + Vector3(0, 0.1, 0), M, 62.0, M - S * sd * (3.2 + sep * 0.6) + A * 0.8 + Vector3(0, 0.1, 0)),                       # 0 общий: оба в профиль
 		_plan(M, Qh + S * sd * 1.5 - A * 0.9 + Vector3(0, 0.1, 0), Qh, 38.0, Qh - S * sd * 1.5 - A * 0.9 + Vector3(0, 0.1, 0)),                          # 1 собеседник в три четверти
@@ -3308,6 +3365,7 @@ func talk_begin(partner, kind: String, lines: Array) -> void:
 	talk_fov = float(sh0["fov"])
 	talk_t = 1.0
 	talk_on = true
+	talk_cut_n += 1                  # вход в разговор — склейка на первый план
 	talk_wait_ui = false
 	_talk_hud(true)
 
@@ -3319,6 +3377,8 @@ func talk_end() -> void:
 	talk_out_t = TALK_OUT          # из последнего плана — плавно за спину героя (camera() / _talk_out_tick)
 
 const TALK_OUT := 0.55
+const TALK_CUT_DEG := 30.0
+var talk_cut_n := 0              # сколько склеек планов было (проверка отличает склейку от рывка)
 var talk_out_t := 0.0
 var talk_wait_ui := false
 
@@ -3382,6 +3442,16 @@ func _talk_step(dt: float) -> void:
 	if want != talk_cur and want < talk_shots.size():
 		talk_cur = want
 		talk_t = 0.0
+		var nx: Dictionary = talk_shots[want]
+		var d0 := (talk_look - talk_pos).normalized()
+		var d1 := ((nx["look"] as Vector3) - (nx["pos"] as Vector3)).normalized()
+		if d0.angle_to(d1) > deg_to_rad(TALK_CUT_DEG) or talk_pos.distance_to(nx["pos"]) > 2.5:
+			# большой разворот — чистая склейка: быстрый «пролёт» на 100–150° за пару кадров выглядел как сорвавшаяся камера
+			talk_pos = nx["pos"]
+			talk_look = nx["look"]
+			talk_fov = float(nx["fov"])
+			talk_t = 1.0
+			talk_cut_n += 1
 	talk_t = minf(1.0, talk_t + dt / 0.35)
 	var sh: Dictionary = talk_shots[talk_cur]
 	var k := 1.0 - exp(-14.0 * dt) if talk_t >= 1.0 else minf(1.0, dt / 0.12)
@@ -5266,6 +5336,14 @@ func result_new_run() -> void:
 		unlock_clip("NEWS01")
 	await enter_hub()
 	await start_run(sel_district)
+
+## «ПРОДОЛЖИТЬ» после первой победы над Мишей: новый забег во двор, мини-карта ведёт к арке дома № 81 и спуску в ПОДЗЕМКУ
+func result_continue() -> void:
+	await result_new_run()
+	if is_instance_valid(game) and game.golda == self and place == "run" and auto_clips and not auto_played("NEWS01"):
+		await play_auto("NEWS01")            # «РАЙОННЫЙ ВЕСТНИК 67» — как при возвращении в подъезд, но сразу во дворе
+	if is_instance_valid(game) and game.golda == self and place == "run":
+		game.banner("ДАЛЬШЕ — ПОДЗЕМКА", "арка дома № 81: путь на карте", Color(0.62, 0.85, 0.25), 3.5)
 
 # ---------------------------------------------------------------- HUD и взаимодействие
 ## Строка вверху экрана вместо главы и задания кампании

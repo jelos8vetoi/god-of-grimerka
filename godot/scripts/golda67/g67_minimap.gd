@@ -129,6 +129,14 @@ func _rebuild() -> void:
 			elif cat == "act" and model == "kiosk_90s":
 				vid = "gar"
 			if vid == "" and model != "" and cat != "boss" and not G67Dvor2.NO_BODY.has(model.replace("game:", "")):
+				var man: Dictionary = G.world.dvor.man
+				if bool(it.get("mark", false)) and man.has(model):
+					# преграда такой вещи — по размеру модели, а не по квадрату разметки (ЛАЗ: 10,7 м против 4 м — маршрут вёл сквозь автобус)
+					var sz: Array = man[model]["size"]
+					var yr := deg_to_rad(float(it["yaw"]))
+					var bw := absf(float(sz[0]) * cos(yr)) + absf(float(sz[1]) * sin(yr))
+					var bh := absf(float(sz[0]) * sin(yr)) + absf(float(sz[1]) * cos(yr))
+					r = r.merge(Rect2(float(it["x"]) - bw * 0.5, -float(it["y"]) - bh * 0.5, bw, bh))
 				_solid(r.grow(0.35))             # остановка, машины, лавки, горки: на карте не рисуются, но маршрут их обходит
 			if vid == "":
 				continue
@@ -273,6 +281,8 @@ func goal() -> Dictionary:
 	if G67District.is_podzemka():
 		if G.room_state == "boss":
 			return {"text": "Победи FORTUNA 812", "pos": null}
+		if G.room_state == "over":                    # FORTUNA побеждена: дальше ролик и итоги, а не «к первому турникету»
+			return {"text": "", "pos": null}
 		if G.room_state == "fight":
 			return {"text": "Разберись с этими · осталось %d" % (G.alive() + G.pending.size()), "pos": null}
 		var best = null

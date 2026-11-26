@@ -336,7 +336,17 @@ func diegetic_playing() -> int:
 func diegetic_sources() -> int:
 	return 1 if _dieg_node != null and dieg.stream != null else 0
 
+## Громкий диегетический источник (песня комнаты хомяков): потолок +6 дБ, большой радиус слышимости, без среза верхов;
+## false — как было (казино, «via»)
+func dieg_open(on: bool) -> void:
+	for d in [dieg, dieg2, dieg3]:
+		d.max_db = 6.0 if on else 0.0
+		d.unit_size = 9.0 if on else 5.0
+		d.attenuation_filter_cutoff_hz = 20500.0 if on else 4500.0
+		d.bus = "Music" if on else "MusicDiegetic"      # у MusicDiegetic срез 220 Гц…3,8 кГц — песня звучала как из-за стены
+
 func stop_diegetic() -> void:
+	dieg_open(false)
 	dieg.stop()
 	dieg2.stop()
 	dieg3.stop()

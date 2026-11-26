@@ -274,7 +274,7 @@ func _clear_ride() -> void:
 ## с колеса на колесо и подпрыгивает, при выстреле воздухом — отдача назад, при прыжке вытягивается, при
 ## приземлении и таране приседает. Всё — небольшие смещения узла rock: руки героя держат трубу в прежней точке.
 func _process(dt: float) -> void:
-	if hum != null and hum.playing and Engine.get_physics_frames() - hum_frame > 3:
+	if hum != null and hum.playing and (Engine.get_physics_frames() - hum_frame > 3 or not hum_allowed()):
 		hum.volume_db = move_toward(hum.volume_db, -80.0, 160.0 * dt)
 		if hum.volume_db <= -79.0:
 			hum.stop()
@@ -1207,10 +1207,27 @@ func _act_hit() -> void:
 		_mark(a.id)
 
 # ---------------- звук мотора ----------------
+var hum_level := 0.0            # уровень, который гул получил в последний раз (читают проверки: в тестах звук не играет)
+
+## Гул звучит, только когда герой правда работает пылесосом: состояние «tyaga», стиль ТЯГА, не разговор, не экран
+## подъезда и не ролик «Голды 67», герой не заморожен постановкой. Иначе гасим, кто бы ни просил уровень
+## («звук пылесоса снова гудит не переставая», 2026-11-26).
+func hum_allowed() -> bool:
+	if p == null or not is_instance_valid(p) or String(p.state) != "tyaga" or not p.is_physics_processing():
+		return false
+	if p.style == null or style == null or String(p.style.id) != String(style.id):      # стиль героя — пылесос (id «tyaga812»)
+		return false
+	if game == null or String(game.mode) == "dlg":
+		return false
+	var gg = game.get("golda")
+	if gg != null and is_instance_valid(gg) and (gg.get("hub_ui") != null or gg.get("clip") != null or bool(gg.get("talk_on"))):
+		return false
+	return true
 func _hum(level: float) -> void:
 	hum_frame = Engine.get_physics_frames()
-	if mode == "off":
+	if mode == "off" or not hum_allowed():
 		level = 0.0
+	hum_level = level
 	if not hum.playing:
 		if level <= 0.0 or game.main.testing() != "":
 			return
