@@ -176,6 +176,7 @@ func run(g_, G_: Golda67) -> void:
 	await _krot_checks()
 	await _mech_checks()
 	await _hamster_checks()
+	await _wall_cam_checks()
 	await _routes()
 	await _full_run()
 	await _save_resume()
@@ -659,8 +660,33 @@ func _krot_checks() -> void:
 	G._krot_done("krot5")
 	await c.wait(0.2)
 
+## Герой вплотную к стене, сдвиг камеры «из-за плеча» смотрит в стену: камера остаётся в комнатах, а не в пустоте за стеной
+func _wall_cam_checks() -> void:
+	var P = g.player
+	var out := []
+	for t in [[Vector3(-13.55, 0.05, -130.0), PI * 0.5], [Vector3(-13.55, 0.05, -114.0), PI * 0.5], [Vector3(13.55, 0.05, -114.0), -PI * 0.5], [Vector3(-15.5, 0.05, -150.0), 0.0]]:
+		P.global_position = t[0]
+		P.velocity = Vector3.ZERO
+		for yo in [-0.6, 0.0, 0.6]:
+			g.cam_yaw = float(t[1]) + yo
+			await c.wait(0.7)
+			var cp: Vector3 = g.cam.global_position
+			var cp2 := cp
+			var inside := false
+			for dx in [-0.4, 0.0, 0.4]:              # ровно в плоскости стены (ближе 0,4 м) — не пустота; пустота — дальше
+				for dz in [-0.4, 0.0, 0.4]:
+					if G67Podzemka.room_at(cp2 + Vector3(dx, 0, dz)) != "":
+						inside = true
+			if not inside:
+				out.append("герой %s, взгляд %.1f → камера %s" % [str(t[0]), float(t[1]) + yo, str(cp.snapped(Vector3(0.1, 0.1, 0.1)))])
+	for s2 in out:
+		print("GOLDA67CHECK   камера за стеной: " + s2)
+	ok(out.is_empty(), "герой у стены: камера не уходит за стену (за стеной %d раз)" % out.size())
+
 ## Мини-игра хомяков: бот с точностью 80 % и 100 %, комбо, золотой; казино: поле на 67-м и после него; ОШЕЙНИК один раз
 func _hamster_checks() -> void:
+	var fly := (G.world.district as G67Podzemka).hamsters.filter(func(h): return float(h[1]) > 0.15)
+	ok(fly.is_empty(), "хомяки-украшения стоят на полу, в воздухе не висят (висят: %d)" % fly.size())
 	var hg := G67HamsterGame.new()
 	hg.headless = true
 	hg.holes = []
@@ -699,6 +725,33 @@ func _hamster_checks() -> void:
 			for h in hg2.hams.duplicate():
 				if not bool(h["hit"]) and float(h["age"]) > 0.3 and hg2.rng.randf() < 0.75 and (String(h["kind"]) != "gold" or shot_gold):
 					hg2.tap_hole(int(h["hole"]))
+	# мышь — настоящим событием ввода: клик по вылезшему хомяку засчитывается (раньше клик съедал Control и до игры не доходил)
+	var mouse_hit := false
+	for k2 in 60:
+		await c.wait(0.1)
+		if hg2.cam == null or hg2.done:
+			break
+		for h in hg2.hams.duplicate():
+			if not bool(h["hit"]) and float(h["age"]) > 0.15:
+				var sp: Vector2 = hg2.cam.unproject_position(hg2.hole_pos[int(h["hole"])])
+				var hits0: int = hg2.hits
+				var mb := InputEventMouseButton.new()
+				mb.button_index = MOUSE_BUTTON_LEFT
+				mb.pressed = true
+				mb.position = sp
+				mb.global_position = sp
+				hg2.get_viewport().push_input(mb, true)
+				var mu := mb.duplicate() as InputEventMouseButton
+				mu.pressed = false
+				hg2.get_viewport().push_input(mu, true)
+				await c.wait(0.05)
+				if hg2.hits > hits0:
+					mouse_hit = true
+				break
+		if mouse_hit:
+			break
+	ok(mouse_hit, "тапалка: клик мышью по хомяку засчитан (попаданий %d)" % hg2.hits)
+	ok(MouseMode.want == Input.MOUSE_MODE_VISIBLE, "тапалка: курсор виден на время игры")
 	hg2._end(false)
 	await c.wait(0.3)
 	await c.shot("pz_hamster_card")

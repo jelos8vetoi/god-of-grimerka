@@ -47,6 +47,7 @@ var cam_from := Vector3.ZERO
 var cam_to := Vector3.ZERO
 var extra_nodes: Array = []
 var _next_id := 1
+var prev_mouse: Input.MouseMode = Input.MOUSE_MODE_VISIBLE
 
 func _ready() -> void:
 	rng.randomize()
@@ -58,6 +59,8 @@ func _ready() -> void:
 	squeak_pl.stream = synth_squeak()
 	squeak_pl.volume_db = -4.0
 	add_child(squeak_pl)
+	prev_mouse = MouseMode.want
+	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)       # в бою мышь захвачена и курсора нет — по хомякам бьём курсором
 	start()
 
 func _layout() -> void:
@@ -363,18 +366,25 @@ func _add_stars(pos: Vector3) -> void:
 	stars.append([lb, 0.45])
 	extra_nodes.append(lb)
 
-func _unhandled_input(ev: InputEvent) -> void:
-	if headless:
+## Мышь — в _input (раньше всех, до GUI): экран игры — Control с MOUSE_FILTER_STOP, он забирал клик себе, и до
+## _unhandled_input нажатие не доходило («мышка на тапанье хомяков не работает», 2026-11-25)
+func _input(ev: InputEvent) -> void:
+	if headless or not is_visible_in_tree():
 		return
 	if ev is InputEventMouseMotion:
-		cursor = ev.position
+		cursor = (ev as InputEventMouse).position
 	elif ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+		cursor = (ev as InputEventMouse).position
 		if done:
 			finished.emit({"closed": true})
 		else:
-			tap_at(get_local_mouse_position())
-		accept_event()
-	elif ev is InputEventKey and ev.pressed and not ev.echo:
+			tap_at(cursor)
+		get_viewport().set_input_as_handled()
+
+func _unhandled_input(ev: InputEvent) -> void:
+	if headless:
+		return
+	if ev is InputEventKey and ev.pressed and not ev.echo:
 		if ev.keycode == KEY_E:
 			if done:
 				finished.emit({"closed": true})
@@ -385,6 +395,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			paused = not paused
 
 func cleanup() -> void:
+	MouseMode.set_to(prev_mouse)
 	for n in extra_nodes:
 		if is_instance_valid(n):
 			n.queue_free()

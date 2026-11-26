@@ -24,7 +24,7 @@ const CHECK_LIVE := 7.0
 const CHANGE_WARN := 0.7
 const CHANGE_COINS := 7
 const CHANGE_CONE := 1.2217      # 70°
-const CHANGE_DMG := 5.5      # было 7.0 (ослаблен 2026-11-24)
+const CHANGE_DMG := 6.5      # 7.0 → 5.5 (ослаблен 2026-11-24) → 6.5 («слишком лёгкий», 2026-11-25)
 const CONSULT_MAX := 8.0
 const CONSULT_HEAL := 0.015      # доля максимума в секунду
 const CONSULT_ZONE := Vector2(10.0, 7.0)
@@ -32,7 +32,7 @@ const CONSULT_STUN := 2.5
 const CONSULT_HP_GATE := 0.8     # консультация доступна ниже 80 % здоровья
 const PIN_OPEN := 2.0
 const EXHALE := 1.2                  # «выдох» после ЧЕКА и СДАЧИ: босс пересчитывает на калькуляторе, открыт (окно урона)
-const PAUSES := [2.4, 2.0, 1.6]      # пауза между приёмами по фазам, с
+const PAUSES := [2.1, 1.7, 1.3]      # пауза между приёмами по фазам, с (было 2.4 / 2.0 / 1.6 — «слишком лёгкий», 2026-11-25)
 const NO_ZONE_FIRST := 8.0           # в первые секунды боя платных зон нет
 const CYCLE := ["f_gates", "f_zone", "f_check", "f_change"]
 
@@ -300,7 +300,7 @@ static func _consult(e, ar) -> void:
 	say(e, "consult")
 	e.rig.play_for("FConsult", CONSULT_MAX + 1.0, 0.1)
 	var g = e.game
-	var cash: Vector3 = ar.CASH_POS + Vector3(0.0, 0.0, 1.4)
+	var cash: Vector3 = ar.CASH_POS + Vector3(0.0, 0.0, 2.1)      # перед стойкой: на 1,4 м тело входило в стойку и стекло кассы
 	var zc := Vector3(0.0, 0.0, ar.CASH_POS.z + 3.0)
 	var st := {"t": 0.0, "out": 0.0, "done": false}
 	e._at(0.5, func():

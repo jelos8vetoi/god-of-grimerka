@@ -429,6 +429,21 @@ func _run() -> void:
 	ok(int(ev("slam")) == 2 and m1.hp < 9999.0 and m2.hp < 9999.0 and P.rig.cur == "RideSlamLand", "ПРИЗЕМЛЕНИЕ: удар по области — задеты оба (%s), клип %s" % [str(ev("slam")), P.rig.cur])
 	await frames(30)
 	ok(T.mode == "ride" and not T.slam, "после удара герой остался верхом")
+	# гул: на ходу есть, стоя верхом и в разговоре — нет
+	cruise(8.0)
+	await frames(4)
+	var hum_ride: float = T.hum_level
+	T.speed = 0.0
+	await frames(20)
+	var hum_stand: float = T.hum_level
+	var mode0: String = game.mode
+	game.mode = "dlg"
+	cruise(8.0)
+	await frames(6)
+	var hum_dlg: float = T.hum_level
+	game.mode = mode0
+	T.speed = 0.0
+	ok(hum_ride > 0.5 and hum_stand == 0.0 and hum_dlg == 0.0, "гул мотора: на ходу %.2f, стоя верхом %.2f, в разговоре %.2f" % [hum_ride, hum_stand, hum_dlg])
 	P.auto_input = {}
 	print("TYAGACHECK ok" if fails == 0 else "TYAGACHECK ОШИБОК: %d" % fails)
 	get_tree().quit()

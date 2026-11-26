@@ -215,6 +215,8 @@ func _roof_snow(holder: Node3D, m: Dictionary, snow: Material) -> void:
 	holder.add_child(mi)
 	count["roof_snow"] = int(count.get("roof_snow", 0)) + 1
 
+const CAM_SOLID_H := 2.2                 # ниже этого реквизит (лавки, машины, урны) камеру не останавливает
+
 ## Преграда: коробка w × h плана, высотой hgt от z0. layer 1 — герой и враги, 8 — камера.
 func solid(x: float, y: float, w: float, h: float, hgt: float, yaw_deg := 0.0, z0 := 0.0, layer := 9) -> StaticBody3D:
 	var sb := StaticBody3D.new()
@@ -231,9 +233,10 @@ func solid(x: float, y: float, w: float, h: float, hgt: float, yaw_deg := 0.0, z
 	count["bodies"] = int(count["bodies"]) + 1
 	return sb
 
+## Стволы, столбы и знаки — только слой 1: камера сквозь них проходит, а не прыгает к герою (в проходе ботом — «КАМЕРА РЫВОК» у деревьев).
 func _trunk(x: float, y: float, r: float, hgt: float) -> void:
 	var sb := StaticBody3D.new()
-	sb.collision_layer = 9
+	sb.collision_layer = 1
 	sb.collision_mask = 0
 	var cs := CollisionShape3D.new()
 	var cy := CylinderShape3D.new()
@@ -255,7 +258,8 @@ func _body_for(id: String, x: float, y: float, yaw_deg: float, k: float) -> void
 	var sz: Array = man[id]["size"]
 	if float(sz[2]) * k < 0.25:
 		return
-	solid(x, y, float(sz[0]) * k, float(sz[1]) * k, float(sz[2]) * k, yaw_deg)
+	var hz: float = float(sz[2]) * k
+	solid(x, y, float(sz[0]) * k, float(sz[1]) * k, hz, yaw_deg, 0.0, 9 if hz >= CAM_SOLID_H else 1)   # низкий реквизит камеру не толкает
 
 func _light(x: float, y: float, h: float, kind: String) -> void:
 	var p: Array = LIGHT[kind]

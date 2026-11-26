@@ -2,7 +2,7 @@ class_name G67ResultUI
 extends G67Diorama
 ## Итоги забега: «ПОБЕДА» / «ЗАБЕГ ОКОНЧЕН» (при первой победе над Мишей крупно «ГЛАВА 1 ПРОЙДЕНА»), этапы цепочкой значков,
 ## враги, голда, РЕСПЕКТ по источникам, бафы и артефакты, «ОТКРЫТО» (только реально открывшееся в этом забеге) и «ДАЛЬШЕ».
-## Кнопки: «В ПОДЪЕЗД» и «НОВЫЙ ЗАБЕГ». Данные — Golda67.result (РЕСПЕКТ в сохранении уже записан). Esc ничего не закрывает.
+## Кнопки: «В ПОДЪЕЗД» и «НОВЫЙ ЗАБЕГ» (после первой победы над Мишей — «ПРОДОЛЖИТЬ»: к спуску в ПОДЗЕМКУ). Данные — Golda67.result (РЕСПЕКТ в сохранении уже записан). Esc ничего не закрывает.
 
 const PARTS := {"battle": "бои", "elite": "элита", "calm": "мирные этапы", "boss": "босс"}
 var btns: Array = []
@@ -53,8 +53,8 @@ func _build() -> void:
 	y += 96.0
 	_t("ВРАГОВ ПОБЕЖДЕНО: %d" % int(R.get("kills", 0)), "display", 28, col, Vector2(70, y))
 	y += 46.0
-	_t("ГОЛДА: получено %d · потрачено %d · сгорело %d" % [int(R.get("earned", 0)), int(R.get("spent", 0)), int(R.get("left", 0))], "display", 28, col, Vector2(70, y), 760)
-	y += 46.0
+	var gl := _t("ГОЛДА: получено %d · потрачено %d · сгорело %d" % [int(R.get("earned", 0)), int(R.get("spent", 0)), int(R.get("left", 0))], "display", 28, col, Vector2(70, y), 760)
+	y += 46.0 + 36.0 * maxf(0.0, float(gl.get_line_count() - 1))      # длинная строка переносится — следующая ниже, а не поверх
 	_t("РЕСПЕКТ: +%d" % int(R.get("got", 0)), "display", 34, Color(1.0, 0.86, 0.4), Vector2(70, y))
 	y += 46.0
 	var pp: Array = []
@@ -83,21 +83,26 @@ func _build() -> void:
 	ny = maxf(ny + 24.0, 520.0)
 	_t("ДАЛЬШЕ", "display", 30, Color(0.95, 0.82, 0.35), Vector2(900, ny))
 	_t(_next_text(R), "ui", 20, col, Vector2(900, ny + 46.0), 640)
+	var go_on := continue_next(R)
 	for k in 2:
 		var b := Btn.new()
-		b.text = "В ПОДЪЕЗД" if k == 0 else "НОВЫЙ ЗАБЕГ"
+		b.text = "В ПОДЪЕЗД" if k == 0 else ("ПРОДОЛЖИТЬ" if go_on else "НОВЫЙ ЗАБЕГ")
 		b.position = Vector2(900 + k * 330, 800)
 		b.size = Vector2(300, 70)
 		b.pivot_offset = b.size * 0.5
 		stage.add_child(b)
 		btns.append(b)
-		add_item(b, "hub" if k == 0 else "new")
-	select(0, true)
+		add_item(b, "hub" if k == 0 else ("next" if go_on else "new"))
+	select(1 if go_on else 0, true)
+
+## Глава пройдена и открыт следующий район: вместо «НОВЫЙ ЗАБЕГ» — «ПРОДОЛЖИТЬ», дальше путь к нему по мини-карте
+static func continue_next(R: Dictionary) -> bool:
+	return bool(R.get("won", false)) and bool(R.get("first", false)) and not Golda67.old_yard and String(R.get("district", "dvor")) != "podzemka"
 
 func _next_text(R: Dictionary) -> String:
 	if bool(R.get("first", false)):
 		if not Golda67.old_yard and String(R.get("district", "dvor")) != "podzemka":
-			return "ДВОР пройден. Решётка под аркой дома № 81 открыта: в следующем забеге можно спуститься в ПОДЗЕМКУ. РЕСПЕКТ идёт в «АВТОРИТЕТ РАЙОНА»."
+			return "ДВОР пройден. Решётка под аркой дома № 81 открыта. «ПРОДОЛЖИТЬ» — снова во двор: путь к арке и спуску в ПОДЗЕМКУ отмечен на карте. РЕСПЕКТ идёт в «АВТОРИТЕТ РАЙОНА»."
 		return "ДВОР пройден. Следующий район турнира — ПОДЗЕМКА — в следующей главе. Двор можно проходить снова: маршрут каждый раз другой, РЕСПЕКТ идёт в «АВТОРИТЕТ РАЙОНА»."
 	for u in G67Data.UPGRADES:
 		if bool(u["live"]) and G.up(String(u["id"])) < int(u["max"]) and G.up_cost(String(u["id"])) <= int(R.get("total", 0)):
@@ -118,6 +123,8 @@ func _activate(i: int) -> void:
 	G.game.main.ui("confirm")
 	if String(items[i]["key"]) == "hub":
 		G.result_to_hub()
+	elif String(items[i]["key"]) == "next":
+		G.result_continue()
 	else:
 		G.result_new_run()
 

@@ -202,8 +202,8 @@ func _layout() -> void:
 	sub_text.position = Vector2(fs.x * 0.07, fs.y * (0.80 if not tall else 0.74))
 	sub_name.size = Vector2(fs.x, 0)
 	sub_name.position = Vector2(0, sub_text.position.y - 30.0 * k)
-	hint.position = Vector2(s.x - 330, s.y - 40)
-	hint.size = Vector2(310, 30)
+	hint.size = Vector2(minf(620.0, s.x - 40.0), 30)          # шире текста: в 310 px подсказка вылезала за правый край экрана
+	hint.position = Vector2(s.x - hint.size.x - 20.0, s.y - 40)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 func _run() -> void:

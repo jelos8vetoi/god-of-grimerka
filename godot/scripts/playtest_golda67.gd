@@ -324,7 +324,12 @@ func _ui_tick(gg, g) -> bool:
 					idx = (idx + 1) % n_opt
 				note("ВЫБОР", "вариант %d из %d: «%s» (%s)" % [idx + 1, n_opt, String(gg.hub_ui.items[idx]["key"]), zone_name()])
 				_pick(idx)
+			elif kind == "result" and gg.hub_ui.items.size() > 1 and String(gg.hub_ui.items[1]["key"]) == "next" and int(gg.hub_ui.sel) != 1:
+				note("ВЫБОР", "итоги: «ПРОДОЛЖИТЬ» — стрелкой вправо")
+				tap(KEY_RIGHT)
 			elif kind in ["fit", "result"]:
+				if kind == "result":
+					note("ВЫБОР", "итоги: Enter на «%s»" % String(gg.hub_ui.items[int(gg.hub_ui.sel)]["key"]) if int(gg.hub_ui.sel) >= 0 else "итоги: Enter")
 				tap(KEY_ENTER)
 			elif kind == "kiosk":
 				if not seen.has("kiosk_bought" + String(gg.shop) + str(runs)):
@@ -1025,6 +1030,9 @@ func _cam_hook() -> void:
 		if gg != null and main.game != null and is_instance_valid(main.game):
 			_cam_watch(gg, main.game, main.game.player, get_process_delta_time()))
 
+var cam_cut_prev := 0
+var cam_cuts := 0
+
 func _cam_watch(gg, g, p, dt: float) -> void:
 	var cam: Camera3D = get_viewport().get_camera_3d()
 	if cam == null:
@@ -1041,6 +1049,11 @@ func _cam_watch(gg, g, p, dt: float) -> void:
 		_later_shot("dlg%02d_out0" % cam_dlg_n, 0.05)
 		_later_shot("dlg%02d_out1" % cam_dlg_n, 0.9)
 	var busy: bool = gg.clip != null or gg.get("link_busy") == true or gg.hub_ui != null or g.intro_busy()
+	var cut_n: int = int(gg.get("talk_cut_n")) if gg.get("talk_cut_n") != null else 0
+	if cut_n != cam_cut_prev:            # склейка планов разговора — намеренный монтаж, не рывок
+		cam_cut_prev = cut_n
+		cam_cuts += 1
+		busy = true
 	if cam_prev != Vector3.INF and not busy and dt < 0.1:
 		var jump: float = cp.distance_to(cam_prev)
 		var turn: float = rad_to_deg(cam_prev_b.get_rotation_quaternion().angle_to(cb.get_rotation_quaternion()))

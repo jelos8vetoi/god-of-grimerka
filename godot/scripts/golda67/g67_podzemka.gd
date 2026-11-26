@@ -237,7 +237,7 @@ func _box(pos: Vector3, size: Vector3, mat: Material, solid := true) -> void:
 	add_child(mi)
 	if solid:
 		var sb := StaticBody3D.new()
-		sb.collision_layer = 1 | 8      # 8 — слой камеры (SpringArm3D в game.gd): без него камера проходила сквозь стены и потолки
+		sb.collision_layer = cam_layer(size)      # 8 — слой камеры (SpringArm3D в game.gd): без него камера проходила сквозь стены и потолки
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = size
@@ -303,9 +303,14 @@ func _room(id: String, r: Array) -> void:
 	_wall("z", z1, x0, x1, y0, y1, wm, -1.0)
 	_lamps(id, x0, x1, z0, z1, y1, r[7] as Color)
 
+## Слой преграды: стены (выше 2,2 м), пол и потолок (плиты до 0,6 м) держат камеру; турникеты, тумбы, ограждения — только героя
+## (иначе пружина камеры упиралась в турникет за спиной и вставала вплотную к затылку — финал FORTUNA в проходе ботом)
+static func cam_layer(size: Vector3) -> int:
+	return 1 | 8 if (size.y >= 2.2 or size.y <= 0.6) else 1
+
 func _collider(pos: Vector3, size: Vector3, yaw := 0.0) -> void:
 	var sb := StaticBody3D.new()
-	sb.collision_layer = 1 | 8          # 8 — слой камеры: стены и потолки держат камеру внутри помещения
+	sb.collision_layer = cam_layer(size)          # 8 — слой камеры: стены и потолки держат камеру внутри помещения
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
 	bs.size = size
@@ -536,7 +541,8 @@ const PROPS := [
 	["slot_machine", -52.9, -122.0, PI * 0.5, 0.0, 1.0, true], ["kennel", -50.5, -124.6, 0.0, 0.0, 1.0, true], ["dog", -48.0, -121.0, PI * 0.5, 0.0, 1.0, true], ["collar67", -52.2, -124.8, 0.0, 0.0, 1.0, false],
 	["door_tech", 43.4, -150.6, -PI * 0.5, 0.0, 1.0, false], ["door_tech", 39.6, -162.5, PI * 0.5, 0.0, 1.0, false],
 	["hamster_wall", 51.5, -152.5, 0.0, 0.0, 1.0, true], ["hamster_props", 49.0, -141.5, 0.0, 0.0, 1.0, false],
-	["hamster_a", 47.5, -150.6, 0.0, 0.9, 1.0, false], ["hamster_b", 50.0, -150.6, 0.0, 0.9, 1.0, false], ["hamster_c", 53.0, -150.6, 0.0, 0.9, 1.0, false], ["hamster_gold", 55.5, -150.6, 0.0, 2.1, 1.0, false],
+	# хомяки перед стеной нор — на полу (на 0,9 и 2,1 м они висели в воздухе в двух метрах от стены: «кроты летают», 2026-11-25)
+	["hamster_a", 47.5, -150.2, 0.0, 0.0, 1.0, false], ["hamster_b", 50.0, -150.2, 0.0, 0.0, 1.0, false], ["hamster_c", 53.0, -150.2, 0.0, 0.0, 1.0, false], ["hamster_gold", 55.5, -150.2, 0.0, 0.0, 1.0, false],
 	["bottle_1", 9.4, -77.5, 0.0, 0.0, 1.0, false], ["bottle_2", 41.0, -157.5, 0.0, 0.0, 1.0, false], ["bottle_3", -12.0, -80.0, 0.0, 0.0, 1.0, false], ["bottle_4", -41.0, -136.0, 0.0, 0.0, 1.0, false], ["bottle_5", 10.0, -168.0, 0.0, 0.0, 1.0, false],
 	["emergency_pack", -22.0, -148.0, 0.0, 0.0, 1.0, false],
 	["cash_shield", 13.2, -150.0, -PI * 0.5, 0.0, 1.0, true], ["tariff_board", 0.0, -135.6, PI, 1.8, 1.0, false], ["receipt_printer", -8.0, -150.0, 0.0, 0.0, 1.0, true],

@@ -4530,6 +4530,8 @@ func _run_dvor(g, G: Golda67, P) -> void:
 	var antr: bool = await until(func(): return B.antract, 3.0)
 	await wait(0.8)
 	ok(antr and G.retinue.size() == 3 and String(B.rig.cur) == "MGuard", "антракт фазы 2: Миша в стойке, вбежала свита из %d" % G.retinue.size())
+	var far: Array = G.retinue.filter(func(e): return is_instance_valid(e) and e.global_position.distance_to(B.global_position) > 22.0)
+	ok(far.is_empty(), "свита появилась у коробки Миши, а не за полдвора (дальше 22 м от Миши: %d; Миша %s, арена %s ±%s, свита %s)" % [far.size(), str(B.global_position.snapped(Vector3.ONE)), str(g.arena_c.snapped(Vector3.ONE)), str(g.arena_h), str(G.retinue.map(func(e): return (e.global_position as Vector3).snapped(Vector3.ONE) if is_instance_valid(e) else Vector3.ZERO))])
 	var hpa: float = B.hp
 	B.take_hit(500.0, Vector3.FORWARD, 0.0, true)
 	ok(absf(B.hp - hpa) < 0.01, "в антракте Миша неуязвим")
