@@ -15,8 +15,8 @@ const RED := Color(0.86, 0.09, 0.11)
 var race
 var root: Control
 var stage: Control
-var serif: SystemFont
-var tech: SystemFont
+var serif: Font                     # Russo One, Jovanny Lemonad — SIL OFL 1.1, https://fonts.google.com/specimen/Russo+One (assets/fonts, THIRD_PARTY.md)
+var tech: Font                      # тот же Russo One с чуть шире буквами — мелкий текст, лента, подписи
 var pos_l: Label
 var pos_of: Label
 var lap_l: Label
@@ -24,9 +24,8 @@ var time_l: Label
 var lap_time_l: Label
 var best_l: Label
 var speed_l: Label
-var pips: Array = []
+var drift_bars: Array[ColorRect] = []
 var turbo_bar: ColorRect
-var turbo_back: ColorRect
 var item_card: Polygon2D
 var item_icon: Label
 var item_name: Label
@@ -58,16 +57,24 @@ var weather_l: Label
 var happen_l: Label
 var happen_sub: Label
 
+var item_info: Control             # «что делает предмет» — показывается на 2,6 с при получении
+var info_name: Label
+var info_desc: Label
+var info_tw: Tween
+var ctrl_box: VBoxContainer        # подсказки управления (настройка show_controls)
+var ctrl_sig := ""                 # клавиши, по которым собран список: поменялись — пересобрать
+var ctrl_t := 0.0
+
 var tips: MGHints                  # подсказки и справка (H) — mg_hints.gd
 
 func _ready() -> void:
 	layer = 20
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	serif = SystemFont.new()
-	serif.font_names = PackedStringArray(["Bodoni MT Black", "Bodoni MT", "Playfair Display Black", "Georgia", "Times New Roman", "serif"])
-	serif.font_weight = 900
-	tech = SystemFont.new()
-	tech.font_names = PackedStringArray(["Bahnschrift", "Segoe UI", "Arial", "sans-serif"])
+	serif = load("res://assets/fonts/RussoOne-Regular.ttf")
+	var fv := FontVariation.new()
+	fv.base_font = serif
+	fv.spacing_glyph = 1               # мелкий текст на скорости читается лучше чуть разреженным
+	tech = fv
 	root = Control.new()
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
@@ -106,6 +113,20 @@ func _text(parent: Node, s: String, size: int, col: Color, pos: Vector2, f: Font
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(l)
 	return l
+
+func _meter(pos: Vector2, size_px: Vector2, fill_color: Color) -> ColorRect:
+	var back := ColorRect.new()
+	back.position = pos
+	back.size = size_px
+	back.color = Color(0.14, 0.14, 0.16, 0.85)
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stage.add_child(back)
+	var fill := ColorRect.new()
+	fill.size = Vector2(0, size_px.y)
+	fill.color = fill_color
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	back.add_child(fill)
+	return fill
 
 func _torn(w: float, h: float, seed_v: int) -> PackedVector2Array:
 	var rng := RandomNumberGenerator.new()
@@ -239,7 +260,7 @@ func _build() -> void:
 	for a in ["race_drift", "race_jump", "race_boost"]:
 		tip = tip.replace("{%s}" % a, "[%s]" % " / ".join(RaceSave.keys_of(a)))
 	tip_l.text = tip
-	# трюки и комбо — над спидометром и по центру снизу
+	# трюки и комбо — в нижней части экрана
 	trick_l = _text(stage, "", 44, Color(1.0, 0.85, 0.25), Vector2(0, 560), serif)
 	trick_l.size = Vector2(STAGE.x, 56)
 	trick_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -254,37 +275,16 @@ func _build() -> void:
 	combo_bar.color = Color(1.0, 0.85, 0.25)
 	combo_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(combo_bar)
-	# справа снизу: скорость, занос, турбо
-	var sc := Polygon2D.new()
-	sc.polygon = _torn(300, 150, 21)
-	sc.color = Color(0.03, 0.03, 0.035, 0.8)
-	sc.position = Vector2(1270, 716)
-	stage.add_child(sc)
-	speed_l = _text(stage, "0", 72, WHITE, Vector2(1280, 712), serif)
-	speed_l.size = Vector2(170, 80)
-	speed_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_text(stage, "КМ/Ч", 18, SILVER, Vector2(1458, 760))
-	_text(stage, "ЗАНОС", 13, GREY, Vector2(1290, 800))
+	# Скорость под верхними показателями, запасы турбо и дрифта справа.
+	speed_l = _text(stage, "0 км/ч", 28, WHITE, Vector2(STAGE.x * 0.5 - 120, 262), tech)
+	speed_l.size = Vector2(240, 34)
+	speed_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	speed_l.add_theme_constant_override("outline_size", 4)
+	_text(stage, "ТУРБО", 14, SILVER, Vector2(1320, 803))
+	turbo_bar = _meter(Vector2(1390, 810), Vector2(164, 6), WHITE)
+	_text(stage, "ДРИФТ", 14, SILVER, Vector2(1320, 829))
 	for k in 3:
-		var pp := Polygon2D.new()
-		pp.polygon = PackedVector2Array([Vector2(0, 0), Vector2(34, 0), Vector2(28, 14), Vector2(-6, 14)])
-		pp.position = Vector2(1350 + k * 40, 802)
-		pp.color = Color(0.25, 0.25, 0.27)
-		stage.add_child(pp)
-		pips.append(pp)
-	_text(stage, "ТУРБО", 13, GREY, Vector2(1290, 826))
-	turbo_back = ColorRect.new()
-	turbo_back.position = Vector2(1350, 830)
-	turbo_back.size = Vector2(200, 10)
-	turbo_back.color = Color(0.2, 0.2, 0.22)
-	turbo_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stage.add_child(turbo_back)
-	turbo_bar = ColorRect.new()
-	turbo_bar.position = turbo_back.position
-	turbo_bar.size = Vector2(0, 10)
-	turbo_bar.color = WHITE
-	turbo_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stage.add_child(turbo_bar)
+		drift_bars.append(_meter(Vector2(1390 + k * 56, 836), Vector2(52, 6), race._drift_col(k + 1)))
 	# слева снизу: мини-карта
 	map = Control.new()
 	map.position = Vector2(30, 640)
@@ -316,16 +316,47 @@ func _build() -> void:
 	happen_sub = _text(stage, "", 18, WHITE, Vector2(0, 656))
 	happen_sub.size = Vector2(STAGE.x, 26)
 	happen_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# лента событий — слева над мини-картой, растёт снизу вверх; без плашки, только лёгкая тень под строкой
 	feed_box = VBoxContainer.new()
-	feed_box.position = Vector2(560, 150)
-	feed_box.size = Vector2(480, 120)
+	feed_box.position = Vector2(30, 444)
+	feed_box.size = Vector2(440, 186)
+	feed_box.alignment = BoxContainer.ALIGNMENT_END
+	feed_box.add_theme_constant_override("separation", 3)
 	feed_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(feed_box)
+	# что делает полученный предмет — справа под карточкой предмета, 2,6 с
+	item_info = Control.new()
+	item_info.position = Vector2(1090, 266)
+	item_info.size = Vector2(480, 64)
+	item_info.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	item_info.modulate.a = 0.0
+	stage.add_child(item_info)
+	var stripe := Polygon2D.new()
+	stripe.polygon = PackedVector2Array([Vector2(474, 2), Vector2(480, 0), Vector2(478, 58), Vector2(472, 60)])
+	stripe.color = RED
+	item_info.add_child(stripe)
+	info_name = _text(item_info, "", 26, WHITE, Vector2(0, 0), serif)
+	info_name.size = Vector2(462, 32)
+	info_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	info_desc = _text(item_info, "", 17, SILVER, Vector2(0, 34))
+	info_desc.size = Vector2(462, 24)
+	info_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	info_desc.add_theme_constant_override("outline_size", 5)
+	# подсказки управления — справа посередине, без коробки: «клавиша — действие»
+	ctrl_box = VBoxContainer.new()
+	ctrl_box.position = Vector2(1250, 352)
+	ctrl_box.size = Vector2(320, 290)
+	ctrl_box.add_theme_constant_override("separation", 4)
+	ctrl_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stage.add_child(ctrl_box)
+	controls_refresh()
 
 # ---------------- каждый кадр ----------------
 func _process(dt: float) -> void:
 	if race == null:
 		return
+	if results_ui != null:
+		return                                     # финиш: игровой HUD спрятан и больше не обновляется
 	var me: RaceRider = race.local
 	var n: int = race.riders.size()
 	if me != null:
@@ -347,11 +378,18 @@ func _process(dt: float) -> void:
 		var best: float = me.best_lap
 		var rec := RaceSave.best(String(race.cfg.get("track", "")), "lap")
 		best_l.text = ("ЛУЧШИЙ КРУГ  " + fmt(best) if best > 0.0 else "") + ("   ·   РЕКОРД  " + fmt(rec) if rec > 0.0 else "")
-		speed_l.text = str(int(round(absf(me.speed) * 3.6)))
-		var lv: int = me.drift_lvl if me.drifting else 0
-		for k in 3:
-			(pips[k] as Polygon2D).color = race._drift_col(k + 1) if lv > k else Color(0.25, 0.25, 0.27)
-		turbo_bar.size.x = 200.0 * me.turbo / float(RaceData.PHYS["turbo_max"])
+		speed_l.text = "%d км/ч" % roundi(me.get_real_velocity().length() * 3.6)
+		speed_l.visible = count_l.text.is_empty() or count_l.modulate.a <= 0.05
+		var blend := 1.0 - exp(-12.0 * dt)
+		var levels: Array = RaceData.PHYS["drift_levels"]
+		var charge := me.drift_t if me.drifting else 0.0
+		for k in drift_bars.size():
+			var start := 0.0 if k == 0 else float(levels[k - 1])
+			var fill := clampf(inverse_lerp(start, float(levels[k]), charge), 0.0, 1.0)
+			var bar := drift_bars[k]
+			bar.size.x = lerpf(bar.size.x, (bar.get_parent() as ColorRect).size.x * fill, blend)
+		var turbo_fill := clampf(me.turbo / float(RaceData.PHYS["turbo_max"]), 0.0, 1.0)
+		turbo_bar.size.x = lerpf(turbo_bar.size.x, (turbo_bar.get_parent() as ColorRect).size.x * turbo_fill, blend)
 		turbo_bar.color = RED if me.turbo_on else (WHITE if me.turbo >= float(RaceData.PHYS["turbo_min"]) else GREY)
 		if me.item != item_seen:
 			item_seen = me.item
@@ -391,12 +429,19 @@ func _process(dt: float) -> void:
 		var Wd: Dictionary = race.weather.W
 		weather_l.text = "%s %s" % [String(Wd.get("icon", "")), String(Wd.get("name", ""))] + ("  ·  ветер %d м/с" % int(race.weather.wind.length()) if race.weather.wind.length() > 0.5 else "")
 	dust.color.a = clampf(race.dust_vis, 0.0, 1.0) * 0.55
+	ctrl_t -= dt
+	if ctrl_t <= 0.0:
+		ctrl_t = 0.5
+		controls_refresh()
 	map.queue_redraw()
 
 static func fmt(t: float) -> String:
 	t = maxf(0.0, t)
 	return "%02d:%05.2f" % [int(t / 60.0), fmod(t, 60.0)]
 
+## мини-карта без подложки: дорога — светлая лента с тёмным контуром (так она видна на любом фоне), срезка —
+## пунктиром, финиш — шашечки, контрольные точки — короткие поперечные чёрточки; следующая — пульсирующий красный
+## ромб с кольцом и красный путь по дороге от игрока до неё; игрок — стрелка по направлению езды
 func _draw_map() -> void:
 	var xf: RaceTrack = race.track
 	if xf == null or xf.P.size() < 2:
@@ -407,31 +452,78 @@ func _draw_map() -> void:
 		mn = mn.min(Vector2(p.x, p.z))
 		mx = mx.max(Vector2(p.x, p.z))
 	var span := mx - mn
-	var k: float = minf((map.size.x - 20.0) / span.x, (map.size.y - 20.0) / span.y)
+	var k: float = minf((map.size.x - 28.0) / maxf(span.x, 1.0), (map.size.y - 28.0) / maxf(span.y, 1.0))
 	var off := (map.size - span * k) * 0.5
 	var to := func(p: Vector3) -> Vector2: return off + (Vector2(p.x, p.z) - mn) * k
-	map.draw_rect(Rect2(Vector2.ZERO, map.size), Color(0, 0, 0, 0.45))
+	var shade := Color(0, 0, 0, 0.55)
 	var pts := PackedVector2Array()
-	for i in range(0, xf.P.size(), 3):
+	for i in range(0, xf.P.size(), 2):
 		pts.append(to.call(xf.P[i]))
 	pts.append(pts[0])
-	map.draw_polyline(pts, Color(0.95, 0.95, 0.95, 0.85), 5.0, true)
+	map.draw_polyline(pts, shade, 11.0, true)                      # контур
+	map.draw_polyline(pts, Color(0.93, 0.94, 0.95, 0.92), 5.5, true)
+	map.draw_polyline(pts, Color(0.55, 0.57, 0.6, 0.55), 1.0, true) # осевая — дорога читается лентой
 	if xf.SP.size() > 1:
 		var sp := PackedVector2Array()
-		for i in range(0, xf.SP.size(), 3):
+		for i in range(0, xf.SP.size(), 2):
 			sp.append(to.call(xf.SP[i]))
-		map.draw_polyline(sp, Color(0.6, 0.55, 0.45, 0.8), 3.0, true)
-	var g0: Vector2 = to.call(xf.gates[0]["pos"])
-	map.draw_rect(Rect2(g0 - Vector2(5, 5), Vector2(10, 10)), RED)
+		map.draw_polyline(sp, shade, 7.0, true)
+		for i in range(0, sp.size() - 1, 2):
+			map.draw_line(sp[i], sp[i + 1], Color(0.75, 0.68, 0.55, 0.9), 3.0, true)
+	var me: RaceRider = race.local
+	var nxt: int = me.next_gate if me != null else 0
+	# контрольные точки: чёрточки поперёк дороги
+	for gk in xf.gates.size():
+		var g: Dictionary = xf.gates[gk]
+		var c: Vector2 = to.call(g["pos"])
+		var tn := Vector2((g["tan"] as Vector3).x, (g["tan"] as Vector3).z).normalized()
+		var nr := Vector2(-tn.y, tn.x) * 6.0
+		if gk == 0:
+			for q in 4:                                             # финиш — шашечки
+				var a := c - nr + nr * 0.5 * q
+				map.draw_rect(Rect2(a - Vector2(2, 2), Vector2(4, 4)), WHITE if q % 2 == 0 else INK)
+		elif gk != nxt:
+			map.draw_line(c - nr, c + nr, Color(0.2, 0.2, 0.22, 0.9), 2.0, true)
+	# путь до следующей точки — красным по дороге
+	if me != null and not me.finished and me.proj is Dictionary and me.proj.has("i"):
+		var i0: int = int(me.proj["i"])
+		var i1: int = xf.at_s(float(xf.gates[nxt]["s"]))
+		var n := xf.P.size()
+		var steps := posmod(i1 - i0, n)
+		if steps < n * 0.9:
+			var route := PackedVector2Array()
+			var j := 0
+			while j <= steps:
+				route.append(to.call(xf.P[(i0 + j) % n]))
+				j += 2
+			route.append(to.call(xf.P[i1]))
+			if route.size() >= 2:
+				map.draw_polyline(route, RED, 3.5, true)
+	# следующая точка: ромб и расходящееся кольцо
+	if me != null and not me.finished:
+		var gc: Vector2 = to.call(xf.gates[nxt]["pos"])
+		var ph := fmod(Time.get_ticks_msec() * 0.0012, 1.0)
+		map.draw_arc(gc, 7.0 + ph * 9.0, 0, TAU, 24, Color(RED, 0.9 * (1.0 - ph)), 2.0, true)
+		var dm := PackedVector2Array([gc + Vector2(0, -8), gc + Vector2(7, 0), gc + Vector2(0, 8), gc + Vector2(-7, 0)])
+		map.draw_colored_polygon(dm, INK)
+		var dm2 := PackedVector2Array([gc + Vector2(0, -6), gc + Vector2(5, 0), gc + Vector2(0, 6), gc + Vector2(-5, 0)])
+		map.draw_colored_polygon(dm2, RED)
 	for r in race.riders:
-		if r.disconnected:
+		if r.disconnected or r == race.local:
 			continue
 		var c: Vector2 = to.call(r.global_position)
-		if r == race.local:
-			map.draw_circle(c, 7.0, RED)
-			map.draw_arc(c, 9.0, 0, TAU, 16, WHITE, 2.0)
-		else:
-			map.draw_circle(c, 5.0, RaceVisual.RIDERS.get(r.rider_id, RaceVisual.RIDERS["pahan"])["tint"])
+		map.draw_circle(c, 6.0, INK)
+		map.draw_circle(c, 4.5, RaceVisual.RIDERS.get(r.rider_id, RaceVisual.RIDERS["pahan"])["tint"])
+	if me != null and not me.disconnected:
+		var c: Vector2 = to.call(me.global_position)
+		var f3 := me.fwd()
+		var f := Vector2(f3.x, f3.z).normalized()
+		var s := Vector2(-f.y, f.x)
+		var tri := PackedVector2Array([c + f * 10.0, c - f * 6.0 + s * 7.0, c - f * 3.0, c - f * 6.0 - s * 7.0])
+		var tri_o := PackedVector2Array([c + f * 13.0, c - f * 8.5 + s * 9.5, c - f * 4.0, c - f * 8.5 - s * 9.5])
+		map.draw_colored_polygon(tri_o, INK)
+		map.draw_colored_polygon(tri, WHITE)
+		map.draw_circle(c, 2.5, RED)
 
 # ---------------- события ----------------
 func countdown(n: int) -> void:
@@ -495,23 +587,126 @@ func combo(n: int) -> void:
 func item_got(id: String) -> void:
 	item_card.scale = Vector2(1.25, 1.25)
 	item_card.create_tween().tween_property(item_card, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	feed("Предмет: " + String(RaceData.ITEMS[id]["name"]) + " — " + String(RaceData.ITEMS[id]["desc"]), true)
+	var I: Dictionary = RaceData.ITEMS[id]
+	info_name.text = String(I["name"])
+	info_name.add_theme_color_override("font_color", (I["col"] as Color).lerp(WHITE, 0.45))
+	info_desc.text = String(RaceData.ITEM_LINE.get(id, I["desc"]))
+	if info_tw != null and info_tw.is_valid():
+		info_tw.kill()
+	item_info.modulate.a = 0.0
+	item_info.position.x = 1120.0
+	info_tw = item_info.create_tween()
+	info_tw.set_parallel(true)
+	info_tw.tween_property(item_info, "modulate:a", 1.0, 0.18)
+	info_tw.tween_property(item_info, "position:x", 1090.0, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	info_tw.chain().tween_property(item_info, "modulate:a", 0.0, 0.45).set_delay(2.4)
+	feed("Предмет: " + String(I["name"]), true)
 
+## лента событий: строка въезжает слева, живёт 4 с и гаснет; больше FEED_MAX строк не бывает — старые уходят
+const FEED_MAX := 5
 func feed(s: String, mine := false) -> void:
 	var l := _text(feed_box, s, 16, WHITE if mine else SILVER, Vector2.ZERO)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.custom_minimum_size = Vector2(480, 0)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	while feed_box.get_child_count() > 4:
-		var c := feed_box.get_child(0)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	l.add_theme_constant_override("outline_size", 5)
+	var sb := StyleBoxFlat.new()                     # почти прозрачная полоска: не серая коробка, а лёгкая тень
+	sb.bg_color = Color(0, 0, 0, 0.22)
+	sb.content_margin_left = 10.0 if not mine else 12.0
+	sb.content_margin_right = 8.0
+	sb.content_margin_top = 1.0
+	sb.content_margin_bottom = 2.0
+	if mine:
+		sb.border_width_left = 3                       # своё — с красной чертой слева
+		sb.border_color = RED
+	l.add_theme_stylebox_override("normal", sb)
+	l.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	# длинная строка не шире ленты: переносится по словам
+	if tech.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x > 410.0:
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(440, 0)
+		l.size_flags_horizontal = Control.SIZE_FILL
+	var alive: Array = []
+	for c in feed_box.get_children():
+		if not c.is_queued_for_deletion():
+			alive.append(c)
+	while alive.size() > FEED_MAX:
+		var c: Node = alive.pop_front()
 		feed_box.remove_child(c)
 		c.queue_free()
+	l.modulate.a = 0.0
 	var tw := l.create_tween()
-	tw.tween_interval(3.0)
-	tw.tween_property(l, "modulate:a", 0.0, 0.6)
+	tw.tween_property(l, "modulate:a", 1.0, 0.15)
+	tw.tween_interval(4.0)
+	tw.tween_property(l, "modulate:a", 0.0, 0.8)
 	tw.tween_callback(func():
 		if is_instance_valid(l):
 			l.queue_free())
+
+## подписи клавиш действия из InputMap (переназначение гонок меняет их сразу)
+## стрелки в подсказках не показываются: у действия с WASD и стрелками остаётся только WASD; стрелки — лишь если
+## игрок оставил на действии одни стрелки (иначе строка была бы пустой)
+func _keys(a: String) -> Array:
+	var r: Array = []
+	var arrows: Array = []
+	if not InputMap.has_action(a):
+		return r
+	for e in InputMap.action_get_events(a):
+		if e is InputEventKey:
+			var ek := e as InputEventKey
+			var code := ek.physical_keycode if ek.physical_keycode != KEY_NONE else ek.keycode
+			var nm := OS.get_keycode_string(code)
+			if code in [KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
+				arrows.append({KEY_UP: "↑", KEY_DOWN: "↓", KEY_LEFT: "←", KEY_RIGHT: "→"}[code])
+				continue
+			nm = {"Escape": "Esc", "Space": "Пробел"}.get(nm, nm)
+			if nm != "" and not r.has(nm):
+				r.append(nm)
+		elif e is InputEventMouseButton:
+			var mb: String = {MOUSE_BUTTON_LEFT: "ЛКМ", MOUSE_BUTTON_RIGHT: "ПКМ", MOUSE_BUTTON_MIDDLE: "СКМ"}.get((e as InputEventMouseButton).button_index, "")
+			if mb != "" and not r.has(mb):
+				r.append(mb)
+	if r.is_empty():
+		return arrows
+	return r
+
+## список «клавиша — действие» справа: собирается заново, только если поменялись клавиши
+func controls_refresh() -> void:
+	var on := bool(RaceSave.v("show_controls")) if RaceSave.v("show_controls") != null else true
+	ctrl_box.visible = on and results_panel == null
+	if not on:
+		return
+	var rows: Array = []
+	for h in RaceData.CONTROL_HINTS:
+		var ks: Array = []
+		for a in String(h[0]).split("|"):
+			var k := _keys(a)
+			ks.append(" / ".join(k.slice(0, 2)) if not k.is_empty() else "—")
+		rows.append([" / ".join(ks) if ks.size() == 1 else "%s / %s" % ks, String(h[1])])
+	var sig := str(rows)
+	if sig == ctrl_sig:
+		return
+	ctrl_sig = sig
+	for c in ctrl_box.get_children():
+		c.queue_free()
+	for row in rows:
+		var hb := HBoxContainer.new()
+		hb.alignment = BoxContainer.ALIGNMENT_END
+		hb.add_theme_constant_override("separation", 8)
+		hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ctrl_box.add_child(hb)
+		var act := _text(hb, String(row[1]), 15, SILVER, Vector2.ZERO)
+		act.add_theme_constant_override("outline_size", 5)
+		var key := _text(hb, String(row[0]), 15, WHITE, Vector2.ZERO, serif)
+		key.add_theme_constant_override("outline_size", 5)
+		var kb := StyleBoxFlat.new()                   # клавиша — тонкая светлая рамка без заливки
+		kb.bg_color = Color(0, 0, 0, 0.18)
+		kb.border_color = Color(1, 1, 1, 0.55)
+		kb.set_border_width_all(1)
+		kb.border_width_bottom = 2
+		kb.set_corner_radius_all(3)
+		kb.content_margin_left = 7.0
+		kb.content_margin_right = 7.0
+		key.add_theme_stylebox_override("normal", kb)
+	ctrl_box.modulate.a = 0.82
 
 # ---------------- экраны: результаты и пауза ----------------
 func _screen(title: String, sub: String) -> Control:
@@ -570,6 +765,8 @@ func _menu_select(k: int) -> void:
 		var l: Label = menu_rows[i][0]
 		l.text = ("▶ " if i == menu_sel else "   ") + String(menu_rows[i][2])
 		l.add_theme_color_override("font_color", WHITE if i == menu_sel else GREY)
+	if results_ui != null and pause_panel == null:
+		results_ui.on_select(menu_sel)
 
 func _menu_ok() -> void:
 	if menu_rows.is_empty():
@@ -605,60 +802,48 @@ func _input(e: InputEvent) -> void:
 			return
 		get_viewport().set_input_as_handled()
 
-func show_results() -> void:
+## финиш игрока: HUD уходит, дальше всё ведёт экран результатов (race_results.gd) — «Династия», дроп, итоги
+var results_ui: Control
+func finale_start() -> void:
+	if results_ui != null:
+		return
 	if pause_panel != null:
 		show_pause(false)
 	for c in stage.get_children():
-		if c is CanvasItem and c != feed_box:
-			(c as CanvasItem).visible = false             # игровой HUD уходит: на экране только итоги
+		if c is CanvasItem:
+			(c as CanvasItem).visible = false             # игровой HUD уходит: на экране только финиш и итоги
+	if tips != null:
+		tips.visible = false
+	dust.visible = false
 	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
-	var mode := String(race.cfg.get("mode", "single"))
-	var me: RaceRider = race.local
-	var title := "ФИНИШ"
-	if me != null and mode != "time":
-		title = "%d МЕСТО" % me.rank if me.finished else "РЕЗУЛЬТАТЫ"
-	var sub := String(RaceData.track(String(race.cfg.get("track", ""))).get("name", "")) + " · %d круга" % race.laps
-	if race.new_record != "":
-		sub += " · НОВЫЙ РЕКОРД!"
-	results_panel = _screen(title, sub)
-	var y := 270.0
-	for k in race.results.size():
-		var row: Dictionary = race.results[k]
-		var r: RaceRider = row["rider"]
-		var mine: bool = r == me
-		if mine:
-			var band := ColorRect.new()
-			band.color = WHITE
-			band.position = Vector2(386, y - 2)
-			band.size = Vector2(830, 32)
-			band.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			results_panel.add_child(band)
-		var col := INK if mine else WHITE
-		var c1 := _text(results_panel, "%d" % (k + 1), 26, RED if not mine else INK, Vector2(400, y - 4), serif)
-		var c2 := _text(results_panel, String(row["title"]) + ("  (вышел)" if row["dc"] else ""), 22, col, Vector2(450, y))
-		var c3 := _text(results_panel, ("~" if row["est"] else "") + fmt(float(row["time"])), 22, col, Vector2(820, y))
-		var c4 := _text(results_panel, ("круг " + fmt(float(row["best"]))) if float(row["best"]) > 0.0 else "", 18, GREY if not mine else INK, Vector2(1000, y + 3))
-		for c in [c1, c2, c3, c4]:
-			if mine:
-				(c as Label).remove_theme_constant_override("outline_size")
-		y += 38
-	var rec_t := RaceSave.best(String(race.cfg.get("track", "")), mode)
-	var rec_l := RaceSave.best(String(race.cfg.get("track", "")), "lap")
-	_text(results_panel, ("Рекорд трассы (%s): %s" % ["на время" if mode == "time" else "гонка", fmt(rec_t)] if rec_t > 0.0 else "") + ("   ·   лучший круг: " + fmt(rec_l) if rec_l > 0.0 else ""), 16, SILVER, Vector2(400, 548))
-	var items: Array = []
-	if mode == "online":
-		if race.authority:
-			items.append(["ВСЕ В ЛОББИ", func():
-				race.net.back_to_lobby()
-				race.quit_to_lobby()])
-		else:
-			_text(results_panel, "Хост решает, ехать ли ещё раз.", 16, SILVER, Vector2(400, 574))
-		items.append(["ВЫЙТИ ИЗ СЕТЕВОЙ ГОНКИ", func(): race.quit(false)])
-	else:
-		items.append(["ЕЩЁ РАЗ", func(): race.restart()])
-		items.append(["В МЕНЮ ГОНОК", func(): race.quit(true)])
-		items.append(["В ГЛАВНОЕ МЕНЮ", func(): race.quit(false)])
-	_menu(results_panel, items, 600)
+	results_ui = preload("res://scripts/race_results.gd").new()
+	results_ui.hud = self
+	results_ui.race = race
+	stage.add_child(results_ui)
+	results_panel = results_ui
+
+## гонка закончилась для всех (или по таймауту / от хоста): таблица становится окончательной, кнопки — по режиму
+func show_results() -> void:
+	if results_ui == null:
+		race.finale_start()                               # клиент не доехал, а хост уже подвёл итоги
+		if results_ui == null:
+			finale_start()
+	results_ui.finalize()
+
+## кнопки экрана результатов — те же menu_rows (клавиши, мышь, геймпад в _input), вид рисует race_results.gd
+func results_menu(items: Array, labels: Array) -> void:
+	menu_rows = []
+	for k in items.size():
+		var l: Label = labels[k]
+		menu_rows.append([l, items[k][1], String(items[k][0])])
+		l.mouse_filter = Control.MOUSE_FILTER_STOP
+		l.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		l.mouse_entered.connect(func(): _menu_select(k))
+		l.gui_input.connect(func(e: InputEvent):
+			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+				_menu_select(k)
+				_menu_ok())
+	_menu_select(clampi(menu_sel, 0, items.size() - 1))
 
 func show_pause(on: bool) -> void:
 	if not on:
@@ -670,17 +855,52 @@ func show_pause(on: bool) -> void:
 	if pause_panel != null:
 		return
 	pause_panel = _screen("ПАУЗА" if race.net == null else "СЕТЕВАЯ ГОНКА", "Гонка стоит · Esc — продолжить" if race.net == null else "Гонка идёт дальше — в сети её не остановить · Esc — назад к рулю")
-	_text(pause_panel, "Управление: %s — газ · %s — тормоз · %s / %s — руль · %s — занос · %s — прыжок · %s — турбо · %s — предмет · %s — назад" % [
-		_k("race_accelerate"), _k("race_brake"), _k("race_left"), _k("race_right"), _k("race_drift"), _k("race_jump"), _k("race_boost"), _k("race_item"), _k("race_look_back")], 15, SILVER, Vector2(400, 270)).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var ctl := _text(pause_panel, "Управление: %s — газ · %s — тормоз · %s / %s — руль · %s — занос · %s — прыжок · %s — турбо · %s — предмет · %s — назад" % [
+		_k("race_accelerate"), _k("race_brake"), _k("race_left"), _k("race_right"), _k("race_drift"), _k("race_jump"), _k("race_boost"), _k("race_item"), _k("race_look_back")], 15, SILVER, Vector2(400, 270))
+	ctl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # сначала перенос, потом ширина: иначе ширина растёт по тексту
+	ctl.custom_minimum_size = Vector2(800, 0)
+	ctl.size = Vector2(800, 0)
 	var items: Array = [["ПРОДОЛЖИТЬ", func(): race.set_paused(false)]]
-	if String(race.cfg.get("mode", "single")) != "online":
+	var online := String(race.cfg.get("mode", "single")) == "online"
+	if not online:
 		items.append(["ЗАНОВО", func(): race.restart()])
 		items.append(["В МЕНЮ ГОНОК", func(): race.quit(true)])
-		items.append(["В ГЛАВНОЕ МЕНЮ", func(): race.quit(false)])
-	else:
-		items.append(["ВЫЙТИ ИЗ СЕТЕВОЙ ГОНКИ", func(): race.quit(false)])
+	items.append([_hints_row(), func(): _toggle_hints()])
+	items.append(["ВЕРНУТЬСЯ В ГЛАВНОЕ МЕНЮ", func(): _confirm_quit()])
 	_menu(pause_panel, items, 360)
 	MouseMode.set_to(Input.MOUSE_MODE_VISIBLE)
+
+func _hints_row() -> String:
+	return "ПОКАЗЫВАТЬ ПОДСКАЗКИ:  " + ("ВКЛ" if bool(RaceSave.v("show_controls")) else "ВЫКЛ")
+
+## переключатель подсказок управления: пишется в user://grimerka_race.json, строка меню обновляется на месте
+func _toggle_hints() -> void:
+	RaceSave.put("show_controls", not bool(RaceSave.v("show_controls")))
+	ctrl_sig = ""
+	controls_refresh()
+	for row in menu_rows:
+		if String(row[2]).begins_with("ПОКАЗЫВАТЬ ПОДСКАЗКИ"):
+			row[2] = _hints_row()
+	_menu_select(menu_sel)
+
+## выход в главное меню посреди гонки — только после подтверждения (гонка не засчитается)
+func _confirm_quit() -> void:
+	var online := race.net != null
+	if race.state == "results":
+		race.quit(false)
+		return
+	if pause_panel != null:
+		pause_panel.queue_free()
+	pause_panel = _screen("ВЫЙТИ?", ("Ты выйдешь из сетевой гонки и из лобби" if online else "Гонка не закончена — результат не засчитается"))
+	_menu(pause_panel, [
+		["НЕТ, ВЕРНУТЬСЯ К ПАУЗЕ", func():
+			pause_panel.queue_free()
+			pause_panel = null
+			show_pause(true)],
+		["ДА, В ГЛАВНОЕ МЕНЮ", func():
+			menu_rows = []
+			race.quit_main()],
+	], 360)
 
 func _k(a: String) -> String:
 	var ks := RaceSave.keys_of(a)

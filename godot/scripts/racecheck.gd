@@ -97,8 +97,9 @@ func put(r: RaceRider, s: float, lat := 0.0, yaw := 0.0, spd := 0.0) -> void:
 
 ## одно нажатие (прыжок, предмет): держим ввод полный шаг физики гонки, потом — следующий
 func once(r: RaceRider, a: RaceInput, then: RaceInput) -> void:
+	await phys(1)
 	r.set_meta("auto", a)
-	await phys(2)
+	await phys(1)
 	r.set_meta("auto", then)
 
 ## руль «по дороге»: куда повернуть, чтобы держаться середины трассы впереди

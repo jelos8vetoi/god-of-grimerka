@@ -16,7 +16,8 @@ signal failed(reason: String)        # не удалось создать или
 signal closed(reason: String)        # лобби закрыто (хост вышел, нас отключили) — игра уже офлайн
 signal loading(cfg: Dictionary)      # хост начал гонку: строим трассу
 
-const PROTO := 1
+const PROTO := 2
+const RIDER_BYTES := 41
 const PORT := 24710                  # UDP-порт игры по умолчанию
 const DISCOVERY_PORT := 24711        # UDP: объявления лобби в локальной сети
 const MAX_PLAYERS := 8
@@ -46,6 +47,7 @@ var bytes_out := 0
 var bytes_t0 := 0
 var snap_t := 0.0
 var input_t := 0.0
+var jump_count := 0                  # счётчик фронтов повторяется даже после потери пакета
 var sticky := RaceInput.new()        # нажатия между отправками ввода
 var seq := 0                         # клиент: номер последнего отправленного ввода (хост вернёт его в снимке)
 var tick := 0
@@ -248,7 +250,7 @@ func c_input(b) -> void:
 	var id := _from_client()
 	if id == 0 or not _rate_ok(id, "c_input"):
 		return
-	if typeof(b) != TYPE_PACKED_BYTE_ARRAY or (b as PackedByteArray).size() != 6:
+	if typeof(b) != TYPE_PACKED_BYTE_ARRAY or (b as PackedByteArray).size() != 7:
 		rejected += 1
 		return
 	if race == null or not is_instance_valid(race) or not (race.state in ["countdown", "race", "done"]):
@@ -259,7 +261,10 @@ func c_input(b) -> void:
 	var inp := RaceInput.unpack((b as PackedByteArray).slice(0, 4))
 	r.net_seq = (b as PackedByteArray).decode_u16(4)
 	# одноразовые нажатия не теряются между шагами хоста
-	inp.jump = inp.jump or r.net_input.jump
+	var count: int = (b as PackedByteArray).decode_u8(6)
+	var presses: int = (count - r.net_jump_count) & 0xff
+	r.net_jump_count = count
+	r.net_jump_pending = mini(2, r.net_jump_pending + presses)
 	inp.item = inp.item or r.net_input.item
 	r.net_input = inp
 
@@ -304,6 +309,9 @@ func _cfg_for(cfg: Dictionary, me: int) -> Dictionary:
 ## race.gd: трасса построена
 func race_ready(r) -> void:
 	race = r
+	jump_count = 0
+	input_t = 0.0
+	sticky = RaceInput.new()
 	if is_host:
 		loaded[1] = true
 		_check_loaded()
@@ -353,7 +361,7 @@ func host_tick(dt: float) -> void:
 func snapshot(rc) -> PackedByteArray:
 	var b := PackedByteArray()
 	var n: int = rc.riders.size()
-	b.resize(14 + n * 29)
+	b.resize(14 + n * RIDER_BYTES)
 	b.encode_u32(0, tick)
 	b.encode_float(4, rc.t)
 	b.encode_u8(8, maxi(0, STATES.find(rc.state)))
@@ -369,7 +377,7 @@ func snapshot(rc) -> PackedByteArray:
 		b.encode_half(o + 14, r.speed)
 		var f := (1 if r.drifting else 0) | (2 if r.boosting() else 0) | (4 if r.air_t > 0.08 else 0) | (8 if r.spin_t > 0.0 else 0) | (16 if r.shield_t > 0.0 else 0) | (32 if r.turbo_on else 0) | (64 if r.finished else 0) | (128 if r.disconnected else 0)
 		b.encode_u8(o + 16, f)
-		b.encode_u8(o + 17, (r.drift_lvl & 3) | (4 if r.drift_dir > 0.0 else 0))
+		b.encode_u8(o + 17, (r.drift_lvl & 3) | (4 if r.drift_dir > 0.0 else 0) | (8 if r.double_hop_used else 0))
 		b.encode_u8(o + 18, clampi(int(r.turbo * 2.55), 0, 255))
 		b.encode_u8(o + 19, RaceData.ITEM_IDS.find(r.item) + 1)
 		b.encode_u8(o + 20, clampi(r.lap, 0, 255))
@@ -378,7 +386,13 @@ func snapshot(rc) -> PackedByteArray:
 		b.encode_half(o + 23, atan2(r.vdir.x, r.vdir.z))
 		b.encode_half(o + 25, r.air_t)
 		b.encode_u16(o + 27, r.net_seq & 0xFFFF)
-		o += 29
+		b.encode_half(o + 29, r.wall_push.x)
+		b.encode_half(o + 31, r.wall_push.z)
+		b.encode_half(o + 33, r.wall_yaw)
+		b.encode_half(o + 35, r.wall_drive_t)
+		b.encode_half(o + 37, r.velocity.y)
+		b.encode_half(o + 39, r.double_hop_cd)
+		o += RIDER_BYTES
 	return b
 
 ## событие участника (эффекты, HUD) — всем клиентам надёжно
@@ -590,10 +604,11 @@ func h_results(rows) -> void:
 
 ## клиент: ввод своего гонщика (30 раз в секунду; нажатия между отправками не теряются)
 func client_input(inp: RaceInput, dt: float) -> void:
-	sticky.jump = sticky.jump or inp.jump
+	if inp.jump:
+		jump_count = (jump_count + 1) & 0xff
 	sticky.item = sticky.item or inp.item
 	input_t -= dt
-	if input_t > 0.0:
+	if input_t > 0.0 and not inp.jump:
 		return
 	input_t = 1.0 / INPUT_HZ
 	var send := RaceInput.new()
@@ -603,13 +618,15 @@ func client_input(inp: RaceInput, dt: float) -> void:
 	send.drift = inp.drift
 	send.boost = inp.boost
 	send.look_back = inp.look_back
-	send.jump = sticky.jump
+	send.jump = inp.jump
+	send.jump_held = inp.jump_held
 	send.item = sticky.item
 	sticky = RaceInput.new()
 	seq = (seq + 1) & 0xFFFF
 	var pk := send.pack()
-	pk.resize(6)
+	pk.resize(7)
 	pk.encode_u16(4, seq)
+	pk.encode_u8(6, jump_count)
 	_send_input(pk)
 
 func set_ready(on: bool) -> void:
