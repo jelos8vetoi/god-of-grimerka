@@ -450,7 +450,7 @@ func _race(dt: float, race) -> Dictionary:
 	var hot: bool = race.local != null and race.laps > 1 and race.local.lap >= race.laps - 1 and not race.local.finished and race.go
 	race_pitch = move_toward(race_pitch, 1.07 if hot else 1.0, dt * 0.06)
 	return {"ctx": "race", "cue": director.resolve_cue("loc_race", "loc_snow"), "layers": [1.0, 1.0 if race.go or race.state == "countdown" else 0.0, 0.0],
-		"pitch": race_pitch, "gain_db": 0.0, "duck_db": -6.0 if race.paused else (-3.0 if race.state == "results" else 0.0)}
+		"pitch": race_pitch, "gain_db": 0.0, "duck_db": -60.0 if race.finale else (-6.0 if race.paused else (-3.0 if race.state == "results" else 0.0))}   # финиш: играет «Династия» (race_results.gd)
 
 ## мини-игра со своей сценой: набор — какой попросит сама игра ("" — тишина, у неё свой звук)
 func _minigame(mg) -> Dictionary:

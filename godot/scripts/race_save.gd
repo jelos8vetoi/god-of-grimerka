@@ -12,7 +12,7 @@ static func _load() -> void:
 	if loaded:
 		return
 	loaded = true
-	data = {"steer": 1.0, "binds": {}, "records": {}, "level": "normal", "track": "tomsk_dust", "name": "ПАХАН", "weather": "random", "happen": true}
+	data = {"steer": 1.0, "binds": {}, "records": {}, "level": "normal", "track": "tomsk_dust", "name": "ПАХАН", "weather": "random", "happen": true, "speed_blur": true, "camera_shake": true, "detailed_lighting": true, "show_controls": true}
 	if FileAccess.file_exists(PATH):
 		var d = JSON.parse_string(FileAccess.get_file_as_string(PATH))
 		if d is Dictionary:
@@ -30,6 +30,14 @@ static func _load() -> void:
 				data["weather"] = String(d["weather"])
 			if typeof(d.get("happen")) == TYPE_BOOL:
 				data["happen"] = bool(d["happen"])
+			if typeof(d.get("speed_blur")) == TYPE_BOOL:
+				data["speed_blur"] = d["speed_blur"]
+			if typeof(d.get("camera_shake")) == TYPE_BOOL:
+				data["camera_shake"] = d["camera_shake"]
+			if typeof(d.get("detailed_lighting")) == TYPE_BOOL:
+				data["detailed_lighting"] = d["detailed_lighting"]
+			if typeof(d.get("show_controls")) == TYPE_BOOL:
+				data["show_controls"] = d["show_controls"]
 			if d.get("name") is String and String(d["name"]).strip_edges() != "":
 				data["name"] = String(d["name"]).substr(0, 16)
 

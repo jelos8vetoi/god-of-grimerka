@@ -97,8 +97,9 @@ func put(r: RaceRider, s: float, lat := 0.0, yaw := 0.0, spd := 0.0) -> void:
 
 ## одно нажатие (прыжок, предмет): держим ввод полный шаг физики гонки, потом — следующий
 func once(r: RaceRider, a: RaceInput, then: RaceInput) -> void:
+	await phys(1)
 	r.set_meta("auto", a)
-	await phys(2)
+	await phys(1)
 	r.set_meta("auto", then)
 
 ## руль «по дороге»: куда повернуть, чтобы держаться середины трассы впереди
@@ -125,6 +126,13 @@ func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	RaceSave.loaded = false
 	await wait(2.0)
+	# checks.cjs подкладывает копию данных игрока: проверка не должна зависеть от того, какую трассу он выбрал
+	# и какие подсказки уже видел (или выключил Shift+H) — начинаем с первой трассы и чистых подсказок
+	RaceSave.v("track")
+	RaceSave.persist = false
+	RaceSave.data["track"] = "tomsk_dust"
+	MGHints._store = {"seen": {}}
+	MGHints._loaded = true
 	# ================= меню =================
 	var mm = main.menu
 	ok(mm != null and mm.race_ready(), "главное меню открыто, гонки подключены")
@@ -176,6 +184,7 @@ func _run() -> void:
 	ok(String(RaceSave.v("level")) != lv0, "D меняет уровень соперников (%s → %s)" % [lv0, RaceSave.v("level")])
 	await key(KEY_A)
 	# управление: переназначить газ на T и вернуть
+	var up0 := InputMap.action_get_events("up").size()   # W и ось геймпада (main.gd) — сколько бы их ни было
 	mm._panel_select(names.find("УПРАВЛЕНИЕ"), false)
 	await key(KEY_ENTER)
 	await wait(0.3)
@@ -186,7 +195,7 @@ func _run() -> void:
 	ok(mm.capture.is_valid(), "Enter на «ГАЗ» ждёт клавишу")
 	await key(KEY_T)
 	ok(RaceSave.keys_of("race_accelerate") == ["T"], "газ переназначен на T (%s)" % str(RaceSave.keys_of("race_accelerate")))
-	ok(InputMap.action_get_events("up").size() == 1, "управление кампании не тронуто (up: %d событий)" % InputMap.action_get_events("up").size())
+	ok(InputMap.action_get_events("up").size() == up0, "управление кампании не тронуто (up: %d событий, было %d)" % [InputMap.action_get_events("up").size(), up0])
 	var sens0 := float(RaceSave.v("steer"))
 	mm._panel_select(RaceData.ACTIONS.size(), false)
 	await key(KEY_D)

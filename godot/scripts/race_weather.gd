@@ -25,6 +25,8 @@ const WEATHERS := {
 		"mods": {"bot": 0.97}, "fog": 0.006, "sky": [Color(0.02, 0.02, 0.05), Color(0.08, 0.07, 0.12)], "light": 0.08, "night": true},
 }
 const WEATHER_ORDER := ["random", "clear", "rain", "fog", "wind", "ice", "dust", "night"]
+const VAN := Vector3(4.4, 2.2, 2.0)   # коробка столкновения буханки: длина (вдоль хода), высота, ширина
+const VAN_HIT := 0.25                 # запас к касанию: буханка — твёрдое тело и толкает гонщика носом, вплотную не подходит
 
 ## Случайные ситуации: t — сколько длится, w — вес выбора, need — только при такой погоде
 const HAPPENINGS := {
@@ -101,7 +103,11 @@ func _look() -> void:
 			env.glow_intensity = 1.0
 	if sun != null and W.has("light"):
 		sun.light_energy = float(W["light"])
-	if id == "rain" or id == "ice":
+	if xf.uses_pbr_surfaces():
+		if env != null and sun != null:
+			RaceTrack.SurfaceStyle.configure_light(env, sun, id)
+		RaceTrack.SurfaceStyle.set_wet(xf.mats, id == "rain", id == "ice")
+	elif id == "rain" or id == "ice":
 		var road: StandardMaterial3D = xf.mats["road"]
 		if id == "rain":
 			road.roughness = 0.18
@@ -149,7 +155,7 @@ func _night_lights() -> void:
 	var xf: RaceTrack = race.track
 	var n := 0
 	for c in xf.get_children():
-		if c is Node3D and String(c.name).begins_with("street_lamp") and n < 24:
+		if not xf.uses_pbr_surfaces() and c is Node3D and String(c.name).begins_with("street_lamp") and n < 24:
 			var l := OmniLight3D.new()
 			l.light_color = Color(1.0, 0.78, 0.45)
 			l.light_energy = 2.2
@@ -158,6 +164,15 @@ func _night_lights() -> void:
 			add_child(l)
 			lamps.append(l)
 			n += 1
+	if xf.uses_pbr_surfaces():
+		for point in xf.street_light_origins:
+			if lamps.any(func(l): return (l as OmniLight3D).position.distance_squared_to(point) < 17.0 * 17.0):
+				continue
+			var l := OmniLight3D.new()
+			l.position = point
+			add_child(l)
+			lamps.append(l)
+		n = lamps.size()
 	if n == 0:
 		# фонарей-моделей нет — свет вдоль дороги через каждые 40 м
 		var s := 0.0
@@ -172,6 +187,11 @@ func _night_lights() -> void:
 			lamps.append(l2)
 			s += 40.0
 			n += 1
+	if xf.uses_pbr_surfaces():
+		for l in lamps:
+			l.light_color = Color(1.0, 0.81, 0.58)
+			l.light_energy = 4.1
+			l.omni_range = 23.0
 	for r in race.riders:
 		var sp := SpotLight3D.new()
 		sp.light_color = Color(1.0, 0.95, 0.85)
@@ -180,6 +200,10 @@ func _night_lights() -> void:
 		sp.spot_angle = 32.0
 		sp.position = Vector3(0, 0.7, 0.5)
 		sp.rotation = Vector3(-0.12, PI, 0)
+		if xf.uses_pbr_surfaces():
+			sp.light_energy = 6.0 if r == race.local else 3.0
+			sp.spot_range = 36.0 if r == race.local else 26.0
+			sp.spot_angle = 37.0
 		(r as RaceRider).pivot.add_child(sp)
 		heads.append(sp)
 
@@ -280,7 +304,7 @@ func _build(h: Dictionary) -> void:
 			body.sync_to_physics = false
 			var cs := CollisionShape3D.new()
 			var bs := BoxShape3D.new()
-			bs.size = Vector3(4.4, 2.2, 2.0)
+			bs.size = VAN
 			cs.shape = bs
 			cs.position.y = 1.1
 			body.add_child(cs)
@@ -367,8 +391,14 @@ func _run(h: Dictionary, dt: float) -> void:
 			xf.origin = (h["from"] as Vector3).lerp(h["to"], u)
 			body.global_transform = xf
 			if race.authority:
+				# касание — по коробке машины в её осях (x — вдоль хода), а не по расстоянию до центра: машина толкает
+				# гонщика перед собой и держит его на полдлины + радиус, так что «ближе 2,6 м» могло не наступить никогда
+				var rad := float(RaceData.PHYS["radius"]) + VAN_HIT
+				var inv := xf.affine_inverse()
 				for r in race.riders:
-					if (r.global_position - xf.origin).length() < 2.6 and not (h["hit"] as Dictionary).has(r.slot):
+					var lp: Vector3 = inv * r.global_position
+					var touch := absf(lp.x) < VAN.x * 0.5 + rad and absf(lp.z) < VAN.z * 0.5 + rad and lp.y > -rad * 2.0 and lp.y < VAN.y + rad
+					if touch and not (h["hit"] as Dictionary).has(r.slot):
 						(h["hit"] as Dictionary)[r.slot] = true
 						r.speed *= 0.4
 						r.side_v += right * 6.0
@@ -420,6 +450,10 @@ func _end(h: Dictionary) -> void:
 			(l as OmniLight3D).visible = true
 
 func _set_rain(on: bool) -> void:
+	if race.track.uses_pbr_surfaces():
+		RaceTrack.SurfaceStyle.set_wet(race.track.mats, on or id == "rain", id == "ice" and not on)
+		if env != null:
+			env.ssr_enabled = env.ssao_enabled and (on or id == "rain")
 	if on:
 		mods["grip"] = minf(mod("grip"), 0.7)
 		mods["brake"] = minf(mod("brake"), 0.8)

@@ -17,7 +17,8 @@ var cfg := {}                  # {track, laps, mode: single/time/online, level, 
 var track: RaceTrack
 var riders: Array = []         # RaceRider
 var local: RaceRider           # кем играет этот компьютер
-var cam: Camera3D
+const ChaseCamera := preload("res://scripts/race_camera.gd")
+var cam: ChaseCamera
 var hud                        # RaceHud
 var fx
 var state := "intro"           # intro / countdown / race / done / results
@@ -37,10 +38,11 @@ var authority := true
 var net                        # race_net.gd в сетевой гонке
 var paused := false
 var autopilot: RaceAI          # после финиша игрока ведёт бот
-var bump_cd := {}
+var touching_riders := {}
 var trauma := 0.0
-var cam_fov := 70.0
 var look_back := false
+var jump_presses := 0
+var jump_down := false
 var dust_vis := 0.0            # игрок в облаке пыли (HUD)
 var new_record := ""
 var stats := {"frames": 0, "slow": 0}
@@ -51,11 +53,17 @@ var snap_local_t := 0.0          # и когда он пришёл (наши ч�
 var net_menu := false            # сетевая гонка: открыт экран выхода (гонка не стоит)
 var net_fix := {"hard": 0, "soft": 0.0}   # клиент: сколько раз хост поправил своего гонщика (для проверки)
 var local_hist: Array = []       # клиент: где был свой гонщик [наше время, положение] — для сверки со снимками хоста
-const PHYSICAL := ["drift_start", "drift_lvl", "drift_boost", "drift_cut", "jump", "ramp", "land", "wall", "trick", "trick_land", "trick_fail", "combo", "draft"]
+const PHYSICAL := ["drift_start", "drift_lvl", "drift_boost", "drift_cut", "jump", "jump_lift", "double_jump", "ramp", "land", "wall", "trick", "trick_land", "trick_fail", "combo", "draft"]
 var crowd: RaceCrowd             # зрители у трассы (только вид)
 var missiles: Array = []         # [{s, lat, y, owner, target, life, node}] — ЖЕЛЕЗЯКИ в полёте
 var weather: RaceWeather       # погода и случайные ситуации (race_weather.gd)
 var cam_snap := false
+var finale := false             # игрок финишировал: финиш под «Династию», управление закрыто (race_results.gd)
+var records_done := false
+var top_kmh := 0.0              # статистика игрока для экрана результатов — только настоящие замеры
+var overtakes := 0              # сколько раз место игрока стало лучше по ходу гонки
+var rings_got := 0
+var _rank_seen := 0
 
 func setup(m, c: Dictionary) -> void:
 	main = m
@@ -81,11 +89,14 @@ func setup(m, c: Dictionary) -> void:
 	add_child(weather)
 	# в заезде на время случайных ситуаций нет никогда — рекорд должен быть честным, что бы ни пришло в cfg
 	weather.setup(self, String(cfg.get("weather", "clear")), bool(cfg.get("happenings", true)) and String(cfg.get("mode", "single")) != "time", rng.randi())
-	cam = Camera3D.new()
-	cam.fov = 70.0
+	cam = ChaseCamera.new()
 	cam.far = 600.0
 	add_child(cam)
 	cam.current = true
+	# ворота контрольных точек — только вид (race_gates.gd), логика проезда остаётся в _pass_gate
+	var gates_vis = preload("res://scripts/race_gates.gd").new()
+	add_child(gates_vis)
+	gates_vis.setup(self)
 	hud = RaceHud.new()
 	hud.race = self
 	add_child(hud)
@@ -96,6 +107,7 @@ func setup(m, c: Dictionary) -> void:
 		net.race_ready(self)
 	else:
 		_set_state("intro")
+	lock_mouse()
 
 ## участники: игрок (или игроки по сети) и боты; в заезде на время — один игрок
 func _spawn_riders() -> void:
@@ -234,18 +246,21 @@ func _input_of(r: RaceRider, dt: float) -> RaceInput:
 		return r.get_meta("auto")                # проверка задаёт ввод сама
 	if r.kind == "local":
 		if r.finished:
-			if autopilot == null:
-				autopilot = RaceAI.new()
-				autopilot.setup(r, self, "easy", 7)
-			return autopilot.think(dt)
+			return RaceInput.new()             # финишировал — управление и предметы закрыты, пылесос катится сам и встаёт
 		if r.ai != null:
 			return r.ai.think(dt)                # бот за игрока (проверки)
 		look_back = Input.is_action_pressed("race_look_back")
-		return RaceInput.from_actions(float(RaceSave.v("steer")), Input.is_action_just_pressed("race_jump"), Input.is_action_just_pressed("race_item"))
+		var jump := jump_presses > 0
+		if jump:
+			jump_presses -= 1
+		return RaceInput.from_actions(float(RaceSave.v("steer")), jump, Input.is_action_just_pressed("race_item"))
 	if r.kind == "bot" and r.ai != null:
 		return r.ai.think(dt)
 	if r.kind == "remote":
 		var inp: RaceInput = r.net_input
+		inp.jump = r.net_jump_pending > 0
+		if inp.jump:
+			r.net_jump_pending -= 1
 		r.net_input = _sticky(inp)
 		return inp
 	return RaceInput.new()
@@ -259,9 +274,10 @@ func _sticky(inp: RaceInput) -> RaceInput:
 	c.drift = inp.drift
 	c.boost = inp.boost
 	c.look_back = inp.look_back
+	c.jump_held = inp.jump_held
 	return c
 
-## толкотня: близкие гонщики расталкиваются, быстрый теряет немного скорости
+## Контакт пары равных масс: общая скорость сохраняется, относительная гасится.
 func _bumps() -> void:
 	var R: float = float(RaceData.PHYS["bump"])
 	for a in riders.size():
@@ -273,20 +289,33 @@ func _bumps() -> void:
 			var d := rb.global_position - ra.global_position
 			d.y *= 2.0
 			var ln := d.length()
-			if ln < R and ln > 0.001:
-				var n := Vector3(d.x, 0, d.z).normalized()
-				var over := R - ln
-				ra.side_v -= n * float(RaceData.PHYS["bump_push"]) * (0.4 + over)
-				rb.side_v += n * float(RaceData.PHYS["bump_push"]) * (0.4 + over)
-				var key := "%d_%d" % [a, b]
-				if GameClock.ms() - int(bump_cd.get(key, -9999)) > 500:
-					bump_cd[key] = GameClock.ms()
-					if ra.speed > rb.speed:
-						ra.speed *= 0.9
-					else:
-						rb.speed *= 0.9
-					ra.ev("bump", rb.slot)
-					rb.ev("bump", ra.slot)
+			var pair := Vector2i(a, b)
+			if ln >= R:
+				if ln > R + 0.04:
+					touching_riders.erase(pair)
+				continue
+			var n := Vector3(d.x, 0, d.z).normalized()
+			var va := Vector3(ra.velocity.x, 0, ra.velocity.z)
+			var vb := Vector3(rb.velocity.x, 0, rb.velocity.z)
+			var relative := (va - vb) * 0.5
+			if n.is_zero_approx():
+				n = ra.fwd().cross(Vector3.UP) if relative.is_zero_approx() else relative.normalized()
+			var closing := relative.dot(n)
+			var separation := 0.5 * minf(float(RaceData.PHYS.bump_separation_max), (R - ln) * float(RaceData.PHYS.bump_separation_rate))
+			if closing <= -separation:
+				continue
+			var impact := maxf(0.0, closing)
+			var alignment := impact / maxf(0.001, relative.length())
+			var rebound := maxf(separation, RaceRider.rebound_speed(impact, alignment))
+			var friction := float(RaceData.PHYS.wall_friction) * alignment * clampf(closing / float(RaceData.PHYS.wall_full_impact_speed), 0.0, 1.0)
+			var impulse := n * (closing + rebound) + relative.slide(n) * friction
+			var point := (ra.global_position + rb.global_position) * 0.5
+			ra.rider_contact(-n, va, va - impulse, rebound, impact, point)
+			rb.rider_contact(n, vb, vb + impulse, rebound, impact, point)
+			if not touching_riders.has(pair):
+				touching_riders[pair] = true
+				ra.ev("bump", rb.slot)
+				rb.ev("bump", ra.slot)
 
 ## кольца для трюков: пролетел сквозь в воздухе — заряд турбо, комбо и короткое ускорение (раз за прыжок на кольцо)
 var ring_cd := {}
@@ -302,7 +331,7 @@ func _rings_tick() -> void:
 			var d: Vector3 = r.global_position + Vector3(0, 0.6, 0) - (rg["pos"] as Vector3)
 			var along := d.dot(rg["tan"] as Vector3)
 			var key := "%d_%d" % [k, r.slot]
-			if absf(along) < 0.9 and (d - (rg["tan"] as Vector3) * along).length() < float(P["ring_r"]) - 0.15 and t - float(ring_cd.get(key, -9.0)) > 2.0:
+			if absf(along) < 0.9 and (d - (rg["tan"] as Vector3) * along).length() < float(P["ring_r"]) * float(P["ring_vis"]) - 0.15 and t - float(ring_cd.get(key, -9.0)) > 2.0:
 				ring_cd[key] = t
 				var mul: float = r.combo_add(150)
 				r.gain_turbo(float(P["ring_turbo"]) * mul)
@@ -382,7 +411,7 @@ func _progress(r: RaceRider, dt: float) -> void:
 	if r.global_position.y < ry + RaceTrack.KILL_Y:
 		r.remove_meta("fell")
 		respawn(r)
-	elif go and absf(r.speed) < 1.0 and r.spin_t <= 0.0 and not r.finished:
+	elif go and r.pushing_drive and r.is_on_floor() and r.get_real_velocity().length_squared() < 1.0 and r.spin_t <= 0.0 and not r.finished:
 		r.stuck_t += dt
 		if r.stuck_t > float(RaceData.PHYS["stuck"]):
 			respawn(r)
@@ -718,11 +747,75 @@ func _tethers_tick(dt: float) -> void:
 		a.pull_v = d.normalized() * float(RaceData.ITEMS["super_suck"]["pull"])
 
 func _pads_tick() -> void:
+	for r in riders:
+		_check_pad(r)
+
+func _check_pad(r: RaceRider) -> void:
+	if r.boost_t >= 0.5:
+		return
 	for p in track.pads:
-		for r in riders:
-			if r.global_position.distance_to(p["pos"] as Vector3) < 2.4 and r.boost_t < 0.5:
-				r.boost_t = 0.8
-				r.ev("pad", 0)
+		if r.global_position.distance_to(p["pos"] as Vector3) < 2.4:
+			r.boost_t = 0.8
+			r.pad_boost_t = r.boost_t
+			r.pad_boost_dir = p["tan"]
+			r.ev("pad", 0)
+			return
+
+# ---------------- финиш игрока ----------------
+## Игрок пересёк финиш последнего круга: место и время уже записаны в _finish (finish_t, order), здесь — только
+## конец гонки для него: управление закрыто (_input_of), пауза закрыта, моторы и музыка гонки стихают, HUD уходит,
+## звучит «Династия» и на дропе врывается экран результатов. Остальные едут дальше (в сети — тоже), один раз.
+func finale_start() -> void:
+	if finale:
+		return
+	finale = true
+	look_back = false
+	_save_records()
+	for r in riders:
+		if r.engine != null:
+			r.engine.stream_paused = true
+	hud.finale_start()
+
+## рекорды трассы — сразу на финише игрока (одиночная гонка и заезд на время; проверки рекордов не пишут)
+func _save_records() -> void:
+	if records_done or local == null or not local.finished:
+		return
+	records_done = true
+	new_record = ""
+	if main != null and main.racecheck != "":
+		return
+	var mode := String(cfg.get("mode", "single"))
+	var tid := String(cfg.get("track", "tomsk_dust"))
+	if mode == "online":
+		return
+	if RaceSave.record(tid, mode, local.finish_t):
+		new_record = "time"
+	if local.best_lap > 0.0 and RaceSave.record(tid, "lap", local.best_lap):
+		new_record = "lap" if new_record == "" else new_record + "+lap"
+
+## статистика игрока: наибольшая скорость и обгоны. Обгон — место стало лучше и держится 0,6 с (два гонщика
+## бок о бок меняются местами каждый кадр — это не обгоны)
+var _rank_try := 0
+var _rank_try_t := 0.0
+func _stats_tick() -> void:
+	if local == null or not go or local.finished or state != "race" and state != "done":
+		return
+	top_kmh = maxf(top_kmh, local.get_real_velocity().length() * 3.6)
+	var rk: int = local.rank
+	if _rank_seen == 0:
+		_rank_seen = rk
+		return
+	if rk == _rank_seen:
+		_rank_try = 0
+		return
+	if rk != _rank_try:
+		_rank_try = rk
+		_rank_try_t = t
+	elif t - _rank_try_t >= 0.6:
+		if rk < _rank_seen:
+			overtakes += _rank_seen - rk
+		_rank_seen = rk
+		_rank_try = 0
 
 # ---------------- результаты ----------------
 func _results() -> void:
@@ -739,15 +832,7 @@ func _results() -> void:
 		var left: float = laps * track.L - r.dist
 		var avg: float = maxf(4.0, r.dist / maxf(1.0, t))
 		results.append({"rider": r, "title": r.title, "time": t + left / avg, "best": r.best_lap, "est": true, "dc": r.disconnected})
-	new_record = ""
-	if local != null and local.finished and (main == null or main.racecheck == ""):
-		var mode := String(cfg.get("mode", "single"))
-		var tid := String(cfg.get("track", "tomsk_dust"))
-		if mode != "online":
-			if RaceSave.record(tid, mode, local.finish_t):
-				new_record = "time"
-			if local.best_lap > 0.0 and RaceSave.record(tid, "lap", local.best_lap):
-				new_record = "lap" if new_record == "" else new_record + "+lap"
+	_save_records()
 	_set_state("results")
 	hud.show_results()
 	if net != null and authority:
@@ -792,6 +877,9 @@ func _show_event(r: RaceRider, k: String, v) -> void:
 		"jump":
 			if me:
 				_sfx("sfx_roll", -8.0, 1.4)
+		"jump_lift":
+			if me:
+				_sfx("sfx_race_jump_lift", -9.0)
 		"ramp":
 			if me:
 				_sfx("sfx_swing", -5.0, 0.8)
@@ -856,6 +944,8 @@ func _show_event(r: RaceRider, k: String, v) -> void:
 					hud.final_lap()
 					_sfx("sfx_rage", -8.0, 1.6)                 # музыку на последнем круге ускоряет audio._race
 		"ring":
+			if me:
+				rings_got += 1
 			fx.ring(track.rings[int(v)]["pos"] as Vector3, 2.2, Color(1.0, 0.85, 0.3), 0.3)
 			fx.sparks(p + Vector3(0, 0.6, 0), r.fwd(), 14, Color(1.0, 0.9, 0.5), 0.9, 70.0)
 			if me:
@@ -891,8 +981,7 @@ func _show_event(r: RaceRider, k: String, v) -> void:
 			if me:
 				if crowd != null:
 					crowd.cheer_all()
-				hud.flash_text("ФИНИШ! %d МЕСТО" % r.rank if String(cfg.get("mode", "single")) != "time" else "ФИНИШ!")
-				_sfx("sfx_boom", -4.0, 1.1)
+				finale_start()
 		"pad":
 			if me:
 				_sfx("sfx_charge", -8.0, 1.6)
@@ -977,6 +1066,7 @@ func _process(dt: float) -> void:
 		stats["frames"] += 1                      # кадры экрана (для проверки: доля медленных, дольше 1/30 с)
 		if dt > 1.0 / 30.0:
 			stats["slow"] += 1
+	_stats_tick()
 	var who: RaceRider = local if local != null else (riders[0] if not riders.is_empty() else null)
 	if who == null:
 		return
@@ -991,55 +1081,56 @@ func _process(dt: float) -> void:
 		var side := f.cross(Vector3.UP)
 		var from := pos + f * 7.0 + side * 4.0 + Vector3(0, 1.6, 0)
 		var to := pos - f * 5.6 + Vector3(0, 2.3, 0)
-		cam.global_position = from.lerp(to, e)
+		cam.global_position = cam.clear_position(pos + Vector3.UP * 1.25, from.lerp(to, e))
 		cam.look_at(pos + Vector3(0, 0.9, 0) + f * (2.5 * e), Vector3.UP)
 		cam.fov = 60.0 + 10.0 * e
 		return
-	var spd: float = absf(who.speed)
-	var air: bool = who.air_t > 0.1
-	var dist_c := 5.4 + spd * 0.075 + (0.9 if air else 0.0)
-	var height := 2.3 + (0.5 if air else 0.0)
-	var dir := -f
-	if look_back and who == local and state in ["race", "done"]:
-		dir = f
-	var want := pos + dir * dist_c + Vector3(0, height, 0)
-	# не сквозь стены: луч от гонщика к камере
-	var space := get_world_3d().direct_space_state
-	var head := pos + Vector3(0, 1.3, 0)
-	var q := PhysicsRayQueryParameters3D.create(head, want, 1)
-	var hit := space.intersect_ray(q)
-	if not hit.is_empty():
-		want = (hit["position"] as Vector3) + (head - want).normalized() * 0.4
-	cam.global_position = want if cam_snap else cam.global_position.lerp(want, 1.0 - exp(-7.0 * dt))
+	var rear := look_back and who == local and state in ["race", "done"]
+	trauma = maxf(0.0, trauma - dt * 1.8)
+	cam.chase(who, pos, f, rear, cam_snap, trauma, dt)
 	cam_snap = false
-	var look := pos + Vector3(0, 1.0, 0) + (f * 3.0 if dir == -f else -f * 3.0)
-	cam.look_at(look, Vector3.UP)
-	# наклон в заносе, тряска, угол обзора от скорости
-	var roll := (-who.drift_dir * 0.07 if who.drifting else 0.0)
-	trauma = maxf(0.0, trauma - dt * 1.6)
-	var sh := trauma * trauma
-	cam.rotate_object_local(Vector3.FORWARD, roll + sin(Time.get_ticks_msec() * 0.031) * 0.03 * sh)
-	cam.position += Vector3(sin(Time.get_ticks_msec() * 0.047), sin(Time.get_ticks_msec() * 0.059), 0) * 0.25 * sh
-	cam_fov = lerpf(cam_fov, 68.0 + spd * 0.45 + (6.0 if who.boosting() else 0.0), 1.0 - exp(-4.0 * dt))
-	cam.fov = cam_fov
 	dust_vis = maxf(0.0, dust_vis - dt * 0.5)
 
 # ---------------- пауза и выход ----------------
+func _input(e: InputEvent) -> void:
+	if e.is_action_released("race_jump"):
+		jump_down = Input.is_action_pressed("race_jump")
+	elif e.is_action_pressed("race_jump") and not jump_down:
+		jump_down = true
+		if go and not paused and not net_menu:
+			jump_presses = mini(2, jump_presses + 1)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		jump_down = false
+		jump_presses = 0
+
 func _unhandled_input(e: InputEvent) -> void:
-	if e.is_action_pressed("pause") and state != "results":
+	if e.is_action_pressed("pause") and state != "results" and not finale:
 		set_paused(not paused)
 		get_viewport().set_input_as_handled()
 
 func set_paused(on: bool) -> void:
+	jump_presses = 0
 	if net != null:
 		net_menu = on                            # сетевая гонка не останавливается: только экран выхода
 		hud.show_pause(on)
+		if not on:
+			lock_mouse()
 		return
 	paused = on
 	hud.show_pause(on)
+	if not on:
+		lock_mouse()
 	for r in riders:
 		if r.engine != null:
 			r.engine.stream_paused = on
+
+## Курсор в гонке спрятан и заперт в окне. Раньше он был только спрятан (а после паузы — виден и так и
+## оставался): уйдя за край окна, клик левой кнопкой (она же «предмет») уводил фокус из игры, Godot отпускал
+## все клавиши, и пылесос переставал слушаться до клика обратно в окно. Пауза и итоги курсор показывают.
+func lock_mouse() -> void:
+	MouseMode.set_to(Input.MOUSE_MODE_CONFINED_HIDDEN)
 
 func restart() -> void:
 	if main != null:
@@ -1054,6 +1145,16 @@ func quit(to_race_menu: bool) -> void:
 		return
 	if main != null:
 		main.end_race(to_race_menu)
+
+## выход в главное меню (и из сетевой гонки тоже — сначала закрывается связь), а не в меню онлайна
+func quit_main() -> void:
+	if net != null:
+		net.race = null
+		net.leave_peer()
+		net = null
+	paused = false
+	if main != null:
+		main.end_race(false)
 
 # ---------------- сетевая гонка ----------------
 func rider_of_peer(id: int) -> RaceRider:
@@ -1085,7 +1186,7 @@ func apply_snapshot(b: PackedByteArray) -> void:
 	if b.size() < 14:
 		return
 	var n := b.decode_u8(13)
-	if b.size() != 14 + n * 29 or n != riders.size():
+	if b.size() != 14 + n * RaceNet.RIDER_BYTES or n != riders.size():
 		return
 	var ht := b.decode_float(4)
 	var s_code := b.decode_u8(8)
@@ -1141,20 +1242,39 @@ func apply_snapshot(b: PackedByteArray) -> void:
 			# Поправляем только настоящее расхождение (столкновение, предмет, другой путь) — сразу всё, видимый
 			# гонщик доезжает плавно (vis_off).
 			var tol := 0.6 + absf(r.speed) * 0.05
-			if err.length() > 12.0:
+			var hard := err.length() > 12.0
+			var host_recover := b.decode_half(o + 35)
+			if hard:
 				net_fix["hard"] = int(net_fix["hard"]) + 1
 				r.global_position = pos
 				r.heading = h
 				local_hist.clear()
 			elif err.length() > tol:
 				net_fix["soft"] = float(net_fix["soft"]) + err.length()
-				r.global_position += err
+				var old := r.global_position
+				r.move_and_collide(err)
+				err = r.global_position - old
 				for hh in local_hist:
 					hh[1] = (hh[1] as Vector3) + err
 				r.vis_off = (r.vis_off - err).limit_length(3.0)
 			var dv := spd - float(hp[1])
-			if absf(dv) > 2.0:
+			# Сверяем с тем же вводом: предыдущий снимок до удара не возвращает тягу в стену.
+			var missed_hit := host_recover > float(hp[2]) + 0.16 and host_recover > r.wall_drive_t + 0.12
+			if hard or missed_hit:
+				r.wall_push = Vector3(b.decode_half(o + 29), 0.0, b.decode_half(o + 31))
+				r.wall_yaw = b.decode_half(o + 33)
+				r.wall_drive_t = host_recover
+				r.speed = spd
+				r.vdir = Vector3(sin(vh), 0, cos(vh))
+				r.drive_accel = 0.0
+			elif absf(dv) > 2.0 and maxf(r.wall_drive_t, maxf(host_recover, float(hp[2]))) < 0.03:
 				r.speed += dv * 0.5
+			if hard:
+				r.velocity.y = b.decode_half(o + 37)
+				r.double_hop_cd = b.decode_half(o + 39)
+				r.double_hop_used = (dl & 8) != 0
+				r.hop_hold_elapsed = -1.0
+				cam_snap = true
 			if (f & 8) != 0 and r.spin_t <= 0.0:
 				r.spin_t = 0.6
 		else:
@@ -1170,7 +1290,7 @@ func apply_snapshot(b: PackedByteArray) -> void:
 			r.snaps.append([ht, pos, h])
 			if r.snaps.size() > 30:
 				r.snaps.pop_front()
-		o += 29
+		o += RaceNet.RIDER_BYTES
 
 ## клиент, шаг физики: свой гонщик — по своему вводу (сразу отзывается), ввод — хосту
 func _client_tick(dt: float) -> void:
@@ -1188,7 +1308,8 @@ func _client_tick(dt: float) -> void:
 		inp = local.get_meta("auto")
 	net.client_input(inp, dt)
 	local.simulate(inp, dt, go)
-	local_hist.append([net.seq, local.global_position, local.speed])
+	_check_pad(local)
+	local_hist.append([net.seq, local.global_position, local.speed, local.wall_drive_t])
 	if local_hist.size() > 180:
 		local_hist.pop_front()
 	local.proj = track.project(local.global_position, local.proj)
@@ -1202,10 +1323,10 @@ func _client_tick(dt: float) -> void:
 func _hist_seq(sq: int) -> Array:
 	for k in range(local_hist.size() - 1, -1, -1):
 		if int(local_hist[k][0]) == sq:
-			return [local_hist[k][1], local_hist[k][2]]
+			return [local_hist[k][1], local_hist[k][2], local_hist[k][3]]
 	if not local_hist.is_empty():
-		return [local_hist[0][1], local_hist[0][2]]
-	return [local.global_position, local.speed]
+		return [local_hist[0][1], local_hist[0][2], local_hist[0][3]]
+	return [local.global_position, local.speed, local.wall_drive_t]
 
 ## клиент: куклы между снимками — с задержкой 100 мс, по двум ближайшим снимкам; пропал снимок — по скорости
 func _puppets() -> void:

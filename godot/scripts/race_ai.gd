@@ -56,7 +56,7 @@ func think(dt: float) -> RaceInput:
 	if shortcut_lap != r.lap:
 		shortcut_lap = r.lap
 		go_short = rng.randf() < float(cfg["short"])
-	var look := 5.0 + absf(spd) * 0.5
+	var look := 5.5 + absf(spd) * 0.55
 	var target: Vector3
 	var near_split: float = fposmod(track.short_from - r.s, track.L)
 	if track.SP.size() > 1 and (r.on_short or (go_short and near_split < 16.0)):
@@ -100,12 +100,11 @@ func think(dt: float) -> RaceInput:
 	# руль: угол до точки
 	var to := target - pos
 	var desired := atan2(to.x, to.z)
-	var diff := angle_difference(r.heading, desired)
-	var steer := clampf(-diff * 2.4, -1.0, 1.0)
+	var travel_yaw := atan2(r.vdir.x, r.vdir.z)
+	var aim_yaw: float = lerp_angle(r.heading, travel_yaw, 0.45) if spd > 4.0 else r.heading
+	var steer := clampf(-angle_difference(aim_yaw, desired) * 2.4, -1.0, 1.0)
 	if r.drifting:
-		# в заносе руль задаёт дугу: целимся направлением движения
-		var vh := atan2(r.vdir.x, r.vdir.z)
-		steer = r.steer_for_rate(-angle_difference(vh, desired) * 2.2)
+		steer = r.steer_for_rate(-angle_difference(travel_yaw, desired) * 2.2)
 	noise_v += rng.randf_range(-1.0, 1.0) * dt * 6.0
 	noise_v = clampf(noise_v, -1.0, 1.0) * (1.0 - dt * 1.5)
 	noise = lerpf(noise, noise_v, dt * 3.0)
@@ -114,9 +113,12 @@ func think(dt: float) -> RaceInput:
 	var look_d := 10.0 + absf(spd) * 0.9
 	var turn := track.turn_ahead(r.s, look_d)
 	var vmax: float = float(P["vmax"]) * float(cfg["pace"]) * (race.weather.mod("bot") if race.weather != null else 1.0)
-	# с какой скоростью поворот ещё проходится рулём: нужная угловая скорость v·κ не больше 80% руля
-	var kappa := turn / look_d
-	var safe := (float(P["steer"]) * 0.8 / maxf(kappa, 0.001)) * float(cfg["corner"])
+	# Бот оценивает и доступный угол руля, и боковое ускорение v²·κ.
+	var kappa := maxf(turn / look_d, 0.001)
+	var grip: float = race.weather.mod("grip") if race.weather != null else 1.0
+	var steering_limit := RaceRider.steer_rate_at(vmax) * 0.8 / kappa
+	var traction_limit := sqrt(float(P["lateral_accel"]) * sqrt(grip) / kappa)
+	var safe := minf(steering_limit, traction_limit) * float(cfg["corner"])
 	if drift_plan:
 		safe += 3.0
 	var tgt_speed := minf(vmax, safe)
@@ -159,9 +161,12 @@ func think(dt: float) -> RaceInput:
 		inp.throttle = 0.0
 		inp.brake = 1.0
 		steer = -steer
-	elif race.go and absf(spd) < 0.8 and race.t > 2.0 and r.spin_t <= 0.0:
+	elif race.go and absf(spd) < 0.8 and race.t > 2.0 and r.spin_t <= 0.0 and r.wall_push.length_squared() < 0.64:
 		late_t = 0.0
-		if rng.randf() < dt * 1.2:
+		if r.is_on_wall():
+			# Нужно отъехать дальше радиуса препятствия, чтобы снова увидеть путь объезда.
+			back_t = 1.65
+		elif rng.randf() < dt * 1.2:
 			back_t = 0.9
 	inp.steer = steer
 	# предметы

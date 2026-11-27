@@ -6,11 +6,15 @@
 class_name RaceTrack
 extends Node3D
 
+const Depot := preload("res://scripts/race_depot.gd")
+const SurfaceStyle := preload("res://scripts/race_surface_style.gd")
+
 const STEP := 1.0                  # шаг точек кривой, м
 const SHOULDER := 1.6              # обочина за краем дороги, м
 const WALL_H := 4.0                # высота стен (видимые — ниже: барьеры, гаражи, заборы)
 const KILL_Y := -3.0               # ниже — упал: возврат на последнюю контрольную точку
 const GATE_GAP := 18.0             # контрольные точки не ближе друг к другу, м
+const RING_GAP := 40.0             # кольца не ближе друг к другу по трассе, м: одно место — одно кольцо
 
 var data: Dictionary = {}
 var id := ""
@@ -34,7 +38,7 @@ var plank := 3.0
 var start_s := 0.0                 # финишная черта
 var gates: Array = []              # [{s, pos, tan}]; gates[0] — финиш
 var boxes: Array = []              # точки коробок предметов
-var pads: Array = []               # [{pos, tan, s}]
+var pads: Array = []               # [{pos, tan}]
 var ramps: Array = []              # [{s0, s1, h}]
 var rings: Array = []              # кольца для трюков: [{pos, tan, node}]
 var has_height := false            # у трассы есть участки выше земли (крыши)
@@ -64,6 +68,8 @@ var obstacle_pts: Array = []       # [центр, радиус] — для бо�
 var fill_counts := {}              # сколько чего поставлено заполнением (для проверки)
 var mats := {}
 var body: StaticBody3D
+var depot_blocks: Array = []       # visual skins for existing barrier spans
+var street_light_origins := PackedVector3Array()
 
 func build(track_id: String) -> void:
 	id = track_id
@@ -85,7 +91,21 @@ func build(track_id: String) -> void:
 	_gates()
 	_boxes()
 	if DisplayServer.get_name() != "headless":        # без экрана (сервер, проверки) оформление не нужно: физики в нём нет
+		var decoration_start := get_child_count()
 		_decor()
+		if uses_pbr_surfaces():
+			# _decor also creates collision proxies and consumes seeded random values.
+			# Replace only its display nodes. CollisionShape3D lives under body.
+			for k in range(get_child_count()-1, decoration_start-1, -1):
+				var prop := get_child(k) as Node3D
+				if prop != null and Depot.covers_point(self, prop.position):
+					prop.free()
+			for k in range(street_light_origins.size()-1, -1, -1):
+				if Depot.covers_point(self, street_light_origins[k]):
+					street_light_origins.remove_at(k)
+			var district := Depot.new()
+			add_child(district)
+			district.build(self)
 		_decks()
 		_signs()
 		_landmarks()
@@ -309,15 +329,16 @@ func _mat(col: Color, rough := 0.9, emit := 0.0) -> StandardMaterial3D:
 
 func _mats() -> void:
 	var asphalt := _mat(Color(0.13, 0.13, 0.145), 0.85)
-	var noise := FastNoiseLite.new()
-	noise.frequency = 0.08
-	var nt := NoiseTexture2D.new()
-	nt.noise = noise
-	nt.width = 256
-	nt.height = 256
-	nt.seamless = true
-	asphalt.albedo_texture = nt
-	asphalt.uv1_scale = Vector3(0.25, 0.25, 1)
+	if not uses_pbr_surfaces():
+		var noise := FastNoiseLite.new()
+		noise.frequency = 0.08
+		var nt := NoiseTexture2D.new()
+		nt.noise = noise
+		nt.width = 256
+		nt.height = 256
+		nt.seamless = true
+		asphalt.albedo_texture = nt
+		asphalt.uv1_scale = Vector3(0.25, 0.25, 1)
 	mats["road"] = asphalt
 	mats["short"] = _mat(Color(0.3, 0.25, 0.19), 1.0)
 	mats["shoulder"] = _mat(Color(0.32, 0.27, 0.2), 1.0)
@@ -358,6 +379,12 @@ func _mats() -> void:
 		(mats["window"] as StandardMaterial3D).emission_energy_multiplier = 3.2
 		(mats["lamp"] as StandardMaterial3D).emission_energy_multiplier = 6.0
 		(mats["barrier"] as StandardMaterial3D).albedo_color = Color(0.5, 0.55, 0.66)
+
+	if uses_pbr_surfaces():
+		SurfaceStyle.make_materials(mats)
+
+func uses_pbr_surfaces() -> bool:
+	return id == "tomsk_dust"
 
 ## зимний облик трассы (data["look"]["winter"]): снег, синий вечер, голые деревья, сугробы, снегопад
 func winter() -> bool:
@@ -492,6 +519,16 @@ func _ribbon(pts: PackedVector3Array, tans: PackedVector3Array, widths, closed: 
 	var n := pts.size()
 	var segs := n if closed else n - 1
 	var dist := 0.0
+	var pbr: bool = uses_pbr_surfaces() and mat != mats["line"]
+	var curb: bool = pbr and (mat == mats["curb_r"] or mat == mats["curb_w"])
+	# Quantize the length of the asphalt loop to whole repeats at the closure.
+	var v_scale := 1.0
+	if mat is ShaderMaterial and closed:
+		var loop_m := 0.0
+		for i in segs:
+			loop_m += pts[i].distance_to(pts[(i + 1) % n])
+		var tile_m := SurfaceStyle.ASPHALT_TILE_M
+		v_scale = roundf(loop_m / tile_m) * tile_m / loop_m
 	for i in segs:
 		var j := (i + 1) % n
 		if skip.is_valid() and skip.call(i):
@@ -506,14 +543,38 @@ func _ribbon(pts: PackedVector3Array, tans: PackedVector3Array, widths, closed: 
 		var a1: Vector3 = pts[j] + rj * (wj * 0.5 * a_k + a_add) + Vector3(0, y, 0)
 		var b1: Vector3 = pts[j] + rj * (wj * 0.5 * b_k + b_add) + Vector3(0, y, 0)
 		var d1 := dist + pts[i].distance_to(pts[j])
-		st.set_normal(Vector3.UP)
-		# порядок вершин — по часовой, если смотреть сверху (лицевая сторона в Godot): раньше был обратный, и всё
-		# полотно — асфальт, обочины, бордюры, разметка — отсекалось как изнанка: ездили по голой земле
-		for v in [[a0, Vector2(0, dist)], [b1, Vector2(1, d1)], [b0, Vector2(1, dist)], [a0, Vector2(0, dist)], [a1, Vector2(0, d1)], [b1, Vector2(1, d1)]]:
-			st.set_uv(v[1] * Vector2(wi, 1.0) * 0.25)
-			st.add_vertex(v[0])
+		if curb:
+			_curb_strip(st, a0, b0, a1, b1, dist, d1)
+		elif pbr:
+			var n0 := ri.cross(tans[i]).normalized()
+			var n1 := rj.cross(tans[j]).normalized()
+			var u0 := wi * 0.5 * a_k + a_add
+			var u1 := wi * 0.5 * b_k + b_add
+			var u2 := wj * 0.5 * a_k + a_add
+			var u3 := wj * 0.5 * b_k + b_add
+			var depot_edges := []
+			if mat == mats["road"]:
+				var weight_i := _depot_wear(S[i])
+				var weight_j := _depot_wear(S[j])
+				depot_edges = [Vector2(-1,weight_i),Vector2(1,weight_i),Vector2(-1,weight_j),Vector2(1,weight_j)]
+			elif mat == mats.get("approach"):
+				for vertex: Vector3 in [a0,b0,a1,b1]:
+					var nearest := nearest_main(vertex)
+					var edge := vertex.distance_to(P[nearest]) - W[nearest]*0.5
+					depot_edges.append(Vector2(edge,0))
+			_surface_quad(st, [a0, b0, a1, b1], [Vector2(u0, dist * v_scale), Vector2(u1, dist * v_scale),
+				Vector2(u2, d1 * v_scale), Vector2(u3, d1 * v_scale)], n0, n1, depot_edges)
+		else:
+			st.set_normal(Vector3.UP)
+			# порядок вершин — по часовой, если смотреть сверху (лицевая сторона в Godot): раньше был обратный, и всё
+			# полотно — асфальт, обочины, бордюры, разметка — отсекалось как изнанка: ездили по голой земле
+			for v in [[a0, Vector2(0, dist)], [b1, Vector2(1, d1)], [b0, Vector2(1, dist)], [a0, Vector2(0, dist)], [a1, Vector2(0, d1)], [b1, Vector2(1, d1)]]:
+				st.set_uv(v[1] * Vector2(wi, 1.0) * 0.25)
+				st.add_vertex(v[0])
 		faces.append_array(PackedVector3Array([a0, b1, b0, a0, a1, b1]))
 		dist = d1
+	if pbr:
+		st.generate_tangents()
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
 	mi.material_override = mat
@@ -525,6 +586,36 @@ func _ribbon(pts: PackedVector3Array, tans: PackedVector3Array, widths, closed: 
 		sh.backface_collision = true
 		cs.shape = sh
 		body.add_child(cs)
+
+## Порядок вершин совпадает с исходным полотном. Коллизии строятся отдельно.
+func _depot_wear(s: float) -> float:
+	var d := from_start(s)
+	if d > L*0.5:
+		d -= L
+	return smoothstep(Depot.FIRST, Depot.FIRST+8.0, d) * (1.0-smoothstep(Depot.LAST-10.0, Depot.LAST, d))
+
+static func _surface_quad(st: SurfaceTool, vertices: Array, uv: Array, n0: Vector3, n1: Vector3, edge_uv := []) -> void:
+	for k in [0, 3, 1, 0, 2, 3]:
+		st.set_normal(n0 if k < 2 else n1)
+		st.set_uv(uv[k])
+		if not edge_uv.is_empty():
+			st.set_uv2(edge_uv[k])
+		st.add_vertex(vertices[k])
+
+static func _curb_strip(st: SurfaceTool, a0: Vector3, b0: Vector3, a1: Vector3, b1: Vector3, d0: float, d1: float) -> void:
+	# Скосы нарисованы внутри прежней полосы, поверх неизменной дорожной коллизии.
+	var fractions := [0.0, 0.13, 0.87, 1.0]
+	var heights := [0.0, 0.047, 0.047, 0.0]
+	for k in 3:
+		var lo: float = fractions[k]
+		var hi: float = fractions[k + 1]
+		var v0 := a0.lerp(b0, lo) + Vector3.UP * float(heights[k])
+		var v1 := a0.lerp(b0, hi) + Vector3.UP * float(heights[k + 1])
+		var v2 := a1.lerp(b1, lo) + Vector3.UP * float(heights[k])
+		var v3 := a1.lerp(b1, hi) + Vector3.UP * float(heights[k + 1])
+		var normal := (v1 - v0).cross(v2 - v0).normalized()
+		_surface_quad(st, [v0, v1, v2, v3], [Vector2(lo, d0), Vector2(hi, d0),
+			Vector2(lo, d1), Vector2(hi, d1)], normal, normal)
 
 func _road() -> void:
 	# главная дорога, обочины, бордюры, разметка
@@ -551,9 +642,11 @@ func _road() -> void:
 			add_child(q)
 	if SP.size() > 1:
 		var skip_ditch := func(i): return SS[i] > ditch.x and SS[i] < ditch.y
-		_ribbon(SP, ST, short_w, false, -1.0, 0.0, 1.0, 0.0, 0.015, mats["short"], true, skip_ditch)
-		_ribbon(SP, ST, short_w, false, -1.0, -SHOULDER, -1.0, 0.0, 0.005, mats["shoulder"], true, skip_ditch)
-		_ribbon(SP, ST, short_w, false, 1.0, 0.0, 1.0, SHOULDER, 0.005, mats["shoulder"], true, skip_ditch)
+		var short_surface: Material = mats.get("approach",mats["short"])
+		var short_edge: Material = mats.get("approach",mats["shoulder"])
+		_ribbon(SP, ST, short_w, false, -1.0, 0.0, 1.0, 0.0, 0.015, short_surface, true, skip_ditch)
+		_ribbon(SP, ST, short_w, false, -1.0, -SHOULDER, -1.0, 0.0, 0.005, short_edge, true, skip_ditch)
+		_ribbon(SP, ST, short_w, false, 1.0, 0.0, 1.0, SHOULDER, 0.005, short_edge, true, skip_ditch)
 		# канава: вода внизу, мостик поперёк
 		var i0 := short_point(ditch.x)
 		var i1 := short_point(ditch.y)
@@ -658,7 +751,10 @@ func _wall_line(pts: PackedVector3Array, tans: PackedVector3Array, widths: Packe
 			var ln := a.distance_to(b) + 0.15
 			var yaw := atan2(b.x - a.x, b.z - a.z)
 			_box(mid + Vector3(0, WALL_H * 0.5, 0), Vector3(0.6, WALL_H, ln), yaw, null, true, false)
-			mm_pts.append([mid, yaw])
+			if uses_pbr_surfaces() and DisplayServer.get_name() != "headless" and Depot.covers_point(self, mid):
+				depot_blocks.append([mid, yaw, a.distance_to(b), i])
+			else:
+				mm_pts.append([mid, yaw])
 		i += stride
 
 # ---------------- трамплины, ускорители, препятствия ----------------
@@ -714,14 +810,24 @@ func _ramps() -> void:
 ## кольца над полётом с трамплина. Модель — race_trick_ring.glb, если есть; иначе кольцо собирается из деталей:
 ## полосатый обод, лампочки по кругу, две стойки до земли.
 func _rings() -> void:
-	var R: float = float(RaceData.PHYS["ring_r"])
+	var R: float = float(RaceData.PHYS["ring_r"]) * float(RaceData.PHYS["ring_vis"])
 	for q in data.get("rings", []):
 		if int(q[0]) >= ramps.size():
 			continue
 		var rp: Dictionary = ramps[int(q[0])]
 		var i := at_s(float(rp["s1"]) + float(q[1]))
 		var right: Vector3 = T[i].cross(Vector3.UP)
+		# одно место — одно кольцо: ближе RING_GAP м по трассе к уже поставленному не ставим (иначе два подряд
+		# в одной линии пролёта выглядят как одно двойное)
+		var near := false
+		for rg in rings:
+			var ds := fposmod(S[i] - float(rg["s"]), L)
+			if minf(ds, L - ds) < RING_GAP:
+				near = true
+		if near:
+			continue
 		var c: Vector3 = P[i] + right * float(q[3]) + Vector3(0, float(q[2]), 0)
+		c.y += R - float(RaceData.PHYS["ring_r"])      # крупнее кольцо — центр выше на прибавку радиуса: низ дыры там же, где был
 		var n := Node3D.new()
 		n.position = c
 		n.rotation.y = atan2(T[i].x, T[i].z)
@@ -740,7 +846,7 @@ func _rings() -> void:
 			g.scale = Vector3.ONE * k
 			g.position = -Vector3(bb.get_center().x, bb.position.y + bb.size.y * 0.53, bb.get_center().z) * k
 			for sx in [-1.0, 1.0]:
-				var hgt2: float = maxf(0.3, float(q[2]) - R * 0.9)
+				var hgt2: float = maxf(0.3, (c.y - P[i].y) - R * 0.9)
 				RaceItems.cyl(n, 0.08, 0.1, hgt2, mats["metal"] if mats.has("metal") else RaceItems.mat("steel", Color(0.62, 0.64, 0.68), 0.35, 0.8), Vector3(sx * R * 0.6, -R * 0.9 - hgt2 * 0.5, 0))
 		else:
 			for k in 12:
@@ -749,24 +855,34 @@ func _rings() -> void:
 				seg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 				RaceItems.ball(n, 0.09, RaceItems.mat("ring_bulb", Color(1.0, 0.9, 0.5), 0.3, 0.0, 2.0), Vector3(cos(a0 + 0.26) * (R + 0.02), sin(a0 + 0.26) * (R + 0.02), 0.17))
 			for sx in [-1.0, 1.0]:
-				var hgt: float = maxf(0.3, float(q[2]) - R * 0.7)
+				var hgt: float = maxf(0.3, (c.y - P[i].y) - R * 0.7)
 				RaceItems.cyl(n, 0.08, 0.1, hgt, mats["metal"] if mats.has("metal") else RaceItems.mat("steel", Color(0.62, 0.64, 0.68), 0.35, 0.8), Vector3(sx * R * 0.72, -R * 0.7 - hgt * 0.5, 0))
-		rings.append({"pos": c, "tan": T[i], "node": n})
+		rings.append({"pos": c, "tan": T[i], "node": n, "s": S[i]})
 
 func _pads() -> void:
 	for q in data.get("pads", []):
-		var i := nearest_main(_v(q))
-		var yaw := atan2(T[i].x, T[i].z)
+		var pos := _v(q)
+		var on_shortcut: bool = q.size() > 2 and q[2] == "short" and SP.size() > 1
+		var points := SP if on_shortcut else P
+		var i := nearest_short(pos) if on_shortcut else nearest_main(pos)
+		var last := points.size() - 1
+		var prev := maxi(i - 1, 0) if on_shortcut else posmod(i - 1, points.size())
+		var next := mini(i + 1, last) if on_shortcut else (i + 1) % points.size()
+		var tan := (points[next] - points[prev]).normalized()
+		var right := tan.cross(Vector3.UP).normalized()
+		var normal := right.cross(tan)
+		# Вершина PrismMesh смотрит вдоль локальной оси +Y.
+		var arrow_basis := Basis(right, tan, normal)
+		var center := points[i]
 		for k in 3:
 			var ch := MeshInstance3D.new()
 			var pm := PrismMesh.new()
 			pm.size = Vector3(2.2, 1.1, 0.06)
 			ch.mesh = pm
 			ch.material_override = mats["pad"]
-			ch.position = P[i] + T[i] * (k - 1) * 1.3 + Vector3(0, 0.03, 0)
-			ch.rotation = Vector3(-PI * 0.5, yaw, 0)
+			ch.transform = Transform3D(arrow_basis, center + tan * (k - 1) * 1.3 + normal * 0.03)
 			add_child(ch)
-		pads.append({"pos": P[i], "tan": T[i], "s": S[i]})
+		pads.append({"pos": center, "tan": tan})
 
 func _obstacles() -> void:
 	for o in data.get("obstacles", []):
@@ -875,7 +991,9 @@ func _gates() -> void:
 	var right: Vector3 = (g0["tan"] as Vector3).cross(Vector3.UP)
 	var yaw := atan2(g0["tan"].x, g0["tan"].z)
 	for sd in [-1.0, 1.0]:
-		_box(g0["pos"] + right * sd * (float(g0["w"]) * 0.5 + SHOULDER + 0.6) + Vector3(0, 3.0, 0), Vector3(0.5, 6.0, 0.5), yaw, mats["metal"], true)
+		_box(g0["pos"] + right * sd * (float(g0["w"]) * 0.5 + SHOULDER + 0.6) + Vector3(0, 3.0, 0), Vector3(0.5, 6.0, 0.5), yaw, mats["metal"], true, not uses_pbr_surfaces())
+	if uses_pbr_surfaces():
+		return                         # finish structure and signs are part of the depot
 	_box(g0["pos"] + Vector3(0, 6.0, 0), Vector3(float(g0["w"]) + SHOULDER * 2.0 + 1.8, 1.3, 0.4), yaw, mats["red"], false)
 	var ban := Label3D.new()
 	ban.text = String(data["name"])
@@ -1069,6 +1187,8 @@ func _decor() -> void:
 				_:
 					@warning_ignore_start("integer_division")
 					if (i / 6) % 3 == 0:
+						if uses_pbr_surfaces():
+							street_light_origins.append(edge - out * 0.55 + Vector3.UP * 5.25)
 						if RaceProps.spawn("street_lamp", self, edge + out * 0.8, face) == null:
 							_lamp(edge + out * 0.8, yaw)
 					elif (i / 8) % 5 == 2 and _free(edge + out * 3.0, 1.5):
@@ -1339,6 +1459,8 @@ func _fill() -> void:
 	var drifts: Array = []       # зимой вместо кустов — сугробы
 	var is_winter := winter()
 	var add := func(pid: String, c: Vector3, yaw: float, k := 1.0) -> void:
+		if uses_pbr_surfaces() and Depot.covers_point(self, c):
+			return
 		if is_winter:
 			if pid == "bush" or pid == "trash_pile":
 				drifts.append([c, yaw, k])
@@ -1382,20 +1504,28 @@ func _fill() -> void:
 					add.call("bush", c, face, rng.randf_range(0.8, 1.4))
 				elif r < 0.29 and free_big.call(c, 6.0):
 					big.append([c, 6.0])
-					RaceProps.spawn("playground", self, c, face)
+					if not uses_pbr_surfaces() or not Depot.covers_point(self, c):
+						RaceProps.spawn("playground", self, c, face)
 				elif r < 0.32 and free_big.call(c, 4.0):
 					big.append([c, 4.0])
-					RaceProps.spawn("gazebo", self, c, face)
+					if not uses_pbr_surfaces() or not Depot.covers_point(self, c):
+						RaceProps.spawn("gazebo", self, c, face)
 				elif r < 0.36:
 					add.call("old_car" if rng.randf() < 0.6 else "old_van", c, face)
 				elif r < 0.38 and free_big.call(c, 3.5):
 					big.append([c, 3.5])
-					RaceProps.spawn("transformer_booth", self, c, face)
+					if not uses_pbr_surfaces() or not Depot.covers_point(self, c):
+						RaceProps.spawn("transformer_booth", self, c, face)
 				elif r < 0.395 and free_big.call(c, 7.0):
 					big.append([c, 7.0])
-					add.call("heating_pipe", c, face)
-					for q in [1, 2]:                     # теплотрасса продолжается вдоль своей оси
-						add.call("heating_pipe", c + Vector3(sin(face), 0, cos(face)) * 9.6 * q, face)
+					# теплотрасса продолжается вдоль своей оси — но только пока звено целиком (концы в 5 м от середины)
+					# не на дороге: раньше продолжения ложились поперёк асфальта (модель без столкновений — «брёвна»)
+					var axis := Vector3(sin(face), 0, cos(face))
+					for q in [0, 1, 2]:
+						var pc: Vector3 = c + axis * 9.6 * float(q)
+						if minf(_edge_dist(pc), minf(_edge_dist(pc + axis * 5.0), _edge_dist(pc - axis * 5.0))) < 3.0:
+							break
+						add.call("heating_pipe", pc, face)
 				elif r < 0.44 and free_big.call(c, 9.0):
 					# ряд гаражей
 					big.append([c, 9.0])
@@ -1411,7 +1541,8 @@ func _fill() -> void:
 				elif r < 0.17 and cranes < 3 and free_big.call(c, 10.0):
 					cranes += 1
 					big.append([c, 10.0])
-					RaceProps.spawn("tower_crane", self, c, face)
+					if not uses_pbr_surfaces() or not Depot.covers_point(self, c):
+						RaceProps.spawn("tower_crane", self, c, face)
 				elif r < 0.2 and free_big.call(c, 12.0):
 					big.append([c, 12.0])
 					add.call("factory_hall", c, _face_road(c))

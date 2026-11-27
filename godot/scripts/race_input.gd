@@ -10,6 +10,7 @@ var steer := 0.0        # −1 (влево) .. 1 (вправо)
 var drift := false      # держит занос
 var boost := false      # держит турбо
 var jump := false       # нажал прыжок в этом шаге
+var jump_held := false  # держит кнопку прыжка
 var item := false       # нажал «предмет» в этом шаге
 var look_back := false
 
@@ -38,6 +39,7 @@ static func from_actions(sens: float, jump_edge: bool, item_edge: bool) -> RaceI
 	r.drift = Input.is_action_pressed("race_drift")
 	r.boost = Input.is_action_pressed("race_boost")
 	r.jump = jump_edge
+	r.jump_held = Input.is_action_pressed("race_jump")
 	r.item = item_edge
 	r.look_back = Input.is_action_pressed("race_look_back")
 	return r.sanitize()
@@ -49,7 +51,7 @@ func pack() -> PackedByteArray:
 	b[0] = int(roundf(throttle * 255.0))
 	b[1] = int(roundf(brake * 255.0))
 	b[2] = int(roundf((steer * 0.5 + 0.5) * 254.0))
-	b[3] = (1 if drift else 0) | (2 if boost else 0) | (4 if jump else 0) | (8 if item else 0) | (16 if look_back else 0)
+	b[3] = (1 if drift else 0) | (2 if boost else 0) | (4 if jump else 0) | (8 if item else 0) | (16 if look_back else 0) | (32 if jump_held else 0)
 	return b
 
 static func unpack(b: PackedByteArray) -> RaceInput:
@@ -64,4 +66,5 @@ static func unpack(b: PackedByteArray) -> RaceInput:
 	r.jump = (b[3] & 4) != 0
 	r.item = (b[3] & 8) != 0
 	r.look_back = (b[3] & 16) != 0
+	r.jump_held = (b[3] & 32) != 0
 	return r.sanitize()

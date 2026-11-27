@@ -22,7 +22,19 @@ static func open(menu, start := 2) -> void:
 		["ONLINE RACE", func(): menu.open_online()],
 		["РЕКОРДЫ", func(): _records(menu)],
 		["УПРАВЛЕНИЕ", func(): controls(menu)],
+		["ГРАФИКА", func(): _graphics(menu)],
 		["НАЗАД", func(): menu._close()]], start + 2 if start >= 2 else start)
+
+static func _graphics(menu) -> void:
+	menu._open("VACUUM RACING · ГРАФИКА", [], [
+		[func(): return "РАЗМЫТИЕ КРАЁВ НА СКОРОСТИ: " + ("ВКЛ" if RaceSave.v("speed_blur") else "ВЫКЛ"), null,
+			func(_d: int): RaceSave.put("speed_blur", not bool(RaceSave.v("speed_blur")))],
+		[func(): return "ТРЯСКА КАМЕРЫ В ГОНКЕ: " + ("ВКЛ" if RaceSave.v("camera_shake") else "ВЫКЛ"), null,
+			func(_d: int): RaceSave.put("camera_shake", not bool(RaceSave.v("camera_shake")))],
+		[func(): return "ТЕНИ И ОТРАЖЕНИЯ В ТОМСКЕ: " + ("ВКЛ" if RaceSave.v("detailed_lighting") else "ВЫКЛ"), null,
+			func(_d: int): RaceSave.put("detailed_lighting", not bool(RaceSave.v("detailed_lighting")))],
+		["НАЗАД", func(): open(menu, 7)]], 0)
+	menu.panel_back = func(): open(menu, 7)
 
 static func _weather_name(w: String) -> String:
 	if w == "random":
