@@ -25,6 +25,8 @@ const WEATHERS := {
 		"mods": {"bot": 0.97}, "fog": 0.006, "sky": [Color(0.02, 0.02, 0.05), Color(0.08, 0.07, 0.12)], "light": 0.08, "night": true},
 }
 const WEATHER_ORDER := ["random", "clear", "rain", "fog", "wind", "ice", "dust", "night"]
+const VAN := Vector3(4.4, 2.2, 2.0)   # коробка столкновения буханки: длина (вдоль хода), высота, ширина
+const VAN_HIT := 0.25                 # запас к касанию: буханка — твёрдое тело и толкает гонщика носом, вплотную не подходит
 
 ## Случайные ситуации: t — сколько длится, w — вес выбора, need — только при такой погоде
 const HAPPENINGS := {
@@ -280,7 +282,7 @@ func _build(h: Dictionary) -> void:
 			body.sync_to_physics = false
 			var cs := CollisionShape3D.new()
 			var bs := BoxShape3D.new()
-			bs.size = Vector3(4.4, 2.2, 2.0)
+			bs.size = VAN
 			cs.shape = bs
 			cs.position.y = 1.1
 			body.add_child(cs)
@@ -367,8 +369,14 @@ func _run(h: Dictionary, dt: float) -> void:
 			xf.origin = (h["from"] as Vector3).lerp(h["to"], u)
 			body.global_transform = xf
 			if race.authority:
+				# касание — по коробке машины в её осях (x — вдоль хода), а не по расстоянию до центра: машина толкает
+				# гонщика перед собой и держит его на полдлины + радиус, так что «ближе 2,6 м» могло не наступить никогда
+				var rad := float(RaceData.PHYS["radius"]) + VAN_HIT
+				var inv := xf.affine_inverse()
 				for r in race.riders:
-					if (r.global_position - xf.origin).length() < 2.6 and not (h["hit"] as Dictionary).has(r.slot):
+					var lp: Vector3 = inv * r.global_position
+					var touch := absf(lp.x) < VAN.x * 0.5 + rad and absf(lp.z) < VAN.z * 0.5 + rad and lp.y > -rad * 2.0 and lp.y < VAN.y + rad
+					if touch and not (h["hit"] as Dictionary).has(r.slot):
 						(h["hit"] as Dictionary)[r.slot] = true
 						r.speed *= 0.4
 						r.side_v += right * 6.0
